@@ -28,6 +28,13 @@ public interface ICombatOutcomes
     void HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId);
 
     /// <summary>
+    /// A heal restored <paramref name="restored" /> health, more than 0, to a living <paramref name="target" />
+    /// (#506): sent to the healer, the target, and everyone within the interest radius of the target, marked
+    /// Crit for a critical heal.
+    /// </summary>
+    void UnitHealed(IUnit healer, IUnit target, uint restored, AbilityId? abilityId, HitResult result);
+
+    /// <summary>
     /// How the hit whose creature script is running now went (#506), set by the combat service for exactly
     /// the length of that script's OnHit: the hit the script broadcasts through
     /// <c>ISimulationContext.BroadcastUnitHit</c> is marked with it. None outside a hit.

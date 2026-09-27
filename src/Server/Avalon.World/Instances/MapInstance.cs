@@ -1058,6 +1058,29 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
+    /// <summary>
+    /// A heal that restored health (#506), to everyone who hears it (#532): the healer, the target, and whoever
+    /// stands within the interest radius of the target. Only for a target in this instance, as a hit is.
+    /// </summary>
+    void ICombatOutcomes.UnitHealed(IUnit healer, IUnit target, uint restored, AbilityId? abilityId, HitResult result)
+    {
+        if (!_characters.ContainsKey(target.Guid) && !_creatures.ContainsKey(target.Guid))
+        {
+            return;
+        }
+
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, healer.Guid, target.Guid, target.Position, null))
+            {
+                continue;
+            }
+
+            connection.Send(SUnitHealedPacket.Create(healer.Guid.RawValue, target.Guid.RawValue, restored,
+                target.CurrentHealth, abilityId?.Value, result, connection.CryptoSession.Encrypt));
+        }
+    }
+
     void ICombatOutcomes.CreatureKilled(ICreature creature, IUnit killer)
     {
         if (!_creatures.ContainsKey(creature.Guid))
