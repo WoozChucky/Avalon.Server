@@ -52,6 +52,37 @@ public class ClientDistributionController : BaseController
         return Ok(await _service.ListReleasesAsync(caller, Math.Clamp(limit, 1, MaxReleases), ct));
     }
 
+    /// <summary>
+    /// The public changelog, newest first: server and launcher releases for everyone, game client builds
+    /// for the channels the caller may use (homelab spec 2026-09-27-avalon-changelog-design §7). Page with
+    /// <paramref name="before" /> and <paramref name="beforeId" />: the last entry's <c>publishedAt</c> and
+    /// <c>id</c> on the previous page.
+    /// </summary>
+    [HttpGet("changelog", Name = "ListClientChangelog")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(IReadOnlyList<ChangelogEntryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> Changelog([FromQuery] string? product = null, [FromQuery] string? channel = null,
+        [FromQuery] int limit = 20, [FromQuery] DateTimeOffset? before = null, [FromQuery] string? beforeId = null,
+        CancellationToken ct = default)
+    {
+        if (product is not (null or "server" or "client" or "launcher"))
+            return BadRequest();
+        Channel? parsed = null;
+        if (channel is not null)
+        {
+            // Only game client builds have channels.
+            if (product != "client" || !ChannelNames.TryParse(channel, out Channel c))
+                return BadRequest();
+            parsed = c;
+        }
+
+        AccountAccessLevel? caller = User.Identity?.IsAuthenticated == true ? User.AccessLevel() : null;
+        var query = new ChangelogQuery(product, parsed, Math.Clamp(limit, 1, MaxReleases), before, beforeId);
+        return Ok(await _service.ListChangelogAsync(caller, query, ct));
+    }
+
     /// <summary>The channels the caller may use, each with its current build.</summary>
     [HttpGet("channels", Name = "ListClientChannels")]
     [Authorize(Policy = AvalonRoles.Player)]

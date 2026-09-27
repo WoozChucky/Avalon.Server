@@ -82,6 +82,32 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
         return found;
     }
 
+    public async Task<IReadOnlyList<StoredObject>> ListChangelogAsync(string prefix, CancellationToken ct)
+    {
+        var found = new List<StoredObject>();
+        var request = new ListObjectsV2Request { BucketName = _bucket, Prefix = prefix };
+        ListObjectsV2Response response;
+        do
+        {
+            response = await Guarded(() => _reader.ListObjectsV2Async(request, ct));
+            foreach (S3Object obj in response.S3Objects ?? [])
+            {
+                if (obj.Key.EndsWith(".json", StringComparison.Ordinal))
+                    found.Add(new StoredObject(obj.Key, new DateTimeOffset(obj.LastModified ?? DateTime.UnixEpoch, TimeSpan.Zero)));
+            }
+
+            request.ContinuationToken = response.NextContinuationToken;
+        } while (response.IsTruncated == true);
+
+        return found;
+    }
+
+    public async Task<ChangelogEntryDto?> GetChangelogEntryAsync(string key, CancellationToken ct)
+    {
+        string? json = await ReadAsync(key, ct);
+        return json is null ? null : ParseChangelog(json);
+    }
+
     public async Task<LauncherRelease?> GetLauncherAsync(CancellationToken ct)
     {
         string? json = await ReadAsync("launcher/latest.json", ct);
@@ -115,6 +141,38 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
             throw new DistributionUnavailableException("A published manifest has a schema this server does not understand.");
         return doc;
     }
+
+    /// <summary>
+    /// A changelog entry, or null when it is not one this API understands (bad JSON, another schema, a
+    /// required field missing): one unreadable entry is left out of the feed rather than failing it.
+    /// </summary>
+    public static ChangelogEntryDto? ParseChangelog(string json)
+    {
+        RawChangelogEntry? raw;
+        try
+        {
+            raw = JsonSerializer.Deserialize<RawChangelogEntry>(json, Json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        if (raw is not { Schema: 1, Product: { } product, Version: { } version, PublishedAt: { } publishedAt, Items: { } items })
+            return null;
+        // The website renders these: whole items only, and links only when they are absolute https.
+        var kept = items
+            .Where(i => i is { Kind: not null, Text: not null })
+            .Select(i => i with { PrUrl = Https(i.PrUrl) })
+            .ToList();
+        return new ChangelogEntryDto(product, raw.Channel, version, raw.Build, publishedAt, Https(raw.ReleaseUrl), kept);
+    }
+
+    private static Uri? Https(Uri? url) => url is { IsAbsoluteUri: true, Scheme: "https" } ? url : null;
+
+    // The stored shape (spec §4); its commit is only for the next release's range, not for the website.
+    private sealed record RawChangelogEntry(int Schema, string? Product, string? Channel, string? Version, string? Build,
+        DateTimeOffset? PublishedAt, Uri? ReleaseUrl, List<ChangelogItemDto>? Items);
 
     /// <summary><c>launcher/latest.json</c>: Tauri's static updater format plus an <c>installer</c> block.</summary>
     public static LauncherRelease ParseLauncher(string json)

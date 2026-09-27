@@ -123,4 +123,68 @@ public class S3DistributionStoreShould
         await Assert.ThrowsAsync<DistributionUnavailableException>(() =>
             store.GetPointerAsync(Channel.Live, CancellationToken.None));
     }
+
+    // ---- Changelog entries (homelab spec 2026-09-27-avalon-changelog-design §4) ----
+
+    [Fact]
+    public void Read_a_changelog_entry_without_its_commit()
+    {
+        const string json = """
+            {"schema":1,"product":"server","channel":null,"version":"0.6.0","build":null,"commit":"35ab8b1f",
+             "publishedAt":"2026-09-27T14:38:05Z","releaseUrl":"https://github.com/WoozChucky/Avalon.Server/releases/tag/v0.6.0",
+             "items":[{"kind":"new","text":"Added browser sign-in to the launcher.","breaking":false,"pr":594,
+                       "prUrl":"https://github.com/WoozChucky/Avalon.Server/pull/594"}]}
+            """;
+
+        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(json);
+
+        Assert.NotNull(entry);
+        Assert.Equal("0.6.0", entry!.Version);
+        Assert.Equal(594, Assert.Single(entry.Items).Pr);
+        Assert.Equal(new DateTimeOffset(2026, 9, 27, 14, 38, 5, TimeSpan.Zero), entry.PublishedAt);
+        Assert.Equal("https://github.com/WoozChucky/Avalon.Server/releases/tag/v0.6.0", entry.ReleaseUrl!.ToString());
+    }
+
+    [Fact]
+    public void Read_a_private_repositorys_entry_without_links()
+    {
+        const string json = """
+            {"schema":1,"product":"client","channel":"ptr","version":"0.1.0","build":"0.1.0+7.811af65","commit":"811af65",
+             "publishedAt":"2026-09-27T19:44:32Z","releaseUrl":null,
+             "items":[{"kind":"new","text":"Game client builds now list their changes as patch notes.","breaking":false}]}
+            """;
+
+        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(json);
+
+        Assert.Equal("ptr", entry!.Channel);
+        Assert.Null(entry.ReleaseUrl);
+        Assert.Null(Assert.Single(entry.Items).Pr);
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("""{"schema":2,"product":"server","version":"1","publishedAt":"2026-09-27T14:38:05Z","items":[]}""")]
+    [InlineData("""{"schema":1,"product":"server"}""")]
+    public void Skip_an_entry_it_cannot_read(string json)
+    {
+        Assert.Null(S3DistributionStore.ParseChangelog(json));
+    }
+
+    [Fact]
+    public void Keep_only_https_links_and_whole_items()
+    {
+        const string json = """
+            {"schema":1,"product":"server","version":"0.6.0","publishedAt":"2026-09-27T14:38:05Z",
+             "releaseUrl":"javascript:alert(1)",
+             "items":[null,{"kind":"fixed"},{"kind":"new","text":"Added a thing.","breaking":false,"prUrl":"/relative"},
+                      {"kind":"fixed","text":"Fixed a thing.","breaking":false,"pr":1,"prUrl":"https://github.com/o/r/pull/1"}]}
+            """;
+
+        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(json);
+
+        Assert.Null(entry!.ReleaseUrl);
+        Assert.Equal(["Added a thing.", "Fixed a thing."], entry.Items.Select(i => i.Text));
+        Assert.Null(entry.Items[0].PrUrl);
+        Assert.Equal("https://github.com/o/r/pull/1", entry.Items[1].PrUrl!.ToString());
+    }
 }

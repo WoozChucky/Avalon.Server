@@ -17,6 +17,12 @@ public interface IDistributionStore
 
     Task<LauncherRelease?> GetLauncherAsync(CancellationToken ct);
 
+    /// <summary>The changelog entries under <paramref name="prefix" /> (<c>changelog/…/*.json</c>), any order.</summary>
+    Task<IReadOnlyList<StoredObject>> ListChangelogAsync(string prefix, CancellationToken ct);
+
+    /// <summary>The entry at <paramref name="key" />, or null when it is missing or cannot be read.</summary>
+    Task<ChangelogEntryDto?> GetChangelogEntryAsync(string key, CancellationToken ct);
+
     /// <summary>A GET URL for <paramref name="objectKey" /> on the public host, valid for <paramref name="ttl" />.</summary>
     Uri Presign(string objectKey, TimeSpan ttl);
 }

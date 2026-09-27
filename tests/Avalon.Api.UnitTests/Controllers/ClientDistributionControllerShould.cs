@@ -105,4 +105,53 @@ public class ClientDistributionControllerShould
         Assert.True(json.RootElement.TryGetProperty("pub_date", out _));
         Assert.Equal("tsig", json.RootElement.GetProperty("platforms").GetProperty("windows-x86_64").GetProperty("signature").GetString());
     }
+
+    // ---- GET /client/changelog ----
+
+    private void ChangelogEntries(string prefix, int count, string product, string? channel)
+    {
+        foreach (string p in new[] { "changelog/server/", "changelog/launcher/", "changelog/client/live/", "changelog/client/ptr/", "changelog/client/dev/" })
+            _store.ListChangelogAsync(p, Arg.Any<CancellationToken>()).Returns(new List<StoredObject>());
+        var objects = new List<StoredObject>();
+        for (int n = 0; n < count; n++)
+        {
+            var entry = new ChangelogEntryDto(product, channel, $"0.{n}.0", null, T0.AddMinutes(n), null,
+                [new ChangelogItemDto("fixed", $"Fixed thing {n}.", false, null, null)]);
+            string key = $"{prefix}0.{n}.0.json";
+            objects.Add(new StoredObject(key, entry.PublishedAt));
+            _store.GetChangelogEntryAsync(key, Arg.Any<CancellationToken>()).Returns(entry);
+        }
+
+        _store.ListChangelogAsync(prefix, Arg.Any<CancellationToken>()).Returns(objects);
+    }
+
+    [Fact]
+    public async Task Serve_the_changelog_to_anonymous_callers()
+    {
+        ChangelogEntries("changelog/server/", 2, "server", null);
+
+        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog(null, null, 20, null, null, CancellationToken.None));
+
+        Assert.Equal(["0.1.0", "0.0.0"], ((IReadOnlyList<ChangelogEntryDto>)result.Value!).Select(e => e.Version));
+    }
+
+    [Theory]
+    [InlineData("nightly", null)]   // no such product
+    [InlineData("client", "nightly")]  // no such channel
+    [InlineData("server", "ptr")]   // only the client has channels
+    [InlineData(null, "ptr")]       // a channel needs the client product
+    public async Task Refuse_an_unknown_product_or_channel(string? product, string? channel)
+    {
+        Assert.IsType<BadRequestResult>(await Sut().Changelog(product, channel, 20, null, null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Clamp_the_limit_to_fifty()
+    {
+        ChangelogEntries("changelog/server/", 60, "server", null);
+
+        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", null, 500, null, null, CancellationToken.None));
+
+        Assert.Equal(50, ((IReadOnlyList<ChangelogEntryDto>)result.Value!).Count);
+    }
 }
