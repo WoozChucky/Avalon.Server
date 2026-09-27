@@ -14,7 +14,7 @@ using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
-/// #532: a one-shot effect broadcast goes only to connections within Game:EffectBroadcastRadius of the
+/// #532: a one-shot effect broadcast goes only to connections within Game:InterestRadius of the
 /// effect on X/Z, or whose character is involved in it. The default radius is 60 m.
 /// </summary>
 public class EffectBroadcastRadiusShould
@@ -26,7 +26,7 @@ public class EffectBroadcastRadiusShould
     private static readonly Vector3 Far = new(500f, 0f, 500f);
 
     [Fact]
-    public void Default_the_radius_to_60() => Assert.Equal(60f, new GameConfiguration().EffectBroadcastRadius);
+    public void Default_the_radius_to_60() => Assert.Equal(60f, new GameConfiguration().InterestRadius);
 
     // ---- Each method: one watcher inside, one outside --------------------------------------------
 
@@ -305,7 +305,7 @@ public class EffectBroadcastRadiusShould
     [Fact]
     public void Use_the_configured_radius()
     {
-        using MapInstance instance = Build(new GameConfiguration { EffectBroadcastRadius = 5f });
+        using MapInstance instance = Build(new GameConfiguration { InterestRadius = 5f });
         Creature unit = AddCreature(instance, 1, Vector3.zero);
         MapInstanceClient at5 = JoinAt(instance, 10, new Vector3(3f, 0f, 4f));
         MapInstanceClient at6 = JoinAt(instance, 11, new Vector3(6f, 0f, 0f));
