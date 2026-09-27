@@ -35,8 +35,11 @@ public interface IRefreshTokenService
     Task<RefreshRotateResult> RotateLauncherAsync(string rawToken, RefreshCaller caller,
         CancellationToken cancellationToken = default);
     Task RevokeAsync(string rawToken, CancellationToken cancellationToken = default);
-    /// <summary>Revokes the whole family <paramref name="rawToken"/> belongs to: signing a launcher out (#591).</summary>
-    Task RevokeFamilyAsync(string rawToken, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Signs a launcher out (#591): revokes the whole launcher session <paramref name="rawToken"/> belongs to.
+    /// A website token is left alone: each client's session is ended only by that client.
+    /// </summary>
+    Task RevokeLauncherSessionAsync(string rawToken, CancellationToken cancellationToken = default);
     Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }
 
@@ -210,11 +213,11 @@ public sealed class RefreshTokenService : IRefreshTokenService
         await _repository.UpdateAsync(row, cancellationToken);
     }
 
-    public async Task RevokeFamilyAsync(string rawToken, CancellationToken cancellationToken = default)
+    public async Task RevokeLauncherSessionAsync(string rawToken, CancellationToken cancellationToken = default)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
         var row = await _repository.FindByHashAsync(hash, cancellationToken);
-        if (row is null) return;
+        if (row is not { Client: SessionClient.Launcher }) return;
 
         await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
     }

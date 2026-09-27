@@ -85,15 +85,27 @@ public class RefreshTokenServiceShould
     }
 
     [Fact]
-    public async Task Revoke_the_whole_family_a_token_belongs_to()
+    public async Task Revoke_the_whole_launcher_session_a_token_belongs_to()
     {
         var family = Guid.NewGuid();
         _repo.FindByHashAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
             .Returns(new RefreshToken { AccountId = new AccountId(1L), FamilyId = family, Client = SessionClient.Launcher });
         var service = new RefreshTokenService(_repo, _random, TimeProvider.System);
 
-        await service.RevokeFamilyAsync("raw");
+        await service.RevokeLauncherSessionAsync("raw");
 
         await _repo.Received(1).RevokeFamilyAsync(family, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Leave_a_website_session_alone_when_its_token_is_presented_to_the_launcher_sign_out()
+    {
+        _repo.FindByHashAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(new RefreshToken { AccountId = new AccountId(1L), FamilyId = Guid.NewGuid(), Client = SessionClient.Web });
+        var service = new RefreshTokenService(_repo, _random, TimeProvider.System);
+
+        await service.RevokeLauncherSessionAsync("web-token");
+
+        await _repo.DidNotReceiveWithAnyArgs().RevokeFamilyAsync(default);
     }
 }

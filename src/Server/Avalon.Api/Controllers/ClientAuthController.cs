@@ -28,6 +28,12 @@ public sealed class ClientAuthController : BaseController
 {
     private const string InvalidGrant = "invalid_grant";
 
+    /// <summary>
+    /// A personal access token is for scripts, with roles of its own: it may not open a launcher session,
+    /// which would carry every role the account has and outlive the token (#591 review), nor list or end one.
+    /// </summary>
+    private bool CallerIsPat => User.HasClaim(c => c.Type == "pat_id");
+
     private readonly ILauncherAuthCodes _codes;
     private readonly IRefreshTokenService _refresh;
     private readonly IRefreshTokenRepository _refreshTokens;
@@ -62,12 +68,14 @@ public sealed class ClientAuthController : BaseController
     /// challenge and loopback port and to the account's current credentials version.
     /// </summary>
     [HttpPost("code", Name = "CreateLauncherCode")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [Authorize(Policy = AvalonRoles.Player)]
     [EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
     [ProducesResponseType(typeof(ClientAuthCodeResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Code([FromBody] ClientAuthCodeRequest request)
     {
+        if (CallerIsPat) return PatRefused();
         Account account = Account ?? throw new InvalidOperationException("Account not loaded");
         try
         {
@@ -89,7 +97,8 @@ public sealed class ClientAuthController : BaseController
     public async Task<IActionResult> Token([FromBody] ClientAuthTokenRequest request)
     {
         LauncherGrant? grant = await _codes.RedeemAsync(request.Code, request.Verifier);
-        if (grant is null) return InvalidGrantProblem();
+        // RFC 6749 §4.1.3: the exchange names the redirect the code was issued for.
+        if (grant is null || grant.RedirectPort != request.RedirectPort) return InvalidGrantProblem();
 
         Account? account = await _accounts.FindByIdAsync(grant.AccountId, track: false, CancellationToken);
         // A ban, or a password or email change since the code was issued, voids it.
@@ -167,16 +176,18 @@ public sealed class ClientAuthController : BaseController
     public async Task<IActionResult> Revoke([FromBody] ClientAuthRefreshRequest request)
     {
         if (!string.IsNullOrEmpty(request.RefreshToken))
-            await _refresh.RevokeFamilyAsync(request.RefreshToken, CancellationToken);
+            await _refresh.RevokeLauncherSessionAsync(request.RefreshToken, CancellationToken);
         return NoContent();
     }
 
     /// <summary>The signed-in account's launcher sessions, most recently used first.</summary>
     [HttpGet("sessions", Name = "ListLauncherSessions")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [Authorize(Policy = AvalonRoles.Player)]
     [ProducesResponseType(typeof(IReadOnlyList<LauncherSessionDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Sessions()
     {
+        if (CallerIsPat) return PatRefused();
         Account account = Account ?? throw new InvalidOperationException("Account not loaded");
         IReadOnlyList<LiveFamily> families = await _refreshTokens.ListLiveFamiliesAsync(account.Id, SessionClient.Launcher,
             DateTime.UtcNow, CancellationToken);
@@ -192,14 +203,16 @@ public sealed class ClientAuthController : BaseController
 
     /// <summary>Ends one of the signed-in account's launcher sessions. Another account's answers 404.</summary>
     [HttpDelete("sessions/{familyId:guid}", Name = "EndLauncherSession")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [Authorize(Policy = AvalonRoles.Player)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> EndSession(Guid familyId)
     {
+        if (CallerIsPat) return PatRefused();
         Account account = Account ?? throw new InvalidOperationException("Account not loaded");
         // Existence-hiding, as elsewhere: a session that is not the caller's is not found.
-        if (await _refreshTokens.FindFamilyOwnerAsync(familyId, CancellationToken) != account.Id) return NotFound();
+        if (await _refreshTokens.FindLauncherFamilyOwnerAsync(familyId, CancellationToken) != account.Id) return NotFound();
 
         await _refreshTokens.RevokeFamilyAsync(familyId, CancellationToken);
         return NoContent();
@@ -212,6 +225,11 @@ public sealed class ClientAuthController : BaseController
         RefreshToken = refreshToken,
         RefreshExpiresAt = new DateTimeOffset(DateTime.SpecifyKind(refreshExpiresAt, DateTimeKind.Utc)).ToUnixTimeSeconds(),
     };
+
+    private ObjectResult PatRefused() =>
+        Problem(title: "Not with a personal access token",
+            detail: "Sign in to the launcher from the website, not with a personal access token.",
+            statusCode: StatusCodes.Status403Forbidden);
 
     private ObjectResult InvalidGrantProblem() =>
         Problem(title: InvalidGrant, detail: "The sign-in code is not valid. Sign in again from the launcher.",

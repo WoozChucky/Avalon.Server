@@ -110,7 +110,7 @@ public class ClientAuthControllerShould
         _refresh.IssueLauncherAsync(new AccountId(7L), 3, "MOTHERSHIP", Arg.Any<CancellationToken>())
             .Returns(new RefreshIssueResult("refresh-1", refreshExpiry, Guid.NewGuid()));
 
-        IActionResult result = await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, DeviceName = "MOTHERSHIP" });
+        IActionResult result = await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, RedirectPort = 50000, DeviceName = "MOTHERSHIP" });
 
         var tokens = Assert.IsType<ClientAuthTokens>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal("jwt", tokens.AccessToken);
@@ -135,7 +135,7 @@ public class ClientAuthControllerShould
         _codes.RedeemAsync("the-code", Verifier).Returns(new LauncherGrant(new AccountId(7L), 3, 50000));
         AccountIs(MakeAccount(credentialsVersion: 4));
 
-        AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier }));
+        AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, RedirectPort = 50000 }));
         await _refresh.DidNotReceiveWithAnyArgs().IssueLauncherAsync(default, default, default);
     }
 
@@ -145,7 +145,7 @@ public class ClientAuthControllerShould
         _codes.RedeemAsync("the-code", Verifier).Returns(new LauncherGrant(new AccountId(7L), 3, 50000));
         AccountIs(MakeAccount(status: AccountStatus.Banned));
 
-        AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier }));
+        AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, RedirectPort = 50000 }));
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class ClientAuthControllerShould
         _refresh.IssueLauncherAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new AuthenticationException("Credentials changed"));
 
-        AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier }));
+        AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, RedirectPort = 50000 }));
     }
 
     [Fact]
@@ -224,7 +224,7 @@ public class ClientAuthControllerShould
         IActionResult result = await Sut().Revoke(new ClientAuthRefreshRequest { RefreshToken = "refresh-1" });
 
         Assert.IsType<NoContentResult>(result);
-        await _refresh.Received(1).RevokeFamilyAsync("refresh-1", Arg.Any<CancellationToken>());
+        await _refresh.Received(1).RevokeLauncherSessionAsync("refresh-1", Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -261,7 +261,7 @@ public class ClientAuthControllerShould
     public async Task End_a_launcher_session_of_the_caller()
     {
         var family = Guid.NewGuid();
-        _refreshRepository.FindFamilyOwnerAsync(family, Arg.Any<CancellationToken>()).Returns(new AccountId(7L));
+        _refreshRepository.FindLauncherFamilyOwnerAsync(family, Arg.Any<CancellationToken>()).Returns(new AccountId(7L));
 
         Assert.IsType<NoContentResult>(await Sut(MakeAccount()).EndSession(family));
         await _refreshRepository.Received(1).RevokeFamilyAsync(family, Arg.Any<CancellationToken>());
@@ -271,10 +271,47 @@ public class ClientAuthControllerShould
     public async Task Answer_404_for_a_session_that_is_not_the_callers()
     {
         var theirs = Guid.NewGuid();
-        _refreshRepository.FindFamilyOwnerAsync(theirs, Arg.Any<CancellationToken>()).Returns(new AccountId(8L));
+        _refreshRepository.FindLauncherFamilyOwnerAsync(theirs, Arg.Any<CancellationToken>()).Returns(new AccountId(8L));
 
         Assert.IsType<NotFoundResult>(await Sut(MakeAccount()).EndSession(theirs));
         Assert.IsType<NotFoundResult>(await Sut(MakeAccount()).EndSession(Guid.NewGuid()));
         await _refreshRepository.DidNotReceiveWithAnyArgs().RevokeFamilyAsync(default);
+    }
+
+    private void SignedInWithPersonalAccessToken() =>
+        _http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [new System.Security.Claims.Claim("pat_id", "9")], "Avalon"));
+
+    [Fact]
+    public async Task Refuse_a_code_to_a_personal_access_token()
+    {
+        // A token for scripts must not become a full-role launcher session that outlives it (#591 review).
+        SignedInWithPersonalAccessToken();
+
+        var result = Assert.IsType<ObjectResult>(await Sut(MakeAccount()).Code(new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000 }));
+
+        Assert.Equal(StatusCodes.Status403Forbidden, result.StatusCode);
+        await _codes.DidNotReceiveWithAnyArgs().IssueAsync(default, default, default!, default);
+    }
+
+    [Fact]
+    public async Task Refuse_the_session_list_and_ending_to_a_personal_access_token()
+    {
+        SignedInWithPersonalAccessToken();
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(await Sut(MakeAccount()).Sessions()).StatusCode);
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(await Sut(MakeAccount()).EndSession(Guid.NewGuid())).StatusCode);
+        await _refreshRepository.DidNotReceiveWithAnyArgs().RevokeFamilyAsync(default);
+    }
+
+    [Fact]
+    public async Task Refuse_a_code_exchanged_for_another_port()
+    {
+        // RFC 6749 4.1.3: the exchange names the redirect the code was issued for.
+        _codes.RedeemAsync("the-code", Verifier).Returns(new LauncherGrant(new AccountId(7L), 3, 50000));
+        AccountIs(MakeAccount());
+
+        AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, RedirectPort = 50001 }));
+        await _refresh.DidNotReceiveWithAnyArgs().IssueLauncherAsync(default, default, default);
     }
 }

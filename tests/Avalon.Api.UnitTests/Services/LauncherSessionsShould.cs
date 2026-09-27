@@ -86,13 +86,15 @@ public sealed class LauncherSessionsShould : IDisposable
     }
 
     [Fact]
-    public async Task Name_the_owner_of_a_family_and_nobody_for_an_unknown_one()
+    public async Task Name_the_owner_of_a_launcher_family_and_nobody_for_any_other()
     {
         AccountId me = await AccountAsync("ME");
         Guid family = await FamilyAsync(me, SessionClient.Launcher, "MOTHERSHIP", T0.AddDays(30), false, T0);
+        Guid website = await FamilyAsync(me, SessionClient.Web, null, T0.AddDays(30), false, T0);
         var repository = new RefreshTokenRepository(_database);
 
-        Assert.Equal(me, await repository.FindFamilyOwnerAsync(family));
-        Assert.Null(await repository.FindFamilyOwnerAsync(Guid.NewGuid()));
+        Assert.Equal(me, await repository.FindLauncherFamilyOwnerAsync(family));
+        Assert.Null(await repository.FindLauncherFamilyOwnerAsync(website)); // the website's session is not a launcher's to end
+        Assert.Null(await repository.FindLauncherFamilyOwnerAsync(Guid.NewGuid()));
     }
 }

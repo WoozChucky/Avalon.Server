@@ -21,6 +21,9 @@ public sealed class ClientAuthTokenRequest
     public string Code { get; set; } = string.Empty;
     public string Verifier { get; set; } = string.Empty;
 
+    /// <summary>The loopback port the code was issued for (RFC 6749 §4.1.3): another one voids the exchange.</summary>
+    public int RedirectPort { get; set; }
+
     /// <summary>What to call this computer in the account's list of launcher sessions.</summary>
     public string? DeviceName { get; set; }
 }
