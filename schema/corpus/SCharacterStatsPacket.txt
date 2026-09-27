@@ -1,0 +1,137 @@
+# SCharacterStatsPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SCharacterStatsPacket
+
+variant absent
+  field 1 Stamina : uint = 0
+  field 2 Strength : uint = 0
+  field 3 Agility : uint = 0
+  field 4 Intellect : uint = 0
+  field 5 Armor : uint = 0
+  field 6 AttackDamage : uint = 0
+  field 7 AbilityDamage : uint = 0
+  field 8 CritPct : float = 0 (0x00000000)
+  field 9 DodgePct : float = 0 (0x00000000)
+  field 10 BlockPct : float = 0 (0x00000000)
+  field 11 WeaponMin : uint = 0
+  field 12 WeaponMax : uint = 0
+  bytes 0
+
+variant empty
+  field 1 Stamina : uint = 0
+  field 2 Strength : uint = 0
+  field 3 Agility : uint = 0
+  field 4 Intellect : uint = 0
+  field 5 Armor : uint = 0
+  field 6 AttackDamage : uint = 0
+  field 7 AbilityDamage : uint = 0
+  field 8 CritPct : float = 0 (0x00000000)
+  field 9 DodgePct : float = 0 (0x00000000)
+  field 10 BlockPct : float = 0 (0x00000000)
+  field 11 WeaponMin : uint = 0
+  field 12 WeaponMax : uint = 0
+  bytes 0
+
+variant populated
+  field 1 Stamina : uint = 7
+  field 2 Strength : uint = 300
+  field 3 Agility : uint = 65535
+  field 4 Intellect : uint = 42
+  field 5 Armor : uint = 1000000
+  field 6 AttackDamage : uint = 300
+  field 7 AbilityDamage : uint = 1000000
+  field 8 CritPct : float = 0.100000001 (0x3dcccccd)
+  field 9 DodgePct : float = 1.5 (0x3fc00000)
+  field 10 BlockPct : float = 1.5 (0x3fc00000)
+  field 11 WeaponMin : uint = 1000000
+  field 12 WeaponMax : uint = 4000000000
+  bytes 47
+    08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 30
+    ac 02 38 c0 84 3d 45 cd cc cc 3d 4d 00 00 c0 3f
+    55 00 00 c0 3f 58 c0 84 3d 60 80 d0 ac f3 0e
+
+variant maxima
+  field 1 Stamina : uint = 4294967295
+  field 2 Strength : uint = 4294967295
+  field 3 Agility : uint = 4294967295
+  field 4 Intellect : uint = 4294967295
+  field 5 Armor : uint = 4294967295
+  field 6 AttackDamage : uint = 4294967295
+  field 7 AbilityDamage : uint = 4294967295
+  field 8 CritPct : float = 3.40282347E+38 (0x7f7fffff)
+  field 9 DodgePct : float = 3.40282347E+38 (0x7f7fffff)
+  field 10 BlockPct : float = 3.40282347E+38 (0x7f7fffff)
+  field 11 WeaponMin : uint = 4294967295
+  field 12 WeaponMax : uint = 4294967295
+  bytes 69
+    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
+    ff 0f 20 ff ff ff ff 0f 28 ff ff ff ff 0f 30 ff
+    ff ff ff 0f 38 ff ff ff ff 0f 45 ff ff 7f 7f 4d
+    ff ff 7f 7f 55 ff ff 7f 7f 58 ff ff ff ff 0f 60
+    ff ff ff ff 0f
+
+variant minima
+  field 1 Stamina : uint = 0
+  field 2 Strength : uint = 0
+  field 3 Agility : uint = 0
+  field 4 Intellect : uint = 0
+  field 5 Armor : uint = 0
+  field 6 AttackDamage : uint = 0
+  field 7 AbilityDamage : uint = 0
+  field 8 CritPct : float = -3.40282347E+38 (0xff7fffff)
+  field 9 DodgePct : float = -3.40282347E+38 (0xff7fffff)
+  field 10 BlockPct : float = -3.40282347E+38 (0xff7fffff)
+  field 11 WeaponMin : uint = 0
+  field 12 WeaponMax : uint = 0
+  bytes 15
+    45 ff ff 7f ff 4d ff ff 7f ff 55 ff ff 7f ff
+
+variant varint-edges
+  field 1 Stamina : uint = 2097152
+  field 2 Strength : uint = 2097152
+  field 3 Agility : uint = 268435456
+  field 4 Intellect : uint = 16383
+  field 5 Armor : uint = 268435456
+  field 6 AttackDamage : uint = 2097152
+  field 7 AbilityDamage : uint = 268435456
+  field 8 CritPct : float = 1.17549435E-38 (0x00800000)
+  field 9 DodgePct : float = 1.17549435E-38 (0x00800000)
+  field 10 BlockPct : float = 1.17549435E-38 (0x00800000)
+  field 11 WeaponMin : uint = 268435455
+  field 12 WeaponMax : uint = 127
+  bytes 58
+    08 80 80 80 01 10 80 80 80 01 18 80 80 80 80 01
+    20 ff 7f 28 80 80 80 80 01 30 80 80 80 01 38 80
+    80 80 80 01 45 00 00 80 00 4d 00 00 80 00 55 00
+    00 80 00 58 ff ff ff 7f 60 7f
+
+variant float-specials
+  field 1 Stamina : uint = 7
+  field 2 Strength : uint = 300
+  field 3 Agility : uint = 65535
+  field 4 Intellect : uint = 42
+  field 5 Armor : uint = 1000000
+  field 6 AttackDamage : uint = 300
+  field 7 AbilityDamage : uint = 1000000
+  field 8 CritPct : float = Infinity (0x7f800000)
+  field 9 DodgePct : float = -Infinity (0xff800000)
+  field 10 BlockPct : float = NaN (0x7fc00001)
+  field 11 WeaponMin : uint = 1000000
+  field 12 WeaponMax : uint = 4000000000
+  bytes 47
+    08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 30
+    ac 02 38 c0 84 3d 45 00 00 80 7f 4d 00 00 80 ff
+    55 01 00 c0 7f 58 c0 84 3d 60 80 d0 ac f3 0e

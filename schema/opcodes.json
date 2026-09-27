@@ -659,6 +659,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_CHARACTER_STATS",
+      "opcode": 12330,
+      "hex": "0x302A",
+      "message": "SCharacterStatsPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_MAP_TELEPORT",
       "opcode": 12336,
       "hex": "0x3030",
@@ -906,6 +915,15 @@
       "opcode": 12555,
       "hex": "0x310B",
       "message": "SPvpStatePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_UNIT_HEALED",
+      "opcode": 12556,
+      "hex": "0x310C",
+      "message": "SUnitHealedPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"
