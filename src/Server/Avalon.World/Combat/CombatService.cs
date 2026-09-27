@@ -99,8 +99,11 @@ public sealed class CombatService : ICombatService
             return;
         }
 
+        // A creature's script is handed at most the health it has left, so a script that subtracts
+        // the damage it is given cannot wrap its uint health past 0 (#588). Threat above still counts
+        // the whole hit.
         uint healthBefore = target.CurrentHealth;
-        target.OnHit(attacker, damage);
+        target.OnHit(attacker, target is ICreature ? Math.Min(damage, healthBefore) : damage);
         if (target is ICreature creature && healthBefore > 0 && creature.CurrentHealth == 0)
             _outcomes?.CreatureKilled(creature, attacker);
     }

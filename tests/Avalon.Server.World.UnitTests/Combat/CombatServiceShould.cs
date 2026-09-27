@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Avalon.World.Combat;
+using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
@@ -8,6 +9,8 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
+using Avalon.World.Scripts.Creatures;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -697,6 +700,112 @@ public class CombatServiceShould
         svc.ApplyDamage(attacker, target, 30);
 
         outcomes.DidNotReceiveWithAnyArgs().CharacterDamaged(default!, default!, default, default);
+    }
+
+    // ── #588: a hit larger than a creature's remaining health kills it; health never wraps ──
+
+    [Fact]
+    public void Kill_a_creature_once_when_a_hit_exceeds_its_remaining_health()
+    {
+        var (svc, _, ctx, outcomes) = BuildServiceWithOutcomes();
+        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
+        var attacker = StubCharacter(CharacterClass.Warrior);
+
+        svc.ApplyDamage(attacker, creature, 100);
+
+        Assert.Equal(0u, creature.CurrentHealth);
+        outcomes.Received(1).CreatureKilled(creature, attacker);
+        ctx.Received(1).BroadcastUnitDeath(creature, attacker);
+    }
+
+    [Fact]
+    public void Kill_a_creature_when_a_hit_equals_its_remaining_health()
+    {
+        var (svc, _, ctx, outcomes) = BuildServiceWithOutcomes();
+        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
+        var attacker = StubCharacter(CharacterClass.Warrior);
+
+        svc.ApplyDamage(attacker, creature, 30);
+
+        Assert.Equal(0u, creature.CurrentHealth);
+        outcomes.Received(1).CreatureKilled(creature, attacker);
+        ctx.Received(1).BroadcastUnitDeath(creature, attacker);
+    }
+
+    [Fact]
+    public void Leave_the_rest_of_a_creatures_health_after_a_smaller_hit()
+    {
+        var (svc, _, ctx, outcomes) = BuildServiceWithOutcomes();
+        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
+        var attacker = StubCharacter(CharacterClass.Warrior);
+
+        svc.ApplyDamage(attacker, creature, 12);
+
+        Assert.Equal(18u, creature.CurrentHealth);
+        ctx.Received(1).BroadcastUnitHit(attacker, creature, 18u, 12u);
+        outcomes.DidNotReceiveWithAnyArgs().CreatureKilled(default!, default!);
+        ctx.DidNotReceiveWithAnyArgs().BroadcastUnitDeath(default!, default!);
+    }
+
+    /// <summary>A creature walking home ignores hits, however large: it neither loses health nor dies.</summary>
+    [Fact]
+    public void Ignore_an_overkill_hit_on_a_returning_creature()
+    {
+        var (svc, _, ctx, outcomes) = BuildServiceWithOutcomes();
+        var (creature, script) = CreatureWithCombatScript(ctx, health: 30);
+        script.State = CreatureCombatScript.CombatState.Returning;
+
+        svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), creature, 100);
+
+        Assert.Equal(30u, creature.CurrentHealth);
+        outcomes.DidNotReceiveWithAnyArgs().CreatureKilled(default!, default!);
+    }
+
+    /// <summary>
+    /// The service hands a creature's script at most the health it has left, so a script that
+    /// subtracts the damage it is given cannot wrap health past 0 (ICreature.CurrentHealth is on the
+    /// modding API, and any script may write it).
+    /// </summary>
+    [Fact]
+    public void Hand_a_creatures_script_no_more_damage_than_its_remaining_health()
+    {
+        var (svc, _, _, _) = BuildServiceWithOutcomes();
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var target   = StubCreature();
+        target.CurrentHealth.Returns(30u);
+
+        svc.ApplyDamage(attacker, target, 100);
+
+        target.Received(1).OnHit(attacker, 30u);
+    }
+
+    /// <summary>The script clamps on its own too, for a hit that does not come through the service.</summary>
+    [Fact]
+    public void Kill_a_creature_whose_script_is_hit_directly_for_more_than_its_health()
+    {
+        var ctx = Substitute.For<ISimulationContext>();
+        var (creature, script) = CreatureWithCombatScript(ctx, health: 30);
+
+        script.OnHit(StubCharacter(CharacterClass.Warrior), 100);
+
+        Assert.Equal(0u, creature.CurrentHealth);
+        ctx.DidNotReceiveWithAnyArgs().BroadcastUnitHit(default!, default!, default, default);
+    }
+
+    private static (Creature, CreatureCombatScript) CreatureWithCombatScript(ISimulationContext ctx, uint health)
+    {
+        ctx.MeleeSlots.Returns(Substitute.For<IMeleeSlots>());
+        var creature = new Creature
+        {
+            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 588),
+            Metadata      = Substitute.For<ICreatureMetadata>(),
+            Name          = "Wolf",
+            Health        = health,
+            CurrentHealth = health,
+        };
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx);
+        creature.Script = script;
+        return (creature, script);
     }
 
     private static (CombatService, EncounterRegistry, ISimulationContext, ICombatOutcomes) BuildServiceWithOutcomes()

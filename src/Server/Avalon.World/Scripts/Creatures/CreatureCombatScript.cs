@@ -142,8 +142,8 @@ public class CreatureCombatScript : AiScript
     {
         if (State is not CombatState.Returning)
         {
-            Creature.CurrentHealth -= damage;
-            if (Creature.CurrentHealth <= 0)
+            // Health is a uint: a hit of at least what is left kills, rather than wrapping (#588).
+            if (damage >= Creature.CurrentHealth)
             {
                 _logger.LogInformation("{Name} has died", Creature.Name);
                 Creature.CurrentHealth = 0;
@@ -158,6 +158,8 @@ public class CreatureCombatScript : AiScript
 
                 return;
             }
+
+            Creature.CurrentHealth -= damage;
 
             // A hit from a different unit switches target immediately, same as the top-threat
             // reconciliation in Update — release whatever slot was held on the old one first.
