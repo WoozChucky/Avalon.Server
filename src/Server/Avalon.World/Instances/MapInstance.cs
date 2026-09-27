@@ -886,8 +886,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <remarks>
     /// A map with either bound unset is unbanded and scales nothing. Both bounds are nullable on
     /// <c>MapTemplate</c>, and treating a missing one as 0 would wipe out every award on that map.
-    /// </remarks>
-    /// <remarks>
     /// Public rather than internal so the unit-test assembly can call it without an
     /// InternalsVisibleTo handshake — the same reasoning as ChunkLayoutSourceResolver's test ctor.
     /// </remarks>

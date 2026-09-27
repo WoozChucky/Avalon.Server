@@ -248,6 +248,7 @@ public class CombatServiceShould
         var (svc, reg) = BuildService();
         var healer = StubCharacter(CharacterClass.Healer);
         var ally   = StubCharacter(CharacterClass.Warrior);
+        ally.Health.Returns(300u); // room to restore, so the heal reaches the guard this test is named for
         var ab = Substitute.For<IAbility>();
         ab.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
 
@@ -262,6 +263,7 @@ public class CombatServiceShould
         var (svc, reg) = BuildService(initialThreatSeed: 0);
         var healer = StubCharacter(CharacterClass.Healer);
         var ally   = StubCharacter(CharacterClass.Warrior);
+        ally.Health.Returns(300u); // room to restore, so the heal reaches the guard this test is named for
         var hostile = StubCreature();
         var healAbility = Substitute.For<IAbility>();
         healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.0f });
