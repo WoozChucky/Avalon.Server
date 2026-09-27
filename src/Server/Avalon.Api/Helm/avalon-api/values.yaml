@@ -131,3 +131,14 @@ otel:
   serviceName: ""
   # Extra resource attributes, e.g. {deployment.environment: production}.
   resourceAttributes: {}
+
+# Game distribution (Garage/S3, see homelab docs/avalon.md). Empty endpoint: the /client endpoints
+# answer 503. publicUrl is the host presigned links point at; the key should be read-only. The
+# secret key goes in existingSecret as "distribution-secret-key", or in secretAccessKey below.
+distribution:
+  endpoint: ""
+  publicUrl: ""
+  bucket: avalon-dist
+  region: garage
+  accessKeyId: ""
+  secretAccessKey: ""

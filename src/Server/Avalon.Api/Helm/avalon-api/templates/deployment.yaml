@@ -70,6 +70,23 @@ spec:
                   name: {{ include "avalon-api.secretName" . }}
                   key: notification-private-key
                   optional: true
+            {{- with .Values.distribution.endpoint }}
+            - name: Application__Distribution__Endpoint
+              value: {{ . | quote }}
+            - name: Application__Distribution__PublicUrl
+              value: {{ $.Values.distribution.publicUrl | quote }}
+            - name: Application__Distribution__Bucket
+              value: {{ $.Values.distribution.bucket | quote }}
+            - name: Application__Distribution__Region
+              value: {{ $.Values.distribution.region | quote }}
+            - name: Application__Distribution__AccessKeyId
+              value: {{ $.Values.distribution.accessKeyId | quote }}
+            - name: Application__Distribution__SecretAccessKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" $ }}
+                  key: distribution-secret-key
+            {{- end }}
             - name: Application__Authentication__IssuerSigningKey
               valueFrom:
                 secretKeyRef:

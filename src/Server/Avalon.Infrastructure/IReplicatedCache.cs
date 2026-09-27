@@ -104,15 +104,23 @@ public class ReplicatedCache : IReplicatedCache
 
     public async Task ConnectAsync()
     {
-        _redis = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions
-        {
-            EndPoints = new EndPointCollection() { _configuration.Host },
-            AllowAdmin = true,
-            Password = _configuration.Password
-        });
+        _redis = await ConnectionMultiplexer.ConnectAsync(ConnectionOptions(_configuration));
 
         _logger.LogInformation("Connected to Redis at {Host}", _configuration.Host);
     }
+
+    /// <summary>
+    /// The connection's options. IncludeDetailInExceptions is off: by default StackExchange.Redis
+    /// puts the command and the key name into its exception messages, those exceptions are logged,
+    /// and a key may carry a secret (#535).
+    /// </summary>
+    public static ConfigurationOptions ConnectionOptions(CacheConfiguration configuration) => new()
+    {
+        EndPoints = new EndPointCollection() { configuration.Host },
+        AllowAdmin = true,
+        Password = configuration.Password,
+        IncludeDetailInExceptions = false,
+    };
 
     public async Task DisconnectAsync()
     {

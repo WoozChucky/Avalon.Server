@@ -61,9 +61,10 @@ public static class CacheKeys
 
     /// <summary>
     /// One-time authentication token that maps a world entry key to the account ID attempting to join.
-    /// Value: account ID string. Expires after 5 minutes.
+    /// Value: account ID string. Expires after 5 minutes. Named by the key's SHA-256, not the key:
+    /// Redis exceptions carry key names, and a logged exception would otherwise log the key (#535).
     /// </summary>
-    public static string WorldKey(ushort worldId, string worldKeyBase64) => $"world:{worldId}:keys:{worldKeyBase64}";
+    public static string WorldKey(ushort worldId, string worldKeyBase64) => $"world:{worldId}:keys:{Digest(worldKeyBase64)}";
 
     /// <summary>
     /// Mutex key that prevents an account from holding more than one active world session concurrently.
@@ -144,9 +145,14 @@ public static class CacheKeys
     /// <summary>
     /// Reverse-lookup key for the MFA login flow.
     /// Maps a generated hash value back to the account ID it was issued for.
-    /// Value: account ID string. Same 2-minute TTL as the forward hash entry.
+    /// Value: account ID string. Same 2-minute TTL as the forward hash entry. Named by the hash's
+    /// SHA-256: the hash is what the client presents to finish its login (#535).
     /// </summary>
-    public static string MfaReverseHash(string hash) => $"auth:mfa:hash:{hash}";
+    public static string MfaReverseHash(string hash) => $"auth:mfa:hash:{Digest(hash)}";
+
+    /// <summary>The SHA-256 of a secret that names a key, so the key name never carries the secret.</summary>
+    private static string Digest(string secret) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(secret)));
 
     // ── Presence (live player observability) ──────────────────────────────────
 
