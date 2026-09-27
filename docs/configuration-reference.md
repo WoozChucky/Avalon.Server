@@ -6,20 +6,36 @@ This document covers all configuration keys for the Avalon server.
 
 ## Overview
 
-Avalon uses strongly-typed configuration classes bound from `appsettings.json` (or environment variables / secrets manager in production) via `IOptions<T>`. Configuration classes reside in `src/Shared/Avalon.Configuration`.
+Avalon uses strongly-typed configuration classes bound from `appsettings.json` (or environment variables / secrets manager in production). The TCP servers read them through `IOptions<T>`. The REST API binds most of its settings once, as one `ApplicationConfig` object under `Application`, and registers the parts as plain singletons; only the rows below marked `IOptions<T>` go through the options system there. The classes live next to the code that reads them: `src/Shared/Avalon.Configuration` holds the database and hosting ones, and the rest sit in their host or library project.
 
 ---
 
 ## Configuration Classes
 
-| Class                     | Namespace                    | Bound from                   |
-|---------------------------|------------------------------|------------------------------|
-| `DatabaseConfiguration`   | `Avalon.Configuration`       | `Database:*` (the REST API: `Database:Auth` and `Database:Worlds`) |
-| `CacheConfiguration`      | `Avalon.Configuration`       | `Cache:*`                    |
-| `AuthenticationConfig`    | `Avalon.Api.Config`          | `Application:Authentication:*` (REST API) |
-| `HostingConfiguration`    | `Avalon.Configuration`       | `Hosting:*`                  |
-| `AuthConfiguration`       | `Avalon.Server.Auth.Configuration` | `Application:*`        |
-| `GameConfiguration`       | `Avalon.World.Configuration` | `Game:*`                     |
+Hosts: **API** is `Avalon.Api`, **Auth** the auth server, **World** the world server.
+
+| Class                       | Namespace                          | Bound from | Hosts | Validated |
+|-----------------------------|------------------------------------|------------|-------|-----------|
+| `DatabaseConfiguration`     | `Avalon.Configuration`             | `Database` (`Database:Auth`, `Database:Characters`, `Database:World`, each with a `ConnectionString`) | API, Auth, World | At startup by `DatabaseConnectionsValidation`: Auth needs `Database:Auth`, World all three, the API `Database:Auth` only. See [Startup Validation](#startup-validation) |
+| _(no class)_                | `Avalon.Api.Worlds`                | `Database:Worlds:<id>:World` and `Database:Worlds:<id>:Characters`, read by `WorldDatabaseSettings` | API | By hand in `ApiStartup`, right after the options. See [REST API Worlds](#rest-api-worlds) |
+| `CacheConfiguration`        | `Avalon.Infrastructure.Configuration` | `Cache` (Auth, World); `Application:Cache` (API) | API, Auth, World | `ValidateOnStart` (`Host` required) in all three |
+| `HostingConfiguration`      | `Avalon.Configuration`             | `Hosting` (with `Hosting:ProxyProtocol` and `Hosting:Telemetry`) | Auth, World | `ValidateOnStart` on its own properties. The nested `ProxyProtocol` is not annotation-checked: a trusted network that is not valid CIDR throws when the TCP server is built |
+| `HostingSecurity`           | `Avalon.Server.Auth.Configuration` | `Hosting:Security` | Auth | `ValidateOnStart` (`CertificatePath` required) |
+| `AuthConfiguration`         | `Avalon.Server.Auth.Configuration` | `Application` | Auth | `ValidateOnStart` |
+| `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
+| `RegenConfiguration`        | `Avalon.World.Configuration`       | `Regen` | World | `ValidateOnStart` |
+| `ApplicationConfig`         | `Avalon.Api.Config`                | `Application` | API | Not as a whole; its sections below |
+| `AuthenticationConfig`      | `Avalon.Api.Config`                | `Application:Authentication` | API | By hand in `ServiceRegistration`: the signing key (`JwtSigningKey.Create`), the login limits (`LoginLimitsValidation.Validate`), the account-creation cap and the email-change send caps |
+| `ForwardedHeadersConfig`    | `Avalon.Api.Config`                | `Application:ForwardedHeaders` | API | By hand in `ServiceRegistration` (`ForwardedHeadersSetup.BuildOptions`) |
+| `EmailConfig`               | `Avalon.Api.Config`                | `Application:Email` | API | By hand in `AddEmail` |
+| `RateLimitingConfig`        | `Avalon.Api.Config`                | `Application:RateLimiting`, as `IOptions<RateLimitingConfig>` only | API | `ValidateOnStart` (each limit at least 1) |
+| `MapAssetConfig`            | `Avalon.Api.Config`                | `Application:MapAssets`, as `IOptions<MapAssetConfig>` | API | Not validated |
+| `NotificationConfig`        | `Avalon.Api.Config`                | `Application:Notification` | API | Not validated |
+| `EnvironmentConfig`         | `Avalon.Api.Config`                | `Application:Environment` | API | Not validated |
+| `DistributionConfiguration` | `Avalon.Api.Distribution`          | `Application:Distribution` | API | Not validated; left incomplete, the `/client` endpoints answer 503 |
+
+The API's `Cache` settings are therefore under `Application:Cache` (`Application__Cache__Host`), not `Cache`,
+while its database settings are under the top-level `Database`, as on the servers.
 
 ---
 
@@ -70,7 +86,7 @@ the API's `Application:Authentication` values of the same names must match these
 
 ## Hosting Configuration (`HostingConfiguration`)
 
-Section in `appsettings.json`: `"Hosting"`
+Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 
 | Key                     | Type   | Default  | Description                                             |
 |-------------------------|--------|----------|---------------------------------------------------------|
@@ -103,7 +119,7 @@ Section in `appsettings.json`: `"Hosting"`
 
 ## Cache Configuration (`CacheConfiguration`)
 
-Section in `appsettings.json`: `"Cache"`
+Section in `appsettings.json`: `"Cache"` (auth and world servers), `"Application:Cache"` (REST API)
 
 | Key        | Type   | Description                           |
 |------------|--------|---------------------------------------|
