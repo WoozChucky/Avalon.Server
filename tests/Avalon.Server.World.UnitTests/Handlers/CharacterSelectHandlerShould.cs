@@ -64,7 +64,8 @@ public class CharacterSelectHandlerShould
         IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
         int storedHealth = 0,
         IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null,
-        int storedPower = 0)
+        int storedPower = 0,
+        GameConfiguration? game = null)
     {
         var row = new Character
         {
@@ -113,7 +114,7 @@ public class CharacterSelectHandlerShould
         StaticData staticData = await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates);
 
         IWorld world = Substitute.For<IWorld>();
-        world.Configuration.Returns(new GameConfiguration());   // the select reads Game:FuryDecayPerSecond (#526)
+        world.Configuration.Returns(game ?? new GameConfiguration());   // the select reads Game:FuryDecayPerSecond (#526)
         world.InstanceRegistry.Returns(registry);
         world.MapTemplates.Returns(new List<MapTemplate>
         {
@@ -461,6 +462,21 @@ public class CharacterSelectHandlerShould
         Assert.Equal(100u, entity.Power);
         Assert.Equal(0u, entity.CurrentPower);
         Assert.Equal(150u, entity.CurrentHealth);
+    }
+
+    /// <summary>#526: Game:FuryDecayPerSecond reaches the character select builds: at 30, a second out of combat loses 30.</summary>
+    [Fact]
+    public async Task Build_the_character_with_the_configured_fury_decay()
+    {
+        Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100,
+            game: new GameConfiguration { FuryDecayPerSecond = 30f });
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
+        entity.CurrentPower = 50;
+        entity.Update(TimeSpan.FromSeconds(1));
+        Assert.Equal(20u, entity.CurrentPower);
     }
 
     /// <summary>

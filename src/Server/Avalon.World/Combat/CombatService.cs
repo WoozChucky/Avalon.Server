@@ -130,10 +130,17 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             character.OnHit(attacker, damage, abilityId);
             if (!wasDead)
             {
-                // #526: a Fury character gains a share of the health it lost, from any source. A hit that
-                // kills it gains nothing: GainPower refuses the dead, and death empties Fury anyway.
+                // #526: a Fury character gains a share of the health it lost, from any source: what OnHit
+                // actually took, not the damage it was handed, so it stays right once armour reduces a hit
+                // (#506). A hit that kills it gains nothing: GainPower refuses the dead, and death empties
+                // Fury anyway.
                 if (character.PowerType == PowerType.Fury)
-                    character.GainPower(Fury.FromDamageTaken(damage, characterHealthBefore, character.Health, _furyFromDamageTaken));
+                {
+                    uint lost = characterHealthBefore > character.CurrentHealth
+                        ? characterHealthBefore - character.CurrentHealth
+                        : 0u;
+                    character.GainPower(Fury.FromDamageTaken(lost, characterHealthBefore, character.Health, _furyFromDamageTaken));
+                }
 
                 _outcomes?.CharacterDamaged(character, attacker, damage, abilityId);
             }

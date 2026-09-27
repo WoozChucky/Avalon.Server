@@ -29,8 +29,9 @@ internal static class TestMapInstances
     /// finds the three shape scripts, and any <paramref name="extraScripts" />, by name, and the
     /// navigator lets every ray through.
     /// </summary>
+    /// <param name="world">The world the instance belongs to; <see cref="MapInstanceClients.NewWorld" /> when omitted.</param>
     public static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal,
-        params Type[] extraScripts)
+        IWorld? world = null, params Type[] extraScripts)
     {
         var scripts = Substitute.For<IScriptManager>();
         foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) }
@@ -41,7 +42,7 @@ internal static class TestMapInstances
 
         var navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
-        IWorld world = MapInstanceClients.NewWorld();
+        world ??= MapInstanceClients.NewWorld();
         MapInstance instance = Build(world, scripts, navigator, mapType: mapType);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
         handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());

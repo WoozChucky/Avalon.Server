@@ -116,8 +116,14 @@ public class CharacterEntity : ICharacter
 
         if (PowerType == PowerType.Fury)
         {
-            CurrentPower = current == CurrentValues.EnterWorld ? 0u : Math.Min(CurrentPower ?? 0, stats.MaxPower);
-            _furyDecayRemainder = 0d;
+            // The fraction of decay owed is forgotten only when Fury is set: entering the world, or a cap
+            // that lowers it. A gear change that leaves it alone must not, or swapping gear quickly
+            // enough would stop the decay.
+            uint fury = CurrentPower ?? 0;
+            uint kept = current == CurrentValues.EnterWorld ? 0u : Math.Min(fury, stats.MaxPower);
+            if (current == CurrentValues.EnterWorld || kept != fury)
+                _furyDecayRemainder = 0d;
+            CurrentPower = kept;
         }
         else if (current == CurrentValues.KeepShare)
         {

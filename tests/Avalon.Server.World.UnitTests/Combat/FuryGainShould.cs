@@ -8,7 +8,9 @@ using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Instances;
+using Avalon.World;
 using Avalon.World.Combat;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -226,6 +228,20 @@ public class FuryGainShould
 
         Assert.Equal(90u, warrior.Character.CurrentHealth);
         Assert.Equal(5u, warrior.Character.CurrentPower);
+    }
+
+    /// <summary>Game:FuryFromDamageTaken reaches the instance's combat service: at 20, a tenth of max health gives 2.</summary>
+    [Fact]
+    public void Use_The_Configured_Share_For_Damage_Taken()
+    {
+        IWorld world = NewWorld();
+        world.Configuration.Returns(new GameConfiguration { FuryFromDamageTaken = 20f });
+        using MapInstance instance = TestMapInstances.Build(world);
+        MapInstanceClient warrior = Warrior(instance, 526_172);
+
+        instance.CombatService.ApplyDamage(Attacker(526_972), warrior.Character, 10);
+
+        Assert.Equal(2u, warrior.Character.CurrentPower);
     }
 
     [Fact]

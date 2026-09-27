@@ -3,6 +3,7 @@ using Avalon.Domain.Characters;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -93,6 +94,27 @@ public class FuryLifecycleShould
         Run(warrior, 11);
 
         Assert.Equal(50u, warrior.CurrentPower);
+    }
+
+    /// <summary>
+    /// A gear change is not a reason to forget the fraction owed: swapping gear between every tick
+    /// out of combat still loses the full rate over a second.
+    /// </summary>
+    [Fact]
+    public void Keep_Decaying_Through_Gear_Changes()
+    {
+        var clock = new FixedTimeProvider(Start);
+        CharacterEntity warrior = Character(clock, current: 50);
+        var stats = new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
+            Intellect: 0, Armor: 0, BlockPct: 0f, DodgePct: 0f, CritPct: 0f, AttackDamage: 0, AbilityDamage: 0);
+
+        for (int i = 0; i < 60; i++)
+        {
+            warrior.ApplyStats(stats, CurrentValues.KeepShare);
+            warrior.Update(Tick);
+        }
+
+        Assert.Equal(45u, warrior.CurrentPower);
     }
 
     [Fact]
