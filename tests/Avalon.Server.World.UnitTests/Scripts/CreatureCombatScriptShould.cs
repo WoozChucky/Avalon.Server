@@ -23,6 +23,31 @@ public class CreatureCombatScriptShould
     // backing whichever ICreatureLocomotion-flavoured context the current test built.
     private MeleeSlots? _meleeSlots;
 
+    /// <summary>
+    /// #546: the script used to subscribe to a static "character disconnected" event in its
+    /// constructor and never unsubscribe, so every combat script ever built stayed reachable for the
+    /// life of the process. Nothing but the caller holds one now.
+    /// </summary>
+    [Fact]
+    public void Become_Collectable_Once_Nothing_Holds_It()
+    {
+        WeakReference weak = BuildAndDrop();
+
+        for (int i = 0; i < 3; i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        Assert.False(weak.IsAlive, "a dropped CreatureCombatScript is still reachable, so it leaks");
+    }
+
+    /// <summary>Not inlined, so the script has no live slot in the caller's frame when it collects.</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static WeakReference BuildAndDrop() =>
+        new(new CreatureCombatScript(NullLoggerFactory.Instance, Substitute.For<ICreature>(),
+            Substitute.For<ISimulationContext>()));
+
     [Fact]
     public void Chase_By_Setting_A_Destination_Rather_Than_Moving_Itself()
     {

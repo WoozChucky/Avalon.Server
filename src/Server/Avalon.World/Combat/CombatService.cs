@@ -20,14 +20,17 @@ public sealed class CombatService : ICombatService
     private readonly EncounterRegistry   _registry;
     private readonly ISimulationContext? _context;
     private readonly PvpToggle?          _pvp;
+    private readonly ICombatOutcomes?    _outcomes;
 
+    /// <param name="outcomes">Where hits and kills are reported (#546): the instance this service belongs to.</param>
     public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null,
-        PvpToggle? pvp = null)
+        PvpToggle? pvp = null, ICombatOutcomes? outcomes = null)
     {
         _config   = config;
         _registry = registry;
         _context  = context;
         _pvp      = pvp;
+        _outcomes = outcomes;
     }
 
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability)
@@ -66,8 +69,7 @@ public sealed class CombatService : ICombatService
 
         // Damage application — IUnit.OnHit mutates HP / sets death flags. A character is also told
         // which ability hit it, or none for a swing (#521 item 8).
-        if (target is CharacterEntity character) character.OnHit(attacker, damage, abilityId);
-        else target.OnHit(attacker, damage);
+        Hit(attacker, target, damage, abilityId);
 
         // Combat tag — MarkCombat exists only on ICharacter (see ICharacter.cs). Apply to whichever
         // participants are characters; creature in-combat state is tracked through encounter membership.
@@ -76,8 +78,31 @@ public sealed class CombatService : ICombatService
 
         // Death detection (G1): if the OnHit above pushed the target to a lethal state, notify the
         // encounter and broadcast SUnitDeathPacket. ICharacter exposes IsDead explicitly; creatures
-        // signal death via CurrentHealth == 0 (their script sets it before raising Died()).
+        // signal death via CurrentHealth == 0 (their script sets it).
         NotifyDeathIfApplicable(enc, target, attacker);
+    }
+
+    /// <summary>
+    /// Applies the hit, then reports what it led to, to this service's own instance (#546). A living
+    /// character's damage is sent (a dead one's OnHit ignores the hit, and nothing is sent). A creature
+    /// its script brought from above 0 to 0 health is killed: once, here, before the caller's encounter
+    /// death and death broadcast.
+    /// </summary>
+    private void Hit(IUnit attacker, IUnit target, uint damage, AbilityId? abilityId)
+    {
+        if (target is CharacterEntity character)
+        {
+            bool wasDead = character.IsDead;
+            character.OnHit(attacker, damage, abilityId);
+            if (!wasDead)
+                _outcomes?.CharacterDamaged(character, attacker, damage, abilityId);
+            return;
+        }
+
+        uint healthBefore = target.CurrentHealth;
+        target.OnHit(attacker, damage);
+        if (target is ICreature creature && healthBefore > 0 && creature.CurrentHealth == 0)
+            _outcomes?.CreatureKilled(creature, attacker);
     }
 
     private void NotifyDeathIfApplicable(Encounter enc, IUnit target, IUnit attacker)

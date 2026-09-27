@@ -21,26 +21,13 @@ using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
-/// <summary>
-/// Runs on its own, never alongside another test class. <c>MapInstance</c> subscribes to static events
-/// on <see cref="Creature" /> and <see cref="CharacterEntity" />, and a test class raising one of them in
-/// parallel holds a snapshot of the invocation list while it runs, which can keep a just-disposed
-/// instance reachable for the length of that call, so the collection check below would fail on timing
-/// rather than on a leak.
-/// </summary>
-[CollectionDefinition(nameof(MapInstanceDisposalShould), DisableParallelization = true)]
-public sealed class MapInstanceDisposalCollection;
-
-[Collection(nameof(MapInstanceDisposalShould))]
 public class MapInstanceDisposalShould
 {
     /// <summary>
-    /// The leak this type's disposal exists to prevent. <c>MapInstance</c>'s constructor subscribes to
-    /// static events on <see cref="Creature" /> and <see cref="CharacterEntity" />, and a static event's
-    /// delegate holds a strong reference to its target — so an instance dropped by the registry stayed
-    /// a GC root and could never be collected, taking its navigator, chunk layout, combat services and
-    /// every entity dictionary with it. Measured before the fix: twenty instances created, twenty still
-    /// reachable after a full collection.
+    /// The leak disposal once existed to prevent: <c>MapInstance</c> used to subscribe to static events
+    /// on <see cref="Creature" /> and <see cref="CharacterEntity" />, and a static event's delegate holds
+    /// a strong reference to its target, so an instance dropped by the registry stayed a GC root. There
+    /// are no static events now (#546); this pins that nothing else roots a retired instance either.
     /// </summary>
     [Fact]
     public void Become_Collectable_Once_Disposed()
@@ -59,7 +46,7 @@ public class MapInstanceDisposalShould
     /// <summary>
     /// Kept in its own non-inlined method so the instance has no live local slot in the caller's frame
     /// by the time the collection runs — otherwise the test could pass or fail on JIT liveness rather
-    /// than on whether the static events were unsubscribed.
+    /// than on whether anything still holds the instance.
     /// </summary>
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static WeakReference BuildAndAbandon()
@@ -71,36 +58,60 @@ public class MapInstanceDisposalShould
     }
 
     /// <summary>
-    /// Disposal has to actually detach, not merely mark the instance dead: a retired instance that
-    /// still ran its handlers would keep mutating entities and broadcasting to connections it no
-    /// longer owns.
+    /// A retired instance hears nothing from a live one (#546): a hit, a kill and a cast broadcast in
+    /// another instance neither touch its creature nor reach its connection. When the handlers were
+    /// static events, a disposal that forgot to detach one left the retired instance reacting.
     /// </summary>
     [Fact]
-    public void Stop_Reacting_To_Entity_Events_Once_Disposed()
+    public void Receive_Nothing_From_Another_Instance_Once_Disposed()
     {
-        MapInstance instance = BuildInstance();
+        MapInstance retired = BuildInstance();
+        MapInstance live = BuildInstance();
 
-        var creature = new Creature
+        try
         {
-            Guid = new ObjectGuid(ObjectType.Creature, 991_001),
-            // Non-nullable on ICreature, and the death path reads BodyRemoveTimer off it to schedule
-            // corpse removal, so a creature without metadata is not a valid one to kill.
-            Metadata = Substitute.For<ICreatureMetadata>(),
-        };
-        instance.AddCreature(creature);
-        creature.Script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
+            var retiredCreature = new Creature
+            {
+                Guid = new ObjectGuid(ObjectType.Creature, 991_001),
+                Metadata = Substitute.For<ICreatureMetadata>(),
+            };
+            retired.AddCreature(retiredCreature);
+            retiredCreature.Script = new CreatureCombatScript(NullLoggerFactory.Instance, retiredCreature, retired);
+            IWorldConnection retiredConnection = SeatCharacter(retired, NewCharacter(991_002));
+            retired.Dispose();
 
-        instance.Dispose();
-        creature.Died(creature);
+            CharacterEntity wounded = NewCharacter(991_003);
+            SeatCharacter(live, wounded);
+            var liveCreature = new Creature
+            {
+                Guid = new ObjectGuid(ObjectType.Creature, 991_004),
+                Metadata = Substitute.For<ICreatureMetadata>(),
+                Health = 10,
+                CurrentHealth = 10,
+            };
+            live.AddCreature(liveCreature);
+            liveCreature.Script = new CreatureCombatScript(NullLoggerFactory.Instance, liveCreature, live);
 
-        Assert.NotNull(creature.Script);
+            var ability = Substitute.For<IAbility>();
+            ability.AbilityId.Returns(new AbilityId(1));
+
+            live.CombatService.ApplyDamage(liveCreature, wounded, 5);
+            live.CombatService.ApplyDamage(liveCreature, liveCreature, 10);
+            live.BroadcastFinishCast(wounded, ability);
+
+            Assert.Null(liveCreature.Script);
+            Assert.NotNull(retiredCreature.Script);
+            retiredConnection.DidNotReceiveWithAnyArgs().Send(default!);
+        }
+        finally
+        {
+            live.Dispose();
+        }
     }
 
     /// <summary>
-    /// <c>CharacterEntity.OnUnitDamaged</c> is a static event, so every live instance receives every
-    /// hit in the process. Only the instance the wounded character actually belongs to may broadcast
-    /// it — otherwise a player in one instance sees damage numbers from a fight in another. This was
-    /// the one handler of the nine that did not filter.
+    /// Only the instance the wounded character is in sends the hit, so a player in one instance never
+    /// sees damage numbers from a fight in another.
     /// </summary>
     [Fact]
     public void Broadcast_A_Hit_Only_From_The_Instance_The_Character_Is_In()
@@ -114,10 +125,10 @@ public class MapInstanceDisposalShould
             IWorldConnection ownConnection = SeatCharacter(owning, wounded);
             IWorldConnection otherConnection = SeatCharacter(bystander, NewCharacter(991_102));
 
-            wounded.OnHit(wounded, 10);
+            owning.CombatService.ApplyDamage(wounded, wounded, 10);
 
-            // Two sends, not one: OnCharacterSelfDamaged tells the wounded player directly and
-            // OnCharacterHit broadcasts the hit to the instance. Both belong to the owning instance.
+            // The wounded player is told directly and the hit is broadcast to the instance. Both
+            // belong to the owning instance.
             ownConnection.ReceivedWithAnyArgs().Send(default!);
             otherConnection.DidNotReceiveWithAnyArgs().Send(default!);
         }
@@ -130,8 +141,7 @@ public class MapInstanceDisposalShould
 
     /// <summary>
     /// A real <see cref="CharacterEntity" /> rather than a substitute, because the hit has to travel
-    /// the production route — <c>OnHit</c> raising the static <c>OnUnitDamaged</c> — for the guard
-    /// under test to be the thing that decides who broadcasts.
+    /// the production route — the combat service's hit on a real entity — to reach the instance.
     /// </summary>
     private static CharacterEntity NewCharacter(uint id)
     {
@@ -155,15 +165,10 @@ public class MapInstanceDisposalShould
     }
 
     /// <summary>
-    /// Disposing one instance must not silence the others. These events are static and shared, so
-    /// <c>-=</c> is doing the load-bearing work here: it removes only the delegate whose target is the
-    /// disposed instance, leaving every other subscriber's entry in the invocation list. Written
-    /// because the obvious "simplification" of <see cref="MapInstance.Dispose" /> — assigning the
-    /// event to <c>null</c>, or clearing it — would compile, would pass every other test in this file,
-    /// and would stop every surviving instance in the process from ever reacting to an entity again.
+    /// Disposing one instance must not silence the others: the survivor still handles a kill in it.
     /// </summary>
     [Fact]
-    public void Leave_Other_Instances_Subscribed_When_One_Is_Disposed()
+    public void Leave_Other_Instances_Working_When_One_Is_Disposed()
     {
         MapInstance disposed = BuildInstance();
         MapInstance survivor = BuildInstance();
@@ -176,16 +181,16 @@ public class MapInstanceDisposalShould
                 // Non-nullable on ICreature, and the death path reads BodyRemoveTimer off it to schedule
                 // corpse removal, so a creature without metadata is not a valid one to kill.
                 Metadata = Substitute.For<ICreatureMetadata>(),
+                Health = 10,
+                CurrentHealth = 10,
             };
             survivor.AddCreature(creature);
             creature.Script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, survivor);
 
             disposed.Dispose();
 
-            // The survivor owns this creature, so its OnCreatureKilled must still run and clear the
-            // script. If Dispose cleared the shared event rather than removing one delegate, nothing
-            // would run and the script would still be set.
-            creature.Died(creature);
+            // The survivor owns this creature, so its kill handling must still run and clear the script.
+            survivor.CombatService.ApplyDamage(creature, creature, 10);
 
             Assert.Null(creature.Script);
         }

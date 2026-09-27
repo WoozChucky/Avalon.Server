@@ -57,6 +57,26 @@ public interface ISimulationContext
     void BroadcastUnitStartCast(IUnit caster, IAbility ability);
 
     /// <summary>
+    /// Tells every client in the instance that <paramref name="attacker" /> swung, with
+    /// <paramref name="ability" />'s animation, or the plain melee one when it is null. Sent only for a
+    /// unit in this instance (#546): a unit's broadcasts go through its own instance.
+    /// </summary>
+    void BroadcastAttackAnimation(IUnit attacker, IAbility? ability);
+
+    /// <summary>
+    /// Tells every client in the instance that <paramref name="caster" /> finished casting
+    /// <paramref name="ability" />. Sent only for a unit in this instance (#546).
+    /// </summary>
+    void BroadcastFinishCast(IUnit caster, IAbility ability);
+
+    /// <summary>
+    /// Tells every client in the instance that <paramref name="caster" />'s cast of
+    /// <paramref name="ability" /> was interrupted, so its cast bar ends. Sent only for a unit in this
+    /// instance (#546).
+    /// </summary>
+    void BroadcastInterruptedCast(IUnit caster, IAbility ability);
+
+    /// <summary>
     /// Broadcasts a death event to all connections in the instance. Called by
     /// <see cref="ICombatService"/> when <see cref="ICombatService.ApplyDamage(IUnit,IUnit,uint,IAbility)"/>
     /// (or its raw-damage overload) brings <paramref name="unit"/> to 0 HP / dead state.

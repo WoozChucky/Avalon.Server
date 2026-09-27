@@ -73,7 +73,7 @@ OnEnteredRange(character)
 ```
 Time since last attack > AttackInterval ?
   YES
-  ├── Creature.SendAttackAnimation(null)  [melee]
+  ├── Context.BroadcastAttackAnimation(Creature, null)  [melee]
   └── target.TakeDamage(Creature, Creature.Metadata.AttackDamage)
   Update last attack time
 ```
@@ -93,11 +93,15 @@ Distance from InitialPosition > MaxChaseDistance:
 
 ## Death and Respawn
 
-### `MapInstance.OnCreatureKilled`
+### `MapInstance.CreatureKilled`
+
+World-side only (`ICombatOutcomes`, #546): the instance's `CombatService` calls it once, right after a
+hit brings a creature from above 0 to 0 health, and before the encounter hears of the death and the
+death is broadcast. Nothing on the modding API can report a kill.
 
 ```
 1. creature.Script = null
-   // Safe: OnCreatureKilled is invoked on the main world update thread.
+   // Safe: CreatureKilled is invoked on the main world update thread.
    // Creature.Script is only read in the same update pass (single-threaded loop).
 2. creatureRespawner.ScheduleRespawn(creature)
 3. Award XP to killer:
@@ -121,7 +125,7 @@ respawnTimer fires → context.RespawnCreature(creature) // Re-add to pool
 ## XP and Level-Up Flow
 
 ```
-OnCreatureKilled(creature, killer)
+CreatureKilled(creature, killer)
   ├── killer is ICharacter?
   │   YES
   │   ├── expRequirement = world.Data.CharacterLevelExperiences[character.Level]
@@ -167,7 +171,7 @@ Creature templates are stored in the `creature_templates` table with the followi
 | `ICreatureMetadata` exposes experience, respawn, and body-remove fields |
 | Killing creature with `Experience = 150` grants 150 XP     |
 | Level-up triggers when XP exceeds threshold               |
-| Thread-safety: `OnCreatureKilled` runs on main update thread |
+| Thread-safety: `CreatureKilled` runs on main update thread |
 | Respawn fires at `creature.Metadata.RespawnTimer`         |
 | Body removed at `creature.Metadata.BodyRemoveTimer`       |
 | Creature without spell → melee attack                     |

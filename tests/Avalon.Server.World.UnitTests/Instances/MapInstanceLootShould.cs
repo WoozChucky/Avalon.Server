@@ -28,7 +28,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// A real kill through a real MapInstance. The roller, allocator and placement each have their own
-/// tests; these pin the wiring, which is the only thing that fails if OnCreatureKilled stops
+/// tests; these pin the wiring, which is the only thing that fails if CreatureKilled stops
 /// calling them.
 /// </summary>
 public class MapInstanceLootShould
@@ -84,8 +84,48 @@ public class MapInstanceLootShould
             Experience = 50,
         };
         instance.AddCreature(creature);
-        creature.Died(killer ?? Substitute.For<IUnit>());
+        instance.ReportKill(creature, killer ?? Substitute.For<IUnit>());
         return creature;
+    }
+
+    /// <summary>
+    /// #546: a real hit that kills rolls the loot once, while the creature is still a hostile in its
+    /// encounter and before anyone is told it died.
+    /// </summary>
+    [Fact]
+    public async Task Roll_A_Real_Kills_Loot_Once_Before_The_Encounter_Death_And_The_Death_Broadcast()
+    {
+        var roller = Substitute.For<ILootRoller>();
+        using MapInstance instance = await Build(roller: roller);
+        MapInstanceClient killer = Join(instance, 460_111);
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 460_011),
+            Metadata = BoarTemplate(1),
+            Position = new Vector3(10f, 2f, 10f),
+            Health = 10,
+            CurrentHealth = 10,
+        };
+        instance.AddCreature(creature);
+        creature.Script = new Avalon.World.Scripts.Creatures.CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
+
+        bool? hostileAtRoll = null;
+        int deathsAtRoll = -1;
+        roller.Roll(Arg.Any<CreatureTemplate>(), Arg.Any<LootCatalog>(), Arg.Any<IReadOnlyCollection<ItemTemplate>>())
+            .Returns(_ =>
+            {
+                hostileAtRoll = instance.CombatService.GetEncounterFor(creature)?.Hostiles.Contains(creature);
+                deathsAtRoll = killer.Read<Avalon.Network.Packets.Combat.SUnitDeathPacket>(NetworkPacketType.SMSG_UNIT_DEATH).Count;
+                return [];
+            });
+
+        instance.CombatService.ApplyDamage(killer.Character, creature, 10);
+
+        roller.ReceivedWithAnyArgs(1).Roll(default!, default!, default!);
+        Assert.True(hostileAtRoll, "the encounter had already been told of the death when the loot was rolled");
+        Assert.Equal(0, deathsAtRoll);
+        Assert.Single(killer.Read<Avalon.Network.Packets.Combat.SUnitDeathPacket>(NetworkPacketType.SMSG_UNIT_DEATH));
+        Assert.Null(creature.Script);
     }
 
     [Fact]

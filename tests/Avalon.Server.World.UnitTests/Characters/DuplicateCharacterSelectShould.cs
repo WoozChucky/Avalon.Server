@@ -376,7 +376,7 @@ public class DuplicateCharacterSelectShould : IDisposable
     /// Online = false behind the new session.
     /// </summary>
     [Fact]
-    public async Task Release_the_kicked_character_and_still_queue_its_logout_save_when_leaving_its_instance_throws()
+    public async Task Release_the_kicked_character_and_still_queue_its_logout_save_when_a_script_throws_as_it_leaves()
     {
         var scheduler = Substitute.For<ICharacterSaveScheduler>();
         MapInstance town = Town(scheduler);
@@ -390,22 +390,16 @@ public class DuplicateCharacterSelectShould : IDisposable
         first.Character = live;
         town.AddCharacter(first);
 
-        // A disconnect hook that throws for this character, the way a creature script's could.
-        void Throw(ICharacter character)
+        // A creature script that throws as this character leaves its instance (#546).
+        var creature = new Creature
         {
-            if (ReferenceEquals(character, live))
-                throw new InvalidOperationException("simulated disconnect hook failure");
-        }
+            Guid = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 465_901),
+            Metadata = Substitute.For<Avalon.World.Public.Creatures.ICreatureMetadata>(),
+        };
+        creature.Script = new Avalon.Server.World.UnitTests.Scripts.ThrowOnLeaveScript(creature, town);
+        town.AddCreature(creature);
 
-        CharacterEntity.CharacterDisconnected += Throw;
-        try
-        {
-            select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
-        }
-        finally
-        {
-            CharacterEntity.CharacterDisconnected -= Throw;
-        }
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 
         Assert.Null(first.Character);
         Assert.DoesNotContain(live.Guid, town.Characters.Keys);
@@ -618,7 +612,6 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         var town = new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(1),
             ownerCharacterId: null, layout, Substitute.For<IMapNavigator>(), seed: 0);
-        town.Dispose();   // detach the static entity events; the test raises only its own
         return town;
     }
 

@@ -1,3 +1,4 @@
+using System.Reflection;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Entities;
@@ -113,47 +114,37 @@ public class CreatureShould
     }
 
     // ──────────────────────────────────────────────
-    // Died / OnCreatureKilled static event
+    // The modding API cannot raise a kill or a broadcast (#546)
     // ──────────────────────────────────────────────
 
+    /// <summary>
+    /// A kill grants loot and experience, so only the World-side combat service reports one. A
+    /// <c>Died</c> on <see cref="ICreature" />, part of the modding API, would let a mod grant both.
+    /// </summary>
     [Fact]
-    public void Died_FiresOnCreatureKilled_Event()
+    public void Offer_No_Way_To_Report_A_Kill_On_The_Modding_API()
     {
-        ICreature? capturedCreature = null;
-        IUnit? capturedKiller = null;
-
-        CreatureKilledDelegate handler = (c, k) =>
-        {
-            capturedCreature = c;
-            capturedKiller = k;
-        };
-
-        Creature.OnCreatureKilled += handler;
-        try
-        {
-            var creature = MakeCreature();
-            var killer = Substitute.For<IUnit>();
-            creature.Died(killer);
-
-            Assert.Same(creature, capturedCreature);
-            Assert.Same(killer, capturedKiller);
-        }
-        finally
-        {
-            Creature.OnCreatureKilled -= handler;
-        }
+        Assert.Null(typeof(ICreature).GetMethod("Died"));
+        Assert.Null(typeof(Creature).GetMethod("Died"));
     }
 
-    [Fact]
-    public void Died_DoesNotThrow_WhenNoHandlersSubscribed()
+    /// <summary>A unit's broadcasts go through its own instance, never through the unit.</summary>
+    [Theory]
+    [InlineData("SendAttackAnimation")]
+    [InlineData("SendFinishCastAnimation")]
+    [InlineData("SendInterruptedCastAnimation")]
+    public void Offer_No_Broadcast_On_The_Unit(string method)
     {
-        var creature = MakeCreature();
-        var killer = Substitute.For<IUnit>();
+        Assert.Null(typeof(IUnit).GetMethod(method));
+    }
 
-        // Ensure no handlers by doing nothing — static event may still have old subs from other tests
-        // but the call itself must not throw
-        var ex = Record.Exception(() => creature.Died(killer));
-        Assert.Null(ex);
+    /// <summary>No static event is left on either entity for an instance to subscribe to.</summary>
+    [Fact]
+    public void Declare_No_Static_Events()
+    {
+        const BindingFlags statics = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        Assert.Empty(typeof(Creature).GetEvents(statics));
+        Assert.Empty(typeof(CharacterEntity).GetEvents(statics));
     }
 
     // ──────────────────────────────────────────────
@@ -167,38 +158,6 @@ public class CreatureShould
         creature.Script = null;
 
         var ex = Record.Exception(() => creature.OnHit(Substitute.For<IUnit>(), 50u));
-        Assert.Null(ex);
-    }
-
-    // ──────────────────────────────────────────────
-    // SendAttackAnimation / animation event relay
-    // ──────────────────────────────────────────────
-
-    [Fact]
-    public void SendAttackAnimation_FiresEvent_WhenHandlerSubscribed()
-    {
-        bool fired = false;
-        Creature.OnUnitAttackAnimation += (_, _) => fired = true;
-        try
-        {
-            var creature = MakeCreature();
-            creature.SendAttackAnimation(null);
-            Assert.True(fired);
-        }
-        finally
-        {
-            // clean up the static delegate by releasing all handlers via reflection is complex;
-            // instead use a weak capture and leave the handler (it's a no-op)
-            Creature.OnUnitAttackAnimation -= (_, _) => fired = true;
-        }
-    }
-
-    [Fact]
-    public void SendAttackAnimation_DoesNotThrow_WhenNoHandlers()
-    {
-        // Isolated creature — if no handlers, this should be a no-op
-        var creature = MakeCreature();
-        var ex = Record.Exception(() => creature.SendAttackAnimation(Substitute.For<IAbility>()));
         Assert.Null(ex);
     }
 }

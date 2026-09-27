@@ -91,7 +91,7 @@ public class InstanceAbilityCastSystemContainmentShould
         _sut.RunInstant(caster, Aim, ability);
 
         AssertLoggedError(541_011, caster);
-        caster.Received(1).SendInterruptedCastAnimation(ability);
+        Assert.Single(_arena.InterruptsOf(caster), ability);
 
         // Nothing is left behind: the next cast fires.
         Assert.True(_sut.RunInstant(caster, Aim, Ability(541_012, nameof(RecordingAbilityScript))));
@@ -111,11 +111,11 @@ public class InstanceAbilityCastSystemContainmentShould
         _sut.Update(Tick, []);
 
         AssertLoggedError(541_013, failing);
-        failing.Received(1).SendInterruptedCastAnimation(broken);
+        Assert.Single(_arena.InterruptsOf(failing), broken);
         Assert.False(broken.Casting);
         (IUnit who, _, _) = Assert.Single(RecordingAbilityScript.Prepared);
         Assert.Same(other, who);
-        other.DidNotReceive().SendInterruptedCastAnimation(Arg.Any<IAbility>());
+        Assert.Empty(_arena.InterruptsOf(other));
     }
 
     // ── #530: a throwing Update is contained, and the other scripts in that tick still run ──
@@ -147,7 +147,7 @@ public class InstanceAbilityCastSystemContainmentShould
 
         Assert.Equal(UpdateThrowingAbilityScript.ThrowOnUpdate, thrower.Updates);
         AssertLoggedError(541_015, failing);
-        failing.Received(1).SendInterruptedCastAnimation(broken);
+        Assert.Single(_arena.InterruptsOf(failing), broken);
         Assert.Same(projectile, Assert.Single(objects));   // the thrower is no longer a world object
         Assert.NotEqual(before, projectile.Position);      // the other one was ticked in the same update
         Assert.Null(_sut.GetAbility(thrower.Guid));
@@ -160,7 +160,7 @@ public class InstanceAbilityCastSystemContainmentShould
 
         Assert.Equal(UpdateThrowingAbilityScript.ThrowOnUpdate, thrower.Updates);
         Assert.Single(_arena.Damaged());
-        failing.Received(1).SendInterruptedCastAnimation(Arg.Any<IAbility>());
+        Assert.Single(_arena.InterruptsOf(failing));
     }
 
     // ── #530: an interrupt send that throws cannot leave a cast queued ──
@@ -174,8 +174,7 @@ public class InstanceAbilityCastSystemContainmentShould
     public void Dequeue_a_dead_casters_cast_even_when_its_interrupt_send_throws()
     {
         ICharacter dead = Caster(541_008);
-        dead.When(c => c.SendInterruptedCastAnimation(Arg.Any<IAbility>()))
-            .Do(_ => throw new InvalidOperationException("The send failed."));
+        _arena.InterruptThrowsFor = dead;
         ICharacter other = Caster(541_009);
         ICharacter flyer = _arena.Player(541_010, 0f, 0f);
         GameAbility dropped = Ability(541_019, nameof(RecordingAbilityScript), castTime: 0.01f);
@@ -188,7 +187,7 @@ public class InstanceAbilityCastSystemContainmentShould
         List<IWorldObject> objects = [];
         _sut.Update(Tick, objects);
 
-        dead.Received(1).SendInterruptedCastAnimation(dropped);
+        Assert.Single(_arena.InterruptsOf(dead), dropped);
         Assert.False(dropped.Casting);
         (IUnit who, _, _) = Assert.Single(RecordingAbilityScript.Prepared);
         Assert.Same(other, who);
@@ -196,7 +195,7 @@ public class InstanceAbilityCastSystemContainmentShould
 
         _sut.Update(Tick, []);   // the cast is gone: nothing throws, nothing is sent again
 
-        dead.Received(1).SendInterruptedCastAnimation(Arg.Any<IAbility>());
+        Assert.Single(_arena.InterruptsOf(dead));
         Assert.Contains(_logs.Entries, e => e.Level == LogLevel.Error && e.Exception is InvalidOperationException);
     }
 

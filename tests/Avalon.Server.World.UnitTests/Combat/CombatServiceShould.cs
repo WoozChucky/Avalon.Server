@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -613,6 +614,98 @@ public class CombatServiceShould
 
         target.DidNotReceive().OnHit(Arg.Any<IUnit>(), Arg.Any<uint>());
         Assert.Empty(reg.Active);
+    }
+
+    // ── #546: what a hit led to is reported to the service's own instance ──
+
+    /// <summary>
+    /// The kill is reported once, after the hit made the creature dead and before the encounter hears
+    /// of the death and the death is broadcast: the order the static kill event used to run in.
+    /// </summary>
+    [Fact]
+    public void Report_a_kill_once_before_the_encounter_death_and_the_death_broadcast()
+    {
+        var (svc, reg, ctx, outcomes) = BuildServiceWithOutcomes();
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var target   = StubCreature();
+        target.CurrentHealth.Returns(10u);
+        target.When(t => t.OnHit(attacker, 10)).Do(_ => target.CurrentHealth.Returns(0u));
+
+        bool? hostileAtKill = null;
+        bool deathBroadcastAtKill = true;
+        outcomes.When(o => o.CreatureKilled(target, attacker)).Do(_ =>
+        {
+            hostileAtKill = reg.FindEncounterContaining(target)?.Hostiles.Contains(target);
+            deathBroadcastAtKill = ctx.ReceivedCalls().Any(c => c.GetMethodInfo().Name == nameof(ISimulationContext.BroadcastUnitDeath));
+        });
+
+        svc.ApplyDamage(attacker, target, 10);
+
+        outcomes.Received(1).CreatureKilled(target, attacker);
+        Assert.True(hostileAtKill, "the encounter had already been told of the death when the kill was reported");
+        Assert.False(deathBroadcastAtKill, "the death was broadcast before the kill was reported");
+        ctx.Received(1).BroadcastUnitDeath(target, attacker);
+        Assert.Null(reg.FindEncounterContaining(target)?.Hostiles.FirstOrDefault(h => ReferenceEquals(h, target)));
+    }
+
+    /// <summary>A corpse hit again is no second kill: only a creature brought from above 0 to 0 is.</summary>
+    [Fact]
+    public void Not_report_a_kill_for_a_creature_already_at_zero_health()
+    {
+        var (svc, _, _, outcomes) = BuildServiceWithOutcomes();
+        var target = StubCreature();
+        target.CurrentHealth.Returns(0u);
+
+        svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), target, 10);
+
+        outcomes.DidNotReceiveWithAnyArgs().CreatureKilled(default!, default!);
+    }
+
+    /// <summary>A hit its script does not turn into a death (Returning ignores hits) kills nothing.</summary>
+    [Fact]
+    public void Not_report_a_kill_when_the_hit_leaves_the_creature_alive()
+    {
+        var (svc, _, _, outcomes) = BuildServiceWithOutcomes();
+        var target = StubCreature();
+
+        svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), target, 10);
+
+        outcomes.DidNotReceiveWithAnyArgs().CreatureKilled(default!, default!);
+    }
+
+    /// <summary>
+    /// A living character's hit is reported with the ability that dealt it; a dead one's is not, as its
+    /// OnHit ignores the hit and nothing was sent before either.
+    /// </summary>
+    [Fact]
+    public void Report_a_living_characters_damage_and_nothing_for_a_corpse()
+    {
+        var (svc, _, _, outcomes) = BuildServiceWithOutcomes();
+        var attacker = StubCreature();
+        var target   = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(546);
+        target.Health = 100;
+        target.CurrentHealth = 100;
+        var ability  = StubAbility(1.0f);
+        ability.AbilityId.Returns(new Avalon.Common.ValueObjects.AbilityId(7));
+
+        svc.ApplyDamage(attacker, target, 30, ability);
+
+        outcomes.Received(1).CharacterDamaged(target, attacker, 30, new Avalon.Common.ValueObjects.AbilityId(7));
+
+        target.IsDead = true;
+        outcomes.ClearReceivedCalls();
+        svc.ApplyDamage(attacker, target, 30);
+
+        outcomes.DidNotReceiveWithAnyArgs().CharacterDamaged(default!, default!, default, default);
+    }
+
+    private static (CombatService, EncounterRegistry, ISimulationContext, ICombatOutcomes) BuildServiceWithOutcomes()
+    {
+        var cfg = new CombatConfig();
+        var reg = new EncounterRegistry(cfg);
+        var ctx = Substitute.For<ISimulationContext>();
+        var outcomes = Substitute.For<ICombatOutcomes>();
+        return (new CombatService(cfg, reg, ctx, outcomes: outcomes), reg, ctx, outcomes);
     }
 
     private static (CombatService, EncounterRegistry) BuildService(float initialThreatSeed = 1.0f)

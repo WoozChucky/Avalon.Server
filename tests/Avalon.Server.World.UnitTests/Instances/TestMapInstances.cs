@@ -2,6 +2,9 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Combat;
+using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Units;
 using Avalon.World.Handlers;
 using Avalon.World.Scripts.Abilities;
 using Avalon.World.Instances;
@@ -17,7 +20,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// A real MapInstance over a one-chunk layout and a substitute navigator, for tests that drive a
-/// kill through OnCreatureKilled. Map template 1, no owner, seed 0.
+/// kill through the instance's kill handling. Map template 1, no owner, seed 0.
 /// </summary>
 internal static class TestMapInstances
 {
@@ -44,6 +47,13 @@ internal static class TestMapInstances
         handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
         return instance;
     }
+
+    /// <summary>
+    /// Reports <paramref name="creature" /> killed by <paramref name="killer" />, exactly as the
+    /// instance's combat service does once a hit brings the creature to 0 health (#546).
+    /// </summary>
+    public static void ReportKill(this MapInstance instance, ICreature creature, IUnit killer) =>
+        ((ICombatOutcomes)instance).CreatureKilled(creature, killer);
 
     /// <param name="scripts">The script manager the instance builds ability scripts from; a substitute that finds none when omitted.</param>
     /// <param name="navigator">The instance's navigator; a bare substitute when omitted.</param>

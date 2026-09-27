@@ -48,4 +48,16 @@ public abstract class AiScript(ICreature creature, ISimulationContext context)
             script.OnEnteredRange(character);
         }
     }
+
+    /// <summary>
+    /// <paramref name="character" /> has left this creature's instance (#546). A notification only: it
+    /// grants nothing. Forwarded to chained scripts, as <see cref="OnHit" /> is.
+    /// </summary>
+    public virtual void OnCharacterLeft(ICharacter character)
+    {
+        foreach (AiScript script in ChainedScripts)
+        {
+            script.OnCharacterLeft(character);
+        }
+    }
 }

@@ -92,7 +92,6 @@ public class EnterMapHandlerShould
 
         var source = new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(TownMap),
             ownerCharacterId: null, layout, Substitute.For<IMapNavigator>(), seed: 0);
-        source.Dispose();   // detach the static entity events; this test raises none
         source.AddPortal(new PortalInstance(new ObjectGuid(ObjectType.Portal, 1), Vector3.zero, 5f, TargetMap, 1));
         return source;
     }

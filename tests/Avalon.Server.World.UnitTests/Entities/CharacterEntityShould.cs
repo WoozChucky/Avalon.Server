@@ -122,22 +122,12 @@ public class CharacterEntityShould
         entity.OnHit(attacker, damage: 9999);
         Assert.True(entity.IsDead);
 
-        bool damagedRaised = false;
-        UnitDamagedDelegate handler = (_, _, _) => damagedRaised = true;
-        CharacterEntity.OnUnitDamaged += handler;
+        // What a hit on a corpse sends (nothing) is the combat service's to decide (#546);
+        // CombatServiceShould pins it.
+        entity.OnHit(attacker, damage: 5);
 
-        try
-        {
-            entity.OnHit(attacker, damage: 5);
-
-            Assert.False(damagedRaised);
-            Assert.Equal(0u, entity.CurrentHealth);
-            Assert.True(entity.IsDead);
-        }
-        finally
-        {
-            CharacterEntity.OnUnitDamaged -= handler;
-        }
+        Assert.Equal(0u, entity.CurrentHealth);
+        Assert.True(entity.IsDead);
     }
 
     [Fact]

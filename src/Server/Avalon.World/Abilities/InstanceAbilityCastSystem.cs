@@ -250,7 +250,7 @@ public class InstanceAbilityCastSystem(
         {
             _logger.LogInformation("Cast cancelled as its caster left ability={AbilityId} caster={CharId}",
                 cast.Ability.AbilityId, caster.Guid);
-            caster.SendInterruptedCastAnimation(cast.Ability);
+            arena.BroadcastInterruptedCast(caster, cast.Ability);
         }
     }
 
@@ -299,7 +299,7 @@ public class InstanceAbilityCastSystem(
     private void Fire(IUnit caster, IAbility ability, AbilityScript script)
     {
         ability.CooldownTimer = ability.Metadata.Cooldown;
-        caster.SendFinishCastAnimation(ability);
+        arena.BroadcastFinishCast(caster, ability);
 
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world
         // object, and the cast is interrupted. What it spent stays spent.
@@ -339,7 +339,7 @@ public class InstanceAbilityCastSystem(
     {
         try
         {
-            caster.SendInterruptedCastAnimation(ability);
+            arena.BroadcastInterruptedCast(caster, ability);
         }
         catch (Exception sendError)
         {

@@ -18,7 +18,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// #434: a level-up recalculates stats at the new level and refills health and power. Driven
-/// through a real kill in a real MapInstance, because the level-up lives in OnCreatureKilled.
+/// through a real kill in a real MapInstance, because the level-up lives in CreatureKilled.
 /// </summary>
 public class LevelUpStatsShould
 {
@@ -57,7 +57,7 @@ public class LevelUpStatsShould
         };
         instance.AddCreature(creature);
 
-        creature.Died(killer);
+        instance.ReportKill(creature, killer);
 
         Assert.Equal((ushort)2, killer.Level);
         Assert.Equal(50ul, killer.Experience);
@@ -112,7 +112,7 @@ public class LevelUpStatsShould
         };
         instance.AddCreature(creature);
 
-        creature.Died(killer);
+        instance.ReportKill(creature, killer);
 
         Assert.Equal((ushort)(fromLevel + 1), killer.Level);
         Assert.Equal(healthAfter, killer.Health);
@@ -154,7 +154,7 @@ public class LevelUpStatsShould
         };
         instance.AddCreature(creature);
 
-        creature.Died(killer);
+        instance.ReportKill(creature, killer);
 
         Assert.Equal((ushort)2, killer.Level);
         Assert.Equal(40u + 24u * 10u, killer.Health);
@@ -192,7 +192,7 @@ public class LevelUpStatsShould
         };
         instance.AddCreature(creature);
 
-        creature.Died(killer);
+        instance.ReportKill(creature, killer);
 
         Assert.Equal((ushort)2, killer.Level);
         Assert.Equal(240u, killer.Health);
