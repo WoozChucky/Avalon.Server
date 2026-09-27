@@ -2,10 +2,6 @@ using Avalon.Infrastructure.Configuration;
 
 namespace Avalon.Api.Config;
 
-/// <summary>
-/// The "Application" section. The API's databases are not here: they are the top-level
-/// <c>Database:Auth</c> and <c>Database:Worlds</c> (#582).
-/// </summary>
 public class ApplicationConfig
 {
     public string Name { get; set; } = string.Empty;
