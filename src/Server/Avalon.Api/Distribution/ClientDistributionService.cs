@@ -18,7 +18,7 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
 
     public async Task<LauncherDto?> GetLauncherAsync(CancellationToken ct)
     {
-        LauncherRelease? release = await store.GetLauncherAsync(ct);
+        LauncherRelease? release = await LauncherAsync(ct);
         return release is null
             ? null
             : new LauncherDto(release.Version, release.InstallerSize, release.InstallerSha256,
@@ -27,7 +27,7 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
 
     public async Task<TauriUpdateDto?> GetLauncherUpdateAsync(CancellationToken ct)
     {
-        LauncherRelease? release = await store.GetLauncherAsync(ct);
+        LauncherRelease? release = await LauncherAsync(ct);
         return release is null
             ? null
             : new TauriUpdateDto(release.Version, release.Notes, release.PubDate,
@@ -46,7 +46,17 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
         var channels = new List<ChannelDto>();
         foreach (Channel channel in ChannelAccess.Visible(caller))
         {
-            StoredManifest? current = await CurrentAsync(channel, ct);
+            // One unreadable channel must not take the others down with it.
+            StoredManifest? current;
+            try
+            {
+                current = await CurrentAsync(channel, ct);
+            }
+            catch (DistributionUnavailableException)
+            {
+                continue;
+            }
+
             if (current?.Document is { } doc)
                 channels.Add(new ChannelDto(channel.Wire(), doc.Version, doc.Build, doc.PublishedAt, doc.TotalSize, doc.Notes));
         }
@@ -60,12 +70,20 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
         var releases = new List<ReleaseDto>();
         foreach (Channel channel in ChannelAccess.Visible(caller))
         {
-            IReadOnlyList<StoredObject> listed = await store.ListManifestsAsync(channel, ct);
-            foreach (StoredObject obj in listed.OrderByDescending(o => o.Modified).Take(limit))
+            try
             {
-                StoredManifest? manifest = await ManifestAsync(obj.Key, ct);
-                if (manifest?.Document is { } doc)
-                    releases.Add(new ReleaseDto(channel.Wire(), doc.Version, doc.Build, doc.PublishedAt, doc.Notes));
+                IReadOnlyList<StoredObject> listed =
+                    await Cached(("dist-list", channel), () => store.ListManifestsAsync(channel, ct)) ?? [];
+                foreach (StoredObject obj in listed.OrderByDescending(o => o.Modified).Take(limit))
+                {
+                    StoredManifest? manifest = await ManifestAsync(obj.Key, ct);
+                    if (manifest?.Document is { } doc)
+                        releases.Add(new ReleaseDto(channel.Wire(), doc.Version, doc.Build, doc.PublishedAt, doc.Notes));
+                }
+            }
+            catch (DistributionUnavailableException)
+            {
+                // A channel that cannot be read is left out of the feed rather than failing it.
             }
         }
 
@@ -103,16 +121,25 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
     }
 
     private Task<ChannelPointer?> PointerAsync(Channel channel, CancellationToken ct) =>
-        cache.GetOrCreateAsync(("dist-pointer", channel), entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = CacheFor;
-            return store.GetPointerAsync(channel, ct);
-        });
+        Cached(("dist-pointer", channel), () => store.GetPointerAsync(channel, ct));
 
     private Task<StoredManifest?> ManifestAsync(string key, CancellationToken ct) =>
-        cache.GetOrCreateAsync(("dist-manifest", key), entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = CacheFor;
-            return store.GetManifestAsync(key, ct);
-        });
+        Cached(("dist-manifest", key), () => store.GetManifestAsync(key, ct));
+
+    private Task<LauncherRelease?> LauncherAsync(CancellationToken ct) =>
+        Cached("dist-launcher", () => store.GetLauncherAsync(ct));
+
+    /// <summary>
+    /// Keeps what the store returned for a minute, except "not there": a manifest read between its
+    /// upload and its signature's, or a channel just published, must show up as soon as it is complete.
+    /// </summary>
+    private async Task<T?> Cached<T>(object key, Func<Task<T?>> read) where T : class
+    {
+        if (cache.TryGetValue(key, out T? hit))
+            return hit;
+        T? value = await read();
+        if (value is not null)
+            cache.Set(key, value, CacheFor);
+        return value;
+    }
 }

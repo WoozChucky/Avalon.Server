@@ -116,4 +116,54 @@ public class ClientDistributionServiceShould
             update!.Platforms["windows-x86_64"].Url.ToString());
         Assert.Equal("tauri-sig", update.Platforms["windows-x86_64"].Signature);
     }
+
+    // ---- Final review fixes ----
+
+    /// <summary>I1: a manifest caught between its upload and its .sig is not published yet, and a
+    /// "not there" answer is never cached, so the release is visible as soon as it is complete.</summary>
+    [Fact]
+    public async Task Not_remember_a_missing_manifest_so_a_just_completed_release_is_served()
+    {
+        var doc = Doc("live", "b1", T0, ("runtime.exe", "aa"));
+        _store.GetPointerAsync(Channel.Live, Arg.Any<CancellationToken>()).Returns(new ChannelPointer("b1", "manifests/live/b1.json"));
+        _store.GetManifestAsync("manifests/live/b1.json", Arg.Any<CancellationToken>())
+            .Returns((StoredManifest?)null, new StoredManifest(doc, "{}", "sig"));
+
+        await Assert.ThrowsAsync<DistributionUnavailableException>(() =>
+            _service.GetManifestAsync(Channel.Live, AccountAccessLevel.Player, CancellationToken.None));
+        ManifestResponse? second = await _service.GetManifestAsync(Channel.Live, AccountAccessLevel.Player, CancellationToken.None);
+
+        Assert.Equal("sig", second!.Signature);
+    }
+
+    /// <summary>I3: one channel's storage failure leaves the other channels listed.</summary>
+    [Fact]
+    public async Task Keep_listing_the_other_channels_when_one_channel_cannot_be_read()
+    {
+        Publish(Channel.Live, Doc("live", "b1", T0, ("runtime.exe", "aa")));
+        _store.GetPointerAsync(Channel.Ptr, Arg.Any<CancellationToken>())
+            .Returns<ChannelPointer?>(_ => throw new DistributionUnavailableException("ptr pointer unreadable"));
+
+        IReadOnlyList<ChannelDto> channels = await _service.ListChannelsAsync(AccountAccessLevel.PTR, CancellationToken.None);
+
+        Assert.Equal(["live"], channels.Select(c => c.Channel));
+    }
+
+    /// <summary>I4: anonymous endpoints do not reach storage on every request.</summary>
+    [Fact]
+    public async Task Cache_the_release_listing_and_the_launcher_release()
+    {
+        Publish(Channel.Live, Doc("live", "b1", T0, ("runtime.exe", "aa")));
+        _store.GetLauncherAsync(Arg.Any<CancellationToken>()).Returns(new LauncherRelease("1.0.0", "", T0, "s", "u", "i", 1, "x"));
+
+        for (int i = 0; i < 3; i++)
+        {
+            await _service.ListReleasesAsync(null, 10, CancellationToken.None);
+            await _service.GetLauncherAsync(CancellationToken.None);
+            await _service.GetLauncherUpdateAsync(CancellationToken.None);
+        }
+
+        await _store.Received(1).ListManifestsAsync(Channel.Live, Arg.Any<CancellationToken>());
+        await _store.Received(1).GetLauncherAsync(Arg.Any<CancellationToken>());
+    }
 }

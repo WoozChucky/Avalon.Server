@@ -36,7 +36,17 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
     public async Task<ChannelPointer?> GetPointerAsync(Channel channel, CancellationToken ct)
     {
         string? json = await ReadAsync($"channels/{channel.Wire()}.json", ct);
-        return json is null ? null : JsonSerializer.Deserialize<ChannelPointer>(json, Json);
+        if (json is null)
+            return null;
+        try
+        {
+            return JsonSerializer.Deserialize<ChannelPointer>(json, Json)
+                ?? throw new DistributionUnavailableException($"The {channel.Wire()} channel pointer is empty.");
+        }
+        catch (JsonException)
+        {
+            throw new DistributionUnavailableException($"The {channel.Wire()} channel pointer is not valid.");
+        }
     }
 
     public async Task<StoredManifest?> GetManifestAsync(string manifestKey, CancellationToken ct)
@@ -44,8 +54,12 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
         string? json = await ReadAsync(manifestKey, ct);
         if (json is null)
             return null;
+        // Published order is manifest, .sig, pointer: a manifest without its signature is still
+        // being published, and an unsigned one would only make every launcher refuse the update.
         string? signature = await ReadAsync(manifestKey + ".sig", ct);
-        return new StoredManifest(ParseManifest(json), json, signature?.Trim() ?? "");
+        if (string.IsNullOrWhiteSpace(signature))
+            return null;
+        return new StoredManifest(ParseManifest(json), json, signature.Trim());
     }
 
     public async Task<IReadOnlyList<StoredObject>> ListManifestsAsync(Channel channel, CancellationToken ct)
@@ -87,7 +101,16 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
     /// <exception cref="DistributionUnavailableException">The schema is not one this API understands.</exception>
     public static ManifestDocument ParseManifest(string json)
     {
-        ManifestDocument? doc = JsonSerializer.Deserialize<ManifestDocument>(json, Json);
+        ManifestDocument? doc;
+        try
+        {
+            doc = JsonSerializer.Deserialize<ManifestDocument>(json, Json);
+        }
+        catch (JsonException)
+        {
+            throw new DistributionUnavailableException("A published manifest is not valid JSON.");
+        }
+
         if (doc is null || doc.Schema != 1)
             throw new DistributionUnavailableException("A published manifest has a schema this server does not understand.");
         return doc;
@@ -95,6 +118,18 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
 
     /// <summary><c>launcher/latest.json</c>: Tauri's static updater format plus an <c>installer</c> block.</summary>
     public static LauncherRelease ParseLauncher(string json)
+    {
+        try
+        {
+            return ReadLauncher(json);
+        }
+        catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
+        {
+            throw new DistributionUnavailableException("The published launcher release is not valid.");
+        }
+    }
+
+    private static LauncherRelease ReadLauncher(string json)
     {
         using JsonDocument doc = JsonDocument.Parse(json);
         JsonElement root = doc.RootElement;
@@ -122,6 +157,11 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
         catch (AmazonS3Exception e) when (e.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
+        }
+        catch (Exception e) when (e is AmazonServiceException or AmazonClientException or HttpRequestException)
+        {
+            // Storage down or refusing: an outage (503), as for the database and Redis, not a 500.
+            throw new DistributionUnavailableException("Downloads are not available right now.");
         }
     }
 

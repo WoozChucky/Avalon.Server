@@ -91,4 +91,19 @@ public class S3DistributionStoreShould
         Assert.Equal("launcher/1.0.0/a-setup.exe", release.InstallerKey);
         Assert.Equal(6502400, release.InstallerSize);
     }
+
+    /// <summary>I3: a malformed object is "not available" (503), never an unhandled 500.</summary>
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("""{ "version": "1.0.0" }""")]
+    public void Treat_a_malformed_launcher_release_as_unavailable(string json)
+    {
+        Assert.Throws<DistributionUnavailableException>(() => S3DistributionStore.ParseLauncher(json));
+    }
+
+    [Fact]
+    public void Treat_a_malformed_manifest_as_unavailable()
+    {
+        Assert.Throws<DistributionUnavailableException>(() => S3DistributionStore.ParseManifest("{ not json"));
+    }
 }
