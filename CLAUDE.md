@@ -42,6 +42,21 @@ dotnet ef migrations add <Name> \
   --project src/Server/Avalon.Database.Auth \
   --startup-project src/Server/Avalon.Api \
   --context AuthDbContext
+# The World and Character design-time factories read only Database:World:ConnectionString /
+# Database:Characters:ConnectionString, from the environment or from that database project's
+# user-secrets (Avalon.Database.World and Avalon.Database.Character each have a UserSecretsId), never
+# from the API's appsettings files, which list Database:Worlds instead (#523). Without the string they
+# refuse: "set Database__World__ConnectionString (or user-secrets) to run dotnet ef against a database".
+# migrations add and has-pending-model-changes build the model and never connect, but still need the
+# variable; pass a placeholder that points nowhere:
+Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_only" \
+  dotnet ef migrations add <Name> --project src/Server/Avalon.Database.World \
+  --startup-project src/Server/Avalon.Api --context WorldDbContext
+# Commands that connect (database update, migrations list) take the real string the same way. Verify
+# only against a throwaway Postgres, with --connection "$CONN" and the variable both set; nothing falls
+# back to a local file any more, so a missing variable is a refusal, not a connection to port 5432.
+# The Auth factory is unchanged: it still reads Database:Auth from the working directory's
+# appsettings.json or the environment.
 # A seed migration that points existing rows at rows it also inserts (a foreign key to a new
 # row) must be reordered by hand: EF emits the UpdateData calls before the InsertData ones.
 # Only Postgres catches this; the SQLite unit tests and CI never run the migration.

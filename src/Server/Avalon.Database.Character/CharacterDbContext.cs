@@ -11,53 +11,32 @@ using Microsoft.Extensions.Options;
 
 namespace Avalon.Database.Character;
 
-public sealed class CharacterDbContextFactory : IDesignTimeDbContextFactory<CharacterDbContext>
+/// <summary>
+/// What dotnet ef builds a <see cref="CharacterDbContext"/> with. Reads Database:Characters:ConnectionString
+/// from the environment (Database__Characters__ConnectionString) or this project's user-secrets only,
+/// and refuses without it (#523). Commands that only build the model (migrations add,
+/// has-pending-model-changes) never connect, so a placeholder pointing nowhere is enough for them.
+/// </summary>
+public sealed class CharacterDbContextDesignTimeFactory : IDesignTimeDbContextFactory<CharacterDbContext>
 {
-    public CharacterDbContext CreateDbContext(string[] args)
+    public CharacterDbContext CreateDbContext(string[] args) =>
+        CreateDbContext(DesignTimeConnectionString.Sources(typeof(CharacterDbContext).Assembly));
+
+    /// <summary>The same, from a configuration the caller built; what the tests use.</summary>
+    public CharacterDbContext CreateDbContext(IConfiguration configuration)
     {
-        // 1) Load a deterministic, design-time configuration
-        //    Priority: appsettings.Design.json (repo-local), then environment variables, then appsettings.json if present.
-        string basePath = Directory.GetCurrentDirectory(); // root where you run dotnet ef
-        IConfigurationRoot configuration = new ConfigurationBuilder()
-            .SetBasePath(basePath)
-            .AddJsonFile("appsettings.Design.json", true)
-            .AddJsonFile("appsettings.json", true) // optional convenience
-            .AddEnvironmentVariables()
-            .Build();
+        string connectionString = DesignTimeConnectionString.Require(configuration, "Characters");
 
-        // 2) Resolve strongly-typed configuration the same way runtime does
-        DatabaseConfiguration dbConfig = new();
-        configuration.GetSection("Database").Bind(dbConfig);
-
-        // Characters, not Auth: reading Auth first pointed design-time commands for this context at
-        // the auth database whenever an appsettings file with both sections was in reach.
-        string authConn = dbConfig.Characters?.ConnectionString
-                          ?? configuration["Database:Characters:ConnectionString"]
-                          ?? throw new InvalidOperationException(
-                              "Characters connection string not found for design time. " +
-                              "Provide Database:Characters:ConnectionString in appsettings.Design.json or Database__Characters__ConnectionString env var.");
-
-        // 3) Minimal logger factory (keeps parity with your OnConfiguring)
         ILoggerFactory loggerFactory = LoggerFactory.Create(b =>
         {
             b.SetMinimumLevel(LogLevel.Information);
             b.AddConsole();
         });
 
-        // 4) Construct the context using public constructor
-        //    context reads opts.Value.Characters.ConnectionString internally.
-        IOptions<DatabaseConfiguration> opts = Options.Create(new DatabaseConfiguration
+        return new CharacterDbContext(loggerFactory, Options.Create(new DatabaseConfiguration
         {
-            Characters = new DatabaseConnection {ConnectionString = authConn}
-        });
-
-        CharacterDbContext ctx = new(loggerFactory, opts);
-
-        // 5) Mirror OnConfiguring behavior
-        //    Left here just to highlight parity
-        //    ctx.Database.SetCommandTimeout(TimeSpan.FromSeconds(60)); // example tweak if you want
-
-        return ctx;
+            Characters = new DatabaseConnection { ConnectionString = connectionString },
+        }));
     }
 }
 

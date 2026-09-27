@@ -165,6 +165,14 @@ dotnet ef migrations add <Name> \
 ```
 Replace `Auth` / `AuthDbContext` with `Character` / `CharacterDbContext` or `World` / `WorldDbContext` as needed.
 
+The World and Character contexts read their design-time connection string only from the environment (`Database__World__ConnectionString`, `Database__Characters__ConnectionString`) or from that database project's user-secrets, and refuse without it. `migrations add` never connects, so a placeholder that points nowhere is enough:
+
+```bash
+Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_only" \
+  dotnet ef migrations add <Name> --project src/Server/Avalon.Database.World \
+  --startup-project src/Server/Avalon.Api --context WorldDbContext
+```
+
 ## Testing
 
 ```bash

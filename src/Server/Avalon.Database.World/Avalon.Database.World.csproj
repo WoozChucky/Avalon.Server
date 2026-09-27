@@ -1,7 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- dotnet ef's World connection string, for developers who keep it here rather than in the
+         environment (#523): dotnet user-secrets set "Database:World:ConnectionString" "..." -->
+    <UserSecretsId>1ac9ffa3-fd8b-49cf-8b0a-09b503dafe09</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets"/>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
