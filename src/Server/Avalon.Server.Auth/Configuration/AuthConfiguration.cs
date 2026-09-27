@@ -45,6 +45,14 @@ public class AuthConfiguration : ILoginLimits
     [Range(1, int.MaxValue, ErrorMessage = "OnlineSweepIntervalSeconds must be at least 1.")]
     public int OnlineSweepIntervalSeconds { get; set; } = 30;
 
+    /// <summary>
+    /// World selects one auth connection may make per minute (#574). Past it the connection is
+    /// closed before the select reads anything, so repeated selects cannot flood the database or
+    /// the logs. An honest client stays well under it unless it retries selects automatically.
+    /// </summary>
+    [Range(1, int.MaxValue, ErrorMessage = "MaxWorldSelectsPerMinute must be at least 1.")]
+    public int MaxWorldSelectsPerMinute { get; set; } = 10;
+
     [Required]
     public string Issuer { get; set; } = "Avalon";
 }

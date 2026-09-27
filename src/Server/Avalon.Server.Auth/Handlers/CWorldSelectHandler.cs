@@ -5,28 +5,41 @@ using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
+using Avalon.Server.Auth.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.Auth.Handlers;
 
 public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
 {
-    private readonly ILogger<CHandshakeHandler> _logger;
+    private readonly ILogger<CWorldSelectHandler> _logger;
     private readonly IReplicatedCache _cache;
     private readonly IAccountRepository _accountRepository;
     private readonly IWorldRepository _worldRepository;
     private readonly ISecureRandom _secureRandom;
+    private readonly TimeProvider _time;
+    private readonly int _maxSelectsPerWindow;
 
-    public CWorldSelectHandler(ILoggerFactory loggerFactory, IReplicatedCache cache, IAccountRepository accountRepository, IWorldRepository worldRepository, ISecureRandom secureRandom)
+    public CWorldSelectHandler(ILoggerFactory loggerFactory, IReplicatedCache cache, IAccountRepository accountRepository,
+        IWorldRepository worldRepository, ISecureRandom secureRandom, IOptions<AuthConfiguration> options, TimeProvider time)
     {
-        _logger = loggerFactory.CreateLogger<CHandshakeHandler>();
+        _logger = loggerFactory.CreateLogger<CWorldSelectHandler>();
         _cache = cache;
         _accountRepository = accountRepository;
         _worldRepository = worldRepository;
         _secureRandom = secureRandom;
+        _time = time;
+        _maxSelectsPerWindow = options.Value.MaxWorldSelectsPerMinute;
     }
 
     public async Task ExecuteAsync(AuthPacketContext<CWorldSelectPacket> ctx, CancellationToken token = default)
     {
+        // #574: counted before anything is read, so a select past the cap costs no database read.
+        if (!Admit(ctx.Connection))
+        {
+            ctx.Connection.Close();
+            return;
+        }
 
         // Defence in depth behind CAuthHandler (#462, #495): an account banned or deactivated, or
         // whose credentials changed, since this connection logged in takes no inWorld slot and is
@@ -43,7 +56,7 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
         var world = await _worldRepository.FindByIdAsync(ctx.Packet.WorldId, false, token);
         if (world == null)
         {
-            _logger.LogWarning("World not found for id {WorldId}", ctx.Packet.WorldId);
+            _logger.Log(UnavailableLevel(ctx.Connection), "World not found for id {WorldId}", ctx.Packet.WorldId);
             SendWorldUnavailable(ctx.Connection);
             return;
         }
@@ -51,7 +64,8 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
         // The same rule as the world list, so a world never listed can never be selected either.
         if (!AccessLevels.ForWorld(world.AccessLevelRequired).Allows(account.AccessLevel))
         {
-            _logger.LogWarning("Account {AccountId} tried to access world {WorldId} without the required access level", account.Id, world.Id);
+            _logger.Log(UnavailableLevel(ctx.Connection),
+                "Account {AccountId} tried to access world {WorldId} without the required access level", account.Id, world.Id);
             SendWorldUnavailable(ctx.Connection);
             return;
         }
@@ -80,6 +94,31 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
 
         ctx.Connection.Send(SWorldSelectPacket.Create(worldKey, ctx.Connection.CryptoSession.Encrypt));
     }
+
+    /// <summary>
+    /// Takes one select from the connection's budget (#574); false past the cap, and the caller
+    /// closes the connection. The refusal is logged once per window, since selects already on
+    /// their way keep arriving until the connection is gone.
+    /// </summary>
+    private bool Admit(IAuthConnection connection)
+    {
+        WorldSelectAdmission admission = connection.WorldSelects.Take(_time, _maxSelectsPerWindow);
+        if (admission == WorldSelectAdmission.Admitted)
+            return true;
+
+        if (admission == WorldSelectAdmission.RefusedFirstInWindow)
+        {
+            _logger.LogWarning(
+                "Connection {Session} from {Endpoint} exceeded the world select budget of {Max} per minute; closing it",
+                connection.Id, connection.RemoteEndPoint, _maxSelectsPerWindow);
+        }
+
+        return false;
+    }
+
+    /// <summary>A WorldUnavailable refusal is logged at Warning once per connection per window, at Debug after that (#574).</summary>
+    private static LogLevel UnavailableLevel(IAuthConnection connection)
+        => connection.WorldSelects.TakeUnavailableWarning() ? LogLevel.Warning : LogLevel.Debug;
 
     private static void SendWorldUnavailable(IAuthConnection connection)
         => connection.Send(SWorldSelectPacket.CreateError(WorldSelectResult.WorldUnavailable, connection.CryptoSession.Encrypt));
