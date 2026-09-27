@@ -328,6 +328,41 @@ A caller with no peer address at all is refused with 400 on the endpoints that s
 
 ---
 
+## REST API Rate Limiting
+
+Section: `Application:RateLimiting` in `Avalon.Api` (#561)
+
+| Key                             | Type | Default | Description |
+|---------------------------------|------|---------|-------------|
+| `Enabled`                       | bool | `true`  | When false, nothing is limited |
+| `AnonymousPermitsPerMinute`     | int  | `60`    | Requests a minute per source for a caller that is not signed in |
+| `AuthenticatedPermitsPerMinute` | int  | `300`   | Requests a minute per account for a caller with a valid access token or personal access token |
+
+Every request counts, whatever the endpoint, in a sliding window of one minute in six segments, held in
+memory (the API runs as one replica; each replica would count on its own). A request with a valid access
+token or personal access token is counted against its account, after the account has been revalidated;
+any other, a request whose token is not valid included, against its source: the login budgets' rule, the
+IPv4 address or the IPv6 /64, after the [forwarded headers](#rest-api-forwarded-headers) are applied.
+Every caller with no peer address shares one partition. `/health` and `/alive` are never limited. The login
+and registration budgets are separate and still apply.
+
+A refused request gets 429 ProblemDetails with `Detail` `LOCKED` and a `Retry-After` header in seconds, the
+same whichever partition refused it, and increments the counter `avalon.api.rate_limit.rejections` (meter
+`avalon-api`), tagged `partition=anonymous` or `partition=authenticated`.
+
+The section is bound as `IOptions<RateLimitingConfig>` and validated at startup: a limit below `1` stops
+the API, naming the setting.
+
+```bash
+Application__RateLimiting__AnonymousPermitsPerMinute=60
+Application__RateLimiting__AuthenticatedPermitsPerMinute=300
+```
+
+The Helm chart passes `rateLimiting.enabled`, `rateLimiting.anonymousPermitsPerMinute` and
+`rateLimiting.authenticatedPermitsPerMinute`, each only when set; empty, the API's defaults apply.
+
+---
+
 ## REST API Email
 
 Section: `Application:Email` in `Avalon.Api` (#510)
@@ -492,7 +527,9 @@ The API skips them, with the migrations, when `AVALON_OPENAPI_GENERATION_ONLY` i
 
 The REST API's `Application:*` classes (`ApplicationConfig` and the sections under it) do not use
 `ValidateOnStart`, except `Application:Cache`, which is also bound as `IOptions<CacheConfiguration>`
-and validated at startup like the servers' `Cache`. They are bound directly rather than through `IOptions<T>`, and `ServiceRegistration`
+and validated at startup like the servers' `Cache`, and `Application:RateLimiting`, bound only as
+`IOptions<RateLimitingConfig>` and validated the same way (see
+[REST API Rate Limiting](#rest-api-rate-limiting)). They are bound directly rather than through `IOptions<T>`, and `ServiceRegistration`
 checks them by hand at startup: the signing key (`JwtSigningKey.Create`, see
 [REST API JWT Signing Key](#rest-api-jwt-signing-key)), the login limits (`LoginLimitsValidation.Validate`),
 the account-creation cap, the email-change send caps, the forwarded-headers entries

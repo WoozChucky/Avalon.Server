@@ -3,6 +3,7 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
+using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
 using Avalon.Api.Worlds;
@@ -78,6 +79,8 @@ public static class ServiceRegistration
         // Built here so a bad entry stops startup, naming the setting.
         services.AddSingleton(Middlewares.ForwardedHeadersSetup.BuildOptions(config.ForwardedHeaders));
         services.AddSingleton<Middlewares.UntrustedForwardedHeaderLog>();
+        // Request rate limiting under Application:RateLimiting (#561), per account or per source.
+        services.AddApiRateLimiting();
         services.AddSecureRandom();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         services.AddScoped<INotificationService, NotificationService>();

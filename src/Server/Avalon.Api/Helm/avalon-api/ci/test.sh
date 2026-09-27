@@ -103,4 +103,15 @@ grep -A4 "name: Application__Distribution__SecretAccessKey" <<<"$dist" | grep -q
 if helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set distribution.secretAccessKey=leak >/dev/null 2>&1; then
   echo "existingSecret + inline distribution.secretAccessKey must fail"; exit 1
 fi
+# Rate limiting (#561): nothing rendered by default, so the API's defaults apply; each value when set,
+# false and 0 included (the API refuses a limit below 1 itself, naming the setting).
+! grep -q "Application__RateLimiting__" <<<"$out"                                          || { echo "rate limiting env rendered without a value"; exit 1; }
+rl=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=false \
+  --set rateLimiting.anonymousPermitsPerMinute=0 --set rateLimiting.authenticatedPermitsPerMinute=600)
+grep -A1 "name: Application__RateLimiting__Enabled" <<<"$rl" | grep -q '"false"'                       || { echo "rateLimiting.enabled=false missing"; exit 1; }
+grep -A1 "name: Application__RateLimiting__AnonymousPermitsPerMinute" <<<"$rl" | grep -q '"0"'         || { echo "rateLimiting.anonymousPermitsPerMinute missing"; exit 1; }
+grep -A1 "name: Application__RateLimiting__AuthenticatedPermitsPerMinute" <<<"$rl" | grep -q '"600"'   || { echo "rateLimiting.authenticatedPermitsPerMinute missing"; exit 1; }
+on=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=true)
+grep -A1 "name: Application__RateLimiting__Enabled" <<<"$on" | grep -q '"true"'                        || { echo "rateLimiting.enabled=true missing"; exit 1; }
+! grep -q "Application__RateLimiting__AnonymousPermitsPerMinute" <<<"$on"                             || { echo "an unset limit must not render"; exit 1; }
 echo "avalon-api chart OK"

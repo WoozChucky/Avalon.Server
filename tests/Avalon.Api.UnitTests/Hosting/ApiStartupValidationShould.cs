@@ -102,6 +102,32 @@ public class ApiStartupValidationShould
         provider.GetRequiredService<IStartupValidator>().Validate();
     }
 
+    /// <summary>#561: a request limit below one would refuse every request.</summary>
+    [Theory]
+    [InlineData("AnonymousPermitsPerMinute", "0")]
+    [InlineData("AuthenticatedPermitsPerMinute", "0")]
+    [InlineData("AnonymousPermitsPerMinute", "-5")]
+    public async Task Refuse_to_start_with_a_request_limit_below_one_naming_it_before_any_database_call(string setting,
+        string value)
+    {
+        await using ServiceProvider provider = Build("localhost:6379", ($"Application:RateLimiting:{setting}", value));
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
+
+        Assert.Contains($"Application:RateLimiting:{setting} must be at least 1", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Pass_startup_validation_with_request_limits_of_one()
+    {
+        using ServiceProvider provider = Build("localhost:6379",
+            ("Application:RateLimiting:AnonymousPermitsPerMinute", "1"),
+            ("Application:RateLimiting:AuthenticatedPermitsPerMinute", "1"));
+
+        provider.GetRequiredService<IStartupValidator>().Validate();
+    }
+
     [Fact]
     public void Refuse_to_start_without_the_auth_database()
     {
