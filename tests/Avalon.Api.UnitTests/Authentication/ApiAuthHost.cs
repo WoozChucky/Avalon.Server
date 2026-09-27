@@ -21,6 +21,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using NSubstitute;
@@ -102,6 +104,11 @@ public sealed class ApiAuthHost : IAsyncDisposable
         services.AddSingleton(AccountRepository);
         // Which peers are proxies (loopback by default): the refresh grace is not given behind one.
         services.AddSingleton(Avalon.Api.Middlewares.ForwardedHeadersSetup.BuildOptions(null));
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<UntrustedForwardedHeaderLog>();
+        // The request rate limiter (#561), with its defaults unless a test configures it.
+        services.AddApiRateLimiting();
+        builder.AddDefaultHealthChecks();
         services.AddSingleton(Mfa);
         services.AddSingleton(Cache);
         // The real login policy (#478) over the substitutes above: a live hash for the account, a
@@ -129,8 +136,11 @@ public sealed class ApiAuthHost : IAsyncDisposable
             return next(context);
         });
         _app.UseMiddleware<ExceptionHandlerMiddleware>();
+        _app.UseAvalonForwardedHeaders();
+        _app.MapDefaultEndpoints();
         _app.UseRouting();
         _app.UseAuthentication();
+        _app.UseApiRateLimiting();
         _app.UseMiddleware<Avalon.Api.Worlds.WorldRouteMiddleware>();
         _app.UseAuthorization();
         _app.MapGet("/player", () => "ok").RequireAuthorization(AvalonRoles.Player);

@@ -108,7 +108,7 @@ public class ExceptionHandlerMiddleware
         });
     }
 
-    private static Task WriteProblemAsync(HttpContext context, int status, string type, string title, string? detail)
+    internal static Task WriteProblemAsync(HttpContext context, int status, string type, string title, string? detail)
     {
         context.Request.HttpContext.Response.StatusCode = status;
         return context.Response.WriteAsJsonAsync(new ProblemDetails

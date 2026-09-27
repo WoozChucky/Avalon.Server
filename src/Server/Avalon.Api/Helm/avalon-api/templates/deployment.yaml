@@ -109,6 +109,20 @@ spec:
             {{- end }}
             - name: Application__ForwardedHeaders__ForwardLimit
               value: {{ .Values.forwardedHeaders.forwardLimit | quote }}
+            {{- /* Each only when set, so the API's own default applies otherwise; false and 0 are set values (#561). */}}
+            {{- $rateLimiting := .Values.rateLimiting | default dict }}
+            {{- if not (kindIs "invalid" $rateLimiting.enabled) }}
+            - name: Application__RateLimiting__Enabled
+              value: {{ $rateLimiting.enabled | quote }}
+            {{- end }}
+            {{- if not (kindIs "invalid" $rateLimiting.anonymousPermitsPerMinute) }}
+            - name: Application__RateLimiting__AnonymousPermitsPerMinute
+              value: {{ $rateLimiting.anonymousPermitsPerMinute | quote }}
+            {{- end }}
+            {{- if not (kindIs "invalid" $rateLimiting.authenticatedPermitsPerMinute) }}
+            - name: Application__RateLimiting__AuthenticatedPermitsPerMinute
+              value: {{ $rateLimiting.authenticatedPermitsPerMinute | quote }}
+            {{- end }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
             {{- with .Values.otel.endpoint }}

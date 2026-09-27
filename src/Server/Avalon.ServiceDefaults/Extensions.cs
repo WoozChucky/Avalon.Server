@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -59,6 +60,8 @@ public static class Extensions
 
                 metrics.AddMeter("world-server");
                 metrics.AddMeter("auth-server");
+                // The REST API's own instruments, such as its rate-limit rejections (#561).
+                metrics.AddMeter("avalon-api");
 
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
@@ -126,10 +129,12 @@ public static class Extensions
         // returns only the aggregate status ("Healthy"/"Unhealthy"), never check details.
 
         // All health checks must pass for app to be considered ready to accept traffic after starting
-        app.MapHealthChecks("/health");
+        // Never rate limited (#561): a probe refused with 429 would restart a healthy pod.
+        app.MapHealthChecks("/health").DisableRateLimiting();
 
         // Only health checks tagged with the "live" tag must pass for app to be considered alive
-        app.MapHealthChecks("/alive", new HealthCheckOptions {Predicate = r => r.Tags.Contains("live")});
+        app.MapHealthChecks("/alive", new HealthCheckOptions {Predicate = r => r.Tags.Contains("live")})
+            .DisableRateLimiting();
 
         return app;
     }

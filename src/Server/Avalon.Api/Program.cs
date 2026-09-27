@@ -122,6 +122,11 @@ app.MapDefaultEndpoints();
 
     app.UseAuthentication();
 
+    // After authentication, so a signed-in request is counted against its account and a JWT's
+    // account has been revalidated first; before the world routes and authorization, so a flood
+    // of refused requests is limited too (#561). /health and /alive are exempt.
+    app.UseApiRateLimiting();
+
     // /world/{worldId}/... only (#523): 404 for a world this api does not serve or the caller may
     // not enter, 503 for one whose databases failed at startup. Before authorization, so an unknown
     // world is a 404 whatever the endpoint's role policy.
