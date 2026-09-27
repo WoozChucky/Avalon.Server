@@ -13,14 +13,15 @@ namespace Avalon.World.Scripts.Creatures;
 /// Default for procedural-pool creatures — set
 /// <see cref="Avalon.Domain.World.CreatureTemplate.ScriptName"/> = "AggroDefendScript".
 /// </summary>
-public sealed class AggroDefendScript : AiScript
+public sealed class AggroDefendScript : AiScript, IReturningHome
 {
     private const float DefaultAggroRange = 10.0f;
 
     private readonly AiScript _detector;
     private readonly AiScript _combat;
 
-    public AggroDefendScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context)
+    public AggroDefendScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
+        TimeProvider? time = null)
         : base(creature, context)
     {
         var aggroRange = creature.Metadata.DetectionRange > 0f ? creature.Metadata.DetectionRange : DefaultAggroRange;
@@ -29,7 +30,7 @@ public sealed class AggroDefendScript : AiScript
         detector.CharacterDetected += OnCharacterEnteredRange;
         _detector = detector;
 
-        _combat = new CreatureCombatScript(loggerFactory, creature, context);
+        _combat = new CreatureCombatScript(loggerFactory, creature, context, time);
 
         Chain(_detector);
         Chain(_combat);
@@ -37,6 +38,8 @@ public sealed class AggroDefendScript : AiScript
 
     public override object State { get; set; } = string.Empty;
     protected override bool ShouldRun() => true;
+
+    bool IReturningHome.IsReturningHome => _combat is IReturningHome { IsReturningHome: true };
 
     private void OnCharacterEnteredRange(ICharacter character) => _combat.OnEnteredRange(character);
 

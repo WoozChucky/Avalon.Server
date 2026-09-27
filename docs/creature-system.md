@@ -188,7 +188,7 @@ contracts.
 |---|---|
 | `None` | Idle. `OnEnteredRange` or a hit starts combat and records where the fight started. |
 | `Combat` | Follows the encounter's top threat, or the taunter while a taunt lasts. Moves to its melee slot and attacks when within 1.5 m. Once the creature has arrived, the range is 1.5 m plus the locomotion's arrival tolerance plus 0.05 m. |
-| `Returning` | Runs home. A hit in this state does no damage. |
+| `Returning` | Runs home. It ignores hits entirely: `CombatService` refuses them, so they do no damage, add no threat, join no encounter and tag no attacker in combat (#610). |
 
 - An attack rolls damage between the creature's `DamageMin` and `DamageMax`, and goes through
   `ICombatService.ApplyDamage`. The first swing lands as soon as the target is in range. The 2.25 s
@@ -208,11 +208,16 @@ Every hit, a creature's swing or a player's skill, goes through the instance's `
 (`Avalon.World/Combat`):
 
 1. An `Invulnerable` target returns at once: no damage, no encounter, no threat, no combat tag.
-2. The attacker and the target join an encounter. Threat is added when the target is a creature.
-3. The hit is applied. When a creature goes from above 0 health to 0, the service reports it, once,
+2. A creature walking home returns the same way (#610): its script, or the `CreatureCombatScript`
+   chained inside it, is `Returning`. The service asks through `IReturningHome`, a World-side,
+   internal, read-only interface that `CreatureCombatScript` answers and `AggroDefendScript` and
+   `CreaturePatrolScript` forward, so no script on the modding API can claim it. Nothing from the
+   walk home is left in an encounter once the creature is home and reset.
+3. The attacker and the target join an encounter. Threat is added when the target is a creature.
+4. The hit is applied. When a creature goes from above 0 health to 0, the service reports it, once,
    to its instance through `ICombatOutcomes.CreatureKilled`.
-4. Characters in the hit are marked in combat.
-5. On a death, the encounter hears of it and the death is broadcast.
+5. Characters in the hit are marked in combat.
+6. On a death, the encounter hears of it and the death is broadcast.
 
 `ICombatOutcomes` is World-side. `MapInstance` implements it, and nothing on the modding API can
 report a kill.

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
 
-public class CreatureCombatScript : AiScript
+public class CreatureCombatScript : AiScript, IReturningHome
 {
     /// <summary>
     /// Chasing the target is part of <see cref="Combat" />; there is no separate chase state (#598).
@@ -86,6 +86,7 @@ public class CreatureCombatScript : AiScript
     private const float AttackRangeArrivalMargin = 0.05f;
     private const float AttackCooldown = 2.25f; // Cooldown between attacks
     private readonly ILogger<CreatureCombatScript> _logger;
+    private readonly TimeProvider _time;
     private float _attackCooldownTimer;
 
     private bool _dead;
@@ -101,13 +102,18 @@ public class CreatureCombatScript : AiScript
 
     private IUnit? _target;
 
-    public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context) : base(creature, context)
+    /// <param name="time">The container's clock, the one the rest of the world times by (#610).</param>
+    public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
+        TimeProvider? time = null) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
+        _time = time ?? TimeProvider.System;
         _initialPosition = Vector3.zero;
     }
 
     public override object State { get; set; } = CombatState.None;
+
+    bool IReturningHome.IsReturningHome => State is CombatState.Returning;
 
     /// <summary>
     /// Its target left this creature's instance: give up the fight and go home, at full health. Called
@@ -438,7 +444,7 @@ public class CreatureCombatScript : AiScript
         // Taunt override: while the taunt is active, the creature is locked onto the
         // taunter regardless of threat ordering. This mirrors CombatService.ApplyTaunt
         // which sets these fields and bumps threat above the current top.
-        if (Creature.TauntedBy is { } tauntedBy && DateTime.UtcNow < Creature.TauntExpiresAt)
+        if (Creature.TauntedBy is { } tauntedBy && _time.GetUtcNow().UtcDateTime < Creature.TauntExpiresAt)
         {
             return tauntedBy;
         }

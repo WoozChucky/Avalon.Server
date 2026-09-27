@@ -29,7 +29,7 @@ namespace Avalon.World.Scripts.Creatures;
 /// corpse's patrol stops for good.
 /// </para>
 /// </remarks>
-public sealed class CreaturePatrolScript : AiScript
+public sealed class CreaturePatrolScript : AiScript, IReturningHome
 {
     public enum PatrolState
     {
@@ -45,16 +45,19 @@ public sealed class CreaturePatrolScript : AiScript
     private bool _pausing;
     private TimeSpan _pauseRemaining;
 
-    public CreaturePatrolScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context)
+    public CreaturePatrolScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
+        TimeProvider? time = null)
         : base(creature, context)
     {
-        _combat = new CreatureCombatScript(loggerFactory, creature, context);
+        _combat = new CreatureCombatScript(loggerFactory, creature, context, time);
         Chain(_combat);
     }
 
     public override object State { get; set; } = PatrolState.Patrolling;
 
     protected override bool ShouldRun() => State is PatrolState.Patrolling;
+
+    bool IReturningHome.IsReturningHome => _combat is IReturningHome { IsReturningHome: true };
 
     private bool InCombat => _combat.State is not CreatureCombatScript.CombatState.None;
 

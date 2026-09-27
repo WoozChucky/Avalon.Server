@@ -10,7 +10,9 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Scripts.Creatures;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ReceivedExtensions;
@@ -274,6 +276,65 @@ public class CreatureCombatScriptShould
         IUnit? picked = script.PickTarget();
 
         Assert.Same(dps, picked);
+    }
+
+    /// <summary>
+    /// #610: a taunt lasts by the container's clock, not the wall clock. The fake clock sits years
+    /// from now, so a script reading <c>DateTime.UtcNow</c> would get both answers wrong.
+    /// </summary>
+    [Fact]
+    public void Time_A_Taunt_By_Its_Clock_Rather_Than_The_Wall_Clock()
+    {
+        var clock = new FixedTimeProvider(new DateTimeOffset(2040, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        var (script, encounter, _) = BuildScript(out var creature, clock);
+        ICharacter tank = Substitute.For<ICharacter>();
+        ICharacter dps  = Substitute.For<ICharacter>();
+        encounter.GetTopThreat(creature).Returns(dps);
+        creature.TauntedBy      = tank;
+        creature.TauntExpiresAt = clock.Now.UtcDateTime.AddSeconds(5);
+
+        Assert.Same(tank, script.PickTarget());
+
+        clock.Now = clock.Now.AddSeconds(5);
+        Assert.Same(dps, script.PickTarget());
+    }
+
+    /// <summary>
+    /// #610: built the way placement attaches a script (two runtime arguments, the rest from the
+    /// container), the script times by the container's clock rather than falling back to the system one.
+    /// </summary>
+    [Fact]
+    public void Take_Its_Clock_From_The_Container_When_Attached_By_Name()
+    {
+        var clock = new FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        using ServiceProvider services = new ServiceCollection()
+            .AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance)
+            .AddSingleton<TimeProvider>(clock)
+            .BuildServiceProvider();
+        ICreature creature = Substitute.For<ICreature>();
+        creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
+        ICharacter tank = Substitute.For<ICharacter>();
+        creature.TauntedBy      = tank;
+        creature.TauntExpiresAt = clock.Now.UtcDateTime.AddSeconds(5);
+
+        var script = (CreatureCombatScript)ActivatorUtilities.CreateInstance(
+            services, typeof(CreatureCombatScript), creature, Substitute.For<ISimulationContext>());
+
+        Assert.Same(tank, script.PickTarget());
+    }
+
+    /// <summary>#610: a taunt that ran out by the wall clock still holds while the script's clock is before its end.</summary>
+    [Fact]
+    public void Hold_A_Taunt_That_Has_Not_Ended_By_Its_Clock()
+    {
+        var clock = new FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        var (script, encounter, _) = BuildScript(out var creature, clock);
+        ICharacter tank = Substitute.For<ICharacter>();
+        encounter.GetTopThreat(creature).Returns(Substitute.For<ICharacter>());
+        creature.TauntedBy      = tank;
+        creature.TauntExpiresAt = clock.Now.UtcDateTime.AddMilliseconds(1);
+
+        Assert.Same(tank, script.PickTarget());
     }
 
     [Fact]
@@ -1240,7 +1301,8 @@ public class CreatureCombatScriptShould
     private MeleeSlots SlotsOf(CreatureCombatScript script) =>
         _meleeSlots ?? throw new InvalidOperationException("Call BuildChasingScript first.");
 
-    private static (CreatureCombatScript script, IEncounter encounter, ICombatService combat) BuildScript(out ICreature creature)
+    private static (CreatureCombatScript script, IEncounter encounter, ICombatService combat) BuildScript(out ICreature creature,
+        TimeProvider? time = null)
     {
         creature = Substitute.For<ICreature>();
         // NSubstitute auto-substitutes reference-type reads. Initialise the taunt fields so
@@ -1257,7 +1319,7 @@ public class CreatureCombatScriptShould
         var context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
 
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context, time);
         return (script, encounter, combat);
     }
 

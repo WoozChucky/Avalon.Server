@@ -11,6 +11,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 using Avalon.World.Pvp;
+using Avalon.World.Scripts.Creatures;
 
 namespace Avalon.World.Combat;
 
@@ -50,6 +51,11 @@ public sealed class CombatService : ICombatService
         // A corpse takes no hits (#588), as a dead character's OnHit ignores them: no threat, no
         // encounter, no script call, no second death, and its attacker is not tagged in combat.
         if (target is ICreature { CurrentHealth: 0 }) return;
+
+        // A creature walking home, after the leash or a lost target, ignores hits entirely (#610): no
+        // encounter, no threat, no script call, no broadcast, and its attacker is not tagged in
+        // combat, so nothing from the walk home outlives the reset there.
+        if (target is ICreature { Script: IReturningHome { IsReturningHome: true } }) return;
 
         // #164: a player-on-player hit that deals damage to a living player restarts both players'
         // running PvP off timers. Towns are covered because AbilityEffect checks Hostility before it
