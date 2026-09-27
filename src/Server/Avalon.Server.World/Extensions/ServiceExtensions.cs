@@ -9,6 +9,7 @@ using Avalon.World.Chat;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
+using Avalon.World.Combat;
 using Avalon.World.Loot;
 using Avalon.World.Maps;
 using Avalon.World.Persistence;
@@ -66,6 +67,8 @@ public static class ServiceExtensions
         // Loot (issue #460). One clock for the allocator's free-for-all time and the pickup check.
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<ILootRandom>(new LootRandom(Random.Shared));
+        // #506: every combat roll (dodge, crit, block, weapon, creature swing) goes through this.
+        services.AddSingleton<ICombatRandom>(new CombatRandom(Random.Shared));
         services.AddSingleton<ILootRoller, LootRoller>();
         services.AddSingleton<ILootAllocator, InstanceOwnerLootAllocator>();
         services.AddSingleton<ICharacterSaver, CharacterSaver>();
