@@ -14,8 +14,11 @@ public class EntityTrackingSystem(int capacity)
     public event Action<ObjectGuid>? EntityRemoved;
     public event Action<ObjectGuid, GameEntityFields>? EntityUpdated;
 
+    /// <summary>Whether <paramref name="guid" /> is in this system's set, as of its last update.</summary>
+    public bool IsTracked(ObjectGuid guid) => _trackedGuids.Contains(guid);
+
     public void Update(
-        IEnumerable<IWorldObject> currentEntities,
+        List<IWorldObject> currentEntities,
         IReadOnlyDictionary<ObjectGuid, GameEntityFields> frameDirtyFields)
     {
         _seenThisFrame.Clear();

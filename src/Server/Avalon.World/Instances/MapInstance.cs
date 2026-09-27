@@ -54,6 +54,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly float _creatureAgentRadius;
     private readonly bool _crowdIncludesPlayers;
     private readonly float _interestRadius;
+    private readonly InterestRange _interest;
     private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
@@ -116,6 +117,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
         _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
         _interestRadius = world.Configuration.InterestRadius;
+        _interest = new InterestRange(world.Configuration.InterestRadius, world.Configuration.InterestRemoveMargin);
         _locomotion = CreateLocomotion(world.Configuration);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
         WarnIfMeleeSlotRadiusUnreachable(world.Configuration.MeleeSlotRadius);
@@ -735,10 +737,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>Steps 5b and 6 of <see cref="Update" />: every character's visibility first, then every broadcast.</summary>
     private void BroadcastState(List<IWorldObject> objectAbilities)
     {
-        // Step 5b: Update entity visibility state per character
+        // Step 5b: Update entity visibility state per character, each by its own interest range (#593)
         foreach (ICharacter character in _characters.Values)
         {
-            character.CharacterGameState.Update(_creatures, _characters, objectAbilities, _frameDirtyFields);
+            character.CharacterGameState.Update(character.Guid, character.Position, _interest, _creatures,
+                _characters, objectAbilities, _frameDirtyFields);
         }
 
         // Step 6: Broadcast instance state to each character
