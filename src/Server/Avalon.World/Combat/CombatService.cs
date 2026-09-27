@@ -286,12 +286,19 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     public IEncounter? GetEncounterFor(IUnit unit) => _registry.FindEncounterContaining(unit);
 
+    // Reused every tick: the encounters to update, copied first because an ended one is disposed
+    // mid-loop. The tick path allocates nothing.
+    private readonly List<Encounter> _updating = new();
+
     public void Update(TimeSpan deltaTime)
     {
-        foreach (var enc in _registry.Active.OfType<Encounter>().ToList())
+        _registry.CopyActiveTo(_updating);
+        for (int i = 0; i < _updating.Count; i++)
         {
+            Encounter enc = _updating[i];
             enc.Update(deltaTime);
             if (enc.ShouldEnd) _registry.Dispose(enc);
         }
+        _updating.Clear();
     }
 }

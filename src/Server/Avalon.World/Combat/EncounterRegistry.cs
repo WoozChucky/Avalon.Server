@@ -19,6 +19,13 @@ public sealed class EncounterRegistry : IEncounterRegistry
 
     public IReadOnlyCollection<IEncounter> Active => _active;
 
+    /// <summary>Replaces <paramref name="into" />'s contents with the active encounters, allocating nothing once it has grown.</summary>
+    internal void CopyActiveTo(List<Encounter> into)
+    {
+        into.Clear();
+        into.AddRange(_active);
+    }
+
     public IEncounter? FindEncounterContaining(IUnit unit)
     {
         foreach (var enc in _active)
