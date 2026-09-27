@@ -349,7 +349,7 @@ and registration budgets are separate and still apply.
 
 A personal access token is looked up before the limiter, so it can be counted against its account, only on
 an endpoint that requires authorization and only while limiting is enabled. Each source may fail that lookup
-10 times a minute (a made-up or revoked token); past that its requests are counted as anonymous without the
+10 times a minute (a made-up or revoked token), with at most 2 of its lookups running at once; past either, its requests are counted as anonymous without the
 lookup, so a flood of made-up tokens cannot force a database query per request. Authorization still answers
 401 for any such request the limiter lets through.
 

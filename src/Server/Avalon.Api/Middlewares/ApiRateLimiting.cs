@@ -126,7 +126,9 @@ public static class ApiRateLimiting
 
         FailedPatLookups failures = context.RequestServices.GetRequiredService<FailedPatLookups>();
         string source = SourceOf(context);
-        if (!failures.MayLookUp(source))
+        // Held for the whole lookup, so the failure below is recorded before another may start.
+        using RateLimitLease? lookup = failures.TryStart(source);
+        if (lookup is null)
             return;
 
         AuthenticateResult result = await context.AuthenticateAsync(AvalonAuthenticationSchemeOptions.SchemeName);
@@ -137,12 +139,25 @@ public static class ApiRateLimiting
     }
 
     /// <summary>
-    /// Failed personal-access-token lookups per source (#561 review), a sliding window of one
-    /// minute like the request limiter's. A lookup is made only while a permit is left, and each
-    /// failure spends one.
+    /// The early personal-access-token lookups one source may make (#561 review): at most
+    /// <see cref="ConcurrentLookupsPerSource"/> at once, and only while it has failed fewer than
+    /// <see cref="FailedPatLookupsPerMinute"/> in a sliding window of one minute. A failure is
+    /// known only once its lookup ends, so without the concurrency bound lookups running side by
+    /// side would all see a failure left; with it, a burst costs at most the budget plus the
+    /// lookups in flight when it ran out. The two limiters are separate rather than chained,
+    /// because a lookup spends the failure budget only if it fails: a valid token never does.
     /// </summary>
     public sealed class FailedPatLookups : IDisposable
     {
+        public const int ConcurrentLookupsPerSource = 2;
+
+        private readonly PartitionedRateLimiter<string> _inFlight = PartitionedRateLimiter.Create<string, string>(
+            source => RateLimitPartition.GetConcurrencyLimiter(source, _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = ConcurrentLookupsPerSource,
+                QueueLimit = 0,
+            }), StringComparer.Ordinal);
+
         private readonly PartitionedRateLimiter<string> _limiter = PartitionedRateLimiter.Create<string, string>(
             source => RateLimitPartition.GetSlidingWindowLimiter(source, _ => new SlidingWindowRateLimiterOptions
             {
@@ -153,16 +168,33 @@ public static class ApiRateLimiting
                 AutoReplenishment = true,
             }), StringComparer.Ordinal);
 
-        /// <summary>Whether the source has a failure left; spends nothing.</summary>
-        public bool MayLookUp(string source)
+        /// <summary>
+        /// A lease to hold for one lookup, or null when the source already has its lookups in
+        /// flight or has no failure left. Spends nothing of the failure budget.
+        /// </summary>
+        public RateLimitLease? TryStart(string source)
+        {
+            RateLimitLease lease = _inFlight.AttemptAcquire(source);
+            if (lease.IsAcquired && MayFail(source))
+                return lease;
+            lease.Dispose();
+            return null;
+        }
+
+        /// <summary>Spends one of the source's failures, for a lookup that found no valid token.</summary>
+        public void Record(string source) => _limiter.AttemptAcquire(source).Dispose();
+
+        public void Dispose()
+        {
+            _inFlight.Dispose();
+            _limiter.Dispose();
+        }
+
+        private bool MayFail(string source)
         {
             using RateLimitLease lease = _limiter.AttemptAcquire(source, 0);
             return lease.IsAcquired;
         }
-
-        public void Record(string source) => _limiter.AttemptAcquire(source).Dispose();
-
-        public void Dispose() => _limiter.Dispose();
     }
 
     /// <summary>Which partition a request is counted against.</summary>

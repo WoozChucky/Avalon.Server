@@ -324,13 +324,22 @@ public sealed class RateLimitingShould
     }
 
     private static HttpContext PatRequest(Microsoft.AspNetCore.Authentication.IAuthenticationService authentication,
-        bool enabled, bool requiresAuthorization)
+        bool enabled, bool requiresAuthorization) =>
+        PatRequest(PatServices(authentication, enabled), requiresAuthorization);
+
+    private static ServiceProvider PatServices(Microsoft.AspNetCore.Authentication.IAuthenticationService authentication,
+        bool enabled = true)
     {
         var services = new ServiceCollection();
         services.AddSingleton(authentication);
         services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new RateLimitingConfig { Enabled = enabled }));
         services.AddSingleton<ApiRateLimiting.FailedPatLookups>();
-        var context = new DefaultHttpContext { RequestServices = services.BuildServiceProvider() };
+        return services.BuildServiceProvider();
+    }
+
+    private static HttpContext PatRequest(IServiceProvider services, bool requiresAuthorization = true)
+    {
+        var context = new DefaultHttpContext { RequestServices = services };
         context.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.1");
         context.Request.Headers.Authorization = "Avalon " + PatToken;
         context.SetEndpoint(new Endpoint(_ => Task.CompletedTask,
@@ -338,6 +347,69 @@ public sealed class RateLimitingShould
                 ? new EndpointMetadataCollection(new Microsoft.AspNetCore.Authorization.AuthorizeAttribute())
                 : EndpointMetadataCollection.Empty, "test"));
         return context;
+    }
+
+    /// <summary>
+    /// #561 re-review: the failed-lookup budget is spent only once a lookup has failed, so lookups
+    /// running side by side all saw a permit left. At most two run at once per source; a request
+    /// that finds both taken is anonymous with no lookup. So a burst costs at most the budget plus
+    /// the two in flight when it ran out.
+    /// </summary>
+    [Fact]
+    public async Task Bound_concurrent_made_up_token_lookups_from_one_source()
+    {
+        var authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        int inFlight = 0, maxInFlight = 0, lookups = 0;
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        authentication.AuthenticateAsync(Arg.Any<HttpContext>(), Arg.Any<string?>()).Returns(async _ =>
+        {
+            Interlocked.Increment(ref lookups);
+            int now = Interlocked.Increment(ref inFlight);
+            int seen;
+            while (now > (seen = Volatile.Read(ref maxInFlight)) && Interlocked.CompareExchange(ref maxInFlight, now, seen) != seen) { }
+            await Volatile.Read(ref gate).Task;
+            Interlocked.Decrement(ref inFlight);
+            return Microsoft.AspNetCore.Authentication.AuthenticateResult.Fail("invalid token");
+        });
+        await using ServiceProvider services = PatServices(authentication);
+
+        for (int round = 0; round < 20; round++)
+        {
+            Task[] burst = Enumerable.Range(0, 50)
+                .Select(_ => Task.Run(() => ApiRateLimiting.IdentifyPersonalAccessTokenAsync(PatRequest(services))))
+                .ToArray();
+            await Task.Delay(20);
+            TaskCompletionSource released = Volatile.Read(ref gate);
+            Volatile.Write(ref gate, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+            released.SetResult();
+            await Task.WhenAll(burst);
+            // Lookups that started after the swap wait on the new gate; let them go too.
+            Volatile.Read(ref gate).TrySetResult();
+            Volatile.Write(ref gate, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+        }
+
+        Assert.True(maxInFlight <= 2, $"{maxInFlight} lookups ran at once");
+        Assert.True(lookups <= ApiRateLimiting.FailedPatLookupsPerMinute + 2, $"{lookups} lookups");
+        Assert.True(lookups >= ApiRateLimiting.FailedPatLookupsPerMinute, $"{lookups} lookups");
+    }
+
+    /// <summary>A token that is found spends none of the failed-lookup budget.</summary>
+    [Fact]
+    public async Task Not_spend_the_failed_lookup_budget_on_a_valid_token()
+    {
+        var authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        var principal = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "7")], "AV"));
+        authentication.AuthenticateAsync(Arg.Any<HttpContext>(), Arg.Any<string?>())
+            .Returns(Microsoft.AspNetCore.Authentication.AuthenticateResult.Success(
+                new Microsoft.AspNetCore.Authentication.AuthenticationTicket(principal, "AV")));
+        await using ServiceProvider services = PatServices(authentication);
+
+        int requests = ApiRateLimiting.FailedPatLookupsPerMinute * 3;
+        for (int i = 0; i < requests; i++)
+            await ApiRateLimiting.IdentifyPersonalAccessTokenAsync(PatRequest(services));
+
+        await authentication.Received(requests).AuthenticateAsync(Arg.Any<HttpContext>(), Arg.Any<string?>());
     }
 
     [Theory]
