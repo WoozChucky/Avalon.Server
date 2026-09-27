@@ -34,6 +34,7 @@ public static class WorldDatabaseRegistration
     private static IServiceCollection AddWorldContexts(this IServiceCollection services)
     {
         services.AddSingleton<IWorldDbContextFactory, ConfiguredWorldDbContextFactory>();
+        services.AddSingleton(sp => new ApiDatabaseMigrator(sp.GetRequiredService<ILogger<ApiDatabaseMigrator>>()));
         services.AddSingleton<IWorldRepositories, WorldRepositories>();
         services.AddScoped<CurrentWorld>();
         services.AddScoped<ICurrentWorld>(sp => sp.GetRequiredService<CurrentWorld>());

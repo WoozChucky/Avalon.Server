@@ -1,10 +1,14 @@
 using Avalon.Api;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
+using Avalon.Api.Worlds;
+using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -109,7 +113,34 @@ public class ApiStartupValidationShould
         Assert.Contains("Database:Auth:ConnectionString is required.", refused.Message, StringComparison.Ordinal);
     }
 
-    private static ServiceProvider Build(string? cacheHost, params (string Key, string? Value)[] overrides)
+    /// <summary>
+    /// #523: <see cref="ApiStartup"/> migrates through the tolerant migrator, so a world whose
+    /// migration fails is marked unavailable and startup goes on, while the other world stays available.
+    /// </summary>
+    [Fact]
+    public async Task Start_when_one_worlds_migration_fails_and_mark_only_that_world_unavailable()
+    {
+        await using ServiceProvider provider = Build("localhost:6379",
+            services => services.AddSingleton(sp => new ApiDatabaseMigrator(
+                sp.GetRequiredService<ILogger<ApiDatabaseMigrator>>(),
+                (context, _) => (context.Database.GetConnectionString() ?? "").Contains("Database=world2", StringComparison.Ordinal)
+                    ? throw new InvalidOperationException("world 2 is down")
+                    : Task.CompletedTask)),
+            ("Database:Worlds:2:World:ConnectionString", "Host=127.0.0.1;Port=1;Timeout=1;Database=world2;Username=none;Password=none"),
+            ("Database:Worlds:2:Characters:ConnectionString", Unreachable));
+
+        await ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance);
+
+        WorldDatabases worlds = provider.GetRequiredService<WorldDatabases>();
+        Assert.True(worlds.IsAvailable(new WorldId(1)));
+        Assert.False(worlds.IsAvailable(new WorldId(2)));
+    }
+
+    private static ServiceProvider Build(string? cacheHost, params (string Key, string? Value)[] overrides) =>
+        Build(cacheHost, null, overrides);
+
+    private static ServiceProvider Build(string? cacheHost, Action<IServiceCollection>? configure,
+        params (string Key, string? Value)[] overrides)
     {
         ApplicationConfig config = new()
         {
@@ -141,6 +172,7 @@ public class ApiStartupValidationShould
         services.AddSingleton(config.Cache);
         services.AddSingleton(JwtSigningKey.Create(config.Authentication));
         services.AddInfrastructure(config);
+        configure?.Invoke(services);
 
         return services.BuildServiceProvider(AvalonServiceProvider.Options);
     }

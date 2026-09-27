@@ -28,7 +28,7 @@ public static class ApiStartup
         // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
         // Auth first: a failure stops the api. Then each world under Database:Worlds: one that fails
         // is logged and answers 503 until the next restart, and the others serve (#523).
-        await new ApiDatabaseMigrator(services.GetRequiredService<ILogger<ApiDatabaseMigrator>>())
+        await services.GetRequiredService<ApiDatabaseMigrator>()
             .MigrateAsync(
                 scope.ServiceProvider.GetRequiredService<IDbContextFactory<AuthDbContext>>(),
                 worlds,
