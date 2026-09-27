@@ -30,7 +30,9 @@ public static class ServiceRegistration
         services.AddWorldDatabase();
 
         services.AddOptions<CacheConfiguration>()
-            .BindConfiguration("Application:Cache");
+            .BindConfiguration("Application:Cache")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddOptions<MapAssetConfig>()
             .BindConfiguration("Application:MapAssets");

@@ -1,4 +1,6 @@
+using Avalon.Database;
 using Avalon.Database.Auth.Extensions;
+using Avalon.Database.Extensions;
 using Avalon.Database.Character.Extensions;
 using Avalon.Database.World.Extensions;
 using Avalon.Infrastructure.Extensions;
@@ -50,6 +52,7 @@ public static class ServiceExtensions
             .AddAuthDatabase() //TODO: World should not depend on Auth database
             .AddCharacterDatabase()
             .AddWorldDatabase()
+            .ValidateDatabasesOnStart(DatabaseConnections.Auth | DatabaseConnections.Characters | DatabaseConnections.World)
             .AddCache();
 
         services.AddSingleton<IWorld, Avalon.World.World>();

@@ -73,7 +73,7 @@ spec:
                   key: jwt-signing-key
             # Not secret.
             - name: Application__Cache__Host
-              value: {{ .Values.cache.host | quote }}
+              value: {{ required "cache.host is required: host:port of Redis" .Values.cache.host | quote }}
             - name: Application__Notification__Subject
               value: {{ .Values.notification.subject | quote }}
             - name: Application__Notification__PublicKey

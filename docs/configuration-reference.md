@@ -86,6 +86,7 @@ Section in `appsettings.json`: `"Hosting"`
 
 **Validation rules:**
 - `PacketReaderBufferSize`: minimum `512`, maximum `65535`.
+- `Security:CertificatePath` (auth server): required. `Security:CertificatePassword` is optional.
 
 ---
 
@@ -104,6 +105,9 @@ Section in `appsettings.json`: `"Cache"`
   "Password": "your-redis-password"
 }
 ```
+
+**Validation rules:**
+- `Host`: required, checked at startup. `Password` is optional.
 
 ---
 
@@ -394,17 +398,30 @@ Application__Authentication__IssuerSigningKey=<from-vault>
 ## Startup Validation
 
 These configuration classes (`GameConfiguration`, `RegenConfiguration`,
-`AuthConfiguration`, `HostingConfiguration`) opt into startup validation to fail fast on misconfiguration:
+`AuthConfiguration`, `HostingConfiguration`, the auth server's `HostingSecurity`, and
+`CacheConfiguration` in all three hosts) opt into startup validation to fail fast on misconfiguration:
 
 ```csharp
 .ValidateDataAnnotations()
 .ValidateOnStart()
 ```
 
+`DatabaseConfiguration` is validated at startup too, in the auth and world servers, but by
+`DatabaseConnectionsValidation` (`ValidateDatabasesOnStart` in `Avalon.Database`) rather than by
+annotations, because the databases a host needs differ: the auth server needs
+`Database:Auth:ConnectionString`, the world server that and `Database:Characters:ConnectionString`
+and `Database:World:ConnectionString`. The message names the missing setting.
+
 This causes the application to throw an `OptionsValidationException` at startup rather than at runtime when the missing/invalid value is first accessed.
 
+Each host runs these checks itself, right after building the host and before its migrations and
+its cache connection (`AuthStartup`, `WorldStartup`, `ApiStartup`), because `ValidateOnStart` alone
+would run them only when the host starts, after that work had already failed on the missing value.
+The API skips them, with the migrations, when `AVALON_OPENAPI_GENERATION_ONLY` is set.
+
 The REST API's `Application:*` classes (`ApplicationConfig` and the sections under it) do not use
-`ValidateOnStart`. They are bound directly rather than through `IOptions<T>`, and `ServiceRegistration`
+`ValidateOnStart`, except `Application:Cache`, which is also bound as `IOptions<CacheConfiguration>`
+and validated at startup like the servers' `Cache`. They are bound directly rather than through `IOptions<T>`, and `ServiceRegistration`
 checks them by hand at startup: the signing key (`JwtSigningKey.Create`, see
 [REST API JWT Signing Key](#rest-api-jwt-signing-key)), the login limits (`LoginLimitsValidation.Validate`),
 the account-creation cap, the email-change send caps, the forwarded-headers entries

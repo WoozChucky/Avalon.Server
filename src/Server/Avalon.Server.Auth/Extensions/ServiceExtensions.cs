@@ -1,4 +1,6 @@
+using Avalon.Database;
 using Avalon.Database.Auth.Extensions;
+using Avalon.Database.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Options;
@@ -11,7 +13,9 @@ public static class ServiceExtensions
     public static IServiceCollection AddAuthServices(this IServiceCollection services)
     {
         services.AddOptions<HostingSecurity>()
-            .BindConfiguration("Hosting:Security");
+            .BindConfiguration("Hosting:Security")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddOptions<AuthConfiguration>()
             .BindConfiguration("Application")
@@ -21,6 +25,7 @@ public static class ServiceExtensions
         services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<IOptions<AuthConfiguration>>().Value);
 
         services.AddAuthDatabase()
+            .ValidateDatabasesOnStart(DatabaseConnections.Auth)
             .AddLoginPolicy()
             .AddCache()
             .AddMfaService()

@@ -11,7 +11,8 @@ public static class ServiceExtensions
     {
         services.AddOptions<CacheConfiguration>()
             .BindConfiguration("Cache")
-            .ValidateDataAnnotations();
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         return services;
     }
