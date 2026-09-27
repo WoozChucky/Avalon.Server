@@ -3,6 +3,7 @@
 
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
+using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
@@ -13,9 +14,11 @@ using Avalon.Infrastructure;
 using Avalon.Infrastructure.Presence;
 using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using Xunit;
+using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using AvalonWorld = Avalon.Domain.Auth.World;
 
 namespace Avalon.Api.UnitTests.Services;
@@ -27,6 +30,14 @@ public class ObservabilityServiceShould
     private readonly IMapTemplateRepository _maps = Substitute.For<IMapTemplateRepository>();
     private readonly IProceduralMapConfigRepository _configs = Substitute.For<IProceduralMapConfigRepository>();
     private readonly IProceduralLayoutInputsResolver _inputsResolver = Substitute.For<IProceduralLayoutInputsResolver>();
+    private readonly IWorldRepositories _perWorld = Substitute.For<IWorldRepositories>();
+    private readonly WorldDatabases _databases = new(
+    [
+        new ConfiguredWorld(new WorldId(1), "Host=w1", "Host=c1"),
+        new ConfiguredWorld(new WorldId(2), "Host=w2", "Host=c2"),
+    ]);
+    private readonly CapturingLogger _logger = new();
+    private const AccountAccessLevel Gm = AccountAccessLevel.GameMaster;
 
     // Real (not substituted) so the caching test exercises genuine TTL/eviction behavior rather
     // than a mock standing in for it.
@@ -53,13 +64,20 @@ public class ObservabilityServiceShould
     {
         _worlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(
         [
-            new AvalonWorld { Id = new WorldId(1), Name = "Aurora" },
+            new AvalonWorld { Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Player },
         ]);
+        _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<AvalonWorld?>(new AvalonWorld
+            {
+                Id = call.Arg<WorldId>(), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Player,
+            }));
         _maps.FindByIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
              .Returns(new MapTemplate { Id = new MapTemplateId(12), Name = "Crypt" });
+        _perWorld.MapTemplates(Arg.Any<WorldId>()).Returns(_maps);
+        _perWorld.ProceduralMapConfigs(Arg.Any<WorldId>()).Returns(_configs);
+        _perWorld.LayoutInputs(Arg.Any<WorldId>()).Returns(_inputsResolver);
         return new ObservabilityService(
-            _cache, _worlds, _maps, _configs, _inputsResolver, _poolMemberCache,
-            NullLogger<ObservabilityService>.Instance);
+            _cache, _worlds, _databases, _perWorld, _poolMemberCache, _logger);
     }
 
     /// <summary>
@@ -131,7 +149,7 @@ public class ObservabilityServiceShould
         _cache.GetAsync(Arg.Any<string>()).Returns((string?)null);
 
         PagedResult<OnlinePlayerDto> page =
-            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), CancellationToken.None);
+            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
 
         Assert.Empty(page.Items);
         Assert.Equal(0, page.TotalCount);
@@ -143,7 +161,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(4417, "Nym"), Char(9002, "Kel")));
 
         PagedResult<OnlinePlayerDto> page =
-            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), CancellationToken.None);
+            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
 
         Assert.Equal(2, page.TotalCount);
         Assert.Contains(page.Items, r => r.Name == "Nym" && r.WorldName == "Aurora");
@@ -157,7 +175,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(4417, "Nym"), Char(9002, "Kel")));
 
         PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { NameLike = "ny" }, CancellationToken.None);
+            .GetOnlineAsync(new PresencePaginateFilters { NameLike = "ny" }, Gm, CancellationToken.None);
 
         Assert.Single(page.Items);
         Assert.Equal("Nym", page.Items[0].Name);
@@ -169,7 +187,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "A"), Char(2, "B"), Char(3, "C")));
 
         PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { Page = 2, PageSize = 2 }, CancellationToken.None);
+            .GetOnlineAsync(new PresencePaginateFilters { Page = 2, PageSize = 2 }, Gm, CancellationToken.None);
 
         Assert.Single(page.Items);
         Assert.Equal(3, page.TotalCount);
@@ -184,9 +202,9 @@ public class ObservabilityServiceShould
 
         ObservabilityService sut = CreateSut();
         PagedResult<OnlinePlayerDto> page1 =
-            await sut.GetOnlineAsync(new PresencePaginateFilters { Page = 1, PageSize = 2 }, CancellationToken.None);
+            await sut.GetOnlineAsync(new PresencePaginateFilters { Page = 1, PageSize = 2 }, Gm, CancellationToken.None);
         PagedResult<OnlinePlayerDto> page2 =
-            await sut.GetOnlineAsync(new PresencePaginateFilters { Page = 2, PageSize = 2 }, CancellationToken.None);
+            await sut.GetOnlineAsync(new PresencePaginateFilters { Page = 2, PageSize = 2 }, Gm, CancellationToken.None);
 
         Assert.Equal(["Amy", "Mno"], page1.Items.Select(r => r.Name).ToArray());
         Assert.Equal(["Zed"], page2.Items.Select(r => r.Name).ToArray());
@@ -202,7 +220,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "A")));
 
         PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 200 }, CancellationToken.None);
+            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 200 }, Gm, CancellationToken.None);
 
         Assert.Equal(50, page.PageSize);
     }
@@ -213,7 +231,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "A")));
 
         PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 0 }, CancellationToken.None);
+            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 0 }, Gm, CancellationToken.None);
 
         Assert.Equal(50, page.PageSize);
     }
@@ -224,7 +242,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "A")));
 
         PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 50 }, CancellationToken.None);
+            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 50 }, Gm, CancellationToken.None);
 
         Assert.Equal(50, page.PageSize);
     }
@@ -235,7 +253,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "A"), Char(2, "B")));
 
         PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { Page = 99 }, CancellationToken.None);
+            .GetOnlineAsync(new PresencePaginateFilters { Page = 99 }, Gm, CancellationToken.None);
 
         Assert.Empty(page.Items);
         Assert.Equal(2, page.TotalCount);
@@ -257,7 +275,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(snapshot);
 
         PagedResult<OnlinePlayerDto> page =
-            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), CancellationToken.None);
+            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
 
         Assert.Single(page.Items);
         Assert.Null(page.Items[0].MapType);
@@ -280,7 +298,7 @@ public class ObservabilityServiceShould
             ]);
         GivenWorldSnapshot(snapshot);
 
-        await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), CancellationToken.None);
+        await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
 
         // Both instances share TemplateId 12 — the repository should be consulted once
         // per request, not once per instance.
@@ -293,7 +311,7 @@ public class ObservabilityServiceShould
     {
         _cache.GetAsync(Arg.Any<string>()).Returns((string?)null);
 
-        Assert.Null(await CreateSut().GetPlayerPresenceAsync(4417, CancellationToken.None));
+        Assert.Null(await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None));
     }
 
     [Fact]
@@ -302,7 +320,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns((string?)null);
 
-        Assert.Null(await CreateSut().GetPlayerPresenceAsync(4417, CancellationToken.None));
+        Assert.Null(await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None));
     }
 
     [Fact]
@@ -311,7 +329,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(4417, "Nym"), Char(9002, "Kel")));
 
-        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, CancellationToken.None);
+        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
 
         Assert.NotNull(presence);
         Assert.Equal("Nym", presence!.Target.Name);
@@ -325,7 +343,7 @@ public class ObservabilityServiceShould
     {
         _cache.GetAsync(Arg.Any<string>()).Returns((string?)null);
 
-        Assert.Null(await CreateSut().GetInstancePresenceAsync(InstanceId, CancellationToken.None));
+        Assert.Null(await CreateSut().GetInstancePresenceAsync(InstanceId, Gm, CancellationToken.None));
     }
 
     [Fact]
@@ -335,7 +353,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         GivenWorldSnapshot(Snapshot(current, Char(4417, "Nym")));
 
-        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, CancellationToken.None);
+        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
 
         Assert.False(presence!.LayoutStale);
     }
@@ -347,7 +365,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         GivenWorldSnapshot(Snapshot("ffffffff", Char(4417, "Nym")));
 
-        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, CancellationToken.None);
+        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
 
         Assert.True(presence!.LayoutStale);
     }
@@ -361,7 +379,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         GivenWorldSnapshot(Snapshot("", Char(4417, "Nym")));
 
-        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, CancellationToken.None);
+        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
 
         Assert.False(presence!.LayoutStale);
     }
@@ -377,7 +395,7 @@ public class ObservabilityServiceShould
         _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns(raw);
 
         PagedResult<OnlinePlayerDto> page =
-            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), CancellationToken.None);
+            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
 
         Assert.Empty(page.Items);
         Assert.Equal(0, page.TotalCount);
@@ -394,7 +412,7 @@ public class ObservabilityServiceShould
         _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns(raw);
 
         InstancePresenceDto? instance =
-            await CreateSut().GetInstancePresenceAsync(InstanceId, CancellationToken.None);
+            await CreateSut().GetInstancePresenceAsync(InstanceId, Gm, CancellationToken.None);
 
         Assert.NotNull(instance);
         Assert.Empty(instance!.Characters);
@@ -414,7 +432,7 @@ public class ObservabilityServiceShould
         _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns(raw);
 
         InstancePresenceDto? instance =
-            await CreateSut().GetInstancePresenceAsync(InstanceId, CancellationToken.None);
+            await CreateSut().GetInstancePresenceAsync(InstanceId, Gm, CancellationToken.None);
 
         Assert.Null(instance);
     }
@@ -425,8 +443,8 @@ public class ObservabilityServiceShould
         ObservabilityService sut = CreateSut();
         _worlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(
         [
-            new AvalonWorld { Id = new WorldId(1), Name = "Aurora" },
-            new AvalonWorld { Id = new WorldId(2), Name = "Boreal" },
+            new AvalonWorld { Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Player },
+            new AvalonWorld { Id = new WorldId(2), Name = "Boreal", AccessLevelRequired = AccountAccessLevel.Player },
         ]);
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "Nym"))); // world 1
         _cache.GetAsync(CacheKeys.WorldPresence(2)).Returns(PresenceJson.Serialize(new WorldPresenceSnapshot(
@@ -440,7 +458,7 @@ public class ObservabilityServiceShould
             ])));
 
         PagedResult<OnlinePlayerDto> page =
-            await sut.GetOnlineAsync(new PresencePaginateFilters { WorldId = 2 }, CancellationToken.None);
+            await sut.GetOnlineAsync(new PresencePaginateFilters { WorldId = 2 }, Gm, CancellationToken.None);
 
         Assert.Single(page.Items);
         Assert.Equal("Zed", page.Items[0].Name);
@@ -464,7 +482,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(snapshot);
 
         PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { TemplateId = 99 }, CancellationToken.None);
+            .GetOnlineAsync(new PresencePaginateFilters { TemplateId = 99 }, Gm, CancellationToken.None);
 
         Assert.Single(page.Items);
         Assert.Equal("Zed", page.Items[0].Name);
@@ -481,10 +499,295 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot(current, Char(4417, "Nym")));
 
         ObservabilityService sut = CreateSut();
-        await sut.GetPlayerPresenceAsync(4417, CancellationToken.None);
-        await sut.GetPlayerPresenceAsync(4417, CancellationToken.None);
+        await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+        await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
 
         await _inputsResolver.Received(1).FindPoolAsync(Arg.Any<ChunkPoolId>(), Arg.Any<CancellationToken>());
         await _inputsResolver.Received(1).ResolveMembersAsync(Arg.Any<ChunkPool>(), Arg.Any<CancellationToken>());
+    }
+
+    private void GivenWorldTwoSnapshot(params CharacterPresenceSnapshot[] characters) =>
+        _cache.GetAsync(CacheKeys.WorldPresence(2)).Returns(PresenceJson.Serialize(new WorldPresenceSnapshot(
+            WorldId: 2,
+            CapturedAt: DateTime.UtcNow,
+            Instances:
+            [
+                new InstancePresenceSnapshot(
+                    Guid.Parse("8f3c1d2e-0000-0000-0000-000000000002"), TemplateId: 12, Seed: 2, MapType: "Normal",
+                    ConfigVersion: "", OwnerCharacterId: null, Characters: characters)
+            ])));
+
+    private void GivenTwoWorlds(AccountAccessLevel secondRequires) =>
+        _worlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(
+        [
+            new AvalonWorld { Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Player },
+            new AvalonWorld { Id = new WorldId(2), Name = "Boreal", AccessLevelRequired = secondRequires },
+        ]);
+
+    [Fact]
+    public async Task Hide_presence_in_worlds_the_caller_may_not_enter()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenTwoWorlds(AccountAccessLevel.Admin);
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+        GivenWorldTwoSnapshot(Char(2, "Zed"));
+
+        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
+
+        Assert.Equal(["Nym"], page.Items.Select(r => r.Name));
+    }
+
+    /// <summary>
+    /// PTR (32) and Tournament (16) are numerically above Admin (4): a <c>&lt;=</c> comparison would
+    /// let a game master holding either flag into an Admin-only world. The rule is a mask.
+    /// </summary>
+    [Theory]
+    [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.Tournament)]
+    public async Task Hide_an_admin_only_world_from_a_caller_whose_flags_are_numerically_above_admin(
+        AccountAccessLevel caller)
+    {
+        ObservabilityService sut = CreateSut();
+        GivenTwoWorlds(AccountAccessLevel.Admin);
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+        GivenWorldTwoSnapshot(Char(2, "Zed"));
+
+        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), caller, CancellationToken.None);
+
+        Assert.Equal(["Nym"], page.Items.Select(r => r.Name));
+    }
+
+    [Theory]
+    [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.Tournament)]
+    public async Task Hide_a_player_in_an_admin_only_world_from_a_caller_whose_flags_are_numerically_above_admin(
+        AccountAccessLevel caller)
+    {
+        GivenCharacterIndex(4417);
+        GivenWorldSnapshot(Snapshot("a", Char(4417, "Nym")));
+        ObservabilityService sut = CreateSut();
+        _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<AvalonWorld?>(new AvalonWorld
+            {
+                Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Admin,
+            }));
+
+        Assert.Null(await sut.GetPlayerPresenceAsync(4417, caller, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.Tournament)]
+    public async Task Hide_an_instance_in_an_admin_only_world_from_a_caller_whose_flags_are_numerically_above_admin(
+        AccountAccessLevel caller)
+    {
+        ObservabilityService sut = CreateSut();
+        _worlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(
+        [
+            new AvalonWorld { Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Admin },
+        ]);
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+
+        Assert.Null(await sut.GetInstancePresenceAsync(InstanceId, caller, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Show_a_ptr_world_to_a_game_master_holding_the_ptr_flag()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenTwoWorlds(AccountAccessLevel.PTR);
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+        GivenWorldTwoSnapshot(Char(2, "Zed"));
+
+        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(
+            new PresencePaginateFilters(), AccountAccessLevel.GameMaster | AccountAccessLevel.PTR, CancellationToken.None);
+
+        Assert.Equal(["Nym", "Zed"], page.Items.Select(r => r.Name));
+    }
+
+    [Fact]
+    public async Task Hide_a_players_presence_in_a_world_the_caller_may_not_enter()
+    {
+        GivenCharacterIndex(4417);
+        GivenWorldSnapshot(Snapshot("a", Char(4417, "Nym")));
+        ObservabilityService sut = CreateSut();
+        _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<AvalonWorld?>(new AvalonWorld
+            {
+                Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Admin,
+            }));
+
+        Assert.Null(await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Hide_a_players_presence_in_a_world_with_no_row()
+    {
+        GivenCharacterIndex(4417);
+        GivenWorldSnapshot(Snapshot("a", Char(4417, "Nym")));
+        ObservabilityService sut = CreateSut();
+        _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<AvalonWorld?>(null));
+
+        Assert.Null(await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Hide_an_instance_in_a_world_the_caller_may_not_enter()
+    {
+        ObservabilityService sut = CreateSut();
+        _worlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(
+        [
+            new AvalonWorld { Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Admin },
+        ]);
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+
+        Assert.Null(await sut.GetInstancePresenceAsync(InstanceId, Gm, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Name_templates_from_each_worlds_own_database()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenTwoWorlds(AccountAccessLevel.Player);
+        IMapTemplateRepository worldTwoMaps = Substitute.For<IMapTemplateRepository>();
+        worldTwoMaps.FindByIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(new MapTemplate { Id = new MapTemplateId(12), Name = "Glacier" });
+        _perWorld.MapTemplates(Arg.Is<WorldId>(w => w.Value == 2)).Returns(worldTwoMaps);
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+        GivenWorldTwoSnapshot(Char(2, "Zed"));
+
+        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
+
+        Assert.Equal("Crypt", page.Items.Single(r => r.Name == "Nym").TemplateName);
+        Assert.Equal("Glacier", page.Items.Single(r => r.Name == "Zed").TemplateName);
+    }
+
+    [Fact]
+    public async Task Name_a_template_by_its_id_when_its_world_is_not_readable()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenTwoWorlds(AccountAccessLevel.Player);
+        _databases.MarkUnavailable(new WorldId(2));
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+        GivenWorldTwoSnapshot(Char(2, "Zed"));
+
+        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
+
+        Assert.Equal("#12", page.Items.Single(r => r.Name == "Zed").TemplateName);
+        _perWorld.DidNotReceive().MapTemplates(Arg.Is<WorldId>(w => w.Value == 2));
+    }
+
+    [Fact]
+    public async Task Show_a_player_in_an_unavailable_world_without_reading_its_database()
+    {
+        GivenCharacterIndex(4417);
+        GivenWorldSnapshot(Snapshot("drifted", Char(4417, "Nym")));
+        ObservabilityService sut = CreateSut();
+        _databases.MarkUnavailable(new WorldId(1));
+
+        PlayerPresenceDto? presence = await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+
+        Assert.NotNull(presence);
+        Assert.Equal("#12", presence.Instance.TemplateName);
+        Assert.False(presence.LayoutStale);
+        _perWorld.DidNotReceive().MapTemplates(Arg.Any<WorldId>());
+        _perWorld.DidNotReceive().ProceduralMapConfigs(Arg.Any<WorldId>());
+        _perWorld.DidNotReceive().LayoutInputs(Arg.Any<WorldId>());
+    }
+
+    [Fact]
+    public async Task Name_a_template_by_its_id_when_its_worlds_lookup_fails_and_list_the_rest()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenTwoWorlds(AccountAccessLevel.Player);
+        IMapTemplateRepository worldTwoMaps = Substitute.For<IMapTemplateRepository>();
+        worldTwoMaps.FindByIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("Failed to connect to Host=secret;Port=5433"));
+        _perWorld.MapTemplates(Arg.Is<WorldId>(w => w.Value == 2)).Returns(worldTwoMaps);
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+        GivenWorldTwoSnapshot(Char(2, "Zed"));
+
+        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
+
+        Assert.Equal("Crypt", page.Items.Single(r => r.Name == "Nym").TemplateName);
+        Assert.Equal("#12", page.Items.Single(r => r.Name == "Zed").TemplateName);
+        (LogLevel level, string text) = Assert.Single(_logger.Entries);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains(nameof(InvalidOperationException), text, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Log_a_failed_layout_check_by_exception_type_only()
+    {
+        GivenCharacterIndex(4417);
+        GivenWorldSnapshot(Snapshot("drifted", Char(4417, "Nym")));
+        ObservabilityService sut = CreateSut();
+        _configs.FindByTemplateIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("Failed to connect to Host=secret;Port=5433"));
+
+        PlayerPresenceDto? presence = await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+
+        Assert.NotNull(presence);
+        Assert.False(presence.LayoutStale);
+        (LogLevel level, string text) = Assert.Single(_logger.Entries);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains(nameof(InvalidOperationException), text, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Let_a_cancelled_template_lookup_cancel_the_list()
+    {
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        ObservabilityService sut = CreateSut();
+        _maps.FindByIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new OperationCanceledException());
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, cancelled.Token));
+    }
+
+    [Fact]
+    public async Task Cache_pool_members_per_world()
+    {
+        string current = GivenGeneratorInputs();
+        IProceduralLayoutInputsResolver worldTwoInputs = Substitute.For<IProceduralLayoutInputsResolver>();
+        worldTwoInputs.FindPoolAsync(Arg.Any<ChunkPoolId>(), Arg.Any<CancellationToken>())
+            .Returns(new ChunkPool { Id = new ChunkPoolId(3), Memberships = [] });
+        worldTwoInputs.ResolveMembersAsync(Arg.Any<ChunkPool>(), Arg.Any<CancellationToken>())
+            .Returns(new ProceduralPoolResolution([], new Dictionary<ChunkTemplateId, ChunkTemplate>()));
+        GivenCharacterIndex(4417, worldId: 1);
+        GivenCharacterIndex(5001, worldId: 2);
+        GivenWorldSnapshot(Snapshot(current, Char(4417, "Nym")));
+        _cache.GetAsync(CacheKeys.WorldPresence(2)).Returns(PresenceJson.Serialize(new WorldPresenceSnapshot(
+            WorldId: 2, CapturedAt: DateTime.UtcNow,
+            Instances: [new InstancePresenceSnapshot(InstanceId, TemplateId: 12, Seed: 3, MapType: "Normal",
+                ConfigVersion: current, OwnerCharacterId: null, Characters: [Char(5001, "Zed")])])));
+        ObservabilityService sut = CreateSut();
+        _perWorld.LayoutInputs(Arg.Is<WorldId>(w => w.Value == 2)).Returns(worldTwoInputs);
+
+        await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+        await sut.GetPlayerPresenceAsync(5001, Gm, CancellationToken.None);
+
+        // World 2 resolves its own pool 3; world 1's cached pool 3 is not served to it.
+        await worldTwoInputs.Received(1).FindPoolAsync(Arg.Any<ChunkPoolId>(), Arg.Any<CancellationToken>());
+        await _inputsResolver.Received(1).FindPoolAsync(Arg.Any<ChunkPoolId>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Every entry as it would be written: its level, the formatted message and any exception attached.</summary>
+    private sealed class CapturingLogger : ILogger<ObservabilityService>
+    {
+        public List<(LogLevel Level, string Text)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception) + (exception is null ? "" : " " + exception)));
     }
 }
