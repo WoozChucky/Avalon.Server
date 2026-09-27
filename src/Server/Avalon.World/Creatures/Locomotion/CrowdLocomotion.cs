@@ -39,6 +39,14 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
 
     private readonly ILogger _logger;
     private readonly DtCrowd _crowd;
+
+    /// <summary>
+    /// The crowd itself, read-only, for tests and the crowd budget benchmark (#638), so a rename
+    /// breaks their build rather than their reflection. Public rather than internal because
+    /// Avalon.World is strong-named and the test and benchmark assemblies are not, so an
+    /// InternalsVisibleTo cannot name them; Avalon.World is not the modding API.
+    /// </summary>
+    public DtCrowd Crowd => _crowd;
     private readonly float _agentRadius;
     private readonly Dictionary<ObjectGuid, DtCrowdAgent> _creatureAgents = [];
 

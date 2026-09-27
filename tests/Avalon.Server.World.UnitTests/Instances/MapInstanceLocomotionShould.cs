@@ -729,10 +729,7 @@ public class MapInstanceLocomotionShould
             .GetField("_locomotion", BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(instance, locomotion);
 
-    private static DtCrowd CrowdOf(CrowdLocomotion locomotion) =>
-        (DtCrowd)typeof(CrowdLocomotion)
-            .GetField("_crowd", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(locomotion)!;
+    private static DtCrowd CrowdOf(CrowdLocomotion locomotion) => locomotion.Crowd;
 
     /// <summary>
     /// Builds a MapInstance directly (constructor is the one at

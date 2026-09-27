@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Reflection;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -229,7 +228,7 @@ public static class CrowdBudgetHarness
         long locoAlloc = 0, updAlloc = 0;
         var telemetry = new Dictionary<string, long>();
         DtCrowd? crowd = inner is CrowdLocomotion cl
-            ? (DtCrowd)typeof(CrowdLocomotion).GetField("_crowd", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cl)!
+            ? cl.Crowd
             : null;
 
         int total = warmup + measure;
