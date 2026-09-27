@@ -22,6 +22,7 @@ public sealed class ChunkAssetRootShould : IDisposable
     private readonly string _root;
     private readonly string _sibling;
     private readonly IChunkTemplateRepository _chunks = Substitute.For<IChunkTemplateRepository>();
+    private readonly CapturingLoggerFactory _logs = new();
 
     public ChunkAssetRootShould()
     {
@@ -49,13 +50,13 @@ public sealed class ChunkAssetRootShould : IDisposable
             Substitute.For<IProceduralMapConfigRepository>(),
             Substitute.For<IProceduralLayoutInputsResolver>(),
             _chunks,
-            Substitute.For<ILoggerFactory>(),
+            _logs,
             options);
     }
 
     private void Template(string geometryFile) =>
         _chunks.FindAllWithSlotsAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<ChunkTemplate> { new() { Id = 1, Name = "t", GeometryFile = geometryFile } });
+            .Returns(new List<ChunkTemplate> { new() { Id = 4242, Name = "t", GeometryFile = geometryFile } });
 
     [Fact]
     public async Task Serve_a_file_inside_the_root()
@@ -127,5 +128,81 @@ public sealed class ChunkAssetRootShould : IDisposable
 
         Assert.Null(missing);
         Assert.Equal(missing, refused);
+    }
+
+    private const string NulPath = "in\u0000side.obj";
+
+    [Fact]
+    public async Task Refuse_a_geometry_file_with_a_null_character_as_missing()
+    {
+        Template(NulPath);
+
+        Assert.Null(await Service(_root).GetChunkAssetAsync(NulPath));
+    }
+
+    [Fact]
+    public async Task Refuse_a_file_that_cannot_be_read_as_missing()
+    {
+        // Only Windows enforces an exclusive share lock; elsewhere the read would succeed.
+        if (!System.OperatingSystem.IsWindows()) return;
+        Template("inside.obj");
+        using var held = new FileStream(Path.Combine(_root, "inside.obj"), FileMode.Open, FileAccess.Read, FileShare.None);
+
+        Assert.Null(await Service(_root).GetChunkAssetAsync("inside.obj"));
+    }
+
+    [Fact]
+    public async Task Log_a_refusal_with_the_template_id_and_never_the_path()
+    {
+        Template("../assets-x/outside.obj");
+
+        Assert.Null(await Service(_root).GetChunkAssetAsync("outside.obj"));
+
+        var (level, text) = Assert.Single(_logs.Entries);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains("4242", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("assets-x", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("outside.obj", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(_parent, text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Log_an_unreadable_file_with_the_template_id_and_never_the_path()
+    {
+        Template(NulPath);
+
+        Assert.Null(await Service(_root).GetChunkAssetAsync(NulPath));
+
+        var (level, text) = Assert.Single(_logs.Entries);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains("4242", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("side.obj", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(_parent, text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Log_nothing_for_a_file_that_is_simply_missing_or_served()
+    {
+        Template("missing.obj");
+        await Service(_root).GetChunkAssetAsync("missing.obj");
+        Template("inside.obj");
+        await Service(_root).GetChunkAssetAsync("inside.obj");
+
+        Assert.Empty(_logs.Entries);
+    }
+
+    private sealed class CapturingLoggerFactory : ILoggerFactory, ILogger
+    {
+        public List<(LogLevel Level, string Text)> Entries { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) => this;
+        public void AddProvider(ILoggerProvider provider) { }
+        public void Dispose() { }
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception) + (exception is null ? "" : " " + exception)));
     }
 }

@@ -117,12 +117,31 @@ public class MapService : IMapService
         var root = _assetConfig.Value.ChunkAssetRoot;
         if (string.IsNullOrWhiteSpace(root)) return null;
 
-        var fullPath = ResolveInsideRoot(root, match.GeometryFile);
-        if (fullPath is null) return null;
-        if (!System.IO.File.Exists(fullPath)) return null;
+        // A path that cannot be resolved or read (a null character, too long, access denied, a
+        // file in use) answers as a missing asset too, never a 500 (#559). The log names only the
+        // template id: the exception is not logged, because its message carries the path.
+        try
+        {
+            var fullPath = ResolveInsideRoot(root, match.GeometryFile);
+            if (fullPath is null)
+            {
+                _loggerFactory.CreateLogger<MapService>().LogWarning(
+                    "Chunk template {ChunkTemplateId} names a geometry file outside the chunk asset root; refused",
+                    match.Id.Value);
+                return null;
+            }
+            if (!System.IO.File.Exists(fullPath)) return null;
 
-        var bytes = await System.IO.File.ReadAllBytesAsync(fullPath, ct);
-        return new ChunkAssetResult(bytes, "model/obj");
+            var bytes = await System.IO.File.ReadAllBytesAsync(fullPath, ct);
+            return new ChunkAssetResult(bytes, "model/obj");
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            _loggerFactory.CreateLogger<MapService>().LogWarning(
+                "Chunk template {ChunkTemplateId} names a geometry file that could not be read ({ExceptionType}); answered as missing",
+                match.Id.Value, ex.GetType().Name);
+            return null;
+        }
     }
 
     /// <summary>
@@ -143,9 +162,8 @@ public class MapService : IMapService
 
         var fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(rootFull, geometryFile));
 
-        // Compare as the file system does: case-sensitive on Linux, case-insensitive on
-        // Windows and macOS (their default volumes).
-        var comparison = System.OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-        return fullPath.StartsWith(rootFull, comparison) ? fullPath : null;
+        // Ordinal on every OS: GetFullPath keeps the root's case once it is rooted, and ".." and
+        // absolute paths are already refused, so the prefix is the root exactly as written.
+        return fullPath.StartsWith(rootFull, StringComparison.Ordinal) ? fullPath : null;
     }
 }
