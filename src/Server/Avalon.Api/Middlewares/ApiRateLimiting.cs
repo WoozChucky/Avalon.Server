@@ -8,6 +8,7 @@ using Avalon.Api.Config;
 using Avalon.Common.Telemetry;
 using Avalon.Infrastructure.Login;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
@@ -31,6 +32,13 @@ public static class ApiRateLimiting
 
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
     public const int SegmentsPerWindow = 6;
+
+    /// <summary>
+    /// Failed personal-access-token lookups one source may make in the window before the early
+    /// lookup stops for it (#561 review). Not a setting: it bounds the database queries made for
+    /// requests the limiter may refuse, and a client with a valid token never spends it.
+    /// </summary>
+    public const int FailedPatLookupsPerMinute = 10;
 
     /// <summary>The partition every caller with no peer address shares; no source key has this form.</summary>
     public const string UnknownSource = "unknown";
@@ -64,6 +72,7 @@ public static class ApiRateLimiting
                 $"{Section}:{nameof(RateLimitingConfig.AuthenticatedPermitsPerMinute)} must be at least 1.")
             .ValidateOnStart();
 
+        services.AddSingleton<FailedPatLookups>();
         services.AddRateLimiter(_ => { });
         services.AddOptions<RateLimiterOptions>()
             .Configure<IOptions<RateLimitingConfig>>((options, config) =>
@@ -80,23 +89,80 @@ public static class ApiRateLimiting
     /// <summary>
     /// After <c>UseAuthentication</c>, so a JWT has been validated and its account revalidated
     /// (#480) before the partition is chosen. A personal access token is not the default scheme,
-    /// so it is authenticated here; the handler keeps its result for the request, and the
-    /// authorization that follows reuses it rather than looking the token up again.
+    /// so <see cref="IdentifyPersonalAccessTokenAsync"/> authenticates it first.
     /// </summary>
     public static IApplicationBuilder UseApiRateLimiting(this IApplicationBuilder app)
     {
         app.Use(async (context, next) =>
         {
-            if (context.User.Identity?.IsAuthenticated != true && CarriesPersonalAccessToken(context.Request))
-            {
-                AuthenticateResult result = await context.AuthenticateAsync(AvalonAuthenticationSchemeOptions.SchemeName);
-                if (result.Succeeded && AccountIdOf(result.Principal) is { } accountId)
-                    context.Items[PatAccountItem] = accountId;
-            }
-
+            await IdentifyPersonalAccessTokenAsync(context);
             await next(context);
         });
         return app.UseRateLimiter();
+    }
+
+    /// <summary>
+    /// Authenticates a personal access token before the limiter, so it is counted against its
+    /// account. The handler keeps its result for the request, and the authorization that follows
+    /// reuses it rather than looking the token up again. Skipped, so the request is counted as
+    /// anonymous (#561 review):
+    /// <list type="bullet">
+    /// <item>when limiting is disabled, since no partition is needed;</item>
+    /// <item>on an endpoint with no authorization, whose token was never looked up (nor its last
+    /// use recorded) before;</item>
+    /// <item>when the source has spent its <see cref="FailedPatLookupsPerMinute"/>, so made-up
+    /// tokens cannot force a database query per request past the limit. Authorization still
+    /// answers 401 for a request the limiter lets through.</item>
+    /// </list>
+    /// </summary>
+    public static async Task IdentifyPersonalAccessTokenAsync(HttpContext context)
+    {
+        if (context.User.Identity?.IsAuthenticated == true || !CarriesPersonalAccessToken(context.Request))
+            return;
+        if (!context.RequestServices.GetRequiredService<IOptions<RateLimitingConfig>>().Value.Enabled)
+            return;
+        if (context.GetEndpoint()?.Metadata.GetMetadata<IAuthorizeData>() is null)
+            return;
+
+        FailedPatLookups failures = context.RequestServices.GetRequiredService<FailedPatLookups>();
+        string source = SourceOf(context);
+        if (!failures.MayLookUp(source))
+            return;
+
+        AuthenticateResult result = await context.AuthenticateAsync(AvalonAuthenticationSchemeOptions.SchemeName);
+        if (result.Succeeded && AccountIdOf(result.Principal) is { } accountId)
+            context.Items[PatAccountItem] = accountId;
+        else
+            failures.Record(source);
+    }
+
+    /// <summary>
+    /// Failed personal-access-token lookups per source (#561 review), a sliding window of one
+    /// minute like the request limiter's. A lookup is made only while a permit is left, and each
+    /// failure spends one.
+    /// </summary>
+    public sealed class FailedPatLookups : IDisposable
+    {
+        private readonly PartitionedRateLimiter<string> _limiter = PartitionedRateLimiter.Create<string, string>(
+            source => RateLimitPartition.GetSlidingWindowLimiter(source, _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = FailedPatLookupsPerMinute,
+                Window = Window,
+                SegmentsPerWindow = SegmentsPerWindow,
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }), StringComparer.Ordinal);
+
+        /// <summary>Whether the source has a failure left; spends nothing.</summary>
+        public bool MayLookUp(string source)
+        {
+            using RateLimitLease lease = _limiter.AttemptAcquire(source, 0);
+            return lease.IsAcquired;
+        }
+
+        public void Record(string source) => _limiter.AttemptAcquire(source).Dispose();
+
+        public void Dispose() => _limiter.Dispose();
     }
 
     /// <summary>Which partition a request is counted against.</summary>
@@ -111,9 +177,12 @@ public static class ApiRateLimiting
         if (accountId is not null)
             return new Partition(PartitionKind.Authenticated, accountId);
 
-        IPAddress? address = context.Connection.RemoteIpAddress;
-        return new Partition(PartitionKind.Anonymous, address is null ? UnknownSource : RemoteAddress.SourceOf(address));
+        return new Partition(PartitionKind.Anonymous, SourceOf(context));
     }
+
+    /// <summary>The login budgets' source (IPv4 address, IPv6 /64), or the one partition for no peer address.</summary>
+    private static string SourceOf(HttpContext context) =>
+        context.Connection.RemoteIpAddress is { } address ? RemoteAddress.SourceOf(address) : UnknownSource;
 
     private static RateLimitPartition<Partition> LimiterFor(Partition partition, RateLimitingConfig limits) =>
         partition.Kind switch

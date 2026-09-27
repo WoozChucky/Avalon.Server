@@ -12,6 +12,7 @@ using Avalon.Common.Accounts;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
@@ -23,9 +24,10 @@ namespace Avalon.Api.UnitTests.Middlewares;
 /// #561: the api limits plain request volume, per account for a signed-in caller and per source
 /// (the login budgets' rule: IPv4 address, IPv6 /64) for everyone else, with a sliding window of
 /// one minute. A rejection is 429 ProblemDetails LOCKED with Retry-After, whichever partition.
-/// Run through <see cref="ApiAuthHost"/>, which has Program's middleware order. The tests in this
-/// class run one at a time, so the rejection counter sees only theirs.
+/// Run through <see cref="ApiAuthHost"/>, which has Program's middleware order. The class is in a
+/// collection that runs alone, so the rejection counter, a static instrument, sees only its tests.
 /// </summary>
+[Collection(RateLimitingCollection.Name)]
 public sealed class RateLimitingShould
 {
     private const string OtherPeer = "203.0.113.9";
@@ -67,6 +69,21 @@ public sealed class RateLimitingShould
         for (int i = 0; i < count; i++)
             Assert.Equal(HttpStatusCode.OK, await SendAsync(host, path, peer, token, forwardedFor, noAddress, scheme));
     }
+
+    /// <summary>A token of the right form that no personal access token has.</summary>
+    private static string MadeUpPat(int i) => "avp_" + i.ToString("D43", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static PersonalAccessToken PatFor(string token) => new()
+    {
+        Id = new PersonalAccessTokenId(5),
+        AccountId = new AccountId(ApiAuthHost.AccountIdValue),
+        TokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token)),
+        Name = "ci",
+        TokenPrefix = token[..8],
+        Roles = AccountAccessLevel.Player,
+        CreatedAt = DateTime.UtcNow,
+        ExpiresAt = DateTime.UtcNow.AddDays(1),
+    };
 
     private static Account AccountWithId(long id)
     {
@@ -211,17 +228,7 @@ public sealed class RateLimitingShould
     {
         await using ApiAuthHost host = await StartAsync();
         host.AccountNowIs(ApiAuthHost.MakeAccount());
-        host.Pats.FindByRawTokenAsync(PatToken, Arg.Any<CancellationToken>()).Returns(new PersonalAccessToken
-        {
-            Id = new PersonalAccessTokenId(5),
-            AccountId = new AccountId(ApiAuthHost.AccountIdValue),
-            TokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(PatToken)),
-            Name = "ci",
-            TokenPrefix = PatToken[..8],
-            Roles = AccountAccessLevel.Player,
-            CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(1),
-        });
+        host.Pats.FindByRawTokenAsync(PatToken, Arg.Any<CancellationToken>()).Returns(PatFor(PatToken));
         string jwt = ApiAuthHost.Mint(ApiAuthHost.MakeAccount());
 
         await SpendAsync(host, 3);
@@ -232,6 +239,105 @@ public sealed class RateLimitingShould
         await SpendAsync(host, 2, "/player", token: jwt);
         Assert.Equal(HttpStatusCode.TooManyRequests,
             await SendAsync(host, "/player", token: PatToken, scheme: "Avalon"));
+    }
+
+    /// <summary>
+    /// #561 review: the early lookup ran before the limiter, so made-up tokens forced one database
+    /// query per request even past the limit. Failed lookups are budgeted per source: past it, a
+    /// request is anonymous without a lookup, and one past the anonymous limit reaches nothing.
+    /// </summary>
+    [Fact]
+    public async Task Stop_looking_up_made_up_personal_access_tokens_once_a_source_spends_its_failed_lookup_budget()
+    {
+        await using ApiAuthHost host = await StartAsync(anonymous: 3);
+
+        int requests = ApiRateLimiting.FailedPatLookupsPerMinute + 20;
+        for (int i = 0; i < requests; i++)
+        {
+            HttpStatusCode status = await SendAsync(host, "/player", token: MadeUpPat(i), scheme: "Avalon");
+            Assert.Equal(i < 3 ? HttpStatusCode.Unauthorized : HttpStatusCode.TooManyRequests, status);
+        }
+
+        // Each lookup is made once per request (authorization reuses the early one); none past the budget.
+        await host.Pats.Received(ApiRateLimiting.FailedPatLookupsPerMinute)
+            .FindByRawTokenAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        // Another source still has its own budget.
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            await SendAsync(host, "/player", peer: "198.51.100.3", token: MadeUpPat(999), scheme: "Avalon"));
+    }
+
+    [Fact]
+    public async Task Still_give_a_valid_personal_access_token_its_accounts_partition()
+    {
+        await using ApiAuthHost host = await StartAsync(anonymous: 1, authenticated: 50);
+        host.AccountNowIs(ApiAuthHost.MakeAccount());
+        host.Pats.FindByRawTokenAsync(PatToken, Arg.Any<CancellationToken>()).Returns(PatFor(PatToken));
+
+        await SpendAsync(host, 3, "/player", token: PatToken, scheme: "Avalon");
+        Assert.Equal(HttpStatusCode.OK, await SendAsync(host));
+        Assert.Equal(HttpStatusCode.TooManyRequests, await SendAsync(host));
+        // Still the account's budget, not the spent anonymous one.
+        await SpendAsync(host, 3, "/player", token: PatToken, scheme: "Avalon");
+    }
+
+    /// <summary>Disabled, the limiter needs no partition, so nothing is looked up early.</summary>
+    [Fact]
+    public async Task Not_look_up_a_personal_access_token_early_when_disabled()
+    {
+        var authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        HttpContext context = PatRequest(authentication, enabled: false, requiresAuthorization: true);
+
+        await ApiRateLimiting.IdentifyPersonalAccessTokenAsync(context);
+
+        await authentication.DidNotReceiveWithAnyArgs().AuthenticateAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Look_up_a_personal_access_token_early_when_enabled_on_an_endpoint_that_authorizes()
+    {
+        var authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        authentication.AuthenticateAsync(Arg.Any<HttpContext>(), Arg.Any<string?>())
+            .Returns(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
+        HttpContext context = PatRequest(authentication, enabled: true, requiresAuthorization: true);
+
+        await ApiRateLimiting.IdentifyPersonalAccessTokenAsync(context);
+
+        await authentication.Received(1).AuthenticateAsync(context, Avalon.Api.Authentication.AV.AvalonAuthenticationSchemeOptions.SchemeName);
+    }
+
+    /// <summary>
+    /// An endpoint with no authorization never ran the token's scheme before, so its last-used
+    /// time was not touched; the early lookup must not start doing either (#561 review).
+    /// </summary>
+    [Fact]
+    public async Task Not_look_up_or_touch_a_personal_access_token_sent_to_an_anonymous_endpoint()
+    {
+        await using ApiAuthHost host = await StartAsync();
+        host.AccountNowIs(ApiAuthHost.MakeAccount());
+        host.Pats.FindByRawTokenAsync(PatToken, Arg.Any<CancellationToken>()).Returns(PatFor(PatToken));
+
+        Assert.Equal(HttpStatusCode.OK, await SendAsync(host, token: PatToken, scheme: "Avalon"));
+
+        await host.Pats.DidNotReceiveWithAnyArgs().FindByRawTokenAsync(default!, default);
+        await host.Pats.DidNotReceiveWithAnyArgs().TouchLastUsedAsync(default, default);
+    }
+
+    private static HttpContext PatRequest(Microsoft.AspNetCore.Authentication.IAuthenticationService authentication,
+        bool enabled, bool requiresAuthorization)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(authentication);
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new RateLimitingConfig { Enabled = enabled }));
+        services.AddSingleton<ApiRateLimiting.FailedPatLookups>();
+        var context = new DefaultHttpContext { RequestServices = services.BuildServiceProvider() };
+        context.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.1");
+        context.Request.Headers.Authorization = "Avalon " + PatToken;
+        context.SetEndpoint(new Endpoint(_ => Task.CompletedTask,
+            requiresAuthorization
+                ? new EndpointMetadataCollection(new Microsoft.AspNetCore.Authorization.AuthorizeAttribute())
+                : EndpointMetadataCollection.Empty, "test"));
+        return context;
     }
 
     [Theory]
@@ -344,4 +450,14 @@ public sealed class RateLimitingShould
             Assert.Equal(3, measured.Count);
         }
     }
+}
+
+/// <summary>
+/// Runs alone: the rejection counter is static, so a class running beside it that got a 429 would
+/// be counted in its assertions.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class RateLimitingCollection
+{
+    public const string Name = "Rate limiting";
 }
