@@ -16,6 +16,9 @@ namespace Avalon.Hosting.Extensions;
 
 public static class ServiceCollectionExtensions
 {
+    /// <summary>Every EF Core category, <c>Database.Command</c> included, starts with this.</summary>
+    public const string EntityFrameworkCategory = "Microsoft.EntityFrameworkCore";
+
     private const string MESSAGE_TEMPLATE =
         "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
 
@@ -90,8 +93,10 @@ public static class ServiceCollectionExtensions
     {
         LoggerConfiguration config = new();
 
-        // add minimum log level for the instances
+        // add minimum log level for the instances. EF at Warning (#558): its command log is one
+        // Information entry per statement. Serilog:MinimumLevel:Override can raise it again.
         config.MinimumLevel.Debug()
+            .MinimumLevel.Override(EntityFrameworkCategory, LogEventLevel.Warning)
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Query", LogEventLevel.Warning);
 
         // add destructuring for entities
@@ -131,6 +136,13 @@ public static class ServiceCollectionExtensions
             x.ClearProviders();
             x.AddSerilog(config.CreateLogger());
         });
+
+        // The same floor for every provider, not only Serilog (#558): the OpenTelemetry log
+        // exporter the auth and world servers add after this is a provider of its own, which
+        // Serilog's overrides never reach. Inserted first, so any Logging:LogLevel rule for the
+        // category, read from configuration, still wins it (for Development).
+        services.Configure<LoggerFilterOptions>(options => options.Rules.Insert(0,
+            new LoggerFilterRule(null, EntityFrameworkCategory, LogLevel.Warning, null)));
         return services;
     }
 }
