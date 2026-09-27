@@ -20,7 +20,7 @@ namespace Avalon.World.Creatures.Locomotion;
 /// One crowd per MapInstance: an instance has exactly one navmesh, so an agent never migrates
 /// between crowds. The crowd builds and owns its own nav query, so only the mesh is needed here.
 /// </remarks>
-public sealed class CrowdLocomotion : ICreatureLocomotion
+public sealed class CrowdLocomotion : IPlayerAwareLocomotion
 {
     /// <summary>
     /// Half-extents for the nearest-polygon search, matching <see cref="MapNavigator" />'s

@@ -96,7 +96,8 @@ public static class CrowdBudgetHarness
             RunScenario(navMesh, mode, 10, players, 120, 60, print: false);
 
         Console.WriteLine();
-        Console.WriteLine("mode         N  | loco mean  p95   max  (ms) | update mean  p95  (ms) | loco %tick | MoveTo/cr/tick  /s  | FindPath/cr/tick | flips/cr/s | loco B/tick  upd B/tick | inRange% returning");
+        Console.WriteLine("mode         N  | loco mean  p95   max  (ms) | update mean  p95  (ms) | loco %tick | MoveTo/cr/tick  /s  | FindPath/cr/tick | flips/cr/s | loco B/tick* upd B/tick | inRange% returning");
+        Console.WriteLine("  * loco ms times the locomotion step (player sync and Update); loco B/tick also counts MoveTo, Stop and Teleport, where re-paths allocate");
         foreach (int n in counts)
         {
             foreach (Mode mode in Enum.GetValues<Mode>())
@@ -138,9 +139,7 @@ public static class CrowdBudgetHarness
         // Harness-side instrumentation: through MapInstance's locomotion hook (#638), wrap the very
         // implementation production would build in a timing and counting decorator. Waypoint is rebuilt
         // over a counting navigator (production passes GetNavigatorForPosition, which is this
-        // navigator). The decorator does the crowd's player sync itself, because MapInstance's
-        // `is CrowdLocomotion` test no longer matches: same place in the tick (after the scripts,
-        // before the locomotion), same calls.
+        // navigator). MapInstance's own player sync reaches the crowd through the decorator.
         ICreatureLocomotion inner = null!;
         MeasuredLocomotion measured = null!;
         ChunkLayout layout = TownLayout();
@@ -153,10 +152,9 @@ public static class CrowdBudgetHarness
                 else if (inner is not CrowdLocomotion)
                     throw new InvalidOperationException("Crowd was configured but the instance fell back to waypoint");
 
-                measured = new MeasuredLocomotion(inner, mode == Mode.CrowdPlayers);
+                measured = new MeasuredLocomotion(inner);
                 return measured;
             });
-        measured.Instance = instance;
 
         var rng = new Random(425);
         Vector3 centre = new(15f, 0f, 15f); // the entry room (SW chunk) of the town, 28 m square
@@ -259,21 +257,23 @@ public static class CrowdBudgetHarness
             }
 
             world.ClearReceivedCalls();
+            measured.TakeTick(); // only what this update does counts
 
             long a0 = GC.GetAllocatedBytesForCurrentThread();
             sw.Restart();
             instance.Update(Dt);
             sw.Stop();
             long a1 = GC.GetAllocatedBytesForCurrentThread();
+            (double stepMs, long stepAlloc) = measured.TakeTick();
 
             if (!measuring)
                 continue;
 
             int m = tick - warmup;
             updMs[m] = sw.Elapsed.TotalMilliseconds;
-            locoMs[m] = measured.LastUpdateMs;
+            locoMs[m] = stepMs;
             updAlloc += a1 - a0;
-            locoAlloc += measured.LastAlloc;
+            locoAlloc += stepAlloc;
 
             for (int i = 0; i < n; i++)
             {
@@ -441,15 +441,27 @@ public static class CrowdBudgetHarness
         public object? Mesh => inner.Mesh;
     }
 
-    private sealed class MeasuredLocomotion(ICreatureLocomotion inner, bool syncPlayers) : ICreatureLocomotion
+    /// <summary>
+    /// Times and counts the locomotion. It is an <see cref="IPlayerAwareLocomotion" />, so MapInstance's
+    /// own player sync reaches the crowd through it (#638). The time is the locomotion step (the player
+    /// sync and Update); the allocations also count MoveTo, Stop and Teleport, which the scripts call
+    /// and where a waypoint re-path allocates.
+    /// </summary>
+    private sealed class MeasuredLocomotion(ICreatureLocomotion inner) : IPlayerAwareLocomotion
     {
         private readonly Stopwatch _sw = new();
-
-        /// <summary>The instance this decorates, set once the constructor that built it returns.</summary>
-        public MapInstance Instance { get; set; } = null!;
+        private double _tickMs;
+        private long _tickAlloc;
         public long MoveToCalls;
-        public double LastUpdateMs;
-        public long LastAlloc;
+
+        /// <summary>This tick's step time and allocations, then starts the next tick's count.</summary>
+        public (double Ms, long Alloc) TakeTick()
+        {
+            (double, long) tick = (_tickMs, _tickAlloc);
+            _tickMs = 0;
+            _tickAlloc = 0;
+            return tick;
+        }
 
         public void Register(ICreature creature, float radius) => inner.Register(creature, radius);
         public void Unregister(ICreature creature) => inner.Unregister(creature);
@@ -457,31 +469,48 @@ public static class CrowdBudgetHarness
         public void MoveTo(ICreature creature, Vector3 destination)
         {
             MoveToCalls++;
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
             inner.MoveTo(creature, destination);
+            _tickAlloc += GC.GetAllocatedBytesForCurrentThread() - a0;
         }
 
-        public void Stop(ICreature creature) => inner.Stop(creature);
-        public void Teleport(ICreature creature, Vector3 position) => inner.Teleport(creature, position);
+        public void Stop(ICreature creature)
+        {
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            inner.Stop(creature);
+            _tickAlloc += GC.GetAllocatedBytesForCurrentThread() - a0;
+        }
+
+        public void Teleport(ICreature creature, Vector3 position)
+        {
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            inner.Teleport(creature, position);
+            _tickAlloc += GC.GetAllocatedBytesForCurrentThread() - a0;
+        }
+
         public bool HasArrived(ICreature creature) => inner.HasArrived(creature);
         public float ArrivalTolerance(ICreature creature) => inner.ArrivalTolerance(creature);
         public Vector3? ResolvedDestination(ICreature creature) => inner.ResolvedDestination(creature);
-        public void SyncPlayer(ObjectGuid guid, Vector3 position) => inner.SyncPlayer(guid, position);
         public void RemovePlayer(ObjectGuid guid) => inner.RemovePlayer(guid);
+
+        public void SyncPlayer(ObjectGuid guid, Vector3 position)
+        {
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            _sw.Restart();
+            inner.SyncPlayer(guid, position);
+            _sw.Stop();
+            _tickMs += _sw.Elapsed.TotalMilliseconds;
+            _tickAlloc += GC.GetAllocatedBytesForCurrentThread() - a0;
+        }
 
         public void Update(TimeSpan deltaTime)
         {
             long a0 = GC.GetAllocatedBytesForCurrentThread();
             _sw.Restart();
-            if (syncPlayers && inner is CrowdLocomotion crowd)
-            {
-                foreach ((ObjectGuid guid, ICharacter character) in Instance.Characters)
-                    crowd.SyncPlayer(guid, character.Position);
-            }
-
             inner.Update(deltaTime);
             _sw.Stop();
-            LastUpdateMs = _sw.Elapsed.TotalMilliseconds;
-            LastAlloc = GC.GetAllocatedBytesForCurrentThread() - a0;
+            _tickMs += _sw.Elapsed.TotalMilliseconds;
+            _tickAlloc += GC.GetAllocatedBytesForCurrentThread() - a0;
         }
     }
 }

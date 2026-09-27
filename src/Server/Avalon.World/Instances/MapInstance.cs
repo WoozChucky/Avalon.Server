@@ -723,10 +723,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Players are told to the crowd, never asked: PlayerInputHandler already decided where they
         // are earlier in this tick. Off unless configured, because it makes body-blocking real. The
-        // `is CrowdLocomotion` check (rather than dispatching through the interface for every
-        // character) means this costs nothing beyond the flag check and one type test when the flag
-        // is off or the instance is running WaypointLocomotion — no allocation, no iteration.
-        if (_crowdIncludesPlayers && _locomotion is CrowdLocomotion crowd)
+        // `is IPlayerAwareLocomotion` check (rather than dispatching for every character whatever the
+        // locomotion) means this costs nothing beyond the flag check and one type test when the flag
+        // is off or the instance is running WaypointLocomotion — no allocation, no iteration. The
+        // interface, not CrowdLocomotion itself, so a decorator around the crowd gets this very sync.
+        if (_crowdIncludesPlayers && _locomotion is IPlayerAwareLocomotion crowd)
         {
             foreach ((ObjectGuid guid, ICharacter character) in _characters)
                 crowd.SyncPlayer(guid, character.Position);
