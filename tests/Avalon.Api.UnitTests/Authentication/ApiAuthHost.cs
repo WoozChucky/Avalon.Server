@@ -67,6 +67,10 @@ public sealed class ApiAuthHost : IAsyncDisposable
     private WebApplication _app = null!;
     public HttpClient Client { get; private set; } = null!;
 
+    /// <summary>Every endpoint the host maps, as routing sees them.</summary>
+    public IReadOnlyList<Endpoint> Endpoints =>
+        _app.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints;
+
     /// <param name="cache">The cache the login policy counts on; a plain substitute when not given.</param>
     /// <param name="configure">
     /// Runs after the host's own registrations, so a test can put a real service, or an email

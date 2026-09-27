@@ -15,6 +15,9 @@ namespace Avalon.Api.Worlds;
 /// authentication and authorization, so an unknown world is a 404 whatever the endpoint's role
 /// policy, and that policy still decides everything else. In order:
 /// <list type="number">
+/// <item>An endpoint that allows anonymous callers: the same empty 404. Authorization would let an
+/// anonymous caller through to an action with no world selected, so it fails closed; no world
+/// endpoint allows anonymous callers.</item>
 /// <item>No caller yet: passes through, and authorization answers 401 as everywhere.</item>
 /// <item>A world id that is not in canonical form: 404, with nothing looked up.</item>
 /// <item>No auth Worlds row for it, the caller fails its access rule, or it is not under
@@ -31,9 +34,16 @@ public sealed class WorldRouteMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context)
     {
-        if (context.GetEndpoint()?.Metadata.GetMetadata<WorldScopedAttribute>() is null)
+        Endpoint? endpoint = context.GetEndpoint();
+        if (endpoint?.Metadata.GetMetadata<WorldScopedAttribute>() is null)
         {
             await next(context);
+            return;
+        }
+
+        if (endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
 
