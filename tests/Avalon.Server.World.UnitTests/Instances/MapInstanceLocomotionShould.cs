@@ -268,7 +268,7 @@ public class MapInstanceLocomotionShould
     /// it — <c>MapInstance.RemoveCreature</c> — does run for a corpse, but only once
     /// <c>ICorpseRemover</c>'s timer elapses, which is whole seconds of walking too late.
     /// Production change that breaks this: dropping <c>_locomotion.Stop</c> from
-    /// <c>MapInstance.OnCreatureKilled</c> (the corpse walks on, and MoveState stays Running).
+    /// <c>MapInstance.CreatureKilled</c> (the corpse walks on, and MoveState stays Running).
     /// </summary>
     [Fact]
     public void Stop_A_Creature_Where_It_Fell_When_It_Is_Killed()
@@ -284,7 +284,7 @@ public class MapInstanceLocomotionShould
 
         Assert.NotEqual(Vector3.zero, creature.Position); // fixture check: it really was walking
 
-        creature.Died(Substitute.For<IUnit>());
+        instance.ReportKill(creature, Substitute.For<IUnit>());
         Vector3 whereItFell = creature.Position;
 
         // 30 simulated seconds — far more than the ~5s the remaining 20-unit path would have taken.
@@ -297,7 +297,7 @@ public class MapInstanceLocomotionShould
 
     /// <summary>
     /// The same defect as <see cref="Stop_A_Creature_Where_It_Fell_When_It_Is_Killed" />, but on
-    /// <c>RemoveCreature</c> rather than <c>OnCreatureKilled</c> — reachable today, unlike the F1
+    /// <c>RemoveCreature</c> rather than <c>CreatureKilled</c> — reachable today, unlike the F1
     /// respawn gap, because <c>World.ApplyScriptsHotReload</c> (World.cs:320) calls
     /// <c>RemoveCreature(entity); … entity.Script = script; AddCreature(entity);</c> every time a
     /// developer edits a creature script while that creature is mid-chase. <c>RemoveCreature</c>
@@ -309,7 +309,7 @@ public class MapInstanceLocomotionShould
     /// Production change that breaks this: dropping <c>_locomotion.Stop</c> from
     /// <c>MapInstance.RemoveCreature</c>, or reordering it after <c>Unregister</c> (a no-op on an
     /// already-unregistered creature in both implementations, per the comment in
-    /// <c>OnCreatureKilled</c>).
+    /// <c>CreatureKilled</c>).
     /// </summary>
     [Fact]
     public void Stop_A_Creature_Where_It_Stood_When_It_Is_Removed()
@@ -344,7 +344,7 @@ public class MapInstanceLocomotionShould
     /// <c>DtCrowd.HandleCollisions</c> also shoves about regardless of whether it has a target, and
     /// one leaked agent per kill for the life of a persistent town instance.
     /// Production change that breaks this: dropping <c>_locomotion.Unregister</c> from
-    /// <c>MapInstance.OnCreatureKilled</c>.
+    /// <c>MapInstance.CreatureKilled</c>.
     /// </summary>
     [Fact]
     public void Remove_A_Killed_Creatures_Crowd_Agent()
@@ -358,7 +358,7 @@ public class MapInstanceLocomotionShould
         instance.AddCreature(creature);
         Assert.Single(CrowdOf(crowd).GetActiveAgents());
 
-        creature.Died(Substitute.For<IUnit>());
+        instance.ReportKill(creature, Substitute.For<IUnit>());
 
         Assert.Empty(CrowdOf(crowd).GetActiveAgents());
     }
@@ -366,11 +366,11 @@ public class MapInstanceLocomotionShould
     /// <summary>
     /// F1, slot side, outward direction: the slot the dying creature held on whatever it was
     /// attacking. <c>CreatureCombatScript</c>'s death branch releases it too, but only for a creature
-    /// that had that script to run; <c>OnCreatureKilled</c> is the chokepoint every death funnels
+    /// that had that script to run; <c>CreatureKilled</c> is the chokepoint every death funnels
     /// through, so it is where the invariant can actually be enforced. MeleeSlotCount is 1 here so
     /// "the slot came back" is observable as a rival claim that could not succeed a moment earlier.
     /// Production change that breaks this: dropping <c>_meleeSlots.ReleaseClaimant</c> from
-    /// <c>MapInstance.OnCreatureKilled</c>. (<c>ReleaseTarget</c> cannot substitute for it — the dead
+    /// <c>MapInstance.CreatureKilled</c>. (<c>ReleaseTarget</c> cannot substitute for it — the dead
     /// creature is the claimant here, not the key.)
     /// </summary>
     [Fact]
@@ -389,7 +389,7 @@ public class MapInstanceLocomotionShould
         Assert.True(instance.MeleeSlots.TryClaim(attackedGuid, creature.Guid, Vector3.zero, creature.Position, out _));
         Assert.False(instance.MeleeSlots.TryClaim(attackedGuid, rival, Vector3.zero, rivalPosition, out _));
 
-        creature.Died(Substitute.For<IUnit>());
+        instance.ReportKill(creature, Substitute.For<IUnit>());
 
         Assert.True(instance.MeleeSlots.TryClaim(attackedGuid, rival, Vector3.zero, rivalPosition, out _),
             "the slot the dead creature held on its target was never given back");
@@ -402,7 +402,7 @@ public class MapInstanceLocomotionShould
     /// claimants pointing at a corpse. Not reachable today (nothing puts a creature in another
     /// creature's threat list), which is exactly why it needs pinning rather than arguing about.
     /// Production change that breaks this: dropping <c>_meleeSlots.ReleaseTarget</c> from
-    /// <c>MapInstance.OnCreatureKilled</c>. (<c>ReleaseClaimant</c> cannot substitute for it — the
+    /// <c>MapInstance.CreatureKilled</c>. (<c>ReleaseClaimant</c> cannot substitute for it — the
     /// dead creature is the key here, not a claimant.)
     /// </summary>
     [Fact]
@@ -421,7 +421,7 @@ public class MapInstanceLocomotionShould
         Assert.True(instance.MeleeSlots.TryClaim(victim.Guid, chaser, victim.Position, new Vector3(3f, 0f, 0f), out _));
         Assert.False(instance.MeleeSlots.TryClaim(victim.Guid, secondChaser, victim.Position, secondChaserPosition, out _));
 
-        victim.Died(Substitute.For<IUnit>());
+        instance.ReportKill(victim, Substitute.For<IUnit>());
 
         Assert.True(instance.MeleeSlots.TryClaim(victim.Guid, secondChaser, victim.Position, secondChaserPosition, out _),
             "the ring other creatures had claimed on the dead creature was never freed");
@@ -429,11 +429,11 @@ public class MapInstanceLocomotionShould
 
     /// <summary>
     /// A corpse has to leave the instance by itself. Until this was wired up, <c>MapInstance</c>
-    /// installed a no-op respawner, so <c>OnCreatureKilled</c> asked for a removal that never came and
+    /// installed a no-op respawner, so <c>CreatureKilled</c> asked for a removal that never came and
     /// dead creatures stayed in <c>_creatures</c> for the life of the instance — ticked by the script
     /// loop and broadcast to clients as entities. On a busy map the corpses carpet the floor.
     /// Production change that breaks this: dropping the <c>_corpseRemover.ScheduleRemoval</c> call
-    /// from <c>OnCreatureKilled</c>, or <c>_corpseRemover.Update</c> from <c>MapInstance.Update</c>.
+    /// from <c>CreatureKilled</c>, or <c>_corpseRemover.Update</c> from <c>MapInstance.Update</c>.
     /// </summary>
     [Fact]
     public void Remove_A_Corpse_From_The_Instance_Once_Its_Body_Timer_Elapses()
@@ -443,7 +443,7 @@ public class MapInstanceLocomotionShould
         creature.Metadata.BodyRemoveTimer.Returns(TimeSpan.FromSeconds(10));
         instance.AddCreature(creature);
 
-        creature.Died(Substitute.For<IUnit>());
+        instance.ReportKill(creature, Substitute.For<IUnit>());
 
         Assert.True(instance.Creatures.ContainsKey(creature.Guid),
             "the corpse should still be there right after death, not vanish on the killing blow");
@@ -493,9 +493,9 @@ public class MapInstanceLocomotionShould
     }
 
     /// <summary>
-    /// A real <see cref="Creature" /> rather than a substitute: these tests kill it through
-    /// <see cref="Creature.Died" />, which raises the static <c>Creature.OnCreatureKilled</c> that
-    /// MapInstance subscribes to — the chain F1 is about, and one no ICreature substitute can raise.
+    /// A real <see cref="Creature" /> rather than a substitute, killed through the instance's own kill
+    /// handling (<c>MapInstance.CreatureKilled</c>, which its combat service calls) — the chain F1 is
+    /// about.
     /// </summary>
     private static Creature RealCreatureAt(Vector3 position, uint id, float speed = 4f)
     {
@@ -516,13 +516,8 @@ public class MapInstanceLocomotionShould
     }
 
     /// <summary>
-    /// Like <see cref="BuildInstanceWithCreature" />, but with MapInstance's <c>OnCreatureKilled</c>
-    /// subscription deliberately LEFT ATTACHED, since these tests go through the real
-    /// <c>Creature.Died</c> → static event → <c>MapInstance.OnCreatureKilled</c> chain. Every other
-    /// static subscription is detached exactly as elsewhere in this file, and the surviving one is
-    /// harmless to other tests: <c>OnCreatureKilled</c> returns immediately for any creature that is
-    /// not in <em>this</em> instance's <c>_creatures</c>, and the guids above are unique to this file.
-    /// The navigator returns a long 0.5-step path (the shape MapNavigator actually produces) so a
+    /// Like <see cref="BuildInstanceWithCreature" />, for tests that kill a creature through
+    /// <c>MapInstance.CreatureKilled</c>. The navigator returns a long 0.5-step path (the shape MapNavigator actually produces) so a
     /// creature killed mid-walk has plenty of path left to keep walking if nothing stops it.
     /// The seated character is returned because the ordering test needs something for the script to
     /// chase; it stands 10 units out, well beyond AttackRange.
@@ -560,9 +555,6 @@ public class MapInstanceLocomotionShould
             layout,
             navigator,
             seed: 0);
-
-        DetachAll(typeof(Creature), instance, except: nameof(Creature.OnCreatureKilled));
-        DetachAll(typeof(CharacterEntity), instance);
 
         var character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, 700_800));
@@ -765,17 +757,6 @@ public class MapInstanceLocomotionShould
             navigator,
             seed: 0);
 
-        // MapInstance's constructor subscribes its instance methods to STATIC events on Creature
-        // and CharacterEntity (OnSelfDamaged, OnUnitDamaged, OnCreatureKilled, ...), and there is
-        // no matching unsubscribe anywhere. Left attached, this instance would keep reacting to
-        // every OTHER test's Creature/CharacterEntity events for the rest of the process —
-        // BroadcastUnitHit in particular broadcasts to every connection unconditionally, so it NREs
-        // the moment an unrelated test's attacker substitute has no Guid configured. None of this
-        // suite's assertions exercise damage/kill/animation events, so detaching immediately, before
-        // this instance ever gets a populated _connections/_creatures to broadcast from, is safe and
-        // removes the leak at its source rather than merely narrowing the window it is live in.
-        instance.Dispose();
-
         var character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, 424_242));
         var connection = Substitute.For<IWorldConnection>();
@@ -792,40 +773,5 @@ public class MapInstanceLocomotionShould
         creature.Speed.Returns(4f);
 
         return (instance, creature);
-    }
-
-    /// <summary>
-    /// Detaches every static-event handler <paramref name="target"/> registered on
-    /// <paramref name="declaringType"/> except one, by scanning each event's backing delegate for
-    /// handlers whose <see cref="Delegate.Target"/> is this instance.
-    /// </summary>
-    /// <remarks>
-    /// Everything that wants a FULL detach now calls <c>MapInstance.Dispose()</c> instead. This
-    /// reflection survives for the single selective case: <see cref="BuildKillableInstance" /> needs
-    /// <c>Creature.OnCreatureKilled</c> left attached so a real <c>Creature.Died</c> reaches the
-    /// instance, while still detaching the CharacterEntity events — whose handlers would otherwise
-    /// broadcast on damage raised by unrelated tests, against substitutes with no Guid configured.
-    /// There is no way to express "all but this one" through the public surface.
-    /// </remarks>
-    /// <param name="except">The event to leave subscribed.</param>
-    private static void DetachAll(Type declaringType, object target, string? except = null)
-    {
-        foreach (EventInfo eventInfo in declaringType.GetEvents(BindingFlags.Public | BindingFlags.Static))
-        {
-            if (eventInfo.Name == except)
-                continue;
-
-            FieldInfo? backingField =
-                declaringType.GetField(eventInfo.Name, BindingFlags.NonPublic | BindingFlags.Static);
-
-            if (backingField?.GetValue(null) is not Delegate current)
-                continue;
-
-            foreach (Delegate handler in current.GetInvocationList())
-            {
-                if (ReferenceEquals(handler.Target, target))
-                    eventInfo.RemoveEventHandler(null, handler);
-            }
-        }
     }
 }

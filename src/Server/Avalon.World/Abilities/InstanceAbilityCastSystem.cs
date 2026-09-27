@@ -131,6 +131,18 @@ public class InstanceAbilityCastSystem(
         _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished
             && (a.Script.Guid.Type != ObjectType.SpellProjectile || !a.Script.HasUnsentChanges));
 
+        AdvanceQueue(deltaTime);
+        SendInterrupts();
+        TickScripts(deltaTime, objects);
+    }
+
+    /// <summary>
+    /// Runs down every queued cast's timer: a caster who moved is interrupted, a finished cast is
+    /// fired, or dropped when its caster died. Every cast that ends leaves the queue after the loop,
+    /// and its interrupt, if any, is collected for <see cref="SendInterrupts" />.
+    /// </summary>
+    private void AdvanceQueue(TimeSpan deltaTime)
+    {
         // #521 item 3: nothing is removed from the queue while it is enumerated.
         _dequeued.Clear();
         _interrupts.Clear();
@@ -175,15 +187,16 @@ public class InstanceAbilityCastSystem(
         {
             _abilityQueue.Remove(cast);
         }
+    }
 
+    private void SendInterrupts()
+    {
         // Sent once every interrupted cast is already out of the queue, as CancelCasts does, and
         // contained: a failing send can neither leave a cast queued nor stop the scripts ticking.
         foreach ((IUnit caster, IAbility ability) in _interrupts)
         {
             TryInterrupt(caster, ability);
         }
-
-        TickScripts(deltaTime, objects);
     }
 
     /// <summary>
@@ -250,7 +263,7 @@ public class InstanceAbilityCastSystem(
         {
             _logger.LogInformation("Cast cancelled as its caster left ability={AbilityId} caster={CharId}",
                 cast.Ability.AbilityId, caster.Guid);
-            caster.SendInterruptedCastAnimation(cast.Ability);
+            arena.BroadcastInterruptedCast(caster, cast.Ability);
         }
     }
 
@@ -299,7 +312,7 @@ public class InstanceAbilityCastSystem(
     private void Fire(IUnit caster, IAbility ability, AbilityScript script)
     {
         ability.CooldownTimer = ability.Metadata.Cooldown;
-        caster.SendFinishCastAnimation(ability);
+        arena.BroadcastFinishCast(caster, ability);
 
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world
         // object, and the cast is interrupted. What it spent stays spent.
@@ -339,7 +352,7 @@ public class InstanceAbilityCastSystem(
     {
         try
         {
-            caster.SendInterruptedCastAnimation(ability);
+            arena.BroadcastInterruptedCast(caster, ability);
         }
         catch (Exception sendError)
         {

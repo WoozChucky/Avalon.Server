@@ -2,7 +2,6 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
@@ -150,18 +149,5 @@ public class Creature : ICreature
         return Mathf.Abs(Orientation.y - orientation.y) < threshold;
     }
 
-    public void Died(IUnit killer) => OnCreatureKilled?.Invoke(this, killer);
-
     public void OnHit(IUnit attacker, uint damage) => Script?.OnHit(attacker, damage);
-
-    public void SendAttackAnimation(IAbility? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
-
-    public void SendFinishCastAnimation(IAbility spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
-
-    public void SendInterruptedCastAnimation(IAbility spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
-
-    public static event CreatureKilledDelegate? OnCreatureKilled;
-    public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
-    public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
-    public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
 }

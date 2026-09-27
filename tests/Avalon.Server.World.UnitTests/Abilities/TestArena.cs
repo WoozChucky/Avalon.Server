@@ -43,6 +43,28 @@ internal sealed class TestArena : IAbilityArena
     public void BroadcastAbilityFired(IUnit caster, IAbility ability, Vector3 origin, Vector3? direction, Vector3? centre) =>
         Fired.Add((origin, direction, centre));
 
+    /// <summary>Every finish-cast broadcast, in order.</summary>
+    public List<(IUnit Caster, IAbility Ability)> Finished { get; } = [];
+
+    /// <summary>Every interrupt broadcast, in order.</summary>
+    public List<(IUnit Caster, IAbility Ability)> Interrupted { get; } = [];
+
+    public void BroadcastFinishCast(IUnit caster, IAbility ability) => Finished.Add((caster, ability));
+
+    /// <summary>When set, an interrupt broadcast for this unit is recorded and then throws, as a failing send would.</summary>
+    public IUnit? InterruptThrowsFor { get; set; }
+
+    public void BroadcastInterruptedCast(IUnit caster, IAbility ability)
+    {
+        Interrupted.Add((caster, ability));
+        if (ReferenceEquals(caster, InterruptThrowsFor))
+            throw new InvalidOperationException("The send failed.");
+    }
+
+    /// <summary>The abilities whose interrupt was broadcast for <paramref name="caster" />, in order.</summary>
+    public List<IAbility> InterruptsOf(IUnit caster) =>
+        Interrupted.Where(i => ReferenceEquals(i.Caster, caster)).Select(i => i.Ability).ToList();
+
     public CharacterEntity Player(uint id, float x, float z, bool pvp = false)
     {
         CharacterEntity character = TestCharacters.New(id);

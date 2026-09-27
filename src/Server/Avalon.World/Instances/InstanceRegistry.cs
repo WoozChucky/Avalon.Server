@@ -183,9 +183,7 @@ public class InstanceRegistry : IInstanceRegistry
 
     public void RemoveInstance(Guid instanceId)
     {
-        // Dispose, not just drop: MapInstance subscribes to static entity events, so an instance that
-        // is only removed from this dictionary stays reachable through those delegates and is never
-        // collected.
+        // Dispose, not just drop: disposal ends the drops still on the instance's ground.
         if (_instances.TryRemove(instanceId, out MapInstance? instance))
         {
             instance.Dispose();

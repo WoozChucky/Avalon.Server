@@ -20,9 +20,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
 
-/// <summary>A character took damage; <paramref name="abilityId" /> is the ability that dealt it, or null for a swing (#521 item 8).</summary>
-public delegate void CharacterDamagedDelegate(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId);
-
 public class CharacterEntity : ICharacter
 {
     private readonly CharacterInventoryContainer _bag;
@@ -295,7 +292,11 @@ public class CharacterEntity : ICharacter
 
     public void OnHit(IUnit attacker, uint damage) => OnHit(attacker, damage, abilityId: null);
 
-    /// <summary>Takes <paramref name="damage" /> from <paramref name="attacker" />; <paramref name="abilityId" /> names the ability that dealt it, or null for a swing.</summary>
+    /// <summary>
+    /// Takes <paramref name="damage" /> from <paramref name="attacker" />; <paramref name="abilityId" /> names
+    /// the ability that dealt it, or null for a swing. It sends nothing: the combat service tells its own
+    /// instance, which sends the hit and the character's own damage packet (#546).
+    /// </summary>
     public void OnHit(IUnit attacker, uint damage, AbilityId? abilityId)
     {
         if (IsDead) return; // corpse — no further state changes or broadcast
@@ -314,18 +315,7 @@ public class CharacterEntity : ICharacter
         {
             CurrentHealth -= damage;
         }
-
-        // Send to self (routed via MapInstance which holds the connection)
-        OnSelfDamaged?.Invoke(this, attacker, damage, abilityId);
-        // Broadcast to instance
-        OnUnitDamaged?.Invoke(this, attacker, damage);
     }
-
-    public void SendAttackAnimation(IAbility? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
-
-    public void SendFinishCastAnimation(IAbility spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
-
-    public void SendInterruptedCastAnimation(IAbility spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
 
     public Vector3 Position
     {
@@ -456,8 +446,6 @@ public class CharacterEntity : ICharacter
         }
     }
 
-    public void OnDisconnected() => CharacterDisconnected?.Invoke(this);
-
     public float GetMovementSpeed() => MovementSpeed;
 
     public void Update(TimeSpan deltaTime)
@@ -512,13 +500,6 @@ public class CharacterEntity : ICharacter
             }
         }
     }
-
-    public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
-    public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
-    public static event CharacterDisconnectedDelegate? CharacterDisconnected;
-    public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
-    public static event UnitDamagedDelegate? OnUnitDamaged;
-    public static event CharacterDamagedDelegate? OnSelfDamaged;
 
     private void CalculateMovementSpeed()
     {

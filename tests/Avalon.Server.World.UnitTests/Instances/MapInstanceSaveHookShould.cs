@@ -38,7 +38,6 @@ public class MapInstanceSaveHookShould
 
         var instance = new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(1),
             ownerCharacterId: null, layout, Substitute.For<IMapNavigator>(), seed: 0);
-        instance.Dispose();   // detach the static entity events; this test raises none
 
         CharacterEntity character = New(7);
         character.Spells.Load(Array.Empty<IAbility>());   // the tick updates abilities; an unloaded list throws

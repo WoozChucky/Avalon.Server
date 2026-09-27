@@ -44,8 +44,7 @@ internal sealed record MapInstanceClient(IWorldConnection Connection, CharacterE
 
 /// <summary>
 /// The shared setup for tests that drive a real MapInstance: a world with no map templates, and a
-/// character joined through a connection that records what it is sent. Character ids must be unique
-/// per test class: some character events are static, so parallel classes would otherwise mix.
+/// character joined through a connection that records what it is sent.
 /// </summary>
 internal static class MapInstanceClients
 {

@@ -19,7 +19,7 @@ public class ExperienceAwardShould
 {
     /// <summary>
     /// BandScale being correct proves nothing on its own — it is a static helper, and deleting its call
-    /// from <c>OnCreatureKilled</c> leaves every other test in the suite green. This drives a real kill
+    /// from <c>CreatureKilled</c> leaves every other test in the suite green. This drives a real kill
     /// through a real <c>MapInstance</c> on a banded map and asserts the award the character actually
     /// receives, which is the only thing that pins the wiring.
     /// </summary>
@@ -54,10 +54,48 @@ public class ExperienceAwardShould
         killer.Level.Returns((ushort)9);
         killer.Experience.Returns(0ul);
 
-        creature.Died(killer);
+        instance.ReportKill(creature, killer);
 
         // 1000 * 0.75^4 = 316.4 -> 316. A wiring that skipped the band would award the full 1000.
         killer.Received().Experience = 316;
+        instance.Dispose();
+    }
+
+    /// <summary>
+    /// #546: a real hit that kills awards the experience once. The script no longer reports the kill,
+    /// the combat service does, so a wiring that did both would award it twice.
+    /// </summary>
+    [Fact]
+    public void Award_A_Real_Kills_Experience_Once()
+    {
+        var world = Substitute.For<Avalon.World.IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate>());
+        StaticData data = LoadedStaticData();
+        world.Data.Returns(data);
+
+        MapInstance instance = TestMapInstances.Build(world);
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 880_011),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Experience = 100,
+            Health = 10,
+            CurrentHealth = 10,
+        };
+        instance.AddCreature(creature);
+        creature.Script = new Avalon.World.Scripts.Creatures.CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
+
+        ICharacter killer = Substitute.For<ICharacter>();
+        killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 880_012));
+        killer.Level.Returns((ushort)9);
+        killer.Experience.Returns(0ul);
+
+        instance.CombatService.ApplyDamage(killer, creature, 10);
+        instance.CombatService.ApplyDamage(killer, creature, 10);   // the corpse: no second award
+
+        killer.Received(1).Experience = 100;
         instance.Dispose();
     }
 
@@ -99,7 +137,7 @@ public class ExperienceAwardShould
     }
 
     /// <summary>
-    /// StaticData's collections are null until LoadAsync runs, and OnCreatureKilled reads
+    /// StaticData's collections are null until LoadAsync runs, and CreatureKilled reads
     /// CharacterLevelExperiences to decide whether the kill levelled the character up.
     /// </summary>
     private static StaticData LoadedStaticData()

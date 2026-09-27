@@ -376,7 +376,7 @@ public class DuplicateCharacterSelectShould : IDisposable
     /// Online = false behind the new session.
     /// </summary>
     [Fact]
-    public async Task Release_the_kicked_character_and_still_queue_its_logout_save_when_leaving_its_instance_throws()
+    public async Task Release_the_kicked_character_and_still_queue_its_logout_save_when_a_script_throws_as_it_leaves()
     {
         var scheduler = Substitute.For<ICharacterSaveScheduler>();
         MapInstance town = Town(scheduler);
@@ -390,22 +390,16 @@ public class DuplicateCharacterSelectShould : IDisposable
         first.Character = live;
         town.AddCharacter(first);
 
-        // A disconnect hook that throws for this character, the way a creature script's could.
-        void Throw(ICharacter character)
+        // A creature script that throws as this character leaves its instance (#546).
+        var creature = new Creature
         {
-            if (ReferenceEquals(character, live))
-                throw new InvalidOperationException("simulated disconnect hook failure");
-        }
+            Guid = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 465_901),
+            Metadata = Substitute.For<Avalon.World.Public.Creatures.ICreatureMetadata>(),
+        };
+        creature.Script = new Avalon.Server.World.UnitTests.Scripts.ThrowOnLeaveScript(creature, town);
+        town.AddCreature(creature);
 
-        CharacterEntity.CharacterDisconnected += Throw;
-        try
-        {
-            select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
-        }
-        finally
-        {
-            CharacterEntity.CharacterDisconnected -= Throw;
-        }
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 
         Assert.Null(first.Character);
         Assert.DoesNotContain(live.Guid, town.Characters.Keys);
@@ -423,6 +417,55 @@ public class DuplicateCharacterSelectShould : IDisposable
         server.Tick();
         await _saver.WhenIdle(TheCharacter).WaitAsync(Limit);
         Assert.Single(_written);
+    }
+
+    /// <summary>
+    /// Each instance step of the despawn is contained on its own in <c>World.DeSpawnPlayerAsync</c>: a
+    /// registry lookup, an encounter drop or a removal that throws past the instance still queues the
+    /// logout save and still leaves the connection holding nothing. A creature script's throw is
+    /// already contained inside <c>RemoveCharacter</c> (#546), so this reaches the world's own catches
+    /// through an instance that throws itself.
+    /// </summary>
+    [Theory]
+    [InlineData("lookup")]
+    [InlineData("encounter")]
+    [InlineData("remove")]
+    public async Task Queue_the_logout_save_and_release_the_character_when_an_instance_step_throws(string step)
+    {
+        Avalon.World.World world = await LoadedWorldAsync(_saver, town: null);
+        var server = new TestWorldServer(world, _saver);
+        Avalon.World.WorldConnection connection = Connect(server);
+        CharacterEntity live = New(TheCharacter.Value);
+        live.InstanceId = Guid.NewGuid();
+        connection.Character = live;
+
+        var boom = new InvalidOperationException($"simulated {step} failure");
+        var combat = Substitute.For<ICombatService>();
+        var instance = Substitute.For<IMapInstance>();
+        instance.CombatService.Returns(combat);
+        if (step == "encounter")
+            combat.When(c => c.DropPlayerFromEncounter(Arg.Any<Avalon.World.Public.Units.IUnit>())).Do(_ => throw boom);
+        if (step == "remove")
+            instance.When(i => i.RemoveCharacter(Arg.Any<Avalon.World.Public.IWorldConnection>())).Do(_ => throw boom);
+
+        var registry = Substitute.For<IInstanceRegistry>();
+        if (step == "lookup")
+            registry.GetInstanceById(Arg.Any<Guid>()).Returns(_ => throw boom);
+        else
+            registry.GetInstanceById(live.InstanceId).Returns(instance);
+        typeof(Avalon.World.World).GetProperty(nameof(Avalon.World.World.InstanceRegistry))!
+            .SetValue(world, registry);
+
+        Task despawn = world.DeSpawnPlayerAsync(connection);
+
+        Assert.Null(connection.Character);
+        _commit.SetResult();
+        await despawn.WaitAsync(Limit);
+        CharacterSaveBatch logout = Assert.Single(_written);
+        Assert.Equal(TheCharacter, logout.Row.Id);
+        Assert.False(logout.Row.Online);
+        if (step != "lookup")
+            instance.Received(1).RemoveCharacter(connection);   // a failed encounter drop still removes it
     }
 
     /// <summary>
@@ -618,7 +661,6 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         var town = new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(1),
             ownerCharacterId: null, layout, Substitute.For<IMapNavigator>(), seed: 0);
-        town.Dispose();   // detach the static entity events; the test raises only its own
         return town;
     }
 

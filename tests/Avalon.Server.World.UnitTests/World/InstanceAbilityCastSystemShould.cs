@@ -194,7 +194,7 @@ public class InstanceAbilityCastSystemShould
 
         caster.Received(1).CurrentPower = 70u;
         Assert.Equal(2f, ability.CooldownTimer);
-        caster.Received(1).SendFinishCastAnimation(ability);
+        _arena.Received(1).BroadcastFinishCast(caster, ability);
         (IUnit who, AbilityAim aim, IAbilityArena arena) = Assert.Single(RecordingAbilityScript.Prepared);
         Assert.Same(caster, who);
         Assert.Equal(Aim, aim);
@@ -248,7 +248,7 @@ public class InstanceAbilityCastSystemShould
         Assert.Single(RecordingAbilityScript.Prepared);
         Assert.False(finishing.Casting);
         Assert.False(interrupted.Casting);
-        mover.Received(1).SendInterruptedCastAnimation(interrupted);
+        _arena.Received(1).BroadcastInterruptedCast(mover, interrupted);
     }
 
     // ── a caster leaving the instance takes no cast with it (#164) ──
@@ -272,10 +272,10 @@ public class InstanceAbilityCastSystemShould
 
         Assert.False(cancelled.Casting);
         Assert.Equal(0.6f, cancelled.CastTimeTimer);
-        leaving.Received(1).SendInterruptedCastAnimation(cancelled);
+        _arena.Received(1).BroadcastInterruptedCast(leaving, cancelled);
         leaving.Received(1).CurrentPower = 70u;
         Assert.True(kept.Casting);
-        staying.DidNotReceive().SendInterruptedCastAnimation(Arg.Any<IAbility>());
+        _arena.DidNotReceive().BroadcastInterruptedCast(staying, Arg.Any<IAbility>());
         Assert.Empty(RecordingAbilityScript.Prepared);
 
         for (int i = 0; i < 40; i++)
@@ -285,7 +285,7 @@ public class InstanceAbilityCastSystemShould
 
         (IUnit who, _, _) = Assert.Single(RecordingAbilityScript.Prepared);
         Assert.Same(staying, who);
-        leaving.DidNotReceive().SendFinishCastAnimation(Arg.Any<IAbility>());
+        _arena.DidNotReceive().BroadcastFinishCast(leaving, Arg.Any<IAbility>());
         Assert.Equal(0f, cancelled.CooldownTimer);
     }
 
@@ -303,7 +303,7 @@ public class InstanceAbilityCastSystemShould
 
         Assert.Empty(RecordingAbilityScript.Prepared);
         Assert.False(ability.Casting);
-        caster.DidNotReceive().SendFinishCastAnimation(Arg.Any<IAbility>());
+        _arena.DidNotReceive().BroadcastFinishCast(caster, Arg.Any<IAbility>());
 
         // Nothing is left behind that would refuse the next cast: the queue takes it again.
         caster.IsDead.Returns(false);

@@ -29,4 +29,10 @@ public interface IAbilityArena
     /// its centre, a cone its direction. Projectiles are world objects and use entity replication.
     /// </summary>
     void BroadcastAbilityFired(IUnit caster, IAbility ability, Vector3 origin, Vector3? direction, Vector3? centre);
+
+    /// <summary>The finish-cast broadcast, as <c>ISimulationContext.BroadcastFinishCast</c> (#546).</summary>
+    void BroadcastFinishCast(IUnit caster, IAbility ability);
+
+    /// <summary>The interrupt broadcast, as <c>ISimulationContext.BroadcastInterruptedCast</c> (#546).</summary>
+    void BroadcastInterruptedCast(IUnit caster, IAbility ability);
 }

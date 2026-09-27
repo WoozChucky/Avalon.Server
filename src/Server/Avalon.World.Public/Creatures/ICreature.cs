@@ -1,20 +1,9 @@
 using System;
 using Avalon.Common.Mathematics;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Creatures;
-
-public delegate void CreatureKilledDelegate(ICreature creature, IUnit killer);
-
-public delegate void UnitAttackAnimationDelegate(IUnit unit, IAbility? spell);
-
-public delegate void UnitFinishedCastAnimationDelegate(IUnit unit, IAbility spell);
-
-public delegate void UnitInterruptedCastAnimationDelegate(IUnit unit, IAbility spell);
-
-public delegate void UnitDamagedDelegate(IUnit unit, IUnit attacker, uint damage);
 
 public interface ICreature : IUnit
 {
@@ -55,5 +44,4 @@ public interface ICreature : IUnit
 
     void LookAt(Vector3 target);
     bool IsLookingAt(Vector3 target, float threshold = 0.1f);
-    void Died(IUnit killer);
 }

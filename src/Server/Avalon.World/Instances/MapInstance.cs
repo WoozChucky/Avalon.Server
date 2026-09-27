@@ -39,7 +39,8 @@ using Microsoft.Extensions.Options;
 
 namespace Avalon.World.Instances;
 
-public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, IDisposable
+public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
+    IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -133,7 +134,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // between MapInstances.
         CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
         _encounterRegistry = new EncounterRegistry(combatConfig);
-        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp);
+        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this);
         _threatBroadcast   = new ThreatBroadcastService(combatConfig);
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
@@ -156,48 +157,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Vendor quest gates (#432). Falls back, so an instance built without it (tests) still
         // ticks; production registers it.
         _quests = serviceProvider.GetService<IQuestProgress>() ?? NoQuestProgress.Instance;
-
-        SubscribeToEntityEvents();
     }
 
     /// <summary>
-    /// These events are <em>static</em>, so a subscription is a strong reference from the entity type
-    /// to this instance — which is why <see cref="Dispose" /> exists and why every subscription here
-    /// must have a detach there. Each handler already ignores units that are not this instance's, so
-    /// while subscribed an instance sees every entity event in the process and filters.
-    /// </summary>
-    private void SubscribeToEntityEvents()
-    {
-        Creature.OnCreatureKilled += OnCreatureKilled;
-        Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
-        Creature.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
-        Creature.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
-        CharacterEntity.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
-        CharacterEntity.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
-        CharacterEntity.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
-        CharacterEntity.OnUnitDamaged += OnCharacterHit;
-        CharacterEntity.OnSelfDamaged += OnCharacterSelfDamaged;
-    }
-
-    /// <summary>
-    /// Releases this instance from the static entity events so it can be collected once the registry
-    /// drops it. Without this the instance is a GC root for as long as the process lives, holding its
-    /// navigator and baked navmesh, its chunk layout, its combat services and every entity dictionary
-    /// — and a normal instance is created per player per map, so the growth is unbounded. Idempotent:
-    /// detaching a handler that is not attached is a no-op, and expiry can race a manual removal.
+    /// Ends the instance's ground state once the registry drops it. Nothing outside the instance holds
+    /// it: a unit's broadcasts, hits, kills and departures reach the instance it is in directly, never
+    /// through a static event (#546). Idempotent, since expiry can race a manual removal.
     /// </summary>
     public void Dispose()
     {
-        Creature.OnCreatureKilled -= OnCreatureKilled;
-        Creature.OnUnitAttackAnimation -= BroadcastUnitAttackAnimation;
-        Creature.OnUnitFinishedCastAnimation -= BroadcastFinishCastAnimation;
-        Creature.OnUnitInterruptedCastAnimation -= BroadcastInterruptedCastAnimation;
-        CharacterEntity.OnUnitAttackAnimation -= BroadcastUnitAttackAnimation;
-        CharacterEntity.OnUnitFinishedCastAnimation -= BroadcastFinishCastAnimation;
-        CharacterEntity.OnUnitInterruptedCastAnimation -= BroadcastInterruptedCastAnimation;
-        CharacterEntity.OnUnitDamaged -= OnCharacterHit;
-        CharacterEntity.OnSelfDamaged -= OnCharacterSelfDamaged;
-
         // Drops are never persisted, and never despawn on a timer: an instance's disposal is the end
         // of every drop still on its ground.
         _groundLoot.Clear();
@@ -355,7 +323,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         try
         {
-            character.OnDisconnected();
+            TellScriptsCharacterLeft(character);
         }
         finally
         {
@@ -365,6 +333,27 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             // no-op if this character was never synced as a player agent in the first place (flag off,
             // or the disconnect races the per-tick sync in Update below).
             _locomotion.RemovePlayer(guid);
+        }
+    }
+
+    /// <summary>
+    /// Each of this instance's creature scripts hears that <paramref name="character" /> left (#546).
+    /// Contained per script, so one that throws cannot stop the others or the removal. Over a copy, so
+    /// a script that adds or removes a creature does not break the walk.
+    /// </summary>
+    private void TellScriptsCharacterLeft(ICharacter character)
+    {
+        foreach (ICreature creature in _creatures.Values.ToArray())
+        {
+            try
+            {
+                creature.Script?.OnCharacterLeft(character);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "The script of creature {CreatureGuid} failed on {CharacterGuid} leaving instance {InstanceId}",
+                    creature.Guid, character.Guid, InstanceId);
+            }
         }
     }
 
@@ -378,7 +367,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         _creatures.Remove(creature.Guid);
 
-        // Stop BEFORE Unregister, exactly as OnCreatureKilled does and for the same reason: Stop is
+        // Stop BEFORE Unregister, exactly as CreatureKilled does and for the same reason: Stop is
         // what brings the creature to rest (MoveState.Idle, zero Velocity), and both locomotion
         // implementations no-op on an unregistered creature. Reversed, a creature removed mid-walk
         // (script hot reload runs through here — World.ApplyScriptsHotReload calls
@@ -458,8 +447,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Rolls, allocates and places a dying creature's drops and tells everyone here. Tick thread:
-    /// OnCreatureKilled is raised from Creature.Died inside combat and ability processing. Reads
-    /// the Loot and Items areas as they are now, so a reload applies to the next kill.
+    /// CreatureKilled is called by this instance's combat service inside combat and ability
+    /// processing. Reads the Loot and Items areas as they are now, so a reload applies to the next kill.
     /// </summary>
     private void DropLoot(ICreature creature)
     {
@@ -569,6 +558,38 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _corpseRemover.Update(deltaTime);
 
         // Step 2: Process character packets
+        UpdateCharacters(deltaTime);
+
+        // Step 2b: Vendors (#432). After the packets, so this tick's trades are in the lists. The
+        // pass refills due stock, adopts a /reload vendors, and sends each connection whose shop is
+        // open the one list it is owed. It is skipped until someone opens a shop here, so an
+        // instance with no vendor state never reads vendor data.
+        if (_vendors.Count > 0)
+            RunVendorPass();
+
+        List<IWorldObject> objectAbilities = [];
+
+        // Step 3: abilities, combat and threat.
+        UpdateCombat(deltaTime, objectAbilities);
+
+        // Step 4: creature scripts, then the locomotion that executes what they decided.
+        UpdateCreatures(deltaTime);
+
+        // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks.
+        SnapshotDirtyFields(objectAbilities);
+
+        // Step 5b and 6: visibility, then the state broadcast, per character.
+        BroadcastState(objectAbilities);
+
+        if (_lastBroadcastTime >= BroadcastInterval)
+        {
+            _lastBroadcastTime = 0;
+        }
+    }
+
+    /// <summary>Step 2 of <see cref="Update" />: each character's packets, its own tick, its PvP timer and its periodic save.</summary>
+    private void UpdateCharacters(TimeSpan deltaTime)
+    {
         foreach ((ObjectGuid guid, ICharacter character) in _characters)
         {
             IWorldConnection connection = _connections[guid];
@@ -585,16 +606,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (character is CharacterEntity entity)
                 _saveScheduler?.Tick(connection, entity, deltaTime);
         }
+    }
 
-        // Step 2b: Vendors (#432). After the packets, so this tick's trades are in the lists. The
-        // pass refills due stock, adopts a /reload vendors, and sends each connection whose shop is
-        // open the one list it is owed. It is skipped until someone opens a shop here, so an
-        // instance with no vendor state never reads vendor data.
-        if (_vendors.Count > 0)
-            RunVendorPass();
-
-        List<IWorldObject> objectAbilities = [];
-
+    /// <summary>Step 3 of <see cref="Update" />: the cast system, then the combat service, then the threat mirror.</summary>
+    private void UpdateCombat(TimeSpan deltaTime, List<IWorldObject> objectAbilities)
+    {
         // Step 3: Ability cast system update
         _abilityCastSystem.Update(deltaTime, objectAbilities);
 
@@ -606,7 +622,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // here is safe because no inbound packet handler dequeued above mutates _connections
         // (target-unit just stores a ulong on the connection itself).
         _threatBroadcast.Tick(_connections.Values, _creatures, _combatService);
+    }
 
+    /// <summary>Step 4 of <see cref="Update" />: creature scripts, the player sync, then the locomotion.</summary>
+    private void UpdateCreatures(TimeSpan deltaTime)
+    {
         // Step 4: Update creature scripts
         foreach (ICreature creature in _creatures.Values)
         {
@@ -630,7 +650,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // which is the only thing in the suite that fails if these two are swapped. Player positions are
         // already current: input was processed in connection.UpdateMap() earlier in this same tick.
         _locomotion.Update(deltaTime);
+    }
 
+    /// <summary>Step 5a of <see cref="Update" />.</summary>
+    private void SnapshotDirtyFields(List<IWorldObject> objectAbilities)
+    {
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks. Entity _dirtyFields use
         // |= to accumulate, so OR-ing all changes between broadcasts is captured by a single
         // ConsumeDirtyFields() at broadcast time. Consuming every tick (with sends gated to
@@ -666,7 +690,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 }
             }
         }
+    }
 
+    /// <summary>Steps 5b and 6 of <see cref="Update" />: every character's visibility first, then every broadcast.</summary>
+    private void BroadcastState(List<IWorldObject> objectAbilities)
+    {
         // Step 5b: Update entity visibility state per character
         foreach (ICharacter character in _characters.Values)
         {
@@ -677,11 +705,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         foreach (ICharacter character in _characters.Values)
         {
             BroadcastStateTo(character);
-        }
-
-        if (_lastBroadcastTime >= BroadcastInterval)
-        {
-            _lastBroadcastTime = 0;
         }
     }
 
@@ -825,7 +848,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    private void BroadcastUnitAttackAnimation(IUnit attacker, IAbility? spell)
+    public void BroadcastAttackAnimation(IUnit attacker, IAbility? spell)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -850,7 +873,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public static ushort ResolveBroadcastAnimationId(IAbility? ability)
         => (ushort)(ability?.Metadata.AnimationId ?? 1u);
 
-    private void BroadcastFinishCastAnimation(IUnit attacker, IAbility spell)
+    public void BroadcastFinishCast(IUnit attacker, IAbility spell)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -864,7 +887,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    private void BroadcastInterruptedCastAnimation(IUnit attacker, IAbility spell)
+    public void BroadcastInterruptedCast(IUnit attacker, IAbility spell)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -904,33 +927,24 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Only the instance the wounded unit is actually in broadcasts the hit. <c>OnUnitDamaged</c> is a
-    /// static event, so without this guard every live instance forwarded every hit to its own
-    /// connections and players saw damage numbers from fights in other instances. The eight
-    /// neighbouring handlers have always filtered this way; this one did not.
+    /// The wounded character is told its own damage first, then everyone here is sent the hit. Only for
+    /// a character in this instance, so nobody sees damage numbers from a fight elsewhere.
     /// </summary>
-    private void OnCharacterHit(IUnit unit, IUnit attacker, uint damage)
+    void ICombatOutcomes.CharacterDamaged(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId)
     {
-        if (!_characters.ContainsKey(unit.Guid) && !_creatures.ContainsKey(unit.Guid))
+        if (_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
         {
-            return;
+            connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, character.Guid.RawValue,
+                character.CurrentHealth, damage, abilityId?.Value, connection.CryptoSession.Encrypt));
         }
 
-        BroadcastUnitHit(attacker, unit, unit.CurrentHealth, damage);
-    }
-
-    private void OnCharacterSelfDamaged(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId)
-    {
-        if (!_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
+        if (_characters.ContainsKey(character.Guid))
         {
-            return;
+            BroadcastUnitHit(attacker, character, character.CurrentHealth, damage);
         }
-
-        connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, character.Guid.RawValue,
-            character.CurrentHealth, damage, abilityId?.Value, connection.CryptoSession.Encrypt));
     }
 
-    private void OnCreatureKilled(ICreature creature, IUnit killer)
+    void ICombatOutcomes.CreatureKilled(ICreature creature, IUnit killer)
     {
         if (!_creatures.ContainsKey(creature.Guid))
         {
@@ -943,10 +957,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // immediately. RemoveCreature does eventually run for a corpse — ICorpseRemover schedules it
         // BodyRemoveTimer from now — but a creature that keeps walking, holds a melee slot and shoves
         // the crowd about for those seconds is exactly the bug. Doing it at this chokepoint rather than
-        // in the script's death branch covers every death route: Creature.Died is raised from exactly
-        // one place and always lands here, including for a creature with no script, or one whose script
-        // is not CreatureCombatScript. Everything below is idempotent, so the later RemoveCreature
-        // repeating it is harmless.
+        // in the script's death branch covers every death route: every kill is a hit through this
+        // instance's combat service, which calls this once, whatever the creature's script is.
+        // Everything below is idempotent, so the later RemoveCreature repeating it is harmless.
         //
         // Stop BEFORE Unregister, not after: Stop is what brings the corpse to rest (MoveState.Idle,
         // zero Velocity) and both implementations no-op on an unregistered creature, so the reverse

@@ -4,8 +4,6 @@ using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Characters;
 
-public delegate void CharacterDisconnectedDelegate(ICharacter character);
-
 public interface ICharacter : IUnit
 {
     ICharacterGameState CharacterGameState { get; }
@@ -48,7 +46,6 @@ public interface ICharacter : IUnit
     /// <see cref="Avalon.World.Public.Abilities.AbilityFlags.RequiresOutOfCombat"/>).</summary>
     bool IsInCombat { get; }
 
-    void OnDisconnected();
     float GetMovementSpeed();
 
     void Update(TimeSpan deltaTime);

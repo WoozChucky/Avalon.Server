@@ -242,8 +242,7 @@ public class InstanceRegistryShould : IDisposable
             template.MapType);
     }
 
-    // A MapInstance subscribes to static entity events in its constructor; an undisposed one
-    // keeps reacting to every other test's entities for the rest of the run.
+    // Disposed as the registry disposes the instances it drops.
     public void Dispose()
     {
         foreach (MapInstance instance in _instances)

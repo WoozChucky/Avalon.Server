@@ -1,6 +1,5 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
-using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -104,13 +103,18 @@ public class CreatureCombatScript : AiScript
     {
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
         _initialPosition = Vector3.zero;
-        CharacterEntity.CharacterDisconnected += OnCharacterDisconnected;
     }
 
     public override object State { get; set; } = CombatState.None;
 
-    private void OnCharacterDisconnected(ICharacter character)
+    /// <summary>
+    /// Its target left this creature's instance: give up the fight and go home, at full health. Called
+    /// by the instance for its own creatures only (#546), so nothing outside it holds this script.
+    /// </summary>
+    public override void OnCharacterLeft(ICharacter character)
     {
+        base.OnCharacterLeft(character);
+
         if (_target == character && !_dead)
         {
             // Release before nulling _target — Release needs the target's guid.
@@ -147,10 +151,11 @@ public class CreatureCombatScript : AiScript
 
                 // _dead short-circuits Update from here on, so this is the script's only chance
                 // to give back whatever slot it held.
+                // The kill itself (loot, experience, the corpse) is the combat service's to report to
+                // the instance, once this hit returns (#546).
                 if (_target is not null)
                     Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
 
-                Creature.Died(attacker);
                 return;
             }
 
@@ -391,7 +396,7 @@ public class CreatureCombatScript : AiScript
         // Logic to attack the target
         if (_attackCooldownTimer <= 0.0f)
         {
-            Creature.SendAttackAnimation(null); // TODO: spells for creatures
+            Context.BroadcastAttackAnimation(Creature, null); // TODO: spells for creatures
             // Route melee through CombatService so threat / encounter membership / death broadcast
             // all trigger from the canonical chokepoint (spec section 3: "all damage funnels ApplyDamage").
             // No ability — uses the raw-damage overload with default ThreatMultiplier=1.0.
