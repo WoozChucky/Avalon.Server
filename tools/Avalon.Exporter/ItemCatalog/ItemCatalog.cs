@@ -1,14 +1,15 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Avalon.Common;
 using Avalon.Common.Converters;
 using Avalon.Configuration;
+using Avalon.Database;
 using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -50,8 +51,9 @@ public static class ItemCatalog
 
     public static string? ReadinessFor(string? connectionString) =>
         string.IsNullOrWhiteSpace(connectionString)
-            ? "needs a World database connection: set Database__World__ConnectionString, " +
-              "or start one with `docker compose up -d postgres`."
+            ? "needs a World database connection: set Database__World__ConnectionString in the " +
+              "environment or in user-secrets for src/Server/Avalon.Database.World (appsettings files " +
+              "are not read); `docker compose up -d postgres` starts a local database."
             : null;
 
     public static void Write(string path)
@@ -96,7 +98,7 @@ public static class ItemCatalog
         if (typeInfo.Type != typeof(ItemTemplate)) return;
 
         JsonPropertyInfo? name = typeInfo.Properties.FirstOrDefault(
-            property => property.AttributeProvider is System.Reflection.MemberInfo member
+            property => property.AttributeProvider is MemberInfo member
                         && member.Name == nameof(ItemTemplate.Name));
 
         if (name is null) return;
@@ -125,7 +127,7 @@ public static class ItemCatalog
         if (typeInfo.Type != typeof(ItemTemplate)) return;
 
         JsonPropertyInfo? allowedClasses = typeInfo.Properties.FirstOrDefault(
-            property => property.AttributeProvider is System.Reflection.MemberInfo member
+            property => property.AttributeProvider is MemberInfo member
                         && member.Name == nameof(ItemTemplate.AllowedClasses));
 
         if (allowedClasses is null) return;
@@ -133,20 +135,18 @@ public static class ItemCatalog
         allowedClasses.CustomConverter = new NumericEnumListConverter<CharacterClass>();
     }
 
-    private static string? ConnectionString()
-    {
-        IConfigurationRoot configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.Design.json", optional: true)
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddEnvironmentVariables()
-            .Build();
-
-        var database = new DatabaseConfiguration();
-        configuration.GetSection("Database").Bind(database);
-
-        return database.World?.ConnectionString ?? configuration["Database:World:ConnectionString"];
-    }
+    /// <summary>
+    /// The World connection string (#557), read the way the design-time factories read theirs: the
+    /// World database project's user-secrets, then the environment
+    /// (Database__World__ConnectionString), and nothing else. Never an appsettings file in the working
+    /// directory, which once pointed this export at whatever database a local file named. Null when
+    /// neither holds a non-blank value, and readiness then says a connection is needed.
+    /// <paramref name="userSecretsOf"/> exists for tests, which pass an assembly with no secrets.
+    /// </summary>
+    public static string? ConnectionString(Assembly? userSecretsOf = null) =>
+        DesignTimeConnectionString.Find(
+            DesignTimeConnectionString.Sources(userSecretsOf ?? typeof(WorldDbContext).Assembly),
+            "World");
 
     private sealed record CatalogDocument(
         [property: JsonPropertyName("$comment")] string Comment,

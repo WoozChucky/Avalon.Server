@@ -169,3 +169,77 @@ public class ItemCatalogShould
         Assert.Null(ItemCatalog.ReadinessFor("Host=localhost;Database=world"));
     }
 }
+
+/// <summary>
+/// Where the item-catalog export finds its World connection string (#557): the environment or the
+/// World database project's user-secrets, the design-time factories' sources, and never an
+/// appsettings file in the working directory, which once let it connect to whatever database a
+/// local file named. These set the real working directory and a real process variable, so they run
+/// alone. Nothing here connects to a database.
+/// </summary>
+[CollectionDefinition(nameof(ItemCatalogConnectionShould), DisableParallelization = true)]
+public sealed class ItemCatalogConnectionCollection
+{
+}
+
+[Collection(nameof(ItemCatalogConnectionShould))]
+public class ItemCatalogConnectionShould
+{
+    private const string Variable = "Database__World__ConnectionString";
+    private const string FromFile = "Host=127.0.0.1;Port=1;Database=from_working_directory_file";
+    private const string FromEnvironment = "Host=127.0.0.1;Port=1;Database=from_environment";
+
+    // The test assembly declares no UserSecretsId, so a developer's own user-secrets for the World
+    // database project cannot decide these tests; production reads that project's.
+    private static readonly System.Reflection.Assembly NoUserSecrets = typeof(ItemCatalogConnectionShould).Assembly;
+
+    private static void InWorkingDirectoryWithAppsettings(string? variable, Action body)
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        string? before = Environment.GetEnvironmentVariable(Variable);
+        string folder = Path.Combine(Path.GetTempPath(), "avalon-557-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        string settings = "{ \"Database\": { \"World\": { \"ConnectionString\": \"" + FromFile + "\" } } }";
+        File.WriteAllText(Path.Combine(folder, "appsettings.json"), settings);
+        File.WriteAllText(Path.Combine(folder, "appsettings.Design.json"), settings);
+        try
+        {
+            Directory.SetCurrentDirectory(folder);
+            Environment.SetEnvironmentVariable(Variable, variable);
+            body();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(Variable, before);
+            Directory.SetCurrentDirectory(workingDirectory);
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Not_Read_An_Appsettings_File_In_The_Working_Directory() =>
+        InWorkingDirectoryWithAppsettings(variable: null, () =>
+        {
+            string? connectionString = ItemCatalog.ConnectionString(NoUserSecrets);
+
+            Assert.Null(connectionString);
+            string? reason = ItemCatalog.ReadinessFor(connectionString);
+            Assert.NotNull(reason);
+            Assert.Contains(Variable, reason, StringComparison.Ordinal);
+        });
+
+    [Fact]
+    public void Use_The_Connection_String_The_Environment_Names() =>
+        InWorkingDirectoryWithAppsettings(FromEnvironment, () =>
+        {
+            string? connectionString = ItemCatalog.ConnectionString(NoUserSecrets);
+
+            Assert.Equal(FromEnvironment, connectionString);
+            Assert.Null(ItemCatalog.ReadinessFor(connectionString));
+        });
+
+    [Fact]
+    public void Treat_A_Blank_Environment_Value_As_Not_Configured() =>
+        InWorkingDirectoryWithAppsettings("   ", () =>
+            Assert.Null(ItemCatalog.ConnectionString(NoUserSecrets)));
+}

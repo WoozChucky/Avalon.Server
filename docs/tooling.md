@@ -35,6 +35,13 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 | `item-schema` | `schema/items/item-schema-v1.json` | `ItemTemplate` and its eight enumerations |
 | `item-catalog` | `schema/items/item-catalog-v1.json` | the item template rows — **needs a World database** |
 
+`item-catalog` reads its World connection string only from the environment
+(`Database__World__ConnectionString`) or from user-secrets for `src/Server/Avalon.Database.World`,
+the sources the `dotnet ef` design-time factories use (#557). It never reads an `appsettings` file,
+so running it from a folder that holds one cannot point it at that file's database. Without a
+string, a call that names it (`all` included) stops before anything is written and says a World
+database connection is needed.
+
 Two rules the tool keeps, because both failures are silent ones:
 
 - **Every name is resolved before anything is written.** A typo cannot export eight of nine artifacts
