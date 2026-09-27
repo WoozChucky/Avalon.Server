@@ -30,6 +30,19 @@ public sealed class ClientAuthRefreshRequest
     public string RefreshToken { get; set; } = string.Empty;
 }
 
+/// <summary>One of the account's signed-in launchers (#591).</summary>
+public sealed class LauncherSessionDto
+{
+    public Guid Id { get; set; }
+
+    /// <summary>What the launcher called its computer; null when it gave no name.</summary>
+    public string? DeviceName { get; set; }
+
+    public DateTime SignedInAt { get; set; }
+    public DateTime LastUsedAt { get; set; }
+    public DateTime ExpiresAt { get; set; }
+}
+
 /// <summary>A launcher's tokens, in the body: its session is never a cookie (#591).</summary>
 public sealed class ClientAuthTokens
 {

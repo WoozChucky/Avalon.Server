@@ -37,6 +37,7 @@ public class ClientAuthControllerShould
     private readonly IJwtUtils _jwt = Substitute.For<IJwtUtils>();
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
+    private readonly IRefreshTokenRepository _refreshRepository = Substitute.For<IRefreshTokenRepository>();
     private readonly DefaultHttpContext _http = new();
 
     public ClientAuthControllerShould()
@@ -48,7 +49,7 @@ public class ClientAuthControllerShould
     private ClientAuthController Sut(Account? signedIn = null)
     {
         if (signedIn is not null) _http.Items[nameof(Account)] = signedIn;
-        return new ClientAuthController(_codes, _refresh, _jwt, _accounts,
+        return new ClientAuthController(_codes, _refresh, _refreshRepository, _jwt, _accounts,
             new AuthenticationConfig { AccessTokenLifetimeMinutes = 15 }, _cache, new ForwardedHeadersOptions())
         {
             ControllerContext = new ControllerContext { HttpContext = _http },
@@ -237,5 +238,43 @@ public class ClientAuthControllerShould
             .GetCustomAttribute<EnableRateLimitingAttribute>();
 
         Assert.Equal(ApiRateLimiting.ClientAuthPolicy, attribute?.PolicyName);
+    }
+
+    [Fact]
+    public async Task List_the_signed_in_accounts_launcher_sessions()
+    {
+        var family = Guid.NewGuid();
+        DateTime t0 = new(2026, 9, 27, 12, 0, 0, DateTimeKind.Utc);
+        _refreshRepository.ListLiveFamiliesAsync(new AccountId(7L), SessionClient.Launcher, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns([new LiveFamily(family, "MOTHERSHIP", t0, t0.AddHours(1), t0.AddDays(30))]);
+
+        IActionResult result = await Sut(MakeAccount()).Sessions();
+
+        LauncherSessionDto session = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<LauncherSessionDto>>(
+            Assert.IsType<OkObjectResult>(result).Value));
+        Assert.Equal(family, session.Id);
+        Assert.Equal("MOTHERSHIP", session.DeviceName);
+        Assert.Equal(t0.AddHours(1), session.LastUsedAt);
+    }
+
+    [Fact]
+    public async Task End_a_launcher_session_of_the_caller()
+    {
+        var family = Guid.NewGuid();
+        _refreshRepository.FindFamilyOwnerAsync(family, Arg.Any<CancellationToken>()).Returns(new AccountId(7L));
+
+        Assert.IsType<NoContentResult>(await Sut(MakeAccount()).EndSession(family));
+        await _refreshRepository.Received(1).RevokeFamilyAsync(family, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Answer_404_for_a_session_that_is_not_the_callers()
+    {
+        var theirs = Guid.NewGuid();
+        _refreshRepository.FindFamilyOwnerAsync(theirs, Arg.Any<CancellationToken>()).Returns(new AccountId(8L));
+
+        Assert.IsType<NotFoundResult>(await Sut(MakeAccount()).EndSession(theirs));
+        Assert.IsType<NotFoundResult>(await Sut(MakeAccount()).EndSession(Guid.NewGuid()));
+        await _refreshRepository.DidNotReceiveWithAnyArgs().RevokeFamilyAsync(default);
     }
 }

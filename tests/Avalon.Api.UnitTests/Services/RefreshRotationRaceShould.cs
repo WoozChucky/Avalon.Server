@@ -94,6 +94,13 @@ public sealed class RefreshRotationRaceShould : IDisposable
 
         public Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default) =>
             OneAtATime(() => inner.RevokeAllForAccountAsync(accountId, cancellationToken));
+
+        public Task<IReadOnlyList<LiveFamily>> ListLiveFamiliesAsync(AccountId accountId, SessionClient client, DateTime now,
+            CancellationToken cancellationToken = default) =>
+            OneAtATime(() => inner.ListLiveFamiliesAsync(accountId, client, now, cancellationToken));
+
+        public Task<AccountId?> FindFamilyOwnerAsync(Guid familyId, CancellationToken cancellationToken = default) =>
+            OneAtATime(() => inner.FindFamilyOwnerAsync(familyId, cancellationToken));
     }
 
     [Fact]

@@ -30,6 +30,7 @@ public sealed class ClientAuthController : BaseController
 
     private readonly ILauncherAuthCodes _codes;
     private readonly IRefreshTokenService _refresh;
+    private readonly IRefreshTokenRepository _refreshTokens;
     private readonly IJwtUtils _jwt;
     private readonly IAccountRepository _accounts;
     private readonly AuthenticationConfig _authConfig;
@@ -39,6 +40,7 @@ public sealed class ClientAuthController : BaseController
     public ClientAuthController(
         ILauncherAuthCodes codes,
         IRefreshTokenService refresh,
+        IRefreshTokenRepository refreshTokens,
         IJwtUtils jwt,
         IAccountRepository accounts,
         AuthenticationConfig authConfig,
@@ -47,6 +49,7 @@ public sealed class ClientAuthController : BaseController
     {
         _codes = codes;
         _refresh = refresh;
+        _refreshTokens = refreshTokens;
         _jwt = jwt;
         _accounts = accounts;
         _authConfig = authConfig;
@@ -165,6 +168,40 @@ public sealed class ClientAuthController : BaseController
     {
         if (!string.IsNullOrEmpty(request.RefreshToken))
             await _refresh.RevokeFamilyAsync(request.RefreshToken, CancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>The signed-in account's launcher sessions, most recently used first.</summary>
+    [HttpGet("sessions", Name = "ListLauncherSessions")]
+    [Authorize(Policy = AvalonRoles.Player)]
+    [ProducesResponseType(typeof(IReadOnlyList<LauncherSessionDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Sessions()
+    {
+        Account account = Account ?? throw new InvalidOperationException("Account not loaded");
+        IReadOnlyList<LiveFamily> families = await _refreshTokens.ListLiveFamiliesAsync(account.Id, SessionClient.Launcher,
+            DateTime.UtcNow, CancellationToken);
+        return Ok(families.Select(f => new LauncherSessionDto
+        {
+            Id = f.FamilyId,
+            DeviceName = f.DeviceName,
+            SignedInAt = f.SignedInAt,
+            LastUsedAt = f.LastUsedAt,
+            ExpiresAt = f.ExpiresAt,
+        }).ToList());
+    }
+
+    /// <summary>Ends one of the signed-in account's launcher sessions. Another account's answers 404.</summary>
+    [HttpDelete("sessions/{familyId:guid}", Name = "EndLauncherSession")]
+    [Authorize(Policy = AvalonRoles.Player)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> EndSession(Guid familyId)
+    {
+        Account account = Account ?? throw new InvalidOperationException("Account not loaded");
+        // Existence-hiding, as elsewhere: a session that is not the caller's is not found.
+        if (await _refreshTokens.FindFamilyOwnerAsync(familyId, CancellationToken) != account.Id) return NotFound();
+
+        await _refreshTokens.RevokeFamilyAsync(familyId, CancellationToken);
         return NoContent();
     }
 
