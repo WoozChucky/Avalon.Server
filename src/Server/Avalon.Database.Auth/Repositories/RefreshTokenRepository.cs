@@ -57,8 +57,11 @@ public interface IRefreshTokenRepository
     Task<IReadOnlyList<LiveFamily>> ListLiveFamiliesAsync(AccountId accountId, SessionClient client, DateTime now,
         CancellationToken cancellationToken = default);
 
-    /// <summary>The account a launcher family belongs to; null for an unknown family or the website's (#591).</summary>
-    Task<AccountId?> FindLauncherFamilyOwnerAsync(Guid familyId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Whether <paramref name="familyId"/> is one of <paramref name="accountId"/>'s launcher families (#591):
+    /// false for another account's, the website's, or an unknown one. Served by the (AccountId, FamilyId) index.
+    /// </summary>
+    Task<bool> IsLauncherFamilyOfAsync(AccountId accountId, Guid familyId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>A live session: when it signed in (its first token) and was last used (its newest).</summary>
@@ -176,14 +179,12 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
             .ToList();
     }
 
-    public async Task<AccountId?> FindLauncherFamilyOwnerAsync(Guid familyId, CancellationToken cancellationToken = default)
+    public async Task<bool> IsLauncherFamilyOfAsync(AccountId accountId, Guid familyId, CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        RefreshToken? any = await context.RefreshTokens
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.FamilyId == familyId && t.Client == SessionClient.Launcher, cancellationToken);
-        return any?.AccountId;
+        return await context.RefreshTokens.AnyAsync(
+            t => t.AccountId == accountId && t.FamilyId == familyId && t.Client == SessionClient.Launcher, cancellationToken);
     }
 
     public async Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default)

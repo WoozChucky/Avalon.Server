@@ -99,4 +99,15 @@ public class LauncherAuthCodesShould
     [InlineData(Challenge, 70000)]
     public async Task Refuse_a_challenge_or_port_it_cannot_honour(string challenge, int port) =>
         await Assert.ThrowsAsync<ArgumentException>(() => Codes().IssueAsync(new AccountId(7L), 3, challenge, port));
+
+    [Fact]
+    public async Task Spend_the_code_even_when_the_verifier_is_malformed()
+    {
+        // "Spent by its first redemption, right or wrong" (#591 review): a malformed verifier too.
+        LauncherAuthCodes codes = Codes();
+        string code = await codes.IssueAsync(new AccountId(7L), 3, Challenge, 49152);
+
+        Assert.Null(await codes.RedeemAsync(code, "short"));
+        Assert.Null(await codes.RedeemAsync(code, Verifier));
+    }
 }

@@ -28,6 +28,11 @@ namespace Avalon.Database.Auth.Migrations
                 name: "IX_RefreshTokens_AccountId_Client_Revoked",
                 table: "RefreshTokens",
                 columns: new[] { "AccountId", "Client", "Revoked" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefreshTokens_FamilyId_Index",
+                table: "RefreshTokens",
+                columns: new[] { "FamilyId", "Index" });
         }
 
         /// <inheritdoc />
@@ -35,6 +40,10 @@ namespace Avalon.Database.Auth.Migrations
         {
             migrationBuilder.DropIndex(
                 name: "IX_RefreshTokens_AccountId_Client_Revoked",
+                table: "RefreshTokens");
+
+            migrationBuilder.DropIndex(
+                name: "IX_RefreshTokens_FamilyId_Index",
                 table: "RefreshTokens");
 
             migrationBuilder.DropColumn(

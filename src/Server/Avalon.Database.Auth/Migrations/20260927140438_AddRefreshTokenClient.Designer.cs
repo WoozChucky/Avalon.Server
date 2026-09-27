@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.Auth.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    [Migration("20260927133537_AddRefreshTokenClient")]
+    [Migration("20260927140438_AddRefreshTokenClient")]
     partial class AddRefreshTokenClient
     {
         /// <inheritdoc />
@@ -371,6 +371,8 @@ namespace Avalon.Database.Auth.Migrations
                         .IsUnique();
 
                     b.HasIndex("AccountId", "FamilyId");
+
+                    b.HasIndex("FamilyId", "Index");
 
                     b.HasIndex("AccountId", "Client", "Revoked");
 

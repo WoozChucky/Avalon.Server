@@ -8,6 +8,12 @@ public sealed class ClientAuthCodeRequest
 
     /// <summary>The loopback port the launcher listens on; the website redirects to 127.0.0.1 on it.</summary>
     public int RedirectPort { get; set; }
+
+    /// <summary>
+    /// The account's current password: a launcher session outlives the website's, so, as for a personal
+    /// access token (#483), the session alone is not enough to open one (#591 review).
+    /// </summary>
+    public string CurrentPassword { get; set; } = string.Empty;
 }
 
 public sealed class ClientAuthCodeResponse

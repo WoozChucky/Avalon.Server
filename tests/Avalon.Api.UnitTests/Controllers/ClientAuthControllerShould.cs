@@ -38,6 +38,7 @@ public class ClientAuthControllerShould
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IRefreshTokenRepository _refreshRepository = Substitute.For<IRefreshTokenRepository>();
+    private readonly IReauthentication _reauthentication = Substitute.For<IReauthentication>();
     private readonly DefaultHttpContext _http = new();
 
     public ClientAuthControllerShould()
@@ -49,7 +50,7 @@ public class ClientAuthControllerShould
     private ClientAuthController Sut(Account? signedIn = null)
     {
         if (signedIn is not null) _http.Items[nameof(Account)] = signedIn;
-        return new ClientAuthController(_codes, _refresh, _refreshRepository, _jwt, _accounts,
+        return new ClientAuthController(_codes, _refresh, _refreshRepository, _reauthentication, _jwt, _accounts,
             new AuthenticationConfig { AccessTokenLifetimeMinutes = 15 }, _cache, new ForwardedHeadersOptions())
         {
             ControllerContext = new ControllerContext { HttpContext = _http },
@@ -81,9 +82,12 @@ public class ClientAuthControllerShould
     [Fact]
     public async Task Issue_a_code_for_the_signed_in_account()
     {
+        _reauthentication.RequireCurrentPasswordAsync(new AccountId(7L), "hunter22", Arg.Any<IPAddress>(), Arg.Any<CancellationToken>())
+            .Returns(new Reauthenticated(new AccountId(7L), 3));
         _codes.IssueAsync(new AccountId(7L), 3, Challenge, 50000).Returns("the-code");
 
-        IActionResult result = await Sut(MakeAccount()).Code(new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000 });
+        IActionResult result = await Sut(MakeAccount()).Code(
+            new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000, CurrentPassword = "hunter22" });
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal("the-code", Assert.IsType<ClientAuthCodeResponse>(ok.Value).Code);
@@ -95,7 +99,10 @@ public class ClientAuthControllerShould
         _codes.IssueAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<int>())
             .ThrowsAsync(new ArgumentException("bad challenge"));
 
-        IActionResult result = await Sut(MakeAccount()).Code(new ClientAuthCodeRequest { Challenge = "x", RedirectPort = 50000 });
+        _reauthentication.RequireCurrentPasswordAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<IPAddress>(), Arg.Any<CancellationToken>())
+            .Returns(new Reauthenticated(new AccountId(7L), 3));
+
+        IActionResult result = await Sut(MakeAccount()).Code(new ClientAuthCodeRequest { Challenge = "x", RedirectPort = 50000, CurrentPassword = "hunter22" });
 
         var problem = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
@@ -261,7 +268,7 @@ public class ClientAuthControllerShould
     public async Task End_a_launcher_session_of_the_caller()
     {
         var family = Guid.NewGuid();
-        _refreshRepository.FindLauncherFamilyOwnerAsync(family, Arg.Any<CancellationToken>()).Returns(new AccountId(7L));
+        _refreshRepository.IsLauncherFamilyOfAsync(new AccountId(7L), family, Arg.Any<CancellationToken>()).Returns(true);
 
         Assert.IsType<NoContentResult>(await Sut(MakeAccount()).EndSession(family));
         await _refreshRepository.Received(1).RevokeFamilyAsync(family, Arg.Any<CancellationToken>());
@@ -271,7 +278,7 @@ public class ClientAuthControllerShould
     public async Task Answer_404_for_a_session_that_is_not_the_callers()
     {
         var theirs = Guid.NewGuid();
-        _refreshRepository.FindLauncherFamilyOwnerAsync(theirs, Arg.Any<CancellationToken>()).Returns(new AccountId(8L));
+        _refreshRepository.IsLauncherFamilyOfAsync(Arg.Any<AccountId>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(false);
 
         Assert.IsType<NotFoundResult>(await Sut(MakeAccount()).EndSession(theirs));
         Assert.IsType<NotFoundResult>(await Sut(MakeAccount()).EndSession(Guid.NewGuid()));
@@ -313,5 +320,41 @@ public class ClientAuthControllerShould
 
         AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, RedirectPort = 50001 }));
         await _refresh.DidNotReceiveWithAnyArgs().IssueLauncherAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task Refuse_a_code_without_the_current_password()
+    {
+        // A launcher session outlives the website's (#591 review, as a PAT does, #483): a stolen access
+        // token or refresh cookie alone must not be able to open one.
+        _reauthentication.RequireCurrentPasswordAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<IPAddress>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new AuthenticationException("Invalid current password"));
+
+        await Assert.ThrowsAsync<AuthenticationException>(() => Sut(MakeAccount())
+            .Code(new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000, CurrentPassword = "wrong" }));
+        await _codes.DidNotReceiveWithAnyArgs().IssueAsync(default, default, default!, default);
+    }
+
+    [Fact]
+    public async Task Bind_the_code_to_the_credentials_version_the_password_was_checked_against()
+    {
+        _reauthentication.RequireCurrentPasswordAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<IPAddress>(), Arg.Any<CancellationToken>())
+            .Returns(new Reauthenticated(new AccountId(7L), 5));
+
+        await Sut(MakeAccount(credentialsVersion: 3))
+            .Code(new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000, CurrentPassword = "hunter22" });
+
+        await _codes.Received(1).IssueAsync(new AccountId(7L), 5, Challenge, 50000);
+    }
+
+    [Fact]
+    public void Mark_every_answer_as_not_to_be_cached()
+    {
+        // RFC 6749 5.1: tokens and codes must not be kept by any cache.
+        ResponseCacheAttribute? cache = typeof(ClientAuthController).GetCustomAttribute<ResponseCacheAttribute>();
+
+        Assert.NotNull(cache);
+        Assert.True(cache.NoStore);
+        Assert.Equal(ResponseCacheLocation.None, cache.Location);
     }
 }

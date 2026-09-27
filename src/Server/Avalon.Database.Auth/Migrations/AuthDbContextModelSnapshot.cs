@@ -369,6 +369,8 @@ namespace Avalon.Database.Auth.Migrations
 
                     b.HasIndex("AccountId", "FamilyId");
 
+                    b.HasIndex("FamilyId", "Index");
+
                     b.HasIndex("AccountId", "Client", "Revoked");
 
                     b.ToTable("RefreshTokens");

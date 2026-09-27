@@ -86,15 +86,29 @@ public sealed class LauncherSessionsShould : IDisposable
     }
 
     [Fact]
-    public async Task Name_the_owner_of_a_launcher_family_and_nobody_for_any_other()
+    public async Task Recognise_only_the_callers_own_launcher_families()
     {
         AccountId me = await AccountAsync("ME");
         Guid family = await FamilyAsync(me, SessionClient.Launcher, "MOTHERSHIP", T0.AddDays(30), false, T0);
         Guid website = await FamilyAsync(me, SessionClient.Web, null, T0.AddDays(30), false, T0);
         var repository = new RefreshTokenRepository(_database);
 
-        Assert.Equal(me, await repository.FindLauncherFamilyOwnerAsync(family));
-        Assert.Null(await repository.FindLauncherFamilyOwnerAsync(website)); // the website's session is not a launcher's to end
-        Assert.Null(await repository.FindLauncherFamilyOwnerAsync(Guid.NewGuid()));
+        AccountId other = await AccountAsync("OTHER");
+
+        Assert.True(await repository.IsLauncherFamilyOfAsync(me, family));
+        Assert.False(await repository.IsLauncherFamilyOfAsync(other, family));
+        Assert.False(await repository.IsLauncherFamilyOfAsync(me, website)); // the website's session is not a launcher's to end
+        Assert.False(await repository.IsLauncherFamilyOfAsync(me, Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void Index_tokens_by_family_for_the_lookups_that_start_from_one()
+    {
+        // FindChildAsync, RevokeFamilyAsync: by family, without the account (#591 review).
+        using AuthDbContext context = _database.CreateDbContext();
+        var indexes = context.Model.FindEntityType(typeof(RefreshToken))!.GetIndexes()
+            .Select(i => string.Join(",", i.Properties.Select(p => p.Name)));
+
+        Assert.Contains("FamilyId,Index", indexes);
     }
 }

@@ -250,6 +250,8 @@ public class AuthDbContext : DbContext
         builder.Property(r => r.Client).HasConversion<byte>().HasDefaultValue(SessionClient.Web);
         builder.Property(r => r.DeviceName).HasMaxLength(RefreshToken.DeviceNameMaxLength);
         builder.HasIndex(r => new { r.AccountId, r.Client, r.Revoked });
+        // Lookups that start from a family (FindChildAsync, RevokeFamilyAsync) had no index to use (#591 review).
+        builder.HasIndex(r => new { r.FamilyId, r.Index });
     }
 
     private static void Configure(EntityTypeBuilder<AvalonToken> builder)

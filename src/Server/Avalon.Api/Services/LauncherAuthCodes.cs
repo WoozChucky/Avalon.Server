@@ -57,13 +57,15 @@ public sealed class LauncherAuthCodes : ILauncherAuthCodes
 
     public async Task<LauncherGrant?> RedeemAsync(string code, string verifier)
     {
-        if (string.IsNullOrEmpty(code) || !Pkce.IsVerifier(verifier)) return null;
+        if (string.IsNullOrEmpty(code)) return null;
 
         string key = CacheKeys.LauncherAuthCode(HashOf(code));
         string? value = await _cache.GetAsync(key);
         // Only the redemption whose delete wins goes on, as the email-change token does: two racing
-        // exchanges of one code get one grant between them. A wrong verifier spends the code too.
+        // exchanges of one code get one grant between them. The code is spent before the verifier is
+        // looked at, so a wrong or malformed one spends it too (#591 review).
         if (value is null || !await _cache.RemoveAsync(key)) return null;
+        if (!Pkce.IsVerifier(verifier)) return null;
 
         string[] parts = value.Split('|');
         if (parts.Length != 4) return null;

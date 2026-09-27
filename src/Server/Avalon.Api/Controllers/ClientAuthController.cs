@@ -24,6 +24,8 @@ namespace Avalon.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("client/auth")]
+// RFC 6749 §5.1: codes and tokens must not be kept by any cache (Cache-Control: no-store, Pragma: no-cache).
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class ClientAuthController : BaseController
 {
     private const string InvalidGrant = "invalid_grant";
@@ -37,6 +39,7 @@ public sealed class ClientAuthController : BaseController
     private readonly ILauncherAuthCodes _codes;
     private readonly IRefreshTokenService _refresh;
     private readonly IRefreshTokenRepository _refreshTokens;
+    private readonly IReauthentication _reauthentication;
     private readonly IJwtUtils _jwt;
     private readonly IAccountRepository _accounts;
     private readonly AuthenticationConfig _authConfig;
@@ -47,6 +50,7 @@ public sealed class ClientAuthController : BaseController
         ILauncherAuthCodes codes,
         IRefreshTokenService refresh,
         IRefreshTokenRepository refreshTokens,
+        IReauthentication reauthentication,
         IJwtUtils jwt,
         IAccountRepository accounts,
         AuthenticationConfig authConfig,
@@ -56,6 +60,7 @@ public sealed class ClientAuthController : BaseController
         _codes = codes;
         _refresh = refresh;
         _refreshTokens = refreshTokens;
+        _reauthentication = reauthentication;
         _jwt = jwt;
         _accounts = accounts;
         _authConfig = authConfig;
@@ -77,9 +82,13 @@ public sealed class ClientAuthController : BaseController
     {
         if (CallerIsPat) return PatRefused();
         Account account = Account ?? throw new InvalidOperationException("Account not loaded");
+        // The current password, not just the session (#591 review): a stolen access token or refresh
+        // cookie must not become a 30-day launcher session. A wrong one is 401, a spent budget 429 LOCKED.
+        Reauthenticated proof = await _reauthentication.RequireCurrentPasswordAsync(account.Id, request.CurrentPassword,
+            SourceAddress, CancellationToken);
         try
         {
-            string code = await _codes.IssueAsync(account.Id, account.CredentialsVersion, request.Challenge, request.RedirectPort);
+            string code = await _codes.IssueAsync(account.Id, proof.CredentialsVersion, request.Challenge, request.RedirectPort);
             return Ok(new ClientAuthCodeResponse { Code = code });
         }
         catch (ArgumentException e)
@@ -212,7 +221,7 @@ public sealed class ClientAuthController : BaseController
         if (CallerIsPat) return PatRefused();
         Account account = Account ?? throw new InvalidOperationException("Account not loaded");
         // Existence-hiding, as elsewhere: a session that is not the caller's is not found.
-        if (await _refreshTokens.FindLauncherFamilyOwnerAsync(familyId, CancellationToken) != account.Id) return NotFound();
+        if (!await _refreshTokens.IsLauncherFamilyOfAsync(account.Id, familyId, CancellationToken)) return NotFound();
 
         await _refreshTokens.RevokeFamilyAsync(familyId, CancellationToken);
         return NoContent();

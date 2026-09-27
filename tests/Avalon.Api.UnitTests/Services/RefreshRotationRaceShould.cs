@@ -99,8 +99,8 @@ public sealed class RefreshRotationRaceShould : IDisposable
             CancellationToken cancellationToken = default) =>
             OneAtATime(() => inner.ListLiveFamiliesAsync(accountId, client, now, cancellationToken));
 
-        public Task<AccountId?> FindLauncherFamilyOwnerAsync(Guid familyId, CancellationToken cancellationToken = default) =>
-            OneAtATime(() => inner.FindLauncherFamilyOwnerAsync(familyId, cancellationToken));
+        public Task<bool> IsLauncherFamilyOfAsync(AccountId accountId, Guid familyId, CancellationToken cancellationToken = default) =>
+            OneAtATime(() => inner.IsLauncherFamilyOfAsync(accountId, familyId, cancellationToken));
     }
 
     [Fact]
