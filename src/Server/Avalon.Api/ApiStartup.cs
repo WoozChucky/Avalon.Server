@@ -1,3 +1,4 @@
+using Avalon.Api.Worlds;
 using Avalon.Database.Auth;
 using Avalon.Database.Character;
 using Avalon.Database.World;
@@ -13,22 +14,29 @@ public static class ApiStartup
     /// Validates the options first (#543): <c>ValidateOnStart</c> alone runs only inside
     /// <c>StartAsync</c>, after the migrations below and the cache connection Program makes next,
     /// so a missing cache host would fail with their error instead of naming the setting.
+    /// Database:Worlds is checked right after them, here rather than as an options validation,
+    /// because OpenAPI generation starts the host with no world configured and skips this (#523).
     /// </summary>
     public static async Task ValidateAndMigrateAsync(IServiceProvider services, ILogger logger)
     {
         services.GetRequiredService<IStartupValidator>().Validate();
+        WorldDatabaseSettings.Parse(services.GetRequiredService<IConfiguration>());
 
         await using AsyncServiceScope scope = services.CreateAsyncScope();
         await using AuthDbContext authDb = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<AuthDbContext>>().CreateDbContextAsync(CancellationToken.None);
-        await using CharacterDbContext characterDb = await scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<CharacterDbContext>>().CreateDbContextAsync(CancellationToken.None);
-        await using WorldDbContext worldDb = await scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<WorldDbContext>>().CreateDbContextAsync(CancellationToken.None);
         logger.LogInformation("Migrating database if necessary...");
         // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
         await authDb.Database.MigrateAsync(CancellationToken.None);
-        await characterDb.Database.MigrateAsync(CancellationToken.None);
-        await worldDb.Database.MigrateAsync(CancellationToken.None);
+
+        // Each world under Database:Worlds (#523), through the factory for a named world.
+        IWorldDbContextFactory worldContexts = services.GetRequiredService<IWorldDbContextFactory>();
+        foreach (ConfiguredWorld world in services.GetRequiredService<IWorldDatabases>().All)
+        {
+            await using WorldDbContext worldDb = worldContexts.CreateWorld(world.Id);
+            await worldDb.Database.MigrateAsync(CancellationToken.None);
+            await using CharacterDbContext characterDb = worldContexts.CreateCharacters(world.Id);
+            await characterDb.Database.MigrateAsync(CancellationToken.None);
+        }
     }
 }

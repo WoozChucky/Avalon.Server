@@ -14,6 +14,7 @@ namespace Avalon.Api.UnitTests.Hosting;
 /// <summary>
 /// #543: the api's cache binding, <c>Application:Cache</c>, is validated at startup, so a missing
 /// host fails there, naming the setting, rather than on the first request that reaches Redis.
+/// Likewise Database:Auth and, in <see cref="ApiStartup"/>, Database:Worlds (#523).
 /// The api's own registrations are composed as in <see cref="ApiHostGraphShould"/>.
 /// </summary>
 public class ApiStartupValidationShould
@@ -58,7 +59,57 @@ public class ApiStartupValidationShould
         Assert.Contains("'CacheConfiguration' members: 'Host'", refused.Message, StringComparison.Ordinal);
     }
 
-    private static ServiceProvider Build(string? cacheHost)
+    /// <summary>#523: Database:Worlds is refused at startup, naming the setting, before any database call.</summary>
+    [Fact]
+    public async Task Refuse_to_start_without_a_world_before_any_database_call()
+    {
+        await using ServiceProvider provider = Build("localhost:6379",
+            ("Database:Worlds:1:World:ConnectionString", null), ("Database:Worlds:1:Characters:ConnectionString", null));
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
+
+        Assert.Contains("Database:Worlds lists no world", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Refuse_to_start_with_half_a_world()
+    {
+        await using ServiceProvider provider = Build("localhost:6379", ("Database:Worlds:1:Characters:ConnectionString", null));
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
+
+        Assert.Contains("Database:Worlds:1:Characters:ConnectionString is missing", refused.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Port=1", refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// OpenAPI generation starts the host, which runs the options checks, with no world configured,
+    /// and skips <see cref="ApiStartup"/>. So Database:Worlds is checked by ApiStartup, never by an
+    /// options validation (#523).
+    /// </summary>
+    [Fact]
+    public void Pass_the_options_checks_without_a_world()
+    {
+        using ServiceProvider provider = Build("localhost:6379",
+            ("Database:Worlds:1:World:ConnectionString", null), ("Database:Worlds:1:Characters:ConnectionString", null));
+
+        provider.GetRequiredService<IStartupValidator>().Validate();
+    }
+
+    [Fact]
+    public void Refuse_to_start_without_the_auth_database()
+    {
+        using ServiceProvider provider = Build("localhost:6379", ("Database:Auth:ConnectionString", null));
+
+        var refused = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IStartupValidator>().Validate());
+
+        Assert.Contains("Database:Auth:ConnectionString is required.", refused.Message, StringComparison.Ordinal);
+    }
+
+    private static ServiceProvider Build(string? cacheHost, params (string Key, string? Value)[] overrides)
     {
         ApplicationConfig config = new()
         {
@@ -70,9 +121,12 @@ public class ApiStartupValidationShould
         var settings = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Database:Auth:ConnectionString"] = Unreachable,
-            ["Database:Characters:ConnectionString"] = Unreachable,
-            ["Database:World:ConnectionString"] = Unreachable,
+            ["Database:Worlds:1:World:ConnectionString"] = Unreachable,
+            ["Database:Worlds:1:Characters:ConnectionString"] = Unreachable,
         };
+        // An override with a null value removes that key.
+        foreach ((string key, string? value) in overrides)
+            if (value is null) settings.Remove(key); else settings[key] = value;
         if (cacheHost is not null)
             settings["Application:Cache:Host"] = cacheHost;
 
