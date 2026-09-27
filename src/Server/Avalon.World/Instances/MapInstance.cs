@@ -53,7 +53,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly ICreatureLocomotion _locomotion;
     private readonly float _creatureAgentRadius;
     private readonly bool _crowdIncludesPlayers;
-    private readonly float _interestRadius;
     private readonly InterestRange _interest;
     private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
@@ -116,7 +115,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _navigator = navigator;
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
         _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
-        _interestRadius = world.Configuration.InterestRadius;
         _interest = new InterestRange(world.Configuration.InterestRadius, world.Configuration.InterestRemoveMargin);
         _locomotion = CreateLocomotion(world.Configuration);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
@@ -469,7 +467,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private bool Hears(ObjectGuid guid, IWorldConnection connection, ObjectGuid involved, ObjectGuid? alsoInvolved,
         Vector3 point, Vector3? alsoPoint) =>
-        EffectAudience.Receives(guid, connection.Character?.Position ?? Unplaced, _interestRadius,
+        EffectAudience.Receives(guid, connection.Character?.Position ?? Unplaced, _interest.Radius,
             involved, alsoInvolved, point, alsoPoint);
 
     /// <summary>The position of a connection with no character: not finite, so never near an effect.</summary>

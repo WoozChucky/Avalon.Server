@@ -401,6 +401,55 @@ public class CharacterCharacterGameStateShould
         Assert.Equal([projectile.Guid], state.NewObjects);
     }
 
+    /// <summary>Each kind keeps its margin by its own tracking system's set (#593).</summary>
+    [Fact]
+    public void Keep_a_tracked_character_in_the_margin_and_remove_it_beyond()
+    {
+        var state = new CharacterCharacterGameState();
+        var character = MakeRealCharacter(1u, new Vector3(50, 0, 0));
+        var characters = AsCharacterDict(character);
+        Watch(state, [], characters, [], EmptyDirty());
+        Assert.Equal([character.Guid], state.NewObjects);
+
+        character.Position = new Vector3(65, 0, 0);
+        Watch(state, [], characters, [], EmptyDirty());
+        Assert.Empty(state.RemovedObjects);
+        Assert.Empty(state.NewObjects);
+
+        character.Position = new Vector3(75, 0, 0);
+        Watch(state, [], characters, [], EmptyDirty());
+        Assert.Equal([character.Guid], state.RemovedObjects);
+    }
+
+    /// <summary>Each kind keeps its margin by its own tracking system's set (#593).</summary>
+    [Fact]
+    public void Keep_a_tracked_world_object_in_the_margin_and_remove_it_beyond()
+    {
+        var state = new CharacterCharacterGameState();
+        IWorldObject projectile = MakeProjectile(1u, new Vector3(50, 0, 0));
+        List<IWorldObject> worldObjects = [projectile];
+        Watch(state, [], [], worldObjects, EmptyDirty());
+        Assert.Equal([projectile.Guid], state.NewObjects);
+
+        projectile.Position.Returns(new Vector3(65, 0, 0));
+        Watch(state, [], [], worldObjects, EmptyDirty());
+        Assert.Empty(state.RemovedObjects);
+        Assert.Empty(state.NewObjects);
+
+        projectile.Position.Returns(new Vector3(75, 0, 0));
+        Watch(state, [], [], worldObjects, EmptyDirty());
+        Assert.Equal([projectile.Guid], state.RemovedObjects);
+    }
+
+    /// <summary>A world object with no call recording, so reading it allocates nothing (a substitute does).</summary>
+    private sealed class PlainWorldObject(uint id, Vector3 position) : IWorldObject
+    {
+        public ObjectGuid Guid { get; set; } = new(ObjectType.SpellProjectile, id);
+        public Vector3 Position { get; set; } = position;
+        public Vector3 Velocity { get; set; }
+        public Vector3 Orientation { get; set; }
+    }
+
     [Fact]
     public void Allocate_nothing_in_steady_state()
     {
@@ -420,10 +469,30 @@ public class CharacterCharacterGameStateShould
         }
 
         List<IWorldObject> worldObjects = [];
-        var dirty = EmptyDirty();
+        for (uint i = 0; i < 10; i++)
+            worldObjects.Add(new PlainWorldObject(i + 1, new Vector3(i % 2 == 0 ? 10f : 200f, 0, 0)));
+
+        // Objects that will sit in the margin band: added inside the radius, then moved to 65 m.
+        var edgeCreature = MakeRealCreature(100u, new Vector3(50f, 0, 0));
+        creatures[edgeCreature.Guid] = edgeCreature;
+        var edgeCharacter = MakeRealCharacter(100u, new Vector3(50f, 0, 0));
+        characters[edgeCharacter.Guid] = edgeCharacter;
+        var edgeProjectile = new PlainWorldObject(100u, new Vector3(50f, 0, 0));
+        worldObjects.Add(edgeProjectile);
+
+        // Every object is dirty, so each tracked one is an update every tick.
+        var dirty = new Dictionary<ObjectGuid, GameEntityFields>();
+        foreach (ObjectGuid guid in creatures.Keys) dirty[guid] = GameEntityFields.Position;
+        foreach (ObjectGuid guid in characters.Keys) dirty[guid] = GameEntityFields.Position;
+        foreach (IWorldObject obj in worldObjects) dirty[obj.Guid] = GameEntityFields.Position;
+
         Watch(state, creatures, characters, worldObjects, dirty);
-        Assert.Equal(30, state.NewObjects.Count); // the 25 creatures and 5 characters in range
+        Assert.Equal(38, state.NewObjects.Count); // 25 + 5 + 5 in range, and the three at 50 m
+        edgeCreature.Position = new Vector3(65f, 0, 0);
+        edgeCharacter.Position = new Vector3(65f, 0, 0);
+        edgeProjectile.Position = new Vector3(65f, 0, 0);
         Watch(state, creatures, characters, worldObjects, dirty);
+        Assert.Empty(state.RemovedObjects);   // the margin keeps all three
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int tick = 0; tick < 100; tick++)
@@ -432,5 +501,6 @@ public class CharacterCharacterGameStateShould
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         Assert.Empty(state.NewObjects);
         Assert.Empty(state.RemovedObjects);
+        Assert.Equal(38, state.UpdatedObjects.Count);   // every tracked object, the three in the margin included
     }
 }

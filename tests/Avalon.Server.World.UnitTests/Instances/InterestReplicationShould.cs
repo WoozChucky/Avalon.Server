@@ -39,7 +39,7 @@ public class InterestReplicationShould
         Assert.DoesNotContain(watcher.Added(), s => s.Guid == other.Character.Guid.RawValue);
         Assert.DoesNotContain(watcher.Added(), s => IsProjectile(s.Guid));
         Assert.Contains(other.Added(), s => IsProjectile(s.Guid));   // the projectile did fly
-        Assert.Empty(watcher.StateUpdates().Where(s => s.Guid != watcher.Character.Guid.RawValue));
+        Assert.DoesNotContain(watcher.StateUpdates(), s => s.Guid != watcher.Character.Guid.RawValue);
         Assert.Empty(watcher.Removed());
     }
 

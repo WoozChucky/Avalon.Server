@@ -2,9 +2,8 @@
 // Avalon ARPG Game licenses this file to you under the MIT license.
 
 using Avalon.Common;
-using Avalon.World.Public.Characters;
-using Avalon.World.Public.Creatures;
 using Avalon.Common.Mathematics;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 
