@@ -514,6 +514,14 @@ public class World : IWorld
             List<(ICreature creature, Type scriptType)> toUpdate = [];
             foreach (ICreature entity in instance.Creatures.Values)
             {
+                // A corpse stays in the instance until its body is removed, and keeps the script
+                // its kill left it (none). A fresh script would not know it is dead and could chase
+                // and swing at a character nearby, so a creature at 0 health gets none (#607).
+                if (entity.CurrentHealth == 0)
+                {
+                    continue;
+                }
+
                 if (!string.IsNullOrWhiteSpace(entity.ScriptName) &&
                     scriptTypeDict.TryGetValue(entity.ScriptName, out Type? scriptType))
                 {

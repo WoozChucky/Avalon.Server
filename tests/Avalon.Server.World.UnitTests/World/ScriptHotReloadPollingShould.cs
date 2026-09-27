@@ -70,8 +70,14 @@ public class ScriptHotReloadPollingShould
         Assert.Equal(0, reloader.Polls);
     }
 
-    private static async Task<Avalon.World.World> BuildWorldAsync(
-        IScriptHotReloader reloader, int intervalSeconds)
+    /// <summary>
+    /// A loaded world polling <paramref name="reloader" />. Its instances come from
+    /// <paramref name="chunkLayoutFactory" /> for the templates <paramref name="mapManager" /> lists
+    /// (none when omitted), and scripts a reload builds get a null logger factory.
+    /// </summary>
+    internal static async Task<Avalon.World.World> BuildWorldAsync(
+        IScriptHotReloader reloader, int intervalSeconds,
+        IAvalonMapManager? mapManager = null, IChunkLayoutInstanceFactory? chunkLayoutFactory = null)
     {
         var worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -122,7 +128,9 @@ public class ScriptHotReloadPollingShould
 
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
-            .Returns(Substitute.For<IChunkLayoutInstanceFactory>());
+            .Returns(chunkLayoutFactory ?? Substitute.For<IChunkLayoutInstanceFactory>());
+        serviceProvider.GetService(typeof(Microsoft.Extensions.Logging.ILoggerFactory))
+            .Returns(NullLoggerFactory.Instance);
 
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var scope = Substitute.For<IServiceScope>();
@@ -138,7 +146,7 @@ public class ScriptHotReloadPollingShould
             }),
             serviceProvider,
             worldRepository,
-            Substitute.For<IAvalonMapManager>(),
+            mapManager ?? Substitute.For<IAvalonMapManager>(),
             scopeFactory,
             createInfos,
             stats,
