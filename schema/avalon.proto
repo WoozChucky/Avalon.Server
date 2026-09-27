@@ -662,6 +662,8 @@ message SCharacterStatsPacket {
    float BlockPct = 10;
    uint32 WeaponMin = 11;
    uint32 WeaponMax = 12;
+   float HastePct = 13;
+   float MovementSpeed = 14;
 }
 message SChatMessagePacket {
    uint64 AccountId = 1;

@@ -79,6 +79,43 @@ public class CharacterSheetShould
         Assert.Equal((5f, 4f, 3f, 3u, 7u), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct, sheet.WeaponMin, sheet.WeaponMax));
     }
 
+    /// <summary>#627: the sheet shows the haste a cast actually uses, capped, and the speed the input step moves at.</summary>
+    [Fact]
+    public void Carry_the_effective_haste_and_the_movement_speed()
+    {
+        CharacterEntity character = New();
+        character.ApplyStats(Stats() with { HastePct = 80f, MovementSpeedPct = 10f }, CurrentValues.EnterWorld, Seeded);
+        var sent = new List<NetworkPacket>();
+
+        CharacterSheetFlusher.Flush(Recording(character, sent), Seeded);
+
+        SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
+        Assert.Equal(50f, sheet.HastePct);
+        Assert.Equal(4.4f, sheet.MovementSpeed, precision: 5);
+    }
+
+    /// <summary>#627: a refresh that moves only the haste, or only the movement speed, is a change the owner is sent.</summary>
+    [Theory]
+    [InlineData(3f, 0f)]
+    [InlineData(0f, 10f)]
+    public void Send_a_sheet_when_only_the_haste_or_only_the_movement_speed_changes(float haste, float movement)
+    {
+        CharacterEntity character = New();
+        character.ApplyStats(Stats(), CurrentValues.EnterWorld, Seeded);
+        var sent = new List<NetworkPacket>();
+        IWorldConnection connection = Recording(character, sent);
+        CharacterSheetFlusher.Flush(connection, Seeded);
+
+        character.ApplyStats(Stats() with { HastePct = haste, MovementSpeedPct = movement }, CurrentValues.KeepShare, Seeded);
+        CharacterSheetFlusher.Flush(connection, Seeded);
+
+        List<SCharacterStatsPacket> sheets = Sheets(sent);
+        Assert.Equal(2, sheets.Count);
+        Assert.Equal((0f, 4f), (sheets[0].HastePct, sheets[0].MovementSpeed));
+        Assert.Equal(haste, sheets[1].HastePct);
+        Assert.Equal(4f * (1f + movement / 100f), sheets[1].MovementSpeed, precision: 5);
+    }
+
     [Fact]
     public void Send_nothing_for_a_character_with_no_stats_yet()
     {

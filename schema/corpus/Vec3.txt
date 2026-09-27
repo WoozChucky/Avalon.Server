@@ -56,8 +56,8 @@ variant varint-edges
     0d 00 00 80 00 15 00 00 80 00 1d 00 00 80 00
 
 variant float-specials
-  field 1 X : float = NaN (0x7fc00001)
-  field 2 Y : float = Infinity (0x7f800000)
-  field 3 Z : float = -Infinity (0xff800000)
-  bytes 15
-    0d 01 00 c0 7f 15 00 00 80 7f 1d 00 00 80 ff
+  field 1 X : float = -Infinity (0xff800000)
+  field 2 Y : float = -0 (0x80000000)
+  field 3 Z : float = 1.40129846E-45 (0x00000001)
+  bytes 10
+    0d 00 00 80 ff 1d 01 00 00 00

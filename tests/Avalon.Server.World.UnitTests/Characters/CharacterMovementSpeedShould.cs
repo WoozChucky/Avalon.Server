@@ -123,6 +123,40 @@ public class CharacterMovementSpeedShould
         Assert.Equal(4.2f, character.GetMovementSpeed(), precision: 5);
     }
 
+    /// <summary>
+    /// Review focus 4: the client learns a new speed with the sheet, a round trip (taken as 100 ms) after the
+    /// server starts stepping at it, and snaps past 0.15 m of drift. +10 % at 4 m/s drifts 0.04 m. Equipping
+    /// or removing any one seeded item must stay under the snap too, so an item seeded with a big bonus
+    /// fails here and makes someone look (moving from the base to the +50 % cap in one change drifts 0.2 m).
+    /// </summary>
+    [Fact]
+    public void Keep_the_drift_of_a_speed_change_over_one_round_trip_under_the_clients_snap()
+    {
+        const float roundTrip = 0.1f;
+        float Drift(float fromPct, float toPct) =>
+            MathF.Abs(CharacterMovement.SpeedFor(toPct, Seeded) - CharacterMovement.SpeedFor(fromPct, Seeded)) * roundTrip;
+
+        Assert.Equal(0.04f, Drift(0f, 10f), precision: 5);
+        Assert.True(Drift(0f, 10f) < CharacterMovement.ClientSnapThreshold);
+
+        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
+        foreach (ItemTemplate item in context.ItemTemplates.ToList())
+        {
+            float bonus = new (StatType? Type, uint? Value)[]
+                {
+                    (item.StatType1, item.StatValue1), (item.StatType2, item.StatValue2), (item.StatType3, item.StatValue3),
+                    (item.StatType4, item.StatValue4), (item.StatType5, item.StatValue5), (item.StatType6, item.StatValue6),
+                    (item.StatType7, item.StatValue7), (item.StatType8, item.StatValue8), (item.StatType9, item.StatValue9),
+                    (item.StatType10, item.StatValue10),
+                }
+                .Where(s => s.Type == StatType.MovementSpeed)
+                .Sum(s => (float)(s.Value ?? 0));
+            Assert.True(Drift(0f, bonus) < CharacterMovement.ClientSnapThreshold,
+                $"item {item.Id.Value} ({item.Name}) moves the speed {Drift(0f, bonus)} m off over a round trip");
+        }
+    }
+
     /// <summary>The input step reads the character's current speed: +10 % gear moves 4.4 x 1/60 m a tick.</summary>
     [Fact]
     public void Step_at_the_derived_speed()

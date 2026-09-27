@@ -22,7 +22,7 @@ public static class CharacterSheetFlusher
         if (connection.Character is not CharacterEntity { Stats: { } stats } character)
             return;
 
-        CharacterSheet sheet = CharacterSheet.From(stats, formula);
+        CharacterSheet sheet = CharacterSheet.From(stats, formula, character.EffectiveHastePct, character.GetMovementSpeed());
         if (character.SheetSent == sheet)
             return;
 

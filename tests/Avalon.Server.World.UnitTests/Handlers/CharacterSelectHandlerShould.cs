@@ -432,6 +432,37 @@ public class CharacterSelectHandlerShould
     }
 
     /// <summary>
+    /// #627: select sends the speed the character holds when the selected packet leaves, the base 4 m/s,
+    /// since the gear is read later in the chain; the stats refresh after it derives the speed the input
+    /// step uses, which the first sheet, sent the tick the character enters the world, carries.
+    /// </summary>
+    [Fact]
+    public async Task Send_the_initial_movement_speed_at_select_and_derive_the_geared_one_after_it()
+    {
+        var boots = new ItemTemplate
+        {
+            Id = new ItemTemplateId(627_201), Name = "Swift Boots", Slot = ItemSlotType.Feet, MaxStackSize = 1,
+            StatType1 = StatType.MovementSpeed, StatValue1 = 10,
+        };
+        (List<CharacterInventory> rows, List<ItemInstance> instances) = BuildInventory(
+            (InventoryType.Equipment, Avalon.World.Inventory.EquipmentSlots.Feet, boots.Id.Value, 1u, 100u, ItemInstanceFlags.None));
+        ClassLevelStat warrior = new()
+        {
+            Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0,
+            Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+        };
+        Fixture f = await BuildAsync(rows, instances, classStats: [warrior], itemTemplates: [boots]);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        NetworkPacket packet = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_SELECTED);
+        using var stream = new MemoryStream(packet.Payload);
+        Assert.Equal(4f, Serializer.Deserialize<SCharacterSelectedPacket>(stream).Character.MovementSpeed);
+        var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
+        Assert.Equal(4.4f, entity.GetMovementSpeed(), precision: 5);
+    }
+
+    /// <summary>
     /// Regression guard: this passes before the select refresh too, because select then copied the
     /// stored maximums and patched Stamina from a row that is not there. It pins that a class and
     /// level with no ClassLevelStat row keeps the stored maximums and derives nothing.

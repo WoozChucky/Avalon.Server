@@ -28,6 +28,8 @@ variant absent
   field 10 BlockPct : float = 0 (0x00000000)
   field 11 WeaponMin : uint = 0
   field 12 WeaponMax : uint = 0
+  field 13 HastePct : float = 0 (0x00000000)
+  field 14 MovementSpeed : float = 0 (0x00000000)
   bytes 0
 
 variant empty
@@ -43,6 +45,8 @@ variant empty
   field 10 BlockPct : float = 0 (0x00000000)
   field 11 WeaponMin : uint = 0
   field 12 WeaponMax : uint = 0
+  field 13 HastePct : float = 0 (0x00000000)
+  field 14 MovementSpeed : float = 0 (0x00000000)
   bytes 0
 
 variant populated
@@ -58,10 +62,13 @@ variant populated
   field 10 BlockPct : float = 1.5 (0x3fc00000)
   field 11 WeaponMin : uint = 1000000
   field 12 WeaponMax : uint = 4000000000
-  bytes 47
+  field 13 HastePct : float = 1.5 (0x3fc00000)
+  field 14 MovementSpeed : float = -7.50000027E-08 (0xb3a10fb0)
+  bytes 57
     08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 30
     ac 02 38 c0 84 3d 45 cd cc cc 3d 4d 00 00 c0 3f
-    55 00 00 c0 3f 58 c0 84 3d 60 80 d0 ac f3 0e
+    55 00 00 c0 3f 58 c0 84 3d 60 80 d0 ac f3 0e 6d
+    00 00 c0 3f 75 b0 0f a1 b3
 
 variant maxima
   field 1 Stamina : uint = 4294967295
@@ -76,12 +83,14 @@ variant maxima
   field 10 BlockPct : float = 3.40282347E+38 (0x7f7fffff)
   field 11 WeaponMin : uint = 4294967295
   field 12 WeaponMax : uint = 4294967295
-  bytes 69
+  field 13 HastePct : float = 3.40282347E+38 (0x7f7fffff)
+  field 14 MovementSpeed : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 79
     08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
     ff 0f 20 ff ff ff ff 0f 28 ff ff ff ff 0f 30 ff
     ff ff ff 0f 38 ff ff ff ff 0f 45 ff ff 7f 7f 4d
     ff ff 7f 7f 55 ff ff 7f 7f 58 ff ff ff ff 0f 60
-    ff ff ff ff 0f
+    ff ff ff ff 0f 6d ff ff 7f 7f 75 ff ff 7f 7f
 
 variant minima
   field 1 Stamina : uint = 0
@@ -96,8 +105,11 @@ variant minima
   field 10 BlockPct : float = -3.40282347E+38 (0xff7fffff)
   field 11 WeaponMin : uint = 0
   field 12 WeaponMax : uint = 0
-  bytes 15
-    45 ff ff 7f ff 4d ff ff 7f ff 55 ff ff 7f ff
+  field 13 HastePct : float = -3.40282347E+38 (0xff7fffff)
+  field 14 MovementSpeed : float = -3.40282347E+38 (0xff7fffff)
+  bytes 25
+    45 ff ff 7f ff 4d ff ff 7f ff 55 ff ff 7f ff 6d
+    ff ff 7f ff 75 ff ff 7f ff
 
 variant varint-edges
   field 1 Stamina : uint = 2097152
@@ -112,11 +124,14 @@ variant varint-edges
   field 10 BlockPct : float = 1.17549435E-38 (0x00800000)
   field 11 WeaponMin : uint = 268435455
   field 12 WeaponMax : uint = 127
-  bytes 58
+  field 13 HastePct : float = 1.17549435E-38 (0x00800000)
+  field 14 MovementSpeed : float = 1.17549435E-38 (0x00800000)
+  bytes 68
     08 80 80 80 01 10 80 80 80 01 18 80 80 80 80 01
     20 ff 7f 28 80 80 80 80 01 30 80 80 80 01 38 80
     80 80 80 01 45 00 00 80 00 4d 00 00 80 00 55 00
-    00 80 00 58 ff ff ff 7f 60 7f
+    00 80 00 58 ff ff ff 7f 60 7f 6d 00 00 80 00 75
+    00 00 80 00
 
 variant float-specials
   field 1 Stamina : uint = 7
@@ -131,7 +146,10 @@ variant float-specials
   field 10 BlockPct : float = NaN (0x7fc00001)
   field 11 WeaponMin : uint = 1000000
   field 12 WeaponMax : uint = 4000000000
-  bytes 47
+  field 13 HastePct : float = -0 (0x80000000)
+  field 14 MovementSpeed : float = 1.40129846E-45 (0x00000001)
+  bytes 52
     08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 30
     ac 02 38 c0 84 3d 45 00 00 80 7f 4d 00 00 80 ff
-    55 01 00 c0 7f 58 c0 84 3d 60 80 d0 ac f3 0e
+    55 01 00 c0 7f 58 c0 84 3d 60 80 d0 ac f3 0e 75
+    01 00 00 00
