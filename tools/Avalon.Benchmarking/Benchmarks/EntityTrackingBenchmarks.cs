@@ -6,6 +6,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using BenchmarkDotNet.Attributes;
 
 namespace Avalon.Benchmarking.Benchmarks;
@@ -32,6 +33,11 @@ public class EntityTrackingBenchmarks
     private Dictionary<ObjectGuid, ICharacter> _characters = null!;
     private List<IWorldObject> _worldObjects = null!;
 
+    // The watcher and a range that keeps every creature in view however far it drifts (#593), so the
+    // scenarios measure the interest filter plus the tracking of every creature, as before.
+    private static readonly ObjectGuid Watcher = new(ObjectType.Character, 1);
+    private static readonly InterestRange SeeEverything = new(float.MaxValue, 0f);
+
     // Incremented each benchmark iteration so position changes are always novel
     private uint _tick;
 
@@ -46,7 +52,7 @@ public class EntityTrackingBenchmarks
 
         // Prime the tracking state: first Update marks all creatures as "known".
         // Subsequent calls measure steady-state cost, not enter-visibility cost.
-        _gameState.Update(_creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
+        _gameState.Update(Watcher, Vector3.zero, SeeEverything, _creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
     }
 
     /// <summary>
@@ -57,7 +63,7 @@ public class EntityTrackingBenchmarks
     [Benchmark(Baseline = true)]
     public void Update_AllIdle()
     {
-        _gameState.Update(_creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
+        _gameState.Update(Watcher, Vector3.zero, SeeEverything, _creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
     }
 
     /// <summary>
@@ -76,7 +82,7 @@ public class EntityTrackingBenchmarks
             creature.Position = new Vector3(_tick, 0, _tick + i);
             creature.CurrentHealth = (uint)Math.Max(1, creature.CurrentHealth - 1);
         }
-        _gameState.Update(_creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
+        _gameState.Update(Watcher, Vector3.zero, SeeEverything, _creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
     }
 
     /// <summary>
@@ -92,7 +98,7 @@ public class EntityTrackingBenchmarks
             creature.Position = new Vector3(_tick, 0, _tick);
             creature.CurrentHealth = (uint)Math.Max(1, creature.CurrentHealth - 1);
         }
-        _gameState.Update(_creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
+        _gameState.Update(Watcher, Vector3.zero, SeeEverything, _creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
     }
 
     private static Dictionary<ObjectGuid, ICreature> BuildCreatures(int count)

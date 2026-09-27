@@ -125,12 +125,20 @@ public class GameConfiguration
     public TimeSpan CharacterSaveInterval { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    ///     Metres, on X/Z. A one-shot effect broadcast (a hit, a cast, an ability fired, a swing, a death,
-    ///     a revive) goes only to connections whose character is within this distance of the effect, or
-    ///     is involved in it (#532). World-state replication is not filtered by it (#593).
-    ///     At least 1 and finite: the range refuses NaN and both infinities too, since neither compares
-    ///     inside it.
+    ///     Metres, on X/Z. A character, creature or projectile is added to a client's view within this
+    ///     distance of the client's own character (#593), and a one-shot effect broadcast (a hit, a cast,
+    ///     an ability fired, a swing, a death, a revive) goes only to connections within it of the effect
+    ///     or involved in it (#532). At least 1 and finite: the range refuses NaN and both infinities
+    ///     too, since neither compares inside it.
     /// </summary>
     [Range(1.0, double.MaxValue)]
-    public float EffectBroadcastRadius { get; set; } = 60f;
+    public float InterestRadius { get; set; } = 60f;
+
+    /// <summary>
+    ///     Metres added to <see cref="InterestRadius" /> before an object already in a client's view is
+    ///     removed from it (#593), so one standing near the edge does not flicker in and out. 0 or more
+    ///     and finite; 0 turns the margin off.
+    /// </summary>
+    [Range(0.0, double.MaxValue)]
+    public float InterestRemoveMargin { get; set; } = 10f;
 }

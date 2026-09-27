@@ -1,8 +1,11 @@
 using Avalon.Common;
+using Avalon.Common.Mathematics;
+using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 
 namespace Avalon.World.Entities;
 
@@ -17,6 +20,11 @@ public class CharacterCharacterGameState : ICharacterGameState
     private readonly List<ObjectGuid> _newObjects = new(Capacity);
     private readonly List<(ObjectGuid Guid, GameEntityFields Fields)> _updatedObjects = new(Capacity);
     private readonly List<ObjectGuid> _removedObjects = new(Capacity);
+
+    // What this tick's view holds (#593), reused every tick so a steady tick allocates nothing.
+    private readonly List<IWorldObject> _visibleCreatures = new(Capacity);
+    private readonly List<IWorldObject> _visibleCharacters = new(Capacity);
+    private readonly List<IWorldObject> _visibleWorldObjects = new(Capacity);
 
     public IReadOnlyList<ObjectGuid> NewObjects => _newObjects;
     public IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> UpdatedObjects => _updatedObjects;
@@ -41,6 +49,9 @@ public class CharacterCharacterGameState : ICharacterGameState
     }
 
     public void Update(
+        ObjectGuid watcher,
+        Vector3 watcherPosition,
+        InterestRange range,
         Dictionary<ObjectGuid, ICreature> creatures,
         Dictionary<ObjectGuid, ICharacter> characters,
         List<IWorldObject> worldObjects,
@@ -50,10 +61,36 @@ public class CharacterCharacterGameState : ICharacterGameState
         _updatedObjects.Clear();
         _removedObjects.Clear();
 
-        _creatureTrackingSystem.Update(creatures.Values, frameDirtyFields);
-        _characterTrackingSystem.Update(characters.Values, frameDirtyFields);
-        _worldObjectTrackingSystem.Update(worldObjects, frameDirtyFields);
+        _visibleCreatures.Clear();
+        foreach (ICreature creature in creatures.Values)
+        {
+            if (InView(creature, _creatureTrackingSystem, watcher, watcherPosition, range))
+                _visibleCreatures.Add(creature);
+        }
+
+        _visibleCharacters.Clear();
+        foreach (ICharacter character in characters.Values)
+        {
+            if (InView(character, _characterTrackingSystem, watcher, watcherPosition, range))
+                _visibleCharacters.Add(character);
+        }
+
+        _visibleWorldObjects.Clear();
+        foreach (IWorldObject worldObject in worldObjects)
+        {
+            if (InView(worldObject, _worldObjectTrackingSystem, watcher, watcherPosition, range))
+                _visibleWorldObjects.Add(worldObject);
+        }
+
+        _creatureTrackingSystem.Update(_visibleCreatures, frameDirtyFields);
+        _characterTrackingSystem.Update(_visibleCharacters, frameDirtyFields);
+        _worldObjectTrackingSystem.Update(_visibleWorldObjects, frameDirtyFields);
     }
+
+    // "Already tracked" is the object's own tracking system's set, so a tracked object keeps its margin.
+    private static bool InView(IWorldObject obj, EntityTrackingSystem tracking, ObjectGuid watcher,
+        Vector3 watcherPosition, InterestRange range) =>
+        Interest.IsVisible(watcher, watcherPosition, obj.Guid, obj.Position, tracking.IsTracked(obj.Guid), range);
 
     private void OnEntityRemoved(ObjectGuid guid) => _removedObjects.Add(guid);
     private void OnEntityUpdated(ObjectGuid guid, GameEntityFields fields) => _updatedObjects.Add((guid, fields));

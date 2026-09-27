@@ -53,7 +53,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly ICreatureLocomotion _locomotion;
     private readonly float _creatureAgentRadius;
     private readonly bool _crowdIncludesPlayers;
-    private readonly float _effectBroadcastRadius;
+    private readonly InterestRange _interest;
     private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
@@ -115,7 +115,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _navigator = navigator;
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
         _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
-        _effectBroadcastRadius = world.Configuration.EffectBroadcastRadius;
+        _interest = new InterestRange(world.Configuration.InterestRadius, world.Configuration.InterestRemoveMargin);
         _locomotion = CreateLocomotion(world.Configuration);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
         WarnIfMeleeSlotRadiusUnreachable(world.Configuration.MeleeSlotRadius);
@@ -462,12 +462,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Whether the connection of character <paramref name="guid" /> receives a one-shot effect broadcast
-    /// (#532): involved in it, or within Game:EffectBroadcastRadius of one of its points. A connection
+    /// (#532): involved in it, or within Game:InterestRadius of one of its points. A connection
     /// with no character is near nothing.
     /// </summary>
     private bool Hears(ObjectGuid guid, IWorldConnection connection, ObjectGuid involved, ObjectGuid? alsoInvolved,
         Vector3 point, Vector3? alsoPoint) =>
-        EffectAudience.Receives(guid, connection.Character?.Position ?? Unplaced, _effectBroadcastRadius,
+        EffectAudience.Receives(guid, connection.Character?.Position ?? Unplaced, _interest.Radius,
             involved, alsoInvolved, point, alsoPoint);
 
     /// <summary>The position of a connection with no character: not finite, so never near an effect.</summary>
@@ -735,10 +735,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>Steps 5b and 6 of <see cref="Update" />: every character's visibility first, then every broadcast.</summary>
     private void BroadcastState(List<IWorldObject> objectAbilities)
     {
-        // Step 5b: Update entity visibility state per character
+        // Step 5b: Update entity visibility state per character, each by its own interest range (#593)
         foreach (ICharacter character in _characters.Values)
         {
-            character.CharacterGameState.Update(_creatures, _characters, objectAbilities, _frameDirtyFields);
+            character.CharacterGameState.Update(character.Guid, character.Position, _interest, _creatures,
+                _characters, objectAbilities, _frameDirtyFields);
         }
 
         // Step 6: Broadcast instance state to each character

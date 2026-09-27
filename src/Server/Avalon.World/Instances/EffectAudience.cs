@@ -49,5 +49,5 @@ public static class EffectAudience
         return dx * dx + dz * dz <= radiusSquared;
     }
 
-    private static bool IsFinite(Vector3 v) => float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);
+    internal static bool IsFinite(Vector3 v) => float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);
 }
