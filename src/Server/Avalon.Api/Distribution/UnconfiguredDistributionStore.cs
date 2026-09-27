@@ -16,5 +16,9 @@ public sealed class UnconfiguredDistributionStore : IDistributionStore
 
     public Task<LauncherRelease?> GetLauncherAsync(CancellationToken ct) => throw Unavailable();
 
+    public Task<IReadOnlyList<StoredObject>> ListChangelogAsync(string prefix, CancellationToken ct) => throw Unavailable();
+
+    public Task<ChangelogEntryDto?> GetChangelogEntryAsync(string key, CancellationToken ct) => throw Unavailable();
+
     public Uri Presign(string objectKey, TimeSpan ttl) => throw Unavailable();
 }
