@@ -45,6 +45,9 @@ public sealed class ApiAuthHost : IAsyncDisposable
 
     /// <summary>A request carrying this header reaches the api from the address it names.</summary>
     public const string PeerHeader = "X-Test-Peer";
+
+    /// <summary>An endpoint under the launcher sign-in rate-limit policy (#591).</summary>
+    public const string ClientAuthLimitedPath = "/client-auth-limited";
     public const string SigningKey = "test-signing-key-test-signing-key-test-signing-key-0123456789-abcdef";
 
     public static readonly AuthenticationConfig AuthConfig = new()
@@ -150,6 +153,8 @@ public sealed class ApiAuthHost : IAsyncDisposable
             .RequireAuthorization(AvalonRoles.Player);
         _app.MapGet("/anonymous", (HttpContext http) => http.User.Identity?.IsAuthenticated == true ? "user" : "anonymous")
             .AllowAnonymous();
+        // Stands in for the launcher sign-in endpoints (#591): the same named policy, no dependencies.
+        _app.MapGet(ClientAuthLimitedPath, () => "ok").RequireRateLimiting(ApiRateLimiting.ClientAuthPolicy);
         _app.MapControllers();
 
         await _app.StartAsync();

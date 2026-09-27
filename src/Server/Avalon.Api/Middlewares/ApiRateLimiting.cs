@@ -28,6 +28,9 @@ namespace Avalon.Api.Middlewares;
 public static class ApiRateLimiting
 {
     public const string Section = "Application:RateLimiting";
+
+    /// <summary>The named policy on the launcher sign-in endpoints (#591): per source, on top of the global limiter.</summary>
+    public const string ClientAuthPolicy = "client-auth";
     public const string RejectionsMetric = "avalon.api.rate_limit.rejections";
 
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
@@ -70,6 +73,8 @@ public static class ApiRateLimiting
                 $"{Section}:{nameof(RateLimitingConfig.AnonymousPermitsPerMinute)} must be at least 1.")
             .Validate(c => c.AuthenticatedPermitsPerMinute >= 1,
                 $"{Section}:{nameof(RateLimitingConfig.AuthenticatedPermitsPerMinute)} must be at least 1.")
+            .Validate(c => c.ClientAuthPermitsPerMinute >= 1,
+                $"{Section}:{nameof(RateLimitingConfig.ClientAuthPermitsPerMinute)} must be at least 1.")
             .ValidateOnStart();
 
         services.AddSingleton<FailedPatLookups>();
@@ -82,6 +87,17 @@ public static class ApiRateLimiting
                 options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, Partition>(
                     context => LimiterFor(PartitionOf(context, limits.Enabled), limits));
                 options.OnRejected = OnRejectedAsync;
+                // Launcher sign-in (#591): per source, whether or not the caller is signed in, and in
+                // addition to the global limiter above.
+                options.AddPolicy(ClientAuthPolicy, context => limits.Enabled
+                    ? RateLimitPartition.GetSlidingWindowLimiter(SourceOf(context), _ => new SlidingWindowRateLimiterOptions
+                    {
+                        PermitLimit = limits.ClientAuthPermitsPerMinute,
+                        Window = TimeSpan.FromMinutes(1),
+                        SegmentsPerWindow = SegmentsPerWindow,
+                        QueueLimit = 0,
+                    })
+                    : RateLimitPartition.GetNoLimiter(string.Empty));
             });
         return services;
     }

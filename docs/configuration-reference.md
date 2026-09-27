@@ -367,6 +367,7 @@ Section: `Application:RateLimiting` in `Avalon.Api` (#561)
 | `Enabled`                       | bool | `true`  | When false, nothing is limited |
 | `AnonymousPermitsPerMinute`     | int  | `60`    | Requests a minute per source for a caller that is not signed in |
 | `AuthenticatedPermitsPerMinute` | int  | `300`   | Requests a minute per account for a caller with a valid access token or personal access token |
+| `ClientAuthPermitsPerMinute`    | int  | `20`    | Launcher sign-in requests (`client/auth`: code, token, refresh, revoke) a minute per source, on top of the above (#591) |
 
 Every request counts, whatever the endpoint, in a sliding window of one minute in six segments, held in
 memory (the API runs as one replica; each replica would count on its own). A request with a valid access
@@ -394,10 +395,16 @@ the API, naming the setting.
 ```bash
 Application__RateLimiting__AnonymousPermitsPerMinute=60
 Application__RateLimiting__AuthenticatedPermitsPerMinute=300
+Application__RateLimiting__ClientAuthPermitsPerMinute=20
 ```
 
-The Helm chart passes `rateLimiting.enabled`, `rateLimiting.anonymousPermitsPerMinute` and
-`rateLimiting.authenticatedPermitsPerMinute`, each only when set; empty, the API's defaults apply.
+The Helm chart passes `rateLimiting.enabled`, `rateLimiting.anonymousPermitsPerMinute`,
+`rateLimiting.authenticatedPermitsPerMinute` and `rateLimiting.clientAuthPermitsPerMinute`, each only when
+set; empty, the API's defaults apply.
+
+The launcher sign-in endpoints (`client/auth/*`, #591) also carry the named policy `client-auth`: a
+separate sliding window per source (the same source rule), counted in addition to the limits above, so a
+signed-in caller is held to it too. It answers with the same 429.
 
 ---
 

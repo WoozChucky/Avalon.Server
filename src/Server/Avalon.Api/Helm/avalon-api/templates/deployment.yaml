@@ -123,6 +123,10 @@ spec:
             - name: Application__RateLimiting__AuthenticatedPermitsPerMinute
               value: {{ $rateLimiting.authenticatedPermitsPerMinute | quote }}
             {{- end }}
+            {{- if not (kindIs "invalid" $rateLimiting.clientAuthPermitsPerMinute) }}
+            - name: Application__RateLimiting__ClientAuthPermitsPerMinute
+              value: {{ $rateLimiting.clientAuthPermitsPerMinute | quote }}
+            {{- end }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
             {{- with .Values.otel.endpoint }}

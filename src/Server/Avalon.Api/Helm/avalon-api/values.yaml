@@ -75,12 +75,14 @@ forwardedHeaders:
 # Request rate limiting (Application:RateLimiting, #561): a sliding window of one minute, per account
 # for a signed-in caller and per source address (IPv4, or IPv6 /64) for anyone else; /health and
 # /alive are never limited. Left empty, the API's defaults apply: enabled, 60 anonymous and 300
-# authenticated requests a minute. A limit below 1 stops the API at startup. The limiter is in memory,
+# authenticated requests a minute, and 20 launcher sign-in requests a minute per source on top (#591).
+# A limit below 1 stops the API at startup. The limiter is in memory,
 # so each replica counts on its own.
 rateLimiting:
   enabled:
   anonymousPermitsPerMinute:
   authenticatedPermitsPerMinute:
+  clientAuthPermitsPerMinute:
 
 # Email (Application:Email) is not set by the chart. The only sender so far, Pickup, writes .eml files
 # to local disk and the API refuses it outside Development, so a chart deployment has no sender and
