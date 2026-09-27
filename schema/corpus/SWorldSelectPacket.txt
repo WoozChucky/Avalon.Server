@@ -28,13 +28,13 @@ variant empty
 
 variant populated
   field 1 WorldKey : byte[] = 4 bytes de ad be ef
-  field 2 Result : WorldSelectResult = DuplicateSession (1)
+  field 2 Result : WorldSelectResult = WorldUnavailable (2)
   bytes 8
-    0a 04 de ad be ef 10 01
+    0a 04 de ad be ef 10 02
 
 variant maxima
   field 1 WorldKey : byte[] = 140 bytes 5a 5d 54 4f 46 79 70 6b ...
-  field 2 Result : WorldSelectResult = DuplicateSession (1)
+  field 2 Result : WorldSelectResult = WorldUnavailable (2)
   bytes 145
     0a 8c 01 5a 5d 54 4f 46 79 70 6b 62 65 1c 17 0e
     01 38 33 2a 2d 24 df d6 c9 c0 fb f2 f5 ec e7 9e
@@ -45,7 +45,7 @@ variant maxima
     d1 c8 c3 fa fd f4 ef e6 99 90 8b 82 85 bc b7 ae
     a1 58 53 4a 4d 44 7f 76 69 60 1b 12 15 0c 07 3e
     31 28 23 da dd d4 cf c6 f9 f0 eb e2 e5 9c 97 10
-    01
+    02
 
 variant minima
   field 1 WorldKey : byte[] = 1 byte 00
@@ -55,7 +55,7 @@ variant minima
 
 variant varint-edges
   field 1 WorldKey : byte[] = 128 bytes 5a 5d 54 4f 46 79 70 6b ...
-  field 2 Result : WorldSelectResult = <not a declared member> (2)
+  field 2 Result : WorldSelectResult = <not a declared member> (3)
   bytes 133
     0a 80 01 5a 5d 54 4f 46 79 70 6b 62 65 1c 17 0e
     01 38 33 2a 2d 24 df d6 c9 c0 fb f2 f5 ec e7 9e
@@ -65,4 +65,4 @@ variant varint-edges
     41 78 73 6a 6d 64 1f 16 09 00 3b 32 35 2c 27 de
     d1 c8 c3 fa fd f4 ef e6 99 90 8b 82 85 bc b7 ae
     a1 58 53 4a 4d 44 7f 76 69 60 1b 12 15 0c 07 3e
-    31 28 23 10 02
+    31 28 23 10 03

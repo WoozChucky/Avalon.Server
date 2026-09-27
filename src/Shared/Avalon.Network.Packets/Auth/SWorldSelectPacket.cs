@@ -7,7 +7,11 @@ namespace Avalon.Network.Packets.Auth;
 public enum WorldSelectResult : byte
 {
     Success = 0,
-    DuplicateSession = 1
+    DuplicateSession = 1,
+
+    // #554: a world id the server does not know and a world the account may not enter get this
+    // one answer, so a client cannot tell a restricted world from a missing one. Append-only.
+    WorldUnavailable = 2
 }
 
 [ProtoContract]

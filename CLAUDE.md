@@ -140,7 +140,7 @@ CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResult
 → CAuthPacket → SAuthResultPacket (per-source limit, per-username limit, lockout, BCrypt verify, then non-Active Status refused as BANNED/DEACTIVATED, then MFA check)
 → [MFA only] CMFAVerifyPacket → SAuthResultPacket (per-source limit, per-hash attempt limit, per-username limit, lockout, TOTP ±1 step, each step once; Status re-checked)
 → CWorldListPacket → SWorldListPacket
-→ CWorldSelectPacket → SWorldSelectPacket (non-Active Status closes the connection; CSPRNG world key written to Redis, SETNX inWorld mutex)
+→ CWorldSelectPacket → SWorldSelectPacket (non-Active Status closes the connection; an unknown world or one the account may not enter is answered WorldUnavailable, the same for both, with no key or mutex and the connection left open, #554; CSPRNG world key written to Redis, SETNX inWorld mutex)
 → [new TCP to World] CExchangeWorldKeyPacket → SExchangeWorldKeyPacket (key consumed from Redis, access re-checked, inWorld mutex cleared)
 ```
 

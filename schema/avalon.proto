@@ -918,4 +918,5 @@ message WorldInfo {
 enum WorldSelectResult {
    WorldSelectResult_Success = 0;
    WorldSelectResult_DuplicateSession = 1;
+   WorldSelectResult_WorldUnavailable = 2;
 }
