@@ -148,7 +148,7 @@ jobs:
       # previous entry (WoozChucky/avalon-release-notes), written to avalon-dist after the release is out.
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - name: Changelog entry
         env:
           GITHUB_TOKEN: ${{ github.token }}
