@@ -119,7 +119,7 @@ public class CharacterEntity : ICharacter
 
     /// <summary>
     /// What this character's client has been told exists. World-side, not on ICharacter (#612); its
-    /// instance diffs it every tick.
+    /// instance diffs it every tick, and resets it when the character enters (#611).
     /// </summary>
     public CharacterCharacterGameState CharacterGameState { get; } = new();
 

@@ -17,6 +17,16 @@ public class EntityTrackingSystem(int capacity)
     /// <summary>Whether <paramref name="guid" /> is in this system's set, as of its last update.</summary>
     public bool IsTracked(ObjectGuid guid) => _trackedGuids.Contains(guid);
 
+    /// <summary>
+    /// Empties the set without raising <see cref="EntityRemoved" /> (#611), appending every guid it held
+    /// to <paramref name="forgotten" />, so the next update adds whatever is in view as new.
+    /// </summary>
+    public void Forget(List<ObjectGuid> forgotten)
+    {
+        forgotten.AddRange(_trackedGuids);
+        _trackedGuids.Clear();
+    }
+
     public void Update(
         List<IWorldObject> currentEntities,
         IReadOnlyDictionary<ObjectGuid, GameEntityFields> frameDirtyFields)

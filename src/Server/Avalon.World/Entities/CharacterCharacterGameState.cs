@@ -97,6 +97,25 @@ public class CharacterCharacterGameState
         _worldObjectTrackingSystem.Update(_visibleWorldObjects, frameDirtyFields);
     }
 
+    /// <summary>
+    /// Starts over (#611), for a character entering an instance: everything the client was told about is
+    /// forgotten, with no removal raised, so the next <see cref="Update" /> adds, in full, whatever is in
+    /// view there, the character itself included. Returns what was forgotten, which the client still
+    /// holds until it is told to drop it. The list is reused: it is valid until the next call to this or
+    /// to <see cref="Update" />.
+    /// </summary>
+    public IReadOnlyList<ObjectGuid> Reset()
+    {
+        _newObjects.Clear();
+        _updatedObjects.Clear();
+        _removedObjects.Clear();
+
+        _creatureTrackingSystem.Forget(_removedObjects);
+        _characterTrackingSystem.Forget(_removedObjects);
+        _worldObjectTrackingSystem.Forget(_removedObjects);
+        return _removedObjects;
+    }
+
     // "Already tracked" is the object's own tracking system's set, so a tracked object keeps its margin.
     private static bool InView(IWorldObject obj, EntityTrackingSystem tracking, ObjectGuid watcher,
         Vector3 watcherPosition, InterestRange range) =>

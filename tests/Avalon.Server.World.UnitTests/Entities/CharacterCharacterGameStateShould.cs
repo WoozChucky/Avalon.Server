@@ -503,4 +503,42 @@ public class CharacterCharacterGameStateShould
         Assert.Empty(state.RemovedObjects);
         Assert.Equal(38, state.UpdatedObjects.Count);   // every tracked object, the three in the margin included
     }
+
+    // ──────────────────────────────────────────────
+    // Reset (#611)
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public void Reset_ReturnsEverythingTracked_AndAddsItAgainOnTheNextUpdate()
+    {
+        var state = new CharacterCharacterGameState();
+        var creature = MakeRealCreature(1u, new Vector3(10f, 0, 0));
+        var character = MakeRealCharacter(2u, new Vector3(10f, 0, 0));
+        var projectile = MakeProjectile(3u, new Vector3(10f, 0, 0));
+        Watch(state, AsCreatureDict(creature), AsCharacterDict(character), [projectile], EmptyDirty());
+
+        IReadOnlyList<ObjectGuid> forgotten = state.Reset();
+
+        Assert.Equal([creature.Guid, character.Guid, projectile.Guid], forgotten);
+        Assert.Empty(state.NewObjects);
+        Assert.Empty(state.UpdatedObjects);
+
+        Watch(state, AsCreatureDict(creature), AsCharacterDict(character), [projectile], EmptyDirty());
+        Assert.Equal([creature.Guid, character.Guid, projectile.Guid], state.NewObjects);
+        Assert.Empty(state.RemovedObjects);   // what was forgotten is not reported gone as well
+    }
+
+    [Fact]
+    public void Reset_RaisesNoRemoval_ForWhatIsNoLongerThere()
+    {
+        var state = new CharacterCharacterGameState();
+        var creature = MakeRealCreature(1u, new Vector3(10f, 0, 0));
+        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
+
+        Assert.Equal([creature.Guid], state.Reset());
+        Watch(state, [], [], [], EmptyDirty());
+
+        Assert.Empty(state.RemovedObjects);
+        Assert.Empty(state.Reset());
+    }
 }

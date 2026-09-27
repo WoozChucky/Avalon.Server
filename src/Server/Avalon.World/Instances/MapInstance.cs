@@ -271,6 +271,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // previous instance arrive with a seq < current LastInputSeq and get correctly
         // rejected, while new post-transition inputs arrive with a higher seq and pass.
 
+        // #611: a character arriving from another instance (entering a map, respawning at a town, or
+        // re-entering this one) starts over. The client keeps every object it was told about until it
+        // is told the object is gone, so it is told now, once, to drop everything it knew there, its
+        // own character included; this goes out ahead of the map transition the caller sends next.
+        // Its first tick here then adds, in full, itself and everything it can see. A character new to
+        // the world has been told about nothing, and is sent nothing here.
+        if (connection.Character is CharacterEntity arriving)
+        {
+            IReadOnlyList<ObjectGuid> forgotten = arriving.CharacterGameState.Reset();
+            if (forgotten.Count > 0)
+                connection.Send(SInstanceStateRemovePacket.Create(forgotten, connection.CryptoSession.Encrypt));
+        }
+
         _characters[connection.Character!.Guid] = connection.Character;
         _connections[connection.Character.Guid] = connection;
         _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
