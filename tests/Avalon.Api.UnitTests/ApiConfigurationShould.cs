@@ -77,4 +77,17 @@ public sealed class ApiConfigurationShould : IDisposable
     [Fact]
     public void Let_the_command_line_win() =>
         Assert.Equal("from-command-line", SigningKeyFrom(NewBuilder($"--{Key}=from-command-line")));
+
+    /// <summary>
+    /// #582: the API's databases are the top-level <c>Database:Auth</c> and <c>Database:Worlds</c>.
+    /// Nothing reads an <c>Application:Database</c> section, so <see cref="ApplicationConfig"/> must
+    /// not bind one and invite connection strings where nothing picks them up.
+    /// </summary>
+    [Fact]
+    public void Bind_no_database_section_under_application()
+    {
+        Assert.Null(typeof(ApplicationConfig).GetProperty("Database"));
+        Assert.DoesNotContain(typeof(ApplicationConfig).GetProperties(),
+            property => property.PropertyType == typeof(Avalon.Configuration.DatabaseConfiguration));
+    }
 }
