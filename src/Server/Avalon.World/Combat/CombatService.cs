@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -23,13 +24,17 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     private readonly PvpToggle?          _pvp;
     private readonly ICombatOutcomes?    _outcomes;
     private readonly TimeProvider        _time;
+    private readonly float               _furyFromDamageTaken;
 
     /// <param name="outcomes">Where hits and kills are reported (#546): the instance this service belongs to.</param>
     /// <param name="time">The instance's clock, the one taunts end by (#614).</param>
+    /// <param name="furyFromDamageTaken">Game:FuryFromDamageTaken (#526); the setting's default when omitted.</param>
     public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null,
-        PvpToggle? pvp = null, ICombatOutcomes? outcomes = null, TimeProvider? time = null)
+        PvpToggle? pvp = null, ICombatOutcomes? outcomes = null, TimeProvider? time = null,
+        float furyFromDamageTaken = 50f)
     {
         _time     = time ?? TimeProvider.System;
+        _furyFromDamageTaken = furyFromDamageTaken;
         _config   = config;
         _registry = registry;
         _context  = context;
@@ -38,12 +43,17 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     }
 
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability)
-        => ApplyDamageCore(attacker, target, damage, ability.Metadata.ThreatMultiplier, ability.AbilityId);
+        => ApplyDamageCore(attacker, target, damage, ability.Metadata.ThreatMultiplier, ability.AbilityId,
+            (uint)Math.Max(0, ability.Metadata.PowerGainPerHit));
 
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage)
-        => ApplyDamageCore(attacker, target, damage, 1.0f, abilityId: null);
+        => ApplyDamageCore(attacker, target, damage, 1.0f, abilityId: null, powerGainPerHit: 0);
 
-    private void ApplyDamageCore(IUnit attacker, IUnit target, uint damage, float threatMultiplier, AbilityId? abilityId)
+    /// <param name="powerGainPerHit">
+    /// What the attacker gains, in its own pool, when this hit damages the target (#526); 0 for a swing.
+    /// </param>
+    private void ApplyDamageCore(IUnit attacker, IUnit target, uint damage, float threatMultiplier, AbilityId? abilityId,
+        uint powerGainPerHit)
     {
         // Invulnerable creatures (town NPCs) absorb nothing and provoke nothing. This sits ahead of
         // ResolveOrSpawn deliberately: attacking one must not create an encounter, add threat, or
@@ -80,9 +90,18 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             enc.AddThreat(target, attacker, threat);
         }
 
+        // Past every early return above, so a creature target has health left; a character may be dead.
+        bool targetWasAlive = target is ICharacter victim ? !victim.IsDead : target.CurrentHealth > 0;
+
         // Damage application — IUnit.OnHit mutates HP / sets death flags. A character is also told
         // which ability hit it, or none for a swing (#521 item 8).
         Hit(attacker, target, damage, abilityId);
+
+        // #526: an ability that damaged a living unit gives its caster the ability's gain, once per unit
+        // damaged, capped at the caster's maximum; after the hit, before the death detection. Only a
+        // character has a pool a cast spends, so a creature attacker gains nothing.
+        if (damage > 0 && targetWasAlive && powerGainPerHit > 0 && attacker is CharacterEntity caster)
+            caster.GainPower(powerGainPerHit);
 
         // Combat tag — MarkCombat exists only on ICharacter (see ICharacter.cs). Apply to whichever
         // participants are characters; creature in-combat state is tracked through encounter membership.
@@ -106,9 +125,17 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (target is CharacterEntity character)
         {
             bool wasDead = character.IsDead;
+            uint characterHealthBefore = character.CurrentHealth;
             character.OnHit(attacker, damage, abilityId);
             if (!wasDead)
+            {
+                // #526: a Fury character gains a share of the health it lost, from any source. A hit that
+                // kills it gains nothing: GainPower refuses the dead, and death empties Fury anyway.
+                if (character.PowerType == PowerType.Fury)
+                    character.GainPower(Fury.FromDamageTaken(damage, characterHealthBefore, character.Health, _furyFromDamageTaken));
+
                 _outcomes?.CharacterDamaged(character, attacker, damage, abilityId);
+            }
             return;
         }
 

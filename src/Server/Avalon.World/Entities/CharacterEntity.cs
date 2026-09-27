@@ -298,6 +298,23 @@ public class CharacterEntity : ICharacter
 
     public void MarkCombat() => _lastCombatTime = _time.GetUtcNow().UtcDateTime;
 
+    /// <summary>
+    /// Adds <paramref name="amount" /> to the current power, capped at the maximum (#526). Only a pool a
+    /// cast spends (Mana, Energy or Fury) gains, and a dead character gains nothing. World-side only, not
+    /// on ICharacter or IUnit: the modding API cannot grant power.
+    /// </summary>
+    internal void GainPower(uint amount)
+    {
+        if (amount == 0 || IsDead) return;
+        if (PowerType is not (PowerType.Mana or PowerType.Energy or PowerType.Fury)) return;
+
+        uint max = Power ?? 0;
+        uint current = CurrentPower ?? 0;
+        if (current >= max) return;
+
+        CurrentPower = (uint)Math.Min(max, (ulong)current + amount);
+    }
+
     public void OnHit(IUnit attacker, uint damage) => OnHit(attacker, damage, abilityId: null);
 
     /// <summary>
