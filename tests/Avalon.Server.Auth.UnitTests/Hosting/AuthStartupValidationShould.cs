@@ -1,6 +1,10 @@
+using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Network.Packets.Abstractions.Attributes;
+using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Extensions;
+using Avalon.Server.Auth.Handlers;
+using NSubstitute;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -60,6 +64,55 @@ public class AuthStartupValidationShould
         var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
 
         Assert.Contains("OnlineSweepIntervalSeconds", refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>#574: a world select cap below one would close every connection on its first select.</summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-5")]
+    public async Task Refuse_to_start_with_a_world_select_cap_below_one(string cap)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Application:MaxWorldSelectsPerMinute"] = cap,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
+
+        Assert.Contains("MaxWorldSelectsPerMinute", refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// #574: the world select handler is built the way the server builds every packet handler,
+    /// from a request scope of the host's own container, with the configured cap.
+    /// </summary>
+    [Fact]
+    public async Task Build_the_world_select_handler_with_the_configured_cap()
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Application:MaxWorldSelectsPerMinute"] = "7",
+        });
+        await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
+
+        var handler = ActivatorUtilities.CreateInstance<CWorldSelectHandler>(scope.ServiceProvider);
+        // Seven selects spent: with the configured cap the eighth is refused before the handler
+        // looks at who is logged in; with the default of ten it would go on to the guard.
+        var connection = Substitute.For<IAuthConnection>();
+        var budget = new WorldSelectBudget();
+        for (int i = 0; i < 7; i++)
+            budget.Take(TimeProvider.System, 7);
+        connection.WorldSelects.Returns(budget);
+
+        await handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = new WorldId(1) },
+            Connection = connection,
+        });
+
+        connection.Received(1).Close();
+        _ = connection.DidNotReceive().AccountId;
     }
 
     [Fact]

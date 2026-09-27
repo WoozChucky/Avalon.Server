@@ -262,13 +262,4 @@ public sealed class OnlineSweepShould : IDisposable
         Assert.Equal(0, _logger.Count(LogLevel.Error));
         await accounts.Received().ListOnlineSessionsAsync(Arg.Any<CancellationToken>());
     }
-
-    private sealed class ManualClock(DateTimeOffset start) : TimeProvider
-    {
-        private DateTimeOffset _now = start;
-
-        public void Advance(TimeSpan by) => _now += by;
-
-        public override DateTimeOffset GetUtcNow() => _now;
-    }
 }

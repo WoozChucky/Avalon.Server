@@ -8,8 +8,10 @@ using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth;
+using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using ProtoBuf;
 using AvalonWorld = Avalon.Domain.Auth.World;
@@ -24,15 +26,26 @@ public class CWorldSelectHandlerShould
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
     private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly ISecureRandom _secureRandom = Substitute.For<ISecureRandom>();
+    private readonly ManualClock _clock = new(new DateTimeOffset(2026, 9, 27, 12, 0, 0, TimeSpan.Zero));
+    private readonly CapturingLogger _logger = new();
     private readonly CWorldSelectHandler _handler;
 
     public CWorldSelectHandlerShould()
     {
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.Id.Returns(Guid.NewGuid());
+        _connection.WorldSelects.Returns(new WorldSelectBudget());
         _secureRandom.GetBytes(32).Returns(new byte[32]);
         _cache.SetNxAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(true);
-        _handler = new CWorldSelectHandler(NullLoggerFactory.Instance, _cache, _accountRepository, _worldRepository, _secureRandom);
+        _handler = Handler(new AuthConfiguration().MaxWorldSelectsPerMinute);
+    }
+
+    private CWorldSelectHandler Handler(int maxSelectsPerMinute)
+    {
+        var loggerFactory = Substitute.For<ILoggerFactory>();
+        loggerFactory.CreateLogger(Arg.Any<string>()).Returns(_logger);
+        return new CWorldSelectHandler(loggerFactory, _cache, _accountRepository, _worldRepository, _secureRandom,
+            Options.Create(new AuthConfiguration { MaxWorldSelectsPerMinute = maxSelectsPerMinute }), _clock);
     }
 
     private static Account MakeAccount(AccountAccessLevel level = AccountAccessLevel.Player)
@@ -410,5 +423,153 @@ public class CWorldSelectHandlerShould
         await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
         await _accountRepository.DidNotReceiveWithAnyArgs().SetSessionKeyAsync(default!, default!, default);
         _connection.Received(1).Close();
+    }
+
+    private const string BudgetWarning = "world select budget";
+
+    private Account LoggedIn()
+    {
+        var account = MakeAccount();
+        _connection.AccountId.Returns(account.Id);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        _worldRepository.FindByIdAsync(Arg.Any<WorldId>()).Returns(MakeWorld());
+        return account;
+    }
+
+    private Task SelectWith(CWorldSelectHandler handler, ushort worldId = 1)
+        => handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = new WorldId(worldId) },
+            Connection = _connection
+        });
+
+    private int WarningsContaining(string text)
+        => _logger.Entries.Count(e => e.Level == LogLevel.Warning && e.Message.Contains(text, StringComparison.Ordinal));
+
+    /// <summary>
+    /// #574: the select past the cap closes the connection, and is counted before anything is
+    /// read, so it costs no database read, no cache call and no reply.
+    /// </summary>
+    [Fact]
+    public async Task Close_the_connection_on_the_select_past_the_cap_without_reading_anything()
+    {
+        LoggedIn();
+        CWorldSelectHandler handler = Handler(3);
+        for (int i = 0; i < 3; i++)
+            await SelectWith(handler);
+        _connection.DidNotReceive().Close();
+        _accountRepository.ClearReceivedCalls();
+        _worldRepository.ClearReceivedCalls();
+        _cache.ClearReceivedCalls();
+        _secureRandom.ClearReceivedCalls();
+        _connection.ClearReceivedCalls();
+
+        await SelectWith(handler);
+
+        _connection.Received(1).Close();
+        _connection.DidNotReceiveWithAnyArgs().Send(default!);
+        Assert.Empty(_accountRepository.ReceivedCalls());
+        Assert.Empty(_worldRepository.ReceivedCalls());
+        Assert.Empty(_cache.ReceivedCalls());
+        Assert.Empty(_secureRandom.ReceivedCalls());
+    }
+
+    /// <summary>#574: every select up to the cap is answered as before: Success, DuplicateSession or WorldUnavailable.</summary>
+    [Theory]
+    [InlineData(WorldSelectResult.Success)]
+    [InlineData(WorldSelectResult.DuplicateSession)]
+    [InlineData(WorldSelectResult.WorldUnavailable)]
+    public async Task Answer_every_select_up_to_the_cap_as_before(WorldSelectResult expected)
+    {
+        LoggedIn();
+        if (expected == WorldSelectResult.DuplicateSession)
+            _cache.SetNxAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(false);
+        ushort worldId = expected == WorldSelectResult.WorldUnavailable ? (ushort)99 : (ushort)1;
+        if (expected == WorldSelectResult.WorldUnavailable)
+            _worldRepository.FindByIdAsync(new WorldId(99)).Returns((AvalonWorld?)null);
+        CWorldSelectHandler handler = Handler(10);
+
+        for (int i = 0; i < 10; i++)
+            await SelectWith(handler, worldId);
+
+        List<SWorldSelectPacket> sent = SentPackets();
+        Assert.Equal(10, sent.Count);
+        Assert.All(sent, p => Assert.Equal(expected, p.Result));
+        _connection.DidNotReceive().Close();
+        Assert.Equal(0, WarningsContaining(BudgetWarning));
+    }
+
+    /// <summary>#574: the window is fixed from its first select; once it has ended the count starts again.</summary>
+    [Fact]
+    public async Task Start_the_count_again_once_the_window_has_ended()
+    {
+        LoggedIn();
+        CWorldSelectHandler handler = Handler(2);
+        await SelectWith(handler);
+        _clock.Advance(TimeSpan.FromSeconds(30));
+        await SelectWith(handler);
+        _clock.Advance(TimeSpan.FromSeconds(30));
+        _connection.ClearReceivedCalls();
+
+        await SelectWith(handler);
+
+        _connection.DidNotReceive().Close();
+        Assert.Equal(WorldSelectResult.Success, Assert.Single(SentPackets()).Result);
+    }
+
+    /// <summary>#574: a moment before the window ends, the select past the cap is still refused.</summary>
+    [Fact]
+    public async Task Refuse_the_select_past_the_cap_until_the_window_has_ended()
+    {
+        LoggedIn();
+        CWorldSelectHandler handler = Handler(2);
+        await SelectWith(handler);
+        await SelectWith(handler);
+        _clock.Advance(TimeSpan.FromMinutes(1) - TimeSpan.FromMilliseconds(1));
+
+        await SelectWith(handler);
+
+        _connection.Received(1).Close();
+    }
+
+    /// <summary>
+    /// #574: selects keep arriving after the close until the connection is gone; the refusal is
+    /// logged at Warning once per window, not once per select.
+    /// </summary>
+    [Fact]
+    public async Task Log_the_budget_refusal_at_most_once_per_window()
+    {
+        LoggedIn();
+        CWorldSelectHandler handler = Handler(1);
+        await SelectWith(handler);
+
+        for (int i = 0; i < 5; i++)
+            await SelectWith(handler);
+        Assert.Equal(1, WarningsContaining(BudgetWarning));
+
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        for (int i = 0; i < 5; i++)
+            await SelectWith(handler);
+        Assert.Equal(2, WarningsContaining(BudgetWarning));
+    }
+
+    /// <summary>#574: the WorldUnavailable refusal is also logged at Warning once per window, whichever of the two it is.</summary>
+    [Fact]
+    public async Task Log_the_world_unavailable_refusal_at_most_once_per_window()
+    {
+        LoggedIn();
+        _worldRepository.FindByIdAsync(new WorldId(99)).Returns((AvalonWorld?)null);
+        _worldRepository.FindByIdAsync(new WorldId(2)).Returns(MakeWorld(2, AccountAccessLevel.Admin));
+        CWorldSelectHandler handler = Handler(10);
+
+        for (int i = 0; i < 4; i++)
+            await SelectWith(handler, i % 2 == 0 ? (ushort)99 : (ushort)2);
+        Assert.Equal(1, _logger.Count(LogLevel.Warning));
+
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await SelectWith(handler, 2);
+        Assert.Equal(2, _logger.Count(LogLevel.Warning));
+        Assert.Equal(5, SentPackets().Count);
+        Assert.All(SentPackets(), p => Assert.Equal(WorldSelectResult.WorldUnavailable, p.Result));
     }
 }

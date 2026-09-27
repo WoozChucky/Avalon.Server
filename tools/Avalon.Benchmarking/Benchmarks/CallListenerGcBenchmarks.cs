@@ -58,6 +58,7 @@ public class CallListenerGcBenchmarks
         public AccountId? AccountId { get; set; }
         public int CredentialsVersion { get; set; }
         public long LoggedInAt { get; set; }
+        public WorldSelectBudget WorldSelects { get; } = new();
         public AuthServer Server => null!;
         public void Close(bool expected = true) { }
         public Task CloseAsync(bool expected = true) => Task.CompletedTask;

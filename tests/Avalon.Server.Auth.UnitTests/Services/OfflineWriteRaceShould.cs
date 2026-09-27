@@ -205,7 +205,9 @@ public sealed class OfflineWriteRaceShould : IDisposable
         IAuthConnection connection = Substitute.For<IAuthConnection>();
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.AccountId.Returns(account.Id);
-        var handler = new CWorldSelectHandler(NullLoggerFactory.Instance, cache, stale, worlds, random);
+        connection.WorldSelects.Returns(new WorldSelectBudget());
+        var handler = new CWorldSelectHandler(NullLoggerFactory.Instance, cache, stale, worlds, random,
+            Options(), TimeProvider.System);
 
         await handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
         {
