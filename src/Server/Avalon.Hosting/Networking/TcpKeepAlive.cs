@@ -40,11 +40,23 @@ public sealed class TcpKeepAlive
         Set(socket, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, RetryCount);
     }
 
+    /// <summary>
+    /// True when the error means the platform or socket does not support the option, the only case
+    /// that spends the one Warning. Anything else (a peer that already reset, say) is about this
+    /// connection alone.
+    /// </summary>
+    public static bool IsUnsupportedOption(SocketException e) =>
+        e.SocketErrorCode is SocketError.ProtocolOption or SocketError.OperationNotSupported or SocketError.InvalidArgument;
+
     private void Set(Socket socket, SocketOptionLevel level, SocketOptionName option, int value)
     {
         try
         {
             socket.SetSocketOption(level, option, value);
+        }
+        catch (SocketException e) when (!IsUnsupportedOption(e))
+        {
+            _logger.LogDebug(e, "TCP keepalive option {Option} could not be set on this connection", option);
         }
         catch (Exception e) when (e is SocketException or PlatformNotSupportedException)
         {

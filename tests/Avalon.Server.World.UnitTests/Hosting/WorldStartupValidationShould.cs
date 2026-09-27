@@ -54,7 +54,10 @@ public class WorldStartupValidationShould
     [InlineData("TcpKeepAliveTimeSeconds", "0")]
     [InlineData("TcpKeepAliveIntervalSeconds", "-1")]
     [InlineData("TcpKeepAliveRetryCount", "0")]
-    public async Task Refuse_to_start_with_a_tcp_keepalive_setting_below_one(string setting, string value)
+    [InlineData("TcpKeepAliveTimeSeconds", "32768")]
+    [InlineData("TcpKeepAliveIntervalSeconds", "32768")]
+    [InlineData("TcpKeepAliveRetryCount", "128")]
+    public async Task Refuse_to_start_with_a_tcp_keepalive_setting_out_of_range(string setting, string value)
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
         {

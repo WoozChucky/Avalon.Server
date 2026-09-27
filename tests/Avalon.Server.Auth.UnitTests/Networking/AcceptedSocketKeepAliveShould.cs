@@ -7,6 +7,7 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -89,6 +90,31 @@ public class AcceptedSocketKeepAliveShould
         using TcpClient accepted = await AcceptOneAsync(new HostingConfiguration());
 
         AssertKeepAlive(accepted.Client, time: 60, interval: 10, retries: 3);
+    }
+
+    [Fact]
+    public void Warn_once_and_throw_nothing_when_the_platform_refuses_an_option()
+    {
+        // A UDP socket refuses the TCP-level keepalive options, as a platform without them would.
+        var logger = new CapturingLogger();
+        var keepAlive = new TcpKeepAlive(new HostingConfiguration(), logger);
+        using var udp = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+
+        keepAlive.Apply(udp);
+        keepAlive.Apply(udp);
+
+        Assert.Equal(1, logger.Count(LogLevel.Warning));
+    }
+
+    [Theory]
+    [InlineData(SocketError.ProtocolOption, true)]
+    [InlineData(SocketError.OperationNotSupported, true)]
+    [InlineData(SocketError.InvalidArgument, true)]
+    [InlineData(SocketError.ConnectionReset, false)]
+    [InlineData(SocketError.NotConnected, false)]
+    public void Count_only_an_unsupported_option_as_a_platform_refusal(SocketError error, bool unsupported)
+    {
+        Assert.Equal(unsupported, TcpKeepAlive.IsUnsupportedOption(new SocketException((int)error)));
     }
 
     private static void AssertKeepAlive(Socket socket, int time, int interval, int retries)

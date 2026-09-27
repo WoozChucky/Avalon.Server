@@ -93,6 +93,7 @@ Section in `appsettings.json`: `"Hosting"`
 **Validation rules:**
 - `PacketReaderBufferSize`: minimum `512`, maximum `65535`.
 - `TcpKeepAliveTimeSeconds`, `TcpKeepAliveIntervalSeconds`: minimum `1`, maximum `32767`; `TcpKeepAliveRetryCount`: minimum `1`, maximum `127`. Checked at startup, which names the setting. An option the platform cannot set is skipped with one Warning, and the connection is still served.
+- Keepalive covers the TCP connection the server accepted. Behind a proxy that terminates TCP it covers only the proxy-to-server leg; the client-to-proxy leg needs the proxy's own keepalive or idle timeout.
 - `Security:CertificatePath` (auth server): required. `Security:CertificatePassword` is optional.
 
 ---
