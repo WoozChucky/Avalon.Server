@@ -92,8 +92,8 @@ from the map's entry spawn point, and a `Facing`. `OffsetY` only centres the nav
 
 A `MapCreatureSpawn` can name a `CreaturePath` through `PathId`. A path holds ordered
 `CreaturePathPoint` rows (`Sequence`, an offset, `WaitMs`). `PlaceAuthoredAsync` turns each point into
-a world position snapped to the navmesh, the same way as the spawn, and sets `ICreature.PatrolPath`
-before it attaches the script.
+a world position the same way as the spawn: X and Z are kept as authored, and only the height is set,
+by `SampleGroundHeight`. It sets `ICreature.PatrolPath` before it attaches the script.
 
 The path does not choose the AI. Only a script that reads `PatrolPath` walks it. Today that is
 `CreaturePatrolScript`, which loops through the points and waits at each one for its `WaitMs`.
@@ -143,7 +143,7 @@ it gets "not found" rather than a script that fails to construct.
 |---|---|---|
 | `AggroDefendScript` | Yes | Stands at its spawn. Chains a range detector and a `CreatureCombatScript`. The aggro range is the template's `DetectionRange`, or 10 m when that is 0. |
 | `CreatureCombatScript` | Yes | Chases, attacks and returns home (see Combat). |
-| `CreaturePatrolScript` | Yes | Walks `ICreature.PatrolPath` in a loop. Stands still when there is no path. |
+| `CreaturePatrolScript` | Yes | Walks `ICreature.PatrolPath` in a loop. Stands still when there is no path. Its `OnHit` only sets its state to `Idle` and never lowers health, so a creature running it cannot be damaged or killed. At top level a hit does not even stop the patrol, because the instance ticks a top-level script whatever its state. |
 | `TownNpcScript` | Yes | Does nothing. Town NPCs run it. |
 | `CreatureRangeDetectorScript` | No, `[ChainedScript]` | Checks once a second for a living character within range and in line of sight. |
 
@@ -153,7 +153,7 @@ it gets "not found" rather than a script that fails to construct.
 
 | Hook | Called when |
 |---|---|
-| `Update(deltaTime)` | Every instance tick, for every creature with a script |
+| `Update(deltaTime)` | Every instance tick, for every creature with a script. An instance ticks only while a character is in it. |
 | `OnHit(attacker, damage)` | The creature is hit: `Creature.OnHit` forwards to its script |
 | `OnEnteredRange(character)` | A range detector reports a character |
 | `OnCharacterLeft(character)` | A character left the creature's instance (#546) |
@@ -187,16 +187,20 @@ contracts.
 | State | Behaviour |
 |---|---|
 | `None` | Idle. `OnEnteredRange` or a hit starts combat and records where the fight started. |
-| `Combat` | Follows the encounter's top threat, or the taunter while a taunt lasts. Moves to its melee slot and attacks when within 1.5 m. |
+| `Combat` | Follows the encounter's top threat, or the taunter while a taunt lasts. Moves to its melee slot and attacks when within 1.5 m. Once the creature has arrived, the range is 1.5 m plus the locomotion's arrival tolerance plus 0.05 m. |
 | `Returning` | Runs home. A hit in this state does no damage. |
 
-- An attack every 2.25 s rolls damage between the creature's `DamageMin` and `DamageMax`, and goes
-  through `ICombatService.ApplyDamage`.
-- It gives up and returns home at full health when the target dies, leaves the instance, or the
-  creature is more than 40 m from where the fight started.
+- An attack rolls damage between the creature's `DamageMin` and `DamageMax`, and goes through
+  `ICombatService.ApplyDamage`. The first swing lands as soon as the target is in range. The 2.25 s
+  cooldown after it counts down only while the target is in range.
+- It gives up and returns home at full health when a character target dies, the target leaves the
+  instance, or the creature is more than 40 m from where the fight started. The death check covers
+  character targets only.
 - If no path home is found, the creature is teleported home.
 
-A creature takes damage only through its script's `OnHit`, so a creature with no script takes none.
+Only `CreatureCombatScript.OnHit` lowers health. A creature takes damage only through its script's
+`OnHit`, so a creature with no script, or one whose script chains no `CreatureCombatScript`, takes
+none.
 
 ### `CombatService`
 
@@ -258,7 +262,8 @@ each pool, so it is not revived. A level with no requirement row logs a warning 
 
 `CreatureCorpseRemover` (`ICorpseRemover`, `Avalon.World/Entities`) removes a corpse from its
 instance once the template's `BodyRemoveTimer` has passed (`BodyRemoveTimerSecs`, default 10 s). It
-runs at the start of each instance tick, and an instance ticks only while a character is in it.
+runs early in each instance tick, after the owed loot and PvP snapshots are sent and before the
+characters' packets. An instance ticks only while a character is in it.
 
 ---
 
