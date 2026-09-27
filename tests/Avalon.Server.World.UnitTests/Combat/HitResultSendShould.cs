@@ -80,7 +80,7 @@ public class HitResultSendShould
     private static void GiveDefences(CharacterEntity character) =>
         character.ApplyStats(new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
             Intellect: 0, Armor: 0, BlockPct: 50f, DodgePct: 30f, CritPct: 50f, AttackDamage: 0, AbilityDamage: 0),
-            CurrentValues.Refill);
+            CurrentValues.Refill, TestCombat.Formula);
 
     private static List<SUnitDamagePacket> UnitHits(MapInstanceClient client) =>
         client.Read<SUnitDamagePacket>(NetworkPacketType.SMSG_CREATURE_DAMAGED);

@@ -1,4 +1,3 @@
-using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -26,8 +25,10 @@ public class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacte
     {
         foreach (var ability in _abilities)
         {
-            // Update ability cooldown timer if not on cooldown and not casting
-            if (ability.CooldownTimer > 0 && Mathf.Approximately(ability.CastTimeTimer, ability.Metadata.CastTime))
+            // #627: a cooldown counts down whatever the cast timer holds, which a hasted cast time never
+            // matches with the metadata's. An ability being cast has no cooldown running: a cast is refused
+            // while it has one, and the cooldown is set only once the cast fires.
+            if (ability.CooldownTimer > 0)
             {
                 ability.CooldownTimer -= (float)deltaTime.TotalSeconds;
             }

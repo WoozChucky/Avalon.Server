@@ -601,6 +601,9 @@ public class CreatureCombatScript : AiScript, IReturningHome
         _target = null;
         _home = null;
         _unreachableFor = TimeSpan.Zero;
+
+        // #627: no countdown carries into the next fight, whose first swing lands at once.
+        _attackCooldownTimer = 0f;
         Context.Locomotion.Stop(Creature);
 
         // The one place a fight ends at home (#614): the creature leaves its encounter and forgets any

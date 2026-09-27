@@ -58,8 +58,8 @@ public class CharacterMovementSpeedShould
 
     [Theory]
     [InlineData(10f, 4.4f)]
-    [InlineData(50f, 6.0f)]
-    [InlineData(80f, 6.0f)]    // clamped to the +50 % cap
+    [InlineData(35f, 5.4f)]
+    [InlineData(80f, 5.4f)]    // clamped to the +35 % cap
     [InlineData(-50f, 2.0f)]
     [InlineData(-80f, 2.0f)]   // clamped to the -50 % floor
     [InlineData(0f, 4.0f)]
@@ -125,9 +125,10 @@ public class CharacterMovementSpeedShould
 
     /// <summary>
     /// Review focus 4: the client learns a new speed with the sheet, a round trip (taken as 100 ms) after the
-    /// server starts stepping at it, and snaps past 0.15 m of drift. +10 % at 4 m/s drifts 0.04 m. Equipping
-    /// or removing any one seeded item must stay under the snap too, so an item seeded with a big bonus
-    /// fails here and makes someone look (moving from the base to the +50 % cap in one change drifts 0.2 m).
+    /// server starts stepping at it, and snaps past 0.15 m of drift. +10 % at 4 m/s drifts 0.04 m. The
+    /// seeded cap is the largest change gear can make from the base, 4 x 0.35 x 0.1 = 0.14 m, so a default
+    /// cap raised past 37.5 % fails here. Equipping or removing any one seeded item must stay under the
+    /// snap too, so an item seeded with a big bonus fails here and makes someone look.
     /// </summary>
     [Fact]
     public void Keep_the_drift_of_a_speed_change_over_one_round_trip_under_the_clients_snap()
@@ -138,6 +139,11 @@ public class CharacterMovementSpeedShould
 
         Assert.Equal(0.04f, Drift(0f, 10f), precision: 5);
         Assert.True(Drift(0f, 10f) < CharacterMovement.ClientSnapThreshold);
+
+        // The default cap: the whole bonus gear can give, reached in one change.
+        Assert.Equal(0.14f, Drift(0f, Seeded.MoveSpeedCap), precision: 5);
+        Assert.True(Drift(0f, float.PositiveInfinity) < CharacterMovement.ClientSnapThreshold,
+            $"the default MoveSpeedCap {Seeded.MoveSpeedCap} % drifts {Drift(0f, float.PositiveInfinity)} m over a round trip");
 
         using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();

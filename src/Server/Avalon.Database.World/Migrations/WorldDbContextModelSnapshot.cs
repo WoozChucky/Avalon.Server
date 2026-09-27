@@ -1712,7 +1712,7 @@ namespace Avalon.Database.World.Migrations
                             CritMultiplier = 1.5f,
                             DodgeCap = 30f,
                             HasteCap = 50f,
-                            MoveSpeedCap = 50f,
+                            MoveSpeedCap = 35f,
                             MoveSpeedFloor = -50f
                         });
                 });

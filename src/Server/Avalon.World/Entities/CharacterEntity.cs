@@ -106,10 +106,12 @@ public class CharacterEntity : ICharacter
     /// KeepShare for a gear change, which keeps the same share of each pool. Fury is not a fill-up pool
     /// (#526): EnterWorld empties it, and Refill and KeepShare keep its value, capped at the new maximum.
     /// </summary>
-    /// <param name="formula">Bounds haste and movement speed (#627); the seeded formula when omitted.</param>
-    public void ApplyStats(DerivedCharacterStats stats, CurrentValues current, Avalon.Domain.World.CombatFormula? formula = null)
+    /// <param name="formula">
+    /// Bounds haste and movement speed (#627): the current generation's, so a /reload combat reaches the
+    /// character at this refresh. Required, so no caller can fall back to the seeded values unnoticed.
+    /// </param>
+    public void ApplyStats(DerivedCharacterStats stats, CurrentValues current, Avalon.Domain.World.CombatFormula formula)
     {
-        formula ??= SeededFormula;
         uint oldHealth = Health;
         uint oldPower = Power ?? 0;
 
@@ -164,8 +166,6 @@ public class CharacterEntity : ICharacter
         Stats = stats;
         SaveState.StatsChanged();
     }
-
-    private static readonly Avalon.Domain.World.CombatFormula SeededFormula = Avalon.Database.World.Seeding.CombatSeed.Formula();
 
     /// <summary>
     /// What this character attacks with (#506): its level, and the damage stats, crit and main-hand weapon

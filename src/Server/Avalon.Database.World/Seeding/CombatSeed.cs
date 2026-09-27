@@ -21,10 +21,11 @@ public static class CombatSeed
         CritCap = 50f,
         DodgeCap = 30f,
         BlockCap = 50f,
-        // #627: haste counts up to 50 %, and gear moves a character between half and one and a half
-        // times the base 4 m/s.
+        // #627: haste counts up to 50 %, and gear moves a character between half and 1.35 times the base
+        // 4 m/s. The cap is owner-set to keep a whole change from the base under the client's snap:
+        // 4 x 0.35 x 0.1 s = 0.14 m of drift over a round trip, below 0.15 m.
         HasteCap = 50f,
-        MoveSpeedCap = 50f,
+        MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
     };
 

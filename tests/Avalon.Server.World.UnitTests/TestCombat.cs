@@ -12,5 +12,8 @@ internal static class TestCombat
 
     public static IReadOnlyDictionary<CharacterClass, ClassStatFactors> Factors => Seeded().Factors;
 
+    /// <summary>The seeded formula, what a stats refresh in a test bounds haste and movement speed with (#627).</summary>
+    public static CombatFormula Formula => Seeded().Formula;
+
     public static ClassStatFactors FactorsOf(CharacterClass @class) => Factors[@class];
 }

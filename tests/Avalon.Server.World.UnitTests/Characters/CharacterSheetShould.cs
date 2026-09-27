@@ -59,7 +59,7 @@ public class CharacterSheetShould
     public void Send_one_sheet_with_the_characters_values_once_the_selected_character_is_in_the_world()
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats(), CurrentValues.EnterWorld);
+        character.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         var sent = new List<NetworkPacket>();
         IWorldConnection connection = PendingSpawnConnection.Create(
             new PendingSpawn(character, Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks));
@@ -197,7 +197,7 @@ public class CharacterSheetShould
     public void Send_each_chance_clamped_to_its_cap()
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats(crit: 80f, dodge: 45f, block: 70f), CurrentValues.EnterWorld);
+        character.ApplyStats(Stats(crit: 80f, dodge: 45f, block: 70f), CurrentValues.EnterWorld, TestCombat.Formula);
         var sent = new List<NetworkPacket>();
 
         CharacterSheetFlusher.Flush(Recording(character, sent), Seeded);
@@ -214,9 +214,9 @@ public class CharacterSheetShould
         StaticData data = await TestStaticData.LoadAsync(
             TestStaticData.Repositories(classStats: () => WarriorRows, combat: rows.Repository()));
         CharacterEntity keen = New(1);
-        keen.ApplyStats(Stats(crit: 30f), CurrentValues.EnterWorld);
+        keen.ApplyStats(Stats(crit: 30f), CurrentValues.EnterWorld, TestCombat.Formula);
         CharacterEntity dull = New(2);
-        dull.ApplyStats(Stats(crit: 5f), CurrentValues.EnterWorld);
+        dull.ApplyStats(Stats(crit: 5f), CurrentValues.EnterWorld, TestCombat.Formula);
         var keenSent = new List<NetworkPacket>();
         var dullSent = new List<NetworkPacket>();
         IWorldConnection keenConnection = Recording(keen, keenSent);
@@ -241,9 +241,9 @@ public class CharacterSheetShould
     public void Never_send_a_characters_sheet_to_another_player()
     {
         CharacterEntity owner = New(1);
-        owner.ApplyStats(Stats(), CurrentValues.EnterWorld);
+        owner.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         CharacterEntity other = New(2);
-        other.ApplyStats(Stats(), CurrentValues.EnterWorld);
+        other.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         var ownerSent = new List<NetworkPacket>();
         var otherSent = new List<NetworkPacket>();
         IWorldConnection ownerConnection = Recording(owner, ownerSent);
@@ -253,7 +253,7 @@ public class CharacterSheetShould
         ownerSent.Clear();
         otherSent.Clear();
 
-        owner.ApplyStats(Stats(strength: 40), CurrentValues.KeepShare);
+        owner.ApplyStats(Stats(strength: 40), CurrentValues.KeepShare, TestCombat.Formula);
         CharacterSheetFlusher.Flush(ownerConnection, Seeded);
         CharacterSheetFlusher.Flush(otherConnection, Seeded);
 
@@ -265,15 +265,15 @@ public class CharacterSheetShould
     public void Send_at_most_one_sheet_per_tick_with_the_last_values()
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats(), CurrentValues.EnterWorld);
+        character.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         var sent = new List<NetworkPacket>();
         IWorldConnection connection = Recording(character, sent);
         CharacterSheetFlusher.Flush(connection, Seeded);
         sent.Clear();
 
         // A gear change and a level-up in one tick: the flush at its end sends one sheet.
-        character.ApplyStats(Stats(strength: 30), CurrentValues.KeepShare);
-        character.ApplyStats(Stats(strength: 35), CurrentValues.Refill);
+        character.ApplyStats(Stats(strength: 30), CurrentValues.KeepShare, TestCombat.Formula);
+        character.ApplyStats(Stats(strength: 35), CurrentValues.Refill, TestCombat.Formula);
         CharacterSheetFlusher.Flush(connection, Seeded);
 
         Assert.Equal(35u, Assert.Single(Sheets(sent)).Strength);

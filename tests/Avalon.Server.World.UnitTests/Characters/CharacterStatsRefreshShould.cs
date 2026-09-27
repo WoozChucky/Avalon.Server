@@ -31,7 +31,7 @@ public class CharacterStatsRefreshShould
         CharacterEntity character = New();
         character.ConsumeDirtyFields();
 
-        Assert.True(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill));
+        Assert.True(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(240u, character.Health);
         Assert.Equal(240u, character.CurrentHealth);
@@ -54,11 +54,11 @@ public class CharacterStatsRefreshShould
     public void Keep_the_share_of_health_when_gear_goes_on()
     {
         CharacterEntity character = New();
-        CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill);
+        CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
         character.CurrentHealth = 120;
         character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, EquipTemplates.Chestguard)]);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare));
+        Assert.True(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare, TestCombat.Formula));
 
         Assert.Equal(260u, character.Health);
         Assert.Equal(130u, character.CurrentHealth);
@@ -79,7 +79,7 @@ public class CharacterStatsRefreshShould
         ]);
         character.Container(InventoryType.Bag).Load([Item(0, EquipTemplates.Greatsword)]);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill));
+        Assert.True(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(25u, character.Stats!.Value.Strength);
         Assert.Equal(24u, character.Stats.Value.Stamina);
@@ -94,7 +94,7 @@ public class CharacterStatsRefreshShould
         character.Data!.Health = 150;
         character.CurrentHealth = 150;
 
-        Assert.False(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill));
+        Assert.False(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(150u, character.Health);
         Assert.Equal(150u, character.CurrentHealth);
@@ -110,7 +110,7 @@ public class CharacterStatsRefreshShould
         CharacterEntity character = New();
         character.Data!.Class = @class;
 
-        CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill);
+        CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
 
         Assert.Equal(regen, character.RegenStat);
     }
@@ -136,8 +136,8 @@ public class CharacterStatsRefreshShould
         wizard.PowerType = Avalon.Network.Packets.State.PowerType.Mana;
         wizard.CurrentPower = 0;
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld));
-        Assert.True(CharacterStatsRefresh.Apply(wizard, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(wizard, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld, TestCombat.Formula));
 
         Assert.Equal(0u, warrior.CurrentPower);
         Assert.Equal(warrior.Health, warrior.CurrentHealth);
@@ -152,7 +152,7 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity warrior = FuryWarrior(fury: 60);
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(60u, warrior.CurrentPower);
@@ -166,7 +166,7 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity warrior = FuryWarrior(fury: 150, max: 200);
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, current));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, current, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(100u, warrior.CurrentPower);
@@ -178,7 +178,7 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity warrior = FuryWarrior(fury: 60, max: 200);
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(60u, warrior.CurrentPower);   // a share would have been 30
@@ -195,7 +195,7 @@ public class CharacterStatsRefreshShould
             Stamina = 20, Strength = 21, Agility = 23, Intellect = 20,
         };
 
-        CharacterStatsRefresh.Apply(character, [hunter], TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill);
+        CharacterStatsRefresh.Apply(character, [hunter], TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
 
         Assert.Equal(23u, character.RegenStat);
     }

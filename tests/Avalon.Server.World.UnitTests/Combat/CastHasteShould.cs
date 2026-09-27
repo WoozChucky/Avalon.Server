@@ -178,6 +178,50 @@ public class CastHasteShould
         Assert.Equal(0.8f / 1.03f, set, precision: 5);
     }
 
+    /// <summary>
+    /// #627 review: a cooldown counts down whatever an ability's cast timer holds. Before, it ran only while the
+    /// cast timer equalled the metadata's cast time, which a hasted cast time never does.
+    /// </summary>
+    [Fact]
+    public void Count_a_cooldown_down_while_the_cast_timer_holds_a_hasted_time()
+    {
+        var container = new Avalon.World.Abilities.CharacterAbilityContainer(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
+        var burst = AbilityTestData.Game(Burst());
+        burst.CastTimeTimer = 1f / 1.25f;   // what a hasted cast sets
+        burst.CooldownTimer = 2f;
+        container.Load([burst]);
+
+        container.Update(TimeSpan.FromSeconds(0.5));
+
+        Assert.Equal(1.5f, burst.CooldownTimer, precision: 5);
+    }
+
+    /// <summary>
+    /// #627 review, through the instance: Cleave's cooldown keeps counting down while a hasted cast is under
+    /// way, and Burst's own counts down once it fires.
+    /// </summary>
+    [Fact]
+    public void Count_cooldowns_down_during_and_after_a_hasted_cast()
+    {
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
+        MapInstanceClient wizard = Caster(instance, 627_109, hastePct: 25f);
+        IAbility cleave = Spell(wizard.Character, CleaveId);
+        IAbility burst = Spell(wizard.Character, BurstId);
+
+        Cast(handler, wizard, CleaveId);
+        float cleaveSet = cleave.CooldownTimer;
+        Cast(handler, wizard, BurstId);
+        TickFor(instance, 0.4);
+        Assert.True(wizard.Character.Spells.IsCasting);
+        Assert.InRange(cleave.CooldownTimer, cleaveSet - 0.42f, cleaveSet - 0.38f);
+
+        TickFor(instance, 0.45);   // Burst fires at 0.8 s
+        Assert.False(wizard.Character.Spells.IsCasting);
+        float burstSet = burst.CooldownTimer;
+        TickFor(instance, 0.5);
+        Assert.InRange(burst.CooldownTimer, burstSet - 0.52f, burstSet - 0.48f);
+    }
+
     /// <summary>The global cooldown is not haste's: a caster at the cap is refused for the whole 200 ms.</summary>
     [Fact]
     public void Leave_the_global_cooldown_unchanged()

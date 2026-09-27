@@ -411,12 +411,12 @@ public sealed class CharacterSaverShould : IDisposable
         CharacterEntity character = await SeedAsync(7);
         DerivedCharacterStats first = new(240, 100, 22, 23, 20, 20, 0, 5f, 3.664f, 5f, 46, 4);
 
-        character.ApplyStats(first, CurrentValues.Refill);
+        character.ApplyStats(first, CurrentValues.Refill, TestCombat.Formula);
         Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
         await PumpAsync();
         Assert.False(character.SaveState.StatsDirty);
 
-        character.ApplyStats(first with { MaxHealth = 260, Armor = 8 }, CurrentValues.KeepShare);
+        character.ApplyStats(first with { MaxHealth = 260, Armor = 8 }, CurrentValues.KeepShare, TestCombat.Formula);
         Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
 
         await using CharacterDbContext read = _db.CreateDbContext();

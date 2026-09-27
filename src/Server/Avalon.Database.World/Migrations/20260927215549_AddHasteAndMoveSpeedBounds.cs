@@ -48,7 +48,7 @@ namespace Avalon.Database.World.Migrations
                 keyColumn: "Id",
                 keyValue: 1,
                 columns: new[] { "HasteCap", "MoveSpeedCap", "MoveSpeedFloor" },
-                values: new object[] { 50f, 50f, -50f });
+                values: new object[] { 50f, 35f, -50f });
 
             migrationBuilder.UpdateData(
                 table: "CreatureTemplates",

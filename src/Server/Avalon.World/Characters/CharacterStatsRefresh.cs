@@ -36,7 +36,7 @@ public static class CharacterStatsRefresh
     /// False, changing nothing, when there is no ClassLevelStat row for the character's class and
     /// level, or no ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in accepts it, so
     /// a row that put a gem in slot 8 or anything in 11-13 adds nothing. <paramref name="formula" /> bounds
-    /// haste and movement speed (#627); the seeded formula when omitted.
+    /// haste and movement speed (#627), and is required: the caller passes the generation it read.
     /// </summary>
     public static bool Apply(
         CharacterEntity character,
@@ -44,7 +44,7 @@ public static class CharacterStatsRefresh
         IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
         CurrentValues current,
-        CombatFormula? formula = null)
+        CombatFormula formula)
     {
         ClassLevelStat? row = classStats.FirstOrDefault(s => s.Class == character.Class && s.Level == character.Level);
         if (row is null || !classFactors.TryGetValue(character.Class, out ClassStatFactors? factors))

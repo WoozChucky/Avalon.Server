@@ -1335,6 +1335,72 @@ public class CreatureCombatScriptShould
         Assert.Equal(1.5, swings[3] - swings[2], precision: 9);
     }
 
+    /// <summary>
+    /// #627 review: a creature that swung, was drawn past the leash and walked home starts its next fight
+    /// with no countdown left over, so that fight's first swing lands at once too.
+    /// </summary>
+    [Fact]
+    public void Swing_at_once_in_the_fight_after_a_leash_reset()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        var real = new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, Health = 100, CurrentHealth = 100 };
+        (CreatureCombatScript script, _, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
+        script.Update(TimeSpan.FromSeconds(0.1));   // swings, 2.25 s to the next
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default);
+
+        real.Position = new Vector3(40.5f, 0f, 0f);  // drawn past the 40 m leash
+        target.Position.Returns(new Vector3(41f, 0f, 0f));
+        script.Update(TimeSpan.FromSeconds(0.1));
+        Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
+        real.Position = Vector3.zero;                // home
+        script.Update(TimeSpan.FromSeconds(0.1));
+        Assert.Equal((object)CreatureCombatScript.CombatState.None, script.State);
+
+        target.Position.Returns(new Vector3(1f, 0f, 0f));
+        script.OnEnteredRange(target);
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default);
+    }
+
+    /// <summary>
+    /// #627 review: at the production tick, 1/60 s, a float countdown cannot land on 0 exactly. Each swing
+    /// lands on the tick the countdown crosses 0: at least the interval after the last, and never more than
+    /// the one tick rounding up to the tick grid allows. The overshoot is not carried, so no gap is shorter.
+    /// </summary>
+    [Theory]
+    [InlineData(2.25f, 0f)]
+    [InlineData(1.5f, 0f)]
+    [InlineData(2.25f, 50f)]
+    [InlineData(2.25f, 3f)]
+    [InlineData(0.5f, 0f)]
+    public void Swing_on_the_tick_the_countdown_crosses_zero_at_sixty_hertz(float baseAttackTime, float haste)
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        var real = new Avalon.World.Entities.Creature { BaseAttackTime = baseAttackTime, HasteCap = 50f, HastePct = haste };
+        (CreatureCombatScript script, _, _) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
+        var swingTicks = new List<int>();
+        int tick = 0;
+        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, default)).Do(_ => swingTicks.Add(tick));
+
+        TimeSpan step = TimeSpan.FromSeconds(1d / 60d);
+        for (tick = 0; tick < 60 * 12; tick++)
+            script.Update(step);
+
+        float interval = real.SwingInterval;
+        int ticksToCross = (int)Math.Ceiling(interval * 60d - 1e-3);   // the tick the countdown reaches 0, rounded up
+        Assert.Equal(0, swingTicks[0]);
+        Assert.True(swingTicks.Count >= 5, $"only {swingTicks.Count} swings");
+        for (int i = 1; i < swingTicks.Count; i++)
+            Assert.InRange(swingTicks[i] - swingTicks[i - 1], ticksToCross, ticksToCross + 1);
+        // Not one tick late on average either: over the run, rounding may cost at most one tick in total per swing.
+        Assert.True(swingTicks[^1] - swingTicks[0] <= (swingTicks.Count - 1) * (ticksToCross + 1));
+    }
+
     /// <summary>#627: the countdown runs only while the target is in range, as before.</summary>
     [Fact]
     public void Count_down_only_while_in_range()

@@ -789,7 +789,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         CombatFormula f = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
-        Assert.Equal((50f, 50f, -50f), (f.HasteCap, f.MoveSpeedCap, f.MoveSpeedFloor));
+        Assert.Equal((50f, 35f, -50f), (f.HasteCap, f.MoveSpeedCap, f.MoveSpeedFloor));
     }
 
     /// <summary>
