@@ -14,4 +14,10 @@ public sealed class WorldDto
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public int OnlineCount { get; set; }
+
+    /// <summary>Whether this api is configured for the world's databases (Database:Worlds, #523).</summary>
+    public bool Configured { get; set; }
+
+    /// <summary>Configured, and its databases migrated at startup; false answers 503 on its /world/{worldId}/ routes.</summary>
+    public bool Available { get; set; }
 }

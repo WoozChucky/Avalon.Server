@@ -54,7 +54,7 @@ public sealed class WorldVisibilityShould : IDisposable
     };
 
     private WorldController MakeSut(AccountAccessLevel level) =>
-        new(new WorldService(new WorldRepository(_database)))
+        new(new WorldService(new WorldRepository(_database), new Avalon.Api.Worlds.WorldDatabases([])))
         {
             ControllerContext = new ControllerContext
             {
@@ -122,6 +122,19 @@ public sealed class WorldVisibilityShould : IDisposable
         var result = await MakeSut(AccountAccessLevel.Player).Get(id, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Theory]
+    [InlineData(AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.Tournament)]
+    public async Task Answer_a_hidden_world_with_the_same_404_as_a_missing_one(AccountAccessLevel level)
+    {
+        // PTR (32) and Tournament (16) are numerically above Admin (4), so a <= test would let them in.
+        var hidden = await MakeSut(level).Get(AdminWorld, CancellationToken.None);
+        var missing = await MakeSut(level).Get(999, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(hidden);
+        Assert.IsType<NotFoundResult>(missing);
     }
 
     [Fact]
