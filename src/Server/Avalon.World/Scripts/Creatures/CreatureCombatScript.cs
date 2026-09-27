@@ -85,11 +85,25 @@ public class CreatureCombatScript : AiScript
     // itself.
     private const float AttackRangeArrivalMargin = 0.05f;
     private const float AttackCooldown = 2.25f; // Cooldown between attacks
+
+    // How long a creature may go without any way to reach its target before it gives up and goes
+    // home, as it does past the leash (#606). "No way to reach" is the locomotion having nothing to
+    // walk while the creature is neither within attack range of the target nor at the spot it chose
+    // to stand (see Engage): HasArrived also means "no destination was reachable". Only an unbroken
+    // stretch counts; any tick in reach, at its spot or walking starts the count over.
+    private static readonly TimeSpan UnreachableGiveUpTime = TimeSpan.FromSeconds(5);
+
     private readonly ILogger<CreatureCombatScript> _logger;
     private float _attackCooldownTimer;
 
     private bool _dead;
-    private Vector3 _initialPosition;
+
+    // Where the fight began, and where the creature goes back to. Null while no fight has set it: any
+    // position is a valid home, the origin included (#606).
+    private Vector3? _home;
+
+    // How long, without a break, the creature has had no way to reach its target (#606).
+    private TimeSpan _unreachableFor;
 
     // The destination the journey now in progress was planned for. This is what the mid-walk
     // staleness check in KeepStation measures against, and it answers a different question from the
@@ -104,8 +118,10 @@ public class CreatureCombatScript : AiScript
     public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
-        _initialPosition = Vector3.zero;
     }
+
+    /// <summary>Where the creature goes back to. Every path into Combat sets <see cref="_home" /> first.</summary>
+    private Vector3 Home => _home ?? Creature.Position;
 
     public override object State { get; set; } = CombatState.None;
 
@@ -124,7 +140,8 @@ public class CreatureCombatScript : AiScript
             _target = null;
             State = CombatState.Returning;
             Creature.CurrentHealth = Creature.Health;
-            RequestMoveTo(_initialPosition);
+            _unreachableFor = TimeSpan.Zero;
+            RequestMoveTo(Home);
         }
     }
 
@@ -135,7 +152,8 @@ public class CreatureCombatScript : AiScript
         if (State is CombatState.None)
         {
             _target = character;
-            _initialPosition = Creature.Position;
+            _home = Creature.Position;
+            _unreachableFor = TimeSpan.Zero;
             State = CombatState.Combat;
         }
     }
@@ -165,14 +183,16 @@ public class CreatureCombatScript : AiScript
 
             // A hit from a different unit switches target immediately, same as the top-threat
             // reconciliation in Update — release whatever slot was held on the old one first.
-            if (_target is not null && !ReferenceEquals(_target, attacker))
-                Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
+            if (!ReferenceEquals(_target, attacker))
+            {
+                if (_target is not null)
+                    Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
+
+                _unreachableFor = TimeSpan.Zero;
+            }
 
             _target = attacker;
-            if (_initialPosition == Vector3.zero)
-            {
-                _initialPosition = Creature.Position;
-            }
+            _home ??= Creature.Position;
 
             State = CombatState.Combat;
             Context.BroadcastUnitHit(attacker, Creature, Creature.CurrentHealth, damage);
@@ -223,13 +243,18 @@ public class CreatureCombatScript : AiScript
 
         Vector3 targetPosition = _target.Position;
 
-        if (Vector3.Distance(currentPosition, _initialPosition) > MaxChaseDistance)
+        if (Vector3.Distance(currentPosition, Home) > MaxChaseDistance)
         {
             GiveUpAndGoHome(_target);
             return;
         }
 
         Engage(_target, currentPosition, targetPosition, deltaTime);
+
+        if (_unreachableFor > UnreachableGiveUpTime)
+        {
+            GiveUpAndGoHome(_target);
+        }
     }
 
     /// <summary>
@@ -246,6 +271,7 @@ public class CreatureCombatScript : AiScript
                 Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
 
             _target = picked;
+            _unreachableFor = TimeSpan.Zero;
             Context.Locomotion.Stop(Creature);
         }
     }
@@ -256,7 +282,7 @@ public class CreatureCombatScript : AiScript
     /// </summary>
     private void UpdateReturning(Vector3 currentPosition)
     {
-        if (Vector3.Distance(currentPosition, _initialPosition) < 0.1f)
+        if (Vector3.Distance(currentPosition, Home) < 0.1f)
         {
             ResetToIdleAtSpawn();
             return;
@@ -270,11 +296,11 @@ public class CreatureCombatScript : AiScript
         // so the client extrapolates indefinitely.
         if (Context.Locomotion.HasArrived(Creature))
         {
-            RequestMoveTo(_initialPosition);
+            RequestMoveTo(Home);
             if (Context.Locomotion.HasArrived(Creature))
             {
                 // Planner can't reach spawn — snap home rather than drift forever.
-                Context.Locomotion.Teleport(Creature, _initialPosition);
+                Context.Locomotion.Teleport(Creature, Home);
                 ResetToIdleAtSpawn();
                 return;
             }
@@ -285,15 +311,17 @@ public class CreatureCombatScript : AiScript
     }
 
     /// <summary>
-    /// Drops <paramref name="target" /> and heads home at full health: the target died, or the creature
-    /// was drawn past <see cref="MaxChaseDistance" /> from where the fight began.
+    /// Drops <paramref name="target" /> and heads home at full health: the target died, the creature
+    /// was drawn past <see cref="MaxChaseDistance" /> from where the fight began, or it had no way to
+    /// reach the target for longer than <see cref="UnreachableGiveUpTime" /> (#606).
     /// </summary>
     private void GiveUpAndGoHome(IUnit target)
     {
         Context.MeleeSlots.Release(target.Guid, Creature.Guid);
         _target = null;
+        _unreachableFor = TimeSpan.Zero;
         State = CombatState.Returning;
-        RequestMoveTo(_initialPosition);
+        RequestMoveTo(Home);
         Creature.CurrentHealth = Creature.Health;
     }
 
@@ -317,14 +345,34 @@ public class CreatureCombatScript : AiScript
             ? AttackRange + Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin
             : AttackRange;
 
-        if (Vector3.Distance(currentPosition, targetPosition) <= effectiveAttackRange)
+        bool inRange = Vector3.Distance(currentPosition, targetPosition) <= effectiveAttackRange;
+        if (inRange)
         {
             Creature.LookAt(targetPosition);
             AttackTarget(deltaTime);
         }
 
+        bool atDestination = Vector3.Distance(currentPosition, destination) <= DriftThreshold(hasSlot);
+
+        // No way to reach the target (#606): nothing left to walk, yet neither in reach nor at the spot
+        // it chose. A creature standing in its slot or at its stand-off point, or swinging and waiting
+        // out its cooldown, is never counted. Measured on this tick's arrival, before KeepStation asks
+        // for a new route: a route to the nearest reachable point can be walked in a tick and would
+        // otherwise start the count over every time.
+        _unreachableFor = hasArrived && !inRange && !atDestination
+            ? _unreachableFor + deltaTime
+            : TimeSpan.Zero;
+
         KeepStation(currentPosition, destination, hasSlot, hasArrived);
     }
+
+    /// <summary>
+    /// How far a settled creature may stand from its destination and still count as on it: the
+    /// locomotion's arrival tolerance for a slot, <see cref="PathRecalculationThreshold" /> for a
+    /// stand-off point (see <see cref="KeepStation" />).
+    /// </summary>
+    private float DriftThreshold(bool hasSlot) =>
+        hasSlot ? Context.Locomotion.ArrivalTolerance(Creature) : PathRecalculationThreshold;
 
     /// <summary>
     /// Where this creature should stand to fight <paramref name="target" />. Returns whether it holds a
@@ -395,7 +443,7 @@ public class CreatureCombatScript : AiScript
         // the destination and is reserved for actually disengaging (leash, target switch, target
         // lost), not for "close enough to hit right now."
         bool stillWalking = !hasArrived;
-        float driftThreshold = hasSlot ? Context.Locomotion.ArrivalTolerance(Creature) : PathRecalculationThreshold;
+        float driftThreshold = DriftThreshold(hasSlot);
         bool settledOffDestination = !stillWalking && Vector3.Distance(currentPosition, destination) > driftThreshold;
         bool destinationDrifted = stillWalking &&
             Vector3.Distance(_lastRequestedDestination, destination) > PathRecalculationThreshold;
@@ -492,7 +540,8 @@ public class CreatureCombatScript : AiScript
             Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
 
         _target = null;
-        _initialPosition = Vector3.zero;
+        _home = null;
+        _unreachableFor = TimeSpan.Zero;
         Context.Locomotion.Stop(Creature);
     }
 }

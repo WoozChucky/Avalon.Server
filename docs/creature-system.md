@@ -196,6 +196,15 @@ contracts.
 - It gives up and returns home at full health when a character target dies, the target leaves the
   instance, or the creature is more than 40 m from where the fight started. The death check covers
   character targets only.
+- It also gives up when it has had no way to reach its target for more than 5 s in a row (#606):
+  the locomotion has nothing left to walk (no route exists) while the creature is neither within
+  attack range nor at its slot or stand-off point. A creature standing in its slot, or swinging and
+  waiting for its cooldown, is never counted, and any tick with a route again starts the count over.
+- Where the fight started is its home, and any position is a valid home, the origin included.
+- A creature walking home after the leash or a lost target ignores hits (owner decision, #606): it
+  takes no damage and does not turn on the attacker until it is home and reset. The combat service
+  still records the hit's threat and combat-tags the attacker, but the script reads neither on the
+  way home.
 - If no path home is found, the creature is teleported home.
 
 Only `CreatureCombatScript.OnHit` lowers health. A creature takes damage only through its script's

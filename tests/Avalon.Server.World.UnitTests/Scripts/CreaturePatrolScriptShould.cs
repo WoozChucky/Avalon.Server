@@ -276,6 +276,31 @@ public class CreaturePatrolScriptShould
         fight.Locomotion.Received(1).MoveTo(fight.Creature, new Vector3(10f, 0f, 0f));
     }
 
+    /// <summary>
+    /// #606: a target it can find no route to makes it give up after the unreachable limit, go home,
+    /// and resume the path from the nearest point, rather than stand in combat for good.
+    /// </summary>
+    [Fact]
+    public void Resume_From_The_Nearest_Point_After_Its_Target_Stays_Unreachable()
+    {
+        var fight = new PatrolFight(Point(0f), Point(10f), Point(20f));
+        fight.WalkToSecondPoint();
+        fight.CreatureAt = new Vector3(18f, 0f, 0f);
+        fight.AttackerAt = new Vector3(30f, 0f, 0f);  // the locomotion never has a route to it
+
+        fight.Script.OnHit(fight.Attacker, 1);
+        for (int i = 0; i < 51; i++)
+            fight.Tick();                              // 5.1 s without a route: gives up
+        fight.Locomotion.Received().MoveTo(fight.Creature, new Vector3(18f, 0f, 0f));
+
+        fight.Locomotion.ClearReceivedCalls();
+        fight.Tick();                                  // home: combat is over, the patrol resumes
+
+        fight.Locomotion.Received(1).MoveTo(fight.Creature, new Vector3(20f, 0f, 0f));
+        Assert.Equal(CreaturePatrolScript.PatrolState.Patrolling, fight.Script.State);
+        Assert.Equal(100u, fight.Creature.CurrentHealth);
+    }
+
     /// <summary>OnCharacterLeft reaches the chained combat script: its target left, so it goes home at full health.</summary>
     [Fact]
     public void Tell_The_Chained_Combat_Script_When_A_Character_Leaves()

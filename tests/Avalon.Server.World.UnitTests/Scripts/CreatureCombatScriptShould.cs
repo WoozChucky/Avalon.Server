@@ -1204,6 +1204,154 @@ public class CreatureCombatScriptShould
         combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default);
     }
 
+    // #606: a target the creature can never reach used to hold it in Combat for good.
+
+    /// <summary>
+    /// #606: locomotion has nothing to walk (no route exists) while the target stays out of reach, so
+    /// after the unreachable limit (5 s) the creature gives up as it does past the leash: slot released,
+    /// target dropped, home at full health.
+    /// </summary>
+    [Fact]
+    public void Go_Home_When_Its_Target_Stays_Unreachable_Past_The_Limit()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f), slotCount: 1, combat: combat);
+        creature.Health = 100;
+        creature.CurrentHealth = 30;
+        creature.Position.Returns(new Vector3(3f, 0f, 0f));
+
+        for (int i = 0; i < 49; i++)
+            script.Update(TimeSpan.FromSeconds(0.1)); // 4.9 s with no route: still fighting
+        Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
+        locomotion.ClearReceivedCalls();
+
+        for (int i = 0; i < 2; i++)
+            script.Update(TimeSpan.FromSeconds(0.1)); // past 5 s
+
+        Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
+        locomotion.Received(1).MoveTo(creature, Vector3.zero);
+        Assert.Equal(100u, creature.CurrentHealth);
+        Assert.True(SlotsOf(script).TryClaim(target.Guid, new ObjectGuid(ObjectType.Creature, 99),
+            target.Position, target.Position, out _));
+
+        // The target is dropped: moved within reach, it is not struck.
+        target.Position.Returns(new Vector3(3.5f, 0f, 0f));
+        locomotion.HasArrived(creature).Returns(false);
+        script.Update(TimeSpan.FromSeconds(0.1));
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+    }
+
+    /// <summary>
+    /// #606: a creature settled in its melee slot, swinging and waiting out its cooldown, has nothing to
+    /// walk too, but it is where it should be and in reach, so it is never sent home for that.
+    /// </summary>
+    [Fact]
+    public void Never_Give_Up_While_Standing_In_Its_Slot_Waiting_For_Its_Cooldown()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f), combat: combat);
+        Vector3? destination = null;
+        locomotion.When(l => l.MoveTo(creature, Arg.Any<Vector3>())).Do(ci => destination = ci.ArgAt<Vector3>(1));
+        script.Update(TimeSpan.FromSeconds(0.1));
+        Assert.NotNull(destination);
+        creature.Position.Returns(destination!.Value);
+
+        for (int i = 0; i < 200; i++)
+            script.Update(TimeSpan.FromSeconds(0.1)); // 20 s settled in the slot
+
+        Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
+        combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default);
+    }
+
+    /// <summary>
+    /// #606: a surplus creature (every slot taken) settled at its stand-off point is where it should be
+    /// too, and never sent home for that.
+    /// </summary>
+    [Fact]
+    public void Never_Give_Up_While_Standing_At_Its_Stand_Off_Point()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
+        ClaimEverySlot(target);
+        creature.Position.Returns(new Vector3(18.6f, 0f, 0f));
+
+        for (int i = 0; i < 200; i++)
+            script.Update(TimeSpan.FromSeconds(0.1));
+
+        Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
+    }
+
+    /// <summary>
+    /// #606: the limit counts only an unbroken stretch without a route. A tick with a route again (the
+    /// locomotion walking) starts the count over, so the creature keeps fighting.
+    /// </summary>
+    [Fact]
+    public void Keep_Fighting_When_Its_Target_Becomes_Reachable_Again_Before_The_Limit()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
+        creature.Position.Returns(new Vector3(3f, 0f, 0f));
+
+        for (int i = 0; i < 40; i++)
+            script.Update(TimeSpan.FromSeconds(0.1)); // 4 s with no route
+        locomotion.HasArrived(creature).Returns(false);
+        script.Update(TimeSpan.FromSeconds(0.1));      // a route again: walking
+        locomotion.HasArrived(creature).Returns(true);
+        for (int i = 0; i < 40; i++)
+            script.Update(TimeSpan.FromSeconds(0.1)); // another 4 s with no route
+
+        Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
+    }
+
+    /// <summary>
+    /// #606: a fight that starts with the creature exactly at the origin keeps the origin as its home.
+    /// A zero home used to mean "not set", so a later hit moved home to wherever the creature stood.
+    /// </summary>
+    [Fact]
+    public void Return_To_The_Origin_When_The_Fight_Began_There()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f)); // engages at (0, 0, 0)
+        creature.Health = 100;
+        creature.CurrentHealth = 100;
+        creature.Position.Returns(new Vector3(10f, 0f, 0f));
+
+        script.OnHit(target, 10);
+        locomotion.ClearReceivedCalls();
+        KillTarget(target, script);
+
+        locomotion.Received(1).MoveTo(creature, Vector3.zero);
+    }
+
+    /// <summary>
+    /// Owner decision (#606): a creature walking home after the leash or a lost target ignores hits. It
+    /// loses no health, sends no hit and does not turn to fight until it is home and reset.
+    /// </summary>
+    [Fact]
+    public void Ignore_Hits_While_Returning_Home()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildScriptReturningHome(locomotion, home: new Vector3(1f, 0f, 1f));
+        locomotion.HasArrived(creature).Returns(false);
+        ICharacter attacker = Substitute.For<ICharacter>();
+        attacker.Position.Returns(new Vector3(7f, 0f, 6f));
+
+        script.OnHit(attacker, 10);
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        Assert.Equal(100u, creature.CurrentHealth);
+        Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
+        locomotion.DidNotReceiveWithAnyArgs().MoveTo(default!, default);
+    }
+
     private static List<Vector3> SmoothedPath(Vector3 from, Vector3 to)
     {
         const float stepSize = 0.5f;
