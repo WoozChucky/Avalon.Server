@@ -5,54 +5,19 @@ namespace Avalon.World.Characters;
 
 /// <summary>
 /// The one stats calculation (spec #463, closes #434): a class and level's seeded ClassLevelStat
-/// row, plus the stats of the gear worn. Pure. The per-class factors are the ones the old
-/// CharacterStats.GetBase* helpers used, so a character with no gear derives what it did before,
-/// except that health and power now start from the row's BaseHp and BaseMana.
+/// row, its class's ClassStatFactors row (#506, reloaded with the combat area), plus the stats of
+/// the gear worn. Pure.
 /// </summary>
 public static class CharacterStatsCalculator
 {
-    /// <param name="FixedPower">A pool that is always this size whatever the row and gear say (fury).</param>
-    private sealed record ClassFactors(
-        uint HealthPerStamina,
-        double PowerPerIntellect,
-        double PowerPerAgility,
-        uint? FixedPower,
-        float BlockPct,
-        float DodgePct,
-        float CritPct,
-        double AttackPerStrength,
-        double AttackPerAgility,
-        double AbilityPerIntellect);
-
-    private static readonly ClassFactors Warrior = new(10, 0, 0, 100, 5.0f, 3.664f, 5.0f, 2, 0, 0.2);
-    private static readonly ClassFactors Wizard = new(5, 15, 0, null, 0f, 3.25f, 1.85f, 0.5, 0, 3);
-
-    /// <summary>
-    /// 0.8 per agility and 2 per intellect: what the old CharacterStats base-power helper's <c>(agility * 0.8) + (intellect * 0.2) * 10</c>
-    /// computed. Kept as it was; the combat-balance issue asks whether it was meant as <c>(0.8a + 0.2i) * 10</c>.
-    /// </summary>
-    private static readonly ClassFactors Hunter = new(8, 2, 0.8, null, 0f, 4.35f, 5.0f, 0.5, 1.5, 0.5);
-
-    private static readonly ClassFactors Healer = new(7, 12, 0, null, 0f, 3.25f, 1.85f, 0.5, 0, 2);
-    private static readonly ClassFactors Unknown = new(0, 0, 0, 0, 0f, 0f, 0f, 0, 0, 0);
-
-    private static ClassFactors For(CharacterClass @class) => @class switch
-    {
-        CharacterClass.Warrior => Warrior,
-        CharacterClass.Wizard => Wizard,
-        CharacterClass.Hunter => Hunter,
-        CharacterClass.Healer => Healer,
-        _ => Unknown,
-    };
-
     /// <summary>
     /// Where a class factor is fractional, the whole sum of the factored terms is truncated to a
     /// whole number once, not each product on its own: a level-1 Hunter (Strength 21, Agility 23)
     /// attacks for <c>(long)(0.5 x 21 + 1.5 x 23) = 45</c>, where truncating each product would give 44.
     /// </summary>
-    public static DerivedCharacterStats Calculate(ClassLevelStat row, IEnumerable<ItemTemplate> worn)
+    public static DerivedCharacterStats Calculate(ClassLevelStat row, IEnumerable<ItemTemplate> worn,
+        ClassStatFactors factors)
     {
-        ClassFactors factors = For(row.Class);
         GearTotals gear = GearTotals.Of(worn);
 
         long stamina = row.Stamina + gear.Stamina;
@@ -60,7 +25,7 @@ public static class CharacterStatsCalculator
         long agility = row.Agility + gear.Agility;
         long intellect = row.Intellect + gear.Intellect;
 
-        long maxHealth = row.BaseHp + stamina * factors.HealthPerStamina + gear.Health;
+        long maxHealth = row.BaseHp + stamina * factors.HpPerStamina + gear.Health;
         long maxPower = factors.FixedPower is { } fixedPower
             ? fixedPower
             : row.BaseMana
@@ -77,9 +42,9 @@ public static class CharacterStatsCalculator
             Agility: Clamp(agility),
             Intellect: Clamp(intellect),
             Armor: Clamp(gear.Armor),
-            BlockPct: factors.BlockPct + gear.BlockPct,
-            DodgePct: factors.DodgePct + gear.DodgePct,
-            CritPct: factors.CritPct + gear.CritPct,
+            BlockPct: factors.BaseBlock + gear.BlockPct,
+            DodgePct: factors.BaseDodge + gear.DodgePct,
+            CritPct: factors.BaseCrit + gear.CritPct,
             AttackDamage: Clamp(attack),
             AbilityDamage: Clamp(ability));
     }

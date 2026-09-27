@@ -25,11 +25,12 @@ internal sealed record TestStaticDataRepositories(
     ILocalizedTextRepository Texts,
     IDialogueRepository Dialogue,
     ILootTableRepository Loot,
-    IVendorStockRepository? Vendors = null)
+    IVendorStockRepository? Vendors = null,
+    ICombatDataRepository? Combat = null)
 {
     public StaticData ToStaticData() =>
         new(CreateInfos, ClassStats, Items, Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
-            NullLoggerFactory.Instance, Vendors);
+            NullLoggerFactory.Instance, Vendors, Combat);
 }
 
 /// <summary>
@@ -72,7 +73,8 @@ internal static class TestStaticData
         Func<IReadOnlyCollection<DialogueOption>>? options = null,
         Func<IReadOnlyCollection<LocalizedText>>? texts = null,
         ILootTableRepository? loot = null,
-        IVendorStockRepository? vendors = null)
+        IVendorStockRepository? vendors = null,
+        ICombatDataRepository? combat = null)
     {
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
@@ -123,6 +125,6 @@ internal static class TestStaticData
 
         return new TestStaticDataRepositories(createInfos, classStatRepository, itemRepository, abilities,
             levelRepository, creatures, baseStats, rarities, textRepository, dialogue, loot ?? LootRepositories.Empty(),
-            vendors);
+            vendors, combat);
     }
 }

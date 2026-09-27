@@ -61,6 +61,23 @@ public class ReloadCommandShould
     }
 
     [Fact]
+    public async Task Reach_the_combat_area_and_say_it_is_forward_only()
+    {
+        Fixture fixture = Fixture.Build();
+        fixture.Returns(new ReloadOutcome(
+            ReloadArea.Combat, true, "1 formula, 4 class stat factors", TimeSpan.FromMilliseconds(3), null));
+
+        await fixture.Execute("combat");
+
+        Assert.Equal(
+            ["Reloaded combat: 1 formula, 4 class stat factors (3 ms). Affects the next hit; a character's stats change at its next select, gear change or level-up."],
+            fixture.CaptureSentMessages());
+        await fixture.Reloader.Received(1).ReloadAsync(
+            Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(new[] { ReloadArea.Combat })),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Reply_With_A_Spawn_Caveat_When_Creatures_Reload_Successfully()
     {
         Fixture fixture = Fixture.Build();
@@ -163,7 +180,7 @@ public class ReloadCommandShould
         await fixture.Execute(area);
 
         Assert.Equal(
-            ["Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|all>"],
+            ["Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|combat|all>"],
             fixture.CaptureSentMessages());
         await fixture.Reloader.DidNotReceiveWithAnyArgs().ReloadAsync(default!, default);
     }

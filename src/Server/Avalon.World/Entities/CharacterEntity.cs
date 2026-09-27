@@ -105,13 +105,17 @@ public class CharacterEntity : ICharacter
         Health = stats.MaxHealth;
         Power = stats.MaxPower;
 
+        // The maximums as stored, clamped to the row's int (#506): the pools fill to these, never past them.
+        uint maxHealth = Health;
+        uint maxPower = Power ?? 0;
+
         if (current == CurrentValues.KeepShare)
         {
-            CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, stats.MaxHealth);
+            CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, maxHealth);
         }
         else
         {
-            CurrentHealth = stats.MaxHealth;
+            CurrentHealth = maxHealth;
         }
 
         if (PowerType == PowerType.Fury)
@@ -120,18 +124,18 @@ public class CharacterEntity : ICharacter
             // that lowers it. A gear change that leaves it alone must not, or swapping gear quickly
             // enough would stop the decay.
             uint fury = CurrentPower ?? 0;
-            uint kept = current == CurrentValues.EnterWorld ? 0u : Math.Min(fury, stats.MaxPower);
+            uint kept = current == CurrentValues.EnterWorld ? 0u : Math.Min(fury, maxPower);
             if (current == CurrentValues.EnterWorld || kept != fury)
                 _furyDecayRemainder = 0d;
             CurrentPower = kept;
         }
         else if (current == CurrentValues.KeepShare)
         {
-            CurrentPower = CharacterStatsCalculator.KeepShare(CurrentPower ?? 0, oldPower, stats.MaxPower);
+            CurrentPower = CharacterStatsCalculator.KeepShare(CurrentPower ?? 0, oldPower, maxPower);
         }
         else
         {
-            CurrentPower = stats.MaxPower;
+            CurrentPower = maxPower;
         }
 
         Stamina = stats.Stamina;
@@ -254,7 +258,8 @@ public class CharacterEntity : ICharacter
         {
             if (Data != null)
             {
-                Data.Health = (int)value;
+                // #506: the row stores an int, so a gear total past int.MaxValue is clamped, never wrapped negative.
+                Data.Health = (int)Math.Min(value, (uint)int.MaxValue);
                 _dirtyFields |= GameEntityFields.Health;
             }
         }
@@ -287,7 +292,8 @@ public class CharacterEntity : ICharacter
         {
             if (Data != null)
             {
-                Data.Power1 = (int)value!;
+                // #506: clamped to the int the row stores, as Health is.
+                Data.Power1 = (int)Math.Min(value ?? 0u, (uint)int.MaxValue);
                 _dirtyFields |= GameEntityFields.Power;
             }
         }

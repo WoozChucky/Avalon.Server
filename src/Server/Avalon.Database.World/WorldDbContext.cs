@@ -1,6 +1,7 @@
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Enums;
@@ -91,6 +92,8 @@ public class WorldDbContext : DbContext
     public DbSet<LootTableEntry> LootTableEntries { get; set; } = null!;
     public DbSet<VendorStock> VendorStocks { get; set; } = null!;
     public DbSet<VendorStockCost> VendorStockCosts { get; set; } = null!;
+    public DbSet<CombatFormula> CombatFormulas { get; set; } = null!;
+    public DbSet<ClassStatFactors> ClassStatFactors { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -141,6 +144,8 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<LootTableEntry>());
         Configure(modelBuilder.Entity<VendorStock>());
         Configure(modelBuilder.Entity<VendorStockCost>());
+        Configure(modelBuilder.Entity<CombatFormula>());
+        Configure(modelBuilder.Entity<ClassStatFactors>());
 
         modelBuilder.Entity<ChunkPoolMembership>(e =>
         {
@@ -2242,4 +2247,56 @@ public class WorldDbContext : DbContext
         Affects = affects,
         PowerGainPerHit = powerGainPerHit,
     };
+
+    /// <summary>
+    /// The one combat formula row (#506). Every value finite, the multipliers and armour terms 0 or more,
+    /// the armour cap a share (0 to 1), the chance caps percentage points (0 to 100), and the armour
+    /// terms together above 0, so no reduction divides by zero. The upper bound refuses Infinity and
+    /// NaN too, as the other float checks here do.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<CombatFormula> builder)
+    {
+        builder.ToTable("CombatFormula", t =>
+        {
+            t.HasCheckConstraint("CK_CombatFormula_SingleRow", $"\"Id\" = {CombatFormula.SingletonId}");
+            t.HasCheckConstraint("CK_CombatFormula_ArmorBase", Finite("ArmorBase"));
+            t.HasCheckConstraint("CK_CombatFormula_ArmorPerLevel", Finite("ArmorPerLevel"));
+            t.HasCheckConstraint("CK_CombatFormula_ArmorTermsPositive", "\"ArmorBase\" + \"ArmorPerLevel\" > 0");
+            t.HasCheckConstraint("CK_CombatFormula_ArmorCap", "\"ArmorCap\" >= 0 AND \"ArmorCap\" <= 1");
+            t.HasCheckConstraint("CK_CombatFormula_CritMultiplier", Finite("CritMultiplier"));
+            t.HasCheckConstraint("CK_CombatFormula_BlockMultiplier", Finite("BlockMultiplier"));
+            t.HasCheckConstraint("CK_CombatFormula_CritCap", Percentage("CritCap"));
+            t.HasCheckConstraint("CK_CombatFormula_DodgeCap", Percentage("DodgeCap"));
+            t.HasCheckConstraint("CK_CombatFormula_BlockCap", Percentage("BlockCap"));
+        });
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id).ValueGeneratedNever();
+
+        builder.HasData(CombatSeed.Formula());
+    }
+
+    /// <summary>
+    /// One row per class (#506): how its attributes become health, power and damage, and its base block,
+    /// dodge and crit. Every fractional factor finite and 0 or more.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ClassStatFactors> builder)
+    {
+        builder.ToTable("ClassStatFactors", t =>
+        {
+            foreach (string column in new[]
+                     {
+                         "PowerPerIntellect", "PowerPerAgility", "AttackPerStrength", "AttackPerAgility",
+                         "AbilityPerIntellect", "BaseBlock", "BaseDodge", "BaseCrit",
+                     })
+                t.HasCheckConstraint($"CK_ClassStatFactors_{column}", Finite(column));
+        });
+        builder.HasKey(b => b.Class);
+
+        builder.HasData(CombatSeed.ClassFactors());
+    }
+
+    /// <summary>0 or more and below Infinity, which refuses NaN too (Postgres sorts it above every number).</summary>
+    private static string Finite(string column) => $"\"{column}\" >= 0 AND \"{column}\" < 'Infinity'";
+
+    private static string Percentage(string column) => $"\"{column}\" >= 0 AND \"{column}\" <= 100";
 }

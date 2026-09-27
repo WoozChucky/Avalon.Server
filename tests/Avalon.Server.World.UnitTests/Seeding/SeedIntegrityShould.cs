@@ -630,11 +630,12 @@ public class SeedIntegrityShould
 
         List<AbilityTemplate> abilities = context.AbilityTemplates.AsNoTracking().ToList();
         List<ClassLevelStat> levelStats = context.ClassLevelStats.AsNoTracking().ToList();
+        List<ClassStatFactors> factors = context.ClassStatFactors.AsNoTracking().ToList();
 
         foreach ((CharacterClass cls, uint[] ids) in Kit)
         {
             ClassLevelStat levelOne = levelStats.Single(s => s.Class == cls && s.Level == 1);
-            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, []).MaxPower;
+            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], factors.Single(f => f.Class == cls)).MaxPower;
 
             foreach (uint id in ids)
             {

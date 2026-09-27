@@ -60,6 +60,7 @@ public class WorldHostGraphShould
             // Vendors (#432). Both are optional where they are consumed (World, StaticData,
             // DialogueChooseHandler, MapInstance), so only this proves production supplies them.
             Assert.NotNull(host.Services.GetRequiredService<IVendorStockRepository>());
+            Assert.NotNull(host.Services.GetRequiredService<ICombatDataRepository>());
             Assert.IsType<NoQuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
 
             // PvP (#164). MapInstance reads the toggle with GetService, so a missing registration would
