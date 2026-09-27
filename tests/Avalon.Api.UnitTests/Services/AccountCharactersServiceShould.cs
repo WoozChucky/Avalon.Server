@@ -5,7 +5,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -25,6 +25,7 @@ public class AccountCharactersServiceShould
     private readonly IWorldRepositories _perWorld = Substitute.For<IWorldRepositories>();
     private readonly List<WorldEntity> _rows = [];
     private readonly List<ConfiguredWorld> _configured = [];
+    private readonly CapturingLogger _logger = new();
 
     private ICharacterRepository GivenWorld(ushort id, string name, AccountAccessLevel required, bool configured,
         params string[] characters)
@@ -52,7 +53,7 @@ public class AccountCharactersServiceShould
         _authWorlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(_rows);
         WorldDatabases databases = new(_configured);
         foreach (ushort id in unavailable) databases.MarkUnavailable(new WorldId(id));
-        return new AccountCharactersService(_authWorlds, databases, _perWorld, NullLogger<AccountCharactersService>.Instance);
+        return new AccountCharactersService(_authWorlds, databases, _perWorld, _logger);
     }
 
     [Fact]
@@ -100,12 +101,45 @@ public class AccountCharactersServiceShould
     {
         GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
         ICharacterRepository broken = GivenWorld(2, "Asthoria", AccountAccessLevel.Player, configured: true);
-        broken.FindByAccountAsync(Owner, Arg.Any<CancellationToken>()).ThrowsAsync(new NpgsqlException("down"));
+        broken.FindByAccountAsync(Owner, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new NpgsqlException("Failed to connect to Host=secret;Port=5433"));
 
         CharacterListDto list = await Sut().GetAsync(Owner, AccountAccessLevel.Player);
 
         Assert.Equal(["Nym"], list.Characters.Select(c => c.Name));
         Assert.Equal(new ushort[] { 2 }, list.UnavailableWorlds);
+        // A driver's message can carry a host: only the exception's type may reach the log.
+        Assert.NotEmpty(_logger.Entries);
+        Assert.All(_logger.Entries, entry => Assert.DoesNotContain("secret", entry, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.Tournament)]
+    public async Task Hide_an_admin_world_from_a_ptr_or_tournament_caller(AccountAccessLevel caller)
+    {
+        // PTR (32) and Tournament (16) are numerically above Admin (4): the world rule is a mask test.
+        GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
+        GivenWorld(3, "Staff", AccountAccessLevel.Admin, configured: true, "Hidden");
+
+        CharacterListDto list = await Sut(unavailable: 3).GetAsync(Owner, caller);
+
+        Assert.Equal(["Nym"], list.Characters.Select(c => c.Name));
+        Assert.Empty(list.UnavailableWorlds);
+        _perWorld.DidNotReceive().Characters(Arg.Is<WorldId>(w => w.Value == 3));
+    }
+
+    [Fact]
+    public async Task Show_a_ptr_caller_both_a_player_world_and_a_ptr_world()
+    {
+        GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
+        GivenWorld(5, "Test Realm", AccountAccessLevel.PTR, configured: true, "Tess");
+
+        CharacterListDto list = await Sut().GetAsync(Owner, AccountAccessLevel.PTR);
+
+        Assert.Equal(["Nym", "Tess"], list.Characters.Select(c => c.Name));
+        Assert.Equal(new ushort[] { 1, 5 }, list.Characters.Select(c => c.WorldId));
+        Assert.Empty(list.UnavailableWorlds);
     }
 
     [Fact]
@@ -130,5 +164,18 @@ public class AccountCharactersServiceShould
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             Sut().GetAsync(Owner, AccountAccessLevel.Player, cancelled.Token));
+    }
+
+    /// <summary>Every entry as it would be written: the formatted message and any exception attached.</summary>
+    private sealed class CapturingLogger : ILogger<AccountCharactersService>
+    {
+        public List<string> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add(formatter(state, exception) + (exception is null ? "" : " " + exception));
     }
 }
