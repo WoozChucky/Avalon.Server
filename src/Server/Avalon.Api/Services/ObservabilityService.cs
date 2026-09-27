@@ -219,6 +219,15 @@ public class ObservabilityService : IObservabilityService
             return null;
         }
 
+        // A snapshot stamped with another world than its key is not this world's presence (#556).
+        if (snapshot.WorldId != worldId)
+        {
+            _logger.LogDebug(
+                "Ignoring presence snapshot under world {WorldId}'s key: it names world {SnapshotWorldId}",
+                worldId, snapshot.WorldId);
+            return null;
+        }
+
         return snapshot;
     }
 

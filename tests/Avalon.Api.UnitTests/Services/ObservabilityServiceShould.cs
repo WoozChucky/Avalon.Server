@@ -551,6 +551,35 @@ public class ObservabilityServiceShould
     }
 
     [Fact]
+    public async Task Answer_nothing_when_a_worlds_index_entry_names_another_world()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenTwoWorlds(AccountAccessLevel.Player);
+        GivenWorldSnapshot(Snapshot("a", Char(7, "Nym")));
+        _cache.GetAsync(CacheKeys.CharacterPresenceIndex(2, 7))
+            .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(1, InstanceId)));
+
+        Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(2), 7, Gm, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Ignore_a_snapshot_stamped_with_another_world_than_its_key()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenTwoWorlds(AccountAccessLevel.Player);
+        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
+        // World 2's key holds a snapshot stamped world 1.
+        _cache.GetAsync(CacheKeys.WorldPresence(2)).Returns(PresenceJson.Serialize(Snapshot("a", Char(7, "Zed"))));
+        _cache.GetAsync(CacheKeys.CharacterPresenceIndex(2, 7))
+            .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(2, InstanceId)));
+
+        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
+
+        Assert.Equal(["Nym"], page.Items.Select(r => r.Name));
+        Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(2), 7, Gm, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Answer_nothing_for_a_character_online_only_in_another_world()
     {
         ObservabilityService sut = CreateSut();
