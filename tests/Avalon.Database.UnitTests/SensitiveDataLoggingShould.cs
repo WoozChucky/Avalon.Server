@@ -54,6 +54,30 @@ public class SensitiveDataLoggingShould
     public void Be_on_in_development(string context) =>
         Assert.True(SensitiveLogging(context, Environments.Development));
 
+    /// <summary>
+    /// A named configuration (one per world, say) is held to the same rule as the default one:
+    /// whatever it was configured with, only Development leaves it on.
+    /// </summary>
+    [Theory]
+    [InlineData("Production", false)]
+    [InlineData("Staging", false)]
+    [InlineData("Development", true)]
+    public void Hold_a_named_configuration_to_the_environment(string environment, bool expected)
+    {
+        ServiceCollection services = new();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        var host = Substitute.For<IHostEnvironment>();
+        host.EnvironmentName.Returns(environment);
+        services.AddSingleton(host);
+        services.AddAuthDatabase();
+        services.Configure<DatabaseConfiguration>("world-1", c => c.EnableSensitiveDataLogging = true);
+
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Assert.Equal(expected,
+            provider.GetRequiredService<IOptionsMonitor<DatabaseConfiguration>>().Get("world-1").EnableSensitiveDataLogging);
+    }
+
     /// <summary>What the design-time factories hand the constructor: a configuration with only connection strings.</summary>
     [Fact]
     public void Be_off_for_a_context_built_from_a_default_configuration()

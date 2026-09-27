@@ -11,9 +11,12 @@ public static class ServiceCollectionExtensions
         string configurationSection = "Database")
     {
         services.AddOptions<DatabaseConfiguration>()
-            .BindConfiguration(configurationSection)
-            .PostConfigure<IServiceProvider>((options, provider) =>
-                options.EnableSensitiveDataLogging = SensitiveDataLoggingAllowed(provider.GetService<IHostEnvironment>()));
+            .BindConfiguration(configurationSection);
+
+        // Every instance, named ones included (a per-world configuration, say): a null name is all.
+        services.AddSingleton<IPostConfigureOptions<DatabaseConfiguration>>(provider =>
+            new PostConfigureOptions<DatabaseConfiguration>(null, options =>
+                options.EnableSensitiveDataLogging = SensitiveDataLoggingAllowed(provider.GetService<IHostEnvironment>())));
 
         return services;
     }

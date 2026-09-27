@@ -30,13 +30,13 @@ public class ApiEfLoggingShould
         Assert.True(logger.IsEnabled(LogLevel.Warning));
     }
 
-    /// <summary>Command logging can still be raised through configuration, for Development.</summary>
+    /// <summary>Serilog's EF rule can still be raised through configuration, for Development.</summary>
     [Fact]
     public async Task Let_configuration_raise_the_command_log_again()
     {
         await using WebApplication app = Build(
         [
-            $"--Logging:LogLevel:{CommandCategory}=Information",
+            $"--Logging:Serilog:LogLevel:{CommandCategory}=Information",
             $"--Serilog:MinimumLevel:Override:{CommandCategory}=Information",
         ]);
         ILogger logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(CommandCategory);

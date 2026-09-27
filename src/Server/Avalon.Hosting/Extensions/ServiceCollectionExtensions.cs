@@ -19,6 +19,12 @@ public static class ServiceCollectionExtensions
     /// <summary>Every EF Core category, <c>Database.Command</c> included, starts with this.</summary>
     public const string EntityFrameworkCategory = "Microsoft.EntityFrameworkCore";
 
+    /// <summary>
+    /// The logging providers the hosts register, by the alias configuration names them with:
+    /// Serilog (<see cref="AddCustomLogging"/>) and the OpenTelemetry log exporter.
+    /// </summary>
+    private static readonly string[] NamedLoggingProviders = ["Serilog", "OpenTelemetry"];
+
     private const string MESSAGE_TEMPLATE =
         "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
 
@@ -139,10 +145,19 @@ public static class ServiceCollectionExtensions
 
         // The same floor for every provider, not only Serilog (#558): the OpenTelemetry log
         // exporter the auth and world servers add after this is a provider of its own, which
-        // Serilog's overrides never reach. Inserted first, so any Logging:LogLevel rule for the
-        // category, read from configuration, still wins it (for Development).
-        services.Configure<LoggerFilterOptions>(options => options.Rules.Insert(0,
-            new LoggerFilterRule(null, EntityFrameworkCategory, LogLevel.Warning, null)));
+        // Serilog's overrides never reach. A rule naming a provider beats every general rule
+        // whatever its category, so Logging:OpenTelemetry:LogLevel:Default would lift the general
+        // floor for that provider; each provider the hosts register gets the floor by name too.
+        // Inserted first, so a rule for the category from configuration still wins it, per
+        // provider (Logging:Serilog:LogLevel, Logging:OpenTelemetry:LogLevel), for Development.
+        services.Configure<LoggerFilterOptions>(options =>
+        {
+            options.Rules.Insert(0, new LoggerFilterRule(null, EntityFrameworkCategory, LogLevel.Warning, null));
+            foreach (string provider in NamedLoggingProviders)
+            {
+                options.Rules.Insert(0, new LoggerFilterRule(provider, EntityFrameworkCategory, LogLevel.Warning, null));
+            }
+        });
         return services;
     }
 }

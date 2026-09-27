@@ -407,13 +407,17 @@ Two rules hold in the API, the auth server and the world server (#558):
   factories used by `dotnet ef`, get it off.
 - **Every `Microsoft.EntityFrameworkCore` category logs at Warning and above**, for every logging
   provider: Serilog (a minimum-level override in `AddCustomLogging`) and any other, such as the
-  OpenTelemetry log exporter (a `Microsoft.Extensions.Logging` filter rule). To see the command
-  log again in Development, raise the category in both places, for example in an
-  `appsettings.Development.json` next to the host:
+  OpenTelemetry log exporter (a `Microsoft.Extensions.Logging` filter rule, general and again by
+  provider name for `Serilog` and `OpenTelemetry`, so a provider's own `Default` level cannot lift
+  it). To see the command log again in Development, raise the category per provider, and in
+  Serilog, for example in an `appsettings.Development.json` next to the host:
 
 ```json
 {
-    "Logging": { "LogLevel": { "Microsoft.EntityFrameworkCore.Database.Command": "Information" } },
+    "Logging": {
+        "Serilog": { "LogLevel": { "Microsoft.EntityFrameworkCore.Database.Command": "Information" } },
+        "OpenTelemetry": { "LogLevel": { "Microsoft.EntityFrameworkCore.Database.Command": "Information" } }
+    },
     "Serilog": { "MinimumLevel": { "Override": { "Microsoft.EntityFrameworkCore.Database.Command": "Information" } } }
 }
 ```
