@@ -6,3 +6,6 @@ schema/corpus/*.txt text eol=lf
 schema/crypto/*.txt text eol=lf
 schema/vectors/*.txt text eol=lf
 schema/items/*.json text eol=lf
+
+# CI scripts run under bash on Linux runners and locally in Git Bash; a CR breaks them.
+tools/ci/*.sh text eol=lf
