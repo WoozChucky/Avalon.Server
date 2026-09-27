@@ -178,8 +178,9 @@ public class ServerBaseShould
 
     private sealed class ProbeServer : ServerBase<ProbeConnection>
     {
-        public ProbeServer(IServiceProvider services, IOptions<HostingConfiguration> opts)
-            : base(Substitute.For<IPacketManager>(), NullLogger.Instance, services, opts) { }
+        public ProbeServer(IServiceProvider services, IOptions<HostingConfiguration> opts,
+            IPacketManager? packets = null, Microsoft.Extensions.Logging.ILogger? logger = null)
+            : base(packets ?? Substitute.For<IPacketManager>(), logger ?? NullLogger.Instance, services, opts) { }
 
         public int ConnectionCount => Connections.Count;
 
@@ -342,6 +343,72 @@ public class ServerBaseShould
         await Assert.ThrowsAsync<SocketException>(() => client.ConnectAsync(IPAddress.Loopback, port));
         await Task.Delay(TimeSpan.FromMilliseconds(100));
         Assert.Equal(0, probe.Constructed);
+    }
+
+    // ── Packets against a stop (#578) ───────────────────────────────────────
+
+    /// <summary>What the handler saw of the token ServerBase handed it.</summary>
+    private sealed class PacketProbe
+    {
+        public ManualResetEventSlim? Gate { get; set; }
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public ConcurrentQueue<bool> TokensCancelled { get; } = new();
+    }
+
+    private sealed class TokenProbeHandler(PacketProbe probe) : IPacketHandlerNew
+    {
+        public Task ExecuteAsync(object context, CancellationToken token)
+        {
+            probe.Entered.TrySetResult();
+            probe.Gate?.Wait(TimeSpan.FromSeconds(10));
+            // A handler registers on the token, as a cancellable await does.
+            using CancellationTokenRegistration _ = token.Register(static () => { });
+            probe.TokensCancelled.Enqueue(token.IsCancellationRequested);
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// #578 review: a packet dispatched while the server stops, or after, used to read the stopping
+    /// token from a disposed source; the ObjectDisposedException was logged as a handler failure and
+    /// closed the connection. The handler now runs, with a cancelled token.
+    /// </summary>
+    [Fact]
+    public async Task Dispatch_a_packet_that_arrives_while_or_after_the_server_stops()
+    {
+        using var watchdog = new EscapeWatchdog();
+        using var gate = new ManualResetEventSlim(false);
+        var packetProbe = new PacketProbe { Gate = gate };
+        var packets = Substitute.For<IPacketManager>();
+        packets.TryGetPacketInfo(Arg.Any<NetworkPacketType>(), out Arg.Any<PacketInfo>())
+            .Returns(call =>
+            {
+                call[1] = new PacketInfo(typeof(Packet), typeof(TokenProbeHandler));
+                return true;
+            });
+        var logger = new CapturingLogger();
+        ushort port = GetFreePort();
+        await using ServiceProvider services = new ServiceCollection().AddSingleton(packetProbe).BuildServiceProvider();
+        var server = new ProbeServer(services,
+            Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = port }), packets, logger);
+        var connection = Substitute.For<IConnection>();
+        var header = new NetworkPacketHeader { Type = NetworkPacketType.CMSG_PONG };
+
+        await server.StartAsync(CancellationToken.None);
+        // On its own thread: the handler blocks inside its dispatch until the stop has finished.
+        Task during = Task.Run(() => server.CallListener(connection, header, null));
+        await packetProbe.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await server.StopAsync(CancellationToken.None);
+        gate.Set();
+        await during.WaitAsync(TimeSpan.FromSeconds(5));
+
+        packetProbe.Gate = null;
+        await server.CallListener(connection, header, null).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal([true, true], packetProbe.TokensCancelled);
+        Assert.Equal(0, logger.Count(Microsoft.Extensions.Logging.LogLevel.Error));
+        connection.DidNotReceiveWithAnyArgs().Close();
+        Assert.Empty(watchdog.Escaped);
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition)

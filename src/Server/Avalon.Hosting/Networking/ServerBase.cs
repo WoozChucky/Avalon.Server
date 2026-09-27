@@ -61,6 +61,11 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     private readonly List<Func<IConnection, bool>> _connectionListeners = new();
     private readonly Stopwatch _serverTimer = new();
     private readonly CancellationTokenSource _stoppingToken = new();
+
+    // Read once, while the source is alive (#578): its Token getter throws once StopAsync has
+    // disposed the source, and a packet can still be dispatched then. The captured token stays
+    // usable, and cancelled, after the dispose.
+    private readonly CancellationToken _connectionsStopping;
     private readonly IServiceProvider _serviceProvider;
 
     // The accept loop (#578): cancelled first thing in StopAsync, before the listener stops.
@@ -74,6 +79,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _connectionsStopping = _stoppingToken.Token;
         PacketManager = packetManager;
         PacketTelemetry = packetTelemetry ?? PacketDispatchTelemetry.Disabled;
         Port = hostingOptions.Value.Port;
@@ -233,7 +239,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             await using var scope = _serviceProvider.CreateAsyncScope();
 
             var packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
-            await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _stoppingToken.Token).ConfigureAwait(false);
+            await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _connectionsStopping).ConfigureAwait(false);
         }
         catch (Exception e)
         {
@@ -260,7 +266,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
                 return;
 
             Listener.Start();
-            _acceptLoop = AcceptLoopAsync(_acceptStopping.Token, _stoppingToken.Token);
+            _acceptLoop = AcceptLoopAsync(_acceptStopping.Token, _connectionsStopping);
         }
     }
 
@@ -275,7 +281,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
         Listener.Stop();
         // The loop never faults. Awaited so every client it accepted is registered before the
-        // shutdown closes Connections, and none starts after _stoppingToken is disposed.
+        // shutdown closes Connections.
         if (acceptLoop is not null)
             await acceptLoop.ConfigureAwait(false);
 
