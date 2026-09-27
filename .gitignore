@@ -99,3 +99,6 @@ docs/api/openapi.json
 
 # dotnet publish output the Dockerfiles copy (see dotnet-release.yml)
 out/
+
+# dotnet test --logger trx output (#572)
+TestResults/
