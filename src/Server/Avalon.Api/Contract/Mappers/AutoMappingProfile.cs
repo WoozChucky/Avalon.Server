@@ -41,4 +41,13 @@ public static class MappingExtensions
         CreationDate = character.CreationDate,
         DeleteDate = character.DeleteDate,
     };
+
+    /// <summary>A character with the world it lives on (#523).</summary>
+    public static CharacterDto ToDto(this Character character, ushort worldId, string worldName)
+    {
+        CharacterDto dto = character.ToDto();
+        dto.WorldId = worldId;
+        dto.WorldName = worldName;
+        return dto;
+    }
 }

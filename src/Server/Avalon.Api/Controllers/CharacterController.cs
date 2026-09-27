@@ -27,16 +27,6 @@ public class CharacterController : BaseController
         _authz = authz;
     }
 
-    [HttpGet(Name = "GetCharacters")]
-    public async Task<IList<CharacterDto>> GetAll(CancellationToken ct)
-    {
-        var accountId = _authContext.Account?.Id
-            ?? throw new InvalidOperationException("Account not loaded");
-
-        var characters = await _service.GetAllCharactersAsync(accountId, ct);
-        return characters.Select(c => c.ToDto()).ToList();
-    }
-
     [Authorize(Policy = AvalonRoles.GameMaster)]
     [HttpGet("paginate", Name = "PaginateCharacters")]
     [ProducesResponseType(typeof(PagedResult<CharacterDto>), 200)]

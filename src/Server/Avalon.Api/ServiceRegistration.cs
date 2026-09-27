@@ -49,6 +49,7 @@ public static class ServiceRegistration
 
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
+        services.AddScoped<IAccountCharactersService, AccountCharactersService>();
         services.AddScoped<IWorldService, WorldService>();
         services.AddScoped<IMapService, MapService>();
         services.AddScoped<IProceduralLayoutInputsResolver, ProceduralLayoutInputsResolver>();
