@@ -14,6 +14,7 @@ namespace Avalon.Api.Controllers;
 /// Reads only the presence snapshots world servers publish to Redis. It never talks to a
 /// world server directly, so it adds no inbound surface to the game servers and returns
 /// nothing at all when a world is down (rather than presenting stale data as live).
+/// Only worlds the caller may enter are shown (#523).
 /// </summary>
 [Authorize(Policy = AvalonRoles.GameMaster)]
 [ApiController]
@@ -28,7 +29,7 @@ public class ObservabilityController : BaseController
     [ProducesResponseType(typeof(PagedResult<OnlinePlayerDto>), StatusCodes.Status200OK)]
     public Task<PagedResult<OnlinePlayerDto>> GetOnline(
         [FromQuery] PresencePaginateFilters filters, CancellationToken ct)
-        => _service.GetOnlineAsync(filters, ct);
+        => _service.GetOnlineAsync(filters, User.AccessLevel(), ct);
 
     /// <summary>
     /// 404 means "not currently in a world" — which is a different answer from
@@ -40,7 +41,7 @@ public class ObservabilityController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPlayerPresence([FromRoute] uint id, CancellationToken ct)
     {
-        PlayerPresenceDto? presence = await _service.GetPlayerPresenceAsync(id, ct);
+        PlayerPresenceDto? presence = await _service.GetPlayerPresenceAsync(id, User.AccessLevel(), ct);
         return presence is null ? NotFound() : Ok(presence);
     }
 
@@ -49,7 +50,7 @@ public class ObservabilityController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetInstancePresence([FromRoute] Guid instanceId, CancellationToken ct)
     {
-        InstancePresenceDto? instance = await _service.GetInstancePresenceAsync(instanceId, ct);
+        InstancePresenceDto? instance = await _service.GetInstancePresenceAsync(instanceId, User.AccessLevel(), ct);
         return instance is null ? NotFound() : Ok(instance);
     }
 }

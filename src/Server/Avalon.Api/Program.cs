@@ -5,6 +5,7 @@ using Avalon.Api.Config;
 using Avalon.Api.Converters;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
+using Avalon.Api.Worlds;
 using Avalon.Hosting;
 using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
@@ -122,6 +123,11 @@ app.MapDefaultEndpoints();
     );
 
     app.UseAuthentication();
+
+    // /world/{worldId}/... only (#523): 404 for a world this api does not serve or the caller may
+    // not enter, 503 for one whose databases failed at startup. Before authorization, so an unknown
+    // world is a 404 whatever the endpoint's role policy.
+    app.UseMiddleware<WorldRouteMiddleware>();
 
     app.UseAuthorization();
 

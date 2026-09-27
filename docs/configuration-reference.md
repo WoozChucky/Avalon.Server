@@ -14,7 +14,7 @@ Avalon uses strongly-typed configuration classes bound from `appsettings.json` (
 
 | Class                     | Namespace                    | Bound from                   |
 |---------------------------|------------------------------|------------------------------|
-| `DatabaseConfiguration`   | `Avalon.Configuration`       | `ConnectionStrings:*`        |
+| `DatabaseConfiguration`   | `Avalon.Configuration`       | `Database:*` (the REST API: `Database:Auth` and `Database:Worlds`) |
 | `CacheConfiguration`      | `Avalon.Configuration`       | `Cache:*`                    |
 | `AuthenticationConfig`    | `Avalon.Api.Config`          | `Application:Authentication:*` (REST API) |
 | `HostingConfiguration`    | `Avalon.Configuration`       | `Hosting:*`                  |
@@ -187,6 +187,44 @@ character stat scaling exist to compensate.
 `MeleeSlotRadius` **must not exceed the creature attack range** (`CreatureCombatScript.AttackRange`, currently `1.5`). Set it higher and creatures walk to their slot, arrive, and stand outside attack range dealing no damage. The range attribute permits it, so the World server logs a warning at instance construction naming both values.
 
 The slot count is bounded by the ring's circumference. At radius `1.5` there are about `9.42` units of ring; with a `1.2` agent diameter (twice the default `CreatureAgentRadius`), six slots leave `1.57` between adjacent centres, while eight leave `1.18` — narrower than one creature.
+
+---
+
+## REST API Worlds
+
+The API serves any number of worlds, one per `Worlds` row in the auth database (#523). Each world has its own world database (content) and characters database; only the auth database and Redis are shared. Adding a world is a configuration change only. The world servers are unchanged: each serves one world, from its own `Database:World` and `Database:Characters`.
+
+| Key | Description |
+|-----|-------------|
+| `Database:Auth:ConnectionString` | The shared auth database |
+| `Database:Worlds:<id>:World:ConnectionString` | World `<id>`'s content database |
+| `Database:Worlds:<id>:Characters:ConnectionString` | World `<id>`'s characters database |
+
+`<id>` is the world's id in the auth `Worlds` table. The environment form is `Database__Worlds__2__World__ConnectionString`.
+
+```json
+"Database": {
+  "Auth": { "ConnectionString": "…" },
+  "Worlds": {
+    "1": { "World": { "ConnectionString": "…" }, "Characters": { "ConnectionString": "…" } },
+    "2": { "World": { "ConnectionString": "…" }, "Characters": { "ConnectionString": "…" } }
+  }
+}
+```
+
+**Startup refuses to run**, naming the setting (never its value), when there is no world, a world id is not a positive integer up to 65535 written without leading zeros or sign, a world has only one of its two strings, or a string is blank. The check runs right after the other startup validations (see [Startup Validation](#startup-validation)), before any migration. It is not an options validation, so OpenAPI generation, which skips that startup work, needs no world configured.
+
+**At startup** the API migrates the auth database (a failure stops it), then each world's two databases. A world whose migration fails is logged with its id and the exception type and answers 503 until the next restart; the other worlds serve. There is no retry. Every unreachable world adds the driver's connect timeout to startup.
+
+**Routes:** world content and characters are under `/world/{worldId}/...`. A world this API is not configured for, or that the caller may not enter, answers 404 (the same 404 either way); an unavailable world answers 503. `GET /character` lists the caller's characters on every world, with `unavailableWorlds`; `GET /world` says for each world whether it is `configured` and `available`. Character ids are unique only within one world, so a consumer keys a character by `(worldId, id)`; the Redis presence keys are not per world yet (#556).
+
+**Helm:** a `worlds` map, keyed by world id.
+
+- Chart-managed Secret (no `existingSecret`): give `worlds.<id>.world.connectionString` and `worlds.<id>.characters.connectionString`, from files (`--set-file`). The chart's Secret holds them under `database-world-<id>-connection-string` and `database-characters-<id>-connection-string`.
+- `existingSecret`: give no strings. Your Secret holds each world's two keys, under those default names or the names you set in `worlds.<id>.worldKey` / `worlds.<id>.charactersKey` (custom names are accepted only with `existingSecret`). A world with no custom names is still listed, for example `--set worlds.2.worldKey=`. Add the keys to the Secret before upgrading.
+- The chart refuses to render with no world, a world id the API would refuse, a world missing one of its strings (chart-managed), a string given inline with `existingSecret`, a key that is not a valid Secret key name, a key two settings would read (the chart's own keys included), and the removed `database.world` / `database.characters` values.
+
+The API's `appsettings.json` lists no world, so the published image ships none. Local development gets world 1 (the docker compose databases) from `appsettings.Development.json`, which only the Development environment loads, and the Aspire AppHost sets the same pair. Every other environment has exactly the worlds its environment variables or Helm values give it, and the API refuses to start with none.
 
 ---
 
@@ -406,11 +444,14 @@ These configuration classes (`GameConfiguration`, `RegenConfiguration`,
 .ValidateOnStart()
 ```
 
-`DatabaseConfiguration` is validated at startup too, in the auth and world servers, but by
-`DatabaseConnectionsValidation` (`ValidateDatabasesOnStart` in `Avalon.Database`) rather than by
-annotations, because the databases a host needs differ: the auth server needs
-`Database:Auth:ConnectionString`, the world server that and `Database:Characters:ConnectionString`
-and `Database:World:ConnectionString`. The message names the missing setting.
+`DatabaseConfiguration` is validated at startup too, but by `DatabaseConnectionsValidation`
+(`ValidateDatabasesOnStart` in `Avalon.Database`) rather than by annotations, because the databases a
+host needs differ: the auth server needs `Database:Auth:ConnectionString`, the world server that and
+`Database:Characters:ConnectionString` and `Database:World:ConnectionString`, and the REST API
+`Database:Auth:ConnectionString`. The API then checks `Database:Worlds` right after these checks, in
+`ApiStartup` (`WorldDatabaseSettings`, see [REST API Worlds](#rest-api-worlds)), rather than as an
+options validation, because OpenAPI generation starts the host with no world configured. The message
+names the missing or malformed setting.
 
 This causes the application to throw an `OptionsValidationException` at startup rather than at runtime when the missing/invalid value is first accessed.
 

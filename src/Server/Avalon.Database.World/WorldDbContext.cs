@@ -15,51 +15,32 @@ using Microsoft.Extensions.Options;
 
 namespace Avalon.Database.World;
 
-public sealed class CharacterDbContextFactory : IDesignTimeDbContextFactory<WorldDbContext>
+/// <summary>
+/// What dotnet ef builds a <see cref="WorldDbContext"/> with. Reads Database:World:ConnectionString
+/// from the environment (Database__World__ConnectionString) or this project's user-secrets only,
+/// and refuses without it (#523). Commands that only build the model (migrations add,
+/// has-pending-model-changes) never connect, so a placeholder pointing nowhere is enough for them.
+/// </summary>
+public sealed class WorldDbContextDesignTimeFactory : IDesignTimeDbContextFactory<WorldDbContext>
 {
-    public WorldDbContext CreateDbContext(string[] args)
+    public WorldDbContext CreateDbContext(string[] args) =>
+        CreateDbContext(DesignTimeConnectionString.Sources(typeof(WorldDbContext).Assembly));
+
+    /// <summary>The same, from a configuration the caller built; what the tests use.</summary>
+    public WorldDbContext CreateDbContext(IConfiguration configuration)
     {
-        // 1) Load a deterministic, design-time configuration
-        //    Priority: appsettings.Design.json (repo-local), then environment variables, then appsettings.json if present.
-        string basePath = Directory.GetCurrentDirectory(); // root where you run dotnet ef
-        IConfigurationRoot configuration = new ConfigurationBuilder()
-            .SetBasePath(basePath)
-            .AddJsonFile("appsettings.Design.json", true)
-            .AddJsonFile("appsettings.json", true) // optional convenience
-            .AddEnvironmentVariables()
-            .Build();
+        string connectionString = DesignTimeConnectionString.Require(configuration, "World");
 
-        // 2) Resolve strongly-typed configuration the same way runtime does
-        DatabaseConfiguration dbConfig = new();
-        configuration.GetSection("Database").Bind(dbConfig);
-
-        string worldConn = dbConfig.World?.ConnectionString
-                           ?? configuration["Database:World:ConnectionString"]
-                           ?? throw new InvalidOperationException(
-                               "World connection string not found for design time. " +
-                               "Provide Database:World:ConnectionString in appsettings.Design.json or Database__World__ConnectionString env var.");
-
-        // 3) Minimal logger factory (keeps parity with your OnConfiguring)
         ILoggerFactory loggerFactory = LoggerFactory.Create(b =>
         {
             b.SetMinimumLevel(LogLevel.Information);
             b.AddConsole();
         });
 
-        // 4) Construct the context using public constructor
-        //    context reads opts.Value.World.ConnectionString internally.
-        IOptions<DatabaseConfiguration> opts = Options.Create(new DatabaseConfiguration
+        return new WorldDbContext(loggerFactory, Options.Create(new DatabaseConfiguration
         {
-            World = new DatabaseConnection {ConnectionString = worldConn}
-        });
-
-        WorldDbContext ctx = new(loggerFactory, opts);
-
-        // 5) Mirror OnConfiguring behavior
-        //    Left here just to highlight parity
-        //    ctx.Database.SetCommandTimeout(TimeSpan.FromSeconds(60)); // example tweak if you want
-
-        return ctx;
+            World = new DatabaseConnection { ConnectionString = connectionString },
+        }));
     }
 }
 

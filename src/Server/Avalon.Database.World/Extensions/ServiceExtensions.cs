@@ -10,6 +10,7 @@ namespace Avalon.Database.World.Extensions;
 
 public static class ServiceExtensions
 {
+    /// <summary>The world server's registration: one World database, from Database:World.</summary>
     public static IServiceCollection AddWorldDatabase(this IServiceCollection services, string databaseSection = "Database")
     {
         services.AddAvalonDatabases(databaseSection);
@@ -22,6 +23,17 @@ public static class ServiceExtensions
             var options = provider.GetRequiredService<IOptions<DatabaseConfiguration>>();
             return new DelegateDbContextFactory<WorldDbContext>(() => new WorldDbContext(loggerFactory, options));
         });
+
+        return services.AddWorldRepositories();
+    }
+
+    /// <summary>
+    /// The repositories and the transaction runner, over whatever
+    /// <see cref="IDbContextFactory{WorldDbContext}"/> the host registers: the world server's single
+    /// database, or the api's per-request world (#523).
+    /// </summary>
+    public static IServiceCollection AddWorldRepositories(this IServiceCollection services)
+    {
         services.AddSingleton<IDbTransactionRunner<WorldDbContext>, DbTransactionRunner<WorldDbContext>>();
 
         services
