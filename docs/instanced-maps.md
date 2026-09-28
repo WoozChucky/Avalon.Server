@@ -163,17 +163,23 @@ The cache is keyed by `characterId` (the in-game character id surfaced via `Obje
 
 ## World Update
 
-```csharp
-public void Update(TimeSpan deltaTime)
-{
-    GameTime.UpdateGameTimers(deltaTime);
+`World.Update` advances the game time, applies queued `/reload` patches and any script hot reload, then
+hands every live instance to `InstanceTicker.Tick`, and finally frees expired normal instances
+(`ProcessExpiredInstances(TimeSpan.FromMinutes(15))`).
 
-    foreach (IMapInstance instance in InstanceRegistry.ActiveInstances)
-        instance.Update(deltaTime);
+`InstanceTicker` (#639) ticks each instance on its own:
 
-    InstanceRegistry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
-}
-```
+- **Contained.** An instance whose `Update` throws is logged at Error, and the other instances still
+  tick, as do the flushes the tick loop runs after the world update. Before, the exception left
+  `World.Update`: every instance after the broken one went unticked, and so did that tick's inventory,
+  sheet and outbox flushes and continuations. The instance stays live and is ticked again next tick.
+  One that keeps throwing is logged at most once per 10 s (`InstanceTicker.FailureLogInterval`), with
+  how many throws were left out since.
+- **Timed.** Each update is recorded in `world.instance.update.duration` (microseconds) and each throw
+  counted in `world.instance.update.failures`, both on the World meter and tagged `map.type` (`Town` or
+  `Normal`; never the instance id, which would make the series unbounded). This separates the cost of
+  one busy instance, such as a crowded town, from the cost of many, which is the measurement #639 needs
+  before ticking instances in parallel.
 
 Town instances are pre-created at startup via `World.LoadAsync` (iterates `MapTemplate`s with `MapType == Town` and calls `GetOrCreateTownInstanceAsync` for each). Normal map instances are spawned on demand by `EnterMapHandler` and `CharacterSelectHandler`.
 
