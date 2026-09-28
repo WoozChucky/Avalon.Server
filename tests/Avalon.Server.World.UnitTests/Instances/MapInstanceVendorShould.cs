@@ -360,23 +360,4 @@ public class MapInstanceVendorShould
         Assert.Equal(1, shopping.Sent);
         Assert.Equal(0, browsing.Sent);
     }
-
-    /// <summary>Only what building an instance and running the vendor pass read.</summary>
-    private sealed class QuietWorld(StaticData data) : IWorld
-    {
-        public StaticData Data { get; } = data;
-        public GameConfiguration Configuration { get; } = new();
-        public IReadOnlyList<MapTemplate> MapTemplates { get; } = [];
-
-        public Avalon.Domain.Auth.WorldId Id => throw new NotSupportedException();
-        public string MinVersion => throw new NotSupportedException();
-        public string CurrentVersion => throw new NotSupportedException();
-        public GameTime Time => throw new NotSupportedException();
-        public IInstanceRegistry InstanceRegistry => throw new NotSupportedException();
-        public void SpawnInInstance(IWorldConnection connection, IMapInstance instance) => throw new NotSupportedException();
-        public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance) => throw new NotSupportedException();
-        public Task DeSpawnPlayerAsync(IWorldConnection connection) => throw new NotSupportedException();
-        public Task LoadAsync(CancellationToken token) => throw new NotSupportedException();
-        public void Update(TimeSpan deltaTime) => throw new NotSupportedException();
-    }
 }

@@ -46,10 +46,17 @@ public class SInstanceStateRemovePacket : Packet
 
     [ProtoMember(1)] public List<ulong> Removes { get; set; }
 
-    public static NetworkPacket Create(IEnumerable<ObjectGuid> removes, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SInstanceStateRemovePacket { Removes = removes.Select(r => r.RawValue).ToList() },
+    public static NetworkPacket Create(IReadOnlyList<ObjectGuid> removes, EncryptFunc encryptFunc)
+    {
+        // Sized and indexed rather than built by LINQ, which added an iterator to every remove (#640).
+        var ids = new List<ulong>(removes.Count);
+        for (int i = 0; i < removes.Count; i++)
+            ids.Add(removes[i].RawValue);
+
+        return PacketSerializationHelper.Serialize(
+            new SInstanceStateRemovePacket { Removes = ids },
             PacketType, Flags, Protocol, encryptFunc);
+    }
 }
 
 public enum MoveState

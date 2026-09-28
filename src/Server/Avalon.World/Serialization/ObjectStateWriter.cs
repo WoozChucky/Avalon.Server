@@ -21,6 +21,10 @@ namespace Avalon.World.Serialization;
 ///
 /// Which overload applies is decided by the static type of the entity, exactly as the call
 /// sites already decide it, so an entity kind gets the members its kind has.
+///
+/// Each overload takes an optional <see cref="ObjectStatePool" />. With one, the messages come from the
+/// pool and are only good until its next reset (#640); without, they are new. The members set are the
+/// same either way.
 /// </remarks>
 public static class ObjectStateWriter
 {
@@ -28,26 +32,27 @@ public static class ObjectStateWriter
     /// A world object entering a client's view. Placement is all such an object has, and all
     /// of it is sent whatever is marked changed, because the client has none of it yet.
     /// </summary>
-    public static ObjectState From(IWorldObject worldObject) => new()
+    public static ObjectState From(IWorldObject worldObject, ObjectStatePool? pool = null)
     {
-        Guid = worldObject.Guid.RawValue,
-        Position = Of(worldObject.Position),
-        Velocity = Of(worldObject.Velocity),
-        Orientation = worldObject.Orientation.y,
-    };
+        ObjectState state = New(pool, worldObject.Guid.RawValue);
+        state.Position = Of(pool, worldObject.Position);
+        state.Velocity = Of(pool, worldObject.Velocity);
+        state.Orientation = worldObject.Orientation.y;
+        return state;
+    }
 
-    public static ObjectState From(IWorldObject worldObject, GameEntityFields fields)
+    public static ObjectState From(IWorldObject worldObject, GameEntityFields fields, ObjectStatePool? pool = null)
     {
-        var state = new ObjectState { Guid = worldObject.Guid.RawValue };
+        ObjectState state = New(pool, worldObject.Guid.RawValue);
 
-        AddPlacement(state, worldObject, fields);
+        AddPlacement(state, worldObject, fields, pool);
 
         return state;
     }
 
-    public static ObjectState From(ICreature creature, GameEntityFields fields)
+    public static ObjectState From(ICreature creature, GameEntityFields fields, ObjectStatePool? pool = null)
     {
-        ObjectState state = FromUnit(creature, fields);
+        ObjectState state = FromUnit(creature, fields, pool);
 
         // Both go out whatever is marked changed. A creature's template never changes, and
         // its name is derived from it.
@@ -70,16 +75,16 @@ public static class ObjectStateWriter
         return state;
     }
 
-    public static ObjectState From(ICharacter character, GameEntityFields fields)
+    public static ObjectState From(ICharacter character, GameEntityFields fields, ObjectStatePool? pool = null)
     {
-        ObjectState state = FromUnit(character, fields);
+        ObjectState state = FromUnit(character, fields, pool);
 
-        if (fields.HasFlag(GameEntityFields.Experience))
+        if (Has(fields, GameEntityFields.Experience))
         {
             state.Experience = character.Experience;
         }
 
-        if (fields.HasFlag(GameEntityFields.RequiredExperience))
+        if (Has(fields, GameEntityFields.RequiredExperience))
         {
             state.RequiredExperience = character.RequiredExperience;
         }
@@ -99,28 +104,28 @@ public static class ObjectStateWriter
         return state;
     }
 
-    private static ObjectState FromUnit(IUnit unit, GameEntityFields fields)
+    private static ObjectState FromUnit(IUnit unit, GameEntityFields fields, ObjectStatePool? pool)
     {
-        var state = new ObjectState { Guid = unit.Guid.RawValue };
+        ObjectState state = New(pool, unit.Guid.RawValue);
 
-        AddPlacement(state, unit, fields);
+        AddPlacement(state, unit, fields, pool);
 
-        if (fields.HasFlag(GameEntityFields.MoveState))
+        if (Has(fields, GameEntityFields.MoveState))
         {
             state.MoveState = unit.MoveState;
         }
 
-        if (fields.HasFlag(GameEntityFields.Health))
+        if (Has(fields, GameEntityFields.Health))
         {
             state.Health = unit.Health;
         }
 
-        if (fields.HasFlag(GameEntityFields.CurrentHealth))
+        if (Has(fields, GameEntityFields.CurrentHealth))
         {
             state.CurrentHealth = unit.CurrentHealth;
         }
 
-        if (fields.HasFlag(GameEntityFields.PowerType))
+        if (Has(fields, GameEntityFields.PowerType))
         {
             state.PowerType = unit.PowerType;
 
@@ -129,24 +134,24 @@ public static class ObjectStateWriter
             // an absent one stays absent rather than becoming a zero.
             if (unit.PowerType != PowerType.None)
             {
-                if (fields.HasFlag(GameEntityFields.Power))
+                if (Has(fields, GameEntityFields.Power))
                 {
                     state.Power = unit.Power;
                 }
 
-                if (fields.HasFlag(GameEntityFields.CurrentPower))
+                if (Has(fields, GameEntityFields.CurrentPower))
                 {
                     state.CurrentPower = unit.CurrentPower;
                 }
             }
         }
 
-        if (fields.HasFlag(GameEntityFields.Level))
+        if (Has(fields, GameEntityFields.Level))
         {
             state.Level = unit.Level;
         }
 
-        if (fields.HasFlag(GameEntityFields.IsDead))
+        if (Has(fields, GameEntityFields.IsDead))
         {
             // Only a character has a death state. A creature reports alive, because the
             // selections that ask for this are shared between the two kinds.
@@ -156,24 +161,35 @@ public static class ObjectStateWriter
         return state;
     }
 
-    private static void AddPlacement(ObjectState state, IWorldObject worldObject, GameEntityFields fields)
+    private static void AddPlacement(ObjectState state, IWorldObject worldObject, GameEntityFields fields,
+        ObjectStatePool? pool)
     {
-        if (fields.HasFlag(GameEntityFields.Position))
+        if (Has(fields, GameEntityFields.Position))
         {
-            state.Position = Of(worldObject.Position);
+            state.Position = Of(pool, worldObject.Position);
         }
 
-        if (fields.HasFlag(GameEntityFields.Velocity))
+        if (Has(fields, GameEntityFields.Velocity))
         {
-            state.Velocity = Of(worldObject.Velocity);
+            state.Velocity = Of(pool, worldObject.Velocity);
         }
 
-        if (fields.HasFlag(GameEntityFields.Orientation))
+        if (Has(fields, GameEntityFields.Orientation))
         {
             // Yaw alone. Nothing in the world leans, so the other two angles are not sent.
             state.Orientation = worldObject.Orientation.y;
         }
     }
 
-    private static Vec3 Of(Vector3 vector) => new() { X = vector.x, Y = vector.y, Z = vector.z };
+    /// <summary>
+    /// <see cref="Enum.HasFlag" />, without the boxing it costs in code the JIT has not optimised yet,
+    /// so a broadcast allocates nothing per entity from its first tick (#640).
+    /// </summary>
+    private static bool Has(GameEntityFields fields, GameEntityFields flag) => (fields & flag) == flag;
+
+    private static ObjectState New(ObjectStatePool? pool, ulong guid) =>
+        pool?.State(guid) ?? new ObjectState { Guid = guid };
+
+    private static Vec3 Of(ObjectStatePool? pool, Vector3 vector) =>
+        pool?.Vector(vector) ?? new Vec3 { X = vector.x, Y = vector.y, Z = vector.z };
 }

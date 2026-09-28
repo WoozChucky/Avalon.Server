@@ -64,6 +64,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
     private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
+
+    /// <summary>
+    /// The messages every player's state broadcast describes its view with (#640), reset for each player:
+    /// its packets are serialized as they are created, so the next player can have the messages back.
+    /// </summary>
+    private readonly ObjectStatePool _statePool = new();
     private readonly List<PortalInstance> _portals = new();
 
     /// <summary>This tick's ability objects (projectiles), which the cast system fills and the broadcast reads.</summary>
@@ -831,10 +837,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         state.AddedObjects.Clear();
         state.UpdatedObjects.Clear();
+        _statePool.Reset();
 
-        foreach (ObjectGuid addedObjectGuid in character.CharacterGameState.NewObjects)
+        // Indexed rather than walked with foreach, which boxes an interface's enumerator (#640).
+        IReadOnlyList<ObjectGuid> newObjects = character.CharacterGameState.NewObjects;
+        for (int i = 0; i < newObjects.Count; i++)
         {
-            ObjectState? added = DescribeNewObject(addedObjectGuid, character.Guid);
+            ObjectState? added = DescribeNewObject(newObjects[i], character.Guid);
 
             if (added is not null)
             {
@@ -842,10 +851,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
         }
 
-        foreach ((ObjectGuid Guid, GameEntityFields Fields) updatedObject
-                 in character.CharacterGameState.UpdatedObjects)
+        IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updatedObjects =
+            character.CharacterGameState.UpdatedObjects;
+        for (int i = 0; i < updatedObjects.Count; i++)
         {
-            ObjectState? updated = DescribeUpdatedObject(updatedObject, character.Guid);
+            ObjectState? updated = DescribeUpdatedObject(updatedObjects[i], character.Guid);
 
             if (updated is not null)
             {
@@ -882,16 +892,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     return null;
                 return ObjectStateWriter.From(
                     addedCharacter,
-                    MaskSelfSuppression(GameEntityFields.All, guid, recipientGuid));
+                    MaskSelfSuppression(GameEntityFields.All, guid, recipientGuid),
+                    _statePool);
 
             case ObjectType.Creature:
                 if (!_creatures.TryGetValue(guid, out ICreature? addedCreature))
                     return null;
-                return ObjectStateWriter.From(addedCreature, GameEntityFields.All);
+                return ObjectStateWriter.From(addedCreature, GameEntityFields.All, _statePool);
 
             case ObjectType.SpellProjectile:
                 IWorldObject? addedAbility = _abilityCastSystem.GetAbility(guid);
-                return addedAbility is null ? null : ObjectStateWriter.From(addedAbility);
+                return addedAbility is null ? null : ObjectStateWriter.From(addedAbility, _statePool);
 
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", guid.Type);
@@ -914,18 +925,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     return null;
                 return ObjectStateWriter.From(
                     updatedCharacter,
-                    MaskSelfSuppression(GameEntityFields.CharacterUpdate, updatedObject.Guid, recipientGuid));
+                    MaskSelfSuppression(GameEntityFields.CharacterUpdate, updatedObject.Guid, recipientGuid),
+                    _statePool);
 
             case ObjectType.Creature:
                 if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
                     return null;
-                return ObjectStateWriter.From(updatedCreature, GameEntityFields.CreatureUpdate);
+                return ObjectStateWriter.From(updatedCreature, GameEntityFields.CreatureUpdate, _statePool);
 
             case ObjectType.SpellProjectile:
                 IWorldObject? updatedAbility = _abilityCastSystem.GetAbility(updatedObject.Guid);
                 return updatedAbility is null
                     ? null
-                    : ObjectStateWriter.From(updatedAbility, updatedObject.Fields);
+                    : ObjectStateWriter.From(updatedAbility, updatedObject.Fields, _statePool);
 
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",

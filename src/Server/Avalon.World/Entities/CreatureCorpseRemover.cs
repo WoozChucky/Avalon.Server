@@ -25,7 +25,11 @@ public interface ICorpseRemover
 
 public class CreatureCorpseRemover(ISimulationContext context) : ICorpseRemover
 {
-    private readonly IDictionary<IntervalTimer, ICreature> _removeTimers = new Dictionary<IntervalTimer, ICreature>();
+    // The concrete type, so the tick walks it with its struct enumerator (#640).
+    private readonly Dictionary<IntervalTimer, ICreature> _removeTimers = new();
+
+    /// <summary>This tick's expired timers, reused so a tick allocates nothing (#640).</summary>
+    private readonly List<IntervalTimer> _expired = new();
 
     public void ScheduleRemoval(ICreature creature)
     {
@@ -37,7 +41,7 @@ public class CreatureCorpseRemover(ISimulationContext context) : ICorpseRemover
 
     public void Update(TimeSpan deltaTime)
     {
-        List<IntervalTimer> expired = new();
+        _expired.Clear();
 
         foreach ((IntervalTimer timer, ICreature creature) in _removeTimers)
         {
@@ -52,10 +56,10 @@ public class CreatureCorpseRemover(ISimulationContext context) : ICorpseRemover
             }
 
             context.RemoveCreature(creature);
-            expired.Add(timer);
+            _expired.Add(timer);
         }
 
-        foreach (IntervalTimer timer in expired)
+        foreach (IntervalTimer timer in _expired)
         {
             _removeTimers.Remove(timer);
         }
