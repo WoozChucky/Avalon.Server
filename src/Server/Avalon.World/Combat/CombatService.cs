@@ -100,7 +100,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         float baseDamage = metadata is null
             ? damage
             : HitResolver.AbilityBase(attackerCombat, damage, metadata.ScalingStat, metadata.ScalingCoefficient,
-                metadata.WeaponCoefficient, _random);
+                metadata.BaseDamageCoefficient, _random);
         (uint dealt, HitResult result) =
             HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), baseDamage, formula, _random);
 
@@ -325,7 +325,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         AttackerCombat healerCombat = AttackerOf(healer);
         AbilityMetadata metadata = ability.Metadata;
         float baseHeal = HitResolver.AbilityBase(healerCombat, amount, metadata.ScalingStat, metadata.ScalingCoefficient,
-            metadata.WeaponCoefficient, _random);
+            metadata.BaseDamageCoefficient, _random);
         (amount, HitResult result) = HitResolver.ResolveHeal(healerCombat, baseHeal, formula, _random);
 
         uint before = target.CurrentHealth;

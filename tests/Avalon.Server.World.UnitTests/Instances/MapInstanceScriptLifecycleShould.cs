@@ -181,7 +181,7 @@ public class MapInstanceScriptLifecycleShould
         MapInstanceClient watcher = Join(instance, 541_123);
         (_, AiScript target) = AddCreature(instance, 541_921, new Vector3(0f, 0f, 10f));
         AbilityTemplate broken = SlowProjectile(541);
-        broken.SpellScript = nameof(UpdateThrowingAbilityScript);
+        broken.ScriptName = nameof(UpdateThrowingAbilityScript);
         failing.Character.Spells.Load([AbilityTestData.Game(broken)]);
         other.Character.Spells.Load([AbilityTestData.Game(SlowProjectile(210))]);
 
@@ -217,7 +217,7 @@ public class MapInstanceScriptLifecycleShould
         MapInstanceClient wizard = Join(instance, 541_131);
         MapInstanceClient watcher = Join(instance, 541_132);
         AbilityTemplate broken = AbilityTestData.AimedCircle(542);
-        broken.SpellScript = nameof(PrepareThrowingAbilityScript);
+        broken.ScriptName = nameof(PrepareThrowingAbilityScript);
         broken.CastTime = 100;
         wizard.Character.Spells.Load([
             AbilityTestData.Game(broken),

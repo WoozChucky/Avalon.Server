@@ -2201,7 +2201,7 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_AbilityTemplates_PowerGainPerHit_NonNegative", "\"PowerGainPerHit\" >= 0");
             // #506: a negative coefficient would turn a hit into a heal, a NaN one would make it NaN.
             t.HasCheckConstraint("CK_AbilityTemplates_ScalingCoefficient_NonNegative", Finite("ScalingCoefficient"));
-            t.HasCheckConstraint("CK_AbilityTemplates_WeaponCoefficient_NonNegative", Finite("WeaponCoefficient"));
+            t.HasCheckConstraint("CK_AbilityTemplates_BaseDamageCoefficient_NonNegative", Finite("BaseDamageCoefficient"));
         });
         builder.Property(b => b.Id)
             .HasConversion(
@@ -2242,7 +2242,7 @@ public class WorldDbContext : DbContext
         Effects = affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage,
         EffectValue = value,
         AllowedClasses = [cls],
-        SpellScript = shape switch
+        ScriptName = shape switch
         {
             AbilityShape.Circle => "CircleAbilityScript",
             AbilityShape.Cone => "ConeAbilityScript",
@@ -2262,7 +2262,7 @@ public class WorldDbContext : DbContext
         PowerGainPerHit = powerGainPerHit,
         ScalingStat = scaling,
         ScalingCoefficient = coefficient,
-        WeaponCoefficient = weapon,
+        BaseDamageCoefficient = weapon,
     };
 
     /// <summary>

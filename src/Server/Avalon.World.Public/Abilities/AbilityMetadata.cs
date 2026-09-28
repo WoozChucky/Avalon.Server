@@ -66,8 +66,11 @@ public class AbilityMetadata
     /// <summary>Multiplies the caster's <see cref="ScalingStat" /> into the damage or heal (#506).</summary>
     public float          ScalingCoefficient { get; init; }
 
-    /// <summary>Multiplies a roll of the caster's main-hand weapon into the damage or heal (#506).</summary>
-    public float          WeaponCoefficient  { get; init; }
+    /// <summary>
+    /// Multiplies a roll of the caster's base damage into the damage or heal (#506): a character's main-hand
+    /// weapon, a creature's natural DamageMin..DamageMax (#163).
+    /// </summary>
+    public float          BaseDamageCoefficient { get; init; }
 
     public AbilityMetadata Clone() =>
         new()
@@ -97,6 +100,6 @@ public class AbilityMetadata
             PowerGainPerHit = PowerGainPerHit,
             ScalingStat = ScalingStat,
             ScalingCoefficient = ScalingCoefficient,
-            WeaponCoefficient = WeaponCoefficient,
+            BaseDamageCoefficient = BaseDamageCoefficient,
         };
 }

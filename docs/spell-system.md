@@ -33,7 +33,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `CastTime` | uint | ms | 0 is instant; above 0 the cast waits in the queue first. |
 | `Cooldown` | uint | ms | Time before the skill can be cast again. |
 | `Cost` | uint | power points | Paid from the caster's power pool (see the power rule below). |
-| `SpellScript` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
+| `ScriptName` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
 | `EffectValue` | uint | health points | The base of the damage dealt or health restored per unit affected; the scaling terms below are added to it (#506). |
 | `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
@@ -51,7 +51,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Affects` | `AbilityAffects` | | `Hostile` (0) damages hostile units; `Ally` (1) heals allies. |
 | `ScalingStat` | `ScalingStat` | | `Attack` (0) scales with the caster's AttackDamage, `Ability` (1) with its AbilityDamage (#506). |
 | `ScalingCoefficient` | float | | Multiplies the scaling stat into the base; finite and 0 or more (#506, also a database check). |
-| `WeaponCoefficient` | float | | Multiplies a roll of the caster's main-hand weapon (`DamageMin1..DamageMax1`, inclusive; none with no weapon) into the base; finite and 0 or more (#506). |
+| `BaseDamageCoefficient` | float | | Multiplies a roll of the caster's base damage into the base: a character's main-hand weapon (`DamageMin1..DamageMax1`, inclusive; none with no weapon), a creature's natural `DamageMin..DamageMax` (#163); finite and 0 or more (#506). Was `WeaponCoefficient` until #163. |
 
 **Legacy `Range`.** The `Range` column (`SpellRange`) stays for schema compatibility and is still sent
 in `AbilityInfo.Range`, but no server code reads it: `Reach` replaced it. `AbilityInfo.FacingAngle` is
@@ -140,7 +140,7 @@ refused: its cost and cooldown are spent all the same.
 - **Damage**: a `Hostile` skill calls `CombatService.ApplyDamage(caster, unit, EffectValue, ability)`
   on each hostile unit, with the usual threat, encounter, combat tag, death and invulnerable rules.
   Each unit's hit resolves on its own (#506): `EffectValue + ScalingCoefficient x stat +
-  WeaponCoefficient x weapon roll`, then the unit's dodge, the caster's crit, the unit's block and
+  BaseDamageCoefficient x base damage roll`, then the unit's dodge, the caster's crit, the unit's block and
   its armour, floored with a minimum of 1 (0 on a dodge). See CLAUDE.md's combat-formula bullet.
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
   `min(Health, CurrentHealth + heal)`, the heal being the same base as damage and then a crit roll,

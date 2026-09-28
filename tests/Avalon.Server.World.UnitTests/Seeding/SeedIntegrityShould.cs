@@ -664,7 +664,7 @@ public class SeedIntegrityShould
             AbilityShape.Circle => "CircleAbilityScript",
             AbilityShape.Cone => "ConeAbilityScript",
             _ => "ProjectileAbilityScript",
-        }, a.SpellScript));
+        }, a.ScriptName));
     }
 
     /// <summary>#526: Cleave is the one builder, at 8 per unit damaged; every other ability gains nothing.</summary>
@@ -710,7 +710,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == id);
-        Assert.Equal((stat, scaling, weapon), (ability.ScalingStat, ability.ScalingCoefficient, ability.WeaponCoefficient));
+        Assert.Equal((stat, scaling, weapon), (ability.ScalingStat, ability.ScalingCoefficient, ability.BaseDamageCoefficient));
     }
 
     /// <summary>#506: the starter weapons roll 4-7, the forest weapons 7-11, and the two-handed Thornwood Staff 9-14.</summary>

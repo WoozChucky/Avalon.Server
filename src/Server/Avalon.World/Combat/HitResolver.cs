@@ -28,20 +28,21 @@ public readonly record struct DefenderCombat(uint Armor, float DodgePct, float B
 public static class HitResolver
 {
     /// <summary>
-    /// An ability's base: <c>effectValue + scaling × stat + weaponCoefficient × roll</c>, the stat being
-    /// AttackDamage or AbilityDamage. The weapon is rolled, uniform and inclusive over the main hand's
-    /// range, only when the coefficient is above 0 and a weapon is worn.
+    /// An ability's base: <c>effectValue + scaling × stat + baseDamageCoefficient × roll</c>, the stat being
+    /// AttackDamage or AbilityDamage. The base damage is rolled, uniform and inclusive over the attacker's
+    /// WeaponMin..WeaponMax (a character's main hand, a creature's natural range, #163), only when the
+    /// coefficient is above 0 and the range is above 0.
     /// </summary>
     public static float AbilityBase(in AttackerCombat a, float effectValue, ScalingStat stat, float scaling,
-        float weaponCoefficient, ICombatRandom rng)
+        float baseDamageCoefficient, ICombatRandom rng)
     {
         double statValue = stat == ScalingStat.Ability ? a.AbilityDamage : a.AttackDamage;
         double total = NonNegative(effectValue) + NonNegative(scaling) * statValue;
 
-        if (NonNegative(weaponCoefficient) > 0 && a.WeaponMax > 0)
+        if (NonNegative(baseDamageCoefficient) > 0 && a.WeaponMax > 0)
         {
             long min = Math.Min(a.WeaponMin, a.WeaponMax);
-            total += weaponCoefficient * rng.NextInt64(min, a.WeaponMax);
+            total += baseDamageCoefficient * rng.NextInt64(min, a.WeaponMax);
         }
 
         return (float)total;
