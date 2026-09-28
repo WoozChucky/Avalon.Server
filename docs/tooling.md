@@ -34,25 +34,26 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 | `navmesh` | `schema/vectors/navmesh-v1.txt` | the DotRecast bake and movement queries from the real generator |
 | `item-schema` | `schema/items/item-schema-v1.json` | `ItemTemplate` and its eight enumerations |
 | `item-catalog` | `schema/items/item-catalog-v1.json` | the item template rows — **needs a World database** |
+| `ability-catalog` | `schema/abilities/ability-catalog-v1.json` | every ability row a client names and draws, creatures' included (#163) — **needs a World database** |
 
-`item-catalog` reads its World connection string only from the environment
+`item-catalog` and `ability-catalog` read their World connection string only from the environment
 (`Database__World__ConnectionString`) or from user-secrets for `src/Server/Avalon.Database.World`,
-the sources the `dotnet ef` design-time factories use (#557). It never reads an `appsettings` file,
-so running it from a folder that holds one cannot point it at that file's database. Without a
-string, a call that names it (`all` included) stops before anything is written and says a World
+the sources the `dotnet ef` design-time factories use (#557). Neither reads an `appsettings` file,
+so running one from a folder that holds one cannot point it at that file's database. Without a
+string, a call that names either (`all` included) stops before anything is written and says a World
 database connection is needed.
 
 Two rules the tool keeps, because both failures are silent ones:
 
-- **Every name is resolved before anything is written.** A typo cannot export eight of nine artifacts
+- **Every name is resolved before anything is written.** A typo cannot export nine of ten artifacts
   and report the failure afterwards, leaving a tree nobody asked for.
 - **Everything is written with explicit LF.** These files are hashed as bytes at the other end, so
   a CRLF is not a formatting nit — it is a hash the client cannot reproduce. `.gitattributes` holds
   the same line from the other side.
 
 The exporter is two projects: `Avalon.Exporter.Emitters` holds everything derived from the code
-alone and is what the drift tests reference, and `Avalon.Exporter` adds the CLI and the one export
-that reads a database. The split keeps EF Core and Npgsql out of the shared unit tests, which
+alone and is what the drift tests reference, and `Avalon.Exporter` adds the CLI and the two exports
+that read a database. The split keeps EF Core and Npgsql out of the shared unit tests, which
 reference the emitters only.
 
 Nothing is exported from a transcription. Each artifact runs the server's own type, because a

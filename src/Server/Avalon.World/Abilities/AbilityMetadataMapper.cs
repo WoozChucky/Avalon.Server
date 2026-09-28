@@ -15,7 +15,7 @@ public static class AbilityMetadataMapper
         Range = template.Range,
         Effects = template.Effects,
         EffectValue = template.EffectValue,
-        ScriptName = template.SpellScript,
+        ScriptName = template.ScriptName,
         ThreatMultiplier = template.ThreatMultiplier,
         HealThreatPerHp = template.HealThreatPerHp,
         TauntDurationMs = template.TauntDurationMs,
@@ -33,6 +33,6 @@ public static class AbilityMetadataMapper
         PowerGainPerHit = template.PowerGainPerHit,
         ScalingStat = template.ScalingStat,
         ScalingCoefficient = template.ScalingCoefficient,
-        WeaponCoefficient = template.WeaponCoefficient,
+        BaseDamageCoefficient = template.BaseDamageCoefficient,
     };
 }

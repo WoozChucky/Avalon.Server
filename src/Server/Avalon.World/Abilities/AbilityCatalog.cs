@@ -72,7 +72,7 @@ public sealed class AbilityCatalog
                      // touches, and a hostile's threat list would stop ordering anything.
                      ("ThreatMultiplier", t.ThreatMultiplier), ("HealThreatPerHp", t.HealThreatPerHp),
                      // #506. A negative or NaN coefficient would turn a hit into a heal or a NaN damage.
-                     ("ScalingCoefficient", t.ScalingCoefficient), ("WeaponCoefficient", t.WeaponCoefficient),
+                     ("ScalingCoefficient", t.ScalingCoefficient), ("BaseDamageCoefficient", t.BaseDamageCoefficient),
                  })
         {
             if (!float.IsFinite(value) || value < 0f)
@@ -128,7 +128,7 @@ public sealed class AbilityCatalog
     /// the row's other columns were never checked for.
     /// </summary>
     private static string? ScriptMismatch(AbilityTemplate t, string expected, string shape) =>
-        string.Equals(t.SpellScript, expected, StringComparison.Ordinal)
+        string.Equals(t.ScriptName, expected, StringComparison.Ordinal)
             ? null
-            : $"{shape} must use {expected}, not '{t.SpellScript}'";
+            : $"{shape} must use {expected}, not '{t.ScriptName}'";
 }

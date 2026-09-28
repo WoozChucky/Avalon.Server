@@ -29,7 +29,7 @@ public class AbilityScriptConstructibilityShould
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        return context.AbilityTemplates.AsNoTracking().Select(a => a.SpellScript).Distinct().ToList().Order().ToArray();
+        return context.AbilityTemplates.AsNoTracking().Select(a => a.ScriptName).Distinct().ToList().Order().ToArray();
     }
 
     public static TheoryData<string> SeededScripts() => new(SeededScriptNames());

@@ -117,7 +117,7 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             BaseAttackTime = template.BaseAttackTime,
             HasteCap = hasteCap,
 
-            // Creatures cannot cast, so mana stays out of the derivation entirely.
+            // A creature's casts are free (#163): it has no pool, so mana stays out of the derivation entirely.
             Power = 0,
             CurrentPower = 0
         };

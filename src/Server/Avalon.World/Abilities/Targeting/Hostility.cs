@@ -14,13 +14,17 @@ public static class Hostility
     /// <summary>
     /// A creature is hostile to a player caster unless it is invulnerable. Two players are hostile only
     /// when both are flagged and the map is not a town. Nothing is hostile to itself. A creature caster
-    /// finds nothing hostile: creature casting is #163. A character that is not the World-side entity
-    /// is never hostile, which fails safe.
+    /// (#163) finds every living player hostile, whatever the map: that a hostile creature stands in a town
+    /// at all is the data's decision. Creature on creature is never hostile. A character that is not the
+    /// World-side entity is never hostile, which fails safe.
     /// </summary>
     public static bool IsHostile(IUnit caster, IUnit unit, MapType mapType)
     {
         if (ReferenceEquals(caster, unit) || caster.Guid == unit.Guid)
             return false;
+
+        if (caster is ICreature)
+            return unit is CharacterEntity { IsDead: false };
 
         if (caster is not ICharacter)
             return false;
@@ -36,7 +40,8 @@ public static class Hostility
     }
 
     /// <summary>
-    /// The caster itself, and every player not hostile to it. Creatures are never allies. A character
+    /// The caster itself, and every player not hostile to it. Creatures are never allies, so a creature
+    /// caster's only ally is itself (#163: creature heals on other creatures are out of scope). A character
     /// that is not the World-side entity is never an ally either, as it is never hostile: fails safe.
     /// </summary>
     public static bool IsAlly(IUnit caster, IUnit unit, MapType mapType)

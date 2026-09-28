@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
 using Avalon.World.Combat;
+using Avalon.World.Creatures;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
@@ -96,8 +97,18 @@ public class Creature : ICreature
     /// <summary>Seconds between swings: BaseAttackTime divided by 1 + haste / 100, haste at most the cap.</summary>
     public float SwingInterval => Haste.Scale(BaseAttackTime, MathF.Min(HastePct, HasteCap));
 
-    /// <summary>What this creature attacks with (#506): its level and crit; no weapon and no damage stats.</summary>
-    internal AttackerCombat Combat => new(Level, 0, 0, CritPct, 0, 0);
+    /// <summary>
+    /// What this creature attacks with (#506): its level, its crit, and its natural damage range in place of a
+    /// weapon (#163), which an ability's BaseDamageCoefficient rolls. No damage stats: AttackDamage and
+    /// AbilityDamage are 0.
+    /// </summary>
+    internal AttackerCombat Combat => new(Level, 0, 0, CritPct, DamageMin, DamageMax);
+
+    /// <summary>
+    /// The abilities this creature fights with (#163), loaded by its script when it attaches. World-side,
+    /// deliberately not on ICreature: the modding API cannot give a creature abilities or read its cast state (#622).
+    /// </summary>
+    public CreatureAbilities Abilities { get; } = new();
 
     /// <summary>What this creature defends with (#506).</summary>
     internal DefenderCombat Defence => new(Armor, DodgePct, BlockPct);

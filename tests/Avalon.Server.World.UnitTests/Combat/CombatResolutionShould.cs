@@ -88,7 +88,7 @@ public class CombatResolutionShould
         cleave.PowerGainPerHit = 8;
         cleave.ScalingStat = ScalingStat.Attack;
         cleave.ScalingCoefficient = 0.3f;
-        cleave.WeaponCoefficient = 1.0f;
+        cleave.BaseDamageCoefficient = 1.0f;
         return cleave;
     }
 

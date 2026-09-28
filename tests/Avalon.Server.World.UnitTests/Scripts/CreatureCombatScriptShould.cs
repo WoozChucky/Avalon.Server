@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -150,7 +151,7 @@ public class CreatureCombatScriptShould
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
 
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        var script = new KitCombatScript(creature, context);
         script.OnEnteredRange(target); // _initialPosition = Vector3.zero, State = Combat
 
         // A path toward the target's centre is already loaded and not yet consumed.
@@ -164,7 +165,7 @@ public class CreatureCombatScriptShould
 
         script.Update(TimeSpan.FromSeconds(0.1));      // AI scripts tick first...
 
-        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>());
+        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>(), Arg.Any<IAbility>());
 
         locomotion.Update(TimeSpan.FromSeconds(0.1));  // ...then locomotion, same as MapInstance.Update.
 
@@ -199,7 +200,7 @@ public class CreatureCombatScriptShould
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
 
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        var script = new KitCombatScript(creature, context);
 
         ICharacter target = Substitute.For<ICharacter>();
         target.IsDead.Returns(true);
@@ -457,7 +458,7 @@ public class CreatureCombatScriptShould
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(meleeSlots);
 
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        var script = new KitCombatScript(creature, context);
 
         creature.Position.Returns(new Vector3(10f, 0f, 0f));
         script.OnEnteredRange(target); // _initialPosition = (10, 0, 0), State = Combat
@@ -476,7 +477,7 @@ public class CreatureCombatScriptShould
 
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>());
+        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>(), Arg.Any<IAbility>());
         creature.Received(1).LookAt(targetPosition);
 
         // Next tick: still resting at the same spot, still 0.09 past AttackRange by raw
@@ -525,26 +526,53 @@ public class CreatureCombatScriptShould
     /// <summary>
     /// The other half of the gate: a creature that has not yet arrived gets no allowance,
     /// whether or not it holds a slot. A mutation that drops the HasArrived check entirely (or
-    /// reads it against the wrong flag) would attack here — mid-transit, short of its
-    /// destination.
+    /// reads it against the wrong flag) would face the target here — mid-transit, short of its
+    /// destination. Since #163 the attack itself is gated by the basic's own reach (1.8 m in the
+    /// test kit), so the creature is placed beyond that too: it neither faces nor attacks.
     /// </summary>
     [Fact]
     public void Not_Attack_A_Slotted_Creature_Within_The_Tolerance_Band_Before_It_Arrives()
     {
         var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
         var targetPosition = Vector3.zero;
         (CreatureCombatScript script, ICreature creature, _) =
-            BuildChasingScript(locomotion, targetAt: targetPosition);
+            BuildChasingScript(locomotion, targetAt: targetPosition, combat: combat);
 
         // Default slotCount (6): the ring is not full, so this creature holds a slot — but it
-        // has not arrived, still mid-transit toward it.
-        creature.Position.Returns(new Vector3(1.6f, 0f, 0f));
+        // has not arrived, still mid-transit toward it. 1.9 is inside 1.5 + 0.2 + 0.05 + the band
+        // the arrival allowance would add, and past the basic's reach.
+        creature.Position.Returns(new Vector3(1.9f, 0f, 0f));
         locomotion.HasArrived(creature).Returns(false);
-        locomotion.ArrivalTolerance(creature).Returns(0.2f);
+        locomotion.ArrivalTolerance(creature).Returns(0.5f);
 
         script.Update(TimeSpan.FromSeconds(0.1));
 
         creature.DidNotReceive().LookAt(Arg.Any<Vector3>());
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
+    }
+
+    /// <summary>
+    /// #163: the attack is gated by the ability's own reach, not by where the creature means to stand: a
+    /// creature still walking in attacks the moment its basic reaches the target's body, without facing it
+    /// for being in plain attack range, and without stopping.
+    /// </summary>
+    [Fact]
+    public void Attack_Once_Its_Basic_Reaches_The_Target_While_Still_Walking_In()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: Vector3.zero, combat: combat);
+        target.BodyRadius.Returns(0.5f);
+        creature.Position.Returns(new Vector3(2.2f, 0f, 0f));   // body edge 1.7 away, inside the 1.8 cone
+        locomotion.HasArrived(creature).Returns(false);
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>(), Arg.Any<IAbility>());
+        creature.Received(1).LookAt(Vector3.zero);
+        locomotion.DidNotReceive().Stop(creature);
     }
 
     /// <summary>
@@ -612,7 +640,7 @@ public class CreatureCombatScriptShould
 
             locomotion.Register(creature, radius: 0.5f);
 
-            var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+            var script = new KitCombatScript(creature, context);
             script.OnEnteredRange(target);
 
             creatures.Add(creature);
@@ -646,7 +674,7 @@ public class CreatureCombatScriptShould
         for (int i = 0; i < creatures.Count; i++)
         {
             Assert.True(locomotion.HasArrived(creatures[i]), $"Creature {i} never arrived at its slot.");
-            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>());
+            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>(), Arg.Any<IAbility>());
         }
 
         const float agentDiameter = 1.2f;
@@ -724,7 +752,7 @@ public class CreatureCombatScriptShould
 
             locomotion.Register(creature, radius: 0.5f);
 
-            var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+            var script = new KitCombatScript(creature, context);
             script.OnEnteredRange(target);
 
             creatures.Add(creature);
@@ -756,7 +784,7 @@ public class CreatureCombatScriptShould
             // Every creature — slotted or surplus — must still be dealing damage. A surplus
             // creature stranded at its stand-off point (the exact regression this test exists to
             // catch) would fail this half even while still passing a distance-only check.
-            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>());
+            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>(), Arg.Any<IAbility>());
 
             if (hasSlot)
             {
@@ -838,7 +866,7 @@ public class CreatureCombatScriptShould
 
             locomotion.Register(creature, radius: 0.5f);
 
-            var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+            var script = new KitCombatScript(creature, context);
             script.OnEnteredRange(target);
 
             creatures.Add(creature);
@@ -891,7 +919,7 @@ public class CreatureCombatScriptShould
         // window, not the theoretical maximum, so this has headroom without being toothless.
         for (int i = 0; i < creatures.Count; i++)
         {
-            combat.Received(Quantity.Within(3, int.MaxValue)).ApplyDamage(creatures[i], target, Arg.Any<uint>());
+            combat.Received(Quantity.Within(3, int.MaxValue)).ApplyDamage(creatures[i], target, Arg.Any<uint>(), Arg.Any<IAbility>());
         }
     }
 
@@ -946,7 +974,7 @@ public class CreatureCombatScriptShould
         context.MeleeSlots.Returns(meleeSlots);
 
         locomotion.Register(creature, radius: 0.5f);
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        var script = new KitCombatScript(creature, context);
         script.OnEnteredRange(target);
 
         TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
@@ -986,61 +1014,43 @@ public class CreatureCombatScriptShould
     /// single shape that hides a missing mid-walk re-path.
     /// </summary>
     /// <summary>
-    /// Damage used to be the constant 10 regardless of the creature. Every blow must now fall inside the
-    /// creature's derived range.
+    /// #163: the creature attacks with its basic ability, through the cast system, and the raw swing (a bare
+    /// ApplyDamage with no ability, and its plain attack animation) is gone. The damage roll itself is the
+    /// combat service's: CreatureCastShould pins Bite rolling the creature's natural range.
     /// </summary>
     [Fact]
-    public void Strike_For_A_Value_Inside_Its_Derived_Damage_Range()
+    public void Attack_With_Its_Basic_Ability_And_Never_A_Raw_Swing()
     {
-        (CreatureCombatScript script, IEncounter _, ICombatService combat) = BuildScript(out ICreature creature);
-        // Deliberately excludes 10: a range containing the old hardcoded value would let the
-        // unfixed implementation satisfy this test vacuously.
-        creature.DamageMin.Returns(20u);
-        creature.DamageMax.Returns(24u);
-        creature.Position.Returns(Vector3.zero);
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat);
 
-        ICharacter target = Substitute.For<ICharacter>();
-        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 90_001));
-        target.Position.Returns(Vector3.zero);
-        target.IsDead.Returns(false);
-        script.OnEnteredRange(target);
-
-        // The swing interval is 2.25 s and the first blow lands on the tick the cooldown reaches zero, so a
-        // handful of long ticks lands several.
         for (int i = 0; i < 12; i++)
             script.Update(TimeSpan.FromSeconds(2.5));
 
-        combat.ReceivedWithAnyArgs().ApplyDamage(default!, default!, default);
-        combat.DidNotReceive().ApplyDamage(
-            Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Is<uint>(damage => damage < 20u || damage > 24u));
+        combat.Received().ApplyDamage(creature, target, Arg.Any<uint>(),
+            Arg.Is<IAbility>(a => a.AbilityId == TestKit.BasicId));
+        combat.DidNotReceive().ApplyDamage(Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Any<uint>());
+        Assert.Null(typeof(CreatureCombatScript).GetMethod("RollDamage",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic));
     }
 
-    /// <summary>
-    /// A degenerate range must deal exactly that value. An exclusive upper bound would silently never
-    /// roll the maximum on a real range; pinning the single-value case is what catches that class of
-    /// off-by-one.
-    /// </summary>
+    /// <summary>#163: an attack is aimed along the facing toward the target, captured when it starts.</summary>
     [Fact]
-    public void Strike_For_Exactly_The_Value_When_Its_Range_Is_A_Single_Number()
+    public void Aim_Its_Basic_Along_The_Facing_Toward_The_Target()
     {
-        (CreatureCombatScript script, IEncounter _, ICombatService combat) = BuildScript(out ICreature creature);
-        creature.DamageMin.Returns(9u);
-        creature.DamageMax.Returns(9u);
-        creature.Position.Returns(Vector3.zero);
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(0f, 0f, -1f));
 
-        ICharacter target = Substitute.For<ICharacter>();
-        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 90_002));
-        target.Position.Returns(Vector3.zero);
-        target.IsDead.Returns(false);
-        script.OnEnteredRange(target);
+        script.Update(TimeSpan.FromSeconds(0.1));
 
-        for (int i = 0; i < 6; i++)
-            script.Update(TimeSpan.FromSeconds(2.5));
-
-        // The target is whatever the encounter's top threat resolves to — BuildScript auto-substitutes
-        // one, and PickTarget prefers it over the local target. The damage value is what is under test.
-        combat.Received().ApplyDamage(creature, Arg.Any<IUnit>(), 9u);
-        combat.DidNotReceive().ApplyDamage(creature, Arg.Any<IUnit>(), 10u);
+        (IUnit caster, AbilityAim aim, IAbility ability) = Assert.Single(CastRig.Of(ContextOf(script)).Casts);
+        Assert.Same(creature, caster);
+        Assert.Equal(TestKit.BasicId, ability.AbilityId);
+        Assert.Equal(new Vector3(0f, 0f, -1f), aim.Facing);
+        Assert.Null(aim.Point);
     }
 
     /// <summary>
@@ -1186,7 +1196,7 @@ public class CreatureCombatScriptShould
         script.Update(TimeSpan.FromSeconds(0.1));
 
         locomotion.Received(1).MoveTo(creature, Vector3.zero);
-        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
         Assert.Equal(100u, creature.CurrentHealth);
         Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
         Assert.True(SlotsOf(script).TryClaim(target.Guid, new ObjectGuid(ObjectType.Creature, 99),
@@ -1217,7 +1227,7 @@ public class CreatureCombatScriptShould
 
         locomotion.DidNotReceiveWithAnyArgs().MoveTo(default!, default);
         creature.DidNotReceive().MoveState = Arg.Any<MoveState>();
-        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default);
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default, default!);
     }
 
     /// <summary>
@@ -1259,10 +1269,10 @@ public class CreatureCombatScriptShould
         script.Update(TimeSpan.FromSeconds(1.0));  // 1.25
         script.Update(TimeSpan.FromSeconds(1.0));  // 0.25
         script.Update(TimeSpan.FromSeconds(0.2));  // 0.05
-        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default);
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default, default!);
 
         script.Update(TimeSpan.FromSeconds(0.05)); // 0: swings again
-        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default);
+        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default, default!);
     }
 
     /// <summary>Swings a World-side creature in range of its target for <paramref name="seconds" /> and returns when each swing landed.</summary>
@@ -1273,7 +1283,7 @@ public class CreatureCombatScriptShould
         (CreatureCombatScript script, _, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
         var swings = new List<double>();
-        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, default)).Do(_ => swings.Add(_now));
+        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, default, default!)).Do(_ => swings.Add(_now));
 
         for (_now = 0; _now < seconds; _now += SwingTick)
         {
@@ -1348,7 +1358,7 @@ public class CreatureCombatScriptShould
         (CreatureCombatScript script, _, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
         script.Update(TimeSpan.FromSeconds(0.1));   // swings, 2.25 s to the next
-        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default);
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default, default!);
 
         real.Position = new Vector3(40.5f, 0f, 0f);  // drawn past the 40 m leash
         target.Position.Returns(new Vector3(41f, 0f, 0f));
@@ -1362,7 +1372,7 @@ public class CreatureCombatScriptShould
         script.OnEnteredRange(target);
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default);
+        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default, default!);
     }
 
     /// <summary>
@@ -1385,7 +1395,7 @@ public class CreatureCombatScriptShould
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
         var swingTicks = new List<int>();
         int tick = 0;
-        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, default)).Do(_ => swingTicks.Add(tick));
+        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, default, default!)).Do(_ => swingTicks.Add(tick));
 
         TimeSpan step = TimeSpan.FromSeconds(1d / 60d);
         for (tick = 0; tick < 60 * 12; tick++)
@@ -1401,9 +1411,13 @@ public class CreatureCombatScriptShould
         Assert.True(swingTicks[^1] - swingTicks[0] <= (swingTicks.Count - 1) * (ticksToCross + 1));
     }
 
-    /// <summary>#627: the countdown runs only while the target is in range, as before.</summary>
+    /// <summary>
+    /// #163: the basic's cooldown runs whether or not the target is in reach, as every ability's does (it ran
+    /// only in range while the swing was the script's own timer): a target back in reach after three seconds
+    /// away is struck at once.
+    /// </summary>
     [Fact]
-    public void Count_down_only_while_in_range()
+    public void Count_the_cooldown_down_out_of_reach_too()
     {
         var locomotion = Substitute.For<ICreatureLocomotion>();
         var combat = Substitute.For<ICombatService>();
@@ -1420,45 +1434,24 @@ public class CreatureCombatScriptShould
         locomotion.HasArrived(real).Returns(true);
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default);
-    }
-
-    /// <summary>#506: a swing's damage is drawn through the combat random, inclusive of both ends of the range.</summary>
-    [Fact]
-    public void Swing_for_a_roll_of_its_damage_range_drawn_through_the_combat_random()
-    {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
-        var rng = new Avalon.Server.World.UnitTests.Combat.ScriptedCombatRandom().Longs(7);
-        (CreatureCombatScript script, ICreature creature, ICharacter target) =
-            BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, random: rng);
-        creature.DamageMin.Returns(3u);
-        creature.DamageMax.Returns(9u);
-
-        script.Update(TimeSpan.FromSeconds(0.1));
-
-        combat.Received(1).ApplyDamage(creature, target, 7u);
-        Assert.Equal([(3L, 9L)], rng.WeaponRolls);
+        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default, default!);
     }
 
     /// <summary>
-    /// #506 review: a script built the way AttachScript builds it (ActivatorUtilities, the creature and the
-    /// instance only) takes the container's combat random, so the one fallback, the steady random, is only
-    /// ever what a test that passes none gets.
+    /// #163: the scripts data can name as they are (the plain combat script, aggro and patrol) carry no
+    /// abilities, so a creature on one chases but never attacks. Each creature type's own script hands them a
+    /// kit. Built the way AttachScript builds them, from the creature and the instance only.
     /// </summary>
     [Theory]
     [InlineData(typeof(CreatureCombatScript))]
     [InlineData(typeof(AggroDefendScript))]
     [InlineData(typeof(CreaturePatrolScript))]
-    public void Swing_with_the_containers_combat_random_when_built_by_name(Type scriptType)
+    public void Attack_Nothing_When_Built_By_Name_With_No_Kit(Type scriptType)
     {
         var locomotion = Substitute.For<ICreatureLocomotion>();
         var combat = Substitute.For<ICombatService>();
-        var rng = new Avalon.Server.World.UnitTests.Combat.ScriptedCombatRandom().Longs(8);
         (_, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat);
-        creature.DamageMin.Returns(3u);
-        creature.DamageMax.Returns(9u);
         creature.CurrentHealth.Returns(50u);
         ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
@@ -1467,7 +1460,6 @@ public class CreatureCombatScriptShould
         context.Characters.Returns(new Dictionary<ObjectGuid, ICharacter>());
         IServiceProvider services = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
             .AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance)
-            .AddSingleton<Avalon.World.Combat.ICombatRandom>(rng)
             .BuildServiceProvider();
 
         var script = (Avalon.World.Public.Scripts.AiScript)Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance(
@@ -1475,8 +1467,9 @@ public class CreatureCombatScriptShould
         script.OnHit(target, 1);   // engages the script against the target, whatever chains it
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        combat.Received(1).ApplyDamage(creature, target, 8u);
-        Assert.Equal([(3L, 9L)], rng.WeaponRolls);
+        context.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
+        context.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
     }
 
     // #606: a target the creature can never reach used to hold it in Combat for good.
@@ -1516,7 +1509,7 @@ public class CreatureCombatScriptShould
         target.Position.Returns(new Vector3(3.5f, 0f, 0f));
         locomotion.HasArrived(creature).Returns(false);
         script.Update(TimeSpan.FromSeconds(0.1));
-        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
     }
 
     /// <summary>
@@ -1540,7 +1533,7 @@ public class CreatureCombatScriptShould
             script.Update(TimeSpan.FromSeconds(0.1)); // 20 s settled in the slot
 
         Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
-        combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default);
+        combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default, default!);
     }
 
     // #606 over the real WaypointLocomotion, with only the navigator faked. The navigator returns a
@@ -1565,7 +1558,7 @@ public class CreatureCombatScriptShould
         fight.Target.Position.Returns(new Vector3(11f, 0f, 0f));
         Assert.Equal(-1, fight.TicksUntilReturning(limit: 200));
 
-        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default);
+        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default, default!);
     }
 
     /// <summary>
@@ -1585,7 +1578,7 @@ public class CreatureCombatScriptShould
         fight.RouteEndNearTarget = fight.Creature.Position;      // no way on: every route ends here
 
         Assert.InRange(fight.TicksUntilReturning(limit: 70), 49, 55);
-        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
     }
 
     /// <summary>A route whose end is fixed short of the target, however often it is asked for.</summary>
@@ -1601,7 +1594,7 @@ public class CreatureCombatScriptShould
         Assert.Equal(100u, fight.Creature.CurrentHealth);
         Assert.True(fight.Slots.TryClaim(fight.Target.Guid, new ObjectGuid(ObjectType.Creature, 99),
             fight.Target.Position, fight.Target.Position, out _));
-        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
     }
 
     /// <summary>
@@ -1616,7 +1609,7 @@ public class CreatureCombatScriptShould
         int ticks = fight.TicksUntilReturning(limit: 200);
 
         Assert.Equal(-1, ticks);
-        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default);
+        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default, default!);
     }
 
     /// <summary>A route that can reach again before the limit starts the count over.</summary>
@@ -1740,7 +1733,7 @@ public class CreatureCombatScriptShould
             context.MeleeSlots.Returns(Slots);
 
             Locomotion.Register(Creature, radius: 0.5f);
-            Script = new CreatureCombatScript(NullLoggerFactory.Instance, Creature, context);
+            Script = new KitCombatScript(Creature, context);
             Script.OnEnteredRange(Target);
         }
 
@@ -1813,6 +1806,12 @@ public class CreatureCombatScriptShould
         script.Update(TimeSpan.FromSeconds(0.1));
     }
 
+    /// <summary>The substitute context BuildChasingScript built <paramref name="script" /> over.</summary>
+    private ISimulationContext ContextOf(CreatureCombatScript script) =>
+        _context ?? throw new InvalidOperationException("Call BuildChasingScript first.");
+
+    private ISimulationContext? _context;
+
     /// <summary>The MeleeSlots backing <paramref name="script"/>'s context, built by BuildChasingScript.</summary>
     private MeleeSlots SlotsOf(CreatureCombatScript script) =>
         _meleeSlots ?? throw new InvalidOperationException("Call BuildChasingScript first.");
@@ -1835,14 +1834,14 @@ public class CreatureCombatScriptShould
         var context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
 
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context, time);
+        var script = new KitCombatScript(creature, context, time);
         return (script, encounter, combat);
     }
 
     /// <param name="real">A World-side creature to use instead of a substitute (#627), at the origin.</param>
     private (CreatureCombatScript script, ICreature creature, ICharacter target) BuildChasingScript(
         ICreatureLocomotion locomotion, Vector3 targetAt, int slotCount = 6, ICombatService? combat = null,
-        Avalon.World.Combat.ICombatRandom? random = null, Avalon.World.Entities.Creature? real = null)
+        Avalon.World.Entities.Creature? real = null)
     {
         ICreature creature;
         if (real is null)
@@ -1888,8 +1887,9 @@ public class CreatureCombatScriptShould
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(_meleeSlots);
+        _context = context;
 
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context, random: random);
+        var script = new KitCombatScript(creature, context);
         // OnEnteredRange seeds State = Combat, target = character, and _initialPosition = the
         // creature's current position (Vector3.zero here) — the seam under test only cares that
         // the script is actively engaging something far enough away to need to move.
@@ -1919,7 +1919,7 @@ public class CreatureCombatScriptShould
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
 
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        var script = new KitCombatScript(creature, context);
 
         // Seed _initialPosition = home via OnEnteredRange while the creature is standing on it,
         // then move the creature away and have its target die — the live path that flips the

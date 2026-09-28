@@ -35,9 +35,9 @@ public interface ISimulationContext
 
     /// <summary>
     /// Queues a cast-time ability aimed at <paramref name="aim" />, captured now (#164). False, with
-    /// nothing spent and <c>Casting</c> left clear, when the cast cannot be taken.
+    /// nothing spent and <c>Casting</c> left clear, when the cast cannot be taken. Any unit may cast (#163).
     /// </summary>
-    bool QueueAbility(ICharacter caster, AbilityAim aim, IAbility ability);
+    bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability);
 
     /// <summary>
     /// Fires an instant ability this tick, aimed at <paramref name="aim" />. False, with nothing spent,

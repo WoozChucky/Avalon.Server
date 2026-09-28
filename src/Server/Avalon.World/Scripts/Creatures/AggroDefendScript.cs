@@ -1,4 +1,3 @@
-using Avalon.World.Combat;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
@@ -11,10 +10,10 @@ namespace Avalon.World.Scripts.Creatures;
 /// Generic stationary mob: stands at its spawn, aggros characters that enter its
 /// detection range (<see cref="ICreatureMetadata.DetectionRange"/>), and engages
 /// via <see cref="CreatureCombatScript"/> until it dies or returns to spawn.
-/// Default for procedural-pool creatures — set
-/// <see cref="Avalon.Domain.World.CreatureTemplate.ScriptName"/> = "AggroDefendScript".
+/// Named as it is, it fights with no abilities (#163), so a creature on it never attacks: each creature
+/// type's own script subclasses it and hands it a combat script carrying its abilities and rotation.
 /// </summary>
-public sealed class AggroDefendScript : AiScript, IReturningHome
+public class AggroDefendScript : AiScript, IReturningHome
 {
     private const float DefaultAggroRange = 10.0f;
 
@@ -22,7 +21,17 @@ public sealed class AggroDefendScript : AiScript, IReturningHome
     private readonly AiScript _combat;
 
     public AggroDefendScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
-        TimeProvider? time = null, ICombatRandom? random = null)
+        TimeProvider? time = null)
+        : this(loggerFactory, creature, context, new CreatureCombatScript(loggerFactory, creature, context, time))
+    {
+    }
+
+    /// <summary>
+    /// Aggro detection chained to <paramref name="combat" />, a creature type's own combat script (#163), which
+    /// must be built for this same creature and context.
+    /// </summary>
+    protected AggroDefendScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
+        CreatureCombatScript combat)
         : base(creature, context)
     {
         var aggroRange = creature.Metadata.DetectionRange > 0f ? creature.Metadata.DetectionRange : DefaultAggroRange;
@@ -31,7 +40,7 @@ public sealed class AggroDefendScript : AiScript, IReturningHome
         detector.CharacterDetected += OnCharacterEnteredRange;
         _detector = detector;
 
-        _combat = new CreatureCombatScript(loggerFactory, creature, context, time, random);
+        _combat = combat;
 
         Chain(_detector);
         Chain(_combat);

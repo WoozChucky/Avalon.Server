@@ -102,5 +102,17 @@ public class AiScriptConstructibilityShould
         Assert.Contains("TownNpcScript", names);
         Assert.Contains("AggroDefendScript", names);
         Assert.Contains("CreaturePatrolScript", names);
+
+        // #163: the forest creatures' own scripts, and none of the combat scripts they chain.
+        foreach (string forest in new[]
+                 {
+                     "ThornbackBoarScript", "GreyFenWolfScript", "BlightflySwarmlingScript", "HuskOfTheWoldScript",
+                     "BramblemawAlphaScript", "OldTuskrootScript", "MotherBrambleScript",
+                 })
+        {
+            Assert.Contains(forest, names);
+        }
+
+        Assert.DoesNotContain(names, n => n.EndsWith("Combat", StringComparison.Ordinal));
     }
 }

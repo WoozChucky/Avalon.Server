@@ -1,6 +1,5 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
-using Avalon.World.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
@@ -30,7 +29,7 @@ namespace Avalon.World.Scripts.Creatures;
 /// corpse's patrol stops for good.
 /// </para>
 /// </remarks>
-public sealed class CreaturePatrolScript : AiScript, IReturningHome
+public class CreaturePatrolScript : AiScript, IReturningHome
 {
     public enum PatrolState
     {
@@ -46,11 +45,21 @@ public sealed class CreaturePatrolScript : AiScript, IReturningHome
     private bool _pausing;
     private TimeSpan _pauseRemaining;
 
+    /// <summary>A patrol whose fights use a combat script with no abilities (#163): named as it is, it never attacks.</summary>
     public CreaturePatrolScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
-        TimeProvider? time = null, ICombatRandom? random = null)
+        TimeProvider? time = null)
+        : this(creature, context, new CreatureCombatScript(loggerFactory, creature, context, time))
+    {
+    }
+
+    /// <summary>
+    /// A patrol that fights with <paramref name="combat" />, a creature type's own combat script (#163), which
+    /// must be built for this same creature and context.
+    /// </summary>
+    protected CreaturePatrolScript(ICreature creature, ISimulationContext context, CreatureCombatScript combat)
         : base(creature, context)
     {
-        _combat = new CreatureCombatScript(loggerFactory, creature, context, time, random);
+        _combat = combat;
         Chain(_combat);
     }
 

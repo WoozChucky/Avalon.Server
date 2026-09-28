@@ -63,7 +63,7 @@ public class AbilityTemplateControllerShould
     {
         _repository
             .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
-            .Returns(new AbilityTemplate { Id = new AbilityId(1), Name = "Fireball", SpellScript = "fireball.cs" });
+            .Returns(new AbilityTemplate { Id = new AbilityId(1), Name = "Fireball", ScriptName = "fireball.cs" });
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.Get(1, CancellationToken.None);

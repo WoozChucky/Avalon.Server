@@ -19,7 +19,7 @@ public class AbilityTemplate : IDbEntity<AbilityId>
 
     public uint Cost { get; set; } // in power points
 
-    public string SpellScript { get; set; }
+    public string ScriptName { get; set; }
 
     public SpellRange Range { get; set; } // in meters
 
@@ -74,8 +74,9 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     /// </summary>
     [Required] public int PowerGainPerHit { get; set; }
 
-    // Damage scaling (#506): EffectValue + ScalingCoefficient x the ScalingStat + WeaponCoefficient x a
-    // main-hand weapon roll. A heal scales the same way.
+    // Damage scaling (#506): EffectValue + ScalingCoefficient x the ScalingStat + BaseDamageCoefficient x a
+    // roll of the caster's base damage: a character's main-hand weapon, a creature's natural DamageMin..DamageMax
+    // (#163). A heal scales the same way.
 
     /// <summary>Which derived damage stat the coefficient multiplies: AttackDamage or AbilityDamage.</summary>
     [Required] public ScalingStat ScalingStat { get; set; } = ScalingStat.Attack;
@@ -83,6 +84,6 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     /// <summary>Finite and 0 or more; 0 adds nothing.</summary>
     [Required] public float ScalingCoefficient { get; set; }
 
-    /// <summary>Finite and 0 or more; 0 rolls no weapon.</summary>
-    [Required] public float WeaponCoefficient { get; set; }
+    /// <summary>Finite and 0 or more; 0 rolls no base damage.</summary>
+    [Required] public float BaseDamageCoefficient { get; set; }
 }

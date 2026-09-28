@@ -9,7 +9,7 @@ number that makes one skill differ from another is a column on its row.
 
 Terms used below:
 
-- **Caster**: the unit casting the skill. Only players cast today; creature casting is #163.
+- **Caster**: the unit casting the skill: a player, or a creature, whose script picks its abilities (#163).
 - **Aim**: what the cast was pointed at, captured when the cast starts (`AbilityAim`): the caster's
   facing, and for a cursor skill the ground point.
 - **Body radius**: every unit is a circle on the ground for hit tests (`IUnit.BodyRadius`). A creature
@@ -33,7 +33,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `CastTime` | uint | ms | 0 is instant; above 0 the cast waits in the queue first. |
 | `Cooldown` | uint | ms | Time before the skill can be cast again. |
 | `Cost` | uint | power points | Paid from the caster's power pool (see the power rule below). |
-| `SpellScript` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
+| `ScriptName` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
 | `EffectValue` | uint | health points | The base of the damage dealt or health restored per unit affected; the scaling terms below are added to it (#506). |
 | `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
@@ -51,7 +51,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Affects` | `AbilityAffects` | | `Hostile` (0) damages hostile units; `Ally` (1) heals allies. |
 | `ScalingStat` | `ScalingStat` | | `Attack` (0) scales with the caster's AttackDamage, `Ability` (1) with its AbilityDamage (#506). |
 | `ScalingCoefficient` | float | | Multiplies the scaling stat into the base; finite and 0 or more (#506, also a database check). |
-| `WeaponCoefficient` | float | | Multiplies a roll of the caster's main-hand weapon (`DamageMin1..DamageMax1`, inclusive; none with no weapon) into the base; finite and 0 or more (#506). |
+| `BaseDamageCoefficient` | float | | Multiplies a roll of the caster's base damage into the base: a character's main-hand weapon (`DamageMin1..DamageMax1`, inclusive; none with no weapon), a creature's natural `DamageMin..DamageMax` (#163); finite and 0 or more (#506). Was `WeaponCoefficient` until #163. |
 
 **Legacy `Range`.** The `Range` column (`SpellRange`) stays for schema compatibility and is still sent
 in `AbilityInfo.Range`, but no server code reads it: `Reach` replaced it. `AbilityInfo.FacingAngle` is
@@ -117,6 +117,16 @@ script reads the caster's *position* only when it fires, never when it is built.
   the cast fires nothing and is free to cast again. The queue is never changed while it is walked
   (#521 item 3).
 
+**A creature casts through the same system (#163).** Its script calls `ISimulationContext.RunInstantAbility`
+or `QueueAbility` (which take any `IUnit`) with its own clone of the ability, aimed at its target; there
+is no handler and no global cooldown. Its casts are free (the power rule is skipped for an `ICreature`).
+Its haste is its own `min(HastePct, HasteCap)`. Its basic's cooldown is its `SwingInterval`, which already
+carries that haste; any other cooldown is the row's divided by it. A creature that dies or turns for
+home during a cast has the cast dropped on the next tick, with the interrupt, however much was left, and
+any projectile it loosed that is still in flight dropped with it; so does one removed from its instance.
+Moving never interrupts a creature's cast: its script stands still for a wind-up, so only a push (a
+crowd's separation) could move it. See [creature-system.md](creature-system.md).
+
 Firing starts the cooldown, sends the finish-cast animation, and runs the script's `Prepare`. A circle
 or cone resolves completely there; a projectile keeps ticking. A skill that affects nobody is not
 refused: its cost and cooldown are spent all the same.
@@ -135,12 +145,13 @@ refused: its cost and cooldown are spent all the same.
   - a creature is hostile to a player caster unless it is `Invulnerable`;
   - two players are hostile only when both have PvP on and the map is not a town;
   - nothing is hostile to itself;
-  - a creature caster finds nothing hostile (creature casting is #163).
-- **Allies** are the caster itself and every player not hostile to it. A creature is never an ally.
+  - a creature caster (#163) finds every living player hostile, whatever the map type, and no creature.
+- **Allies** are the caster itself and every player not hostile to it. A creature is never an ally, so a
+  creature caster's only ally is itself.
 - **Damage**: a `Hostile` skill calls `CombatService.ApplyDamage(caster, unit, EffectValue, ability)`
   on each hostile unit, with the usual threat, encounter, combat tag, death and invulnerable rules.
   Each unit's hit resolves on its own (#506): `EffectValue + ScalingCoefficient x stat +
-  WeaponCoefficient x weapon roll`, then the unit's dodge, the caster's crit, the unit's block and
+  BaseDamageCoefficient x base damage roll`, then the unit's dodge, the caster's crit, the unit's block and
   its armour, floored with a minimum of 1 (0 on a dodge). See CLAUDE.md's combat-formula bullet.
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
   `min(Health, CurrentHealth + heal)`, the heal being the same base as damage and then a crit roll,
@@ -245,11 +256,45 @@ Costs are paid from the class's pool: Warriors Fury, Wizards and Healers Mana, H
 one script per shape, Mending Circle as the only ally heal, and that every cost is payable by its
 class's pool under the power rule.
 
+## 8b. The creature abilities
+
+Seeded by the World migration `SeedCreatureAbilities` (#163). Every one is creature-only
+(`AllowedClasses` empty), costs nothing, has `EffectValue` 0, `ThreatMultiplier` 1 and no scaling
+stat, and deals `BaseDamageCoefficient` times a roll of the creature's natural `DamageMin..DamageMax`.
+Each basic has coefficient 1.0, so it deals what the old raw swing did, and lists the seeded 2250 ms
+swing interval as its cooldown, which it never reads: it waits the creature's `SwingInterval`. Cones and
+circles aim along the facing (a circle sits on the creature); projectiles aim at the cursor, which a
+creature sets to its target's position. The arcs and projectile speeds are the values chosen for #163.
+
+| id | creature | name | shape | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | cast | cooldown | base damage |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 300 | Thornback Boar | Gore (basic) | Cone | 1.8 | – | 90 | – | – | 0 | swing | 1.0 |
+| 301 | Thornback Boar | Trample | Circle | 0 | 2.5 | – | – | – | 0 | 10 s | 1.6 |
+| 302 | Grey Fen Wolf | Bite (basic) | Cone | 1.8 | – | 90 | – | – | 0 | swing | 1.0 |
+| 303 | Grey Fen Wolf | Ravenous Claw | Cone | 2.5 | – | 90 | – | – | 0 | 8 s | 1.8 |
+| 304 | Blightfly Swarmling | Sting (basic) | Cone | 1.5 | – | 90 | – | – | 0 | swing | 1.0 |
+| 305 | Blightfly Swarmling | Blight Spit | Projectile | 10 | – | – | 14 | no | 0 | 6 s | 1.4 |
+| 306 | Husk of the Wold | Slam (basic) | Cone | 1.8 | – | 90 | – | – | 0 | swing | 1.0 |
+| 307 | Husk of the Wold | Rotting Burst | Circle | 0 | 3 | – | – | – | 0 | 12 s | 1.5 |
+| 308 | Bramblemaw Alpha | Maul (basic) | Cone | 2 | – | 90 | – | – | 0 | swing | 1.0 |
+| 309 | Bramblemaw Alpha | Rending Frenzy | Cone | 2.5 | – | 100 | – | – | 0 | 9 s | 1.8 |
+| 310 | Bramblemaw Alpha | Howling Roar | Circle | 0 | 5 | – | – | – | 1 s | 15 s | 2.0 |
+| 311 | Old Tuskroot | Tusk Gore (basic) | Cone | 2 | – | 90 | – | – | 0 | swing | 1.0 |
+| 312 | Old Tuskroot | Earthsplitter | Cone | 5 | – | 60 | – | – | 1.2 s | 14 s | 2.4 |
+| 313 | Old Tuskroot | Thorn Volley | Projectile | 12 | – | – | 16 | yes | 0 | 10 s | 1.6 |
+| 314 | Mother Bramble | Bramble Lash (basic) | Cone | 2.5 | – | 90 | – | – | 0 | swing | 1.0 |
+| 315 | Mother Bramble | Bramble Nova | Circle | 0 | 6 | – | – | – | 1.2 s | 16 s | 2.5 |
+| 316 | Mother Bramble | Thornspray | Cone | 5 | – | 120 | – | – | 0 | 8 s | 1.8 |
+
+Which of them a creature uses, and when, is its script's rotation (`creature-system.md`).
+`SeedIntegrityShould` pins every row and each forest template's script. The client reads these rows,
+with the kit's, from `schema/abilities/ability-catalog-v1.json` (`tools/Avalon.Exporter -- ability-catalog`).
+
 ---
 
 ## 9. Out of scope
 
-- Creature casting on this pipeline (#163): creatures still only melee.
+- Creature abilities that heal or buff other creatures (#163 leaves a creature's only ally itself).
 - Tempo: attack and cast speed, and removing the global cooldown (a later spec, with the #506 stats).
 - A line or beam shape.
 - Cones clipped by walls.

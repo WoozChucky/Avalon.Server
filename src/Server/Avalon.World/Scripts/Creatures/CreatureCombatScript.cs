@@ -1,6 +1,11 @@
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
-using Avalon.World.Combat;
+using Avalon.World.Abilities;
+using Avalon.World.Abilities.Targeting;
+using Avalon.World.Creatures;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -11,6 +16,20 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
 
+/// <summary>
+/// Fights a target: chases it onto a melee slot, leashes home past the chase distance, gives up on a target it
+/// cannot reach, and attacks with the creature's abilities (#163). Which ability, and when, is
+/// <see cref="ChooseAbility" />: the base casts the basic whenever it is ready and the target is in its reach,
+/// and each creature type's own script overrides it with its rotation. The creature's abilities come from the
+/// kit its script passes to the protected constructor; the public one, which data can name, has none, and a
+/// creature on it chases but never attacks.
+/// </summary>
+/// <remarks>
+/// An instant ability fires through <c>RunInstantAbility</c>. One with a cast time is a wind-up: it is queued
+/// with the aim captured now, the creature stops, and it asks for no movement until the cast ends (it fires,
+/// or the cast system drops it because the creature died or turned for home), so the cast is never
+/// interrupted by its own steps and a player can step out of it.
+/// </remarks>
 public class CreatureCombatScript : AiScript, IReturningHome
 {
     /// <summary>
@@ -96,8 +115,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     private readonly ILogger<CreatureCombatScript> _logger;
     private readonly TimeProvider _time;
-    private readonly ICombatRandom _random;
-    private float _attackCooldownTimer;
+    private readonly CreatureAbilities _abilities;
 
     private bool _dead;
 
@@ -118,18 +136,53 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     private IUnit? _target;
 
+    /// <summary>
+    /// A combat script with no abilities: the creature chases, leashes and goes home, but attacks nothing (#163).
+    /// A creature type's own script passes its kit to the protected constructor.
+    /// </summary>
     /// <param name="time">The container's clock, the one the rest of the world times by (#610).</param>
-    /// <param name="random">
-    /// Where the swing's damage roll comes from (#506): the container's, which AttachScript's
-    /// ActivatorUtilities resolves; <see cref="CombatRandom.Steady" /> when none is given, as for CombatService.
-    /// </param>
     public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
-        TimeProvider? time = null, ICombatRandom? random = null) : base(creature, context)
+        TimeProvider? time = null)
+        : this(loggerFactory, creature, context, time, catalog: null, kit: null)
+    {
+    }
+
+    /// <summary>
+    /// A combat script that fights with <paramref name="kit" /> (#163), loaded now from
+    /// <paramref name="catalog" /> into the creature's own abilities: an id the catalog does not hold is
+    /// logged and left out. A creature that is not the World-side type (a test substitute; the modding API
+    /// cannot make creatures) keeps them on this script instead.
+    /// </summary>
+    /// <param name="catalog">The current ability catalog; null when none is loaded, and the creature gets none.</param>
+    protected CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
+        TimeProvider? time, AbilityCatalog? catalog, CreatureAbilityKit? kit) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
         _time = time ?? TimeProvider.System;
-        _random = random ?? CombatRandom.Steady;
+        _abilities = creature is Avalon.World.Entities.Creature worldCreature
+            ? worldCreature.Abilities
+            : new CreatureAbilities();
+
+        if (kit is null)
+        {
+            return;
+        }
+
+        if (catalog is null)
+        {
+            _logger.LogWarning("No ability catalog is loaded; creature {CreatureName} fights without abilities",
+                creature.Name);
+            return;
+        }
+
+        _abilities.Load(catalog, kit, _logger, creature.Name);
     }
+
+    /// <summary>The creature's abilities, as its kit loaded them (#163).</summary>
+    protected CreatureAbilities Abilities => _abilities;
+
+    /// <summary>Whom the creature is fighting, or null.</summary>
+    protected IUnit? Target => _target;
 
     /// <summary>Where the creature goes back to. Every path into Combat sets <see cref="_home" /> first.</summary>
     private Vector3 Home => _home ?? Creature.Position;
@@ -239,6 +292,10 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     public override void Update(TimeSpan deltaTime)
     {
+        // #163: the creature's cooldowns run down here, the one place they are cast from, first so this tick
+        // sees them. They matter only while this script fights, and ResetToIdleAtSpawn clears them.
+        _abilities.Update(deltaTime);
+
         if (_dead)
         {
             return;
@@ -284,6 +341,14 @@ public class CreatureCombatScript : AiScript, IReturningHome
         if (Vector3.Distance(currentPosition, Home) > MaxChaseDistance)
         {
             GiveUpAndGoHome(_target);
+            return;
+        }
+
+        // Winding up (#163): the creature stands where the cast began and asks for no movement until the
+        // cast ends, so its own steps never interrupt it. The unreachable count does not run while it stands.
+        if (_abilities.IsCasting)
+        {
+            _unreachableFor = TimeSpan.Zero;
             return;
         }
 
@@ -364,8 +429,9 @@ public class CreatureCombatScript : AiScript, IReturningHome
     }
 
     /// <summary>
-    /// One tick of fighting <paramref name="target" />: pick where to stand, swing when in range, and
-    /// keep walking to where it should stand, in that order.
+    /// One tick of fighting <paramref name="target" />: pick where to stand, attack when an ability is ready
+    /// and in reach, and keep walking to where it should stand, in that order. A wind-up that begins this
+    /// tick ends it: the creature stands for the cast.
     /// </summary>
     private void Engage(IUnit target, Vector3 currentPosition, Vector3 targetPosition, TimeSpan deltaTime)
     {
@@ -373,12 +439,12 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
         bool hasArrived = Context.Locomotion.HasArrived(Creature);
 
-        // Attacking and keeping station are independent: a creature can swing at the target the
-        // instant it is within range, in the very same tick it is also stepping to keep pace with
-        // a target (and so a slot) that is on the move — Stop is never called merely for being in
-        // range (see KeepStation). But the allowance beyond plain AttackRange is gated on arrival
-        // alone (see AttackRangeArrivalMargin's comment for the full reasoning, including why
-        // hasSlot is deliberately NOT part of this gate).
+        // Attacking and keeping station are independent: a creature can attack the target the instant an
+        // ability reaches it, in the very same tick it is also stepping to keep pace with a target (and so
+        // a slot) that is on the move — Stop is never called merely for being in range (see KeepStation).
+        // Where it stands is still decided by AttackRange: the allowance beyond it is gated on arrival alone
+        // (see AttackRangeArrivalMargin's comment for the full reasoning, including why hasSlot is
+        // deliberately NOT part of this gate).
         float effectiveAttackRange = hasArrived
             ? AttackRange + Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin
             : AttackRange;
@@ -387,7 +453,12 @@ public class CreatureCombatScript : AiScript, IReturningHome
         if (inRange)
         {
             Creature.LookAt(targetPosition);
-            AttackTarget(deltaTime);
+        }
+
+        if (TryAttack(target, currentPosition, targetPosition, facing: inRange))
+        {
+            _unreachableFor = TimeSpan.Zero;
+            return;
         }
 
         // No way to reach the target (#606). Read before KeepStation asks for a new route, so both
@@ -442,7 +513,36 @@ public class CreatureCombatScript : AiScript, IReturningHome
         destination = hasSlot
             ? Context.MeleeSlots.PositionFor(targetPosition, slot)
             : targetPosition + Vector3.Normalize(currentPosition - targetPosition) * (AttackRange - SurplusStandOffInset);
+        destination = WithinBasicReach(target, targetPosition, destination);
         return hasSlot;
+    }
+
+    /// <summary>
+    /// <paramref name="destination" />, pulled in toward the target along its own bearing when needed so the
+    /// basic reaches the target's body from anywhere within the locomotion's arrival tolerance of it (#163). A
+    /// crowd counts a creature arrived up to its agent radius off its slot, and a short basic (the Blightfly's
+    /// 1.5 m Sting) would otherwise miss from there for good: settled within tolerance, it never re-plans. With
+    /// the default slot radius and waypoint locomotion nothing moves.
+    /// </summary>
+    private Vector3 WithinBasicReach(IUnit target, Vector3 targetPosition, Vector3 destination)
+    {
+        if (_abilities.Basic is not { } basic)
+        {
+            return destination;
+        }
+
+        float reach = basic.Metadata.Shape == AbilityShape.Circle && basic.Metadata.Anchor == AbilityAnchor.Caster
+            ? basic.Metadata.Radius
+            : basic.Metadata.Reach;
+        float farthest = reach + target.BodyRadius - Context.Locomotion.ArrivalTolerance(Creature) - SurplusStandOffInset;
+        float standing = HitShapes.Distance2D(targetPosition, destination);
+        if (farthest <= 0f || standing <= farthest)
+        {
+            return destination;
+        }
+
+        Vector3 offset = destination - targetPosition;
+        return targetPosition + new Vector3(offset.x, 0f, offset.z) * (farthest / standing);
     }
 
     /// <summary>
@@ -546,46 +646,117 @@ public class CreatureCombatScript : AiScript, IReturningHome
     }
 
     /// <summary>
-    /// #627: counts down only while in range, and swings on the tick the countdown reaches 0, so the first
-    /// swing lands at once and each next one a whole interval later. The interval is read at each swing, so a
-    /// haste change applies from the next swing and never touches the countdown already running.
+    /// Which ability to start now against <paramref name="target" />, or null for none this tick (#163).
+    /// Called every tick the creature fights and is not already casting, in range or not. The base answers
+    /// the basic when it is ready and <paramref name="target" /> is in its reach; a creature type's script
+    /// overrides it with its rotation (see <see cref="Ready" />). Whatever it answers is started only if it is
+    /// one of this creature's own abilities, ready, and in reach.
     /// </summary>
-    private void AttackTarget(TimeSpan deltaTime)
+    /// <param name="distance">
+    /// Metres on X/Z from the creature's centre to the edge of the target's body: what a shape must reach to
+    /// hit it, since a shape hits every body it overlaps. Where the creature stands is pulled in so its basic
+    /// reaches from anywhere its locomotion counts as arrived (see ChooseDestination).
+    /// </param>
+    protected virtual IAbility? ChooseAbility(IUnit target, float distance) =>
+        _abilities.Basic is { } basic && CreatureAbilities.IsReady(basic) && InReach(basic, distance) ? basic : null;
+
+    /// <summary>
+    /// The creature's ability <paramref name="id" /> when it holds it, it is ready, and a target
+    /// <paramref name="distance" /> away is in its reach; otherwise null. A rotation chains these,
+    /// most preferred first.
+    /// </summary>
+    protected IAbility? Ready(AbilityId id, float distance) =>
+        _abilities[id] is { } ability && CreatureAbilities.IsReady(ability) && InReach(ability, distance)
+            ? ability
+            : null;
+
+    /// <summary>
+    /// Whether a target whose body edge is <paramref name="distance" /> away is in <paramref name="ability" />'s
+    /// reach: a cone's length, a projectile's travel, a circle on the caster's radius, and a circle on the aim
+    /// point's reach plus its radius. A creature aims at its target, so the arc never leaves it out.
+    /// </summary>
+    protected static bool InReach(IAbility ability, float distance)
     {
-        _attackCooldownTimer -= (float)deltaTime.TotalSeconds;
-        if (_attackCooldownTimer <= 0.0f)
+        AbilityMetadata meta = ability.Metadata;
+        float reach = meta.Shape switch
         {
-            Context.BroadcastAttackAnimation(Creature, null); // TODO: spells for creatures
-            // Route melee through CombatService so threat / encounter membership / death broadcast
-            // all trigger from the canonical chokepoint (spec section 3: "all damage funnels ApplyDamage").
-            // No ability — uses the raw-damage overload with default ThreatMultiplier=1.0.
-            if (_target is not null)
-            {
-                Context.CombatService.ApplyDamage(Creature, _target, RollDamage());
-            }
-            _attackCooldownTimer = SwingInterval;
-        }
+            AbilityShape.Circle => meta.Anchor == AbilityAnchor.AimPoint ? meta.Reach + meta.Radius : meta.Radius,
+            _ => meta.Reach,
+        };
+
+        return distance <= reach;
     }
 
     /// <summary>
-    /// The World-side creature's own interval (#627). Any other ICreature (a test substitute; the modding
-    /// API cannot make creatures) swings at the seeded default.
+    /// Starts the ability <see cref="ChooseAbility" /> picks, when it is one of the creature's own, ready and
+    /// in reach, aimed at <paramref name="target" /> now. Returns whether a wind-up began, which stops the
+    /// creature for the cast. A cast the cast system refuses (a script missing or that cannot be built) is
+    /// simply not started.
     /// </summary>
-    private float SwingInterval => Creature is Avalon.World.Entities.Creature c
-        ? c.SwingInterval
-        : Avalon.World.Entities.Creature.DefaultBaseAttackTime;
+    /// <param name="facing">Whether the creature already turned to the target this tick.</param>
+    private bool TryAttack(IUnit target, Vector3 currentPosition, Vector3 targetPosition, bool facing)
+    {
+        float distance = MathF.Max(0f, HitShapes.Distance2D(currentPosition, targetPosition) - target.BodyRadius);
+        if (ChooseAbility(target, distance) is not { } ability
+            || !Holds(ability)
+            || !CreatureAbilities.IsReady(ability)
+            || !InReach(ability, distance))
+        {
+            return false;
+        }
+
+        if (!facing)
+        {
+            Creature.LookAt(targetPosition);
+        }
+
+        AbilityAim aim = AimAt(ability.Metadata, currentPosition, targetPosition);
+
+        if (ability.Metadata.CastTime <= 0f)
+        {
+            Context.RunInstantAbility(Creature, aim, ability);
+            return false;
+        }
+
+        if (!Context.QueueAbility(Creature, aim, ability))
+        {
+            return false;
+        }
+
+        Context.Locomotion.Stop(Creature);
+        Context.BroadcastUnitStartCast(Creature, ability);
+        return true;
+    }
+
+    /// <summary>Whether <paramref name="ability" /> is one of this creature's own clones: a script casts only what it holds.</summary>
+    private bool Holds(IAbility ability)
+    {
+        foreach (IAbility held in _abilities.All)
+        {
+            if (ReferenceEquals(held, ability))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
-    /// Damage comes from the creature's derived range rather than a constant. Inclusive of both bounds,
-    /// and safe when the range is a single value — a degenerate range must deal exactly that, not zero
-    /// and not one more.
+    /// The aim at the target, captured when the cast starts (#163): a Movement ability along the facing toward
+    /// it, a Cursor one at its position, which the shape clamps by its own rules. A target standing on the
+    /// creature falls back to the creature's facing.
     /// </summary>
-    private uint RollDamage()
+    private AbilityAim AimAt(AbilityMetadata meta, Vector3 from, Vector3 to)
     {
-        uint min = Creature.DamageMin;
-        uint max = Math.Max(min, Creature.DamageMax);
+        double dx = (double)to.x - from.x;
+        double dz = (double)to.z - from.z;
+        double length = Math.Sqrt(dx * dx + dz * dz);
+        Vector3 facing = length > 0.001 && double.IsFinite(length)
+            ? new Vector3((float)(dx / length), 0f, (float)(dz / length))
+            : AbilityAim.FacingFromYaw(Creature.Orientation.y);
 
-        return min == max ? min : (uint)_random.NextInt64(min, max);
+        return meta.AimMode == AbilityAimMode.Cursor ? new AbilityAim(facing, to) : new AbilityAim(facing, null);
     }
 
     private void ResetToIdleAtSpawn()
@@ -602,8 +773,8 @@ public class CreatureCombatScript : AiScript, IReturningHome
         _home = null;
         _unreachableFor = TimeSpan.Zero;
 
-        // #627: no countdown carries into the next fight, whose first swing lands at once.
-        _attackCooldownTimer = 0f;
+        // #627, #163: no cooldown carries into the next fight, whose first attack lands at once.
+        _abilities.ResetCooldowns();
         Context.Locomotion.Stop(Creature);
 
         // The one place a fight ends at home (#614): the creature leaves its encounter and forgets any

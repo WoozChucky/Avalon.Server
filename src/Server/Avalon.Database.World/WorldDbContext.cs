@@ -762,7 +762,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 12,
             MovementId = 0,
-            ScriptName = "AggroDefendScript",
+            ScriptName = "ThornbackBoarScript",
             HealthModifier = 1.1f,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -796,7 +796,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 18,
             MovementId = 0,
-            ScriptName = "AggroDefendScript",
+            ScriptName = "GreyFenWolfScript",
             HealthModifier = 1.0f,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -830,7 +830,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 8,
             MovementId = 0,
-            ScriptName = "AggroDefendScript",
+            ScriptName = "BlightflySwarmlingScript",
             HealthModifier = 0.6f,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -864,7 +864,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 14,
             MovementId = 0,
-            ScriptName = "AggroDefendScript",
+            ScriptName = "HuskOfTheWoldScript",
             HealthModifier = 1.3f,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -898,7 +898,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 22,
             MovementId = 0,
-            ScriptName = "AggroDefendScript",
+            ScriptName = "BramblemawAlphaScript",
             HealthModifier = 1.0f,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -932,7 +932,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = "AggroDefendScript",
+            ScriptName = "OldTuskrootScript",
             HealthModifier = 1.2f,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -966,7 +966,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 26,
             MovementId = 0,
-            ScriptName = "AggroDefendScript",
+            ScriptName = "MotherBrambleScript",
             HealthModifier = 1.0f,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -2201,7 +2201,7 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_AbilityTemplates_PowerGainPerHit_NonNegative", "\"PowerGainPerHit\" >= 0");
             // #506: a negative coefficient would turn a hit into a heal, a NaN one would make it NaN.
             t.HasCheckConstraint("CK_AbilityTemplates_ScalingCoefficient_NonNegative", Finite("ScalingCoefficient"));
-            t.HasCheckConstraint("CK_AbilityTemplates_WeaponCoefficient_NonNegative", Finite("WeaponCoefficient"));
+            t.HasCheckConstraint("CK_AbilityTemplates_BaseDamageCoefficient_NonNegative", Finite("BaseDamageCoefficient"));
         });
         builder.Property(b => b.Id)
             .HasConversion(
@@ -2225,7 +2225,78 @@ public class WorldDbContext : DbContext
             Kit(230, CharacterClass.Healer, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f),
             Kit(231, CharacterClass.Healer, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
             Kit(232, CharacterClass.Healer, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, value: 40, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, coefficient: 0.6f));
+
+        // The forest creatures' abilities (#163), creature-only (no class), free, and dealt from each creature's
+        // natural damage range through BaseDamageCoefficient. Each creature's AI script declares its own ids and
+        // rotation. A basic's cooldown is its creature's SwingInterval, never its row's: the 2250 here is the
+        // seeded BaseAttackTime, for the record. Cones, circles on the creature and projectiles aimed at the
+        // target's position, as the shapes require. Arcs: 90 degrees for the basics, 60 to 120 for the specials.
+        builder.HasData(
+            CreatureAbility(300, "Gore", AbilityShape.Cone, reach: 1.8f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
+            CreatureAbility(301, "Trample", AbilityShape.Circle, radius: 2.5f, cooldown: 10000, baseDamage: 1.6f),
+            CreatureAbility(302, "Bite", AbilityShape.Cone, reach: 1.8f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
+            CreatureAbility(303, "Ravenous Claw", AbilityShape.Cone, reach: 2.5f, arc: 90f, cooldown: 8000, baseDamage: 1.8f),
+            CreatureAbility(304, "Sting", AbilityShape.Cone, reach: 1.5f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
+            CreatureAbility(305, "Blight Spit", AbilityShape.Projectile, reach: 10f, speed: 14f, cooldown: 6000, baseDamage: 1.4f),
+            CreatureAbility(306, "Slam", AbilityShape.Cone, reach: 1.8f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
+            CreatureAbility(307, "Rotting Burst", AbilityShape.Circle, radius: 3f, cooldown: 12000, baseDamage: 1.5f),
+            CreatureAbility(308, "Maul", AbilityShape.Cone, reach: 2f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
+            CreatureAbility(309, "Rending Frenzy", AbilityShape.Cone, reach: 2.5f, arc: 100f, cooldown: 9000, baseDamage: 1.8f),
+            CreatureAbility(310, "Howling Roar", AbilityShape.Circle, radius: 5f, castTime: 1000, cooldown: 15000, baseDamage: 2.0f),
+            CreatureAbility(311, "Tusk Gore", AbilityShape.Cone, reach: 2f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
+            CreatureAbility(312, "Earthsplitter", AbilityShape.Cone, reach: 5f, arc: 60f, castTime: 1200, cooldown: 14000, baseDamage: 2.4f),
+            CreatureAbility(313, "Thorn Volley", AbilityShape.Projectile, reach: 12f, speed: 16f, pierce: true, cooldown: 10000, baseDamage: 1.6f),
+            CreatureAbility(314, "Bramble Lash", AbilityShape.Cone, reach: 2.5f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
+            CreatureAbility(315, "Bramble Nova", AbilityShape.Circle, radius: 6f, castTime: 1200, cooldown: 16000, baseDamage: 2.5f),
+            CreatureAbility(316, "Thornspray", AbilityShape.Cone, reach: 5f, arc: 120f, cooldown: 8000, baseDamage: 1.8f));
     }
+
+    /// <summary>
+    /// A creature-only ability (#163): no class, no cost, EffectValue 0, damage from the creature's natural range
+    /// times <paramref name="baseDamage" />. Cones and circles aim along the facing (a circle sits on the creature),
+    /// projectiles at the cursor, which a creature sets to its target's position.
+    /// </summary>
+    private static AbilityTemplate CreatureAbility(uint id, string name, AbilityShape shape, uint cooldown,
+        float baseDamage, float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false,
+        uint castTime = 0) => new()
+    {
+        Id = id,
+        Name = name,
+        CastTime = castTime,
+        Cooldown = cooldown,
+        Cost = 0,
+        Range = (shape == AbilityShape.Projectile ? reach : Math.Max(reach, radius)) switch
+        {
+            <= 2f => SpellRange.Melee,
+            <= 5f => SpellRange.Short,
+            <= 10f => SpellRange.Medium,
+            _ => SpellRange.Long,
+        },
+        Effects = SpellEffect.Damage,
+        EffectValue = 0,
+        AllowedClasses = [],
+        ScriptName = shape switch
+        {
+            AbilityShape.Circle => "CircleAbilityScript",
+            AbilityShape.Cone => "ConeAbilityScript",
+            _ => "ProjectileAbilityScript",
+        },
+        ThreatMultiplier = 1f,
+        HealThreatPerHp = 0f,
+        AimMode = shape == AbilityShape.Projectile ? AbilityAimMode.Cursor : AbilityAimMode.Movement,
+        Shape = shape,
+        Anchor = AbilityAnchor.Caster,
+        Reach = reach,
+        Radius = radius,
+        ArcDegrees = arc,
+        ProjectileSpeed = speed,
+        Pierce = pierce,
+        Affects = AbilityAffects.Hostile,
+        PowerGainPerHit = 0,
+        ScalingStat = ScalingStat.Attack,
+        ScalingCoefficient = 0f,
+        BaseDamageCoefficient = baseDamage,
+    };
 
     private static AbilityTemplate Kit(uint id, CharacterClass cls, string name, AbilityShape shape, AbilityAimMode aim,
         SpellRange range, uint cooldown, uint cost, uint value, AbilityAnchor anchor = AbilityAnchor.Caster,
@@ -2242,7 +2313,7 @@ public class WorldDbContext : DbContext
         Effects = affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage,
         EffectValue = value,
         AllowedClasses = [cls],
-        SpellScript = shape switch
+        ScriptName = shape switch
         {
             AbilityShape.Circle => "CircleAbilityScript",
             AbilityShape.Cone => "ConeAbilityScript",
@@ -2262,7 +2333,7 @@ public class WorldDbContext : DbContext
         PowerGainPerHit = powerGainPerHit,
         ScalingStat = scaling,
         ScalingCoefficient = coefficient,
-        WeaponCoefficient = weapon,
+        BaseDamageCoefficient = weapon,
     };
 
     /// <summary>

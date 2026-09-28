@@ -62,8 +62,9 @@ The result is stored on the creature as `ICreature.Experience`. That is what a k
 
 `CreatureSpawner.Spawn` also sets the creature's `Name`, its speed (the template's `SpeedWalk`),
 `ScriptName`, `Invulnerable`, `BodyRadius` (the default radius when the template's is not a finite
-value above 0), and `CanInteract`, fixed at spawn from the dialogue catalog. Creatures cannot cast,
-so `Power` is 0.
+value above 0), and `CanInteract`, fixed at spawn from the dialogue catalog. A creature's casts are
+free (#163), so it has no pool and `Power` is 0. Its abilities are not set here: its script loads them
+when it attaches (see Abilities under Combat).
 
 `CreatureSpawner.Spawn` runs on the thread pool during instance construction. It reads
 `world.Data.Creatures` once, so a reload of the creatures area landing mid-spawn cannot pair a new
@@ -147,9 +148,11 @@ it gets "not found" rather than a script that fails to construct.
 
 | Script | Nameable | Behaviour |
 |---|---|---|
-| `AggroDefendScript` | Yes | Stands at its spawn. Chains a range detector and a `CreatureCombatScript`. The aggro range is the template's `DetectionRange`, or 10 m when that is 0. |
-| `CreatureCombatScript` | Yes | Chases, attacks and returns home (see Combat). |
-| `CreaturePatrolScript` | Yes | Walks `ICreature.PatrolPath` in a loop. Stands still when there is no path. Chains a `CreatureCombatScript`: a hit starts a fight under the normal combat rules, the patrol does not advance while it lasts, and once the combat script is back to `None` the patrol resumes at the path point nearest the creature (#600). An invulnerable walker never fights, because the combat service refuses the hit. |
+| `AggroDefendScript` | Yes | Stands at its spawn. Chains a range detector and a `CreatureCombatScript`. The aggro range is the template's `DetectionRange`, or 10 m when that is 0. Named as it is, its combat script has no abilities, so it never attacks (#163); a creature type's script subclasses it and hands it its own combat script through the protected constructor. |
+| `CreatureCombatScript` | Yes | Chases, attacks with the creature's abilities and returns home (see Combat). Named as it is, it has no abilities and attacks nothing. |
+| `CreaturePatrolScript` | Yes | Walks `ICreature.PatrolPath` in a loop. Stands still when there is no path. Chains a `CreatureCombatScript`: a hit starts a fight under the normal combat rules, the patrol does not advance while it lasts, and once the combat script is back to `None` the patrol resumes at the path point nearest the creature (#600). An invulnerable walker never fights, because the combat service refuses the hit. Like `AggroDefendScript`, named as it is it never attacks, and takes a creature type's combat script through a protected constructor. No seeded creature type subclasses it yet, so no creature both patrols and attacks. |
+| `ThornbackBoarScript`, `GreyFenWolfScript`, `BlightflySwarmlingScript`, `HuskOfTheWoldScript`, `BramblemawAlphaScript`, `OldTuskrootScript`, `MotherBrambleScript` | Yes | The forest creatures, templates 4-10 (#163), in `Scripts/Creatures/Forest`. Each is an `AggroDefendScript` with its own combat script, which declares its ability kit and overrides `ChooseAbility` (see Abilities). |
+| `<Creature>Combat`, nested in each forest script | No, `[ChainedScript]` | That creature's combat script: its kit and rotation. |
 | `TownNpcScript` | Yes | Does nothing. Town NPCs run it. |
 | `CreatureRangeDetectorScript` | No, `[ChainedScript]` | Checks once a second for a living character within range and in line of sight. |
 
@@ -193,19 +196,22 @@ contracts.
 | State | Behaviour |
 |---|---|
 | `None` | Idle. `OnEnteredRange` or a hit starts combat and records where the fight started. |
-| `Combat` | Follows the encounter's top threat, or the taunter while a taunt lasts. Moves to its melee slot and attacks when within 1.5 m. Once the creature has arrived, the range is 1.5 m plus the locomotion's arrival tolerance plus 0.05 m. |
+| `Combat` | Follows the encounter's top threat, or the taunter while a taunt lasts. Moves to its melee slot, where it stands within 1.5 m (once it has arrived, 1.5 m plus the locomotion's arrival tolerance plus 0.05 m), and attacks with whatever ability `ChooseAbility` picks that reaches the target (#163). |
 | `Returning` | Runs home. It ignores hits entirely: `CombatService` refuses them, so they do no damage, add no threat, join no encounter and tag no attacker in combat (#610). |
 
-- An attack rolls damage between the creature's `DamageMin` and `DamageMax`, inclusive, through
-  `ICombatRandom` (#506), and goes through `ICombatService.ApplyDamage`, where the target's dodge,
-  block and armour and the creature's own crit are rolled; see `CombatService` below. The first swing lands as soon as the target is in range.
-- The cadence (#627): each next swing lands one `Creature.SwingInterval` later, on the tick the countdown
-  reaches 0. The interval is the template's `BaseAttackTime` in seconds (2.25 for every seeded
-  template; a check constraint and the Creatures reload area refuse anything below 0.5 or not finite),
-  divided by `1 + min(HastePct, HasteCap) / 100`. `BaseAttackTime` and the combat formula's `HasteCap`
-  are fixed on the creature at spawn; `HastePct` is World-side, 0, and set by nothing yet (a future buff
-  or debuff). The interval is read at each swing, so a haste change applies from the next swing and
-  never resets the countdown already running. The countdown runs only while the target is in range.
+- Every attack is an ability (#163; the raw swing is gone), cast through the instance's cast system and
+  resolved by its shape script, so its damage goes through `ICombatService.ApplyDamage` with the ability:
+  `BaseDamageCoefficient` times a roll of the creature's `DamageMin..DamageMax`, inclusive, through
+  `ICombatRandom` (#506), then the target's dodge, block and armour and the creature's own crit; see
+  `CombatService` below. The first attack lands as soon as an ability reaches the target.
+- The cadence (#627): the basic ability's cooldown is one `Creature.SwingInterval`. The interval is the
+  template's `BaseAttackTime` in seconds (2.25 for every seeded template; a check constraint and the
+  Creatures reload area refuse anything below 0.5 or not finite), divided by
+  `1 + min(HastePct, HasteCap) / 100`. `BaseAttackTime` and the combat formula's `HasteCap` are fixed on
+  the creature at spawn; `HastePct` is World-side, 0, and set by nothing yet (a future buff or debuff).
+  The interval is read when the basic fires, so a haste change applies from the next and never changes the
+  cooldown already running. The cooldowns run down every tick the combat script runs, in reach or not, and
+  are cleared when the creature resets at home.
 - It gives up and returns home at full health when a character target dies, the target leaves the
   instance, or the creature is more than 40 m from where the fight started. The death check covers
   character targets only.
@@ -229,13 +235,51 @@ contracts.
   of a player it swung at, reaches its next fight.
 - If no path home is found, the creature is teleported home.
 
+### Abilities (#163)
+
+- **Holding.** `CreatureAbilities` (`Avalon.World/Creatures`), owned by the World-side `Creature`
+  (`Creature.Abilities`), holds the creature's own clones of its ability rows, their cooldowns, and its
+  cast state. It is never on `ICreature` or World.Public (#622). A creature type's combat script
+  declares a `CreatureAbilityKit` (a basic, then its specials, as ids) and passes it to
+  `CreatureCombatScript`'s protected constructor, which loads it from the current ability catalog when
+  the script is built. An id the catalog lacks is logged at Error and left out; the creature fights
+  with the rest. The numbers are ability rows, so `/reload abilities` reaches creatures spawned (or
+  hot reloaded) afterwards; the rotation is code.
+- **Cost and haste.** A creature's casts are free: it has no pool, and only cooldowns gate it. Its
+  haste (`min(HastePct, HasteCap)`) scales its cast times and cooldowns. The basic's cooldown is its
+  `SwingInterval`, which already carries the haste; every other ability's is its row's `Cooldown`
+  divided by it.
+- **Choosing.** `ChooseAbility(target, distance)` (protected virtual) answers which ability to start,
+  every tick the creature fights and is not casting. The base answers the basic when it is ready and
+  reaches. `Ready(id, distance)` answers a held ability when it is ready and reaches, and a rotation
+  chains them, most preferred first. `distance` runs to the edge of the target's body, with no
+  allowance; instead the creature's slot or stand-off point is pulled in toward the target so its basic
+  reaches from anywhere within the locomotion's arrival tolerance of it (a crowd's 0.6 m brings the
+  Blightfly's slot in to 1.3 m; waypoint locomotion leaves the default slot alone). What
+  `ChooseAbility` answers is started only when the creature holds it, it is ready, and it reaches: a
+  cone's `Reach`, a projectile's `Reach`, a circle on the caster's `Radius`.
+- **Aim.** A Movement ability is aimed along the facing toward the target, a Cursor one at the target's
+  position, captured when the cast starts.
+- **Wind-ups.** An ability with a `CastTime` is queued: the creature stops, the start of the cast is
+  broadcast, and it asks for no movement until the cast ends, so its own steps never interrupt it. The
+  aim stays as captured, so a player can step out of it. A creature that dies or turns for home during
+  the cast has it dropped on the cast system's next tick, with the interrupt broadcast, and nothing
+  fires; so does one removed from its instance. A projectile it loosed that is still in flight is
+  dropped then too. Being moved (a crowd's separation) never interrupts a creature's wind-up.
+- **Hostility.** A creature caster finds every living player hostile, whatever the map type (that a
+  hostile creature stands in a town is the data's decision), and no creature. It heals nothing but itself.
+- **The forest rotations** (templates 4-10): each prefers a ready special whose reach fits, then its
+  basic. The Alpha, Tuskroot and Mother Bramble try their wind-up first. The Blightfly spits Blight Spit
+  only while Sting cannot reach, within 10 m. The rows are 300-316; see
+  [spell-system.md](spell-system.md).
+
 Only `CreatureCombatScript.OnHit` lowers health. A creature takes damage only through its script's
 `OnHit`, so a creature with no script, or one whose script chains no `CreatureCombatScript`, takes
 none.
 
 ### `CombatService`
 
-Every hit, a creature's swing or a player's skill, goes through the instance's `CombatService`
+Every hit, a creature's ability or a player's skill, goes through the instance's `CombatService`
 (`Avalon.World/Combat`):
 
 1. An `Invulnerable` target returns at once: no damage, no encounter, no threat, no combat tag.
@@ -247,13 +291,13 @@ Every hit, a creature's swing or a player's skill, goes through the instance's `
    walk home is left in an encounter once the creature is home and reset. Heal threat skips it too:
    `ApplyHeal` splits a heal's threat only across the encounter's creatures that are not walking
    home.
-3. The hit is resolved (#506): its base (a swing's roll, or an ability's effect value plus the
-   caster's scaled stat and weapon roll), then the target's dodge, the attacker's crit, the
+3. The hit is resolved (#506): its base (an ability's effect value plus the caster's scaled stat and
+   base-damage roll: a character's weapon, a creature's natural range, #163), then the target's dodge, the attacker's crit, the
    target's block, and the target's armour against the attacker's level, floored with a minimum of
    1. A dodged hit deals 0: the encounter still forms, the creature gets threat for the base, and
    both sides are tagged in combat, and its script is told through `AiScript.OnAttacked`, so it
    engages the attacker as a hit would; but the script is not hit, and the dodge is sent to watchers
-   as a hit of 0 marked `Dodged`. A killing blow is sent as a hit, at 0 health, before the death. A player's armour reduces a creature's swing exactly as a creature's
+   as a hit of 0 marked `Dodged`. A killing blow is sent as a hit, at 0 health, before the death. A player's armour reduces a creature's ability exactly as a creature's
    armour reduces a player's hit.
 4. The attacker and the target join an encounter. Threat is added, from the resolved damage, when
    the target is a creature.
@@ -336,7 +380,7 @@ These `CreatureTemplate` fields are deliberately unread. Do not assume any of th
 | Field | Why |
 |---|---|
 | `RespawnTimerSecs` | Creatures do not respawn. Kept for a future revival mechanic. |
-| `ManaModifier` | Creatures cannot cast. |
+| `ManaModifier` | A creature's casts are free, and it has no pool (#163). |
 | `RegenHealth` | Creatures do not regenerate health. |
 
 `RangeAttackTime`, `DmgSchool`, `AIName`, `MovementType`, `MovementId` and `Family` are not read by
@@ -346,8 +390,8 @@ the world server either.
 
 ## Creature Casting
 
-Creatures only attack in melee. Creature casting on the aimed-skill pipeline is #163; see
-[spell-system.md](spell-system.md).
+Creatures cast on the same aimed-skill pipeline as players (#163): see Abilities under Combat, and
+[spell-system.md](spell-system.md) for the pipeline and the seeded rows.
 
 ---
 
@@ -358,6 +402,9 @@ Creatures only attack in melee. Creature casting on the aimed-skill pipeline is 
 | Stat derivation | `CreatureStatDeriverShould` |
 | Placement | `CreaturePlacementServiceShould` |
 | Script construction | `AiScriptConstructibilityShould` |
+| Creature abilities and casts | `CreatureAbilitiesShould`, `CreatureCastShould` |
+| The attack hook and wind-ups | `CreatureAbilityAiShould`, `CreatureCombatScriptShould` |
+| The forest rotations | `ForestCreatureScriptsShould` |
 | Kill reporting | `CombatServiceShould` |
 | Experience and level-up | `ExperienceAwardShould`, `LevelUpStatsShould` |
 | Loot on a kill | `MapInstanceLootShould` |

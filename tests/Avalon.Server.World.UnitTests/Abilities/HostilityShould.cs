@@ -65,9 +65,33 @@ public class HostilityShould
         Assert.False(Hostility.IsAlly(caster, Creature(invulnerable: true), MapType.Town));
     }
 
+    /// <summary>#163: a creature caster finds every living player hostile, flagged or not, on every map type.</summary>
+    [Theory]
+    [InlineData(false, MapType.Normal)]
+    [InlineData(true, MapType.Normal)]
+    [InlineData(false, MapType.Town)]
+    public void Make_a_living_player_hostile_to_a_creature_caster_on_every_map(bool pvp, MapType map) =>
+        Assert.True(Hostility.IsHostile(Creature(), Player(1, pvp), map));
+
     [Fact]
-    public void Make_nothing_hostile_to_a_creature_caster_until_creatures_cast() =>
-        Assert.False(Hostility.IsHostile(Creature(), Player(1, pvp: true), MapType.Normal));
+    public void Never_make_a_dead_player_hostile_to_a_creature_caster()
+    {
+        CharacterEntity dead = Player(1, pvp: false);
+        dead.IsDead = true;
+
+        Assert.False(Hostility.IsHostile(Creature(), dead, MapType.Normal));
+    }
+
+    /// <summary>A creature caster's only ally is itself: creature heals on other creatures are out of scope (#163).</summary>
+    [Fact]
+    public void Count_only_itself_as_a_creature_casters_ally()
+    {
+        ICreature caster = Creature(id: 1);
+
+        Assert.True(Hostility.IsAlly(caster, caster, MapType.Normal));
+        Assert.False(Hostility.IsAlly(caster, Creature(id: 2), MapType.Normal));
+        Assert.False(Hostility.IsAlly(caster, Player(1, pvp: false), MapType.Normal));
+    }
 
     [Fact]
     public void Make_no_creature_hostile_to_a_creature_caster() =>

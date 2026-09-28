@@ -16,7 +16,7 @@ public sealed class AbilityTemplateDto
     /// <summary>Cost in power points.</summary>
     public uint Cost { get; set; }
 
-    public string SpellScript { get; set; } = "";
+    public string ScriptName { get; set; } = "";
     public SpellRange Range { get; set; }
     public SpellEffect Effects { get; set; }
     public uint EffectValue { get; set; }
