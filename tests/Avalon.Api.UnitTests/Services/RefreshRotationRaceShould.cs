@@ -7,6 +7,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Services;
@@ -225,6 +226,68 @@ public sealed class RefreshRotationRaceShould : IDisposable
         clock.Now += TimeSpan.FromSeconds(1);
 
         await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, Tab));
+    }
+
+    /// <summary>Records what the service logs.</summary>
+    private sealed class RecordingLogger : ILogger<RefreshTokenService>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Entries.Add((logLevel, formatter(state, exception)));
+    }
+
+    private async Task<(RefreshTokenService Service, Clock Clock, RefreshIssueResult Issued, RecordingLogger Log)>
+        LoggedRotatedOnceAsync()
+    {
+        Account account = await AccountAsync();
+        var clock = new Clock(DateTimeOffset.UtcNow);
+        var log = new RecordingLogger();
+        var service = new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), clock, log);
+        RefreshIssueResult issued = await service.IssueAsync(account.Id, 0);
+        await service.RotateAsync(issued.RawToken, Tab);
+        return (service, clock, issued, log);
+    }
+
+    /// <summary>
+    /// A reuse ends every session of the family, and it used to leave no trace: a session ended by two tabs
+    /// refreshing at once looked like a sign-out. It is a warning naming the account and why the grace
+    /// did not apply, and nothing about the caller or the token.
+    /// </summary>
+    [Theory]
+    [InlineData(6, "203.0.113.7", "it came after the grace")]
+    [InlineData(1, null, "the caller has no source")]
+    [InlineData(1, "198.51.100.9", "the caller is not the one that rotated it")]
+    public async Task Log_a_reuse_with_the_reason_the_grace_did_not_apply(int secondsLater, string? address, string reason)
+    {
+        var (service, clock, issued, log) = await LoggedRotatedOnceAsync();
+        clock.Now += TimeSpan.FromSeconds(secondsLater);
+        RefreshCaller caller = RefreshCaller.From(address is null ? null : System.Net.IPAddress.Parse(address), "Browser/1.0");
+
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, caller));
+
+        (LogLevel level, string message) = Assert.Single(log.Entries);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains(reason, message, StringComparison.Ordinal);
+        Assert.Contains(issued.FamilyId.ToString(), message, StringComparison.Ordinal);
+        Assert.DoesNotContain(issued.RawToken, message, StringComparison.Ordinal);
+        if (address is not null)
+            Assert.DoesNotContain(address, message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Log_nothing_for_a_replay_it_forgives()
+    {
+        var (service, clock, issued, log) = await LoggedRotatedOnceAsync();
+        clock.Now += TimeSpan.FromSeconds(1);
+
+        await Assert.ThrowsAsync<RefreshAlreadyRotatedException>(() => service.RotateAsync(issued.RawToken, Tab));
+
+        Assert.Empty(log.Entries);
     }
 
     [Fact]
