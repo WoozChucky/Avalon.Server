@@ -6,6 +6,8 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Api.Services;
 
@@ -81,12 +83,15 @@ public sealed class RefreshTokenService : IRefreshTokenService
     private readonly IRefreshTokenRepository _repository;
     private readonly ISecureRandom _random;
     private readonly TimeProvider _time;
+    private readonly ILogger _logger;
 
-    public RefreshTokenService(IRefreshTokenRepository repository, ISecureRandom random, TimeProvider time)
+    public RefreshTokenService(IRefreshTokenRepository repository, ISecureRandom random, TimeProvider time,
+        ILogger<RefreshTokenService>? logger = null)
     {
         _repository = repository;
         _random = random;
         _time = time;
+        _logger = logger ?? NullLogger<RefreshTokenService>.Instance;
     }
 
     public Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
@@ -200,8 +205,25 @@ public sealed class RefreshTokenService : IRefreshTokenService
             throw new RefreshAlreadyRotatedException();
 
         await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
+        // The one trace a reuse leaves: without it, a session ended by two tabs refreshing at once
+        // could not be told from one ended by a sign-out. Ids and the reason only, never the caller's
+        // address or the token.
+        _logger.LogWarning(
+            "Refresh token reuse on account {AccountId} ({Client}): family {FamilyId} revoked at token {Index}, not forgiven because {Reason}",
+            row.AccountId.Value, row.Client, row.FamilyId, row.Index, WhyNotForgiven(child, caller, now));
         throw new RefreshTheftException(row.AccountId);
     }
+
+    /// <summary>Which condition of the grace a refused replay missed, for the reuse warning.</summary>
+    private static string WhyNotForgiven(RefreshToken? child, RefreshCaller caller, DateTime now) => child switch
+    {
+        null => "it has no successor",
+        { Revoked: true } => "its successor is revoked",
+        { Usages: > 0 } => "its successor was already used",
+        _ when now - child.CreatedAt >= RotationGrace => "it came after the grace",
+        _ when caller.Source is null => "the caller has no source",
+        _ => "the caller is not the one that rotated it",
+    };
 
     public async Task RevokeAsync(string rawToken, CancellationToken cancellationToken = default)
     {
