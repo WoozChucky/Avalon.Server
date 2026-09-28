@@ -150,7 +150,7 @@ it gets "not found" rather than a script that fails to construct.
 |---|---|---|
 | `AggroDefendScript` | Yes | Stands at its spawn. Chains a range detector and a `CreatureCombatScript`. The aggro range is the template's `DetectionRange`, or 10 m when that is 0. Named as it is, its combat script has no abilities, so it never attacks (#163); a creature type's script subclasses it and hands it its own combat script through the protected constructor. |
 | `CreatureCombatScript` | Yes | Chases, attacks with the creature's abilities and returns home (see Combat). Named as it is, it has no abilities and attacks nothing. |
-| `CreaturePatrolScript` | Yes | Walks `ICreature.PatrolPath` in a loop. Stands still when there is no path. Chains a `CreatureCombatScript`: a hit starts a fight under the normal combat rules, the patrol does not advance while it lasts, and once the combat script is back to `None` the patrol resumes at the path point nearest the creature (#600). An invulnerable walker never fights, because the combat service refuses the hit. Like `AggroDefendScript`, named as it is it never attacks, and takes a creature type's combat script through a protected constructor. |
+| `CreaturePatrolScript` | Yes | Walks `ICreature.PatrolPath` in a loop. Stands still when there is no path. Chains a `CreatureCombatScript`: a hit starts a fight under the normal combat rules, the patrol does not advance while it lasts, and once the combat script is back to `None` the patrol resumes at the path point nearest the creature (#600). An invulnerable walker never fights, because the combat service refuses the hit. Like `AggroDefendScript`, named as it is it never attacks, and takes a creature type's combat script through a protected constructor. No seeded creature type subclasses it yet, so no creature both patrols and attacks. |
 | `ThornbackBoarScript`, `GreyFenWolfScript`, `BlightflySwarmlingScript`, `HuskOfTheWoldScript`, `BramblemawAlphaScript`, `OldTuskrootScript`, `MotherBrambleScript` | Yes | The forest creatures, templates 4-10 (#163), in `Scripts/Creatures/Forest`. Each is an `AggroDefendScript` with its own combat script, which declares its ability kit and overrides `ChooseAbility` (see Abilities). |
 | `<Creature>Combat`, nested in each forest script | No, `[ChainedScript]` | That creature's combat script: its kit and rotation. |
 | `TownNpcScript` | Yes | Does nothing. Town NPCs run it. |
@@ -252,9 +252,10 @@ contracts.
 - **Choosing.** `ChooseAbility(target, distance)` (protected virtual) answers which ability to start,
   every tick the creature fights and is not casting. The base answers the basic when it is ready and
   reaches. `Ready(id, distance)` answers a held ability when it is ready and reaches, and a rotation
-  chains them, most preferred first. `distance` runs to the edge of the target's body; once the
-  creature has settled, the locomotion's arrival tolerance and a small margin come off it, as off the
-  attack range, so a creature held a little off its slot is never stranded out of reach. What
+  chains them, most preferred first. `distance` runs to the edge of the target's body, with no
+  allowance; instead the creature's slot or stand-off point is pulled in toward the target so its basic
+  reaches from anywhere within the locomotion's arrival tolerance of it (a crowd's 0.6 m brings the
+  Blightfly's slot in to 1.3 m; waypoint locomotion leaves the default slot alone). What
   `ChooseAbility` answers is started only when the creature holds it, it is ready, and it reaches: a
   cone's `Reach`, a projectile's `Reach`, a circle on the caster's `Radius`.
 - **Aim.** A Movement ability is aimed along the facing toward the target, a Cursor one at the target's
@@ -262,8 +263,9 @@ contracts.
 - **Wind-ups.** An ability with a `CastTime` is queued: the creature stops, the start of the cast is
   broadcast, and it asks for no movement until the cast ends, so its own steps never interrupt it. The
   aim stays as captured, so a player can step out of it. A creature that dies or turns for home during
-  the cast has it dropped at once, with the interrupt broadcast, and nothing fires; so does one removed
-  from its instance.
+  the cast has it dropped on the cast system's next tick, with the interrupt broadcast, and nothing
+  fires; so does one removed from its instance. A projectile it loosed that is still in flight is
+  dropped then too. Being moved (a crowd's separation) never interrupts a creature's wind-up.
 - **Hostility.** A creature caster finds every living player hostile, whatever the map type (that a
   hostile creature stands in a town is the data's decision), and no creature. It heals nothing but itself.
 - **The forest rotations** (templates 4-10): each prefers a ready special whose reach fits, then its

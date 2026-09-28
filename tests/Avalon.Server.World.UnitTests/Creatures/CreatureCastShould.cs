@@ -13,6 +13,7 @@ using Avalon.World.Creatures;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
@@ -48,6 +49,7 @@ public class CreatureCastShould
     {
         _scripts.GetAbilityScript(nameof(ConeAbilityScript)).Returns(typeof(ConeAbilityScript));
         _scripts.GetAbilityScript(nameof(CircleAbilityScript)).Returns(typeof(CircleAbilityScript));
+        _scripts.GetAbilityScript(nameof(ProjectileAbilityScript)).Returns(typeof(ProjectileAbilityScript));
         _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), _scripts, _arena);
     }
 
@@ -275,6 +277,60 @@ public class CreatureCastShould
         Assert.Equal([roar], _arena.InterruptsOf(wolf));
         Assert.Empty(_arena.Damaged());
         Assert.False(wolf.Abilities.IsCasting);
+    }
+
+    /// <summary>
+    /// A creature is never interrupted by being moved (#163): its script asks for no movement while it winds
+    /// up, so a push (a crowd's separation) must not cancel the wind-up, and re-queue it, every tick.
+    /// </summary>
+    [Fact]
+    public void Fire_a_wind_up_whose_creature_was_pushed_during_it()
+    {
+        Creature wolf = Wolf();
+        CharacterEntity player = _arena.Player(163_195, 0f, 2f);
+
+        Assert.True(_sut.QueueAbility(wolf, North, wolf.Abilities[RoarId]!));
+        RunFor(0.3f);
+        wolf.Position = new Vector3(0.3f, 0f, 0f);
+        RunFor(0.8f);
+
+        Assert.Empty(_arena.Interrupted);
+        Assert.Equal([player], _arena.Damaged());
+    }
+
+    /// <summary>
+    /// Review finding (#163): a projectile a creature loosed is dropped the moment it dies or turns for home, so
+    /// no corpse, and no creature walking home, deals damage or is put back into an encounter by it.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Drop_a_projectile_in_flight_when_its_creature_dies_or_turns_for_home(bool dies)
+    {
+        Creature wolf = Wolf();
+        var combat = new CreatureCombatScript(NullLoggerFactory.Instance, wolf, Substitute.For<ISimulationContext>());
+        wolf.Script = combat;
+        AbilityTemplate row = AbilityTestData.Projectile(163_305, reach: 10f, speed: 5f);
+        row.AllowedClasses = [];
+        IAbility spit = AbilityTestData.Game(row);
+        _arena.Player(163_196, 0f, 6f);
+
+        Assert.True(_sut.RunInstant(wolf, new AbilityAim(new Vector3(0f, 0f, 1f), new Vector3(0f, 0f, 6f)), spit));
+        RunFor(0.2f);
+        if (dies)
+            wolf.CurrentHealth = 0;
+        else
+            combat.State = CreatureCombatScript.CombatState.Returning;
+
+        var objects = new List<IWorldObject>();
+        for (int i = 0; i < 180; i++)
+        {
+            objects.Clear();
+            _sut.Update(Tick, objects);
+        }
+
+        Assert.Empty(_arena.Damaged());
+        Assert.Empty(objects);   // no longer a world object: every client is sent its removal
     }
 
     // ── damage through the real combat service ──

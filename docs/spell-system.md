@@ -122,8 +122,10 @@ or `QueueAbility` (which take any `IUnit`) with its own clone of the ability, ai
 is no handler and no global cooldown. Its casts are free (the power rule is skipped for an `ICreature`).
 Its haste is its own `min(HastePct, HasteCap)`. Its basic's cooldown is its `SwingInterval`, which already
 carries that haste; any other cooldown is the row's divided by it. A creature that dies or turns for
-home during a cast has the cast dropped on the next tick, with the interrupt, however much was left; so
-does one removed from its instance. See [creature-system.md](creature-system.md).
+home during a cast has the cast dropped on the next tick, with the interrupt, however much was left, and
+any projectile it loosed that is still in flight dropped with it; so does one removed from its instance.
+Moving never interrupts a creature's cast: its script stands still for a wind-up, so only a push (a
+crowd's separation) could move it. See [creature-system.md](creature-system.md).
 
 Firing starts the cooldown, sends the finish-cast animation, and runs the script's `Prepare`. A circle
 or cone resolves completely there; a projectile keeps ticking. A skill that affects nobody is not

@@ -455,14 +455,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
             Creature.LookAt(targetPosition);
         }
 
-        // The same arrival allowance reaches abilities (#163): a creature that settled where it should stand,
-        // held a little off it by its locomotion (a crowd's separation), must not be stranded there out of its
-        // basic's reach, attacking nothing and never re-planning. The shape still decides whom it hits.
-        float reachAllowance = hasArrived
-            ? Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin
-            : 0f;
-
-        if (TryAttack(target, currentPosition, targetPosition, reachAllowance, facing: inRange))
+        if (TryAttack(target, currentPosition, targetPosition, facing: inRange))
         {
             _unreachableFor = TimeSpan.Zero;
             return;
@@ -520,7 +513,36 @@ public class CreatureCombatScript : AiScript, IReturningHome
         destination = hasSlot
             ? Context.MeleeSlots.PositionFor(targetPosition, slot)
             : targetPosition + Vector3.Normalize(currentPosition - targetPosition) * (AttackRange - SurplusStandOffInset);
+        destination = WithinBasicReach(target, targetPosition, destination);
         return hasSlot;
+    }
+
+    /// <summary>
+    /// <paramref name="destination" />, pulled in toward the target along its own bearing when needed so the
+    /// basic reaches the target's body from anywhere within the locomotion's arrival tolerance of it (#163). A
+    /// crowd counts a creature arrived up to its agent radius off its slot, and a short basic (the Blightfly's
+    /// 1.5 m Sting) would otherwise miss from there for good: settled within tolerance, it never re-plans. With
+    /// the default slot radius and waypoint locomotion nothing moves.
+    /// </summary>
+    private Vector3 WithinBasicReach(IUnit target, Vector3 targetPosition, Vector3 destination)
+    {
+        if (_abilities.Basic is not { } basic)
+        {
+            return destination;
+        }
+
+        float reach = basic.Metadata.Shape == AbilityShape.Circle && basic.Metadata.Anchor == AbilityAnchor.Caster
+            ? basic.Metadata.Radius
+            : basic.Metadata.Reach;
+        float farthest = reach + target.BodyRadius - Context.Locomotion.ArrivalTolerance(Creature) - SurplusStandOffInset;
+        float standing = HitShapes.Distance2D(targetPosition, destination);
+        if (farthest <= 0f || standing <= farthest)
+        {
+            return destination;
+        }
+
+        Vector3 offset = destination - targetPosition;
+        return targetPosition + new Vector3(offset.x, 0f, offset.z) * (farthest / standing);
     }
 
     /// <summary>
@@ -632,9 +654,8 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// </summary>
     /// <param name="distance">
     /// Metres on X/Z from the creature's centre to the edge of the target's body: what a shape must reach to
-    /// hit it, since a shape hits every body it overlaps. Once the creature has settled where it means to
-    /// stand, its locomotion's arrival tolerance (and a small margin) is taken off, as it is off the attack
-    /// range, so a creature held a little off its slot still attacks.
+    /// hit it, since a shape hits every body it overlaps. Where the creature stands is pulled in so its basic
+    /// reaches from anywhere its locomotion counts as arrived (see ChooseDestination).
     /// </param>
     protected virtual IAbility? ChooseAbility(IUnit target, float distance) =>
         _abilities.Basic is { } basic && CreatureAbilities.IsReady(basic) && InReach(basic, distance) ? basic : null;
@@ -672,13 +693,10 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// creature for the cast. A cast the cast system refuses (a script missing or that cannot be built) is
     /// simply not started.
     /// </summary>
-    /// <param name="reachAllowance">Metres taken off the distance once the creature has settled (see Engage).</param>
     /// <param name="facing">Whether the creature already turned to the target this tick.</param>
-    private bool TryAttack(IUnit target, Vector3 currentPosition, Vector3 targetPosition, float reachAllowance,
-        bool facing)
+    private bool TryAttack(IUnit target, Vector3 currentPosition, Vector3 targetPosition, bool facing)
     {
-        float distance = MathF.Max(0f,
-            HitShapes.Distance2D(currentPosition, targetPosition) - target.BodyRadius - reachAllowance);
+        float distance = MathF.Max(0f, HitShapes.Distance2D(currentPosition, targetPosition) - target.BodyRadius);
         if (ChooseAbility(target, distance) is not { } ability
             || !Holds(ability)
             || !CreatureAbilities.IsReady(ability)

@@ -181,7 +181,10 @@ public class InstanceAbilityCastSystem(
                 continue;
             }
 
-            if (cast.CastStartPosition != cast.Caster.Position)
+            // A creature is never interrupted by moving (#163): its script asks for no movement while it winds
+            // up, so anything that moved it was not its own doing (a crowd's separation pushing a stopped agent),
+            // and a push must not cancel, and re-queue, its wind-up every tick.
+            if (cast.Caster is not ICreature && cast.CastStartPosition != cast.Caster.Position)
             {
                 _logger.LogInformation("Cast interrupted by movement ability={AbilityId} caster={CharId}",
                     ability.AbilityId, cast.Caster.Guid);
@@ -239,6 +242,15 @@ public class InstanceAbilityCastSystem(
         foreach (ActiveScript active in _activeAbilities)
         {
             AbilityScript script = active.Script;
+
+            // #163: a creature's projectile still in flight when it died or turned for home is dropped, like a
+            // departed caster's (#541), so no corpse and no creature walking home deals damage, or is put back into
+            // an encounter by it. Left out of this tick's world objects, it is removed from every client's view.
+            if (IsAbandonedByCreature(active.Caster))
+            {
+                _failed.Add(active);
+                continue;
+            }
 
             // A finished script is never ticked again, so nothing it does is applied twice.
             if (script.State is not SpellState.Finished)

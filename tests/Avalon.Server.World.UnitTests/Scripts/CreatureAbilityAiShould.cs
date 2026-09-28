@@ -57,7 +57,8 @@ public class CreatureAbilityAiShould
 
     private sealed class Fight
     {
-        public Fight(Vector3 targetAt, bool withRotation = true, AbilityId? prefer = null)
+        public Fight(Vector3 targetAt, bool withRotation = true, AbilityId? prefer = null,
+            Avalon.World.Abilities.AbilityCatalog? catalog = null, CreatureAbilityKit? kit = null)
         {
             Creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 163_1));
             Creature.Position.Returns(Vector3.zero);
@@ -81,8 +82,8 @@ public class CreatureAbilityAiShould
             Context.Locomotion.Returns(Locomotion);
             Context.MeleeSlots.Returns(new MeleeSlots(6, radius: 1.5f));
 
-            Script = new KitCombatScript(Creature, Context, catalog: TestKit.Catalog(Special(), WindUp()),
-                kit: new CreatureAbilityKit(TestKit.BasicId, SpecialId, WindUpId));
+            Script = new KitCombatScript(Creature, Context, catalog: catalog ?? TestKit.Catalog(Special(), WindUp()),
+                kit: kit ?? new CreatureAbilityKit(TestKit.BasicId, SpecialId, WindUpId));
             if (withRotation)
             {
                 AbilityId first = prefer ?? SpecialId;
@@ -160,6 +161,37 @@ public class CreatureAbilityAiShould
         fight.Tick();
 
         Assert.Empty(fight.Cast());
+    }
+
+    // ── where it stands ──
+
+    /// <summary>
+    /// Review finding (#163): a creature stands where its basic reaches the target's body from anywhere its
+    /// locomotion counts as arrived. A crowd's 0.6 m arrival tolerance round a 1.5 m slot let a Blightfly settle
+    /// 2.1 m from the target, beyond Sting's reach (1.5 m plus a 0.5 m body), where it stung empty air for good.
+    /// Its slot is pulled in to 1.5 + 0.5 - 0.6 - 0.1 = 1.3 m; a waypoint's 0.1 m tolerance leaves it at 1.5 m.
+    /// </summary>
+    [Theory]
+    [InlineData(0.6f, 1.3f)]
+    [InlineData(0.1f, 1.5f)]
+    public void Stand_where_its_basic_reaches_from_anywhere_it_counts_as_arrived(float tolerance, float expected)
+    {
+        AbilityTemplate sting = AbilityTestData.Cone(90_166, reach: 1.5f, arc: 90f);
+        sting.Name = "Sting";
+        sting.Cooldown = 2250;
+        sting.AllowedClasses = [];
+        var fight = new Fight(targetAt: new Vector3(10f, 0f, 0f), withRotation: false,
+            catalog: TestKit.Catalog(sting), kit: new CreatureAbilityKit(new AbilityId(90_166)));
+        fight.Target.BodyRadius.Returns(0.5f);
+        fight.Locomotion.ArrivalTolerance(fight.Creature).Returns(tolerance);
+        Vector3? destination = null;
+        fight.Locomotion.When(l => l.MoveTo(fight.Creature, Arg.Any<Vector3>()))
+            .Do(ci => destination = ci.ArgAt<Vector3>(1));
+
+        fight.Tick();
+
+        Assert.NotNull(destination);
+        Assert.Equal(expected, Vector3.Distance(destination!.Value, new Vector3(10f, 0f, 0f)), 0.001f);
     }
 
     // ── wind-ups ──

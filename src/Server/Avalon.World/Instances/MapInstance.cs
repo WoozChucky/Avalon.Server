@@ -408,12 +408,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         _creatures.Remove(creature.Guid);
 
-        // A wind-up in progress ends here, out loud (#163): a corpse removed or a script hot reloaded
-        // mid-cast would otherwise fire it later, from a creature that is gone or from its old script.
+        // A wind-up in progress ends here, out loud, and a projectile in flight is dropped (#163): a corpse
+        // removed or a script hot reloaded mid-cast would otherwise fire it later, from a creature that is gone
+        // or from its old script.
         // Contained, so a failure cannot keep the creature a member.
         try
         {
             _abilityCastSystem.CancelCasts(creature);
+            _abilityCastSystem.CancelScriptsOf(creature);
         }
         catch (Exception e)
         {
