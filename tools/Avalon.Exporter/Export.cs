@@ -65,6 +65,12 @@ internal static class Exports
             "the item template rows the client vendors (needs a World database)",
             root => ItemCatalog.Write(Path.Combine(root, ItemCatalog.DirectoryName, ItemCatalog.FileName)),
             ItemCatalog.Readiness),
+
+        new("ability-catalog", AbilityCatalogExport.DirectoryName + "/" + AbilityCatalogExport.FileName,
+            "the ability rows the client names and draws casts from (needs a World database)",
+            root => AbilityCatalogExport.Write(
+                Path.Combine(root, AbilityCatalogExport.DirectoryName, AbilityCatalogExport.FileName)),
+            AbilityCatalogExport.Readiness),
     ];
 
     internal static Export? ByName(string name)
