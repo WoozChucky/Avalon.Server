@@ -573,15 +573,83 @@ public class SeedIntegrityShould
         [CharacterClass.Healer] = [230, 231, 232],
     };
 
+    /// <summary>The twelve kit abilities and, since #163, the seventeen creature abilities 300-316; none of the retired ones.</summary>
     [Fact]
-    public void Seed_exactly_the_twelve_kit_abilities_and_none_of_the_old_ones()
+    public void Seed_exactly_the_twelve_kit_abilities_and_the_creature_abilities_and_none_of_the_old_ones()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         List<uint> ids = context.AbilityTemplates.AsNoTracking().AsEnumerable().Select(a => a.Id.Value).OrderBy(i => i).ToList();
 
-        Assert.Equal(Kit.Values.SelectMany(v => v).OrderBy(i => i), ids);
+        Assert.Equal(Kit.Values.SelectMany(v => v).Concat(Enumerable.Range(300, 17).Select(i => (uint)i)).OrderBy(i => i), ids);
+    }
+
+    /// <summary>
+    /// #163: the creature abilities exactly as the design's table has them, with the arcs chosen for the cones
+    /// and the speeds chosen for the projectiles. Every one is creature-only (no class), free, EffectValue 0, and
+    /// dealt from the creature's natural range through BaseDamageCoefficient; a basic (coefficient 1.0) lists the
+    /// seeded 2.25 s swing interval, which is what it waits.
+    /// </summary>
+    [Theory]
+    [InlineData(300u, "Gore", AbilityShape.Cone, 1.8f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]
+    [InlineData(301u, "Trample", AbilityShape.Circle, 0f, 2.5f, 0f, 0f, false, 0u, 10000u, 1.6f)]
+    [InlineData(302u, "Bite", AbilityShape.Cone, 1.8f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]
+    [InlineData(303u, "Ravenous Claw", AbilityShape.Cone, 2.5f, 0f, 90f, 0f, false, 0u, 8000u, 1.8f)]
+    [InlineData(304u, "Sting", AbilityShape.Cone, 1.5f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]
+    [InlineData(305u, "Blight Spit", AbilityShape.Projectile, 10f, 0f, 0f, 14f, false, 0u, 6000u, 1.4f)]
+    [InlineData(306u, "Slam", AbilityShape.Cone, 1.8f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]
+    [InlineData(307u, "Rotting Burst", AbilityShape.Circle, 0f, 3f, 0f, 0f, false, 0u, 12000u, 1.5f)]
+    [InlineData(308u, "Maul", AbilityShape.Cone, 2f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]
+    [InlineData(309u, "Rending Frenzy", AbilityShape.Cone, 2.5f, 0f, 100f, 0f, false, 0u, 9000u, 1.8f)]
+    [InlineData(310u, "Howling Roar", AbilityShape.Circle, 0f, 5f, 0f, 0f, false, 1000u, 15000u, 2.0f)]
+    [InlineData(311u, "Tusk Gore", AbilityShape.Cone, 2f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]
+    [InlineData(312u, "Earthsplitter", AbilityShape.Cone, 5f, 0f, 60f, 0f, false, 1200u, 14000u, 2.4f)]
+    [InlineData(313u, "Thorn Volley", AbilityShape.Projectile, 12f, 0f, 0f, 16f, true, 0u, 10000u, 1.6f)]
+    [InlineData(314u, "Bramble Lash", AbilityShape.Cone, 2.5f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]
+    [InlineData(315u, "Bramble Nova", AbilityShape.Circle, 0f, 6f, 0f, 0f, false, 1200u, 16000u, 2.5f)]
+    [InlineData(316u, "Thornspray", AbilityShape.Cone, 5f, 0f, 120f, 0f, false, 0u, 8000u, 1.8f)]
+    public void Seed_each_creature_ability_as_designed(uint id, string name, AbilityShape shape, float reach,
+        float radius, float arc, float speed, bool pierce, uint castTime, uint cooldown, float baseDamage)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        AbilityTemplate a = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
+
+        Assert.Equal((name, shape, reach, radius, arc, speed, pierce, castTime, cooldown, baseDamage),
+            (a.Name, a.Shape, a.Reach, a.Radius, a.ArcDegrees, a.ProjectileSpeed, a.Pierce, a.CastTime, a.Cooldown,
+                a.BaseDamageCoefficient));
+        Assert.Empty(a.AllowedClasses);
+        Assert.Equal((0u, 0u, 0f, 0), (a.Cost, a.EffectValue, a.ScalingCoefficient, a.PowerGainPerHit));
+        Assert.Equal(AbilityAffects.Hostile, a.Affects);
+        Assert.Equal(AbilityAnchor.Caster, a.Anchor);
+        Assert.Equal(shape == AbilityShape.Projectile ? AbilityAimMode.Cursor : AbilityAimMode.Movement, a.AimMode);
+    }
+
+    /// <summary>#163: each forest template runs its own script, which names exactly its seeded abilities, its basic first.</summary>
+    [Theory]
+    [InlineData(4, "ThornbackBoarScript", new uint[] { 300, 301 })]
+    [InlineData(5, "GreyFenWolfScript", new uint[] { 302, 303 })]
+    [InlineData(6, "BlightflySwarmlingScript", new uint[] { 304, 305 })]
+    [InlineData(7, "HuskOfTheWoldScript", new uint[] { 306, 307 })]
+    [InlineData(8, "BramblemawAlphaScript", new uint[] { 308, 310, 309 })]
+    [InlineData(9, "OldTuskrootScript", new uint[] { 311, 312, 313 })]
+    [InlineData(10, "MotherBrambleScript", new uint[] { 314, 315, 316 })]
+    public void Run_each_forest_creature_on_its_own_script(int templateId, string script, uint[] abilities)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        CreatureTemplate template = context.CreatureTemplates.AsNoTracking().AsEnumerable()
+            .Single(t => t.Id == new CreatureTemplateId((ulong)templateId));
+        Assert.Equal(script, template.ScriptName);
+
+        Type type = typeof(Avalon.World.Scripts.ScriptManager).Assembly.GetTypes().Single(t => t.Name == script);
+        var kit = (Avalon.World.Creatures.CreatureAbilityKit)type.GetProperty("Kit")!.GetValue(null)!;
+        Assert.Equal(abilities, new[] { kit.Basic }.Concat(kit.Specials).Select(i => i.Value));
+        Assert.Equal(1.0f, context.AbilityTemplates.AsNoTracking().AsEnumerable()
+            .Single(a => a.Id == kit.Basic).BaseDamageCoefficient);
     }
 
     [Fact]
@@ -593,7 +661,7 @@ public class SeedIntegrityShould
         var catalog = new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(12, catalog.Count);
+        Assert.Equal(12 + 17, catalog.Count);
     }
 
     [Fact]
