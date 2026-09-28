@@ -24,6 +24,32 @@ public class CreatureCorpseRemoverShould
         return creature;
     }
 
+    /// <summary>
+    /// #640: the remover runs every tick of every instance, so a tick with a corpse waiting (or none)
+    /// allocates nothing. The fewest bytes over three windows, as WaypointRepathAllocationShould takes.
+    /// </summary>
+    [Fact]
+    public void Tick_Without_Allocating_While_A_Corpse_Waits()
+    {
+        var remover = new CreatureCorpseRemover(_simulationContext);
+        remover.Update(Tick);
+        remover.ScheduleRemoval(MakeCreature());
+        remover.Update(Tick);
+
+        long fewest = long.MaxValue;
+        for (int window = 0; window < 3; window++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int tick = 0; tick < 100; tick++)
+                remover.Update(Tick);
+
+            fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        Assert.Equal(0, fewest);
+        _simulationContext.DidNotReceive().RemoveCreature(Arg.Any<ICreature>());
+    }
+
     [Fact]
     public void Leave_A_Corpse_Alone_When_Just_Scheduled()
     {
