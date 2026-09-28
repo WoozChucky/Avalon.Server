@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Avalon.Common;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
@@ -104,6 +105,50 @@ public class PacketSerializationAllocationShould
         byte[] written = SChatMessagePacket.Create(42, 7, "Alice", new string('m', 300), When, Identity).Payload;
 
         Assert.Equal(reference.WrittenSpan.ToArray(), written);
+    }
+
+    private static List<ObjectGuid> Guids(int count)
+    {
+        var guids = new List<ObjectGuid>(count);
+        for (uint i = 0; i < count; i++)
+            guids.Add(new ObjectGuid(ObjectType.Creature, 10_000 + i));
+        return guids;
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(100)]
+    public void Write_a_remove_as_its_ids_would_be_written(int count)
+    {
+        List<ObjectGuid> guids = Guids(count);
+        var expected = new SInstanceStateRemovePacket { Removes = guids.ConvertAll(g => g.RawValue) };
+        using var reference = new PooledArrayBufferWriter();
+        Serializer.Serialize(reference, expected);
+
+        byte[] written = SInstanceStateRemovePacket.Create(guids, Identity).Payload;
+
+        Assert.Equal(reference.WrittenSpan.ToArray(), written);
+    }
+
+    /// <summary>The id list is built at its final size in one pass, with no LINQ iterator or regrowth.</summary>
+    [Fact]
+    public void Build_a_remove_list_at_its_size()
+    {
+        List<ObjectGuid> guids = Guids(100);
+        SInstanceStateRemovePacket.Create(guids, Discard);
+
+        long fewest = long.MaxValue;
+        for (int window = 0; window < 3; window++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            SInstanceStateRemovePacket.Create(guids, Discard);
+            fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        // Only what the packet holds: the id list (32 bytes) and its array of 100 ulongs (824), plus the
+        // packet, NetworkPacket and header (120). LINQ added its iterator on top, 1,048 in all.
+        Assert.InRange(fewest, 0, 32 + 824 + 120);
     }
 
     [Fact]
