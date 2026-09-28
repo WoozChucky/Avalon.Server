@@ -1,6 +1,7 @@
 using System;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -197,7 +198,7 @@ public class CreaturePatrolScriptShould
         fight.Script.OnHit(fight.Attacker, 1);
         fight.Tick();
 
-        fight.Combat.Received(1).ApplyDamage(fight.Creature, fight.Attacker, Arg.Any<uint>());
+        fight.Combat.Received(1).ApplyDamage(fight.Creature, fight.Attacker, Arg.Any<uint>(), Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -345,7 +346,7 @@ public class CreaturePatrolScriptShould
     {
         var fight = new PatrolFight(Point(0f), Point(10f));
         fight.Creature.CurrentHealth = 0;
-        var script = new CreaturePatrolScript(NullLoggerFactory.Instance, fight.Creature, fight.Context);
+        var script = new KitPatrolScript(fight.Creature, fight.Context);
 
         script.Update(TimeSpan.FromSeconds(0.1));
         script.Update(TimeSpan.FromSeconds(0.1));
@@ -386,7 +387,7 @@ public class CreaturePatrolScriptShould
             Context.Locomotion.Returns(Locomotion);
             Context.CombatService.Returns(Combat);
 
-            Script = new CreaturePatrolScript(NullLoggerFactory.Instance, Creature, Context);
+            Script = new KitPatrolScript(Creature, Context);
         }
 
         public PatrolPoint[] Path { get; }
@@ -425,7 +426,7 @@ public class CreaturePatrolScriptShould
         var context = Substitute.For<ISimulationContext>();
         context.Locomotion.Returns(locomotion);
 
-        var script = new CreaturePatrolScript(NullLoggerFactory.Instance, creature, context);
+        var script = new KitPatrolScript(creature, context);
         return (script, creature);
     }
 }

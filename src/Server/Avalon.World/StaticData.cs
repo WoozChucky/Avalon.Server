@@ -222,6 +222,13 @@ public class StaticData(
 
     /// <summary>Validated abilities (#164). Read at select on the tick; one reference, so one generation.</summary>
     public AbilityCatalog Abilities => _abilities!.Catalog;
+
+    /// <summary>
+    /// The ability catalog, or null before the first load (#163): a creature script built then (a
+    /// constructibility check against a container that never loaded the data) gets no abilities rather than
+    /// throwing.
+    /// </summary>
+    public AbilityCatalog? LoadedAbilities => _abilities?.Catalog;
     public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences => _progression!.Levels;
     public IReadOnlyCollection<CreatureBaseStat> CreatureBaseStats => _creatures!.BaseStats;
     public IReadOnlyCollection<CreatureRarityModifier> CreatureRarityModifiers => _creatures!.Rarities;

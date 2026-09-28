@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Maps.Navigation;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -81,11 +82,12 @@ public class CreatureCombatScriptCrowdLocomotionShould
         target.Guid.Returns(new ObjectGuid(ObjectType.Character, 100));
         target.Position.Returns(targetPosition);
         target.IsDead.Returns(false);
+        target.BodyRadius.Returns(0.5f);   // a character's body (#163: an ability reaches the body's edge)
 
         var combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
         var attackedCreatures = new HashSet<ObjectGuid>();
-        combat.When(c => c.ApplyDamage(Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Any<uint>()))
+        combat.When(c => c.ApplyDamage(Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Any<uint>(), Arg.Any<IAbility>()))
             .Do(call => attackedCreatures.Add(call.ArgAt<IUnit>(0).Guid));
 
         // Production default MeleeSlotRadius (== AttackRange), same as every other combat-script
@@ -130,7 +132,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
             // MapInstance.AddCreature's job, done manually since there is no MapInstance here.
             locomotion.Register(creature, radius: agentRadius);
 
-            var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+            var script = new KitCombatScript(creature, context);
             script.OnEnteredRange(target); // _initialPosition = start, State = Combat
 
             creatures.Add(creature);
@@ -161,7 +163,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         }
 
         foreach (ICreature creature in creatures)
-            combat.Received().ApplyDamage(creature, target, Arg.Any<uint>());
+            combat.Received().ApplyDamage(creature, target, Arg.Any<uint>(), Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -230,7 +232,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         creature.CurrentHealth = 100;
         locomotion.Register(creature, radius: NavmeshBuildSettings.AgentRadius);
 
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        var script = new KitCombatScript(creature, context);
         script.OnEnteredRange(target);
 
         TimeSpan dt = TimeSpan.FromSeconds(0.05);
@@ -244,6 +246,6 @@ public class CreatureCombatScriptCrowdLocomotionShould
         }
 
         Assert.InRange(returningAt, 99, 110); // 5 s of 0.05 s ticks, give or take the first plan
-        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
     }
 }

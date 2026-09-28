@@ -218,6 +218,25 @@ public class CreatureCastShould
         Assert.Equal(15f, roar.CooldownTimer);
     }
 
+    /// <summary>
+    /// A wind-up is dodgeable (#163): its shape is resolved where it fires, so a player who stepped out of it
+    /// during the cast takes nothing, and one who stayed takes it.
+    /// </summary>
+    [Fact]
+    public void Hit_only_the_player_who_stayed_in_a_wind_up()
+    {
+        Creature wolf = Wolf();
+        CharacterEntity stayed = _arena.Player(163_191, 0f, 2f);
+        CharacterEntity stepped = _arena.Player(163_192, 2f, 0f);
+
+        Assert.True(_sut.QueueAbility(wolf, North, wolf.Abilities[RoarId]!));
+        RunFor(0.5f);
+        stepped.Position = new Vector3(8f, 0f, 0f);
+        RunFor(0.6f);
+
+        Assert.Equal([stayed], _arena.Damaged());
+    }
+
     /// <summary>Review Focus 1: a creature killed mid wind-up casts nothing, now or later, and its cast bar ends at once.</summary>
     [Fact]
     public void Drop_the_wind_up_of_a_creature_killed_mid_cast_and_broadcast_the_interrupt()
@@ -305,21 +324,6 @@ public class CreatureCastShould
         SCharacterDamagePacket hit = Assert.Single(player.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
         Assert.Equal(HitResult.Crit, hit.Result);
         Assert.Equal(BiteId.Value, hit.AbilityId);
-    }
-
-    /// <summary>A creature's cooldowns run down on the instance's tick.</summary>
-    [Fact]
-    public void Tick_a_creatures_cooldowns_on_the_instance_tick()
-    {
-        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _);
-        Join(instance, 163_171);
-        Creature wolf = Wolf();
-        instance.AddCreature(wolf);
-        wolf.Abilities[ClawId]!.CooldownTimer = 1f;
-
-        instance.Update(TimeSpan.FromSeconds(0.5));
-
-        Assert.Equal(0.5f, wolf.Abilities[ClawId]!.CooldownTimer, 0.0001f);
     }
 
     /// <summary>A creature removed mid wind-up (its corpse removed, a script hot reload) never fires it later.</summary>

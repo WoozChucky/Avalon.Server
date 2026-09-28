@@ -734,13 +734,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>Step 4 of <see cref="Update" />: creature scripts, the player sync, then the locomotion.</summary>
     private void UpdateCreatures(TimeSpan deltaTime)
     {
-        // Step 4: Update creature scripts. A World-side creature's cooldowns run down first (#163), as a
-        // character's do in its own tick ahead of its packets, so a script sees this tick's readiness.
+        // Step 4: Update creature scripts. A creature's cooldowns run down inside its combat script (#163),
+        // the one thing that casts them.
         foreach (ICreature creature in _creatures.Values)
         {
-            if (creature is Creature worldCreature)
-                worldCreature.Abilities.Update(deltaTime);
-
             creature.Script?.Update(deltaTime);
         }
 
