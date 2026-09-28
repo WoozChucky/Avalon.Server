@@ -5,8 +5,9 @@ using Avalon.World.Public.Abilities;
 namespace Avalon.World.Combat;
 
 /// <summary>
-/// What the attacking side of a hit brings (#506). Chances are percentage points. A creature has no
-/// weapon (0 and 0) and no damage stats, since it has no abilities yet.
+/// What the attacking side of a hit brings (#506). Chances are percentage points. WeaponMin..WeaponMax is
+/// the base damage an ability's BaseDamageCoefficient rolls: a character's main hand, a creature's natural
+/// DamageMin..DamageMax (#163). A creature has no damage stats.
 /// </summary>
 public readonly record struct AttackerCombat(
     uint Level, uint AttackDamage, uint AbilityDamage, float CritPct, uint WeaponMin, uint WeaponMax);

@@ -4,10 +4,12 @@ using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
+using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -19,8 +21,9 @@ public interface IAbilityCastSystem
     /// Takes a cast-time cast aimed at <paramref name="aim" />, pays its cost and marks it casting. False,
     /// with nothing spent and <c>Casting</c> left clear, when its script is missing or cannot be built, or
     /// the cost cannot be paid. The script is built now, with this aim, and fired once the cast time has run out.
+    /// Any unit may cast (#163); a creature's casts cost nothing.
     /// </summary>
-    bool QueueAbility(ICharacter character, AbilityAim aim, IAbility ability);
+    bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability);
 
     /// <summary>
     /// Instant-cast counterpart to <see cref="QueueAbility" />: builds the script, pays the cost, starts
@@ -72,46 +75,47 @@ public class InstanceAbilityCastSystem(
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
 
-    public bool QueueAbility(ICharacter character, AbilityAim aim, IAbility ability)
+    public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability)
     {
-        CostCheck cost = AbilityCost.Check(character, ability.Metadata);
-        if (cost != CostCheck.Payable)
+        if (!IsFree(caster) && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
             _logger.LogInformation("QueueAbility reject {Cost} ability={AbilityId} powerType={PowerType}",
-                cost, ability.AbilityId, character.PowerType);
+                cost, ability.AbilityId, caster.PowerType);
             return false;
         }
 
         // Built now, with the aim captured at cast start, so a script that is missing or cannot be
         // built is refused before anything is paid, and a reload that removes it mid-cast costs nothing.
-        if (Build(character, aim, ability) is not { } script)
+        if (Build(caster, aim, ability) is not { } script)
         {
             return false;
         }
 
         // #627: haste is read once, here: the cast time is fixed now, and the cooldown it sets when it fires
         // uses the same value, so a gear change mid-cast changes neither.
-        float haste = HasteOf(character);
+        float haste = HasteOf(caster);
         _abilityQueue.Add(new AbilityInstance
         {
-            Caster = character, Ability = ability, Script = script, CastStartPosition = character.Position,
+            Caster = caster, Ability = ability, Script = script, CastStartPosition = caster.Position,
             HastePct = haste,
         });
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
         ability.Casting = true;
         ability.CastTimeTimer = Haste.Scale(ability.Metadata.CastTime, haste);
-        AbilityCost.Pay(character, ability.Metadata);
+        if (!IsFree(caster))
+        {
+            AbilityCost.Pay(caster, ability.Metadata);
+        }
 
         _logger.LogDebug("QueueAbility queued ability={AbilityId} caster={CharId} castTime={CastTime}s queueSize={Size}",
-            ability.AbilityId, character.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
+            ability.AbilityId, caster.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
         return true;
     }
 
     public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability)
     {
-        CostCheck cost = AbilityCost.Check(caster, ability.Metadata);
-        if (cost != CostCheck.Payable)
+        if (!IsFree(caster) && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
             _logger.LogInformation("RunInstant reject {Cost} ability={AbilityId} powerType={PowerType}",
                 cost, ability.AbilityId, caster.PowerType);
@@ -123,7 +127,11 @@ public class InstanceAbilityCastSystem(
             return false;
         }
 
-        AbilityCost.Pay(caster, ability.Metadata);
+        if (!IsFree(caster))
+        {
+            AbilityCost.Pay(caster, ability.Metadata);
+        }
+
         Fire(caster, ability, script, HasteOf(caster));
         return true;
     }
@@ -144,9 +152,10 @@ public class InstanceAbilityCastSystem(
     }
 
     /// <summary>
-    /// Runs down every queued cast's timer: a caster who moved is interrupted, a finished cast is
-    /// fired, or dropped when its caster died. Every cast that ends leaves the queue after the loop,
-    /// and its interrupt, if any, is collected for <see cref="SendInterrupts" />.
+    /// Runs down every queued cast's timer: a creature that died or turned for home is interrupted at once,
+    /// a caster who moved is interrupted, a finished cast is fired, or dropped when its caster died. Every
+    /// cast that ends leaves the queue after the loop, and its interrupt, if any, is collected for
+    /// <see cref="SendInterrupts" />.
     /// </summary>
     private void AdvanceQueue(TimeSpan deltaTime)
     {
@@ -158,6 +167,19 @@ public class InstanceAbilityCastSystem(
         {
             IAbility ability = cast.Ability;
             ability.CastTimeTimer -= (float)deltaTime.TotalSeconds;
+
+            // #163: a creature that died during its wind-up, or turned for home (the leash, a lost target),
+            // ends the cast at once and out loud, however much of it was left, so its corpse or its walk home
+            // never lands the hit.
+            if (IsAbandonedByCreature(cast.Caster))
+            {
+                _logger.LogDebug("Dropped the cast of a creature that died or turned for home ability={AbilityId} caster={CasterId}",
+                    ability.AbilityId, cast.Caster.Guid);
+                ResetCast(ability);
+                _interrupts.Add((cast.Caster, ability));
+                _dequeued.Add(cast);
+                continue;
+            }
 
             if (cast.CastStartPosition != cast.Caster.Position)
             {
@@ -179,7 +201,7 @@ public class InstanceAbilityCastSystem(
 
             // A caster who died during the cast casts nothing, and is left free to cast again. The drop
             // is interrupted out loud (#530), as moving does, so every client's cast bar for it ends.
-            if (cast.Caster is ICharacter { IsDead: true })
+            if (IsDead(cast.Caster))
             {
                 _logger.LogDebug("Dropped the cast of a dead caster ability={AbilityId} caster={CharId}",
                     ability.AbilityId, cast.Caster.Guid);
@@ -316,18 +338,49 @@ public class InstanceAbilityCastSystem(
     }
 
     /// <summary>
-    /// A caster's effective haste (#627), cached on the character at its last stats refresh. Only a character
-    /// has haste; any other caster casts with none.
+    /// A caster's effective haste (#627): a character's, cached at its last stats refresh; a World-side
+    /// creature's, capped by the cap it spawned with (#163). Any other caster casts with none.
     /// </summary>
-    private static float HasteOf(IUnit caster) => caster is CharacterEntity character ? character.EffectiveHastePct : 0f;
+    private static float HasteOf(IUnit caster) => caster switch
+    {
+        CharacterEntity character => character.EffectiveHastePct,
+        Creature creature => MathF.Min(creature.HastePct, creature.HasteCap),
+        _ => 0f,
+    };
+
+    /// <summary>A creature's casts cost nothing (#163): it has no pool, and only its cooldowns gate it.</summary>
+    private static bool IsFree(IUnit caster) => caster is ICreature;
+
+    /// <summary>A character is dead by its flag, a creature at 0 health.</summary>
+    private static bool IsDead(IUnit caster) => caster switch
+    {
+        ICharacter character => character.IsDead,
+        ICreature creature => creature.CurrentHealth == 0,
+        _ => false,
+    };
+
+    /// <summary>A creature caster that died, or that its combat script is walking home (#163, #610).</summary>
+    private static bool IsAbandonedByCreature(IUnit caster) =>
+        caster is ICreature creature
+        && (creature.CurrentHealth == 0 || creature.Script is IReturningHome { IsReturningHome: true });
 
     /// <summary>
-    /// The cooldown, divided by the haste the cast was read with (#627) and set once, so a later gear change
-    /// never rescales a running one; the finish-cast broadcast; the effect. A script still running keeps ticking.
+    /// The cooldown a cast sets when it fires. A creature's basic waits its SwingInterval (#163), which already
+    /// carries its haste, so it is not divided again; every other cooldown is divided by the haste the cast was
+    /// read with (#627).
+    /// </summary>
+    private static float CooldownOf(IUnit caster, IAbility ability, float hastePct) =>
+        caster is Creature creature && creature.Abilities.IsBasic(ability)
+            ? creature.SwingInterval
+            : Haste.Scale(ability.Metadata.Cooldown, hastePct);
+
+    /// <summary>
+    /// The cooldown, set once (#627), so a later gear change never rescales a running one; the finish-cast
+    /// broadcast; the effect. A script still running keeps ticking.
     /// </summary>
     private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct)
     {
-        ability.CooldownTimer = Haste.Scale(ability.Metadata.Cooldown, hastePct);
+        ability.CooldownTimer = CooldownOf(caster, ability, hastePct);
         arena.BroadcastFinishCast(caster, ability);
 
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world

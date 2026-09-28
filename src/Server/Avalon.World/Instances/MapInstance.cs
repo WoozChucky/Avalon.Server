@@ -408,6 +408,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         _creatures.Remove(creature.Guid);
 
+        // A wind-up in progress ends here, out loud (#163): a corpse removed or a script hot reloaded
+        // mid-cast would otherwise fire it later, from a creature that is gone or from its old script.
+        // Contained, so a failure cannot keep the creature a member.
+        try
+        {
+            _abilityCastSystem.CancelCasts(creature);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Cancelling the casts of creature {CreatureGuid} as it left instance {InstanceId} failed",
+                creature.Guid, InstanceId);
+        }
+
         // Stop BEFORE Unregister, exactly as CreatureKilled does and for the same reason: Stop is
         // what brings the creature to rest (MoveState.Idle, zero Velocity), and both locomotion
         // implementations no-op on an unregistered creature. Reversed, a creature removed mid-walk
@@ -423,7 +436,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _meleeSlots.ReleaseClaimant(creature.Guid);
     }
 
-    public bool QueueAbility(ICharacter caster, AbilityAim aim, IAbility ability) =>
+    public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability) =>
         _abilityCastSystem.QueueAbility(caster, aim, ability);
 
     public bool RunInstantAbility(IUnit caster, AbilityAim aim, IAbility ability) =>
@@ -721,9 +734,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>Step 4 of <see cref="Update" />: creature scripts, the player sync, then the locomotion.</summary>
     private void UpdateCreatures(TimeSpan deltaTime)
     {
-        // Step 4: Update creature scripts
+        // Step 4: Update creature scripts. A World-side creature's cooldowns run down first (#163), as a
+        // character's do in its own tick ahead of its packets, so a script sees this tick's readiness.
         foreach (ICreature creature in _creatures.Values)
         {
+            if (creature is Creature worldCreature)
+                worldCreature.Abilities.Update(deltaTime);
+
             creature.Script?.Update(deltaTime);
         }
 
