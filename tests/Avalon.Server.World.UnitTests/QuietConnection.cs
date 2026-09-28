@@ -12,7 +12,8 @@ namespace Avalon.Server.World.UnitTests;
 
 /// <summary>
 /// A connection that only counts what it is sent, and holds the character, dialogue and target a tick
-/// reads. Allocation-free, so the tick paths it serves can be pinned at zero bytes. Everything else throws.
+/// reads, with no packets of its own to process. Allocation-free, so the tick paths it serves can be
+/// pinned at zero bytes. Everything else throws.
 /// </summary>
 internal sealed class QuietConnection(CharacterEntity character) : IWorldConnection
 {
@@ -24,7 +25,14 @@ internal sealed class QuietConnection(CharacterEntity character) : IWorldConnect
 
     public IAvalonCryptoSession CryptoSession { get; } = new FakeAvalonCryptoSession();
 
-    public void Send(NetworkPacket packet) => Sent++;
+    /// <summary>The payload bytes of everything sent, so a pin can allow for the packets themselves.</summary>
+    public long SentPayloadBytes { get; private set; }
+
+    public void Send(NetworkPacket packet)
+    {
+        Sent++;
+        SentPayloadBytes += packet.Payload.Length;
+    }
 
     public Guid Id => throw new NotSupportedException();
     public Task? ExecuteTask => throw new NotSupportedException();
@@ -61,7 +69,7 @@ internal sealed class QuietConnection(CharacterEntity character) : IWorldConnect
         throw new NotSupportedException();
 
     public void UpdateSession() => throw new NotSupportedException();
-    public void UpdateMap() => throw new NotSupportedException();
+    public void UpdateMap() { }
     public void FlushContinuations() => throw new NotSupportedException();
     public void FlushOutbox() => throw new NotSupportedException();
     public void EnqueueContinuation<T>(Task<T> task, Action<T> callback) => throw new NotSupportedException();

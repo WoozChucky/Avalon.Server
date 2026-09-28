@@ -43,6 +43,24 @@ public class ObjectStateWriterShould
         Assert.Equal(scenario.Expected, arrived);
     }
 
+    /// <summary>
+    /// #640: a message from the broadcast's pool, last used for an entity that carried every member,
+    /// goes out as the very bytes a new one would.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EntityStateScenarios.Names), MemberType = typeof(EntityStateScenarios))]
+    public void Write_a_reused_message_as_a_new_one(string name)
+    {
+        EntityStateScenario scenario = EntityStateScenarios.Get(name);
+        var pool = new ObjectStatePool();
+        ObjectStatePoolShould.FillEveryMember(pool.State(1));
+        pool.Vector(new Vector3(7f, 8f, 9f));
+        pool.Vector(new Vector3(7f, 8f, 9f));
+        pool.Reset();
+
+        Assert.Equal(Bytes(Describe(scenario)), Bytes(Describe(scenario, pool)));
+    }
+
     [Theory]
     [MemberData(nameof(EntityStateScenarios.Names), MemberType = typeof(EntityStateScenarios))]
     public void Identify_the_entity_it_describes(string name)
@@ -237,6 +255,13 @@ public class ObjectStateWriterShould
         Assert.True(character.SaveState.PvpDirty);
     }
 
+    private static byte[] Bytes(ObjectState state)
+    {
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, state);
+        return stream.ToArray();
+    }
+
     private static ObjectState RoundTrip(ObjectState state)
     {
         using var stream = new MemoryStream();
@@ -251,12 +276,12 @@ public class ObjectStateWriterShould
     /// Dispatches on the static type of the entity, the way the broadcast path does. Which
     /// overload applies is a compile-time decision here and there.
     /// </summary>
-    private static ObjectState Describe(EntityStateScenario scenario) => scenario.Type switch
+    private static ObjectState Describe(EntityStateScenario scenario, ObjectStatePool? pool = null) => scenario.Type switch
     {
-        ObjectType.Character => ObjectStateWriter.From((ICharacter)scenario.Entity, scenario.Fields),
-        ObjectType.Creature => ObjectStateWriter.From((ICreature)scenario.Entity, scenario.Fields),
-        ObjectType.SpellProjectile when scenario.IsAdd => ObjectStateWriter.From((IWorldObject)scenario.Entity),
-        ObjectType.SpellProjectile => ObjectStateWriter.From((IWorldObject)scenario.Entity, scenario.Fields),
+        ObjectType.Character => ObjectStateWriter.From((ICharacter)scenario.Entity, scenario.Fields, pool),
+        ObjectType.Creature => ObjectStateWriter.From((ICreature)scenario.Entity, scenario.Fields, pool),
+        ObjectType.SpellProjectile when scenario.IsAdd => ObjectStateWriter.From((IWorldObject)scenario.Entity, pool),
+        ObjectType.SpellProjectile => ObjectStateWriter.From((IWorldObject)scenario.Entity, scenario.Fields, pool),
         _ => throw new InvalidOperationException($"No entity state is defined for {scenario.Type}."),
     };
 
