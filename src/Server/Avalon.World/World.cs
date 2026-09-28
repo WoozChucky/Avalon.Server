@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.Telemetry;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
@@ -70,6 +71,7 @@ public class World : IWorld
     /// </summary>
     private readonly IntervalTimer _hotReloadTimer = new();
     private readonly IWorldRepository _worldRepository;
+    private readonly InstanceTicker _instanceTicker;
 
     private Domain.Auth.World? _world;
     private volatile List<Type>? _pendingHotReload;
@@ -109,6 +111,9 @@ public class World : IWorld
             abilityTemplateRepository, characterLevelExperienceRepository, creatureTemplateRepository,
             creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
             dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository);
+
+        _instanceTicker = new InstanceTicker(_logger, DiagnosticsConfig.World.Meter,
+            serviceProvider.GetService<TimeProvider>());
 
         _hotReloadTimer.SetInterval(
             (long)TimeSpan.FromSeconds(configuration.Value.ScriptHotReloadIntervalSeconds).TotalMilliseconds);
@@ -422,10 +427,9 @@ public class World : IWorld
             _hotReloadTimer.Reset();
         }
 
-        foreach (IMapInstance instance in InstanceRegistry.ActiveInstances)
-        {
-            instance.Update(deltaTime);
-        }
+        // Each instance is contained and timed on its own (#639): one that throws is logged, and the
+        // others, and the flushes after this update, still run.
+        _instanceTicker.Tick(InstanceRegistry.ActiveInstances, deltaTime);
 
         InstanceRegistry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
     }
