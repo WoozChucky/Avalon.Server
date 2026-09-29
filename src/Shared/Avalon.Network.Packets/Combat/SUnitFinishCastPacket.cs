@@ -18,8 +18,14 @@ public class SUnitFinishCastPacket : Packet
     [ProtoMember(1)] public ulong Caster { get; set; }
     [ProtoMember(2)] public uint AbilityId { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid caster, AbilityId ability, EncryptFunc encryptFunc)
+    /// <summary>
+    /// The cast this belongs to (#648): the id its <c>SUnitStartCastPacket</c> carried, unique within the instance,
+    /// so a client clears the telegraph of that cast and no other. 0 from a server before #648.
+    /// </summary>
+    [ProtoMember(3)] public uint CastId { get; set; }
+
+    public static NetworkPacket Create(ObjectGuid caster, AbilityId ability, uint castId, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
-            new SUnitFinishCastPacket { Caster = caster.RawValue, AbilityId = ability.Value },
+            new SUnitFinishCastPacket { Caster = caster.RawValue, AbilityId = ability.Value, CastId = castId },
             PacketType, Flags, Protocol, encryptFunc);
 }

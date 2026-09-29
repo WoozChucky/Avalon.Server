@@ -34,8 +34,9 @@ public interface ISimulationContext
     IMeleeSlots MeleeSlots { get; }
 
     /// <summary>
-    /// Queues a cast-time ability aimed at <paramref name="aim" />, captured now (#164). False, with
-    /// nothing spent and <c>Casting</c> left clear, when the cast cannot be taken. Any unit may cast (#163).
+    /// Queues a cast-time ability aimed at <paramref name="aim" />, captured now (#164), and tells every client
+    /// that the cast started, with where it will land (#648). False, with nothing spent or sent and
+    /// <c>Casting</c> left clear, when the cast cannot be taken. Any unit may cast (#163).
     /// </summary>
     bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability);
 
@@ -50,13 +51,6 @@ public interface ISimulationContext
     void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage);
 
     /// <summary>
-    /// Tells every client in the instance that <paramref name="caster" /> started casting
-    /// <paramref name="ability" /> (#521 item 9). The cast time is read from the ability, so the id and
-    /// the time always come from the same one.
-    /// </summary>
-    void BroadcastUnitStartCast(IUnit caster, IAbility ability);
-
-    /// <summary>
     /// Tells every client in the instance that <paramref name="attacker" /> swung, with
     /// <paramref name="ability" />'s animation, or the plain melee one when it is null. Sent only for a
     /// unit in this instance (#546): a unit's broadcasts go through its own instance.
@@ -65,14 +59,15 @@ public interface ISimulationContext
 
     /// <summary>
     /// Tells every client in the instance that <paramref name="caster" /> finished casting
-    /// <paramref name="ability" />. Sent only for a unit in this instance (#546).
+    /// <paramref name="ability" />. Sent only for a unit in this instance (#546). It names no cast (cast id 0):
+    /// the cast system sends each cast's own, with its id (#648).
     /// </summary>
     void BroadcastFinishCast(IUnit caster, IAbility ability);
 
     /// <summary>
     /// Tells every client in the instance that <paramref name="caster" />'s cast of
     /// <paramref name="ability" /> was interrupted, so its cast bar ends. Sent only for a unit in this
-    /// instance (#546).
+    /// instance (#546). It names no cast (cast id 0): the cast system sends each cast's own, with its id (#648).
     /// </summary>
     void BroadcastInterruptedCast(IUnit caster, IAbility ability);
 

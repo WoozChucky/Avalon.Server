@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.State;
@@ -471,32 +472,41 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     HitResult ICombatOutcomes.HitInFlight { set => _hitInFlight = value; }
 
-    public void BroadcastUnitStartCast(IUnit caster, IAbility ability)
+    public void BroadcastUnitStartCast(IUnit caster, IAbility ability, uint castId, AbilityFootprint? footprint)
     {
+        // Heard near the caster or near where it will land (#648), so a watcher standing in the telegraph sees it.
+        Vector3? centre = footprint?.Centre;
+        AbilityFootprintDto? dto = footprint?.ToDto();
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null))
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, centre))
             {
                 continue;
             }
 
             // #627: the time the cast system just set, haste included, so every cast bar ends when the cast does.
             connection.Send(SUnitStartCastPacket.Create(caster.Guid, ability.CastTimeTimer,
-                ability.AbilityId.Value, connection.CryptoSession.Encrypt));
+                ability.AbilityId.Value, castId, dto, connection.CryptoSession.Encrypt));
         }
     }
 
-    public void BroadcastAbilityFired(IUnit caster, IAbility ability, Vector3 origin, Vector3? direction, Vector3? centre)
+    // The cast whose script the cast system is firing now (#648); see IAbilityArena.CastInFlight.
+    private uint _castInFlight;
+
+    uint IAbilityArena.CastInFlight { set => _castInFlight = value; }
+
+    public void BroadcastAbilityFired(IUnit caster, IAbility ability, AbilityFootprint footprint)
     {
+        AbilityFootprintDto dto = footprint.ToDto();
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            if (!Hears(guid, connection, caster.Guid, null, origin, centre))
+            if (!Hears(guid, connection, caster.Guid, null, footprint.Origin, footprint.Centre))
             {
                 continue;
             }
 
-            connection.Send(SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, origin,
-                direction, centre, connection.CryptoSession.Encrypt));
+            connection.Send(SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, _castInFlight,
+                dto, connection.CryptoSession.Encrypt));
         }
     }
 
@@ -992,7 +1002,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public static ushort ResolveBroadcastAnimationId(IAbility? ability)
         => (ushort)(ability?.Metadata.AnimationId ?? 1u);
 
-    public void BroadcastFinishCast(IUnit attacker, IAbility spell)
+    public void BroadcastFinishCast(IUnit attacker, IAbility spell) => BroadcastFinishCast(attacker, spell, 0u);
+
+    public void BroadcastFinishCast(IUnit attacker, IAbility spell, uint castId)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -1006,12 +1018,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.AbilityId,
+            connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
                 connection.CryptoSession.Encrypt));
         }
     }
 
-    public void BroadcastInterruptedCast(IUnit attacker, IAbility spell)
+    public void BroadcastInterruptedCast(IUnit attacker, IAbility spell) => BroadcastInterruptedCast(attacker, spell, 0u);
+
+    public void BroadcastInterruptedCast(IUnit attacker, IAbility spell, uint castId)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -1025,7 +1039,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId,
+            connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
                 connection.CryptoSession.Encrypt));
         }
     }

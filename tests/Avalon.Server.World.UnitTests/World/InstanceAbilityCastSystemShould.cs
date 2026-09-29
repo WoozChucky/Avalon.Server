@@ -30,6 +30,9 @@ public class InstanceAbilityCastSystemShould
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
     private static readonly AbilityAim Aim = new(new Vector3(0f, 0f, 1f), new Vector3(3f, 0f, 4f));
 
+    /// <summary>The aim a script gets: <see cref="Aim" /> with the caster's position at cast start as its origin (#648).</summary>
+    private static readonly AbilityAim Taken = Aim with { Origin = Vector3.zero };
+
     private readonly IScriptManager _scripts = Substitute.For<IScriptManager>();
     private readonly IAbilityArena _arena = Substitute.For<IAbilityArena>();
     private readonly InstanceAbilityCastSystem _sut;
@@ -218,7 +221,7 @@ public class InstanceAbilityCastSystemShould
 
         _sut.Update(Tick, []);
 
-        Assert.Equal(Aim, Assert.Single(RecordingAbilityScript.Prepared).Aim);
+        Assert.Equal(Taken, Assert.Single(RecordingAbilityScript.Prepared).Aim);
         caster.Received(1).CurrentPower = 70u;
         Assert.Equal(2f, ability.CooldownTimer);
     }
@@ -281,10 +284,10 @@ public class InstanceAbilityCastSystemShould
 
         caster.Received(1).CurrentPower = 70u;
         Assert.Equal(2f, ability.CooldownTimer);
-        _arena.Received(1).BroadcastFinishCast(caster, ability);
+        _arena.Received(1).BroadcastFinishCast(caster, ability, Arg.Any<uint>());
         (IUnit who, AbilityAim aim, IAbilityArena arena) = Assert.Single(RecordingAbilityScript.Prepared);
         Assert.Same(caster, who);
-        Assert.Equal(Aim, aim);
+        Assert.Equal(Taken, aim);
         Assert.Same(_arena, arena);
     }
 
@@ -311,7 +314,7 @@ public class InstanceAbilityCastSystemShould
 
         _sut.Update(Tick, []);
 
-        Assert.Equal(Aim, Assert.Single(RecordingAbilityScript.Prepared).Aim);
+        Assert.Equal(Taken, Assert.Single(RecordingAbilityScript.Prepared).Aim);
         Assert.False(ability.Casting);
         Assert.Equal(2f, ability.CooldownTimer);
     }
@@ -335,7 +338,7 @@ public class InstanceAbilityCastSystemShould
         Assert.Single(RecordingAbilityScript.Prepared);
         Assert.False(finishing.Casting);
         Assert.False(interrupted.Casting);
-        _arena.Received(1).BroadcastInterruptedCast(mover, interrupted);
+        _arena.Received(1).BroadcastInterruptedCast(mover, interrupted, Arg.Any<uint>());
     }
 
     // ── a caster leaving the instance takes no cast with it (#164) ──
@@ -359,10 +362,10 @@ public class InstanceAbilityCastSystemShould
 
         Assert.False(cancelled.Casting);
         Assert.Equal(0.6f, cancelled.CastTimeTimer);
-        _arena.Received(1).BroadcastInterruptedCast(leaving, cancelled);
+        _arena.Received(1).BroadcastInterruptedCast(leaving, cancelled, Arg.Any<uint>());
         leaving.Received(1).CurrentPower = 70u;
         Assert.True(kept.Casting);
-        _arena.DidNotReceive().BroadcastInterruptedCast(staying, Arg.Any<IAbility>());
+        _arena.DidNotReceive().BroadcastInterruptedCast(staying, Arg.Any<IAbility>(), Arg.Any<uint>());
         Assert.Empty(RecordingAbilityScript.Prepared);
 
         for (int i = 0; i < 40; i++)
@@ -372,7 +375,7 @@ public class InstanceAbilityCastSystemShould
 
         (IUnit who, _, _) = Assert.Single(RecordingAbilityScript.Prepared);
         Assert.Same(staying, who);
-        _arena.DidNotReceive().BroadcastFinishCast(leaving, Arg.Any<IAbility>());
+        _arena.DidNotReceive().BroadcastFinishCast(leaving, Arg.Any<IAbility>(), Arg.Any<uint>());
         Assert.Equal(0f, cancelled.CooldownTimer);
     }
 
@@ -390,7 +393,7 @@ public class InstanceAbilityCastSystemShould
 
         Assert.Empty(RecordingAbilityScript.Prepared);
         Assert.False(ability.Casting);
-        _arena.DidNotReceive().BroadcastFinishCast(caster, Arg.Any<IAbility>());
+        _arena.DidNotReceive().BroadcastFinishCast(caster, Arg.Any<IAbility>(), Arg.Any<uint>());
 
         // Nothing is left behind that would refuse the next cast: the queue takes it again.
         caster.IsDead.Returns(false);

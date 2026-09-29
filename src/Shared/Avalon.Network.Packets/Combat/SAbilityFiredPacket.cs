@@ -1,4 +1,5 @@
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
@@ -10,8 +11,8 @@ namespace Avalon.Network.Packets.Combat;
 
 /// <summary>
 /// A circle or cone skill fired (#164), broadcast to the instance so every client can draw it. A circle
-/// carries <see cref="Centre" />, a cone <see cref="Direction" /> (a unit vector on X/Z). Its hits
-/// arrive as the usual damage packets.
+/// carries <see cref="Centre" />, a cone <see cref="Direction" /> (a unit vector on X/Z), and both carry the
+/// whole <see cref="Footprint" /> (#648). Its hits arrive as the usual damage packets.
 /// </summary>
 [ProtoContract]
 public class SAbilityFiredPacket : Packet
@@ -32,16 +33,32 @@ public class SAbilityFiredPacket : Packet
     /// <summary>A circle's centre; absent for a cone.</summary>
     [ProtoMember(5)] public Vector3Dto? Centre { get; set; }
 
-    public static NetworkPacket Create(ulong caster, uint abilityId, Vector3 origin, Vector3? direction, Vector3? centre,
+    /// <summary>
+    /// The cast this belongs to (#648): the id its <c>SUnitStartCastPacket</c> carried, unique within the instance,
+    /// so a client clears the telegraph of that cast and no other. 0 from a server before #648.
+    /// </summary>
+    [ProtoMember(6)] public uint CastId { get; set; }
+
+    /// <summary>
+    /// The whole footprint that fired, dimensions included (#648), so a client draws it, an instant ability's
+    /// too, without knowing the caster's abilities. For a cast-time cast it is the footprint its start carried.
+    /// <see cref="Origin" />, <see cref="Direction" /> and <see cref="Centre" /> repeat its members, for clients
+    /// from before #648.
+    /// </summary>
+    [ProtoMember(7)] public AbilityFootprintDto? Footprint { get; set; }
+
+    public static NetworkPacket Create(ulong caster, uint abilityId, uint castId, AbilityFootprintDto footprint,
         EncryptFunc encrypt)
         => PacketSerializationHelper.Serialize(
             new SAbilityFiredPacket
             {
                 CasterGuid = caster,
                 AbilityId = abilityId,
-                Origin = Vector3Dto.From(origin),
-                Direction = direction is { } d ? Vector3Dto.From(d) : null,
-                Centre = centre is { } c ? Vector3Dto.From(c) : null,
+                Origin = footprint.Origin ?? new Vector3Dto(),
+                Direction = footprint.Direction,
+                Centre = footprint.Centre,
+                CastId = castId,
+                Footprint = footprint,
             },
             PacketType, Flags, Protocol, encrypt);
 }

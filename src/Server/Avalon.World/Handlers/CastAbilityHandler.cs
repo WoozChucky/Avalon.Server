@@ -138,11 +138,8 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             return;
         }
 
+        // A cast-time cast's start went out with it, from the cast system (#648).
         caster.MarkCombat();
-        if (meta.CastTime > 0)
-        {
-            context.BroadcastUnitStartCast(caster, ability);
-        }
 
         // GCD anchor: stamps the start of this cast for the next GCD calculation.
         if (!godMode) caster.LastCastStartTime = DateTime.UtcNow;

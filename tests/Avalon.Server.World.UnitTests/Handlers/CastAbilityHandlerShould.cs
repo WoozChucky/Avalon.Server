@@ -451,7 +451,6 @@ public class CastAbilityHandlerShould
 
         f.Instance.Received(1).RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability);
         f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
-        f.Instance.DidNotReceiveWithAnyArgs().BroadcastUnitStartCast(default!, default!);
         Assert.Empty(f.SentPackets());
     }
 
@@ -464,7 +463,6 @@ public class CastAbilityHandlerShould
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
         f.Instance.Received(1).QueueAbility(f.Character, Arg.Any<AbilityAim>(), ability);
-        f.Instance.Received(1).BroadcastUnitStartCast(f.Character, ability);
         f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
         Assert.Empty(f.SentPackets());
     }
@@ -479,7 +477,6 @@ public class CastAbilityHandlerShould
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
         Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
-        f.Instance.DidNotReceiveWithAnyArgs().BroadcastUnitStartCast(default!, default!);
         // A refusal starts no global cooldown and does not put the caster in combat.
         f.Character.DidNotReceive().LastCastStartTime = Arg.Any<DateTime>();
         f.Character.DidNotReceive().MarkCombat();

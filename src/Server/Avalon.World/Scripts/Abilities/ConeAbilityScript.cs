@@ -14,7 +14,8 @@ namespace Avalon.World.Scripts.Abilities;
 /// <summary>
 /// A cone from the caster along its facing (Movement) or toward the aim point (Cursor, falling back to
 /// facing when the point is on the caster) (#164). Resolves once, when it fires. Walls do not clip it.
-/// The caster's position is read when it fires, never when the script is built.
+/// It resolves from where the caster stood when the cast started (#648), through
+/// <c>AbilityFootprint.Resolve</c>, the footprint the cast's start broadcast carried.
 /// </summary>
 public sealed class ConeAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
     : AbilityScript(ability, caster, aim)
@@ -30,14 +31,14 @@ public sealed class ConeAbilityScript(IAbility ability, IUnit caster, AbilityAim
     public override void Prepare()
     {
         Guid = new ObjectGuid(ObjectType.Spell, IObject.GenerateId());
-        AbilityMetadata meta = Ability.Metadata;
-        Vector3 origin = Caster.Position;
+        Vector3 origin = Origin;
+        AbilityFootprint footprint = AbilityFootprint.Resolve(AbilityShape.Cone, Ability.Metadata, Aim, origin,
+            arena.GetNavigatorForPosition(origin))!.Value;
         Position = origin;
 
-        Vector3 direction = meta.AimMode == AbilityAimMode.Movement ? Aim.Facing : Aim.DirectionFrom(origin);
-
-        arena.BroadcastAbilityFired(Caster, Ability, origin, direction, centre: null);
-        AbilityEffect.ApplyToAll(arena, Caster, Ability, arena.Hits.InCone(origin, direction, meta.Reach, meta.ArcDegrees));
+        arena.BroadcastAbilityFired(Caster, Ability, footprint);
+        AbilityEffect.ApplyToAll(arena, Caster, Ability,
+            arena.Hits.InCone(origin, footprint.Direction!.Value, footprint.Reach, footprint.ArcDegrees));
 
         State = SpellState.Finished;
     }

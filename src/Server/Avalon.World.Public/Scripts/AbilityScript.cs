@@ -13,6 +13,12 @@ public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim a
     /// <summary>What the cast aimed at when it started (#164). There is no target: the shape decides who is affected.</summary>
     protected AbilityAim Aim { get; } = aim;
 
+    /// <summary>
+    /// Where the cast resolves from (#648): the caster's position when the cast started, captured on the aim,
+    /// or its current one for an aim that carries none.
+    /// </summary>
+    protected Vector3 Origin => Aim.Origin ?? Caster.Position;
+
     protected IAbility Ability { get; } = ability;
 
     protected List<AbilityScript> ChainedScripts { get; private set; } = new();

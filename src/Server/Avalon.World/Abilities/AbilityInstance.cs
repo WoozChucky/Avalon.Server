@@ -19,4 +19,7 @@ public class AbilityInstance
 
     /// <summary>The caster's effective haste when the cast started (#627); the cooldown it sets is divided by it.</summary>
     public float HastePct { get; init; }
+
+    /// <summary>The cast's id (#648), unique within the instance: every broadcast of this cast carries it.</summary>
+    public uint CastId { get; init; }
 }

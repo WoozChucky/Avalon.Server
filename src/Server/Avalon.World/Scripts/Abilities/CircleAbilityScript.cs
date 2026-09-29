@@ -14,7 +14,8 @@ namespace Avalon.World.Scripts.Abilities;
 /// <summary>
 /// A circle on the caster, or on the aim point clamped to Reach and pulled back from any wall between
 /// (#164). Resolves once, when it fires: every qualifying unit whose body overlaps the radius, nearest
-/// the centre first. The caster's position is read when it fires, never when the script is built.
+/// the centre first. It resolves from where the caster stood when the cast started (#648), through
+/// <c>AbilityFootprint.Resolve</c>, the footprint the cast's start broadcast carried.
 /// </summary>
 public sealed class CircleAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
     : AbilityScript(ability, caster, aim)
@@ -30,25 +31,15 @@ public sealed class CircleAbilityScript(IAbility ability, IUnit caster, AbilityA
     public override void Prepare()
     {
         Guid = new ObjectGuid(ObjectType.Spell, IObject.GenerateId());
-        AbilityMetadata meta = Ability.Metadata;
-
-        Vector3 centre = meta.Anchor == AbilityAnchor.AimPoint ? AimPointCentre(meta.Reach) : Caster.Position;
+        Vector3 origin = Origin;
+        AbilityFootprint footprint = AbilityFootprint.Resolve(AbilityShape.Circle, Ability.Metadata, Aim, origin,
+            arena.GetNavigatorForPosition(origin))!.Value;
+        Vector3 centre = footprint.Centre!.Value;
         Position = centre;
 
-        arena.BroadcastAbilityFired(Caster, Ability, Caster.Position, direction: null, centre);
-        AbilityEffect.ApplyToAll(arena, Caster, Ability, arena.Hits.InCircle(centre, meta.Radius));
+        arena.BroadcastAbilityFired(Caster, Ability, footprint);
+        AbilityEffect.ApplyToAll(arena, Caster, Ability, arena.Hits.InCircle(centre, footprint.Radius));
 
         State = SpellState.Finished;
-    }
-
-    private Vector3 AimPointCentre(float reach)
-    {
-        Vector3 from = Caster.Position;
-        Vector3 direction = Aim.DirectionFrom(from);
-        float distance = Aim.Point is { } point ? Math.Min(HitShapes.Distance2D(from, point), reach) : 0f;
-        var clamped = new Vector3(from.x + direction.x * distance, from.y, from.z + direction.z * distance);
-
-        // A blast cannot land behind a wall: the centre stops where the walkable ray does.
-        return arena.GetNavigatorForPosition(from).RaycastWalkable(from, clamped);
     }
 }

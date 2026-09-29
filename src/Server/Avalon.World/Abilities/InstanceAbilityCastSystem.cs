@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.Common.Mathematics;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -18,10 +19,11 @@ namespace Avalon.World.Abilities;
 public interface IAbilityCastSystem
 {
     /// <summary>
-    /// Takes a cast-time cast aimed at <paramref name="aim" />, pays its cost and marks it casting. False,
-    /// with nothing spent and <c>Casting</c> left clear, when its script is missing or cannot be built, or
-    /// the cost cannot be paid. The script is built now, with this aim, and fired once the cast time has run out.
-    /// Any unit may cast (#163); a creature's casts cost nothing.
+    /// Takes a cast-time cast aimed at <paramref name="aim" />, pays its cost, marks it casting and broadcasts its
+    /// start, with its cast id and the footprint it will land on (#648). False, with nothing spent, nothing sent
+    /// and <c>Casting</c> left clear, when its script is missing or cannot be built, or the cost cannot be paid.
+    /// The script is built now, with this aim and the caster's position now as its origin, and fired once the
+    /// cast time has run out. Any unit may cast (#163); a creature's casts cost nothing.
     /// </summary>
     bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability);
 
@@ -70,10 +72,11 @@ public class InstanceAbilityCastSystem(
 {
     private readonly List<ActiveScript> _activeAbilities = [];
     private readonly List<ActiveScript> _failed = [];
-    private readonly List<(IUnit Caster, IAbility Ability)> _interrupts = [];
+    private readonly List<(IUnit Caster, IAbility Ability, uint CastId)> _interrupts = [];
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
+    private uint _lastCastId;
 
     public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability)
     {
@@ -83,6 +86,10 @@ public class InstanceAbilityCastSystem(
                 cost, ability.AbilityId, caster.PowerType);
             return false;
         }
+
+        // #648: the cast resolves from where the caster stands now, not where it stands when it fires, so it
+        // lands on the footprint its start broadcast carries.
+        aim = aim with { Origin = caster.Position };
 
         // Built now, with the aim captured at cast start, so a script that is missing or cannot be
         // built is refused before anything is paid, and a reload that removes it mid-cast costs nothing.
@@ -94,10 +101,11 @@ public class InstanceAbilityCastSystem(
         // #627: haste is read once, here: the cast time is fixed now, and the cooldown it sets when it fires
         // uses the same value, so a gear change mid-cast changes neither.
         float haste = HasteOf(caster);
+        uint castId = NextCastId();
         _abilityQueue.Add(new AbilityInstance
         {
             Caster = caster, Ability = ability, Script = script, CastStartPosition = caster.Position,
-            HastePct = haste,
+            HastePct = haste, CastId = castId,
         });
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
@@ -110,6 +118,8 @@ public class InstanceAbilityCastSystem(
 
         _logger.LogDebug("QueueAbility queued ability={AbilityId} caster={CharId} castTime={CastTime}s queueSize={Size}",
             ability.AbilityId, caster.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
+
+        arena.BroadcastUnitStartCast(caster, ability, castId, FootprintOf(caster, aim, ability));
         return true;
     }
 
@@ -122,6 +132,7 @@ public class InstanceAbilityCastSystem(
             return false;
         }
 
+        aim = aim with { Origin = caster.Position };
         if (Build(caster, aim, ability) is not { } script)
         {
             return false;
@@ -132,7 +143,7 @@ public class InstanceAbilityCastSystem(
             AbilityCost.Pay(caster, ability.Metadata);
         }
 
-        Fire(caster, ability, script, HasteOf(caster));
+        Fire(caster, ability, script, HasteOf(caster), NextCastId());
         return true;
     }
 
@@ -176,7 +187,7 @@ public class InstanceAbilityCastSystem(
                 _logger.LogDebug("Dropped the cast of a creature that died or turned for home ability={AbilityId} caster={CasterId}",
                     ability.AbilityId, cast.Caster.Guid);
                 ResetCast(ability);
-                _interrupts.Add((cast.Caster, ability));
+                _interrupts.Add((cast.Caster, ability, cast.CastId));
                 _dequeued.Add(cast);
                 continue;
             }
@@ -189,7 +200,7 @@ public class InstanceAbilityCastSystem(
                 _logger.LogInformation("Cast interrupted by movement ability={AbilityId} caster={CharId}",
                     ability.AbilityId, cast.Caster.Guid);
                 ResetCast(ability);
-                _interrupts.Add((cast.Caster, ability));
+                _interrupts.Add((cast.Caster, ability, cast.CastId));
                 _dequeued.Add(cast);
                 continue;
             }
@@ -208,11 +219,11 @@ public class InstanceAbilityCastSystem(
             {
                 _logger.LogDebug("Dropped the cast of a dead caster ability={AbilityId} caster={CharId}",
                     ability.AbilityId, cast.Caster.Guid);
-                _interrupts.Add((cast.Caster, ability));
+                _interrupts.Add((cast.Caster, ability, cast.CastId));
                 continue;
             }
 
-            Fire(cast.Caster, ability, cast.Script, cast.HastePct);
+            Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId);
         }
 
         foreach (AbilityInstance cast in _dequeued)
@@ -225,9 +236,9 @@ public class InstanceAbilityCastSystem(
     {
         // Sent once every interrupted cast is already out of the queue, as CancelCasts does, and
         // contained: a failing send can neither leave a cast queued nor stop the scripts ticking.
-        foreach ((IUnit caster, IAbility ability) in _interrupts)
+        foreach ((IUnit caster, IAbility ability, uint castId) in _interrupts)
         {
-            TryInterrupt(caster, ability);
+            TryInterrupt(caster, ability, castId);
         }
     }
 
@@ -262,7 +273,7 @@ public class InstanceAbilityCastSystem(
                 catch (Exception e)
                 {
                     _failed.Add(active);
-                    Failed(active.Caster, active.Ability, e, "Update");
+                    Failed(active.Caster, active.Ability, e, "Update", active.CastId);
                     continue;
                 }
             }
@@ -304,7 +315,7 @@ public class InstanceAbilityCastSystem(
         {
             _logger.LogInformation("Cast cancelled as its caster left ability={AbilityId} caster={CharId}",
                 cast.Ability.AbilityId, caster.Guid);
-            arena.BroadcastInterruptedCast(caster, cast.Ability);
+            arena.BroadcastInterruptedCast(caster, cast.Ability, cast.CastId);
         }
     }
 
@@ -390,29 +401,34 @@ public class InstanceAbilityCastSystem(
     /// The cooldown, set once (#627), so a later gear change never rescales a running one; the finish-cast
     /// broadcast; the effect. A script still running keeps ticking.
     /// </summary>
-    private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct)
+    private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct, uint castId)
     {
         if (caster is not CharacterEntity { GodMode: true })
             ability.CooldownTimer = CooldownOf(caster, ability, hastePct);
-        arena.BroadcastFinishCast(caster, ability);
+        arena.BroadcastFinishCast(caster, ability, castId);
 
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world
         // object, and the cast is interrupted. What it spent stays spent.
         try
         {
+            arena.CastInFlight = castId;
             script.Prepare();
         }
         catch (Exception e)
         {
             // Interrupted after the finish on purpose: a circle or a cone deals its damage inside
             // Prepare, so the finish has to go out before it, and a throw can only be told after.
-            Failed(caster, ability, e, "Prepare");
+            Failed(caster, ability, e, "Prepare", castId);
             return;
+        }
+        finally
+        {
+            arena.CastInFlight = 0;
         }
 
         if (script.State is not SpellState.Finished)
         {
-            _activeAbilities.Add(new ActiveScript(caster, ability, script));
+            _activeAbilities.Add(new ActiveScript(caster, ability, script, castId));
         }
 
         _logger.LogDebug("Fired ability {AbilityId} by {CasterId}", ability.AbilityId, caster.Guid);
@@ -422,19 +438,19 @@ public class InstanceAbilityCastSystem(
     /// A script that threw (#530): logged, and its caster sent the interrupt a failed cast gets, so no
     /// cast bar is left running. The caller drops the script.
     /// </summary>
-    private void Failed(IUnit caster, IAbility ability, Exception e, string stage)
+    private void Failed(IUnit caster, IAbility ability, Exception e, string stage, uint castId)
     {
         _logger.LogError(e, "Ability script {Stage} threw and was dropped ability={AbilityId} caster={CasterId}",
             stage, ability.AbilityId, caster.Guid);
-        TryInterrupt(caster, ability);
+        TryInterrupt(caster, ability, castId);
     }
 
     /// <summary>Sends the interrupt, contained, so a failing send cannot take the rest of the tick with it.</summary>
-    private void TryInterrupt(IUnit caster, IAbility ability)
+    private void TryInterrupt(IUnit caster, IAbility ability, uint castId)
     {
         try
         {
-            arena.BroadcastInterruptedCast(caster, ability);
+            arena.BroadcastInterruptedCast(caster, ability, castId);
         }
         catch (Exception sendError)
         {
@@ -443,11 +459,41 @@ public class InstanceAbilityCastSystem(
         }
     }
 
-    /// <summary>A running script and who cast it, with the caster's own ability for the interrupt.</summary>
-    private sealed class ActiveScript(IUnit caster, IAbility ability, AbilityScript script)
+    /// <summary>
+    /// The next cast id (#648): counted per instance, so unique within it, skipping 0, which a packet from before
+    /// #648 decodes as.
+    /// </summary>
+    private uint NextCastId()
+    {
+        _lastCastId = _lastCastId == uint.MaxValue ? 1u : _lastCastId + 1u;
+        return _lastCastId;
+    }
+
+    /// <summary>
+    /// The footprint a queued cast will land on (#648), resolved as its script will resolve it. Contained: a
+    /// footprint that cannot be resolved is sent as none, and the cast goes on.
+    /// </summary>
+    private AbilityFootprint? FootprintOf(IUnit caster, AbilityAim aim, IAbility ability)
+    {
+        Vector3 origin = aim.Origin ?? caster.Position;
+        try
+        {
+            return AbilityFootprint.Resolve(ability.Metadata, aim, origin, arena.GetNavigatorForPosition(origin));
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Resolving the cast footprint failed ability={AbilityId} caster={CasterId}",
+                ability.AbilityId, caster.Guid);
+            return null;
+        }
+    }
+
+    /// <summary>A running script and who cast it, with the caster's own ability and the cast's id for the interrupt.</summary>
+    private sealed class ActiveScript(IUnit caster, IAbility ability, AbilityScript script, uint castId)
     {
         public IUnit Caster { get; } = caster;
         public IAbility Ability { get; } = ability;
         public AbilityScript Script { get; } = script;
+        public uint CastId { get; } = castId;
     }
 }

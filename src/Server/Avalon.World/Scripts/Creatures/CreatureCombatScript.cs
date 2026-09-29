@@ -723,8 +723,8 @@ public class CreatureCombatScript : AiScript, IReturningHome
             return false;
         }
 
+        // The start, with its footprint, went out with the queue (#648).
         Context.Locomotion.Stop(Creature);
-        Context.BroadcastUnitStartCast(Creature, ability);
         return true;
     }
 

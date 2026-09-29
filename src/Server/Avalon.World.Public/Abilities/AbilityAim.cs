@@ -12,6 +12,13 @@ public readonly record struct AbilityAim(Vector3 Facing, Vector3? Point)
     private const double MinAimDistance = 0.001;
 
     /// <summary>
+    /// Where the caster stood when the cast started (#648), set by the cast system when it takes the cast. A
+    /// shape resolves from here, not from where the caster stands when it fires, so a cast lands where its
+    /// telegraph was drawn. Null only for an aim no cast system took.
+    /// </summary>
+    public Vector3? Origin { get; init; }
+
+    /// <summary>
     /// A yaw in degrees (Y up, 0 along +Z, 90 along +X) as a unit vector on X/Z. A non-finite yaw
     /// aims along +Z: the client's yaw reaches the server unchecked.
     /// </summary>

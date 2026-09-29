@@ -168,7 +168,7 @@ public class MapInstanceAbilityCastShould
         ability.Metadata.Returns(new AbilityMetadata { Name = "Flame Burst", ScriptName = "x", CastTime = 0.75f });
         ability.CastTimeTimer.Returns(0.6f);   // #627: the time the cast system set, haste included
 
-        instance.BroadcastUnitStartCast(caster.Character, ability);
+        instance.BroadcastUnitStartCast(caster.Character, ability, 1u, null);
 
         foreach (MapInstanceClient client in new[] { caster, watcher })
         {

@@ -141,15 +141,15 @@ variant float-specials
   field 5 Armor : uint = 1000000
   field 6 AttackDamage : uint = 300
   field 7 AbilityDamage : uint = 1000000
-  field 8 CritPct : float = Infinity (0x7f800000)
-  field 9 DodgePct : float = -Infinity (0xff800000)
-  field 10 BlockPct : float = NaN (0x7fc00001)
+  field 8 CritPct : float = 1.40129846E-45 (0x00000001)
+  field 9 DodgePct : float = 1.17549421E-38 (0x007fffff)
+  field 10 BlockPct : float = -0 (0x80000000)
   field 11 WeaponMin : uint = 1000000
   field 12 WeaponMax : uint = 4000000000
-  field 13 HastePct : float = -0 (0x80000000)
-  field 14 MovementSpeed : float = 1.40129846E-45 (0x00000001)
+  field 13 HastePct : float = 3.40282347E+38 (0x7f7fffff)
+  field 14 MovementSpeed : float = NaN (0xffc00000)
   bytes 52
     08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 30
-    ac 02 38 c0 84 3d 45 00 00 80 7f 4d 00 00 80 ff
-    55 01 00 c0 7f 58 c0 84 3d 60 80 d0 ac f3 0e 75
-    01 00 00 00
+    ac 02 38 c0 84 3d 45 01 00 00 00 4d ff ff 7f 00
+    58 c0 84 3d 60 80 d0 ac f3 0e 6d ff ff 7f 7f 75
+    00 00 c0 ff
