@@ -28,6 +28,7 @@ public static class ServiceExtensions
             .AddSingleton<Repositories.IMfaSetupRepository, Repositories.MfaSetupRepository>()
             .AddSingleton<Repositories.IDeviceRepository, Repositories.DeviceRepository>()
             .AddSingleton<Repositories.IWorldRepository, Repositories.WorldRepository>()
+            .AddSingleton<Repositories.IWorldMaintenanceRepository, Repositories.WorldMaintenanceRepository>()
             .AddSingleton<Repositories.IPersonalAccessTokenRepository, Repositories.PersonalAccessTokenRepository>()
             .AddSingleton<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
 

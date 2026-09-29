@@ -23,6 +23,12 @@ public class World : IDbEntity<WorldId>
 
     [Required] public WorldStatus Status { get; set; } = WorldStatus.Offline;
 
+    [Required] public bool MaintenanceEnabled { get; set; }
+
+    [Required] public long MaintenanceRevision { get; set; }
+
+    public DateTime? MaintenanceDeadlineUtc { get; set; }
+
     [Required] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [Required] public DateTime UpdatedAt { get; set; }
