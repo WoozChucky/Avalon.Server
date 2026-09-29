@@ -1,4 +1,5 @@
 using System.Security.Authentication;
+using System.Security.Claims;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
@@ -9,9 +10,12 @@ using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.GameTickets;
+using AccountAccessFlag = Avalon.Common.Accounts.AccountAccessLevel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using StackExchange.Redis;
 
 namespace Avalon.Api.Controllers;
 
@@ -44,6 +48,7 @@ public sealed class ClientAuthController : BaseController
     private readonly IAccountRepository _accounts;
     private readonly AuthenticationConfig _authConfig;
     private readonly IReplicatedCache _cache;
+    private readonly IGameTicketStore _tickets;
     private readonly Microsoft.AspNetCore.Builder.ForwardedHeadersOptions _forwarded;
 
     public ClientAuthController(
@@ -55,6 +60,7 @@ public sealed class ClientAuthController : BaseController
         IAccountRepository accounts,
         AuthenticationConfig authConfig,
         IReplicatedCache cache,
+        IGameTicketStore tickets,
         Microsoft.AspNetCore.Builder.ForwardedHeadersOptions forwarded)
     {
         _codes = codes;
@@ -65,6 +71,7 @@ public sealed class ClientAuthController : BaseController
         _accounts = accounts;
         _authConfig = authConfig;
         _cache = cache;
+        _tickets = tickets;
         _forwarded = forwarded;
     }
 
@@ -175,6 +182,48 @@ public sealed class ClientAuthController : BaseController
         {
             return Unauthorized();
         }
+    }
+
+    [HttpPost("game-ticket", Name = "CreateGameTicket")]
+    [Authorize(Policy = AvalonRoles.Player)]
+    [EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+    [ProducesResponseType(typeof(ClientGameTicketResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GameTicket()
+    {
+        if (CallerIsPat || !Guid.TryParse(User.FindFirstValue(JwtUtils.LauncherFamilyClaim), out Guid familyId)
+            || familyId == Guid.Empty)
+            return StatusCode(StatusCodes.Status403Forbidden);
+        Account account = Account ?? throw new InvalidOperationException("Account not loaded");
+        if (!AccountAccessCheck.MayHoldSession(account) || !account.AccessLevel.HasFlag(AccountAccessFlag.Player))
+            return StatusCode(StatusCodes.Status403Forbidden);
+        if (!await _refreshTokens.IsLiveLauncherFamilyAsync(account.Id, familyId, DateTime.UtcNow, CancellationToken))
+            return Unauthorized();
+        long issues;
+        try
+        {
+            issues = await _cache.IncrementAsync(CacheKeys.GameTicketIssueBudget(familyId), TimeSpan.FromMinutes(1));
+        }
+        catch (RedisException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+        if (issues > 10)
+            return StatusCode(StatusCodes.Status429TooManyRequests);
+        string ticket;
+        try
+        {
+            ticket = await _tickets.IssueAsync(
+                new GameTicketGrant(account.Id, familyId, account.CredentialsVersion), CancellationToken);
+        }
+        catch (Exception exception) when (exception is RedisException or InvalidOperationException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+        return Ok(new ClientGameTicketResponse
+        {
+            Ticket = ticket,
+            ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(60).ToUnixTimeSeconds(),
+        });
     }
 
     /// <summary>Signs the launcher out: ends the session the token belongs to. 204 whatever the token.</summary>

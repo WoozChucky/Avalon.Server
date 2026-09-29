@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using System.Security.Claims;
 using System.Security.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
@@ -13,6 +14,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using AccountStatus = Avalon.Domain.Auth.AccountStatus;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.GameTickets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -37,6 +39,7 @@ public class ClientAuthControllerShould
     private readonly IJwtUtils _jwt = Substitute.For<IJwtUtils>();
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
+    private readonly IGameTicketStore _tickets = Substitute.For<IGameTicketStore>();
     private readonly IRefreshTokenRepository _refreshRepository = Substitute.For<IRefreshTokenRepository>();
     private readonly IReauthentication _reauthentication = Substitute.For<IReauthentication>();
     private readonly DefaultHttpContext _http = new();
@@ -52,7 +55,7 @@ public class ClientAuthControllerShould
     {
         if (signedIn is not null) _http.Items[nameof(Account)] = signedIn;
         return new ClientAuthController(_codes, _refresh, _refreshRepository, _reauthentication, _jwt, _accounts,
-            new AuthenticationConfig { AccessTokenLifetimeMinutes = 15 }, _cache, new ForwardedHeadersOptions())
+            new AuthenticationConfig { AccessTokenLifetimeMinutes = 15 }, _cache, _tickets, new ForwardedHeadersOptions())
         {
             ControllerContext = new ControllerContext { HttpContext = _http },
         };
@@ -126,6 +129,122 @@ public class ClientAuthControllerShould
         Assert.Equal(new DateTimeOffset(refreshExpiry).ToUnixTimeSeconds(), tokens.RefreshExpiresAt);
         Assert.True(tokens.ExpiresAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         Assert.False(_http.Response.Headers.ContainsKey("Set-Cookie"));
+    }
+
+    [Fact]
+    public async Task Issue_a_game_ticket_only_for_a_live_launcher_session()
+    {
+        var family = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+        var account = MakeAccount();
+        account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
+        _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
+        _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        _cache.IncrementAsync(CacheKeys.GameTicketIssueBudget(family), TimeSpan.FromMinutes(1)).Returns(1);
+        _tickets.IssueAsync(new GameTicketGrant(account.Id, family, account.CredentialsVersion), Arg.Any<CancellationToken>())
+            .Returns("the-ticket");
+
+        IActionResult result = await Sut(account).GameTicket();
+
+        var response = Assert.IsType<ClientGameTicketResponse>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal("the-ticket", response.Ticket);
+        Assert.InRange(response.ExpiresAt, DateTimeOffset.UtcNow.AddSeconds(55).ToUnixTimeSeconds(),
+            DateTimeOffset.UtcNow.AddSeconds(65).ToUnixTimeSeconds());
+        await _refresh.DidNotReceiveWithAnyArgs().RotateLauncherAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task Refuse_a_game_ticket_without_a_launcher_session_claim()
+    {
+        _http.User = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "jwt"));
+        var account = MakeAccount();
+        account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
+
+        IActionResult result = await Sut(account).GameTicket();
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<StatusCodeResult>(result).StatusCode);
+    }
+
+    [Fact]
+    public async Task Refuse_a_personal_access_token_even_with_a_family_claim()
+    {
+        var family = Guid.NewGuid();
+        _http.User = new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim(JwtUtils.LauncherFamilyClaim, family.ToString()), new Claim("pat_id", "1"),
+        ], "pat"));
+        var account = MakeAccount();
+        account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
+        _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        IActionResult result = await Sut(account).GameTicket();
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<StatusCodeResult>(result).StatusCode);
+    }
+
+    [Fact]
+    public async Task Refuse_a_game_ticket_when_its_launcher_family_was_revoked()
+    {
+        var family = Guid.NewGuid();
+        _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
+        var account = MakeAccount();
+        account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
+        _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        IActionResult result = await Sut(account).GameTicket();
+
+        Assert.IsType<UnauthorizedResult>(result);
+        await _tickets.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Return_service_unavailable_when_ticket_storage_fails()
+    {
+        var family = Guid.NewGuid();
+        var account = MakeAccount();
+        account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
+        _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
+        _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        _cache.IncrementAsync(CacheKeys.GameTicketIssueBudget(family), TimeSpan.FromMinutes(1)).Returns(1);
+        _tickets.IssueAsync(Arg.Any<GameTicketGrant>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("storage unavailable"));
+
+        IActionResult result = await Sut(account).GameTicket();
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<StatusCodeResult>(result).StatusCode);
+    }
+
+    [Fact]
+    public async Task Refuse_game_ticket_for_an_inactive_account()
+    {
+        var family = Guid.NewGuid();
+        var account = MakeAccount(status: AccountStatus.Banned);
+        account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
+        _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
+
+        IActionResult result = await Sut(account).GameTicket();
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<StatusCodeResult>(result).StatusCode);
+        await _tickets.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Limit_game_ticket_issuance_per_launcher_family()
+    {
+        var family = Guid.NewGuid();
+        var account = MakeAccount();
+        account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
+        _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
+        _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        _cache.IncrementAsync(CacheKeys.GameTicketIssueBudget(family), TimeSpan.FromMinutes(1)).Returns(11);
+
+        IActionResult result = await Sut(account).GameTicket();
+
+        Assert.Equal(StatusCodes.Status429TooManyRequests, Assert.IsType<StatusCodeResult>(result).StatusCode);
+        await _tickets.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
     }
 
     [Fact]

@@ -17,6 +17,8 @@ public interface IReplicatedCache
     /// <summary>Sets the key only if it does not already exist (atomic SETNX). Returns true if the key was set.</summary>
     Task<bool> SetNxAsync(string key, string value, TimeSpan expiry);
     Task<string?> GetAsync(string key);
+    /// <summary>Atomically reads and removes a string key (Redis GETDEL).</summary>
+    Task<string?> TakeAsync(string key);
     /// <summary>
     /// Atomically increments the counter at <paramref name="key"/> and returns the new value. The
     /// expiry is set only by the increment that creates the key, so the window is fixed from the
@@ -142,6 +144,11 @@ public class ReplicatedCache : IReplicatedCache
     public async Task<string?> GetAsync(string key)
     {
         return await _redis.GetDatabase().StringGetAsync(key);
+    }
+
+    public async Task<string?> TakeAsync(string key)
+    {
+        return await _redis.GetDatabase().StringGetDeleteAsync(key);
     }
 
     // INCR and the first PEXPIRE in one script: a client lost between the two would otherwise

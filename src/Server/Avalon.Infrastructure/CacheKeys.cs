@@ -103,6 +103,12 @@ public static class CacheKeys
     /// </summary>
     public static string LauncherAuthCode(string codeHash) => $"auth:launcherCode:{codeHash}";
 
+    /// <summary>A game ticket, keyed by its SHA-256 rather than the bearer secret.</summary>
+    public static string GameTicket(string ticketHash) => $"auth:gameTicket:{ticketHash}";
+
+    /// <summary>Fixed one-minute issuance budget for one launcher session.</summary>
+    public static string GameTicketIssueBudget(Guid familyId) => $"auth:gameTicketIssue:{familyId:N}";
+
     /// <summary>
     /// The account's one pending email change (#510 review). Value: the token hash of
     /// <see cref="EmailChange"/>; a new start deletes the entry it names, so only the latest token works.
