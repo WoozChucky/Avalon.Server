@@ -26,7 +26,7 @@ public class CAuthGameTicketHandlerShould
     {
         Id = new AccountId(12), Username = "PLAYER", Email = "p@example.com",
         Salt = [], Verifier = [], JoinDate = DateTime.UtcNow,
-        AccessLevel = AccountAccessLevel.Player, CredentialsVersion = 4
+        AccessLevel = AccountAccessLevel.Player, CredentialsVersion = 4, FailedLogins = 2
     };
 
     public CAuthGameTicketHandlerShould()
@@ -39,7 +39,7 @@ public class CAuthGameTicketHandlerShould
         _families.IsLiveLauncherFamilyAsync(_account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns(true);
         _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);
-        _accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(true);
+        _accounts.TryRecordTicketLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(true);
     }
 
     private CAuthGameTicketHandler Handler() => new(NullLoggerFactory.Instance, _tickets, _families, _accounts, _cache);
@@ -59,11 +59,13 @@ public class CAuthGameTicketHandlerShould
         Assert.Equal(AuthResult.SUCCESS, await SendAsync());
         Assert.Equal(_account.Id, _connection.AccountId);
         Assert.Equal(4, _connection.CredentialsVersion);
-        await _accounts.Received(1).TryRecordLoginAsync(_account.Id, "127.0.0.1", Arg.Any<DateTime>(),
+        await _accounts.Received(1).TryRecordTicketLoginAsync(_account.Id, "127.0.0.1", Arg.Any<DateTime>(),
             _connection.Id, Arg.Any<CancellationToken>());
+        Assert.Equal(2, _account.FailedLogins);
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, await SendAsync());
-        await _accounts.Received(1).TryRecordLoginAsync(Arg.Any<AccountId>(), Arg.Any<string>(),
+        await _accounts.Received(1).TryRecordTicketLoginAsync(Arg.Any<AccountId>(), Arg.Any<string>(),
             Arg.Any<DateTime>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _accounts.DidNotReceiveWithAnyArgs().TryRecordLoginAsync(default!, default!, default, default, default);
     }
 
     [Fact]
@@ -72,7 +74,7 @@ public class CAuthGameTicketHandlerShould
         _families.IsLiveLauncherFamilyAsync(_account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns(false);
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, await SendAsync());
-        await _accounts.DidNotReceiveWithAnyArgs().TryRecordLoginAsync(default!, default!, default, default, default);
+        await _accounts.DidNotReceiveWithAnyArgs().TryRecordTicketLoginAsync(default!, default!, default, default, default);
         await _cache.DidNotReceiveWithAnyArgs().IncrementAsync(default!, default);
     }
 
@@ -87,7 +89,7 @@ public class CAuthGameTicketHandlerShould
     [Fact]
     public async Task Refuse_when_guarded_login_recording_loses_to_a_lock()
     {
-        _accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(false);
+        _accounts.TryRecordTicketLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(false);
         Assert.Equal(AuthResult.LOCKED, await SendAsync());
         Assert.Null(_connection.AccountId);
     }

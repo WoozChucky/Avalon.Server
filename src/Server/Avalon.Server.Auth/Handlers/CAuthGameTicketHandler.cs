@@ -1,10 +1,13 @@
 using Avalon.Common.Accounts;
+using Avalon.Common.Telemetry;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.GameTickets;
 using Avalon.Infrastructure.Login;
 using Avalon.Network.Packets.Auth;
+using Avalon.Hosting.Telemetry;
+using Avalon.Server.Auth.Telemetry;
 
 namespace Avalon.Server.Auth.Handlers;
 
@@ -87,12 +90,30 @@ public class CAuthGameTicketHandler : IAuthPacketHandler<CAuthGameTicketPacket>
         }
 
         string lastIp = LoginSource.FromEndPoint(connection.RemoteEndPoint).Ip;
+        bool wasOnline = account.Online;
         if (!await GameLoginCompletion.TryStartAsync(connection, account, lastIp, AuthResult.LOCKED,
-            _accounts, _cache, _logger, token)) return;
+            _accounts, _cache, _logger, token, ticket: true))
+        {
+            Record(wasOnline ? AuthResult.ALREADY_CONNECTED : AuthResult.LOCKED, account);
+            return;
+        }
 
-        await GameLoginCompletion.FinishAsync(connection, account, lastIp, _cache);
+        await GameLoginCompletion.FinishAsync(connection, account, lastIp, _cache, ticket: true);
+        Record(AuthResult.SUCCESS, account);
 
-        void Refuse(AuthResult result) => connection.Send(SAuthResultPacket.Create(null, null, result,
-            connection.CryptoSession.Encrypt));
+        void Refuse(AuthResult result)
+        {
+            connection.Send(SAuthResultPacket.Create(null, null, result, connection.CryptoSession.Encrypt));
+            Record(result, null);
+        }
+
+        void Record(AuthResult result, Account? known)
+        {
+            string tag = LoginTelemetry.Tag(result);
+            DiagnosticsConfig.Auth.Logins.Add(1, new KeyValuePair<string, object?>("result", tag));
+            _logger.Log(LoginTelemetry.LogLevelFor(tag),
+                "Game ticket login {LoginResult} for account {AccountId} from {ClientAddress}",
+                tag, known?.Id.Value, PacketTags.AddressOf(connection.RemoteEndPoint));
+        }
     }
 }

@@ -9,7 +9,7 @@ internal static class GameLoginCompletion
 {
     public static async Task<bool> TryStartAsync(IAuthConnection connection, Account account, string lastIp,
         AuthResult guardFailure, IAccountRepository accounts, IReplicatedCache cache, ILogger logger,
-        CancellationToken token)
+        CancellationToken token, bool ticket = false)
     {
         if (account.Online)
         {
@@ -30,7 +30,10 @@ internal static class GameLoginCompletion
             return false;
         }
 
-        if (!await accounts.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, connection.Id, token))
+        bool recorded = ticket
+            ? await accounts.TryRecordTicketLoginAsync(account.Id, lastIp, DateTime.UtcNow, connection.Id, token)
+            : await accounts.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, connection.Id, token);
+        if (!recorded)
         {
             logger.LogWarning("Account {AccountId} was locked during its login", account.Id);
             connection.Send(SAuthResultPacket.Create(null, null, guardFailure, connection.CryptoSession.Encrypt));
@@ -40,7 +43,7 @@ internal static class GameLoginCompletion
     }
 
     public static async Task FinishAsync(IAuthConnection connection, Account account, string lastIp,
-        IReplicatedCache cache)
+        IReplicatedCache cache, bool ticket = false)
     {
         connection.CredentialsVersion = account.CredentialsVersion;
         connection.LoggedInAt = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -49,7 +52,7 @@ internal static class GameLoginCompletion
         account.Online = true;
         account.LastIp = lastIp;
         account.LastLogin = DateTime.UtcNow;
-        account.FailedLogins = 0;
+        if (!ticket) account.FailedLogins = 0;
         account.Locked = false;
         account.LockedUntil = null;
 
