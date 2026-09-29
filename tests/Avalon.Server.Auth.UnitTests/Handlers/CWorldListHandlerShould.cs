@@ -3,6 +3,7 @@ using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth;
@@ -18,6 +19,7 @@ public class CWorldListHandlerShould
 {
     private readonly IWorldRepository _worldRepository = Substitute.For<IWorldRepository>();
     private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
+    private readonly IWorldReadiness _readiness = Substitute.For<IWorldReadiness>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
     private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly CWorldListHandler _handler;
@@ -26,7 +28,8 @@ public class CWorldListHandlerShould
     {
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.Id.Returns(Guid.NewGuid());
-        _handler = new CWorldListHandler(NullLoggerFactory.Instance, _worldRepository, _accountRepository);
+        _handler = new CWorldListHandler(NullLoggerFactory.Instance, _worldRepository, _accountRepository,
+            _readiness);
     }
 
     private static AvalonWorld MakeWorld(ushort id, AccountAccessLevel req = AccountAccessLevel.Player)
@@ -177,5 +180,33 @@ public class CWorldListHandlerShould
 
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
         _connection.DidNotReceive().Close();
+    }
+
+    [Fact]
+    public async Task Send_derived_runtime_status_with_maintenance_precedence()
+    {
+        var account = MakeAccount(level: AccountAccessLevel.Admin);
+        _connection.AccountId.Returns(account.Id);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        var maintenance = MakeWorld(1);
+        maintenance.MaintenanceEnabled = true;
+        _worldRepository.FindAllAsync().Returns(new List<AvalonWorld>
+        {
+            maintenance, MakeWorld(2), MakeWorld(3),
+        });
+        _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(true);
+        _readiness.IsReadyAsync(2, Arg.Any<CancellationToken>()).Returns(true);
+        _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(false);
+        NetworkPacket? sent = null;
+        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(call => sent = call.Arg<NetworkPacket>());
+
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldListPacket>
+            { Packet = new CWorldListPacket(), Connection = _connection });
+
+        using var stream = new MemoryStream(sent!.Payload);
+        var statuses = Serializer.Deserialize<SWorldListPacket>(stream).Worlds!.ToDictionary(w => w.Id, w => w.Status);
+        Assert.Equal((short)WorldStatus.Maintenance, statuses[1]);
+        Assert.Equal((short)WorldStatus.Online, statuses[2]);
+        Assert.Equal((short)WorldStatus.Offline, statuses[3]);
     }
 }

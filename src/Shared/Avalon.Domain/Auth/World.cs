@@ -21,8 +21,6 @@ public class World : IDbEntity<WorldId>
 
     [Required] public string Version { get; set; }
 
-    [Required] public WorldStatus Status { get; set; } = WorldStatus.Offline;
-
     [Required] public bool MaintenanceEnabled { get; set; }
 
     [Required] public long MaintenanceRevision { get; set; }

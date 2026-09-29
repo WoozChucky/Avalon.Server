@@ -11,7 +11,8 @@ public enum WorldSelectResult : byte
 
     // #554: a world id the server does not know and a world the account may not enter get this
     // one answer, so a client cannot tell a restricted world from a missing one. Append-only.
-    WorldUnavailable = 2
+    WorldUnavailable = 2,
+    Maintenance = 3
 }
 
 [ProtoContract]

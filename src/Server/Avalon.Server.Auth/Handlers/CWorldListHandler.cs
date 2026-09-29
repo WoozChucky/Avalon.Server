@@ -1,5 +1,7 @@
 using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
 using Avalon.Network.Packets.Auth;
 
 namespace Avalon.Server.Auth.Handlers;
@@ -9,12 +11,15 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
     private readonly ILogger<CWorldListHandler> _logger;
     private readonly IWorldRepository _worldRepository;
     private readonly IAccountRepository _accountRepository;
+    private readonly IWorldReadiness _readiness;
 
-    public CWorldListHandler(ILoggerFactory loggerFactory, IWorldRepository worldRepository, IAccountRepository accountRepository)
+    public CWorldListHandler(ILoggerFactory loggerFactory, IWorldRepository worldRepository,
+        IAccountRepository accountRepository, IWorldReadiness readiness)
     {
         _logger = loggerFactory.CreateLogger<CWorldListHandler>();
         _worldRepository = worldRepository;
         _accountRepository = accountRepository;
+        _readiness = readiness;
     }
 
     public async Task ExecuteAsync(AuthPacketContext<CWorldListPacket> ctx, CancellationToken token = default)
@@ -29,19 +34,26 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
         // A mask test, never "<=": AccountAccessLevel is [Flags] (#447).
         worlds = worlds.Where(w => AccessLevels.ForWorld(w.AccessLevelRequired).Allows(account.AccessLevel)).ToList();
 
-        var worldsInfo = worlds.Select(w => new WorldInfo
+        var worldsInfo = new List<WorldInfo>(worlds.Count);
+        foreach (var w in worlds)
         {
-            Id = w.Id.Value,
-            Name = w.Name,
-            Type = (short)w.Type,
-            AccessLevelRequired = (short)w.AccessLevelRequired,
-            Host = w.Host,
-            Port = w.Port,
-            MinVersion = w.MinVersion,
-            Version = w.Version,
-            Status = (short)w.Status,
-        }).ToArray();
+            bool ready = await _readiness.IsReadyAsync(w.Id.Value, token);
+            var state = new WorldMaintenanceState(w.MaintenanceEnabled, w.MaintenanceRevision,
+                w.MaintenanceDeadlineUtc);
+            worldsInfo.Add(new WorldInfo
+            {
+                Id = w.Id.Value,
+                Name = w.Name,
+                Type = (short)w.Type,
+                AccessLevelRequired = (short)w.AccessLevelRequired,
+                Host = w.Host,
+                Port = w.Port,
+                MinVersion = w.MinVersion,
+                Version = w.Version,
+                Status = (short)WorldReadiness.Resolve(state, ready),
+            });
+        }
 
-        ctx.Connection.Send(SWorldListPacket.Create(worldsInfo, ctx.Connection.CryptoSession.Encrypt));
+        ctx.Connection.Send(SWorldListPacket.Create(worldsInfo.ToArray(), ctx.Connection.CryptoSession.Encrypt));
     }
 }

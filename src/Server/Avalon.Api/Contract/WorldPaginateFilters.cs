@@ -32,7 +32,6 @@ public class WorldPaginateFilters : EntityPaginateFilter<WorldEntity>
         return SortBy.ToLower() switch
         {
             "name" => w => w.Name,
-            "status" => w => w.Status,
             _ => null
         };
     }

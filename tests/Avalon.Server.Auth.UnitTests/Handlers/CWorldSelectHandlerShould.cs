@@ -22,6 +22,8 @@ public class CWorldSelectHandlerShould
 {
     private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
     private readonly IWorldRepository _worldRepository = Substitute.For<IWorldRepository>();
+    private readonly IWorldMaintenanceRepository _maintenance = Substitute.For<IWorldMaintenanceRepository>();
+    private readonly IWorldReadiness _readiness = Substitute.For<IWorldReadiness>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
     private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
@@ -37,6 +39,9 @@ public class CWorldSelectHandlerShould
         _connection.WorldSelects.Returns(new WorldSelectBudget());
         _secureRandom.GetBytes(32).Returns(new byte[32]);
         _cache.SetNxAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(true);
+        _maintenance.ReadAsync(Arg.Any<WorldId>(), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(false, 0, null));
+        _readiness.IsReadyAsync(Arg.Any<ushort>(), Arg.Any<CancellationToken>()).Returns(true);
         _handler = Handler(new AuthConfiguration().MaxWorldSelectsPerMinute);
     }
 
@@ -45,7 +50,8 @@ public class CWorldSelectHandlerShould
         var loggerFactory = Substitute.For<ILoggerFactory>();
         loggerFactory.CreateLogger(Arg.Any<string>()).Returns(_logger);
         return new CWorldSelectHandler(loggerFactory, _cache, _accountRepository, _worldRepository, _secureRandom,
-            Options.Create(new AuthConfiguration { MaxWorldSelectsPerMinute = maxSelectsPerMinute }), _clock);
+            Options.Create(new AuthConfiguration { MaxWorldSelectsPerMinute = maxSelectsPerMinute }), _clock,
+            _maintenance, _readiness);
     }
 
     private static Account MakeAccount(AccountAccessLevel level = AccountAccessLevel.Player)
@@ -71,6 +77,58 @@ public class CWorldSelectHandlerShould
             AccessLevelRequired = req,
             Id = new WorldId(id)
         };
+
+    [Fact]
+    public async Task Refuse_visible_maintenance_world_without_reserving_a_session()
+    {
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5)));
+        await SelectAsync(AccountAccessLevel.Player, AccountAccessLevel.Player);
+
+        Assert.Equal(WorldSelectResult.Maintenance, Assert.Single(SentPackets()).Result);
+        await AssertRefusedWithoutSideEffectsAsync();
+    }
+
+    [Fact]
+    public async Task Let_an_Admin_select_a_ready_maintenance_world()
+    {
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5)));
+        await SelectAsync(AccountAccessLevel.Player, AccountAccessLevel.Admin);
+
+        Assert.Equal(WorldSelectResult.Success, Assert.Single(SentPackets()).Result);
+    }
+
+    [Theory]
+    [InlineData(AccountAccessLevel.Player)]
+    [InlineData(AccountAccessLevel.Admin)]
+    public async Task Refuse_offline_world_to_everyone(AccountAccessLevel access)
+    {
+        _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(false);
+        await SelectAsync(AccountAccessLevel.Player, access);
+
+        Assert.Equal(WorldSelectResult.WorldUnavailable, Assert.Single(SentPackets()).Result);
+        await AssertRefusedWithoutSideEffectsAsync();
+    }
+
+    [Fact]
+    public async Task Hide_maintenance_state_of_a_forbidden_world()
+    {
+        await SelectAsync(AccountAccessLevel.Admin, AccountAccessLevel.Player);
+
+        Assert.Equal(WorldSelectResult.WorldUnavailable, Assert.Single(SentPackets()).Result);
+        await _maintenance.DidNotReceiveWithAnyArgs().ReadAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Failed_readiness_or_maintenance_read_fails_closed()
+    {
+        _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>())
+            .Returns<Task<bool>>(_ => throw new InvalidOperationException("Redis unavailable"));
+        await SelectAsync(AccountAccessLevel.Player, AccountAccessLevel.Player);
+        Assert.Equal(WorldSelectResult.WorldUnavailable, Assert.Single(SentPackets()).Result);
+        await AssertRefusedWithoutSideEffectsAsync();
+    }
 
     [Fact]
     public async Task CloseConnection_WhenAccountNotFound()
