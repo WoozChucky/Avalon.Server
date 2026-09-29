@@ -358,6 +358,9 @@ public class CharacterEntity : ICharacter
 
     public DateTime LastCastStartTime { get; set; } = DateTime.MinValue;
 
+    /// <summary>Temporary staff combat override; never copied to the persisted character row.</summary>
+    public bool GodMode { get; set; }
+
     public float BodyRadius => UnitBody.CharacterRadius;
 
     public GameEntityFields ConsumeDirtyFields()

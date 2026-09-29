@@ -71,6 +71,7 @@ public class WorldHostGraphShould
             // silently build a second toggle over a different clock. /pvp is found through ICommand.
             Assert.NotNull(host.Services.GetRequiredService<PvpToggle>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PvpCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is GodModeCommand);
 
             // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
             // every combat service reads the same values. The facing cone it once carried is gone
