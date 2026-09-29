@@ -92,15 +92,23 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
 
     /// <summary>
     /// Changelog entries the caller may read, newest first (homelab spec 2026-09-27-avalon-changelog-design §7):
-    /// server and launcher entries for everyone, client entries for the channels the caller may use. One
-    /// unreadable prefix is left out; when every prefix fails, the changelog is unavailable. Entries are
-    /// immutable, so each is read once; a listing is kept for a minute.
+    /// live server and launcher entries for everyone; server dev/ptr and client entries for the channels
+    /// the caller may use. One unreadable prefix is left out; when every prefix fails, the changelog is
+    /// unavailable. Entries are immutable, so each is read once; a listing is kept for a minute.
     /// </summary>
     public async Task<IReadOnlyList<ChangelogEntryDto>> ListChangelogAsync(AccountAccessLevel? caller, ChangelogQuery query, CancellationToken ct)
     {
         var prefixes = new List<(string Prefix, string Product, string? Channel)>();
         if (query.Product is null or "server")
-            prefixes.Add(("changelog/server/", "server", null));
+        {
+            // Live server entries have no channel (they predate channels); dev and ptr ones follow the
+            // same access as the client's channels (homelab spec 2026-09-28-release-channels-design §7).
+            if (query.Channel is null or Channel.Live)
+                prefixes.Add(("changelog/server/", "server", null));
+            prefixes.AddRange(ChannelAccess.Visible(caller)
+                .Where(c => c != Channel.Live && (query.Channel is null || c == query.Channel))
+                .Select(c => ($"changelog/server/{c.Wire()}/", "server", (string?)c.Wire())));
+        }
         if (query.Product is null or "launcher")
             prefixes.Add(("changelog/launcher/", "launcher", null));
         if (query.Product is null or "client")

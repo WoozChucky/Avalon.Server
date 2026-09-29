@@ -170,7 +170,8 @@ public class ClientDistributionServiceShould
     // ---- Changelog (homelab spec 2026-09-27-avalon-changelog-design §7) ----
 
     private static readonly string[] ChangelogPrefixes =
-        ["changelog/server/", "changelog/launcher/", "changelog/client/live/", "changelog/client/ptr/", "changelog/client/dev/"];
+        ["changelog/server/", "changelog/server/ptr/", "changelog/server/dev/", "changelog/launcher/",
+            "changelog/client/live/", "changelog/client/ptr/", "changelog/client/dev/"];
 
     private void Changelog(string prefix, params ChangelogEntryDto[] entries)
     {
@@ -189,6 +190,49 @@ public class ClientDistributionServiceShould
     private static ChangelogEntryDto Entry(string product, string? channel, string version, DateTimeOffset at) =>
         new(product, channel, version, channel is null ? null : $"{version}+1.abc", at, null,
             [new ChangelogItemDto("fixed", $"Fixed {product} {version}.", false, null, null)]);
+
+    [Fact]
+    public async Task Show_server_ptr_entries_to_a_ptr_account_but_not_dev_ones()
+    {
+        EmptyChangelog();
+        Changelog("changelog/server/", Entry("server", null, "0.7.0", T0));
+        Changelog("changelog/server/ptr/", Entry("server", "ptr", "0.7.1-nightly.5", T0.AddHours(1)));
+        Changelog("changelog/server/dev/", Entry("server", "dev", "0.7.1-dev.6", T0.AddHours(2)));
+
+        IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(
+            AccountAccessLevel.PTR, new ChangelogQuery("server", null, 20, null), CancellationToken.None);
+
+        Assert.Equal(["ptr", null], feed.Select(e => e.Channel));
+        await _store.DidNotReceive().ListChangelogAsync("changelog/server/dev/", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Keep_server_channel_entries_from_callers_without_access()
+    {
+        EmptyChangelog();
+        Changelog("changelog/server/", Entry("server", null, "0.7.0", T0),
+            Entry("server", "dev", "0.7.1-dev.6", T0.AddHours(1)), Entry("server", "ptr", "0.7.1-nightly.5", T0.AddHours(2)));
+
+        IReadOnlyList<ChangelogEntryDto> anonymous = await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> player = await _service.ListChangelogAsync(AccountAccessLevel.Player, new ChangelogQuery("server", null, 20, null), CancellationToken.None);
+
+        Assert.All(anonymous.Where(e => e.Product == "server"), e => Assert.Null(e.Channel));
+        Assert.Equal(["0.7.0"], player.Select(e => e.Version));
+    }
+
+    [Fact]
+    public async Task Read_the_live_server_channel_as_the_entries_without_a_channel()
+    {
+        EmptyChangelog();
+        Changelog("changelog/server/", Entry("server", null, "0.7.0", T0));
+        Changelog("changelog/server/dev/", Entry("server", "dev", "0.7.1-dev.6", T0.AddHours(1)));
+
+        var live = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", Channel.Live, 20, null), CancellationToken.None);
+        var dev = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", Channel.Dev, 20, null), CancellationToken.None);
+
+        Assert.Equal(["0.7.0"], live.Select(e => e.Version));
+        Assert.Equal(["0.7.1-dev.6"], dev.Select(e => e.Version));
+    }
 
     [Fact]
     public async Task List_every_product_newest_first_for_anonymous_callers_with_live_client_entries_only()
