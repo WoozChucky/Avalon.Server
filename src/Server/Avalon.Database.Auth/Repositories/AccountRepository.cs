@@ -30,6 +30,10 @@ public interface IAccountRepository : IRepository<Account, AccountId>
     Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Records a ticket login under the same lock guard without clearing password failures.</summary>
+    Task<bool> TryRecordTicketLoginAsync(AccountId id, int credentialsVersion, string lastIp, DateTime now, Guid sessionId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// The REST API's <see cref="TryRecordLoginAsync"/> (#478): the same write, on the same
     /// condition, minus <c>Online</c>, which is the game client's session flag and not the API's.
@@ -131,6 +135,25 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
                 .SetProperty(a => a.Locked, false)
                 .SetProperty(a => a.LockedUntil, (DateTime?)null), cancellationToken);
 
+        return updated == 1;
+    }
+
+    public async Task<bool> TryRecordTicketLoginAsync(AccountId id, int credentialsVersion, string lastIp, DateTime now,
+        Guid sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+        var updated = await context.Accounts
+            .Where(a => a.Id == id && !a.Online && a.CredentialsVersion == credentialsVersion &&
+                a.Status == AccountStatus.Active && (a.AccessLevel & AccessLevels.Player) != 0 &&
+                (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.Online, true)
+                .SetProperty(a => a.OnlineSessionId, (Guid?)sessionId)
+                .SetProperty(a => a.LastIp, lastIp)
+                .SetProperty(a => a.LastLogin, now)
+                .SetProperty(a => a.Locked, false)
+                .SetProperty(a => a.LockedUntil, (DateTime?)null), cancellationToken);
         return updated == 1;
     }
 

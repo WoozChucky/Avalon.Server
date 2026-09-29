@@ -62,6 +62,10 @@ public interface IRefreshTokenRepository
     /// false for another account's, the website's, or an unknown one. Served by the (AccountId, FamilyId) index.
     /// </summary>
     Task<bool> IsLauncherFamilyOfAsync(AccountId accountId, Guid familyId, CancellationToken cancellationToken = default);
+
+    /// <summary>The newest token of this account's launcher family is unrevoked and unexpired.</summary>
+    Task<bool> IsLiveLauncherFamilyAsync(AccountId accountId, Guid familyId, DateTime now,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>A live session: when it signed in (its first token) and was last used (its newest).</summary>
@@ -185,6 +189,19 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
         return await context.RefreshTokens.AnyAsync(
             t => t.AccountId == accountId && t.FamilyId == familyId && t.Client == SessionClient.Launcher, cancellationToken);
+    }
+
+    public async Task<bool> IsLiveLauncherFamilyAsync(AccountId accountId, Guid familyId, DateTime now,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var newest = await context.RefreshTokens.AsNoTracking()
+            .Where(t => t.AccountId == accountId && t.FamilyId == familyId && t.Client == SessionClient.Launcher)
+            .OrderByDescending(t => t.Index)
+            .Select(t => new { t.Revoked, t.ExpiresAt })
+            .FirstOrDefaultAsync(cancellationToken);
+        return newest is { Revoked: false } && newest.ExpiresAt > now;
     }
 
     public async Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default)

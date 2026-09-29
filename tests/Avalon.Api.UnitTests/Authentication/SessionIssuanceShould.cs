@@ -33,7 +33,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
     private void RefreshCookieBelongsTo(Account? account)
     {
         _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<RefreshCaller>(), Arg.Any<CancellationToken>())
-            .Returns(new RefreshRotateResult("refresh-next", DateTime.UtcNow.AddDays(30), new AccountId(AccountIdValue), 0));
+            .Returns(new RefreshRotateResult("refresh-next", DateTime.UtcNow.AddDays(30), new AccountId(AccountIdValue), 0, Guid.NewGuid()));
         _host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
             .Returns(account);

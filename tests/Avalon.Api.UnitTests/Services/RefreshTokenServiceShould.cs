@@ -85,6 +85,24 @@ public class RefreshTokenServiceShould
     }
 
     [Fact]
+    public async Task Return_the_same_family_when_rotating_a_launcher_token()
+    {
+        var familyId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+        _repo.FindByHashAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>()).Returns(new RefreshToken
+        {
+            AccountId = new AccountId(1L), FamilyId = familyId, Client = SessionClient.Launcher,
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
+        });
+        _repo.RotateAsync(Arg.Any<RefreshToken>(), Arg.Any<RefreshToken>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(RefreshRotation.Rotated);
+
+        var result = await new RefreshTokenService(_repo, _random, TimeProvider.System)
+            .RotateLauncherAsync("raw", RefreshCaller.From(null, "ua"));
+
+        Assert.Equal(familyId, result.FamilyId);
+    }
+
+    [Fact]
     public async Task Revoke_the_whole_launcher_session_a_token_belongs_to()
     {
         var family = Guid.NewGuid();

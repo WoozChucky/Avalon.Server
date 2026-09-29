@@ -78,6 +78,8 @@ public static class ServiceRegistration
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton<ILauncherAuthCodes, LauncherAuthCodes>();
+        services.AddSingleton<Avalon.Infrastructure.GameTickets.IGameTicketStore,
+            Avalon.Infrastructure.GameTickets.RedisGameTicketStore>();
         services.AddSingleton(TimeProvider.System);
         services.AddMfaService();
         // The login policy the Auth server shares (#478), with the limits under

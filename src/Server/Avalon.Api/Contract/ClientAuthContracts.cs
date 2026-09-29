@@ -39,6 +39,12 @@ public sealed class ClientAuthRefreshRequest
     public string RefreshToken { get; set; } = string.Empty;
 }
 
+public sealed class ClientGameTicketResponse
+{
+    public string Ticket { get; set; } = string.Empty;
+    public long ExpiresAt { get; set; }
+}
+
 /// <summary>One of the account's signed-in launchers (#591).</summary>
 public sealed class LauncherSessionDto
 {
