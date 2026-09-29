@@ -166,6 +166,7 @@ public class CharacterService : ICharacterService
                 CastTime = template.CastTime,
                 Cooldown = template.Cooldown,
                 Cost = template.Cost,
+                CostPowerType = (Avalon.Api.Contract.PowerType)template.CostPowerType,
                 Range = (Avalon.Api.Contract.SpellRange)template.Range,
                 Effects = (Avalon.Api.Contract.SpellEffect)template.Effects,
                 EffectValue = template.EffectValue,

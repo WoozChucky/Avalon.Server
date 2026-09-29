@@ -28,6 +28,9 @@ public sealed class CharacterAbilityTemplateDto
     /// <summary>Cost in power points.</summary>
     public uint Cost { get; set; }
 
+    /// <summary>The pool <see cref="Cost"/> is spent from; None when the ability costs nothing.</summary>
+    public PowerType CostPowerType { get; set; }
+
     public SpellRange Range { get; set; }
     public SpellEffect Effects { get; set; }
     public uint EffectValue { get; set; }
