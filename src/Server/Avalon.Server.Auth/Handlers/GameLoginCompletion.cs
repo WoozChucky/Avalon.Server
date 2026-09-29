@@ -38,7 +38,7 @@ internal static class GameLoginCompletion
             : await accounts.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, connection.Id, token);
         if (!recorded)
         {
-            AuthResult refusal = guardFailure;
+            AuthResult refusal = ticket ? AuthResult.INVALID_CREDENTIALS : guardFailure;
             if (ticket)
             {
                 // The guarded write can lose to a ban, revocation, lock or another login.

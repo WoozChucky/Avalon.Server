@@ -115,8 +115,24 @@ public class CAuthGameTicketHandlerShould
     [Fact]
     public async Task Refuse_when_guarded_login_recording_loses_to_a_lock()
     {
+        int reads = 0;
+        _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (++reads == 2) _account.Locked = true;
+            return _account;
+        });
         _accounts.TryRecordTicketLoginAsync(default!, default, default!, default, default, default).ReturnsForAnyArgs(false);
         Assert.Equal(AuthResult.LOCKED, await SendAsync());
+        Assert.Null(_connection.AccountId);
+    }
+
+    [Fact]
+    public async Task Report_invalid_credentials_when_failed_claim_has_no_current_refusal()
+    {
+        _accounts.TryRecordTicketLoginAsync(default!, default, default!, default, default, default)
+            .ReturnsForAnyArgs(false);
+
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, await SendAsync());
         Assert.Null(_connection.AccountId);
     }
 

@@ -35,6 +35,8 @@ public class CAuthGameTicketHandler : IAuthPacketHandler<CAuthGameTicketPacket>
         GameTicketGrant? grant;
         try
         {
+            // Consume before account checks so every attempt stays single-use, including
+            // ALREADY_CONNECTED when a stale online session is being cleared.
             grant = await _tickets.RedeemAsync(ctx.Packet.Ticket, token);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
