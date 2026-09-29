@@ -2,8 +2,10 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Scripts;
 using Avalon.World.Abilities;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -55,6 +57,91 @@ public class InstanceAbilityCastSystemShould
         character.CurrentPower.Returns(power);
         character.Position.Returns(Vector3.zero);
         return character;
+    }
+
+    private static CharacterEntity GodCaster(PowerType type = PowerType.None, uint power = 0)
+    {
+        CharacterEntity character = TestCharacters.New(628);
+        character.Health = 100;
+        character.CurrentHealth = 100;
+        character.PowerType = type;
+        character.CurrentPower = power;
+        character.GodMode = true;
+        return character;
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(0.01f)]
+    public void Cast_for_free_without_a_power_pool_on_both_paths_in_god_mode(float castTime)
+    {
+        CharacterEntity caster = GodCaster();
+        GameAbility ability = Ability(cost: 30, castTime: castTime);
+
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
+        if (castTime > 0) _sut.Update(Tick, []);
+
+        Assert.True(accepted);
+        Assert.Equal(0u, caster.CurrentPower);
+        Assert.Equal(0f, ability.CooldownTimer);
+        Assert.Single(RecordingAbilityScript.Prepared);
+    }
+
+    [Fact]
+    public void Keep_an_old_cooldown_ticking_without_replacing_it_during_god_mode()
+    {
+        CharacterEntity caster = GodCaster();
+        GameAbility ability = Ability();
+        ability.CooldownTimer = 5f;
+        caster.Spells.Load([ability]);
+
+        caster.Spells.Update(TimeSpan.FromSeconds(1));
+        Assert.Equal(4f, ability.CooldownTimer);
+        Assert.True(_sut.RunInstant(caster, Aim, ability));
+        Assert.Equal(4f, ability.CooldownTimer);
+    }
+
+    [Fact]
+    public void Start_a_cooldown_at_fire_if_god_mode_was_disabled_during_a_free_queued_cast()
+    {
+        CharacterEntity caster = GodCaster(PowerType.Mana);
+        GameAbility ability = Ability(cost: 30, castTime: 0.01f);
+
+        Assert.True(_sut.QueueAbility(caster, Aim, ability));
+        caster.GodMode = false;
+        _sut.Update(Tick, []);
+
+        Assert.Equal(0u, caster.CurrentPower);
+        Assert.Equal(2f, ability.CooldownTimer);
+        Assert.Single(RecordingAbilityScript.Prepared);
+    }
+
+    [Fact]
+    public void Keep_a_paid_cost_but_skip_cooldown_if_god_mode_was_enabled_during_a_queued_cast()
+    {
+        CharacterEntity caster = GodCaster(PowerType.Mana, 40);
+        caster.GodMode = false;
+        GameAbility ability = Ability(cost: 30, castTime: 0.01f);
+
+        Assert.True(_sut.QueueAbility(caster, Aim, ability));
+        Assert.Equal(10u, caster.CurrentPower);
+        caster.GodMode = true;
+        _sut.Update(Tick, []);
+
+        Assert.Equal(10u, caster.CurrentPower);
+        Assert.Equal(0f, ability.CooldownTimer);
+    }
+
+    [Fact]
+    public void Spend_nothing_if_a_god_mode_cast_has_no_script()
+    {
+        CharacterEntity caster = GodCaster(PowerType.Mana, 40);
+        GameAbility ability = Ability(cost: 30, script: "Nope");
+
+        Assert.False(_sut.RunInstant(caster, Aim, ability));
+
+        Assert.Equal(40u, caster.CurrentPower);
+        Assert.Equal(0f, ability.CooldownTimer);
     }
 
     // ── #521 item 1: Casting is set only once the queue took the cast ──
