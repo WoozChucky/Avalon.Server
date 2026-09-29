@@ -102,6 +102,25 @@ public sealed class LauncherSessionsShould : IDisposable
     }
 
     [Fact]
+    public async Task Recognise_only_a_live_launcher_family_for_ticket_issuance()
+    {
+        AccountId me = await AccountAsync("ME");
+        AccountId other = await AccountAsync("OTHER");
+        DateTime now = T0.AddHours(2);
+        Guid live = await FamilyAsync(me, SessionClient.Launcher, "MOTHERSHIP", T0.AddDays(1), false, T0, T0.AddHours(1));
+        Guid revoked = await FamilyAsync(me, SessionClient.Launcher, "GONE", T0.AddDays(1), true, T0);
+        Guid expired = await FamilyAsync(me, SessionClient.Launcher, "OLD", T0.AddHours(1), false, T0);
+        Guid website = await FamilyAsync(me, SessionClient.Web, null, T0.AddDays(1), false, T0);
+        var repository = new RefreshTokenRepository(_database);
+
+        Assert.True(await repository.IsLiveLauncherFamilyAsync(me, live, now));
+        Assert.False(await repository.IsLiveLauncherFamilyAsync(other, live, now));
+        Assert.False(await repository.IsLiveLauncherFamilyAsync(me, revoked, now));
+        Assert.False(await repository.IsLiveLauncherFamilyAsync(me, expired, now));
+        Assert.False(await repository.IsLiveLauncherFamilyAsync(me, website, now));
+    }
+
+    [Fact]
     public void Index_tokens_by_family_for_the_lookups_that_start_from_one()
     {
         // FindChildAsync, RevokeFamilyAsync: by family, without the account (#591 review).

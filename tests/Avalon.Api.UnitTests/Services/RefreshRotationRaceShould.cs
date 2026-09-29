@@ -102,6 +102,10 @@ public sealed class RefreshRotationRaceShould : IDisposable
 
         public Task<bool> IsLauncherFamilyOfAsync(AccountId accountId, Guid familyId, CancellationToken cancellationToken = default) =>
             OneAtATime(() => inner.IsLauncherFamilyOfAsync(accountId, familyId, cancellationToken));
+
+        public Task<bool> IsLiveLauncherFamilyAsync(AccountId accountId, Guid familyId, DateTime now,
+            CancellationToken cancellationToken = default) =>
+            OneAtATime(() => inner.IsLiveLauncherFamilyAsync(accountId, familyId, now, cancellationToken));
     }
 
     [Fact]

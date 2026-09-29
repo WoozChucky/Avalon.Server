@@ -65,7 +65,8 @@ public sealed record RefreshCaller(string? Source, byte[] UserAgentHash)
 
 public sealed record RefreshIssueResult(string RawToken, DateTime ExpiresAt, Guid FamilyId);
 /// <param name="CredentialsVersion">The version the rotation held: the access token minted with it must carry it.</param>
-public sealed record RefreshRotateResult(string RawToken, DateTime ExpiresAt, AccountId AccountId, int CredentialsVersion);
+public sealed record RefreshRotateResult(string RawToken, DateTime ExpiresAt, AccountId AccountId, int CredentialsVersion,
+    Guid FamilyId);
 
 public sealed class RefreshTokenService : IRefreshTokenService
 {
@@ -176,7 +177,7 @@ public sealed class RefreshTokenService : IRefreshTokenService
         switch (await _repository.RotateAsync(row, child, now, cancellationToken))
         {
             case RefreshRotation.Rotated:
-                return new RefreshRotateResult(newRaw, row.ExpiresAt, row.AccountId, row.CredentialsVersion);
+                return new RefreshRotateResult(newRaw, row.ExpiresAt, row.AccountId, row.CredentialsVersion, row.FamilyId);
             case RefreshRotation.CredentialsChanged:
                 // The family was opened before a password change or an MFA reset (#495). That
                 // change revoked the token already; this refuses a rotation that read it just before.

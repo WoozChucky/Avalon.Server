@@ -118,7 +118,7 @@ public sealed class ClientAuthController : BaseController
         {
             RefreshIssueResult issued = await _refresh.IssueLauncherAsync(account.Id, grant.CredentialsVersion,
                 request.DeviceName, CancellationToken);
-            return Ok(Tokens(account, issued.RawToken, issued.ExpiresAt));
+            return Ok(Tokens(account, issued.RawToken, issued.ExpiresAt, issued.FamilyId));
         }
         catch (AuthenticationException)
         {
@@ -160,7 +160,7 @@ public sealed class ClientAuthController : BaseController
             // The credentials changed after the rotation committed (#495): that change revoked the successor.
             if (account.CredentialsVersion != rotated.CredentialsVersion) return Unauthorized();
 
-            return Ok(Tokens(account, rotated.RawToken, rotated.ExpiresAt));
+            return Ok(Tokens(account, rotated.RawToken, rotated.ExpiresAt, rotated.FamilyId));
         }
         catch (RefreshAlreadyRotatedException)
         {
@@ -227,9 +227,9 @@ public sealed class ClientAuthController : BaseController
         return NoContent();
     }
 
-    private ClientAuthTokens Tokens(Account account, string refreshToken, DateTime refreshExpiresAt) => new()
+    private ClientAuthTokens Tokens(Account account, string refreshToken, DateTime refreshExpiresAt, Guid familyId) => new()
     {
-        AccessToken = _jwt.GenerateJwtToken(account),
+        AccessToken = _jwt.GenerateLauncherJwtToken(account, familyId),
         ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
         RefreshToken = refreshToken,
         RefreshExpiresAt = new DateTimeOffset(DateTime.SpecifyKind(refreshExpiresAt, DateTimeKind.Utc)).ToUnixTimeSeconds(),

@@ -11,6 +11,7 @@ namespace Avalon.Api.Authentication.Jwt;
 public interface IJwtUtils
 {
     string GenerateJwtToken(Account account);
+    string GenerateLauncherJwtToken(Account account, Guid familyId);
 }
 
 public class JwtUtils : IJwtUtils
@@ -20,6 +21,7 @@ public class JwtUtils : IJwtUtils
     /// token is refused once the account's version has moved on.
     /// </summary>
     public const string CredentialsVersionClaim = "cver";
+    public const string LauncherFamilyClaim = "launcher_family";
 
     private readonly JwtSecurityTokenHandler _tokenHandler;
     private readonly AuthenticationConfig _authenticationConfig;
@@ -38,7 +40,11 @@ public class JwtUtils : IJwtUtils
         _key = signingKey;
     }
 
-    public string GenerateJwtToken(Account account)
+    public string GenerateJwtToken(Account account) => Generate(account, null);
+
+    public string GenerateLauncherJwtToken(Account account, Guid familyId) => Generate(account, familyId);
+
+    private string Generate(Account account, Guid? launcherFamilyId)
     {
         var claims = new List<Claim>
         {
@@ -50,6 +56,9 @@ public class JwtUtils : IJwtUtils
                 account.CredentialsVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ClaimValueTypes.Integer32),
         };
+
+        if (launcherFamilyId is { } familyId)
+            claims.Add(new Claim(LauncherFamilyClaim, familyId.ToString()));
 
         // Emit one GroupSid claim per individual flag bit that is set
         foreach (AccountAccessLevel flag in Enum.GetValues<AccountAccessLevel>())

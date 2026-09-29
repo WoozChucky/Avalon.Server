@@ -44,6 +44,7 @@ public class ClientAuthControllerShould
     public ClientAuthControllerShould()
     {
         _jwt.GenerateJwtToken(Arg.Any<Account>()).Returns("jwt");
+        _jwt.GenerateLauncherJwtToken(Arg.Any<Account>(), Arg.Any<Guid>()).Returns("jwt");
         _http.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.7");
     }
 
@@ -128,6 +129,25 @@ public class ClientAuthControllerShould
     }
 
     [Fact]
+    public async Task Mint_launcher_access_token_for_the_issued_family()
+    {
+        var familyId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+        var account = MakeAccount();
+        _codes.RedeemAsync("the-code", Verifier).Returns(new LauncherGrant(account.Id, 3, 50000));
+        AccountIs(account);
+        _refresh.IssueLauncherAsync(account.Id, 3, Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new RefreshIssueResult("refresh-1", DateTime.UtcNow.AddDays(1), familyId));
+        _jwt.GenerateLauncherJwtToken(account, familyId).Returns("family-jwt");
+
+        IActionResult result = await Sut().Token(new ClientAuthTokenRequest
+        {
+            Code = "the-code", Verifier = Verifier, RedirectPort = 50000,
+        });
+
+        Assert.Equal("family-jwt", Assert.IsType<ClientAuthTokens>(Assert.IsType<OkObjectResult>(result).Value).AccessToken);
+    }
+
+    [Fact]
     public async Task Refuse_an_unknown_or_spent_code_with_invalid_grant()
     {
         _codes.RedeemAsync(Arg.Any<string>(), Arg.Any<string>()).Returns((LauncherGrant?)null);
@@ -170,15 +190,17 @@ public class ClientAuthControllerShould
     public async Task Rotate_a_launcher_session_and_return_the_new_pair_in_the_body()
     {
         DateTime expiry = new(2026, 10, 27, 0, 0, 0, DateTimeKind.Utc);
+        var familyId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
         _refresh.RotateLauncherAsync("refresh-1", Arg.Any<RefreshCaller>(), Arg.Any<CancellationToken>())
-            .Returns(new RefreshRotateResult("refresh-2", expiry, new AccountId(7L), 3));
+            .Returns(new RefreshRotateResult("refresh-2", expiry, new AccountId(7L), 3, familyId));
         AccountIs(MakeAccount());
+        _jwt.GenerateLauncherJwtToken(Arg.Any<Account>(), familyId).Returns("family-jwt");
 
         IActionResult result = await Sut().Refresh(new ClientAuthRefreshRequest { RefreshToken = "refresh-1" });
 
         var tokens = Assert.IsType<ClientAuthTokens>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal("refresh-2", tokens.RefreshToken);
-        Assert.Equal("jwt", tokens.AccessToken);
+        Assert.Equal("family-jwt", tokens.AccessToken);
         await _refresh.DidNotReceiveWithAnyArgs().RotateAsync(default!, default!);
     }
 
@@ -198,7 +220,7 @@ public class ClientAuthControllerShould
     public async Task Refuse_a_refresh_for_an_account_that_may_not_hold_a_session()
     {
         _refresh.RotateLauncherAsync(Arg.Any<string>(), Arg.Any<RefreshCaller>(), Arg.Any<CancellationToken>())
-            .Returns(new RefreshRotateResult("refresh-2", DateTime.UtcNow.AddDays(1), new AccountId(7L), 3));
+            .Returns(new RefreshRotateResult("refresh-2", DateTime.UtcNow.AddDays(1), new AccountId(7L), 3, Guid.NewGuid()));
         AccountIs(MakeAccount(status: AccountStatus.Banned));
 
         Assert.IsType<UnauthorizedResult>(await Sut().Refresh(new ClientAuthRefreshRequest { RefreshToken = "refresh-1" }));
@@ -209,7 +231,7 @@ public class ClientAuthControllerShould
     public async Task Refuse_a_refresh_whose_credentials_changed_after_the_rotation()
     {
         _refresh.RotateLauncherAsync(Arg.Any<string>(), Arg.Any<RefreshCaller>(), Arg.Any<CancellationToken>())
-            .Returns(new RefreshRotateResult("refresh-2", DateTime.UtcNow.AddDays(1), new AccountId(7L), 3));
+            .Returns(new RefreshRotateResult("refresh-2", DateTime.UtcNow.AddDays(1), new AccountId(7L), 3, Guid.NewGuid()));
         AccountIs(MakeAccount(credentialsVersion: 4));
 
         Assert.IsType<UnauthorizedResult>(await Sut().Refresh(new ClientAuthRefreshRequest { RefreshToken = "refresh-1" }));

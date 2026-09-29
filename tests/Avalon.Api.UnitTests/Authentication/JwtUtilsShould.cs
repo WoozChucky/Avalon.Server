@@ -67,4 +67,18 @@ public class JwtUtilsShould
         Assert.Contains("GameMaster", groupSids);
         Assert.Contains("Admin",      groupSids);
     }
+
+    [Fact]
+    public void EmitLauncherFamilyOnlyForLauncherToken()
+    {
+        var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
+        var account = MakeAccount(AccountAccessLevel.Player);
+        var familyId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+
+        var website = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateJwtToken(account));
+        var launcher = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateLauncherJwtToken(account, familyId));
+
+        Assert.DoesNotContain(website.Claims, claim => claim.Type == JwtUtils.LauncherFamilyClaim);
+        Assert.Equal(familyId.ToString(), launcher.Claims.Single(claim => claim.Type == JwtUtils.LauncherFamilyClaim).Value);
+    }
 }
