@@ -182,6 +182,15 @@ public class CharacterEntity : ICharacter
     /// </summary>
     public CharacterSheet? SheetSent { get; internal set; }
 
+    /// <summary>
+    /// The per-hit ability amounts this character's client was last told (#669), in ability load order, and
+    /// the combat stats they were worked out from. World-side and never saved. Set at select, where the
+    /// abilities packet carries them, and by <c>AbilityAmountsFlusher</c> whenever they change.
+    /// </summary>
+    internal AbilityAmount[]? AbilityAmountsSent { get; set; }
+
+    internal AttackerCombat? AbilityAmountsSentFor { get; set; }
+
     /// <summary>What this character defends with (#506): armour, dodge and block, from the last stats refresh.</summary>
     internal DefenderCombat Defence => Stats is { } s
         ? new DefenderCombat(s.Armor, s.DodgePct, s.BlockPct)

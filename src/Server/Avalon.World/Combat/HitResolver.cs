@@ -49,6 +49,25 @@ public static class HitResolver
         return (float)total;
     }
 
+    /// <summary>
+    /// The lowest and highest <see cref="AbilityBase" /> the attacker can produce (#669): the same sum, with
+    /// the weapon roll at the low and the high end of its inclusive range, so the bounds come from the very
+    /// arithmetic a hit uses. Without a weapon term the two are equal.
+    /// </summary>
+    public static (float Min, float Max) AbilityBaseRange(in AttackerCombat a, float effectValue, ScalingStat stat,
+        float scaling, float baseDamageCoefficient) =>
+        (AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, FixedRoll.Low),
+            AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, FixedRoll.High));
+
+    /// <summary>
+    /// What <see cref="ResolveDamage" /> deals from <paramref name="baseDamage" /> when nothing procs and the
+    /// defender has no armour (#669): the base, floored, with a minimum of 1.
+    /// </summary>
+    public static uint NormalDamage(float baseDamage) => Math.Max(1u, Floor(NonNegative(baseDamage)));
+
+    /// <summary>What <see cref="ResolveHeal" /> restores from <paramref name="baseHeal" /> without a crit (#669): the base, floored.</summary>
+    public static uint NormalHeal(float baseHeal) => Floor(NonNegative(baseHeal));
+
     public static (uint Damage, HitResult Result) ResolveDamage(in AttackerCombat a, in DefenderCombat d,
         float baseDamage, CombatFormula f, ICombatRandom rng)
     {
@@ -122,4 +141,16 @@ public static class HitResolver
     private static double NonNegative(double value) => double.IsFinite(value) && value > 0 ? value : 0d;
 
     private static uint Floor(double value) => value >= uint.MaxValue ? uint.MaxValue : (uint)Math.Floor(value);
+
+    /// <summary>A roll pinned to one end of its range; only the weapon roll is ever asked of it.</summary>
+    private sealed class FixedRoll(bool high) : ICombatRandom
+    {
+        public static readonly FixedRoll Low = new(false);
+        public static readonly FixedRoll High = new(true);
+
+        public double NextDouble() => 0d;
+
+        public long NextInt64(long minInclusive, long maxInclusive) =>
+            high ? Math.Max(minInclusive, maxInclusive) : minInclusive;
+    }
 }

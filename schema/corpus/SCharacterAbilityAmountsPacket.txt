@@ -1,0 +1,90 @@
+# SCharacterAbilityAmountsPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SCharacterAbilityAmountsPacket
+
+variant absent
+  field 1 Amounts : AbilityAmountInfo[] = null
+  bytes 0
+
+variant empty
+  field 1 Amounts : AbilityAmountInfo[] = 0 elements
+  bytes 0
+
+variant populated
+  field 1 Amounts : AbilityAmountInfo[] = 2 elements
+    element 0
+      field 1 AbilityId : uint = 65535
+      field 2 Kind : AbilityAmountKind = Healing (2)
+      field 3 Min : uint = 42
+      field 4 Max : uint = 7
+    element 1
+      field 1 AbilityId : uint = 7
+      field 2 Kind : AbilityAmountKind = Damage (1)
+      field 3 Min : uint = 300
+      field 4 Max : uint = 65535
+  bytes 25
+    0a 0a 08 ff ff 03 10 02 18 2a 20 07 0a 0b 08 07
+    10 01 18 ac 02 20 ff ff 03
+
+variant maxima
+  field 1 Amounts : AbilityAmountInfo[] = 3 elements
+    element 0
+      field 1 AbilityId : uint = 4294967295
+      field 2 Kind : AbilityAmountKind = Healing (2)
+      field 3 Min : uint = 4294967295
+      field 4 Max : uint = 4294967295
+    element 1
+      field 1 AbilityId : uint = 4294967295
+      field 2 Kind : AbilityAmountKind = Healing (2)
+      field 3 Min : uint = 4294967295
+      field 4 Max : uint = 4294967295
+    element 2
+      field 1 AbilityId : uint = 4294967295
+      field 2 Kind : AbilityAmountKind = Healing (2)
+      field 3 Min : uint = 4294967295
+      field 4 Max : uint = 4294967295
+  bytes 66
+    0a 14 08 ff ff ff ff 0f 10 02 18 ff ff ff ff 0f
+    20 ff ff ff ff 0f 0a 14 08 ff ff ff ff 0f 10 02
+    18 ff ff ff ff 0f 20 ff ff ff ff 0f 0a 14 08 ff
+    ff ff ff 0f 10 02 18 ff ff ff ff 0f 20 ff ff ff
+    ff 0f
+
+variant minima
+  field 1 Amounts : AbilityAmountInfo[] = 1 element
+    element 0
+      field 1 AbilityId : uint = 0
+      field 2 Kind : AbilityAmountKind = None (0)
+      field 3 Min : uint = 0
+      field 4 Max : uint = 0
+  bytes 2
+    0a 00
+
+variant varint-edges
+  field 1 Amounts : AbilityAmountInfo[] = 2 elements
+    element 0
+      field 1 AbilityId : uint = 127
+      field 2 Kind : AbilityAmountKind = <not a declared member> (3)
+      field 3 Min : uint = 128
+      field 4 Max : uint = 268435456
+    element 1
+      field 1 AbilityId : uint = 16384
+      field 2 Kind : AbilityAmountKind = <not a declared member> (3)
+      field 3 Min : uint = 268435455
+      field 4 Max : uint = 2097151
+  bytes 32
+    0a 0d 08 7f 10 03 18 80 01 20 80 80 80 80 01 0a
+    0f 08 80 80 01 10 03 18 ff ff ff 7f 20 ff ff 7f

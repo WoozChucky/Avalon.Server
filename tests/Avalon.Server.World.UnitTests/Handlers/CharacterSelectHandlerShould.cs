@@ -1,3 +1,4 @@
+using Avalon.World.Characters;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Server.World.UnitTests.Loot;
 using System.IO;
@@ -332,6 +333,37 @@ public class CharacterSelectHandlerShould
         Assert.Equal(60f, Assert.Single(abilities, a => a.AbilityId == 3).ArcDegrees);
         Assert.Equal(AbilityAffects.Ally, Assert.Single(abilities, a => a.AbilityId == 4).Affects);
         Assert.Equal(AbilityAffects.Hostile, circle.Affects);
+    }
+
+    /// <summary>
+    /// #669: each ability's per-hit amount travels with it at select, from the stats the select chain
+    /// refreshed, and the entity records it, so the first tick in the world sends no update on top.
+    /// </summary>
+    [Fact]
+    public async Task Send_each_abilitys_amount_at_select_and_record_it_on_the_character()
+    {
+        Fixture f = await BuildAsync(abilityTemplates: [AbilityTestData.Cone(1), AbilityTestData.HealCircle(2)]);
+        ICharacter? built = null;
+        f.Connection.When(c => c.SetPendingSpawn(Arg.Any<ICharacter>(), Arg.Any<IMapInstance>(), Arg.Any<long>()))
+            .Do(ci => built = ci.Arg<ICharacter>());
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        NetworkPacket sent = Assert.Single(
+            f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
+        using var stream = new MemoryStream(sent.Payload);
+        AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
+        AbilityInfo cone = Assert.Single(abilities, a => a.AbilityId == 1);
+        Assert.Equal((AbilityAmountKind.Damage, 10u, 10u), (cone.AmountKind, cone.AmountMin, cone.AmountMax));
+        AbilityInfo heal = Assert.Single(abilities, a => a.AbilityId == 2);
+        Assert.Equal((AbilityAmountKind.Healing, 40u, 40u), (heal.AmountKind, heal.AmountMin, heal.AmountMax));
+
+        // In the world, the flusher finds what select already said and sends nothing.
+        var afterSpawn = new List<NetworkPacket>();
+        IWorldConnection inWorld = Substitute.For<IWorldConnection>();
+        TestTown.Record(inWorld, Assert.IsType<CharacterEntity>(built), afterSpawn);
+        AbilityAmountsFlusher.Flush(inWorld);
+        Assert.Empty(afterSpawn);
     }
 
     /// <summary>

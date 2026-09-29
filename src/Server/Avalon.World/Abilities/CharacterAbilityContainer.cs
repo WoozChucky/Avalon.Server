@@ -11,6 +11,9 @@ public class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacte
     private readonly ILogger<CharacterAbilityContainer> _logger = loggerFactory.CreateLogger<CharacterAbilityContainer>();
     private IReadOnlyCollection<IAbility> _abilities;
 
+    /// <summary>Every ability loaded, in load order; empty before the first load. World-side (#669).</summary>
+    public IReadOnlyCollection<IAbility> All => _abilities ?? [];
+
     public IAbility? this[AbilityId abilityId] => _abilities.FirstOrDefault(x => x.AbilityId == abilityId);
 
     public bool IsCasting => _abilities.Any(x => x.Casting);

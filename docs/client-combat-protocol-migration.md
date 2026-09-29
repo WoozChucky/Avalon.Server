@@ -181,6 +181,22 @@ Server → the player's own client only. The character sheet (#506), always whol
 | `WeaponMin` | 11 | `uint` | The main-hand weapon's damage range; both 0 with no weapon. |
 | `WeaponMax` | 12 | `uint` | |
 
+### Ability amounts for tooltips (#669)
+
+What each learned ability deals or heals per unit hit, worked out by the server from the character's current stats, so a tooltip can say `Damage: 44–48` without copying the combat formula.
+
+**At select**, every `AbilityInfo` in `SCharacterAbilitiesPacket` (`SMSG_CHARACTER_ABILITIES`) carries:
+
+| Field | Proto # | Type | Notes |
+|---|---|---|---|
+| `AmountKind` | 18 | `AbilityAmountKind` | `None` 0, `Damage` 1, `Healing` 2. `None` means the ability has no direct amount to state: show no line (it is not an amount of 0). |
+| `AmountMin` | 19 | `uint` | At the low end of the weapon roll. |
+| `AmountMax` | 20 | `uint` | At the high end. Equal to `AmountMin` for an ability with no weapon term. |
+
+**Afterwards**, `SCharacterAbilityAmountsPacket` (`SMSG_CHARACTER_ABILITY_AMOUNTS = 0x302C`, encrypted, TCP, the player's own client only) carries `Amounts` (field 1), one `AbilityAmountInfo` per learned ability: `AbilityId` 1, `Kind` 2, `Min` 3, `Max` 4, with the meanings above. It is sent, whole, whenever a stats refresh (a gear change, a level-up) moves any amount, in the same tick's flush as the `SCharacterStatsPacket` showing the new stats, and never when nothing moved. Replace every ability's amount with it. Its lifetime is the character's session: a character switch (Change Character, #663) or a new login selects again, and the new select's `SMSG_CHARACTER_ABILITIES` starts over.
+
+**What the numbers are.** The ability's base, exactly as combat computes it: `EffectValue + ScalingCoefficient × (AttackDamage or AbilityDamage) + BaseDamageCoefficient × weapon roll`, the roll uniform and inclusive over the main hand's `WeaponMin..WeaponMax` (only when the coefficient and the weapon are above 0). Then floored as a normal hit resolves it: **before crit, dodge, block and the target's armour** (a target with no armour takes exactly this on a normal hit). Damage has a minimum of 1; healing has none, and a heal on a unit at full health restores less. The kind follows `Affects`: `Ally` is healing, anything else damage. Only the three shape scripts (circle, cone, projectile) apply an amount directly; an ability run by any other script is `None`.
+
 ## 5. Cast Pipeline Expectations (Client Side)
 
 - Click → emit `CCastAbilityPacket {AbilityId, GroundPos?}` (`GroundPos` for a Cursor skill). The server validates everything and answers every refusal with a reason.

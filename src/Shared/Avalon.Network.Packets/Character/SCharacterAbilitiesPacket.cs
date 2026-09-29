@@ -50,4 +50,20 @@ public class AbilityInfo
     /// cannot cast the ability, and is refused with WrongPowerType.
     /// </summary>
     [ProtoMember(17)] public PowerType CostPowerType { get; set; }
+
+    /// <summary>
+    /// What <see cref="AmountMin" /> and <see cref="AmountMax" /> are (#669): Damage or Healing per unit hit, or
+    /// None when the ability has no direct amount to state (the two are then 0 and mean nothing). Kept current
+    /// after select by SCharacterAbilityAmountsPacket.
+    /// </summary>
+    [ProtoMember(18)] public AbilityAmountKind AmountKind { get; set; }
+
+    /// <summary>
+    /// The normal amount per unit hit, at the low and high end of the caster's weapon roll (#669): its base
+    /// (effect value, scaled stat and weapon roll, as combat computes it) floored, before crit, dodge, block and
+    /// the target's armour. Damage has a minimum of 1, healing none. With no weapon term the two are equal.
+    /// </summary>
+    [ProtoMember(19)] public uint AmountMin { get; set; }
+
+    [ProtoMember(20)] public uint AmountMax { get; set; }
 }
