@@ -40,8 +40,24 @@ internal sealed class TestArena : IAbilityArena
 
     public IMapNavigator GetNavigatorForPosition(Vector3 position) => Navigator;
 
-    public void BroadcastAbilityFired(IUnit caster, IAbility ability, Vector3 origin, Vector3? direction, Vector3? centre) =>
-        Fired.Add((origin, direction, centre));
+    /// <summary>Every fired broadcast's whole footprint and the cast id in flight then, in order (#648).</summary>
+    public List<(AbilityFootprint Footprint, uint CastId)> FiredFootprints { get; } = [];
+
+    public void BroadcastAbilityFired(IUnit caster, IAbility ability, AbilityFootprint footprint)
+    {
+        Fired.Add((footprint.Origin, footprint.Direction, footprint.Centre));
+        FiredFootprints.Add((footprint, _castInFlight));
+    }
+
+    private uint _castInFlight;
+
+    public uint CastInFlight { set => _castInFlight = value; }
+
+    /// <summary>Every start broadcast, in order, with its cast id and footprint (#648).</summary>
+    public List<(IUnit Caster, IAbility Ability, uint CastId, AbilityFootprint? Footprint)> Started { get; } = [];
+
+    public void BroadcastUnitStartCast(IUnit caster, IAbility ability, uint castId, AbilityFootprint? footprint) =>
+        Started.Add((caster, ability, castId, footprint));
 
     /// <summary>Every finish-cast broadcast, in order.</summary>
     public List<(IUnit Caster, IAbility Ability)> Finished { get; } = [];
@@ -49,14 +65,25 @@ internal sealed class TestArena : IAbilityArena
     /// <summary>Every interrupt broadcast, in order.</summary>
     public List<(IUnit Caster, IAbility Ability)> Interrupted { get; } = [];
 
-    public void BroadcastFinishCast(IUnit caster, IAbility ability) => Finished.Add((caster, ability));
+    /// <summary>The cast id of every finish-cast broadcast, in order (#648).</summary>
+    public List<uint> FinishedIds { get; } = [];
+
+    /// <summary>The cast id of every interrupt broadcast, in order (#648).</summary>
+    public List<uint> InterruptedIds { get; } = [];
+
+    public void BroadcastFinishCast(IUnit caster, IAbility ability, uint castId)
+    {
+        Finished.Add((caster, ability));
+        FinishedIds.Add(castId);
+    }
 
     /// <summary>When set, an interrupt broadcast for this unit is recorded and then throws, as a failing send would.</summary>
     public IUnit? InterruptThrowsFor { get; set; }
 
-    public void BroadcastInterruptedCast(IUnit caster, IAbility ability)
+    public void BroadcastInterruptedCast(IUnit caster, IAbility ability, uint castId)
     {
         Interrupted.Add((caster, ability));
+        InterruptedIds.Add(castId);
         if (ReferenceEquals(caster, InterruptThrowsFor))
             throw new InvalidOperationException("The send failed.");
     }

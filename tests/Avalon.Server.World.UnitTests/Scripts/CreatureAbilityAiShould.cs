@@ -209,7 +209,6 @@ public class CreatureAbilityAiShould
         Assert.Equal(WindUpId, windUp.AbilityId);
         Assert.Equal(new Vector3(0f, 0f, 1f), aim.Facing);
         fight.Locomotion.Received(1).Stop(fight.Creature);
-        fight.Context.Received(1).BroadcastUnitStartCast(fight.Creature, windUp);
         fight.Creature.Received().LookAt(new Vector3(0f, 0f, 3f));
     }
 

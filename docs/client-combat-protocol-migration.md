@@ -113,8 +113,24 @@ Server → all clients in the instance. A circle or cone skill fired (#164); dra
 | `Origin` | 3 | `Vector3Dto` | The caster's position when it fired. |
 | `Direction` | 4 | `Vector3Dto?` | A cone's direction, a unit vector on X/Z; absent for a circle. |
 | `Centre` | 5 | `Vector3Dto?` | A circle's centre; absent for a cone. |
+| `CastId` | 6 | `uint` | The cast that fired (#648): its start's `CastId` for a cast-time cast, a fresh one for an instant cast. 0 from a server before #648. |
+| `Footprint` | 7 | `AbilityFootprintDto?` | The whole footprint that fired, dimensions included (#648), so an instant ability is drawn without the caster's ability catalog. For a cast-time cast it is the footprint its start carried. |
 
-A circle sends `Centre`, a cone `Direction`.
+A circle sends `Centre`, a cone `Direction`; both send `Footprint`, whose `Origin`, `Direction` and `Centre` are the same values.
+
+### `AbilityFootprintDto` (#648)
+
+Where an ability lands, as the server resolved it. The server resolves it once, from where the caster stood and what it aimed at when the cast started, and the cast fires with exactly this footprint, so a telegraph is never corrected. Every hit test is on X/Z.
+
+| Field | Proto # | Type | Notes |
+|---|---|---|---|
+| `Shape` | 1 | `AbilityShape` | Circle, Cone or Projectile. |
+| `Origin` | 2 | `Vector3Dto` | The caster's position when the cast started. Always sent. |
+| `Direction` | 3 | `Vector3Dto?` | A cone's or a projectile's direction, a unit vector on X/Z; absent for a circle. |
+| `Centre` | 4 | `Vector3Dto?` | A circle's centre: the origin (anchor Caster) or the aim point clamped to the reach and pulled back from any wall between (anchor AimPoint). Absent for the other shapes. |
+| `Radius` | 5 | `float` | A circle's radius in metres; 0 otherwise. |
+| `Reach` | 6 | `float` | A cone's length, or a projectile lane's up to where the walkable ray stops (the projectile may stop earlier on a hit); 0 for a circle. |
+| `ArcDegrees` | 7 | `float` | A cone's full angle in degrees; 0 otherwise. Walls do not clip a cone. |
 
 ### `CPvpTogglePacket` (`CMSG_PVP_TOGGLE = 0x2103`, encrypted, TCP)
 
@@ -171,9 +187,11 @@ Server → the player's own client only. The character sheet (#506), always whol
 - On rejection, the server replies with exactly one `SAbilityNotReadyPacket {AbilityId, CooldownMs (uint), Reason (CastRejectReason)}` (#512). `Reason` names the refusal: `Gcd`, `Cooldown`, `RequiresOutOfCombat`, `RequiresInCombat`, `NotEnoughPower`, `Dead`, `NotOwned`, `InternalError`, `NoAimPoint` or `AlreadyCasting`; `Unknown` (0) is only what a payload without the field decodes as. `OutOfRange`, `TargetNotFound` and `NotFacing` remain in the enum but are no longer sent (#164). `CooldownMs` is the remaining time in milliseconds for `Gcd` and `Cooldown`, rounded up so it is always at least 1, and 0 for every other reason. The only cast that gets no answer is one from a connection with no character.
 - A cast while another is in progress is refused as `AlreadyCasting`. A cast-time cast fires with the aim it started with: facing and ground point are captured when it starts.
 - `AbilityInfo.FacingAngle` in `SMSG_CHARACTER_ABILITIES` is no longer set (#164): there is no facing cone.
-- For abilities with `CastTime > 0`, every client in the instance receives `SUnitStartCastPacket` (existing, generic): render the cast bar from `CastTime`, and show which ability from `AbilityId` (#521 item 9).
-- On completion, the server replies `SUnitFinishCastPacket` (existing, generic). End the cast bar and play the cast-finish animation.
-- On movement-interrupt, the server replies `SCharacterInterruptedCastPacket {Caster, AbilityId}` (existing). Power spent on the cast is not refunded; the client just ends the cast bar.
+- For abilities with `CastTime > 0`, every client near the caster (or near a circle's centre) receives `SUnitStartCastPacket {Caster, CastTime, AbilityId, CastId, Footprint}`: render the cast bar from `CastTime`, show which ability from `AbilityId` (#521 item 9), and draw the telegraph from `Footprint` (#648) for the whole cast. `CastId` (never 0 from a current server) identifies the cast: the finish, the interrupt and the fired broadcast of the same cast carry it. `Footprint` is fixed for the cast; it is what fires.
+- On completion, the server sends `SUnitFinishCastPacket {Caster, AbilityId, CastId}`. End the cast bar and play the cast-finish animation.
+- On an interrupt (the caster moved, died, left, or a creature turned for home), the server sends `SCharacterInterruptedCastPacket {Caster, AbilityId, CastId}`. Power spent on the cast is not refunded; the client just ends the cast bar.
+- **Clearing a telegraph (#648):** key it by `Caster` and `CastId`. Clear it on the finish or interrupt with that id, on a new start from the same caster, when the caster leaves the client's view (a world-state remove), or once `CastTime` has passed, whichever comes first; the last two cover a finish the client was too far away to hear. A payload with `CastId` 0 comes from a server before #648: fall back to the caster alone.
+- **Instant abilities** (`CastTime = 0`) have no start and no telegraph: they fire on the tick they are cast. A circle or cone sends `SAbilityFiredPacket` with the whole `Footprint`; a projectile is replicated as a world object.
 
 The client never emits a separate "interrupt" or "cancel" packet — moving cancels in-progress casts implicitly via existing movement state.
 

@@ -1,7 +1,9 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.World.Abilities;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -50,7 +52,7 @@ public class EffectBroadcastRadiusShould
         (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
         Creature caster = AddCreature(instance, 1, Vector3.zero);
 
-        instance.BroadcastUnitStartCast(caster, Ability());
+        instance.BroadcastUnitStartCast(caster, Ability(), 1u, null);
 
         AssertOnlyNear(near, far, NetworkPacketType.SMSG_UNIT_START_CAST);
     }
@@ -98,7 +100,7 @@ public class EffectBroadcastRadiusShould
         (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
         Creature caster = AddCreature(instance, 1, Vector3.zero);
 
-        instance.BroadcastAbilityFired(caster, Ability(), Vector3.zero, new Vector3(0f, 0f, 1f), null);
+        instance.BroadcastAbilityFired(caster, Ability(), Fired(Vector3.zero, new Vector3(0f, 0f, 1f), null));
 
         AssertOnlyNear(near, far, NetworkPacketType.SMSG_ABILITY_FIRED);
     }
@@ -166,11 +168,11 @@ public class EffectBroadcastRadiusShould
         caster.Character.Position = new Vector3(float.NaN, 0f, float.NaN);
         IAbility ability = Ability();
 
-        instance.BroadcastUnitStartCast(caster.Character, ability);
+        instance.BroadcastUnitStartCast(caster.Character, ability, 1u, null);
         instance.BroadcastFinishCast(caster.Character, ability);
         instance.BroadcastInterruptedCast(caster.Character, ability);
         instance.BroadcastAttackAnimation(caster.Character, ability);
-        instance.BroadcastAbilityFired(caster.Character, ability, Far, null, Far);
+        instance.BroadcastAbilityFired(caster.Character, ability, Fired(Far, null, Far));
 
         Assert.Equal(
             [NetworkPacketType.SMSG_UNIT_START_CAST, NetworkPacketType.SMSG_UNIT_FINISH_CAST,
@@ -238,7 +240,7 @@ public class EffectBroadcastRadiusShould
         MapInstanceClient nearCentre = JoinAt(instance, 10, Far + new Vector3(5f, 0f, 0f));
         MapInstanceClient nowhere = JoinAt(instance, 11, -Far);
 
-        instance.BroadcastAbilityFired(caster, Ability(), Vector3.zero, null, Far);
+        instance.BroadcastAbilityFired(caster, Ability(), Fired(Vector3.zero, null, Far));
 
         Assert.Single(nearCentre.Sent);
         Assert.Empty(nowhere.Sent);
@@ -297,7 +299,7 @@ public class EffectBroadcastRadiusShould
         MapInstanceClient watcher = JoinAt(instance, 10, Vector3.zero);
 
         instance.BroadcastUnitDeath(unit, null);
-        instance.BroadcastAbilityFired(unit, Ability(), point, null, null);
+        instance.BroadcastAbilityFired(unit, Ability(), Fired(point, null, null));
 
         Assert.Empty(watcher.Sent);
     }
@@ -366,4 +368,8 @@ public class EffectBroadcastRadiusShould
         Assert.Equal([type], near.Sent.Select(p => p.Header.Type));
         Assert.Empty(far.Sent);
     }
+
+    /// <summary>A fired circle or cone at these points, with no dimensions: only where it is heard matters here.</summary>
+    private static AbilityFootprint Fired(Vector3 origin, Vector3? direction, Vector3? centre) =>
+        new(direction is null ? AbilityShape.Circle : AbilityShape.Cone, origin, direction, centre, 0f, 0f, 0f);
 }

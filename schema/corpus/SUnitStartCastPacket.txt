@@ -19,48 +19,172 @@ variant absent
   field 1 Caster : ulong = 0
   field 2 CastTime : float = 0 (0x00000000)
   field 3 AbilityId : uint = 0
+  field 4 CastId : uint = 0
+  field 5 Footprint : AbilityFootprintDto = null
   bytes 0
 
 variant empty
   field 1 Caster : ulong = 0
   field 2 CastTime : float = 0 (0x00000000)
   field 3 AbilityId : uint = 0
-  bytes 0
+  field 4 CastId : uint = 0
+  field 5 Footprint : AbilityFootprintDto
+    field 1 Shape : AbilityShape = Circle (0)
+    field 2 Origin : Vector3Dto = null
+    field 3 Direction : Vector3Dto = null
+    field 4 Centre : Vector3Dto = null
+    field 5 Radius : float = 0 (0x00000000)
+    field 6 Reach : float = 0 (0x00000000)
+    field 7 ArcDegrees : float = 0 (0x00000000)
+  bytes 2
+    2a 00
 
 variant populated
   field 1 Caster : ulong = 4000000000
   field 2 CastTime : float = 0.100000001 (0x3dcccccd)
   field 3 AbilityId : uint = 4000000000
-  bytes 17
+  field 4 CastId : uint = 7
+  field 5 Footprint : AbilityFootprintDto
+    field 1 Shape : AbilityShape = Cone (1)
+    field 2 Origin : Vector3Dto
+      field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
+      field 2 Y : float = -2.25 (0xc0100000)
+      field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
+    field 3 Direction : Vector3Dto
+      field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
+      field 2 Y : float = -2.25 (0xc0100000)
+      field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
+    field 4 Centre : Vector3Dto
+      field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
+      field 2 Y : float = -2.25 (0xc0100000)
+      field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
+    field 5 Radius : float = 0.100000001 (0x3dcccccd)
+    field 6 Reach : float = -7.50000027E-08 (0xb3a10fb0)
+    field 7 ArcDegrees : float = 1.5 (0x3fc00000)
+  bytes 89
     08 80 d0 ac f3 0e 15 cd cc cc 3d 18 80 d0 ac f3
-    0e
+    0e 20 07 2a 44 08 01 12 0f 0d b0 0f a1 b3 15 00
+    00 10 c0 1d b0 0f a1 b3 1a 0f 0d b0 0f a1 b3 15
+    00 00 10 c0 1d b0 0f a1 b3 22 0f 0d b0 0f a1 b3
+    15 00 00 10 c0 1d b0 0f a1 b3 2d cd cc cc 3d 35
+    b0 0f a1 b3 3d 00 00 c0 3f
 
 variant maxima
   field 1 Caster : ulong = 18446744073709551615
   field 2 CastTime : float = 3.40282347E+38 (0x7f7fffff)
   field 3 AbilityId : uint = 4294967295
-  bytes 22
+  field 4 CastId : uint = 4294967295
+  field 5 Footprint : AbilityFootprintDto
+    field 1 Shape : AbilityShape = Projectile (2)
+    field 2 Origin : Vector3Dto
+      field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+      field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+    field 3 Direction : Vector3Dto
+      field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+      field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+    field 4 Centre : Vector3Dto
+      field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+      field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+    field 5 Radius : float = 3.40282347E+38 (0x7f7fffff)
+    field 6 Reach : float = 3.40282347E+38 (0x7f7fffff)
+    field 7 ArcDegrees : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 98
     08 ff ff ff ff ff ff ff ff ff 01 15 ff ff 7f 7f
-    18 ff ff ff ff 0f
+    18 ff ff ff ff 0f 20 ff ff ff ff 0f 2a 44 08 02
+    12 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f
+    7f 1a 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff
+    7f 7f 22 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff
+    ff 7f 7f 2d ff ff 7f 7f 35 ff ff 7f 7f 3d ff ff
+    7f 7f
 
 variant minima
   field 1 Caster : ulong = 0
   field 2 CastTime : float = -3.40282347E+38 (0xff7fffff)
   field 3 AbilityId : uint = 0
-  bytes 5
-    15 ff ff 7f ff
+  field 4 CastId : uint = 0
+  field 5 Footprint : AbilityFootprintDto
+    field 1 Shape : AbilityShape = Circle (0)
+    field 2 Origin : Vector3Dto
+      field 1 X : float = -3.40282347E+38 (0xff7fffff)
+      field 2 Y : float = -3.40282347E+38 (0xff7fffff)
+      field 3 Z : float = -3.40282347E+38 (0xff7fffff)
+    field 3 Direction : Vector3Dto
+      field 1 X : float = -3.40282347E+38 (0xff7fffff)
+      field 2 Y : float = -3.40282347E+38 (0xff7fffff)
+      field 3 Z : float = -3.40282347E+38 (0xff7fffff)
+    field 4 Centre : Vector3Dto
+      field 1 X : float = -3.40282347E+38 (0xff7fffff)
+      field 2 Y : float = -3.40282347E+38 (0xff7fffff)
+      field 3 Z : float = -3.40282347E+38 (0xff7fffff)
+    field 5 Radius : float = -3.40282347E+38 (0xff7fffff)
+    field 6 Reach : float = -3.40282347E+38 (0xff7fffff)
+    field 7 ArcDegrees : float = -3.40282347E+38 (0xff7fffff)
+  bytes 73
+    15 ff ff 7f ff 2a 42 12 0f 0d ff ff 7f ff 15 ff
+    ff 7f ff 1d ff ff 7f ff 1a 0f 0d ff ff 7f ff 15
+    ff ff 7f ff 1d ff ff 7f ff 22 0f 0d ff ff 7f ff
+    15 ff ff 7f ff 1d ff ff 7f ff 2d ff ff 7f ff 35
+    ff ff 7f ff 3d ff ff 7f ff
 
 variant varint-edges
   field 1 Caster : ulong = 268435456
   field 2 CastTime : float = 1.17549435E-38 (0x00800000)
   field 3 AbilityId : uint = 16383
-  bytes 14
-    08 80 80 80 80 01 15 00 00 80 00 18 ff 7f
+  field 4 CastId : uint = 268435456
+  field 5 Footprint : AbilityFootprintDto
+    field 1 Shape : AbilityShape = <not a declared member> (3)
+    field 2 Origin : Vector3Dto
+      field 1 X : float = 1.17549435E-38 (0x00800000)
+      field 2 Y : float = 1.17549435E-38 (0x00800000)
+      field 3 Z : float = 1.17549435E-38 (0x00800000)
+    field 3 Direction : Vector3Dto
+      field 1 X : float = 1.17549435E-38 (0x00800000)
+      field 2 Y : float = 1.17549435E-38 (0x00800000)
+      field 3 Z : float = 1.17549435E-38 (0x00800000)
+    field 4 Centre : Vector3Dto
+      field 1 X : float = 1.17549435E-38 (0x00800000)
+      field 2 Y : float = 1.17549435E-38 (0x00800000)
+      field 3 Z : float = 1.17549435E-38 (0x00800000)
+    field 5 Radius : float = 1.17549435E-38 (0x00800000)
+    field 6 Reach : float = 1.17549435E-38 (0x00800000)
+    field 7 ArcDegrees : float = 1.17549435E-38 (0x00800000)
+  bytes 90
+    08 80 80 80 80 01 15 00 00 80 00 18 ff 7f 20 80
+    80 80 80 01 2a 44 08 03 12 0f 0d 00 00 80 00 15
+    00 00 80 00 1d 00 00 80 00 1a 0f 0d 00 00 80 00
+    15 00 00 80 00 1d 00 00 80 00 22 0f 0d 00 00 80
+    00 15 00 00 80 00 1d 00 00 80 00 2d 00 00 80 00
+    35 00 00 80 00 3d 00 00 80 00
 
 variant float-specials
   field 1 Caster : ulong = 4000000000
-  field 2 CastTime : float = NaN (0x7fc00001)
+  field 2 CastTime : float = -0 (0x80000000)
   field 3 AbilityId : uint = 4000000000
-  bytes 17
-    08 80 d0 ac f3 0e 15 01 00 c0 7f 18 80 d0 ac f3
-    0e
+  field 4 CastId : uint = 7
+  field 5 Footprint : AbilityFootprintDto
+    field 1 Shape : AbilityShape = Cone (1)
+    field 2 Origin : Vector3Dto
+      field 1 X : float = NaN (0x7fc00001)
+      field 2 Y : float = Infinity (0x7f800000)
+      field 3 Z : float = -Infinity (0xff800000)
+    field 3 Direction : Vector3Dto
+      field 1 X : float = NaN (0x7fc00001)
+      field 2 Y : float = Infinity (0x7f800000)
+      field 3 Z : float = -Infinity (0xff800000)
+    field 4 Centre : Vector3Dto
+      field 1 X : float = NaN (0x7fc00001)
+      field 2 Y : float = Infinity (0x7f800000)
+      field 3 Z : float = -Infinity (0xff800000)
+    field 5 Radius : float = NaN (0x7fc00001)
+    field 6 Reach : float = Infinity (0x7f800000)
+    field 7 ArcDegrees : float = NaN (0xffc00000)
+  bytes 84
+    08 80 d0 ac f3 0e 18 80 d0 ac f3 0e 20 07 2a 44
+    08 01 12 0f 0d 01 00 c0 7f 15 00 00 80 7f 1d 00
+    00 80 ff 1a 0f 0d 01 00 c0 7f 15 00 00 80 7f 1d
+    00 00 80 ff 22 0f 0d 01 00 c0 7f 15 00 00 80 7f
+    1d 00 00 80 ff 2d 01 00 c0 7f 35 00 00 80 7f 3d
+    00 00 c0 ff

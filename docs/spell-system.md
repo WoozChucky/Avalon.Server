@@ -111,7 +111,8 @@ script reads the caster's *position* only when it fires, never when it is built.
   finish-cast broadcast, and the script fired, all on the tick the request arrives.
 - **Cast-time**: the script is built, the cast joins the queue, the skill is marked `Casting` and the
   cost paid, in that order, so a refused cast spends nothing and never leaves `Casting` set (#521
-  item 1). Every client in the instance gets `SUnitStartCastPacket`, which carries the `AbilityId` (#521 item 9). Each
+  item 1). The cast system then sends every client in the instance `SUnitStartCastPacket`, which carries the
+  `AbilityId` (#521 item 9), the cast's `CastId` and the `Footprint` it will land on (#648). Each
   tick the cast timer runs down. Moving interrupts it (`SCharacterInterruptedCastPacket`; the cost is
   not refunded). When the timer runs out the cast leaves the queue and fires; a caster who died during
   the cast fires nothing and is free to cast again. The queue is never changed while it is walked
@@ -203,7 +204,12 @@ It never homes and has no target.
   finished projectiles at once, since there is nobody to send them to, so a player who enters later
   never sees one frozen where it stopped.
 - **Circles and cones** broadcast `SMSG_ABILITY_FIRED` (`SAbilityFiredPacket { CasterGuid, AbilityId,
-  Origin, Direction?, Centre? }`) to the instance: a circle carries its centre, a cone its direction.
+  Origin, Direction?, Centre?, CastId, Footprint }`) to the instance: a circle carries its centre, a cone its
+  direction, and both the cast id and the whole footprint, dimensions included (#648).
+- **Footprints (#648).** `AbilityFootprint.Resolve` decides where a cast lands, from its row, its aim and the
+  caster's position when the cast started (`AbilityAim.Origin`, stamped by the cast system). The shape scripts
+  fire with it and the start broadcast carries it, so a telegraph is never corrected: a creature pushed during
+  its wind-up still fires where it began.
 - **Damage** arrives as the usual damage packets; `SCharacterDamagePacket.AbilityId` is filled (#521
   item 8), and both carry `Result`, a `HitResult` saying whether the hit crit, was blocked, or was
   dodged (sent with 0 damage) (#506).

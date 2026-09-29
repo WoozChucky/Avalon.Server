@@ -16,8 +16,8 @@ namespace Avalon.World.Scripts.Abilities;
 /// the Reach left and cut by the navmesh ray, against unit bodies, nearest first: without Pierce it
 /// ends on the first qualifying hit, stopping at the point of its step nearest that unit's centre;
 /// with Pierce it hits each unit once and flies on. It ends at Reach, at a wall, or on a first hit,
-/// and the instance despawns it once its final state has gone out. No target, no homing. The
-/// caster's position is read when it fires, never when the script is built.
+/// and the instance despawns it once its final state has gone out. No target, no homing. It starts
+/// where the caster stood when the cast started (#648), the origin of the lane the start broadcast carried.
 /// </summary>
 public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
     : AbilityScript(ability, caster, aim)
@@ -43,7 +43,7 @@ public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, Abil
     public override void Prepare()
     {
         Guid = new ObjectGuid(ObjectType.SpellProjectile, IObject.GenerateId());
-        _ground = Caster.Position;
+        _ground = Origin;
         _direction = Aim.DirectionFrom(_ground);
         Velocity = _direction * Ability.Metadata.ProjectileSpeed;
         Orientation = new Vector3(0f, MathF.Atan2(_direction.x, _direction.z) * Mathf.Rad2Deg, 0f);

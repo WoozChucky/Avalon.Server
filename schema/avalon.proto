@@ -65,6 +65,15 @@ enum AbilityAnchor {
    AbilityAnchor_Caster = 0;
    AbilityAnchor_AimPoint = 1;
 }
+message AbilityFootprintDto {
+   AbilityShape Shape = 1;
+   Vector3Dto Origin = 2;
+   Vector3Dto Direction = 3;
+   Vector3Dto Centre = 4;
+   float Radius = 5;
+   float Reach = 6;
+   float ArcDegrees = 7;
+}
 message AbilityInfo {
    uint32 AbilityId = 1;
    optional string Name = 2;
@@ -588,6 +597,8 @@ message SAbilityFiredPacket {
    Vector3Dto Origin = 3;
    Vector3Dto Direction = 4;
    Vector3Dto Centre = 5;
+   uint32 CastId = 6;
+   AbilityFootprintDto Footprint = 7;
 }
 message SAbilityNotReadyPacket {
    uint32 AbilityId = 1;
@@ -639,6 +650,7 @@ enum SCharacterDeletedResult {
 message SCharacterInterruptedCastPacket {
    uint64 Caster = 1;
    uint32 AbilityId = 2;
+   uint32 CastId = 3;
 }
 message SCharacterListPacket {
    int32 CharacterCount = 1;
@@ -851,6 +863,7 @@ message SUnitDeathPacket {
 message SUnitFinishCastPacket {
    uint64 Caster = 1;
    uint32 AbilityId = 2;
+   uint32 CastId = 3;
 }
 message SUnitHealedPacket {
    uint64 Healer = 1;
@@ -869,6 +882,8 @@ message SUnitStartCastPacket {
    uint64 Caster = 1;
    float CastTime = 2;
    uint32 AbilityId = 3;
+   uint32 CastId = 4;
+   AbilityFootprintDto Footprint = 5;
 }
 message SVendorListPacket {
    uint64 VendorGuid = 1;
