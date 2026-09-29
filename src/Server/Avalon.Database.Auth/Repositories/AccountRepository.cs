@@ -31,7 +31,7 @@ public interface IAccountRepository : IRepository<Account, AccountId>
         CancellationToken cancellationToken = default);
 
     /// <summary>Records a ticket login under the same lock guard without clearing password failures.</summary>
-    Task<bool> TryRecordTicketLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
+    Task<bool> TryRecordTicketLoginAsync(AccountId id, int credentialsVersion, string lastIp, DateTime now, Guid sessionId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -138,12 +138,15 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
         return updated == 1;
     }
 
-    public async Task<bool> TryRecordTicketLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
+    public async Task<bool> TryRecordTicketLoginAsync(AccountId id, int credentialsVersion, string lastIp, DateTime now,
+        Guid sessionId,
         CancellationToken cancellationToken = default)
     {
         await using var context = await CreateContextAsync(cancellationToken);
         var updated = await context.Accounts
-            .Where(a => a.Id == id && (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
+            .Where(a => a.Id == id && a.CredentialsVersion == credentialsVersion &&
+                a.Status == AccountStatus.Active && (a.AccessLevel & Avalon.Common.Accounts.AccountAccessLevel.Player) != 0 &&
+                (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.Online, true)
                 .SetProperty(a => a.OnlineSessionId, (Guid?)sessionId)

@@ -31,7 +31,8 @@ internal static class GameLoginCompletion
         }
 
         bool recorded = ticket
-            ? await accounts.TryRecordTicketLoginAsync(account.Id, lastIp, DateTime.UtcNow, connection.Id, token)
+            ? await accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion, lastIp, DateTime.UtcNow,
+                connection.Id, token)
             : await accounts.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, connection.Id, token);
         if (!recorded)
         {

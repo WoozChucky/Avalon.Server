@@ -273,18 +273,31 @@ public sealed class LoginRaceShould : IDisposable
             await context.Accounts.Where(a => a.Id == account.Id)
                 .ExecuteUpdateAsync(s => s.SetProperty(a => a.FailedLogins, 2));
 
-        Assert.True(await _accounts.TryRecordTicketLoginAsync(account.Id, "10.0.0.3", DateTime.UtcNow,
+        Assert.True(await _accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion, "10.0.0.3", DateTime.UtcNow,
             Guid.NewGuid()));
         Account stored = await StoredAsync(account.Id);
         Assert.True(stored.Online);
         Assert.Equal(2, stored.FailedLogins);
 
         await LockAsync(account.Id);
-        Assert.False(await _accounts.TryRecordTicketLoginAsync(account.Id, "10.0.0.4", DateTime.UtcNow,
+        Assert.False(await _accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion, "10.0.0.4", DateTime.UtcNow,
             Guid.NewGuid()));
         stored = await StoredAsync(account.Id);
         Assert.Equal("10.0.0.3", stored.LastIp);
         Assert.Equal(5, stored.FailedLogins);
+    }
+
+    [Fact]
+    public async Task Ticket_login_rechecks_credentials_version_in_its_write()
+    {
+        Account account = await _accounts.CreateAsync(NewAccount());
+        await using (AuthDbContext context = _database.CreateDbContext())
+            await context.Accounts.Where(a => a.Id == account.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1));
+
+        Assert.False(await _accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion,
+            "10.0.0.5", DateTime.UtcNow, Guid.NewGuid()));
+        Assert.False((await StoredAsync(account.Id)).Online);
     }
 
     private async Task LockAsync(AccountId id)

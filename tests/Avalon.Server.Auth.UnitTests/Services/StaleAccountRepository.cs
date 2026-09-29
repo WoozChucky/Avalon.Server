@@ -49,9 +49,9 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
         CancellationToken cancellationToken = default) =>
         inner.TryRecordLoginAsync(id, lastIp, now, sessionId, cancellationToken);
 
-    public Task<bool> TryRecordTicketLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
+    public Task<bool> TryRecordTicketLoginAsync(AccountId id, int credentialsVersion, string lastIp, DateTime now, Guid sessionId,
         CancellationToken cancellationToken = default) =>
-        inner.TryRecordTicketLoginAsync(id, lastIp, now, sessionId, cancellationToken);
+        inner.TryRecordTicketLoginAsync(id, credentialsVersion, lastIp, now, sessionId, cancellationToken);
 
     public Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
         CancellationToken cancellationToken = default) =>
