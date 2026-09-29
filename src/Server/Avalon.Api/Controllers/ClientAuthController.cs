@@ -7,11 +7,11 @@ using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
+using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.GameTickets;
-using AccountAccessFlag = Avalon.Common.Accounts.AccountAccessLevel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -194,7 +194,7 @@ public sealed class ClientAuthController : BaseController
             || familyId == Guid.Empty)
             return StatusCode(StatusCodes.Status403Forbidden);
         Account account = Account ?? throw new InvalidOperationException("Account not loaded");
-        if (!AccountAccessCheck.MayHoldSession(account) || !account.AccessLevel.HasFlag(AccountAccessFlag.Player))
+        if (!AccountAccessCheck.MayHoldSession(account) || !AccessLevels.Player.Allows(account.AccessLevel))
             return StatusCode(StatusCodes.Status403Forbidden);
         if (!await _refreshTokens.IsLiveLauncherFamilyAsync(account.Id, familyId, DateTime.UtcNow, CancellationToken))
             return Unauthorized();

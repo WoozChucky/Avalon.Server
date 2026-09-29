@@ -1,3 +1,4 @@
+using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
@@ -30,15 +31,29 @@ internal static class GameLoginCompletion
             return AuthResult.ALREADY_CONNECTED;
         }
 
+        int credentialsVersion = account.CredentialsVersion;
         bool recorded = ticket
-            ? await accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion, lastIp, DateTime.UtcNow,
+            ? await accounts.TryRecordTicketLoginAsync(account.Id, credentialsVersion, lastIp, DateTime.UtcNow,
                 connection.Id, token)
             : await accounts.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, connection.Id, token);
         if (!recorded)
         {
             AuthResult refusal = guardFailure;
-            if (ticket && (await accounts.FindByIdAsync(account.Id, false, token))?.Online == true)
-                refusal = AuthResult.ALREADY_CONNECTED;
+            if (ticket)
+            {
+                // The guarded write can lose to a ban, revocation, lock or another login.
+                // A winner of the login race must not be kicked by this losing attempt.
+                Account? current = await accounts.FindByIdAsync(account.Id, false, token);
+                if (current is null || current.CredentialsVersion != credentialsVersion ||
+                    !AccessLevels.Player.Allows(current.AccessLevel))
+                    refusal = AuthResult.INVALID_CREDENTIALS;
+                else if (current.Status != AccountStatus.Active)
+                    refusal = current.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
+                else if (current.Online)
+                    refusal = AuthResult.ALREADY_CONNECTED;
+                else if (current.IsLockedAt(DateTime.UtcNow))
+                    refusal = AuthResult.LOCKED;
+            }
             logger.LogWarning("Account {AccountId} could not claim a game login", account.Id);
             connection.Send(SAuthResultPacket.Create(null, null, refusal, connection.CryptoSession.Encrypt));
             return refusal;

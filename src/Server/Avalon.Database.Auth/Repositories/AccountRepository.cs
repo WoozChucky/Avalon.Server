@@ -145,7 +145,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
         await using var context = await CreateContextAsync(cancellationToken);
         var updated = await context.Accounts
             .Where(a => a.Id == id && !a.Online && a.CredentialsVersion == credentialsVersion &&
-                a.Status == AccountStatus.Active && (a.AccessLevel & Avalon.Common.Accounts.AccountAccessLevel.Player) != 0 &&
+                a.Status == AccountStatus.Active && (a.AccessLevel & AccessLevels.Player) != 0 &&
                 (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.Online, true)

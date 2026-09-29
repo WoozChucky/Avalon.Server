@@ -287,6 +287,23 @@ public sealed class LoginRaceShould : IDisposable
         Assert.Equal(5, stored.FailedLogins);
     }
 
+    [Theory]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.Tournament)]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.PTR)]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.GameMaster)]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.Admin)]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.Console)]
+    public async Task Ticket_login_claims_each_player_policy_role(Avalon.Common.Accounts.AccountAccessLevel access)
+    {
+        Account account = NewAccount();
+        account.AccessLevel = access;
+        account = await _accounts.CreateAsync(account);
+
+        Assert.True(await _accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion,
+            "10.0.0.3", DateTime.UtcNow, Guid.NewGuid()));
+        Assert.True((await StoredAsync(account.Id)).Online);
+    }
+
     [Fact]
     public async Task Ticket_login_rechecks_credentials_version_in_its_write()
     {

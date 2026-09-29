@@ -153,6 +153,27 @@ public class ClientAuthControllerShould
         await _refresh.DidNotReceiveWithAnyArgs().RotateLauncherAsync(default!, default!, default);
     }
 
+    [Theory]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.Tournament)]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.PTR)]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.GameMaster)]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.Admin)]
+    [InlineData(Avalon.Common.Accounts.AccountAccessLevel.Console)]
+    public async Task Issue_a_game_ticket_for_each_player_policy_role(Avalon.Common.Accounts.AccountAccessLevel access)
+    {
+        var family = Guid.NewGuid();
+        var account = MakeAccount();
+        account.AccessLevel = access;
+        _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
+        _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        _cache.IncrementAsync(CacheKeys.GameTicketIssueBudget(family), TimeSpan.FromMinutes(1)).Returns(1);
+        _tickets.IssueAsync(new GameTicketGrant(account.Id, family, account.CredentialsVersion), Arg.Any<CancellationToken>())
+            .Returns("the-ticket");
+
+        Assert.IsType<OkObjectResult>(await Sut(account).GameTicket());
+    }
+
     [Fact]
     public async Task Refuse_a_game_ticket_without_a_launcher_session_claim()
     {

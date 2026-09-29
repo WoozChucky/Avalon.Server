@@ -71,7 +71,7 @@ public class CAuthGameTicketHandler : IAuthPacketHandler<CAuthGameTicketPacket>
 
         Account? account = await _accounts.FindByIdAsync(grant.AccountId, false, token);
         if (account is null || account.CredentialsVersion != grant.CredentialsVersion ||
-            (account.AccessLevel & AccountAccessLevel.Player) == 0)
+            !AccessLevels.Player.Allows(account.AccessLevel))
         {
             Refuse(AuthResult.INVALID_CREDENTIALS);
             return;

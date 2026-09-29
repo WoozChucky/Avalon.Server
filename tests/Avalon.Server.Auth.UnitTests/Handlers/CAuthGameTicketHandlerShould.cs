@@ -68,6 +68,18 @@ public class CAuthGameTicketHandlerShould
         await _accounts.DidNotReceiveWithAnyArgs().TryRecordLoginAsync(default!, default!, default, default, default);
     }
 
+    [Theory]
+    [InlineData(AccountAccessLevel.Tournament)]
+    [InlineData(AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.GameMaster)]
+    [InlineData(AccountAccessLevel.Admin)]
+    [InlineData(AccountAccessLevel.Console)]
+    public async Task Redeem_for_each_player_policy_role(AccountAccessLevel access)
+    {
+        _account.AccessLevel = access;
+        Assert.Equal(AuthResult.SUCCESS, await SendAsync());
+    }
+
     [Fact]
     public async Task Refuse_when_launcher_family_has_been_revoked()
     {
@@ -122,6 +134,44 @@ public class CAuthGameTicketHandlerShould
 
         Assert.Equal(AuthResult.ALREADY_CONNECTED, await SendAsync());
         Assert.Null(_connection.AccountId);
+        await _cache.DidNotReceive().PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, _account.Id.ToString());
+    }
+
+    [Theory]
+    [InlineData(AccountStatus.Banned, AuthResult.BANNED)]
+    [InlineData(AccountStatus.Deactivated, AuthResult.DEACTIVATED)]
+    public async Task Report_new_account_status_after_losing_the_claim_race(AccountStatus status, AuthResult expected)
+    {
+        int reads = 0;
+        _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (++reads == 2)
+            {
+                _account.Status = status;
+                _account.Online = true;
+            }
+            return _account;
+        });
+        _accounts.TryRecordTicketLoginAsync(default!, default, default!, default, default, default)
+            .ReturnsForAnyArgs(false);
+
+        Assert.Equal(expected, await SendAsync());
+        Assert.Null(_connection.AccountId);
+    }
+
+    [Fact]
+    public async Task Report_invalid_credentials_when_the_credentials_change_during_the_claim()
+    {
+        int reads = 0;
+        _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (++reads == 2) _account.CredentialsVersion++;
+            return _account;
+        });
+        _accounts.TryRecordTicketLoginAsync(default!, default, default!, default, default, default)
+            .ReturnsForAnyArgs(false);
+
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, await SendAsync());
     }
 
     [Fact]
@@ -135,7 +185,7 @@ public class CAuthGameTicketHandlerShould
         _account.Status = AccountStatus.Banned;
         Assert.Equal(AuthResult.BANNED, await SendAsync());
         _account.Status = AccountStatus.Active;
-        _account.AccessLevel = AccountAccessLevel.Console;
+        _account.AccessLevel = 0;
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, await SendAsync());
     }
 }
