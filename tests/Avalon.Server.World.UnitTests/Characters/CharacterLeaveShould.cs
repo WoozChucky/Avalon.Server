@@ -65,11 +65,19 @@ public class CharacterLeaveShould : IDisposable
     private readonly List<(CharacterId Id, bool AfterCommit)> _selectReads = [];
     private int _committed;
 
+    // Set by a test whose logout save must fail. A flag read by the one configured write, rather than
+    // a second Returns configured over it: a write that fell through to the held write above waited
+    // out the whole Limit on a commit nothing sends, and failed the test on the same deadline.
+    private int _failWrites;
+
     public CharacterLeaveShould()
     {
         _saves.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(async call =>
             {
+                if (Volatile.Read(ref _failWrites) == 1)
+                    throw new InvalidOperationException("simulated write failure");
+
                 lock (_written)
                     _written.AddRange(call.Arg<IReadOnlyList<CharacterSaveBatch>>());
                 await _commit.Task.WaitAsync(Limit);
@@ -239,8 +247,7 @@ public class CharacterLeaveShould : IDisposable
     [Fact]
     public async Task Close_with_CharacterSaveFailed_when_the_logout_save_fails()
     {
-        _saves.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new InvalidOperationException("simulated write failure")));
+        Volatile.Write(ref _failWrites, 1);
         (MapInstance town, TestWorldServer server, Handlers h) = await BuildAsync();
         RecordingConnection connection = Connect(server);
         Spawn(connection, town);
