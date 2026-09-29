@@ -248,6 +248,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
 
+    /// <summary>The port opens at the end of the load in <see cref="ExecuteAsync" />, not at host start (#665).</summary>
+    protected override bool ListenOnStart => false;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Run(() => _scriptManager.Load(), stoppingToken);
@@ -262,9 +265,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         _serverTimer.Start();
 
-        // No StartListening here (#578): ServerBase.StartAsync already listens, and a second call
-        // did nothing.
-
         _gameTime.Start();
 
         if (OperatingSystem.IsWindows())
@@ -278,6 +278,21 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             Priority = ThreadPriority.Highest,
         };
         _tickThread.Start();
+
+        // Only now does the port open (#665): scripts, the world, the cache subscription, the
+        // connection listener and the tick loop are all ready. A load that threw above never gets
+        // here, so a failed start never leaves an endpoint accepting clients; a stop that began
+        // during the load makes this a no-op. A port that cannot be bound fails the start, and the
+        // tick it would have fed stops with it.
+        try
+        {
+            StartListening();
+        }
+        catch
+        {
+            _tickRunning = false;
+            throw;
+        }
 
         // When the host signals shutdown, stop the tick loop.
         // 1 frame (~16ms) of shutdown latency is acceptable and avoids
