@@ -260,7 +260,7 @@ public class CastAbilityHandlerShould
     {
         var f = new Fixture();
         f.Character.CurrentPower.Returns((uint?)5);
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 30 });
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 30, CostPowerType = PowerType.Mana });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
@@ -397,15 +397,18 @@ public class CastAbilityHandlerShould
     [Theory]
     [InlineData(0f)]
     [InlineData(1f)]
-    public void Answer_InternalError_on_both_paths_for_a_cost_without_a_pool(float castTime)
+    public void Answer_WrongPowerType_on_both_paths_for_a_cost_on_a_caster_without_a_pool(float castTime)
     {
         var f = new Fixture();
         f.Character.PowerType.Returns(PowerType.None);
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 10, CastTime = castTime });
+        f.GiveAbility(new AbilityMetadata
+        {
+            Name = "X", ScriptName = "x", Cost = 10, CostPowerType = PowerType.Mana, CastTime = castTime,
+        });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
-        Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
+        Assert.Equal(CastRejectReason.WrongPowerType, f.SingleRefusal().Reason);
         f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
         f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
     }
@@ -417,7 +420,7 @@ public class CastAbilityHandlerShould
         var f = new Fixture();
         f.Character.PowerType.Returns(PowerType.Fury);
         f.Character.CurrentPower.Returns((uint?)20);
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20 });
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20, CostPowerType = PowerType.Fury });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
@@ -431,11 +434,54 @@ public class CastAbilityHandlerShould
         var f = new Fixture();
         f.Character.PowerType.Returns(PowerType.Fury);
         f.Character.CurrentPower.Returns((uint?)19);
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20 });
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20, CostPowerType = PowerType.Fury });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
         Assert.Equal(CastRejectReason.NotEnoughPower, f.SingleRefusal().Reason);
+        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
+    }
+
+    /// <summary>
+    /// #652: a cost is spent from the pool the ability names. A Warrior given a Mana ability is refused with a reason
+    /// the client can show, on both paths, however much Fury it holds, and nothing is dispatched.
+    /// </summary>
+    [Theory]
+    [InlineData(PowerType.Fury, PowerType.Mana, 0f)]
+    [InlineData(PowerType.Fury, PowerType.Mana, 1f)]
+    [InlineData(PowerType.Mana, PowerType.Fury, 0f)]
+    [InlineData(PowerType.Energy, PowerType.Mana, 1f)]
+    [InlineData(PowerType.Mana, PowerType.Energy, 0f)]
+    public void Answer_WrongPowerType_for_a_cost_spent_from_another_pool(PowerType casterPool, PowerType costPool, float castTime)
+    {
+        var f = new Fixture();
+        f.Character.PowerType.Returns(casterPool);
+        f.Character.CurrentPower.Returns((uint?)100);
+        f.GiveAbility(new AbilityMetadata
+        {
+            Name = "Flame Surge", ScriptName = "x", Cost = 20, CostPowerType = costPool, CastTime = castTime,
+        });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        SAbilityNotReadyPacket refusal = f.SingleRefusal();
+        Assert.Equal(CastRejectReason.WrongPowerType, refusal.Reason);
+        Assert.Equal(0u, refusal.CooldownMs);
+        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
+        f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
+        f.Character.DidNotReceive().MarkCombat();
+    }
+
+    /// <summary>A row with a cost and no pool is a data fault the catalog refuses; one that slips through is InternalError.</summary>
+    [Fact]
+    public void Answer_InternalError_for_a_cost_that_names_no_pool()
+    {
+        var f = new Fixture();
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20 });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
         f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
     }
 

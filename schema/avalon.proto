@@ -91,6 +91,7 @@ message AbilityInfo {
    float ProjectileSpeed = 14;
    bool Pierce = 15;
    AbilityAffects Affects = 16;
+   PowerType CostPowerType = 17;
 }
 enum AbilityShape {
    AbilityShape_Circle = 0;
@@ -294,6 +295,7 @@ enum CastRejectReason {
    CastRejectReason_InternalError = 11;
    CastRejectReason_NoAimPoint = 12;
    CastRejectReason_AlreadyCasting = 13;
+   CastRejectReason_WrongPowerType = 14;
 }
 message CharacterInfo {
    uint32 CharacterId = 1;

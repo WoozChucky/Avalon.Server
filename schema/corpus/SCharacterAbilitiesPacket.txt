@@ -42,6 +42,7 @@ variant populated
       field 14 ProjectileSpeed : float = -2.25 (0xc0100000)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
+      field 17 CostPowerType : PowerType = Fury (2)
     element 1
       field 1 AbilityId : uint = 19
       field 2 Name : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
@@ -59,17 +60,19 @@ variant populated
       field 14 ProjectileSpeed : float = 3.14159274 (0x40490fdb)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-  bytes 155
-    0a 4c 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
+      field 17 CostPowerType : PowerType = Energy (3)
+  bytes 161
+    0a 4f 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
     20 ce 94 ce 95 ce 9b ce a4 ce 91 1d b0 0f a1 b3
     25 f9 02 15 50 28 ac 02 30 2a 3d db 0f 49 40 40
     01 48 01 50 01 5d 00 00 c0 3f 65 00 00 10 c0 6d
-    b0 0f a1 b3 75 00 00 10 c0 78 01 80 01 01 0a 4b
-    08 13 12 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f
-    9a 80 20 61 73 74 72 61 6c 1d f9 02 15 50 25 b0
-    0f a1 b3 28 2a 30 13 3d 00 00 10 c0 40 01 48 02
-    50 01 5d cd cc cc 3d 65 db 0f 49 40 6d f9 02 15
-    50 75 db 0f 49 40 78 01 80 01 01
+    b0 0f a1 b3 75 00 00 10 c0 78 01 80 01 01 88 01
+    02 0a 4e 08 13 12 15 65 6d 6f 6a 69 20 f0 9f 9c
+    81 f0 9f 9a 80 20 61 73 74 72 61 6c 1d f9 02 15
+    50 25 b0 0f a1 b3 28 2a 30 13 3d 00 00 10 c0 40
+    01 48 02 50 01 5d cd cc cc 3d 65 db 0f 49 40 6d
+    f9 02 15 50 75 db 0f 49 40 78 01 80 01 01 88 01
+    03
 
 variant maxima
   field 1 Abilities : AbilityInfo[] = 3 elements
@@ -90,6 +93,7 @@ variant maxima
       field 14 ProjectileSpeed : float = 3.40282347E+38 (0x7f7fffff)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
+      field 17 CostPowerType : PowerType = Energy (3)
     element 1
       field 1 AbilityId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
@@ -107,6 +111,7 @@ variant maxima
       field 14 ProjectileSpeed : float = 3.40282347E+38 (0x7f7fffff)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
+      field 17 CostPowerType : PowerType = Energy (3)
     element 2
       field 1 AbilityId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
@@ -124,8 +129,9 @@ variant maxima
       field 14 ProjectileSpeed : float = 3.40282347E+38 (0x7f7fffff)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-  bytes 600
-    0a c5 01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce
+      field 17 CostPowerType : PowerType = Energy (3)
+  bytes 609
+    0a c8 01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -137,8 +143,8 @@ variant maxima
     1d ff ff 7f 7f 25 ff ff 7f 7f 28 ff ff ff ff 0f
     30 ff ff 03 3d ff ff 7f 7f 40 01 48 02 50 01 5d
     ff ff 7f 7f 65 ff ff 7f 7f 6d ff ff 7f 7f 75 ff
-    ff 7f 7f 78 01 80 01 01 0a c5 01 08 ff ff ff ff
-    0f 12 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ff 7f 7f 78 01 80 01 01 88 01 03 0a c8 01 08 ff
+    ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -146,12 +152,12 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 1d ff ff 7f 7f 25 ff ff
-    7f 7f 28 ff ff ff ff 0f 30 ff ff 03 3d ff ff 7f
-    7f 40 01 48 02 50 01 5d ff ff 7f 7f 65 ff ff 7f
-    7f 6d ff ff 7f 7f 75 ff ff 7f 7f 78 01 80 01 01
-    0a c5 01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    a9 78 ce a9 78 ce a9 78 ce a9 78 1d ff ff 7f 7f
+    25 ff ff 7f 7f 28 ff ff ff ff 0f 30 ff ff 03 3d
+    ff ff 7f 7f 40 01 48 02 50 01 5d ff ff 7f 7f 65
+    ff ff 7f 7f 6d ff ff 7f 7f 75 ff ff 7f 7f 78 01
+    80 01 01 88 01 03 0a c8 01 08 ff ff ff ff 0f 12
+    84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
@@ -159,10 +165,11 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    1d ff ff 7f 7f 25 ff ff 7f 7f 28 ff ff ff ff 0f
-    30 ff ff 03 3d ff ff 7f 7f 40 01 48 02 50 01 5d
-    ff ff 7f 7f 65 ff ff 7f 7f 6d ff ff 7f 7f 75 ff
-    ff 7f 7f 78 01 80 01 01
+    ce a9 78 ce a9 78 1d ff ff 7f 7f 25 ff ff 7f 7f
+    28 ff ff ff ff 0f 30 ff ff 03 3d ff ff 7f 7f 40
+    01 48 02 50 01 5d ff ff 7f 7f 65 ff ff 7f 7f 6d
+    ff ff 7f 7f 75 ff ff 7f 7f 78 01 80 01 01 88 01
+    03
 
 variant minima
   field 1 Abilities : AbilityInfo[] = 1 element
@@ -183,6 +190,7 @@ variant minima
       field 14 ProjectileSpeed : float = -3.40282347E+38 (0xff7fffff)
       field 15 Pierce : bool = false
       field 16 Affects : AbilityAffects = Hostile (0)
+      field 17 CostPowerType : PowerType = None (0)
   bytes 40
     0a 26 12 01 01 1d ff ff 7f ff 25 ff ff 7f ff 3d
     ff ff 7f ff 5d ff ff 7f ff 65 ff ff 7f ff 6d ff
@@ -207,6 +215,7 @@ variant varint-edges
       field 14 ProjectileSpeed : float = 1.17549435E-38 (0x00800000)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = <not a declared member> (2)
+      field 17 CostPowerType : PowerType = <not a declared member> (4)
     element 1
       field 1 AbilityId : uint = 268435456
       field 2 Name : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
@@ -224,8 +233,9 @@ variant varint-edges
       field 14 ProjectileSpeed : float = 1.17549449E-38 (0x00800001)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = <not a declared member> (2)
-  bytes 380
-    0a ba 01 08 ff ff 7f 12 80 01 79 79 79 79 79 79
+      field 17 CostPowerType : PowerType = <not a declared member> (4)
+  bytes 386
+    0a bd 01 08 ff ff 7f 12 80 01 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -236,8 +246,8 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 1d 00 00 80 00 25
     00 00 80 00 28 7f 30 ff 7f 3d 00 00 80 00 40 02
     48 03 50 02 5d 00 00 80 00 65 00 00 80 00 6d 00
-    00 80 00 75 00 00 80 00 78 01 80 01 02 0a bc 01
-    08 80 80 80 80 01 12 7f 78 78 78 78 78 78 78 78
+    00 80 00 75 00 00 80 00 78 01 80 01 02 88 01 04
+    0a bf 01 08 80 80 80 80 01 12 7f 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -245,10 +255,11 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 1d 01 00 80 00 25 01 00 80
-    00 28 80 80 01 30 80 01 3d 01 00 80 00 40 02 48
-    03 50 02 5d 01 00 80 00 65 01 00 80 00 6d 01 00
-    80 00 75 01 00 80 00 78 01 80 01 02
+    78 78 78 78 78 78 78 78 78 78 1d 01 00 80 00 25
+    01 00 80 00 28 80 80 01 30 80 01 3d 01 00 80 00
+    40 02 48 03 50 02 5d 01 00 80 00 65 01 00 80 00
+    6d 01 00 80 00 75 01 00 80 00 78 01 80 01 02 88
+    01 04
 
 variant float-specials
   field 1 Abilities : AbilityInfo[] = 2 elements
@@ -269,6 +280,7 @@ variant float-specials
       field 14 ProjectileSpeed : float = 3.40282347E+38 (0x7f7fffff)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
+      field 17 CostPowerType : PowerType = Fury (2)
     element 1
       field 1 AbilityId : uint = 19
       field 2 Name : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
@@ -286,14 +298,15 @@ variant float-specials
       field 14 ProjectileSpeed : float = NaN (0xffc00000)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-  bytes 145
-    0a 47 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
+      field 17 CostPowerType : PowerType = Energy (3)
+  bytes 151
+    0a 4a 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
     20 ce 94 ce 95 ce 9b ce a4 ce 91 1d 01 00 00 00
     28 ac 02 30 2a 3d ff ff 7f 00 40 01 48 01 50 01
     5d 01 00 c0 7f 65 00 00 c0 ff 6d 00 00 80 ff 75
-    ff ff 7f 7f 78 01 80 01 01 0a 46 08 13 12 15 65
-    6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73
-    74 72 61 6c 1d ff ff 7f 00 25 01 00 00 00 28 2a
-    30 13 3d ff ff 7f 7f 40 01 48 02 50 01 5d 00 00
-    80 7f 65 01 00 c0 7f 75 00 00 c0 ff 78 01 80 01
-    01
+    ff ff 7f 7f 78 01 80 01 01 88 01 02 0a 49 08 13
+    12 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80
+    20 61 73 74 72 61 6c 1d ff ff 7f 00 25 01 00 00
+    00 28 2a 30 13 3d ff ff 7f 7f 40 01 48 02 50 01
+    5d 00 00 80 7f 65 01 00 c0 7f 75 00 00 c0 ff 78
+    01 80 01 01 88 01 03

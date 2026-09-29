@@ -604,6 +604,7 @@ public class CharacterSelectHandler(
             Cooldown = s.Metadata.Cooldown,
             CastTime = s.Metadata.CastTime,
             Cost = s.Metadata.Cost,
+            CostPowerType = s.Metadata.CostPowerType,
             Range = (ushort)s.Metadata.Range,
             AimMode = s.Metadata.AimMode,
             Shape = s.Metadata.Shape,

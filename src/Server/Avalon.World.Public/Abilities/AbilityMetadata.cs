@@ -2,6 +2,7 @@
 // Avalon ARPG Game licenses this file to you under the MIT license.
 
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public.Abilities;
@@ -15,6 +16,9 @@ public class AbilityMetadata
     public float Cooldown { get; init; } // in seconds (the template stores milliseconds; the mapper divides by 1000)
 
     public uint Cost { get; init; } // in power points
+
+    /// <summary>The pool <see cref="Cost" /> is spent from (#652); None only with a cost of 0.</summary>
+    public PowerType CostPowerType { get; init; }
     public string ScriptName { get; init; }
     public SpellRange Range { get; init; } // in meters
 
@@ -79,6 +83,7 @@ public class AbilityMetadata
             CastTime = CastTime,
             Cooldown = Cooldown,
             Cost = Cost,
+            CostPowerType = CostPowerType,
             ScriptName = ScriptName,
             Range = Range,
             Effects = Effects,

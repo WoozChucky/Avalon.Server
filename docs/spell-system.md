@@ -32,7 +32,8 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Name` | string | | Display name. |
 | `CastTime` | uint | ms | 0 is instant; above 0 the cast waits in the queue first. |
 | `Cooldown` | uint | ms | Time before the skill can be cast again. |
-| `Cost` | uint | power points | Paid from the caster's power pool (see the power rule below). |
+| `Cost` | uint | power points | Paid from the pool `CostPowerType` names (see the power rule below). |
+| `CostPowerType` | `PowerType` | | The pool `Cost` is spent from: Mana, Fury or Energy (#652). None only with a cost of 0; the catalog and a check constraint refuse a cost with none. |
 | `ScriptName` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
 | `EffectValue` | uint | health points | The base of the damage dealt or health restored per unit affected; the scaling terms below are added to it (#506). |
@@ -90,9 +91,12 @@ silent case.
 5. **Cooldown**: the skill's own cooldown is running; the answer carries the time left, rounded up.
 6. **RequiresOutOfCombat** / **RequiresInCombat**: the skill's combat flags.
 7. **NoAimPoint**: a cursor skill whose `GroundPos` is missing or has a non-finite component.
-8. **The power rule** (`AbilityCost`, #521 item 2): a cost above 0 needs a pool the cast spends
-   (Mana, Energy or Fury) holding at least the cost. Too little is **NotEnoughPower**; a caster with no
-   pool (`PowerType.None`) is **InternalError**, since the player cannot fix it. Fury is spent like the
+8. **The power rule** (`AbilityCost`, #521 item 2, #652): a cost above 0 is spent from the pool the
+   ability names (`CostPowerType`), and only a caster whose own pool is that one pays it. A caster
+   whose pool is another one, or none, is **WrongPowerType**, however much it holds: a Mana ability
+   given to a Warrior never spends Fury. Too little in the right pool is **NotEnoughPower**. A cost
+   whose row names no pool is **InternalError**, since the player cannot fix it. A cost of 0 needs no
+   pool. Fury is spent like the
    others but nothing generates it yet (#526): a Warrior enters full and does not regenerate.
 9. **The instance**: the caster's instance must exist, and the cast system must accept the cast (its
    script found and built); otherwise **InternalError**.

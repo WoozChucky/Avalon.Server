@@ -3,6 +3,7 @@ using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Loot;
@@ -622,6 +623,7 @@ public class SeedIntegrityShould
                 a.BaseDamageCoefficient));
         Assert.Empty(a.AllowedClasses);
         Assert.Equal((0u, 0u, 0f, 0), (a.Cost, a.EffectValue, a.ScalingCoefficient, a.PowerGainPerHit));
+        Assert.Equal(PowerType.None, a.CostPowerType);
         Assert.Equal(AbilityAffects.Hostile, a.Affects);
         Assert.Equal(AbilityAnchor.Caster, a.Anchor);
         Assert.Equal(shape == AbilityShape.Projectile ? AbilityAimMode.Cursor : AbilityAimMode.Movement, a.AimMode);
@@ -715,6 +717,8 @@ public class SeedIntegrityShould
 
                 Assert.True(AbilityCost.Check(caster, AbilityMetadataMapper.From(ability)) == CostCheck.Payable,
                     $"{cls} cannot pay for ability {id} '{ability.Name}' ({ability.Cost} power)");
+                // #652: a cost is spent from the class's own pool, and a free ability names none.
+                Assert.Equal(ability.Cost > 0 ? ClassPowerType.Of(cls) : PowerType.None, ability.CostPowerType);
                 Assert.True(ability.Cost <= maxPower,
                     $"ability {id} '{ability.Name}' costs {ability.Cost}, above a level-1 {cls}'s {maxPower} power");
             }

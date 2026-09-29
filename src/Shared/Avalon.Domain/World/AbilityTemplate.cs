@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 
@@ -18,6 +19,12 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     public uint Cooldown { get; set; } // in milliseconds
 
     public uint Cost { get; set; } // in power points
+
+    /// <summary>
+    /// The pool <see cref="Cost" /> is spent from (#652): Mana, Fury or Energy. None only with a cost of 0; a cast is
+    /// refused when the caster's pool is a different one, however much it holds.
+    /// </summary>
+    public PowerType CostPowerType { get; set; }
 
     public string ScriptName { get; set; }
 

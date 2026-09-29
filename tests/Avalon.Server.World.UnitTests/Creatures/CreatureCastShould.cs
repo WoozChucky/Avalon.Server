@@ -82,6 +82,7 @@ public class CreatureCastShould
         row.CastTime = 1000;
         row.Cooldown = 15000;
         row.Cost = 30;
+        row.CostPowerType = PowerType.Mana;   // a creature pays it from no pool at all
         row.AllowedClasses = [];
         return row;
     }
