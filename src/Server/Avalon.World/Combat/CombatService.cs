@@ -116,6 +116,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Everything below reads the resolved damage (#506): threat, the hit, the gain and the PvP reset.
         damage = dealt;
+        // Staff testing still resolves and reports the hit, forms an encounter, and tags combat.
+        // Only its health loss and effects that require positive damage are suppressed.
+        if (target is CharacterEntity { GodMode: true, IsDead: false }) damage = 0;
 
         // #164: a player-on-player hit that deals damage to a living player restarts both players'
         // running PvP off timers. Towns are covered because AbilityEffect checks Hostility before it
