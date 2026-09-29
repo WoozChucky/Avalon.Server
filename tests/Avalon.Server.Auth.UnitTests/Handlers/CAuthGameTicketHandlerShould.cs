@@ -79,6 +79,20 @@ public class CAuthGameTicketHandlerShould
     }
 
     [Fact]
+    public async Task Redeemed_game_session_remains_valid_after_launcher_family_revocation()
+    {
+        Assert.Equal(AuthResult.SUCCESS, await SendAsync());
+        _families.IsLiveLauncherFamilyAsync(_account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        Account? stillPlaying = await PostLoginGuard.AccountOrCloseAsync(_connection, _accounts,
+            NullLogger.Instance, "world list", CancellationToken.None);
+
+        Assert.Same(_account, stillPlaying);
+        _connection.DidNotReceive().Close();
+    }
+
+    [Fact]
     public async Task Refuse_when_credentials_version_has_changed()
     {
         _account.CredentialsVersion++;
