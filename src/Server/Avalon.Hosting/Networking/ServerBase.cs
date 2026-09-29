@@ -125,12 +125,20 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Whether <see cref="StartAsync" /> opens the port. A server with work to finish before a client
+    /// may connect answers false and calls <see cref="StartListening" /> itself once it is ready (#665):
+    /// the world server loads its scripts and world first, so a load that fails never leaves an
+    /// endpoint accepting.
+    /// </summary>
+    protected virtual bool ListenOnStart => true;
+
     public override Task StartAsync(CancellationToken token)
     {
         base.StartAsync(token);
-        _logger.LogInformation("Start listening for connections...");
 
-        StartListening();
+        if (ListenOnStart)
+            StartListening();
 
         return Task.CompletedTask;
     }
@@ -343,7 +351,8 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     }
 
     /// <summary>
-    /// Starts the listener and the one accept loop; <see cref="StartAsync" /> calls it. Idempotent, and
+    /// Starts the listener and the one accept loop; <see cref="StartAsync" /> calls it unless
+    /// <see cref="ListenOnStart" /> is false, and the server then calls it itself. Idempotent, and
     /// a no-op once a stop has begun, so a late caller cannot reopen the port (#578).
     /// </summary>
     protected void StartListening()
@@ -353,6 +362,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             if (_acceptLoop is not null || _acceptStopping.IsCancellationRequested)
                 return;
 
+            _logger.LogInformation("Start listening for connections...");
             Listener.Start();
             _acceptLoop = AcceptLoopAsync(_acceptStopping.Token, _connectionsStopping);
         }

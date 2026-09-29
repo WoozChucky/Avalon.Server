@@ -19,4 +19,9 @@ Bootstrap sequence for each server component.
 3. Register `HostedService` (`AuthServer` / `WorldServer`) + specialized services
 4. Migrate respective databases
 5. Connect Redis
-6. Run hosted loop
+6. Run hosted loop. The Auth server opens its TCP port at host start (`ServerBase.StartAsync`). The
+   World server opens it only at the end of `WorldServer.ExecuteAsync` (#665), once scripts and the
+   world are loaded, the Redis disconnect channel is subscribed, the connection listener is
+   registered and the tick thread is running (`ListenOnStart` is false, and `StartListening` is
+   called there). A load that fails ends the start with the port never opened; a stop during the
+   load leaves it shut.
