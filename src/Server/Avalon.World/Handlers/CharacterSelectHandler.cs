@@ -25,6 +25,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
 using Avalon.World.Abilities;
+using Avalon.World.Combat;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Avalon.Network.Packets.State;
@@ -599,7 +600,14 @@ public class CharacterSelectHandler(
 
         entity.Spells.Load(gameAbilities);
 
-        AbilityInfo[] abilityInfos = gameAbilities.Select(s => new AbilityInfo
+        // #669: each ability's per-hit amount from the stats the select chain has already refreshed, recorded
+        // on the entity so AbilityAmountsFlusher sends an update only once one of them changes.
+        AttackerCombat combat = entity.Combat;
+        AbilityAmount[] amounts = gameAbilities.Select(a => AbilityAmounts.For(combat, a.Metadata)).ToArray();
+        entity.AbilityAmountsSentFor = combat;
+        entity.AbilityAmountsSent = amounts;
+
+        AbilityInfo[] abilityInfos = gameAbilities.Select((s, i) => new AbilityInfo
         {
             AbilityId = s.AbilityId,
             Name = s.Metadata.Name,
@@ -617,6 +625,9 @@ public class CharacterSelectHandler(
             ProjectileSpeed = s.Metadata.ProjectileSpeed,
             Pierce = s.Metadata.Pierce,
             Affects = s.Metadata.Affects,
+            AmountKind = amounts[i].Kind,
+            AmountMin = amounts[i].Min,
+            AmountMax = amounts[i].Max,
         }).ToArray();
 
         connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));

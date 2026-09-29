@@ -61,6 +61,17 @@ enum AbilityAimMode {
    AbilityAimMode_Movement = 0;
    AbilityAimMode_Cursor = 1;
 }
+message AbilityAmountInfo {
+   uint32 AbilityId = 1;
+   AbilityAmountKind Kind = 2;
+   uint32 Min = 3;
+   uint32 Max = 4;
+}
+enum AbilityAmountKind {
+   AbilityAmountKind_None = 0;
+   AbilityAmountKind_Damage = 1;
+   AbilityAmountKind_Healing = 2;
+}
 enum AbilityAnchor {
    AbilityAnchor_Caster = 0;
    AbilityAnchor_AimPoint = 1;
@@ -92,6 +103,9 @@ message AbilityInfo {
    bool Pierce = 15;
    AbilityAffects Affects = 16;
    PowerType CostPowerType = 17;
+   AbilityAmountKind AmountKind = 18;
+   uint32 AmountMin = 19;
+   uint32 AmountMax = 20;
 }
 enum AbilityShape {
    AbilityShape_Circle = 0;
@@ -518,6 +532,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_INVENTORY_UPDATE = 12329;
    NetworkPacketType_SMSG_CHARACTER_STATS = 12330;
    NetworkPacketType_SMSG_CHARACTER_LEAVE_RESULT = 12331;
+   NetworkPacketType_SMSG_CHARACTER_ABILITY_AMOUNTS = 12332;
    NetworkPacketType_SMSG_MAP_TELEPORT = 12336;
    NetworkPacketType_SMSG_MAP_TRANSITION = 12337;
    NetworkPacketType_SMSG_CHUNK_LAYOUT = 12338;
@@ -633,6 +648,9 @@ message SAuthResultPacket {
 }
 message SCharacterAbilitiesPacket {
    repeated AbilityInfo Abilities = 1;
+}
+message SCharacterAbilityAmountsPacket {
+   repeated AbilityAmountInfo Amounts = 1;
 }
 enum SCharacterCreateResult {
    SCharacterCreateResult_Success = 0;

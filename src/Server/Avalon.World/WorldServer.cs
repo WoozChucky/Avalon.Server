@@ -504,6 +504,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         for (int i = 0; i < conns.Length; i++)
             CharacterSheetFlusher.Flush(conns[i], formula);
 
+        // Each ability's per-hit amount (#669), in the same flush as the sheet whose stats moved it.
+        for (int i = 0; i < conns.Length; i++)
+            AbilityAmountsFlusher.Flush(conns[i]);
+
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
         // Phase MUST come from a monotonic counter — _tickCount above resets every ~1s.

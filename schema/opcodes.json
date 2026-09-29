@@ -695,6 +695,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_CHARACTER_ABILITY_AMOUNTS",
+      "opcode": 12332,
+      "hex": "0x302C",
+      "message": "SCharacterAbilityAmountsPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_MAP_TELEPORT",
       "opcode": 12336,
       "hex": "0x3030",
