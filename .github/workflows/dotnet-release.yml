@@ -5,10 +5,6 @@ on:
     tags:
       - 'v*'
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/avalon-server
-
 jobs:
   release:
 
@@ -47,97 +43,19 @@ jobs:
           name: test-results
           path: TestResults/**/*.trx
           retention-days: 14
-      # Not --no-build: PublishReadyToRun makes publish infer the runner's runtime identifier,
-      # so it wants obj/Release/net10.0/linux-x64/, which the solution build never writes.
-      # Its references are the Release build's own outputs, so only this project recompiles.
-      - name: Publish World Server
-        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -o src/Server/Avalon.Server.World/out
-      - name: Publish Auth Server
-        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-build -o src/Server/Avalon.Server.Auth/out
-      - name: Publish Api
-        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-build -o src/Server/Avalon.Api/out
-
-      - name: Docker Login
-        uses: docker/login-action@v4.6.0
-        with:
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          registry: ${{ env.REGISTRY }}
-
-      - name: Extract metadata for World Server image
-        id: meta-world
-        uses: docker/metadata-action@v6.2.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/world
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
-      - name: Build and push World Server image
-        uses: docker/build-push-action@v7.4.0
-        with:
-          context: src/Server/Avalon.Server.World/
-          file: src/Server/Avalon.Server.World/Dockerfile
-          push: true
-          tags: ${{ steps.meta-world.outputs.tags }}
-          labels: ${{ steps.meta-world.outputs.labels }}
-
-      - name: Extract metadata for Auth Server image
-        id: meta-auth
-        uses: docker/metadata-action@v6.2.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
-      - name: Build and push Auth Server image
-        uses: docker/build-push-action@v7.4.0
-        with:
-          context: src/Server/Avalon.Server.Auth/
-          file: src/Server/Avalon.Server.Auth/Dockerfile
-          push: true
-          tags: ${{ steps.meta-auth.outputs.tags }}
-          labels: ${{ steps.meta-auth.outputs.labels }}
-
-      - name: Extract metadata for API image
-        id: meta-api
-        uses: docker/metadata-action@v6.2.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
-      - name: Build and push API image
-        uses: docker/build-push-action@v7.4.0
-        with:
-          context: src/Server/Avalon.Api/
-          file: src/Server/Avalon.Api/Dockerfile
-          push: true
-          tags: ${{ steps.meta-api.outputs.tags }}
-          labels: ${{ steps.meta-api.outputs.labels }}
-
-      - uses: azure/setup-helm@v5
-
-      - name: Package and push Helm charts
-        env:
-          TAG: ${{ github.ref_name }}
+      - name: Version
+        id: version
         run: |
-          set -euo pipefail
-          VERSION="${TAG#v}"
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
-          mkdir -p dist/charts
-          for chart in src/Server/Avalon.Api/Helm/avalon-api \
-                       src/Server/Avalon.Server.Auth/Helm/avalon-auth \
-                       src/Server/Avalon.Server.World/Helm/avalon-world; do
-            bash "$chart/ci/test.sh"
-            helm package "$chart" --version "$VERSION" --app-version "$VERSION" -d dist/charts
-          done
-          for tgz in dist/charts/*.tgz; do
-            helm push "$tgz" oci://ghcr.io/woozchucky/charts
-          done
-
+          v="${GITHUB_REF_NAME#v}"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "minor=${v%.*}" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/publish-server
+        with:
+          version: ${{ steps.version.outputs.version }}
+          extra-tags: |
+            ${{ steps.version.outputs.minor }}
+            latest
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -165,7 +83,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          python -m pip install -q "avalon-release-notes[s3] @ git+https://github.com/WoozChucky/avalon-release-notes@v0.2.1"
+          python -m pip install -q "avalon-release-notes[s3] @ git+https://github.com/WoozChucky/avalon-release-notes@v0.3.0"
           python -m avalon_release_notes publish --repo "$GITHUB_REPOSITORY" --product server --version "${TAG#v}" \
             --commit "$GITHUB_SHA" --published-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --release-url "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" --public

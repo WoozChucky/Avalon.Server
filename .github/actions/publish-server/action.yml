@@ -1,0 +1,49 @@
+name: Publish the server
+description: Publish the three servers, push their images and charts.
+inputs:
+  version: { description: "Chart version and primary image tag", required: true }
+  extra-tags: { description: "More image tags, one per line", required: false, default: "" }
+  token: { description: "A token that can push packages", required: true }
+runs:
+  using: composite
+  steps:
+    - name: Publish the servers
+      shell: bash
+      run: |
+        set -euo pipefail
+        # PublishReadyToRun infers a runtime identifier for World, so it cannot use --no-build.
+        dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -o src/Server/Avalon.Server.World/out
+        dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-build -o src/Server/Avalon.Server.Auth/out
+        dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-build -o src/Server/Avalon.Api/out
+    - uses: docker/login-action@v4.6.0
+      with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ inputs.token }}" }
+    - name: Build and push the images
+      shell: bash
+      env: { VERSION: "${{ inputs.version }}", EXTRA: "${{ inputs.extra-tags }}" }
+      run: |
+        set -euo pipefail
+        revision="$(git rev-parse HEAD)"
+        for c in world:Avalon.Server.World auth:Avalon.Server.Auth api:Avalon.Api; do
+          name="${c%%:*}"; project="${c#*:}"
+          image="ghcr.io/woozchucky/avalon-server/$name"
+          tags=(-t "$image:$VERSION")
+          while IFS= read -r t; do [[ -n "$t" ]] && tags+=(-t "$image:$t"); done <<< "$EXTRA"
+          docker build "src/Server/$project/" -f "src/Server/$project/Dockerfile" "${tags[@]}" \
+            --label "org.opencontainers.image.revision=$revision" --label "org.opencontainers.image.version=$VERSION"
+          docker push --all-tags "$image"
+        done
+    - uses: azure/setup-helm@v5
+    - name: Package and push the charts
+      shell: bash
+      env: { VERSION: "${{ inputs.version }}", TOKEN: "${{ inputs.token }}" }
+      run: |
+        set -euo pipefail
+        echo "$TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+        mkdir -p dist/charts
+        # avalon-world last: its tag is what the nightly skip and Flux look for.
+        for chart in src/Server/Avalon.Api/Helm/avalon-api src/Server/Avalon.Server.Auth/Helm/avalon-auth \
+                     src/Server/Avalon.Server.World/Helm/avalon-world; do
+          bash "$chart/ci/test.sh"
+          helm package "$chart" --version "$VERSION" --app-version "$VERSION" -d dist/charts
+          helm push "dist/charts/$(basename "$chart")-$VERSION.tgz" oci://ghcr.io/woozchucky/charts
+        done
