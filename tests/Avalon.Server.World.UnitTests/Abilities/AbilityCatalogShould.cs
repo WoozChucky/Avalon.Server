@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Public.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -56,6 +57,8 @@ public class AbilityCatalogShould
         { "cone on the projectile script", "a cone must use ConeAbilityScript", With(AbilityTestData.Cone(1), t => t.ScriptName = "ProjectileAbilityScript") },
         { "projectile on the circle script", "a projectile must use ProjectileAbilityScript", With(AbilityTestData.Projectile(1), t => t.ScriptName = "CircleAbilityScript") },
         { "unknown shape", "unknown shape 9", With(AbilityTestData.Circle(1), t => t.Shape = (AbilityShape)9) },
+        { "cost with no pool", "Cost 20 names no power type to spend it from", With(AbilityTestData.Circle(1), t => t.Cost = 20) },
+        { "unknown cost pool", "unknown cost power type 9", With(AbilityTestData.Circle(1), t => t.CostPowerType = (PowerType)9) },
     };
 
     [Theory]

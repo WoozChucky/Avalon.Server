@@ -4,6 +4,7 @@ using Avalon.Configuration;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using PowerType = Avalon.Network.Packets.State.PowerType;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -2202,6 +2203,9 @@ public class WorldDbContext : DbContext
             // #506: a negative coefficient would turn a hit into a heal, a NaN one would make it NaN.
             t.HasCheckConstraint("CK_AbilityTemplates_ScalingCoefficient_NonNegative", Finite("ScalingCoefficient"));
             t.HasCheckConstraint("CK_AbilityTemplates_BaseDamageCoefficient_NonNegative", Finite("BaseDamageCoefficient"));
+            // #652: a cost names the pool it is spent from (Mana 1, Fury 2, Energy 3); only a cost of 0 may name none.
+            t.HasCheckConstraint("CK_AbilityTemplates_CostPowerType",
+                "\"CostPowerType\" BETWEEN 0 AND 3 AND (\"Cost\" = 0 OR \"CostPowerType\" <> 0)");
         });
         builder.Property(b => b.Id)
             .HasConversion(
@@ -2298,6 +2302,18 @@ public class WorldDbContext : DbContext
         BaseDamageCoefficient = baseDamage,
     };
 
+    /// <summary>
+    /// The pool a class spends from (#652), as the World's <c>ClassPowerType</c> gives a character at select: a kit
+    /// ability's cost is spent from its own class's pool.
+    /// </summary>
+    private static PowerType ClassPool(CharacterClass cls) => cls switch
+    {
+        CharacterClass.Warrior => PowerType.Fury,
+        CharacterClass.Wizard or CharacterClass.Healer => PowerType.Mana,
+        CharacterClass.Hunter => PowerType.Energy,
+        _ => PowerType.None,
+    };
+
     private static AbilityTemplate Kit(uint id, CharacterClass cls, string name, AbilityShape shape, AbilityAimMode aim,
         SpellRange range, uint cooldown, uint cost, uint value, AbilityAnchor anchor = AbilityAnchor.Caster,
         float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
@@ -2309,6 +2325,7 @@ public class WorldDbContext : DbContext
         CastTime = castTime,
         Cooldown = cooldown,
         Cost = cost,
+        CostPowerType = cost == 0 ? PowerType.None : ClassPool(cls),
         Range = range,
         Effects = affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage,
         EffectValue = value,

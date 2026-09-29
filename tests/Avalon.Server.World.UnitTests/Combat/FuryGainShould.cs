@@ -45,6 +45,7 @@ public class FuryGainShould
     {
         AbilityTemplate slam = AbilityTestData.Circle(201, radius: 3f);
         slam.Cost = 20;
+        slam.CostPowerType = PowerType.Fury;
         return slam;
     }
 

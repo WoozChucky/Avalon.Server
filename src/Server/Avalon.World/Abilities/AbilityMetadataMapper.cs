@@ -12,6 +12,7 @@ public static class AbilityMetadataMapper
         Cooldown = (float)template.Cooldown / 1000,
         CastTime = (float)template.CastTime / 1000,
         Cost = template.Cost,
+        CostPowerType = template.CostPowerType,
         Range = template.Range,
         Effects = template.Effects,
         EffectValue = template.EffectValue,

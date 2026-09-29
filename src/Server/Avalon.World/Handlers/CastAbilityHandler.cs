@@ -110,8 +110,12 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
                     Refuse(connection, packet, CastRejectReason.NotEnoughPower);
                     return;
                 case CostCheck.WrongPowerType:
-                    logger.LogWarning("Cast reject WrongPowerType ability={AbilityId} powerType={PowerType}",
-                        packet.AbilityId, caster.PowerType);
+                    // #652: an ability spent from another pool (given to this character by hand, say).
+                    Refuse(connection, packet, CastRejectReason.WrongPowerType);
+                    return;
+                case CostCheck.NoCostPowerType:
+                    logger.LogWarning("Cast reject NoCostPowerType ability={AbilityId} cost={Cost}",
+                        packet.AbilityId, meta.Cost);
                     Refuse(connection, packet, CastRejectReason.InternalError);
                     return;
             }

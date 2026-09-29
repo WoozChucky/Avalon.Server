@@ -45,10 +45,16 @@ public class InstanceAbilityCastSystemShould
         _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), _scripts, _arena);
     }
 
-    private static GameAbility Ability(uint cost = 0, float castTime = 0f, string script = "Recording") => new()
+    /// <summary>An ability whose cost, if any, is spent from <paramref name="pool" /> (#652): Mana, the default caster's.</summary>
+    private static GameAbility Ability(uint cost = 0, float castTime = 0f, string script = "Recording",
+        PowerType pool = PowerType.Mana) => new()
     {
         AbilityId = new AbilityId(1),
-        Metadata = new AbilityMetadata { Name = "x", ScriptName = script, Cost = cost, CastTime = castTime, Cooldown = 2f },
+        Metadata = new AbilityMetadata
+        {
+            Name = "x", ScriptName = script, Cost = cost, CostPowerType = cost > 0 ? pool : PowerType.None,
+            CastTime = castTime, Cooldown = 2f,
+        },
         CastTimeTimer = castTime,
         CooldownTimer = 0f,
     };
@@ -243,6 +249,27 @@ public class InstanceAbilityCastSystemShould
         Assert.Equal(0f, ability.CooldownTimer);
     }
 
+    /// <summary>
+    /// #652: the cast system refuses a cost spent from another pool on both paths, however much the caster's own pool
+    /// holds, before anything is built, paid or marked casting.
+    /// </summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void Refuse_a_cost_spent_from_another_pool_on_both_paths(float castTime)
+    {
+        ICharacter warrior = Caster(PowerType.Fury, power: 100);
+        GameAbility flameSurge = Ability(cost: 20, castTime: castTime, pool: PowerType.Mana);
+
+        bool accepted = castTime > 0 ? _sut.QueueAbility(warrior, Aim, flameSurge) : _sut.RunInstant(warrior, Aim, flameSurge);
+
+        Assert.False(accepted);
+        Assert.False(flameSurge.Casting);
+        warrior.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+        Assert.Empty(RecordingAbilityScript.Prepared);
+        Assert.Null(RecordingAbilityScript.LastBuilt);
+    }
+
     /// <summary>Fury is spendable on both paths (#526), and nothing generates it yet.</summary>
     [Theory]
     [InlineData(0f)]
@@ -250,7 +277,7 @@ public class InstanceAbilityCastSystemShould
     public void Take_and_charge_a_Fury_cast_the_pool_can_pay_on_both_paths(float castTime)
     {
         ICharacter caster = Caster(PowerType.Fury, power: 30);
-        GameAbility ability = Ability(cost: 20, castTime: castTime);
+        GameAbility ability = Ability(cost: 20, castTime: castTime, pool: PowerType.Fury);
 
         bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
 
@@ -264,7 +291,7 @@ public class InstanceAbilityCastSystemShould
     public void Refuse_a_Fury_cast_the_pool_cannot_pay_on_both_paths(float castTime)
     {
         ICharacter caster = Caster(PowerType.Fury, power: 19);
-        GameAbility ability = Ability(cost: 20, castTime: castTime);
+        GameAbility ability = Ability(cost: 20, castTime: castTime, pool: PowerType.Fury);
 
         bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
 
