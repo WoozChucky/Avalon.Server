@@ -300,6 +300,24 @@ public sealed class LoginRaceShould : IDisposable
         Assert.False((await StoredAsync(account.Id)).Online);
     }
 
+    [Fact]
+    public async Task Only_one_ticket_can_claim_an_offline_account()
+    {
+        Account staleOffline = await _accounts.CreateAsync(NewAccount());
+        Guid firstSession = Guid.NewGuid();
+        Guid secondSession = Guid.NewGuid();
+
+        Assert.True(await _accounts.TryRecordTicketLoginAsync(staleOffline.Id, staleOffline.CredentialsVersion,
+            "10.0.0.6", DateTime.UtcNow, firstSession));
+        // The second request read the same old offline row before the first write committed.
+        Assert.False(await _accounts.TryRecordTicketLoginAsync(staleOffline.Id, staleOffline.CredentialsVersion,
+            "10.0.0.7", DateTime.UtcNow, secondSession));
+
+        Account stored = await StoredAsync(staleOffline.Id);
+        Assert.Equal(firstSession, stored.OnlineSessionId);
+        Assert.Equal("10.0.0.6", stored.LastIp);
+    }
+
     private async Task LockAsync(AccountId id)
     {
         await using AuthDbContext context = _database.CreateDbContext();

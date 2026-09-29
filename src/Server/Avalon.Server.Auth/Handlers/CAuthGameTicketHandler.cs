@@ -39,7 +39,7 @@ public class CAuthGameTicketHandler : IAuthPacketHandler<CAuthGameTicketPacket>
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Game ticket redemption unavailable");
+            _logger.LogError("Game ticket redemption unavailable");
             Refuse(AuthResult.INVALID_CREDENTIALS);
             return;
         }
