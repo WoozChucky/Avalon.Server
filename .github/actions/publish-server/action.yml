@@ -22,6 +22,9 @@ runs:
       env: { VERSION: "${{ inputs.version }}", EXTRA: "${{ inputs.extra-tags }}" }
       run: |
         set -euo pipefail
+        # GHCR now and then refuses a push it has half accepted ("unknown blob"). A retry sends only
+        # what it still lacks, so three tries a few seconds apart ride that out.
+        retry() { local n; for n in 1 2 3; do "$@" && return 0; [[ $n -lt 3 ]] && { echo "::warning::'$*' failed (attempt $n of 3); retrying"; sleep $((n * 10)); }; done; return 1; }
         revision="$(git rev-parse HEAD)"
         for c in world:Avalon.Server.World auth:Avalon.Server.Auth api:Avalon.Api; do
           name="${c%%:*}"; project="${c#*:}"
@@ -30,7 +33,7 @@ runs:
           while IFS= read -r t; do [[ -n "$t" ]] && tags+=(-t "$image:$t"); done <<< "$EXTRA"
           docker build "src/Server/$project/" -f "src/Server/$project/Dockerfile" "${tags[@]}" \
             --label "org.opencontainers.image.revision=$revision" --label "org.opencontainers.image.version=$VERSION"
-          docker push --all-tags "$image"
+          retry docker push --all-tags "$image"
         done
     - uses: azure/setup-helm@v5
     - name: Package and push the charts
@@ -38,6 +41,7 @@ runs:
       env: { VERSION: "${{ inputs.version }}", TOKEN: "${{ inputs.token }}" }
       run: |
         set -euo pipefail
+        retry() { local n; for n in 1 2 3; do "$@" && return 0; [[ $n -lt 3 ]] && { echo "::warning::'$*' failed (attempt $n of 3); retrying"; sleep $((n * 10)); }; done; return 1; }
         echo "$TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
         mkdir -p dist/charts
         # avalon-world last: its tag is what the nightly skip and Flux look for.
@@ -45,5 +49,5 @@ runs:
                      src/Server/Avalon.Server.World/Helm/avalon-world; do
           bash "$chart/ci/test.sh"
           helm package "$chart" --version "$VERSION" --app-version "$VERSION" -d dist/charts
-          helm push "dist/charts/$(basename "$chart")-$VERSION.tgz" oci://ghcr.io/woozchucky/charts
+          retry helm push "dist/charts/$(basename "$chart")-$VERSION.tgz" oci://ghcr.io/woozchucky/charts
         done
