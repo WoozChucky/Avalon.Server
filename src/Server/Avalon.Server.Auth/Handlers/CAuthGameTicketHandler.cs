@@ -90,11 +90,11 @@ public class CAuthGameTicketHandler : IAuthPacketHandler<CAuthGameTicketPacket>
         }
 
         string lastIp = LoginSource.FromEndPoint(connection.RemoteEndPoint).Ip;
-        bool wasOnline = account.Online;
-        if (!await GameLoginCompletion.TryStartAsync(connection, account, lastIp, AuthResult.LOCKED,
-            _accounts, _cache, _logger, token, ticket: true))
+        AuthResult? startRefusal = await GameLoginCompletion.TryStartAsync(connection, account, lastIp,
+            AuthResult.LOCKED, _accounts, _cache, _logger, token, ticket: true);
+        if (startRefusal is { } result)
         {
-            Record(wasOnline ? AuthResult.ALREADY_CONNECTED : AuthResult.LOCKED, account);
+            Record(result, account);
             return;
         }
 

@@ -95,11 +95,10 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         }
 
         var lastIp = attempt.Source.Ip;
-        bool wasOnline = account.Online;
-        if (!await GameLoginCompletion.TryStartAsync(ctx.Connection, account, lastIp, FailureResult(attempt),
-                _accountRepository, _cache, _logger, token))
+        AuthResult? startRefusal = await GameLoginCompletion.TryStartAsync(ctx.Connection, account, lastIp,
+            FailureResult(attempt), _accountRepository, _cache, _logger, token);
+        if (startRefusal is { } result)
         {
-            AuthResult result = wasOnline ? AuthResult.ALREADY_CONNECTED : FailureResult(attempt);
             Record(ctx, LoginTelemetry.Tag(result), account.Id);
             return;
         }

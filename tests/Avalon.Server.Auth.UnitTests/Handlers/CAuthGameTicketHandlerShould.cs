@@ -109,6 +109,22 @@ public class CAuthGameTicketHandlerShould
     }
 
     [Fact]
+    public async Task Report_already_connected_when_another_ticket_claims_the_account_first()
+    {
+        int reads = 0;
+        _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (++reads == 2) _account.Online = true;
+            return _account;
+        });
+        _accounts.TryRecordTicketLoginAsync(default!, default, default!, default, default, default)
+            .ReturnsForAnyArgs(false);
+
+        Assert.Equal(AuthResult.ALREADY_CONNECTED, await SendAsync());
+        Assert.Null(_connection.AccountId);
+    }
+
+    [Fact]
     public async Task Refuse_locked_or_inactive_or_non_player_accounts()
     {
         _tickets.RedeemAsync("ticket", Arg.Any<CancellationToken>())

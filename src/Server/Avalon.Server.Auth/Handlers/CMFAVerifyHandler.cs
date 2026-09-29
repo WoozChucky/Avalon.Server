@@ -69,8 +69,8 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
         }
 
         var lastIp = attempt.Source.Ip;
-        if (!await GameLoginCompletion.TryStartAsync(ctx.Connection, account, lastIp, FailureResult(attempt),
-                _accountRepository, _cache, _logger, token)) return;
+        if (await GameLoginCompletion.TryStartAsync(ctx.Connection, account, lastIp, FailureResult(attempt),
+                _accountRepository, _cache, _logger, token) is not null) return;
 
         // The login is complete: the source gets its own slot back, and the username's count is
         // cleared (owner decision on #484).

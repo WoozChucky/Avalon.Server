@@ -7,7 +7,7 @@ namespace Avalon.Server.Auth.Handlers;
 
 internal static class GameLoginCompletion
 {
-    public static async Task<bool> TryStartAsync(IAuthConnection connection, Account account, string lastIp,
+    public static async Task<AuthResult?> TryStartAsync(IAuthConnection connection, Account account, string lastIp,
         AuthResult guardFailure, IAccountRepository accounts, IReplicatedCache cache, ILogger logger,
         CancellationToken token, bool ticket = false)
     {
@@ -27,7 +27,7 @@ internal static class GameLoginCompletion
                 account.Online = false;
                 await accounts.MarkOfflineAsync(account.Id, account.OnlineSessionId, cancellationToken: token);
             }
-            return false;
+            return AuthResult.ALREADY_CONNECTED;
         }
 
         bool recorded = ticket
@@ -36,11 +36,14 @@ internal static class GameLoginCompletion
             : await accounts.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, connection.Id, token);
         if (!recorded)
         {
-            logger.LogWarning("Account {AccountId} was locked during its login", account.Id);
-            connection.Send(SAuthResultPacket.Create(null, null, guardFailure, connection.CryptoSession.Encrypt));
-            return false;
+            AuthResult refusal = guardFailure;
+            if (ticket && (await accounts.FindByIdAsync(account.Id, false, token))?.Online == true)
+                refusal = AuthResult.ALREADY_CONNECTED;
+            logger.LogWarning("Account {AccountId} could not claim a game login", account.Id);
+            connection.Send(SAuthResultPacket.Create(null, null, refusal, connection.CryptoSession.Encrypt));
+            return refusal;
         }
-        return true;
+        return null;
     }
 
     public static async Task FinishAsync(IAuthConnection connection, Account account, string lastIp,
