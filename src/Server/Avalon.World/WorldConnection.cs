@@ -18,7 +18,7 @@ using Packet = Avalon.Network.Packets.Packet;
 
 namespace Avalon.World;
 
-public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable
+public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable, ICharacterLeaveControl
 {
     private readonly ConcurrentQueue<IContinuation> _continuationQueue = new();
 
@@ -75,6 +75,33 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
     public void BeginSelect(long nowTicks) => _selectStartedTicks = nowTicks;
 
     public void CancelSelect() => _selectStartedTicks = 0;
+
+    // Tick thread only, like the select state above.
+    private bool _leaveInProgress;
+
+    /// <inheritdoc />
+    public bool LeaveInProgress => _leaveInProgress;
+
+    /// <inheritdoc />
+    public bool TryBeginLeave()
+    {
+        if (_leaveInProgress)
+            return false;
+        _leaveInProgress = true;
+        return true;
+    }
+
+    /// <inheritdoc />
+    public void EndLeave() => _leaveInProgress = false;
+
+    /// <inheritdoc />
+    public void ResetCharacterState()
+    {
+        LastInputSeq = 0;
+        CurrentTargetGuid = null;
+        RespawnInFlight = false;
+        CurrentDialogue = null;
+    }
 
     public void SetPendingSpawn(ICharacter character, IMapInstance instance, long sinceTicks)
     {
@@ -155,12 +182,12 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     public void UpdateSession()
     {
-        ProcessQueue(_sessionFilterPredicate);
+        ProcessQueue(_sessionFilterPredicate, dropStaleMapPackets: true);
     }
 
     public void UpdateMap()
     {
-        ProcessQueue(_mapFilterPredicate);
+        ProcessQueue(_mapFilterPredicate, dropStaleMapPackets: false);
     }
 
     public void FlushContinuations()
@@ -168,7 +195,13 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
         ProcessContinuations();
     }
 
-    private void ProcessQueue(Func<WorldPacket, bool> predicate)
+    /// <param name="dropStaleMapPackets">
+    ///     The session pass drops, rather than stops at, an in-map packet that reaches the head of the
+    ///     queue while the connection holds no character. It was queued while a character was in the
+    ///     world, behind a leave (#663) or a despawn, and nothing can accept it any more: left there, it
+    ///     would hold back everything behind it, the next character list included.
+    /// </param>
+    private void ProcessQueue(Func<WorldPacket, bool> predicate, bool dropStaleMapPackets)
     {
         const uint MaxPacketsPerUpdate = 150;
         uint processedPackets = 0;
@@ -178,10 +211,20 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
         // Peek-first: if the front packet doesn't pass the filter, leave it for the other pass.
         // TryDequeue after TryPeek is safe — only the tick thread dequeues (SPSC).
-        while (IsConnected &&
-               _receiveQueue.TryPeek(out WorldPacket packet) &&
-               predicate(packet))
+        while (IsConnected && _receiveQueue.TryPeek(out WorldPacket packet))
         {
+            if (!predicate(packet))
+            {
+                if (!dropStaleMapPackets || Character != null || !MapSessionFilter.IsMapPacket(packet.Type))
+                    break;
+
+                _receiveQueue.TryDequeue(out _);
+                _logger.LogDebug("Dropped {PacketType} queued for a character that has left the world", packet.Type);
+                if (++processedPackets > MaxPacketsPerUpdate)
+                    break;
+                continue;
+            }
+
             _receiveQueue.TryDequeue(out _);
             CurrentPacketArrivedTicks = packet.ArrivedTicks;
             if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))

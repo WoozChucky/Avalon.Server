@@ -33,9 +33,10 @@ public class CharacterListHandler(
 
         // A select that has not finished counts as selected. SelectInProgress is the span
         // where the entity is being built and both of the other two are still null; a delete
-        // landing there deletes the character being spawned.
+        // landing there deletes the character being spawned. A leave that has not finished counts
+        // too (#663): its logout save is still writing, and the client must wait for its answer.
         if (connection.Character != null || connection.PendingSpawn != null ||
-            connection.SelectInProgress)
+            connection.SelectInProgress || connection.LeaveInProgress)
         {
             logger.LogWarning("Connection tried to request character list while already having a character selected");
             activity?.AddEvent(new ActivityEvent("DuplicateRequestAttempt"));

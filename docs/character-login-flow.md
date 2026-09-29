@@ -199,6 +199,58 @@ sent.
 
 ---
 
+## Change Character (#663)
+
+A player in the world returns to character selection on the **same** world connection, with no new
+login, through one request and one answer:
+
+```
+Game Client                      World Server                         Character DB
+    │  CCharacterLeavePacket         │                                     │
+    │───────────────────────────────>│ out of encounter, conversation,     │
+    │                                │ bank, shop and instance; the        │
+    │                                │ connection holds no character       │
+    │                                │ logout save (Online = false) ──────>│
+    │                                │<────────────────────────── committed│
+    │  SCharacterLeaveResultPacket   │                                     │
+    │  (Result = Left)               │                                     │
+    │<───────────────────────────────│                                     │
+    │  CCharacterListPacket          │                                     │
+    │───────────────────────────────>│  ... as at login                    │
+```
+
+- **Opcodes:** `CMSG_CHARACTER_LEAVE` (`0x2016`, no fields) and `SMSG_CHARACTER_LEAVE_RESULT`
+  (`0x302B`, `Result`, field 1, a `CharacterLeaveResult`). Every leave gets exactly one answer, unless
+  the connection is closed instead.
+- **Results:** `Left` (1) once the character has left its instance and its logout save has
+  committed; from then on the connection holds no character, and `CMSG_CHARACTER_LIST` and
+  `CMSG_CHARACTER_SELECTED` are accepted again. `NoCharacter` (2) when it holds none; `Selecting` (3)
+  while a select is under way or the selected character is waiting on the client's load report (leave
+  once it is in the world); `AlreadyLeaving` (4) while a leave is under way. Refusals change nothing.
+- **The leave is a logout.** `CharacterLeaveHandler` calls `IWorld.LeaveWorldAsync`, the path every
+  logout and disconnect takes (`DeSpawnPlayerAsync`): it ends the conversation and closes the bank and
+  shop, drops the character from its encounter, removes it from its instance (interrupting its casts
+  and dropping its projectiles), and queues the logout save, which writes the row offline (a dead
+  character is revived at its respawn town, one on a normal map moves to that map's town). The save
+  runs through the character's save chain, so a select of the same character, on this connection or
+  another, waits for it (`ICharacterSaver.WhenIdle`) and cannot read what it is still writing.
+- **Until the answer:** `IWorldConnection.LeaveInProgress` is set, and the list, select, create and
+  delete requests are refused as they are during a select: the connection is closed. The client waits
+  for the answer. The target, last input sequence, respawn flag and conversation are cleared at the
+  start; the locale, access level and time sync belong to the account and the connection, and stay.
+- **Failure:** a logout save that fails, or a leave that throws, is never answered. The connection
+  is closed with `DisconnectReason.CharacterSaveFailed` (5), since the character's last state is not
+  known to be written. A connection that drops, or is kicked by another session of the account, while
+  leaving is not answered either, and its close finds nothing left to save.
+- **Ordering:** the leave is accepted by the session filter alone, whatever the connection holds, so
+  it is handled in the session pass, before any instance ticks. In-map packets queued before it
+  (movement, casts) are handled by the map pass first; in-map packets queued behind it were meant for
+  the character that left, and the session pass drops them once the connection holds no character, so
+  they cannot hold back the next character list.
+- **Kept on purpose:** a leave is allowed in combat, as a logout is.
+
+---
+
 ## Instance ID
 
 All characters entering the default open world share one well-known instance GUID derived from the `WorldId`:
@@ -265,6 +317,10 @@ Client sends CPlayerMovementPacket
 | Orphan row (no matching `ItemInstance`) → skipped, remaining items unaffected | `InventoryAssemblerShould.Skip_A_Row_Whose_Instance_Is_Missing` |
 | Slot `>= MaxSlots` → dropped on `Load`, container size unaffected | `CharacterInventoryContainerShould.Refuse_A_Slot_Beyond_Its_Capacity` |
 | Container round trip: `Load` then `Items`/`TryGet` returns what went in | `CharacterInventoryContainerShould.Return_What_It_Was_Loaded_With` |
+| Change Character: leave, answered `Left` only after the logout save commits, then list and select another character on the same connection | `CharacterLeaveShould.Leave_answer_Left_after_the_logout_save_then_list_and_select_on_the_same_connection` |
+| A select of the leaving character from another session waits for the logout save | `CharacterLeaveShould.Hold_a_reselect_of_the_same_character_until_the_logout_save_commits` |
+| Every leave result, and a failed save closing with `CharacterSaveFailed` | `CharacterLeaveHandlerShould`, `CharacterLeaveShould` |
+| In-map packets before a leave run first; those behind it are dropped | `CharacterLeaveQueueShould` |
 | Valid navmesh movement → client position accepted      |      |
 | Movement through wall → correction packet sent         |      |
 | `N` consecutive rejections → connection flagged        |      |

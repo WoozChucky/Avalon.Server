@@ -50,6 +50,13 @@ public interface IWorld
     void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance);
     Task DeSpawnPlayerAsync(IWorldConnection connection);
 
+    /// <summary>
+    /// <see cref="DeSpawnPlayerAsync" />, answering whether the character's logout save committed:
+    /// false when the connection held no character, the character had no row to save, or the save
+    /// failed. What a character leave (#663) acknowledges on.
+    /// </summary>
+    Task<bool> LeaveWorldAsync(IWorldConnection connection);
+
     Task LoadAsync(CancellationToken token);
     void Update(TimeSpan deltaTime);
 }
@@ -186,7 +193,9 @@ public class World : IWorld
         targetInstance.AddCharacter(connection);
     }
 
-    public async Task DeSpawnPlayerAsync(IWorldConnection connection)
+    public Task DeSpawnPlayerAsync(IWorldConnection connection) => LeaveWorldAsync(connection);
+
+    public async Task<bool> LeaveWorldAsync(IWorldConnection connection)
     {
         // A connection that drops while its character is waiting on the readiness barrier never
         // reached an instance, but the row was already written with Online = true by the select.
@@ -196,7 +205,7 @@ public class World : IWorld
             connection.Character = pending.Character;
 
         if (connection.Character is not { } character)
-            return;
+            return false;
 
         _logger.LogInformation("Character {CharacterName} of account {AccountId} left the world",
             character.Name, connection.AccountId?.Value);
@@ -231,10 +240,11 @@ public class World : IWorld
             connection.Character = null;
         }
 
+        bool committed = false;
         try
         {
             if (saved is not null)
-                await saved;
+                committed = await saved;
         }
         catch (Exception e)
         {
@@ -245,6 +255,8 @@ public class World : IWorld
             if (scope is { } s)
                 await s.DisposeAsync();
         }
+
+        return committed;
     }
 
     /// <summary>

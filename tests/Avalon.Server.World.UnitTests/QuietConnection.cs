@@ -41,6 +41,7 @@ internal sealed class QuietConnection(CharacterEntity character) : IWorldConnect
     public AccountId? AccountId { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     public PendingSpawn? PendingSpawn => throw new NotSupportedException();
     public bool SelectInProgress => throw new NotSupportedException();
+    public bool LeaveInProgress => throw new NotSupportedException();
     public long SelectStartedTicks => throw new NotSupportedException();
     public bool IsConnected => throw new NotSupportedException();
     public bool IsClosing => throw new NotSupportedException();

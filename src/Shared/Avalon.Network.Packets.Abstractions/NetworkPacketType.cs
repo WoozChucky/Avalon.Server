@@ -36,6 +36,7 @@ public enum NetworkPacketType : short
     CMSG_CHARACTER_SELECTED = 0x2013,
     CMSG_CHARACTER_LOADED = 0x2014,
     // 0x2015 retired (CMSG_CHARACTER_RUN_WALK)
+    CMSG_CHARACTER_LEAVE = 0x2016,
 
     // Map
     // 0x2020 retired (CMSG_MAP_TELEPORT — admin teleport never wired)
@@ -118,6 +119,7 @@ public enum NetworkPacketType : short
     SMSG_INVENTORY_SNAPSHOT = 0x3028,
     SMSG_INVENTORY_UPDATE = 0x3029,
     SMSG_CHARACTER_STATS = 0x302A,
+    SMSG_CHARACTER_LEAVE_RESULT = 0x302B,
 
     // Map
     SMSG_MAP_TELEPORT    = 0x3030,

@@ -33,6 +33,7 @@ internal sealed class BenchConnection(CharacterEntity character) : IWorldConnect
     public AccountId? AccountId { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     public PendingSpawn? PendingSpawn => throw new NotSupportedException();
     public bool SelectInProgress => throw new NotSupportedException();
+    public bool LeaveInProgress => throw new NotSupportedException();
     public long SelectStartedTicks => throw new NotSupportedException();
     public bool IsConnected => true;
     public bool IsClosing => false;

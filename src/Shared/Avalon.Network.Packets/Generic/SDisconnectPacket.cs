@@ -31,4 +31,7 @@ public enum DisconnectReason : ushort
     DuplicateLogin = 2,
     Kicked = 3,
     SelectTimeout = 4,
+
+    /// <summary>A character leave (#663) whose logout save failed; the player logs in again.</summary>
+    CharacterSaveFailed = 5,
 }

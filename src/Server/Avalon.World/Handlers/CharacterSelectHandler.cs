@@ -96,8 +96,10 @@ public class CharacterSelectHandler(
         // Three states, not one. Character covers a spawned player; PendingSpawn a built one
         // waiting on its client; SelectInProgress the several database round trips between, where
         // both of the others are still null. A second select inside that span orphans the entity
-        // the first one is building.
-        if (connection.Character != null || connection.PendingSpawn != null || connection.SelectInProgress)
+        // the first one is building. A leave still under way (#663) counts as well: the client
+        // selects once it has the leave's answer.
+        if (connection.Character != null || connection.PendingSpawn != null || connection.SelectInProgress ||
+            connection.LeaveInProgress)
         {
             logger.LogWarning("Connection tried to select a character list while already having a character selected");
             activity?.AddEvent(new ActivityEvent("DuplicateSelectionAttempt"));

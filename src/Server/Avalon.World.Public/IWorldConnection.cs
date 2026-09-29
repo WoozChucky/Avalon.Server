@@ -47,6 +47,15 @@ public interface IWorldConnection : IConnection
     long SelectStartedTicks { get; }
 
     /// <summary>
+    ///     True while a character leave (#663) is under way: from the moment the leave takes the
+    ///     character out of the world until its logout save has finished and the answer is sent.
+    ///     <see cref="Character" />, <see cref="PendingSpawn" /> and <see cref="SelectInProgress" />
+    ///     are all clear across that span, so this is the only thing that says the connection is not
+    ///     yet back at character selection. Read-only here; the server sets it.
+    /// </summary>
+    bool LeaveInProgress { get; }
+
+    /// <summary>
     ///     Marks a select as under way. <paramref name="nowTicks" /> is
     ///     <c>DateTime.UtcNow.Ticks</c> and starts the window a stalled select is cancelled after.
     /// </summary>

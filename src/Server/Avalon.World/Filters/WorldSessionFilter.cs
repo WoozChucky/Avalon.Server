@@ -25,6 +25,15 @@ public class WorldSessionFilter(IWorldConnection connection) : PacketFilter
             return true;
         }
 
+        // A leave (#663) is answered in every state, refusals included, so it is accepted whatever the
+        // connection holds. Here and never in the map filter: the session pass runs before any instance
+        // ticks, so the despawn a leave starts never lands while an instance is walking its characters,
+        // and a leave queued behind in-map packets waits at the head until the map pass has taken them.
+        if (type == NetworkPacketType.CMSG_CHARACTER_LEAVE)
+        {
+            return true;
+        }
+
         if (connection.Character != null)
         {
             return false;
