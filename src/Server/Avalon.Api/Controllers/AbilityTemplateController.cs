@@ -57,6 +57,7 @@ public class AbilityTemplateController : BaseController
         CastTime = t.CastTime,
         Cooldown = t.Cooldown,
         Cost = t.Cost,
+        CostPowerType = (Avalon.Api.Contract.PowerType)t.CostPowerType,
         ScriptName = t.ScriptName,
         Range = (Avalon.Api.Contract.SpellRange)t.Range,
         Effects = (Avalon.Api.Contract.SpellEffect)t.Effects,

@@ -59,4 +59,51 @@ public class CharacterServiceShould
         Assert.Equal("Lantern", item.Template.Name);
         Assert.Equal(12u, item.Template.DisplayId);
     }
+
+    /// <summary>A character's abilities carry the pool each cost is spent from (#652).</summary>
+    [Fact]
+    public async Task Return_each_abilitys_cost_power_type()
+    {
+        var id = new CharacterId(42);
+
+        var characters = Substitute.For<ICharacterRepository>();
+        characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
+            .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Caster" });
+
+        var rows = Substitute.For<ICharacterAbilityRepository>();
+        rows.GetCharacterAbilitiesAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterAbility>
+        {
+            new() { CharacterId = id, AbilityId = new AbilityId(210) },
+            new() { CharacterId = id, AbilityId = new AbilityId(211) },
+        });
+
+        var abilities = Substitute.For<IAbilityTemplateRepository>();
+        abilities.GetByIdsAsync(Arg.Any<IEnumerable<AbilityId>>(), Arg.Any<CancellationToken>())
+            .Returns(new List<AbilityTemplate>
+            {
+                new() { Id = new AbilityId(210), Name = "Firebolt", Cost = 0 },
+                new()
+                {
+                    Id = new AbilityId(211), Name = "Flame Burst", Cost = 20,
+                    CostPowerType = Avalon.Network.Packets.State.PowerType.Mana,
+                },
+            });
+
+        var service = new CharacterService(characters, Substitute.For<ICharacterInventoryRepository>(),
+            Substitute.For<IItemInstanceRepository>(), rows, abilities, Substitute.For<IItemTemplateRepository>());
+
+        CharacterAbilitiesDto? result = await service.GetAbilitiesAsync(id);
+
+        Assert.Collection(result!.Abilities,
+            free =>
+            {
+                Assert.Equal(0u, free.Template!.Cost);
+                Assert.Equal(PowerType.None, free.Template.CostPowerType);
+            },
+            costed =>
+            {
+                Assert.Equal(20u, costed.Template!.Cost);
+                Assert.Equal(PowerType.Mana, costed.Template.CostPowerType);
+            });
+    }
 }
