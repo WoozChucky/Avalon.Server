@@ -68,65 +68,15 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             return;
         }
 
-        if (account.Online)
-        {
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.ALREADY_CONNECTED, ctx.Connection.CryptoSession.Encrypt));
-
-            // Noted first, so the login that follows this refusal is not kicked when the message
-            // comes back to this server (#495 review).
-            ctx.Connection.Server?.NoteOwnDisconnectPublish(account.Id);
-            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.ToString());
-
-            var connectedSession = ctx.Connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
-            if (connectedSession != null)
-            {
-                connectedSession.Close();
-            }
-            else
-            {
-                // Only the flag (#484): writing back the row as read would undo a lock or a ban
-                // written since.
-                _logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
-                account.Online = false;
-                await _accountRepository.MarkOfflineAsync(account.Id, account.OnlineSessionId, cancellationToken: token);
-            }
-            return;
-        }
-
-        // Written only while the account is not locked, in SQL: a lock set after the row was read is
-        // never written away by this success. An expired lock is lifted with the count it was set by.
-        // On this path (Active, offline) the refusal is the answer a wrong code in this attempt's
-        // slot got, and both slots stay taken (#484), so a parallel batch that crosses the lock does
-        // not single out the right code. ALREADY_CONNECTED and BANNED/DEACTIVATED above do single
-        // it out, by design.
         var lastIp = attempt.Source.Ip;
-        if (!await _accountRepository.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, ctx.Connection.Id, token))
-        {
-            _logger.LogWarning("Account {AccountId} was locked during its MFA verify", account.Id);
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), ctx.Connection.CryptoSession.Encrypt));
-            return;
-        }
+        if (!await GameLoginCompletion.TryStartAsync(ctx.Connection, account, lastIp, FailureResult(attempt),
+                _accountRepository, _cache, _logger, token)) return;
 
         // The login is complete: the source gets its own slot back, and the username's count is
         // cleared (owner decision on #484).
         await _policy.CompleteAsync(attempt);
 
-        // The version of the row the proof was checked against (#495), before the account id
-        // that makes the connection logged in.
-        ctx.Connection.CredentialsVersion = account.CredentialsVersion;
-        ctx.Connection.LoggedInAt = System.Diagnostics.Stopwatch.GetTimestamp();
-        ctx.Connection.AccountId = account.Id;
-
-        account.Online = true;
-        account.LastIp = lastIp;
-        account.LastLogin = DateTime.UtcNow;
-        account.FailedLogins = 0;
-        account.Locked = false;
-        account.LockedUntil = null;
-
-        await _cache.PublishAsync(CacheKeys.AuthAccountsOnlineChannel, account.Id.ToString()!);
-
-        ctx.Connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, ctx.Connection.CryptoSession.Encrypt));
+        await GameLoginCompletion.FinishAsync(ctx.Connection, account, lastIp, _cache);
     }
 
     /// <summary>The answer to a wrong code in this attempt's budget slot.</summary>

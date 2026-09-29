@@ -6,6 +6,7 @@ using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Avalon.Infrastructure.Login;
+using Avalon.Infrastructure.GameTickets;
 
 namespace Avalon.Server.Auth.Extensions;
 
@@ -34,6 +35,8 @@ public static class ServiceExtensions
             .AddCache()
             .AddMfaService()
             .AddSecureRandom();
+
+        services.AddScoped<IGameTicketStore, RedisGameTicketStore>();
 
         return services;
     }

@@ -155,6 +155,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_AUTH_GAME_TICKET",
+      "opcode": 8207,
+      "hex": "0x200F",
+      "message": "CAuthGameTicketPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_CHARACTER_LIST",
       "opcode": 8208,
       "hex": "0x2010",

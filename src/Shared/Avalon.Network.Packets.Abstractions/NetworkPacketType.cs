@@ -76,6 +76,7 @@ public enum NetworkPacketType : short
     CMSG_MFA_SETUP = 0x200C,
     CMSG_MFA_CONFIRM = 0x200D,
     CMSG_MFA_RESET = 0x200E,
+    CMSG_AUTH_GAME_TICKET = 0x200F,
 
     // Combat
     // 0x2100 retired (CMSG_ATTACK — replaced by CMSG_CAST_ABILITY in V1 combat system)

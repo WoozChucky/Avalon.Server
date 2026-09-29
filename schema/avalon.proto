@@ -102,6 +102,9 @@ enum AuthResult {
 message CAudioRecordPacket {
    optional bytes SoundBuffer = 1;
 }
+message CAuthGameTicketPacket {
+   optional string Ticket = 1;
+}
 message CAuthPacket {
    optional string Username = 1;
    optional string Password = 2;
@@ -433,6 +436,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_MFA_SETUP = 8204;
    NetworkPacketType_CMSG_MFA_CONFIRM = 8205;
    NetworkPacketType_CMSG_MFA_RESET = 8206;
+   NetworkPacketType_CMSG_AUTH_GAME_TICKET = 8207;
    NetworkPacketType_CMSG_CHARACTER_LIST = 8208;
    NetworkPacketType_CMSG_CHARACTER_CREATE = 8209;
    NetworkPacketType_CMSG_CHARACTER_DELETE = 8210;
