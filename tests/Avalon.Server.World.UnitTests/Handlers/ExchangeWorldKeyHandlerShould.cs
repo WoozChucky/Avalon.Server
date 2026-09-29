@@ -94,6 +94,21 @@ public class ExchangeWorldKeyHandlerShould
     }
 
     [Fact]
+    public async Task Assign_Admin_access_at_exchange_before_character_selection()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        var account = MakeAccount(42);
+        account.AccessLevel = AccountAccessLevel.Admin;
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
+        var connection = Substitute.For<IWorldConnection, IAccessLevelAssignable>();
+        connection.ServerCrypto.Returns(_serverCrypto);
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize], connection));
+
+        ((IAccessLevelAssignable)connection).Received(1).AssignAccessLevel(AccountAccessLevel.Admin);
+    }
+
+    [Fact]
     public async Task Refuse_entry_when_maintenance_database_is_unreadable()
     {
         _cache.GetAsync(Arg.Any<string>()).Returns("42:0");

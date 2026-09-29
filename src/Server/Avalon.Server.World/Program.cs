@@ -25,6 +25,7 @@ internal class Program
             .AddSingleton<WorldServer>()
             .AddSingleton<IWorldServer>(provider => provider.GetRequiredService<WorldServer>())
             .AddHostedService(provider => provider.GetRequiredService<WorldServer>())
+            .AddHostedService<WorldMaintenanceReconciler>()
             .AddHostedService(provider =>
             {
                 WorldServer server = provider.GetRequiredService<WorldServer>();

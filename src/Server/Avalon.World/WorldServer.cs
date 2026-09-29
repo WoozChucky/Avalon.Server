@@ -18,6 +18,7 @@ using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
 using Avalon.World.Inventory;
 using Avalon.World.Maintenance;
+using System.Globalization;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
@@ -138,6 +139,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly IWorld _world;
     private readonly ICharacterSaver _characterSaver;
     private readonly IWorldEntryGate? _entryGate;
+    private readonly WorldMaintenanceCoordinator? _maintenanceCoordinator;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -175,7 +177,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IReplicatedCache cache,
         IScriptHotReloader scriptHotReloader,
         ICharacterSaver characterSaver,
-        IWorldEntryGate? entryGate = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
+        IWorldEntryGate? entryGate = null,
+        WorldMaintenanceCoordinator? maintenanceCoordinator = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions,
         PacketDispatchTelemetry.From(DiagnosticsConfig.World.Source, DiagnosticsConfig.World.Meter,
@@ -186,6 +189,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _scriptHotReloader = scriptHotReloader;
         _characterSaver = characterSaver;
         _entryGate = entryGate;
+        _maintenanceCoordinator = maintenanceCoordinator;
+        _maintenanceCoordinator?.SetDrainObserver(() => _pendingDisconnects.IsEmpty);
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _world = world;
         
@@ -265,6 +270,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         await Task.Run(() => _scriptManager.Load(), stoppingToken);
 
         await _world.LoadAsync(stoppingToken);
+
+        if (_maintenanceCoordinator is not null)
+            await _maintenanceCoordinator.InitializeAsync(stoppingToken);
 
         _scriptHotReloader.Start();
 
@@ -480,6 +488,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         foreach (IWorldConnection worldConnection in conns)
             worldConnection.UpdateSession();
+        _maintenanceCoordinator?.Advance(DateTime.UtcNow, conns);
         long t1 = Stopwatch.GetTimestamp();
         double sessionUs = TicksToUs(t1 - t0);
         _sessionUpdateHist.Record((long)sessionUs);
@@ -575,8 +584,33 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     #region Cache Subscriptions
 
-    private async Task CacheSubscribeAsync() =>
+    private async Task CacheSubscribeAsync()
+    {
         await _cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, DelayedDisconnect);
+        if (_maintenanceCoordinator is not null)
+            await _cache.SubscribeAsync(CacheKeys.WorldMaintenance(_world.Id.Value), MaintenanceNotice);
+    }
+
+    private void MaintenanceNotice(RedisChannel channel, RedisValue value)
+    {
+        if (_maintenanceCoordinator is null || !long.TryParse(value.ToString(), NumberStyles.None,
+                CultureInfo.InvariantCulture, out long revision))
+            return;
+
+        _ = ApplyMaintenanceNoticeAsync(revision);
+    }
+
+    private async Task ApplyMaintenanceNoticeAsync(long revision)
+    {
+        try
+        {
+            await _maintenanceCoordinator!.ApplyNotificationAsync(revision, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "World maintenance notification could not be applied; reconciliation will retry");
+        }
+    }
 
     private void DelayedDisconnect(RedisChannel channel, RedisValue value)
     {

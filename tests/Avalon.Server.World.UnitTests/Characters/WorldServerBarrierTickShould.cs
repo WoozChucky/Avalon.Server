@@ -76,7 +76,8 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        for (int i = 0; i < 100 && !connection.IsClosing; i++)
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!connection.IsClosing && DateTime.UtcNow < deadline)
         {
             server.Tick();
             await Task.Delay(10);
@@ -98,7 +99,8 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance,
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        for (int i = 0; i < 100 && connection.PendingSpawn is not null; i++)
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (connection.PendingSpawn is not null && DateTime.UtcNow < deadline)
         {
             server.Tick();
             await Task.Delay(10);
