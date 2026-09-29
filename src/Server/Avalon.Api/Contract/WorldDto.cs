@@ -11,6 +11,8 @@ public sealed class WorldDto
     public string MinVersion { get; set; } = "";
     public string Version { get; set; } = "";
     public WorldStatus Status { get; set; }
+    /// <summary>Whether the world has a fresh runtime ready heartbeat.</summary>
+    public bool Ready { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public int OnlineCount { get; set; }

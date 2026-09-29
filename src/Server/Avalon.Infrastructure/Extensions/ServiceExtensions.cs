@@ -1,6 +1,7 @@
 using Avalon.Infrastructure.Configuration;
 using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
+using Avalon.Infrastructure.WorldMaintenance;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Avalon.Infrastructure.Extensions;
@@ -15,6 +16,12 @@ public static class ServiceExtensions
             .ValidateOnStart();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         services.AddSingleton<IWorldReadiness, WorldReadiness>();
+        return services;
+    }
+
+    public static IServiceCollection AddWorldMaintenanceControl(this IServiceCollection services)
+    {
+        services.AddScoped<IWorldMaintenanceControl, WorldMaintenanceControl>();
         return services;
     }
 

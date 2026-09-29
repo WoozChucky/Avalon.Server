@@ -6,6 +6,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Extensions;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
 
@@ -18,7 +19,8 @@ public interface IWorldService
     /// only those (#452).
     /// </summary>
     Task<PagedResult<WorldDto>> ListAsync(AccountAccessLevel caller, int page, int pageSize,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, string? sortBy = null,
+        SortDirection sortDirection = SortDirection.Ascending);
 
     /// <summary>
     /// The world, or null when it does not exist or <paramref name="caller"/> may not enter it. The
@@ -34,25 +36,43 @@ public class WorldService : IWorldService
 {
     private readonly IWorldRepository _repository;
     private readonly IWorldDatabases _databases;
+    private readonly IWorldReadiness _readiness;
 
-    public WorldService(IWorldRepository repository, IWorldDatabases databases)
+    public WorldService(IWorldRepository repository, IWorldDatabases databases, IWorldReadiness readiness)
     {
         _repository = repository;
         _databases = databases;
+        _readiness = readiness;
     }
 
     public async Task<PagedResult<WorldDto>> ListAsync(AccountAccessLevel caller, int page, int pageSize,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, string? sortBy = null,
+        SortDirection sortDirection = SortDirection.Ascending)
     {
         var filters = new WorldPaginateFilters
         {
             Page = page < 1 ? 1 : page,
             PageSize = pageSize is < 1 or > 50 ? 50 : pageSize,
             CallerAccessLevel = caller,
+            SortBy = sortBy,
         };
 
+        if (string.Equals(sortBy, "status", StringComparison.OrdinalIgnoreCase))
+        {
+            // Status is derived from Redis and maintenance intent, so it cannot be sorted in SQL.
+            // Sort the complete visible set before applying the requested page.
+            var visible = await _repository.FindByAsync(filters.GetFilter(), cancellationToken);
+            var allDtos = await Task.WhenAll(visible.Select(w => ToDtoAsync(w, cancellationToken)));
+            var sorted = sortDirection == SortDirection.Ascending
+                ? allDtos.OrderBy(w => w.Status).ThenBy(w => w.Id)
+                : allDtos.OrderByDescending(w => w.Status).ThenBy(w => w.Id);
+            return new PagedResult<WorldDto>(filters.Page, filters.PageSize, allDtos.Length,
+                sorted.Skip((filters.Page - 1) * filters.PageSize).Take(filters.PageSize).ToList());
+        }
+
         var result = await _repository.PaginateAsync(filters, track: false, cancellationToken);
-        return result.MapTo(ToDto);
+        var items = await Task.WhenAll(result.Items.Select(w => ToDtoAsync(w, cancellationToken)));
+        return new PagedResult<WorldDto>(result.Page, result.PageSize, result.TotalCount, items.ToList());
     }
 
     public async Task<WorldDto?> GetAsync(ushort id, AccountAccessLevel caller,
@@ -64,7 +84,7 @@ public class WorldService : IWorldService
         if (world is null || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller))
             return null;
 
-        return ToDto(world);
+        return await ToDtoAsync(world, cancellationToken);
     }
 
     public async Task<WorldDto> CreateAsync(CreateWorldRequest request, CancellationToken cancellationToken = default)
@@ -84,13 +104,12 @@ public class WorldService : IWorldService
             Version = request.Version,
             Type = (Avalon.Domain.Auth.WorldType)request.Type,
             AccessLevelRequired = (Avalon.Common.Accounts.AccountAccessLevel)request.AccessLevelRequired,
-            Status = (Avalon.Domain.Auth.WorldStatus)request.Status,
             CreatedAt = now,
             UpdatedAt = now,
         };
 
         var created = await _repository.CreateAsync(world, cancellationToken);
-        return ToDto(created);
+        return await ToDtoAsync(created, cancellationToken);
     }
 
     public async Task<WorldDto?> UpdateAsync(ushort id, UpdateWorldRequest request, CancellationToken cancellationToken = default)
@@ -105,16 +124,20 @@ public class WorldService : IWorldService
         if (request.Version is not null) world.Version = request.Version;
         if (request.Type.HasValue) world.Type = (Avalon.Domain.Auth.WorldType)request.Type.Value;
         if (request.AccessLevelRequired.HasValue) world.AccessLevelRequired = (Avalon.Common.Accounts.AccountAccessLevel)request.AccessLevelRequired.Value;
-        if (request.Status.HasValue) world.Status = (Avalon.Domain.Auth.WorldStatus)request.Status.Value;
 
         world.UpdatedAt = DateTime.UtcNow;
 
-        await _repository.UpdateAsync(world, cancellationToken);
-        return ToDto(world);
+        await _repository.UpdateMetadataAsync(world, cancellationToken);
+        return await ToDtoAsync(world, cancellationToken);
     }
 
-    private WorldDto ToDto(WorldEntity w) => new()
+    private async Task<WorldDto> ToDtoAsync(WorldEntity w, CancellationToken ct)
     {
+        bool ready = await _readiness.IsReadyAsync(w.Id.Value, ct);
+        var state = new WorldMaintenanceState(w.MaintenanceEnabled, w.MaintenanceRevision,
+            w.MaintenanceDeadlineUtc);
+        return new WorldDto
+        {
         Id = w.Id.Value,
         Name = w.Name,
         Type = (Avalon.Api.Contract.WorldType)w.Type,
@@ -123,11 +146,13 @@ public class WorldService : IWorldService
         Port = w.Port,
         MinVersion = w.MinVersion,
         Version = w.Version,
-        Status = (Avalon.Api.Contract.WorldStatus)w.Status,
+        Status = (Avalon.Api.Contract.WorldStatus)WorldReadiness.Resolve(state, ready),
+        Ready = ready,
         CreatedAt = w.CreatedAt,
         UpdatedAt = w.UpdatedAt,
         OnlineCount = 0,
         Configured = _databases.TryGet(w.Id, out _),
         Available = _databases.IsAvailable(w.Id),
-    };
+        };
+    }
 }

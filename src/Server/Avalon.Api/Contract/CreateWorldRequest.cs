@@ -11,5 +11,4 @@ public sealed class CreateWorldRequest
     [Required] public string Version { get; set; } = "";
     public WorldType Type { get; set; } = WorldType.PvE;
     public AccountAccessLevel AccessLevelRequired { get; set; } = AccountAccessLevel.Player;
-    public WorldStatus Status { get; set; } = WorldStatus.Offline;
 }
