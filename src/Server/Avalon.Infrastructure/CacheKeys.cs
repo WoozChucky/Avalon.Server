@@ -169,6 +169,9 @@ public static class CacheKeys
 
     // ── Presence (live player observability) ──────────────────────────────────
 
+    /// <summary>Short-lived proof that a world listener and its simulation tick are running.</summary>
+    public static string WorldReady(ushort worldId) => $"world:{worldId}:ready";
+
     /// <summary>
     /// Live presence snapshot for one world, written by that world server at ~1 Hz.
     /// Value: JSON <c>WorldPresenceSnapshot</c>. Expires after <see cref="PresenceTtl"/>,

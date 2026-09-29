@@ -147,6 +147,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     // Monotonic tick counter used solely to derive the time-sync ping phase.
     // We can't reuse _tickCount because that one resets every ~1s for the TPS calculation.
     private long _pingTickCounter;
+    private long _completedTicks;
+    private volatile bool _isListening;
+
+    public bool IsListening => _isListening;
+    public long CompletedTicks => Interlocked.Read(ref _completedTicks);
 
     private ObservableGauge<double> _tickRate;
     private Histogram<double> _tickDuration;
@@ -287,6 +292,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         try
         {
             StartListening();
+            _isListening = true;
         }
         catch
         {
@@ -308,6 +314,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {
+        _isListening = false;
         // The tick goes first. Closing an outbox does its own final flush, so the tick has nothing
         // left to contribute, and letting it keep flushing outboxes that are mid-teardown would
         // put a second writer on buffers the close is about to hand back to the pool.
@@ -396,6 +403,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                     _deadlineOvershoot.Record(overshootUs);
 
                     Update(deltaTime, tickStart);
+
+                    Interlocked.Increment(ref _completedTicks);
 
                     _tickCount++;
                     double elapsedSeconds =

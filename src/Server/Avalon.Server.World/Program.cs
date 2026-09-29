@@ -25,6 +25,16 @@ internal class Program
             .AddSingleton<WorldServer>()
             .AddSingleton<IWorldServer>(provider => provider.GetRequiredService<WorldServer>())
             .AddHostedService(provider => provider.GetRequiredService<WorldServer>())
+            .AddHostedService(provider =>
+            {
+                WorldServer server = provider.GetRequiredService<WorldServer>();
+                return new WorldReadyHeartbeatService(
+                    provider.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId.Value,
+                    () => server.IsListening,
+                    () => server.CompletedTicks,
+                    provider.GetRequiredService<IReplicatedCache>(),
+                    provider.GetRequiredService<ILogger<WorldReadyHeartbeatService>>());
+            })
             // IWorld.InstanceRegistry does not exist until World.LoadAsync runs inside
             // WorldServer.ExecuteAsync, which happens after every IHostedService below has
             // already been constructed. The accessor defers that lookup to each capture tick

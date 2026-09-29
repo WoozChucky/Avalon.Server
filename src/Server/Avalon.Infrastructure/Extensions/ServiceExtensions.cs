@@ -14,6 +14,7 @@ public static class ServiceExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
+        services.AddSingleton<IWorldReadiness, WorldReadiness>();
         return services;
     }
 
