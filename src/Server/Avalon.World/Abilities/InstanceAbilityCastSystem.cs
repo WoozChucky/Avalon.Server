@@ -360,8 +360,8 @@ public class InstanceAbilityCastSystem(
         _ => 0f,
     };
 
-    /// <summary>A creature's casts cost nothing (#163): it has no pool, and only its cooldowns gate it.</summary>
-    private static bool IsFree(IUnit caster) => caster is ICreature;
+    /// <summary>Creatures and staff characters in god mode do not pay ability costs.</summary>
+    private static bool IsFree(IUnit caster) => caster is ICreature or CharacterEntity { GodMode: true };
 
     /// <summary>A character is dead by its flag, a creature at 0 health.</summary>
     private static bool IsDead(IUnit caster) => caster switch
@@ -392,7 +392,8 @@ public class InstanceAbilityCastSystem(
     /// </summary>
     private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct)
     {
-        ability.CooldownTimer = CooldownOf(caster, ability, hastePct);
+        if (caster is not CharacterEntity { GodMode: true })
+            ability.CooldownTimer = CooldownOf(caster, ability, hastePct);
         arena.BroadcastFinishCast(caster, ability);
 
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world

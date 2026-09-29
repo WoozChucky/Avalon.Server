@@ -706,6 +706,51 @@ public class CombatServiceShould
         outcomes.DidNotReceiveWithAnyArgs().CharacterDamaged(default!, default!, default, default, default);
     }
 
+    [Fact]
+    public void Keep_a_god_mode_character_in_combat_without_damaging_it()
+    {
+        var (svc, reg, ctx, outcomes) = BuildServiceWithOutcomes();
+        var attacker = StubCreature();
+        var target = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(547);
+        target.Health = 100;
+        target.CurrentHealth = 100;
+        target.GodMode = true;
+        var ability = StubAbility(1.0f);
+        ability.AbilityId.Returns(new Avalon.Common.ValueObjects.AbilityId(7));
+
+        svc.ApplyDamage(attacker, target, 30, ability);
+
+        Assert.Equal(100u, target.CurrentHealth);
+        Assert.False(target.IsDead);
+        Assert.True(target.IsInCombat);
+        Assert.NotNull(reg.FindEncounterContaining(target));
+        outcomes.Received(1).CharacterDamaged(target, attacker, 0,
+            new Avalon.Common.ValueObjects.AbilityId(7), Avalon.Network.Packets.Combat.HitResult.None);
+        ctx.DidNotReceiveWithAnyArgs().BroadcastUnitDeath(default!, default!);
+    }
+
+    [Fact]
+    public void Restore_raw_incoming_damage_when_god_mode_is_disabled()
+    {
+        var (svc, _, _, outcomes) = BuildServiceWithOutcomes();
+        var attacker = StubCreature();
+        var target = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(548);
+        target.Health = 100;
+        target.CurrentHealth = 100;
+        target.GodMode = true;
+
+        svc.ApplyDamage(attacker, target, 10);
+        Assert.Equal(100u, target.CurrentHealth);
+        outcomes.Received(1).CharacterDamaged(target, attacker, 0, null,
+            Avalon.Network.Packets.Combat.HitResult.None);
+
+        target.GodMode = false;
+        svc.ApplyDamage(attacker, target, 10);
+        Assert.Equal(90u, target.CurrentHealth);
+        outcomes.Received(1).CharacterDamaged(target, attacker, 10, null,
+            Avalon.Network.Packets.Combat.HitResult.None);
+    }
+
     // ── #588: a hit larger than a creature's remaining health kills it; health never wraps ──
 
     [Fact]

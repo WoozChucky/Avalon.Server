@@ -5,6 +5,7 @@ using System.Linq;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
@@ -12,6 +13,8 @@ using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.World;
 using Avalon.World.Handlers;
+using Avalon.World.Configuration;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -33,6 +36,114 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 /// </summary>
 public class CastAbilityHandlerShould
 {
+    [Fact]
+    public void Admit_a_god_mode_cast_despite_gcd_ability_cooldown_and_no_power()
+    {
+        var f = new GodFixture();
+        f.Character.LastCastStartTime = DateTime.UtcNow;
+        DateTime previousStart = f.Character.LastCastStartTime;
+        f.Character.CurrentPower = 0;
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 30 });
+        ability.CooldownTimer.Returns(5f);
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        f.Instance.Received(1).RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability);
+        Assert.Empty(f.SentPackets());
+        Assert.Equal(previousStart, f.Character.LastCastStartTime);
+    }
+
+    [Fact]
+    public void Restore_the_previous_gcd_and_ability_cooldown_when_god_mode_ends()
+    {
+        var f = new GodFixture();
+        f.Character.LastCastStartTime = DateTime.UtcNow;
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+        ability.CooldownTimer.Returns(5f);
+        f.Character.GodMode = false;
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        Assert.Equal(CastRejectReason.Gcd, f.SingleRefusal().Reason);
+
+        f.Connection.ClearReceivedCalls();
+        f.Character.LastCastStartTime = DateTime.UtcNow.AddSeconds(-10);
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        Assert.Equal(CastRejectReason.Cooldown, f.SingleRefusal().Reason);
+    }
+
+    [Fact]
+    public void Preserve_other_cast_requirements_in_god_mode()
+    {
+        var dead = new GodFixture();
+        dead.Character.IsDead = true;
+        dead.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+        dead.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        Assert.Equal(CastRejectReason.Dead, dead.SingleRefusal().Reason);
+
+        var casting = new GodFixture();
+        IAbility active = casting.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+        active.Casting = true;
+        casting.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        Assert.Equal(CastRejectReason.AlreadyCasting, casting.SingleRefusal().Reason);
+
+        var notOwned = new GodFixture();
+        notOwned.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        Assert.Equal(CastRejectReason.NotOwned, notOwned.SingleRefusal().Reason);
+
+        var missingAim = new GodFixture();
+        missingAim.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", AimMode = AbilityAimMode.Cursor });
+        missingAim.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        Assert.Equal(CastRejectReason.NoAimPoint, missingAim.SingleRefusal().Reason);
+
+        var outOfCombat = new GodFixture();
+        outOfCombat.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Flags = AbilityFlags.RequiresInCombat });
+        outOfCombat.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        Assert.Equal(CastRejectReason.RequiresInCombat, outOfCombat.SingleRefusal().Reason);
+    }
+
+    private sealed class GodFixture
+    {
+        public CharacterEntity Character { get; } = new(NullLoggerFactory.Instance,
+            new Character { Id = 627u, Health = 100 }, new RegenConfiguration());
+        public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection>();
+        public IMapInstance Instance { get; } = Substitute.For<IMapInstance>();
+        private readonly CastAbilityHandler _handler;
+
+        public GodFixture()
+        {
+            Character.GodMode = true;
+            Character.PowerType = PowerType.Mana;
+            Character.CurrentPower = 100;
+            Character.Spells.Load([]);
+            Connection.Character.Returns(Character);
+            Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
+            Instance.RunInstantAbility(default!, default, default!).ReturnsForAnyArgs(true);
+            var registry = Substitute.For<IInstanceRegistry>();
+            registry.GetInstanceById(Arg.Any<Guid>()).Returns(Instance);
+            var world = Substitute.For<IWorld>();
+            world.InstanceRegistry.Returns(registry);
+            _handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
+        }
+
+        public IAbility GiveAbility(AbilityMetadata metadata)
+        {
+            var ability = Substitute.For<IAbility>();
+            ability.AbilityId.Returns(new AbilityId(1));
+            ability.Metadata.Returns(metadata);
+            Character.Spells.Load([ability]);
+            return ability;
+        }
+
+        public void Cast(CCastAbilityPacket packet) => _handler.Execute(Connection, packet);
+
+        public List<NetworkPacket> SentPackets() => Connection.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
+            .Select(call => (NetworkPacket)call.GetArguments()[0]!)
+            .ToList();
+
+        public SAbilityNotReadyPacket SingleRefusal() => Decode(Assert.Single(SentPackets()));
+    }
+
     // ── Refusals before the instance ─────────────────────────────────────────
 
     [Fact]

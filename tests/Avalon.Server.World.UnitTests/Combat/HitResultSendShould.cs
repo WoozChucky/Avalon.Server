@@ -124,6 +124,44 @@ public class HitResultSendShould
     }
 
     [Fact]
+    public void Send_zero_damage_hits_on_a_god_mode_character_to_it_and_nearby_watchers()
+    {
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: new ScriptedCombatRandom(0.99, 0.99, 0.99));
+        MapInstanceClient victim = At(instance, 506_313, Vector3.zero);
+        victim.Character.GodMode = true;
+        MapInstanceClient watcher = At(instance, 506_314, new Vector3(3f, 0f, 0f));
+        MapInstanceClient far = At(instance, 506_315, Far);
+        Creature boar = AddCreature(instance, 506_812, new Vector3(1f, 0f, 0f));
+
+        instance.CombatService.ApplyDamage(boar, victim.Character, 10);
+
+        SCharacterDamagePacket own = Assert.Single(victim.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
+        Assert.Equal((0u, 100u, HitResult.None), (own.Damage, own.CurrentHealth, own.Result));
+        SUnitDamagePacket seen = Assert.Single(UnitHits(watcher));
+        Assert.Equal((0u, 100u, HitResult.None), (seen.Damage, seen.CurrentHealth, seen.Result));
+        Assert.Empty(far.Sent);
+        Assert.NotNull(instance.CombatService.GetEncounterFor(victim.Character));
+        Assert.True(victim.Character.IsInCombat);
+    }
+
+    [Fact]
+    public void Preserve_dodges_and_outgoing_damage_in_god_mode()
+    {
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: new ScriptedCombatRandom(0.0, 0.99, 0.99, 0.99));
+        MapInstanceClient gm = At(instance, 506_316, Vector3.zero);
+        GiveDefences(gm.Character);
+        gm.Character.GodMode = true;
+        Creature boar = AddCreature(instance, 506_813, new Vector3(1f, 0f, 0f));
+
+        instance.CombatService.ApplyDamage(boar, gm.Character, 10);
+        Assert.Equal(HitResult.Dodged,
+            Assert.Single(gm.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED)).Result);
+
+        instance.CombatService.ApplyDamage(gm.Character, boar, 10);
+        Assert.Equal(90u, boar.CurrentHealth);
+    }
+
+    [Fact]
     public void Mark_a_crit_on_a_creature_crit()
     {
         using MapInstance instance = TestMapInstances.Build(NewWorld(), random: new ScriptedCombatRandom(0.99, 0.0, 0.99));

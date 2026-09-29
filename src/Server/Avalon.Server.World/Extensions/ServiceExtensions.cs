@@ -99,6 +99,7 @@ public static class ServiceExtensions
         // Chat commands
         services.AddSingleton<ICommand, GroupInviteCommand>();
         services.AddSingleton<ICommand, ReloadCommand>();
+        services.AddSingleton<ICommand, GodModeCommand>();
         services.AddSingleton<PvpToggle>();
         services.AddSingleton<ICommand, PvpCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();

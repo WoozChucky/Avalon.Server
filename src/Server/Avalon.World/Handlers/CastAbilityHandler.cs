@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.World;
 using Avalon.World.Abilities;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
@@ -31,6 +32,8 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             return;
         }
 
+        bool godMode = caster is CharacterEntity { GodMode: true };
+
         if (caster.IsDead)
         {
             Refuse(connection, packet, CastRejectReason.Dead);
@@ -45,7 +48,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         }
 
         double sinceLastCast = (DateTime.UtcNow - caster.LastCastStartTime).TotalMilliseconds;
-        if (sinceLastCast < combatConfig.GcdMs)
+        if (!godMode && sinceLastCast < combatConfig.GcdMs)
         {
             // Rounded up: a sub-millisecond remainder must not read as 0 ("ready") on the wire.
             Refuse(connection, packet, CastRejectReason.Gcd, (uint)Math.Ceiling(combatConfig.GcdMs - sinceLastCast));
@@ -60,7 +63,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             return;
         }
 
-        if (ability.CooldownTimer > 0)
+        if (!godMode && ability.CooldownTimer > 0)
         {
             // CooldownTimer is float seconds; the wire field is uint milliseconds, rounded up so a
             // sub-millisecond remainder still carries at least 1.
@@ -99,16 +102,19 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
 
         var aim = new AbilityAim(facing, point);
 
-        switch (AbilityCost.Check(caster, meta))
+        if (!godMode)
         {
-            case CostCheck.NotEnoughPower:
-                Refuse(connection, packet, CastRejectReason.NotEnoughPower);
-                return;
-            case CostCheck.WrongPowerType:
-                logger.LogWarning("Cast reject WrongPowerType ability={AbilityId} powerType={PowerType}",
-                    packet.AbilityId, caster.PowerType);
-                Refuse(connection, packet, CastRejectReason.InternalError);
-                return;
+            switch (AbilityCost.Check(caster, meta))
+            {
+                case CostCheck.NotEnoughPower:
+                    Refuse(connection, packet, CastRejectReason.NotEnoughPower);
+                    return;
+                case CostCheck.WrongPowerType:
+                    logger.LogWarning("Cast reject WrongPowerType ability={AbilityId} powerType={PowerType}",
+                        packet.AbilityId, caster.PowerType);
+                    Refuse(connection, packet, CastRejectReason.InternalError);
+                    return;
+            }
         }
 
         ISimulationContext? context = world.InstanceRegistry.GetInstanceById(caster.InstanceId);
@@ -139,7 +145,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         }
 
         // GCD anchor: stamps the start of this cast for the next GCD calculation.
-        caster.LastCastStartTime = DateTime.UtcNow;
+        if (!godMode) caster.LastCastStartTime = DateTime.UtcNow;
     }
 
     /// <summary>A present point whose three components are finite. Its height is kept but no shape reads it.</summary>
