@@ -23,6 +23,9 @@ using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 using Avalon.World.Pvp;
 using Avalon.World.Maintenance;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.Auth;
+using Avalon.Database.Auth.Repositories;
+using Avalon.World.Persistence;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 
@@ -112,6 +115,35 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     [Fact]
+    public async Task Do_not_spawn_when_maintenance_applies_after_a_completed_entry_check()
+    {
+        var gate = Substitute.For<IWorldEntryGate>();
+        var check = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(check.Task);
+        var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
+            Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
+            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+        coordinator.ApplyCommitted(new WorldMaintenanceState(false, 1, null));
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate, coordinator);
+        connection.AccountId = new AccountId(42);
+        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
+        connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
+            DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
+
+        server.Tick();
+        Assert.True(SpinWait.SpinUntil(() => gate.ReceivedCalls().Any(c =>
+            c.GetMethodInfo().Name == nameof(IWorldEntryGate.CheckAsync)), TimeSpan.FromSeconds(5)));
+        check.SetResult(true);
+        await Task.Delay(100);
+        coordinator.ApplyCommitted(new WorldMaintenanceState(true, 2, DateTime.UtcNow.AddMinutes(5)));
+
+        server.Tick();
+
+        Assert.True(connection.IsClosing);
+        world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+    }
+
+    [Fact]
     public void Leave_a_character_alone_while_its_client_still_has_time()
     {
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build();
@@ -160,14 +192,14 @@ public class WorldServerBarrierTickShould : IDisposable
     private static readonly Lazy<StaticData> SeededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
 
     private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(
-        IWorldEntryGate? gate = null)
+        IWorldEntryGate? gate = null, WorldMaintenanceCoordinator? coordinator = null)
     {
         StaticData data = SeededData.Value;   // loaded outside Returns, which it would otherwise interrupt
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CharacterLoadTimeoutSeconds = 15 });
         world.Data.Returns(data);
 
-        var server = new TestWorldServer(world, gate);
+        var server = new TestWorldServer(world, gate, coordinator);
         var connection = new Avalon.World.WorldConnection(
             server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
         server.Add(connection);
@@ -177,7 +209,7 @@ public class WorldServerBarrierTickShould : IDisposable
     /// <summary>Reaches one tick without the socket loop that normally drives it.</summary>
     private sealed class TestWorldServer : WorldServer
     {
-        public TestWorldServer(IWorld world, IWorldEntryGate? gate) : base(
+        public TestWorldServer(IWorld world, IWorldEntryGate? gate, WorldMaintenanceCoordinator? coordinator) : base(
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
             new AnyServiceProvider(),
@@ -186,7 +218,7 @@ public class WorldServerBarrierTickShould : IDisposable
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
-            Substitute.For<Avalon.World.Persistence.ICharacterSaver>(), gate)
+            Substitute.For<Avalon.World.Persistence.ICharacterSaver>(), gate, coordinator)
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);

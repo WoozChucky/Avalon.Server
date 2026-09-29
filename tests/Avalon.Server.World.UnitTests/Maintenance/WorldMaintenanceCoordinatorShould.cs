@@ -1,4 +1,5 @@
 using Avalon.Common.Accounts;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
@@ -46,6 +47,27 @@ public sealed class WorldMaintenanceCoordinatorShould
         Assert.Contains("0 seconds", messages[^1]);
         player.Received(1).CloseAsync();
         admin.DidNotReceive().CloseAsync();
+    }
+
+    [Fact]
+    public void Leave_a_new_socket_time_to_authenticate_after_the_deadline()
+    {
+        var coordinator = Coordinator();
+        var connecting = Connection(AccountAccessLevel.Player);
+        connecting.AccountId.Returns((AccountId?)null);
+        coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, Start.AddSeconds(-1)));
+
+        coordinator.Advance(Start, [connecting]);
+        connecting.DidNotReceive().CloseAsync();
+
+        connecting.AccountId.Returns(new AccountId(42));
+        connecting.AccessLevel.Returns(AccountAccessLevel.Admin);
+        coordinator.Advance(Start.AddSeconds(1), [connecting]);
+        connecting.DidNotReceive().CloseAsync();
+
+        connecting.AccessLevel.Returns(AccountAccessLevel.Player);
+        coordinator.Advance(Start.AddSeconds(2), [connecting]);
+        connecting.Received(1).CloseAsync();
     }
 
     [Fact]
@@ -129,6 +151,7 @@ public sealed class WorldMaintenanceCoordinatorShould
     private static IWorldConnection Connection(AccountAccessLevel access)
     {
         var connection = Substitute.For<IWorldConnection>();
+        connection.AccountId.Returns(new AccountId(42));
         connection.AccessLevel.Returns(access);
         connection.IsConnected.Returns(true);
         connection.InGame.Returns(true);

@@ -17,7 +17,8 @@ namespace Avalon.World.Handlers;
 public class CharacterLoadedHandler(
     ILogger<CharacterLoadedHandler> logger,
     IWorld world,
-    IWorldEntryGate? entryGate = null) : WorldPacketHandler<CCharacterLoadedPacket>
+    IWorldEntryGate? entryGate = null,
+    WorldMaintenanceCoordinator? maintenance = null) : WorldPacketHandler<CCharacterLoadedPacket>
 {
     public override void Execute(IWorldConnection connection, CCharacterLoadedPacket packet)
     {
@@ -45,7 +46,7 @@ public class CharacterLoadedHandler(
             CharacterReadinessBarrier.RequestRelease(connection, world, logger, entryGate,
                 () => logger.LogInformation(
                     "Character {CharacterName} entered the world for account {AccountId} at {Position}",
-                    characterName, connection.AccountId, connection.Character!.Position));
+                    characterName, connection.AccountId, connection.Character!.Position), maintenance);
             return;
         }
 

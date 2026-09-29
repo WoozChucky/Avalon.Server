@@ -97,13 +97,6 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
             return;
         }
 
-        if (state.Enabled && (account.AccessLevel & AccountAccessLevel.Admin) == 0)
-        {
-            ctx.Connection.Send(SWorldSelectPacket.CreateError(WorldSelectResult.Maintenance,
-                ctx.Connection.CryptoSession.Encrypt));
-            return;
-        }
-
         bool ready;
         try
         {
@@ -122,6 +115,13 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
         if (!ready)
         {
             SendWorldUnavailable(ctx.Connection);
+            return;
+        }
+
+        if (state.Enabled && (account.AccessLevel & AccountAccessLevel.Admin) == 0)
+        {
+            ctx.Connection.Send(SWorldSelectPacket.CreateError(WorldSelectResult.Maintenance,
+                ctx.Connection.CryptoSession.Encrypt));
             return;
         }
 

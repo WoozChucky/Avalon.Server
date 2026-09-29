@@ -501,7 +501,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         TimeSpan barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
 
         CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger,
-            _entryGate);
+            _entryGate, _maintenanceCoordinator);
 
         // The other half of the same failure: a select that never reached a pending spawn at all,
         // so ReleaseExpired cannot see it. Sharing the timeout because both are "the select

@@ -111,6 +111,21 @@ public class CWorldSelectHandlerShould
         await AssertRefusedWithoutSideEffectsAsync();
     }
 
+    [Theory]
+    [InlineData(AccountAccessLevel.Player)]
+    [InlineData(AccountAccessLevel.Admin)]
+    public async Task Report_an_offline_maintenance_world_as_unavailable(AccountAccessLevel access)
+    {
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5)));
+        _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(false);
+
+        await SelectAsync(AccountAccessLevel.Player, access);
+
+        Assert.Equal(WorldSelectResult.WorldUnavailable, Assert.Single(SentPackets()).Result);
+        await AssertRefusedWithoutSideEffectsAsync();
+    }
+
     [Fact]
     public async Task Hide_maintenance_state_of_a_forbidden_world()
     {

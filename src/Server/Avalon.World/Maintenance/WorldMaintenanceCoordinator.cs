@@ -33,6 +33,19 @@ public sealed class WorldMaintenanceCoordinator(
         get { lock (_sync) return _state; }
     }
 
+    /// <summary>Serializes the final spawn with locally applied maintenance transitions.</summary>
+    public bool RunIfEntryAllowed(IWorldConnection connection, Action enter)
+    {
+        lock (_sync)
+        {
+            if (_state is null || (_state.Enabled &&
+                (connection.AccessLevel & AccountAccessLevel.Admin) == 0))
+                return false;
+            enter();
+            return true;
+        }
+    }
+
     public void SetDrainObserver(Func<bool> disconnectsProcessed)
         => _disconnectsProcessed = disconnectsProcessed;
 
@@ -118,7 +131,7 @@ public sealed class WorldMaintenanceCoordinator(
             int newCloses = 0;
             foreach (IWorldConnection connection in connections)
             {
-                if (!connection.IsConnected || connection.IsClosing ||
+                if (!connection.IsConnected || connection.IsClosing || connection.AccountId is null ||
                     (connection.AccessLevel & AccountAccessLevel.Admin) != 0 || !_closing.Add(connection))
                     continue;
 

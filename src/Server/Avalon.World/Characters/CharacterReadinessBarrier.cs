@@ -19,7 +19,7 @@ public static class CharacterReadinessBarrier
 
     /// <summary>Checks current admission off the tick before a pending character becomes visible.</summary>
     public static void RequestRelease(IWorldConnection connection, IWorld world, ILogger logger,
-        IWorldEntryGate gate, Action? onSpawn = null)
+        IWorldEntryGate gate, Action? onSpawn = null, WorldMaintenanceCoordinator? maintenance = null)
     {
         if (!connection.IsConnected || connection.IsClosing || connection.AccountId is null ||
             connection.PendingSpawn is not { } pending || PendingChecks.TryGetValue(connection, out _))
@@ -51,7 +51,21 @@ public static class CharacterReadinessBarrier
                 return;
             }
 
-            if (Release(connection, world, logger)) onSpawn?.Invoke();
+            bool released = false;
+            if (maintenance is not null)
+            {
+                if (!maintenance.RunIfEntryAllowed(connection,
+                        () => released = Release(connection, world, logger)))
+                {
+                    GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
+                        DisconnectReason.Maintenance, logger);
+                    return;
+                }
+            }
+            else
+                released = Release(connection, world, logger);
+
+            if (released) onSpawn?.Invoke();
         });
     }
 
@@ -96,7 +110,8 @@ public static class CharacterReadinessBarrier
     /// </summary>
     /// <param name="nowTicks"><c>DateTime.UtcNow.Ticks</c>.</param>
     public static void ReleaseExpired(IEnumerable<IWorldConnection> connections, IWorld world,
-        long nowTicks, TimeSpan timeout, ILogger logger, IWorldEntryGate? gate = null)
+        long nowTicks, TimeSpan timeout, ILogger logger, IWorldEntryGate? gate = null,
+        WorldMaintenanceCoordinator? maintenance = null)
     {
         foreach (IWorldConnection connection in connections)
         {
@@ -121,7 +136,7 @@ public static class CharacterReadinessBarrier
                 RequestRelease(connection, world, logger, gate, () => logger.LogWarning(
                     "Character {CharacterName} for account {AccountId} spawned without a load report; " +
                     "the readiness barrier expired after {WaitedMs}ms",
-                    characterName, connection.AccountId, (long)waited.TotalMilliseconds));
+                    characterName, connection.AccountId, (long)waited.TotalMilliseconds), maintenance);
                 continue;
             }
 
