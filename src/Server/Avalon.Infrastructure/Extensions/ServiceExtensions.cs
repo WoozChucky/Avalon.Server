@@ -21,7 +21,7 @@ public static class ServiceExtensions
 
     public static IServiceCollection AddWorldMaintenanceControl(this IServiceCollection services)
     {
-        services.AddScoped<IWorldMaintenanceControl, WorldMaintenanceControl>();
+        services.AddSingleton<IWorldMaintenanceControl, WorldMaintenanceControl>();
         return services;
     }
 

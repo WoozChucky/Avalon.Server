@@ -20,13 +20,15 @@ public sealed class WorldMaintenanceControl(
     public async Task<WorldMaintenanceState?> SetAsync(WorldId id, bool enabled, TimeSpan grace,
         string actor, CancellationToken ct)
     {
+        WorldMaintenanceState? prior = await repository.ReadAsync(id, ct);
         WorldMaintenanceState? committed = await repository.TransitionAsync(id, enabled, grace,
             clock.GetUtcNow().UtcDateTime, ct);
         if (committed is null)
             return null;
 
-        logger.LogInformation("World {WorldId} maintenance set to {Enabled} by {Actor}, revision {Revision}",
-            id.Value, committed.Enabled, actor, committed.Revision);
+        logger.LogInformation(
+            "World {WorldId} maintenance {PriorEnabled} -> {Enabled} by {Actor}, revision {Revision}",
+            id.Value, prior?.Enabled, committed.Enabled, actor, committed.Revision);
         try
         {
             await cache.PublishAsync(CacheKeys.WorldMaintenance(id.Value),

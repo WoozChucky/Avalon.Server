@@ -20,6 +20,7 @@ using Avalon.World.Pvp;
 using Avalon.World.Reload;
 using Avalon.World.Respawn;
 using Avalon.World.Maintenance;
+using Avalon.Infrastructure.WorldMaintenance;
 using Avalon.World.Persistence;
 using Avalon.Database.Auth.Repositories;
 using Microsoft.Extensions.Options;
@@ -58,7 +59,8 @@ public static class ServiceExtensions
             .AddCharacterDatabase()
             .AddWorldDatabase()
             .ValidateDatabasesOnStart(DatabaseConnections.Auth | DatabaseConnections.Characters | DatabaseConnections.World)
-            .AddCache();
+            .AddCache()
+            .AddWorldMaintenanceControl();
 
         services.AddSingleton<IWorld, Avalon.World.World>();
         services.AddSingleton<IWorldEntryGate>(sp => new WorldEntryGate(
@@ -114,6 +116,11 @@ public static class ServiceExtensions
         services.AddSingleton<ICommand, GroupInviteCommand>();
         services.AddSingleton<ICommand, ReloadCommand>();
         services.AddSingleton<ICommand, GodModeCommand>();
+        services.AddSingleton<ICommand>(sp => new MaintenanceCommand(
+            sp.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId,
+            sp.GetRequiredService<IWorldMaintenanceRepository>(),
+            sp.GetRequiredService<IWorldMaintenanceControl>(),
+            sp.GetRequiredService<WorldMaintenanceCoordinator>()));
         services.AddSingleton<PvpToggle>();
         services.AddSingleton<ICommand, PvpCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
