@@ -6,12 +6,14 @@ using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Generic;
 using Avalon.Server.World.Handlers;
 using Avalon.World;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
+using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 
@@ -19,6 +21,7 @@ public class ExchangeWorldKeyHandlerShould
 {
     private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
     private readonly IWorldRepository _worldRepository = Substitute.For<IWorldRepository>();
+    private readonly IWorldMaintenanceRepository _maintenance = Substitute.For<IWorldMaintenanceRepository>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
@@ -38,6 +41,8 @@ public class ExchangeWorldKeyHandlerShould
         _cache.RemoveAsync(Arg.Any<string>()).Returns(true);
         _worldRepository.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(MakeWorld(AccountAccessLevel.Player));
+        _maintenance.ReadAsync(Arg.Any<WorldId>(), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(false, 0, null));
         _handler = MakeHandler(_cache);
     }
 
@@ -47,7 +52,61 @@ public class ExchangeWorldKeyHandlerShould
             cache,
             _accountRepository,
             _world,
-            _worldRepository);
+            _worldRepository,
+            _maintenance);
+
+    [Fact]
+    public async Task Refuse_a_previously_issued_key_after_maintenance_starts()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5)));
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
+
+        var calls = _connection.ReceivedCalls().Select(c => c.GetMethodInfo().Name).ToList();
+        Assert.True(calls.IndexOf(nameof(IWorldConnection.Send)) < calls.IndexOf(nameof(IWorldConnection.Close)));
+        var packet = _connection.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IWorldConnection.Send))
+            .Select(c => c.GetArguments()[0]).OfType<NetworkPacket>().Single();
+        Assert.Equal(DisconnectReason.Maintenance,
+            Serializer.Deserialize<SDisconnectPacket>(new MemoryStream(packet.Payload)).ReasonCode);
+        _connection.DidNotReceive().AccountId = Arg.Any<AccountId>();
+        _connection.CryptoSession.DidNotReceive().Initialize(Arg.Any<byte[]>());
+        await _cache.DidNotReceive().RemoveAsync("account:42:inWorld");
+    }
+
+    [Fact]
+    public async Task Admit_an_Admin_with_a_valid_key_during_maintenance()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        var account = MakeAccount(42);
+        account.AccessLevel = AccountAccessLevel.Admin;
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5)));
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
+
+        _connection.Received().AccountId = (AccountId)42L;
+        await _cache.Received(1).RemoveAsync("account:42:inWorld");
+    }
+
+    [Fact]
+    public async Task Refuse_entry_when_maintenance_database_is_unreadable()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns<Task<WorldMaintenanceState?>>(_ => throw new InvalidOperationException("database offline"));
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
+
+        _connection.Received(1).Close();
+        _connection.DidNotReceive().AccountId = Arg.Any<AccountId>();
+        await _cache.DidNotReceive().RemoveAsync("account:42:inWorld");
+    }
 
     private static Avalon.Domain.Auth.World MakeWorld(AccountAccessLevel required)
         => new Avalon.Domain.Auth.World

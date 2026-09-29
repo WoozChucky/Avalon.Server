@@ -345,6 +345,7 @@ enum DisconnectReason {
    DisconnectReason_Kicked = 3;
    DisconnectReason_SelectTimeout = 4;
    DisconnectReason_CharacterSaveFailed = 5;
+   DisconnectReason_Maintenance = 6;
 }
 enum HitResult {
    // this is a composite/flags enumeration

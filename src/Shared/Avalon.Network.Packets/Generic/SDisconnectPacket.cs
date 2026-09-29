@@ -34,4 +34,5 @@ public enum DisconnectReason : ushort
 
     /// <summary>A character leave (#663) whose logout save failed; the player logs in again.</summary>
     CharacterSaveFailed = 5,
+    Maintenance = 6,
 }

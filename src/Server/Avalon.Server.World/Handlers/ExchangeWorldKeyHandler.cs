@@ -2,8 +2,10 @@ using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Generic;
 using Avalon.World;
 using Microsoft.Extensions.Logging;
 
@@ -16,15 +18,18 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
     private readonly ILogger<ExchangeWorldKeyHandler> _logger;
     private readonly IWorld _world;
     private readonly IWorldRepository _worldRepository;
+    private readonly IWorldMaintenanceRepository _maintenance;
 
     public ExchangeWorldKeyHandler(ILogger<ExchangeWorldKeyHandler> logger, IReplicatedCache cache,
-        IAccountRepository accountRepository, IWorld world, IWorldRepository worldRepository)
+        IAccountRepository accountRepository, IWorld world, IWorldRepository worldRepository,
+        IWorldMaintenanceRepository maintenance)
     {
         _logger = logger;
         _cache = cache;
         _accountRepository = accountRepository;
         _world = world;
         _worldRepository = worldRepository;
+        _maintenance = maintenance;
     }
 
     public async Task ExecuteAsync(WorldPacketContext<CExchangeWorldKeyPacket> ctx, CancellationToken token = default)
@@ -71,6 +76,38 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
 
         if (!await MayEnterAsync(account, token))
             return;
+
+        WorldMaintenanceState? maintenance;
+        try
+        {
+            maintenance = await _maintenance.ReadAsync(_world.Id, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "Could not read maintenance state for world {WorldId}; refusing entry",
+                _world.Id);
+            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World temporarily unavailable",
+                DisconnectReason.Unknown, _logger);
+            return;
+        }
+
+        if (maintenance is null)
+        {
+            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World temporarily unavailable",
+                DisconnectReason.Unknown, _logger);
+            return;
+        }
+
+        if (maintenance.Enabled && (account.AccessLevel & AccountAccessLevel.Admin) == 0)
+        {
+            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World is under maintenance",
+                DisconnectReason.Maintenance, _logger);
+            return;
+        }
 
         if (ctx.Packet.PublicKey.Length == 0)
         {
