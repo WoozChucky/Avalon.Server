@@ -209,6 +209,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_CHARACTER_LEAVE",
+      "opcode": 8214,
+      "hex": "0x2016",
+      "message": "CCharacterLeavePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_WORLD_LIST",
       "opcode": 8218,
       "hex": "0x201A",
@@ -672,6 +681,15 @@
       "opcode": 12330,
       "hex": "0x302A",
       "message": "SCharacterStatsPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_CHARACTER_LEAVE_RESULT",
+      "opcode": 12331,
+      "hex": "0x302B",
+      "message": "SCharacterLeaveResultPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

@@ -35,7 +35,7 @@ variant populated
 
 variant maxima
   field 1 Reason : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-  field 2 ReasonCode : DisconnectReason = SelectTimeout (4)
+  field 2 ReasonCode : DisconnectReason = CharacterSaveFailed (5)
   bytes 137
     0a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
@@ -45,7 +45,7 @@ variant maxima
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 10 04
+    78 ce a9 78 ce a9 78 10 05
 
 variant minima
   field 1 Reason : string = " " (1 chars, 1 bytes utf-8)
@@ -55,7 +55,7 @@ variant minima
 
 variant varint-edges
   field 1 Reason : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
-  field 2 ReasonCode : DisconnectReason = <not a declared member> (5)
+  field 2 ReasonCode : DisconnectReason = <not a declared member> (6)
   bytes 134
     0a 81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
@@ -65,4 +65,4 @@ variant varint-edges
     a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 10 05
+    7a 7a 7a 7a 10 06

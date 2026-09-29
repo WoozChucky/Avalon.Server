@@ -24,6 +24,7 @@ internal sealed class QuietWorld(StaticData data) : IWorld
     public void SpawnInInstance(IWorldConnection connection, IMapInstance instance) => throw new NotSupportedException();
     public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance) => throw new NotSupportedException();
     public Task DeSpawnPlayerAsync(IWorldConnection connection) => throw new NotSupportedException();
+    public Task<bool> LeaveWorldAsync(IWorldConnection connection) => throw new NotSupportedException();
     public Task LoadAsync(CancellationToken token) => throw new NotSupportedException();
     public void Update(TimeSpan deltaTime) => throw new NotSupportedException();
 }

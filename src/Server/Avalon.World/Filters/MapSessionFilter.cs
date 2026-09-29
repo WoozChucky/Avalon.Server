@@ -19,6 +19,16 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             return false;
         }
 
+        return IsMapPacket(type);
+    }
+
+    /// <summary>
+    /// The packets this filter accepts from a character in a map. Only ever accepted with a character,
+    /// so one of these still queued when the connection holds none was meant for a character that has
+    /// left the world.
+    /// </summary>
+    public static bool IsMapPacket(NetworkPacketType type)
+    {
         return type switch
         {
             NetworkPacketType.CMSG_PLAYER_INPUT => true,

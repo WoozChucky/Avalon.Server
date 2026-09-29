@@ -136,6 +136,8 @@ message CCharacterCreatePacket {
 message CCharacterDeletePacket {
    uint32 CharacterId = 1;
 }
+message CCharacterLeavePacket {
+}
 message CCharacterListPacket {
 }
 message CCharacterLoadedPacket {
@@ -310,6 +312,13 @@ message CharacterInfo {
    uint64 RequiredExperience = 11;
    float MovementSpeed = 12;
 }
+enum CharacterLeaveResult {
+   CharacterLeaveResult_Unknown = 0;
+   CharacterLeaveResult_Left = 1;
+   CharacterLeaveResult_NoCharacter = 2;
+   CharacterLeaveResult_Selecting = 3;
+   CharacterLeaveResult_AlreadyLeaving = 4;
+}
 enum DialogueOptionKind {
    DialogueOptionKind_Conversation = 0;
    DialogueOptionKind_OpenBank = 1;
@@ -321,6 +330,7 @@ enum DisconnectReason {
    DisconnectReason_DuplicateLogin = 2;
    DisconnectReason_Kicked = 3;
    DisconnectReason_SelectTimeout = 4;
+   DisconnectReason_CharacterSaveFailed = 5;
 }
 enum HitResult {
    // this is a composite/flags enumeration
@@ -453,6 +463,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_CHARACTER_DELETE = 8210;
    NetworkPacketType_CMSG_CHARACTER_SELECTED = 8211;
    NetworkPacketType_CMSG_CHARACTER_LOADED = 8212;
+   NetworkPacketType_CMSG_CHARACTER_LEAVE = 8214;
    NetworkPacketType_CMSG_WORLD_LIST = 8218;
    NetworkPacketType_CMSG_WORLD_SELECT = 8219;
    NetworkPacketType_CMSG_EXCHANGE_WORLD_KEY = 8220;
@@ -506,6 +517,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_INVENTORY_SNAPSHOT = 12328;
    NetworkPacketType_SMSG_INVENTORY_UPDATE = 12329;
    NetworkPacketType_SMSG_CHARACTER_STATS = 12330;
+   NetworkPacketType_SMSG_CHARACTER_LEAVE_RESULT = 12331;
    NetworkPacketType_SMSG_MAP_TELEPORT = 12336;
    NetworkPacketType_SMSG_MAP_TRANSITION = 12337;
    NetworkPacketType_SMSG_CHUNK_LAYOUT = 12338;
@@ -657,6 +669,9 @@ message SCharacterInterruptedCastPacket {
    uint64 Caster = 1;
    uint32 AbilityId = 2;
    uint32 CastId = 3;
+}
+message SCharacterLeaveResultPacket {
+   CharacterLeaveResult Result = 1;
 }
 message SCharacterListPacket {
    int32 CharacterCount = 1;
