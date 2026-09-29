@@ -32,6 +32,7 @@ public class ApiDatabaseMigratorShould
     private const string Auth = "DataSource=:memory:";
 
     private readonly List<string?> _migrated = [];
+    private readonly List<string?> _checked = [];
     private readonly ListLogger _log = new();
 
     private static WorldDatabases Worlds() => new(
@@ -55,17 +56,38 @@ public class ApiDatabaseMigratorShould
             new(new DbContextOptionsBuilder<CharacterDbContext>().UseSqlite($"DataSource=characters-{world.Value}").Options);
     }
 
-    private ApiDatabaseMigrator Migrator(string failing) => new(_log, (context, _) =>
-    {
-        string? name = context.Database.GetConnectionString();
-        _migrated.Add(name);
-        // The exception's message carries a connection string, as a driver's can: it must not reach the log.
-        if (name == failing) throw new NpgsqlException($"could not connect: {WorldTwoString}");
-        return Task.CompletedTask;
-    });
+    private ApiDatabaseMigrator Migrator(string failing, string? unreachable = null) => new(_log,
+        (context, _) =>
+        {
+            string? name = context.Database.GetConnectionString();
+            _migrated.Add(name);
+            // The exception's message carries a connection string, as a driver's can: it must not reach the log.
+            if (name == failing) throw new NpgsqlException($"could not connect: {WorldTwoString}");
+            return Task.CompletedTask;
+        },
+        (context, _) =>
+        {
+            string? name = context.Database.GetConnectionString();
+            _checked.Add(name);
+            if (name == failing) throw new NpgsqlException($"could not connect: {WorldTwoString}");
+            return Task.FromResult(name != unreachable);
+        });
 
     [Fact]
-    public async Task Mark_a_world_whose_migration_fails_unavailable_and_carry_on()
+    public async Task Migrate_only_the_auth_database_and_check_every_world()
+    {
+        WorldDatabases worlds = Worlds();
+
+        await Migrator("none").MigrateAsync(AuthContexts(), worlds, new UnopenedWorlds(), CancellationToken.None);
+
+        Assert.Equal([Auth], _migrated);
+        Assert.Equal(["DataSource=world-1", "DataSource=characters-1", "DataSource=world-2", "DataSource=characters-2",
+            "DataSource=world-3", "DataSource=characters-3"], _checked);
+        Assert.All(worlds.All, w => Assert.Equal(WorldDatabaseStatus.Available, w.Status));
+    }
+
+    [Fact]
+    public async Task Mark_a_world_whose_check_fails_unavailable_and_carry_on()
     {
         WorldDatabases worlds = Worlds();
 
@@ -73,19 +95,22 @@ public class ApiDatabaseMigratorShould
 
         Assert.Equal([WorldDatabaseStatus.Available, WorldDatabaseStatus.Unavailable, WorldDatabaseStatus.Available],
             worlds.All.Select(w => w.Status));
-        Assert.Equal([Auth, "DataSource=world-1", "DataSource=characters-1", "DataSource=world-2", "DataSource=world-3",
-            "DataSource=characters-3"], _migrated);
+        Assert.Equal(["DataSource=world-1", "DataSource=characters-1", "DataSource=world-2", "DataSource=world-3",
+            "DataSource=characters-3"], _checked);
     }
 
     [Fact]
-    public async Task Mark_a_world_unavailable_when_only_its_characters_database_fails()
+    public async Task Mark_a_world_unavailable_when_its_characters_database_cannot_be_reached()
     {
         WorldDatabases worlds = Worlds();
 
-        await Migrator("DataSource=characters-1").MigrateAsync(AuthContexts(), worlds, new UnopenedWorlds(), CancellationToken.None);
+        await Migrator("none", unreachable: "DataSource=characters-1")
+            .MigrateAsync(AuthContexts(), worlds, new UnopenedWorlds(), CancellationToken.None);
 
         Assert.Equal(WorldDatabaseStatus.Unavailable, worlds.All[0].Status);
         Assert.Equal(WorldDatabaseStatus.Available, worlds.All[1].Status);
+        Assert.Contains(_log.Entries, e => e.Level == LogLevel.Error
+                                           && e.Text == "World 1 is unavailable until the next restart: its databases cannot be reached");
     }
 
     [Fact]

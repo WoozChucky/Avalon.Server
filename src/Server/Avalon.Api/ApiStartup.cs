@@ -26,8 +26,9 @@ public static class ApiStartup
         await using AsyncServiceScope scope = services.CreateAsyncScope();
         logger.LogInformation("Migrating database if necessary...");
         // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
-        // Auth first: a failure stops the api. Then each world under Database:Worlds: one that fails
-        // is logged and answers 503 until the next restart, and the others serve (#523).
+        // Auth first: a failure stops the api. Then each world under Database:Worlds is checked, not
+        // migrated (each world server migrates its own): one that can't be reached is logged and
+        // answers 503 until the next restart, and the others serve (#523).
         await services.GetRequiredService<ApiDatabaseMigrator>()
             .MigrateAsync(
                 scope.ServiceProvider.GetRequiredService<IDbContextFactory<AuthDbContext>>(),

@@ -140,18 +140,19 @@ public class ApiStartupValidationShould
     }
 
     /// <summary>
-    /// #523: <see cref="ApiStartup"/> migrates through the tolerant migrator, so a world whose
-    /// migration fails is marked unavailable and startup goes on, while the other world stays available.
+    /// #523: <see cref="ApiStartup"/> checks each world's databases tolerantly, so a world whose
+    /// check fails is marked unavailable and startup goes on, while the other world stays available.
     /// </summary>
     [Fact]
-    public async Task Start_when_one_worlds_migration_fails_and_mark_only_that_world_unavailable()
+    public async Task Start_when_one_worlds_check_fails_and_mark_only_that_world_unavailable()
     {
         await using ServiceProvider provider = Build("localhost:6379",
             services => services.AddSingleton(sp => new ApiDatabaseMigrator(
                 sp.GetRequiredService<ILogger<ApiDatabaseMigrator>>(),
-                (context, _) => (context.Database.GetConnectionString() ?? "").Contains("Database=world2", StringComparison.Ordinal)
+                migrate: (_, _) => Task.CompletedTask,
+                canConnect: (context, _) => (context.Database.GetConnectionString() ?? "").Contains("Database=world2", StringComparison.Ordinal)
                     ? throw new InvalidOperationException("world 2 is down")
-                    : Task.CompletedTask)),
+                    : Task.FromResult(true))),
             ("Database:Worlds:2:World:ConnectionString", "Host=127.0.0.1;Port=1;Timeout=1;Database=world2;Username=none;Password=none"),
             ("Database:Worlds:2:Characters:ConnectionString", Unreachable));
 
