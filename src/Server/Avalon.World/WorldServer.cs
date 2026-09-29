@@ -17,6 +17,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
 using Avalon.World.Inventory;
+using Avalon.World.Maintenance;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
@@ -136,6 +137,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly IWorld _world;
     private readonly ICharacterSaver _characterSaver;
+    private readonly IWorldEntryGate? _entryGate;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -172,7 +174,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IScriptManager scriptManager,
         IReplicatedCache cache,
         IScriptHotReloader scriptHotReloader,
-        ICharacterSaver characterSaver) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
+        ICharacterSaver characterSaver,
+        IWorldEntryGate? entryGate = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions,
         PacketDispatchTelemetry.From(DiagnosticsConfig.World.Source, DiagnosticsConfig.World.Meter,
@@ -182,6 +185,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _cache = cache;
         _scriptHotReloader = scriptHotReloader;
         _characterSaver = characterSaver;
+        _entryGate = entryGate;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _world = world;
         
@@ -487,7 +491,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         long barrierNowTicks = DateTime.UtcNow.Ticks;
         TimeSpan barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
 
-        CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger);
+        CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger,
+            _entryGate);
 
         // The other half of the same failure: a select that never reached a pending spawn at all,
         // so ReleaseExpired cannot see it. Sharing the timeout because both are "the select

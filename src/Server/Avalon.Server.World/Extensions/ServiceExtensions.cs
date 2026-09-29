@@ -19,6 +19,9 @@ using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
 using Avalon.World.Reload;
 using Avalon.World.Respawn;
+using Avalon.World.Maintenance;
+using Avalon.Database.Auth.Repositories;
+using Microsoft.Extensions.Options;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Configuration;
@@ -57,6 +60,10 @@ public static class ServiceExtensions
             .AddCache();
 
         services.AddSingleton<IWorld, Avalon.World.World>();
+        services.AddSingleton<IWorldEntryGate>(sp => new WorldEntryGate(
+            sp.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId,
+            sp.GetRequiredService<IWorldMaintenanceRepository>(),
+            sp.GetRequiredService<IAccountRepository>()));
         services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
         services.AddSingleton<IScriptManager, ScriptManager>();
         services.AddSingleton<ICreatureSpawner, CreatureSpawner>();

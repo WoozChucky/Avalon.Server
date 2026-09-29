@@ -2,6 +2,8 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Maintenance;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Characters;
@@ -13,6 +15,46 @@ namespace Avalon.World.Characters;
 /// </summary>
 public static class CharacterReadinessBarrier
 {
+    private static readonly ConditionalWeakTable<IWorldConnection, Task<bool>> PendingChecks = new();
+
+    /// <summary>Checks current admission off the tick before a pending character becomes visible.</summary>
+    public static void RequestRelease(IWorldConnection connection, IWorld world, ILogger logger,
+        IWorldEntryGate gate, Action? onSpawn = null)
+    {
+        if (!connection.IsConnected || connection.IsClosing || connection.AccountId is null ||
+            connection.PendingSpawn is not { } pending || PendingChecks.TryGetValue(connection, out _))
+            return;
+
+        Task<bool> check = Task.Run(async () =>
+        {
+            try
+            {
+                return await gate.CheckAsync(connection.AccountId, CancellationToken.None)
+                    .WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        });
+        PendingChecks.Add(connection, check);
+        connection.EnqueueContinuation(check, allowed =>
+        {
+            PendingChecks.Remove(connection);
+            if (!connection.IsConnected || connection.IsClosing || !ReferenceEquals(connection.PendingSpawn, pending))
+                return;
+
+            if (!allowed)
+            {
+                GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
+                    DisconnectReason.Maintenance, logger);
+                return;
+            }
+
+            if (Release(connection, world, logger)) onSpawn?.Invoke();
+        });
+    }
+
     /// <summary>
     ///     Assigns the pending character to its connection and spawns it. After a successful call
     ///     the entity is visible to <c>MapInstance.Update</c>.
@@ -54,7 +96,7 @@ public static class CharacterReadinessBarrier
     /// </summary>
     /// <param name="nowTicks"><c>DateTime.UtcNow.Ticks</c>.</param>
     public static void ReleaseExpired(IEnumerable<IWorldConnection> connections, IWorld world,
-        long nowTicks, TimeSpan timeout, ILogger logger)
+        long nowTicks, TimeSpan timeout, ILogger logger, IWorldEntryGate? gate = null)
     {
         foreach (IWorldConnection connection in connections)
         {
@@ -73,6 +115,15 @@ public static class CharacterReadinessBarrier
 
             // Read before the release: it takes the pending spawn.
             string characterName = pending.Character.Name;
+
+            if (gate is not null)
+            {
+                RequestRelease(connection, world, logger, gate, () => logger.LogWarning(
+                    "Character {CharacterName} for account {AccountId} spawned without a load report; " +
+                    "the readiness barrier expired after {WaitedMs}ms",
+                    characterName, connection.AccountId, (long)waited.TotalMilliseconds));
+                continue;
+            }
 
             if (!CharacterReadinessBarrier.Release(connection, world, logger))
                 continue;

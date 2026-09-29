@@ -21,6 +21,8 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 using Avalon.World.Pvp;
+using Avalon.World.Maintenance;
+using Avalon.Common.ValueObjects;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 
@@ -62,6 +64,49 @@ public class WorldServerBarrierTickShould : IDisposable
         server.Tick();
 
         world.Received(1).SpawnInInstance(connection, instance);
+    }
+
+    [Fact]
+    public async Task Timeout_release_checks_maintenance_once_and_never_spawns_a_refused_character()
+    {
+        var gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(false);
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate);
+        connection.AccountId = new AccountId(42);
+        connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
+            DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
+
+        for (int i = 0; i < 100 && !connection.IsClosing; i++)
+        {
+            server.Tick();
+            await Task.Delay(10);
+        }
+
+        Assert.True(connection.IsClosing);
+        world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+        await gate.Received(1).CheckAsync(new AccountId(42), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Timeout_release_spawns_after_the_entry_check_allows_it()
+    {
+        var gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(true);
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate);
+        connection.AccountId = new AccountId(42);
+        IMapInstance instance = Substitute.For<IMapInstance>();
+        connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance,
+            DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
+
+        for (int i = 0; i < 100 && connection.PendingSpawn is not null; i++)
+        {
+            server.Tick();
+            await Task.Delay(10);
+        }
+
+        Assert.Null(connection.PendingSpawn);
+        world.Received(1).SpawnInInstance(connection, instance);
+        await gate.Received(1).CheckAsync(new AccountId(42), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -112,14 +157,15 @@ public class WorldServerBarrierTickShould : IDisposable
     /// <summary>Reference data with the seeded combat formula, which the tick's sheet flush reads (#506).</summary>
     private static readonly Lazy<StaticData> SeededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
 
-    private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build()
+    private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(
+        IWorldEntryGate? gate = null)
     {
         StaticData data = SeededData.Value;   // loaded outside Returns, which it would otherwise interrupt
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CharacterLoadTimeoutSeconds = 15 });
         world.Data.Returns(data);
 
-        var server = new TestWorldServer(world);
+        var server = new TestWorldServer(world, gate);
         var connection = new Avalon.World.WorldConnection(
             server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
         server.Add(connection);
@@ -129,7 +175,7 @@ public class WorldServerBarrierTickShould : IDisposable
     /// <summary>Reaches one tick without the socket loop that normally drives it.</summary>
     private sealed class TestWorldServer : WorldServer
     {
-        public TestWorldServer(IWorld world) : base(
+        public TestWorldServer(IWorld world, IWorldEntryGate? gate) : base(
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
             new AnyServiceProvider(),
@@ -138,7 +184,7 @@ public class WorldServerBarrierTickShould : IDisposable
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
-            Substitute.For<Avalon.World.Persistence.ICharacterSaver>())
+            Substitute.For<Avalon.World.Persistence.ICharacterSaver>(), gate)
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);

@@ -31,6 +31,7 @@ using Microsoft.Extensions.Options;
 using Avalon.Network.Packets.State;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
+using Avalon.World.Maintenance;
 
 namespace Avalon.World.Handlers;
 
@@ -49,7 +50,8 @@ public class CharacterSelectHandler(
     IAccountRepository accountRepository,
     ICharacterSaver characterSaver,
     IWorldServer worldServer,
-    TimeProvider? time = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    TimeProvider? time = null,
+    IWorldEntryGate? entryGate = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -58,6 +60,7 @@ public class CharacterSelectHandler(
     /// thread only, like the rest of the handler; weak, so it holds on to no closed connection.
     /// </summary>
     private readonly ConditionalWeakTable<IWorldConnection, Task> _selectStepInFlight = new();
+    private readonly ConditionalWeakTable<IWorldConnection, Task<bool>> _entryCheckInFlight = new();
 
     /// <summary>
     /// How long a select waits for the character's previous saves before giving up. Past it the
@@ -100,13 +103,55 @@ public class CharacterSelectHandler(
         // the first one is building. A leave still under way (#663) counts as well: the client
         // selects once it has the leave's answer.
         if (connection.Character != null || connection.PendingSpawn != null || connection.SelectInProgress ||
-            connection.LeaveInProgress)
+            connection.LeaveInProgress || _entryCheckInFlight.TryGetValue(connection, out _))
         {
             logger.LogWarning("Connection tried to select a character list while already having a character selected");
             activity?.AddEvent(new ActivityEvent("DuplicateSelectionAttempt"));
             connection.Close();
             return;
         }
+
+        if (entryGate is not null)
+        {
+            // A repository call must never begin on the simulation tick. The completed result is
+            // applied by the connection's continuation queue on a later tick.
+            Task<bool> check = Task.Run(async () =>
+            {
+                try
+                {
+                    return await entryGate.CheckAsync(connection.AccountId!, CancellationToken.None)
+                        .WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            });
+            _entryCheckInFlight.Add(connection, check);
+            connection.EnqueueContinuation(check, allowed =>
+            {
+                _entryCheckInFlight.Remove(connection);
+                if (!connection.IsConnected || connection.IsClosing) return;
+                if (!allowed)
+                {
+                    GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
+                        DisconnectReason.Maintenance, logger);
+                    return;
+                }
+
+                BeginSelection(connection, packet, null);
+            });
+            return;
+        }
+
+        BeginSelection(connection, packet, activity);
+    }
+
+    private void BeginSelection(IWorldConnection connection, CCharacterSelectedPacket packet, Activity? activity)
+    {
+        if (connection.Character != null || connection.PendingSpawn != null || connection.SelectInProgress ||
+            connection.LeaveInProgress || connection.IsClosing)
+            return;
 
         IReadOnlyList<Task> kickedWork = TakeOverFromOtherSessions(connection, connection.AccountId, packet.CharacterId);
         if (kickedWork.Count > 0)

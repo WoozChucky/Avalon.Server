@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Characters;
 using Avalon.World.Public;
+using Avalon.World.Maintenance;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -15,7 +16,8 @@ namespace Avalon.World.Handlers;
 [PacketHandler(NetworkPacketType.CMSG_CHARACTER_LOADED)]
 public class CharacterLoadedHandler(
     ILogger<CharacterLoadedHandler> logger,
-    IWorld world) : WorldPacketHandler<CCharacterLoadedPacket>
+    IWorld world,
+    IWorldEntryGate? entryGate = null) : WorldPacketHandler<CCharacterLoadedPacket>
 {
     public override void Execute(IWorldConnection connection, CCharacterLoadedPacket packet)
     {
@@ -37,6 +39,15 @@ public class CharacterLoadedHandler(
 
         string characterName = pending.Character.Name;
         activity?.SetTag("CharacterName", characterName);
+
+        if (entryGate is not null)
+        {
+            CharacterReadinessBarrier.RequestRelease(connection, world, logger, entryGate,
+                () => logger.LogInformation(
+                    "Character {CharacterName} entered the world for account {AccountId} at {Position}",
+                    characterName, connection.AccountId, connection.Character!.Position));
+            return;
+        }
 
         if (!CharacterReadinessBarrier.Release(connection, world, logger))
         {

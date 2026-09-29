@@ -17,6 +17,7 @@ using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
+using Avalon.World.Maintenance;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -409,6 +410,43 @@ public class CharacterSelectChainShould : IDisposable
         return false;
     }
 
+    [Fact]
+    public async Task Refuse_a_reselect_after_leave_before_BeginSelect_during_maintenance()
+    {
+        Assert.True(_connection.TryBeginLeave());
+        _connection.EndLeave();
+        var gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>()).Returns(false);
+        var select = BuildSelectHandler(entryGate: gate);
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        Assert.False(_connection.SelectInProgress);
+        await WaitUntilAsync(() => _connection.IsClosing || StepOnce());
+
+        Assert.Null(_connection.PendingSpawn);
+        await _characters.DidNotReceiveWithAnyArgs().FindByIdAndAccountAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task Refuse_a_pending_spawn_when_maintenance_starts_during_select()
+    {
+        var gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>()).Returns(true, false);
+        var select = BuildSelectHandler(entryGate: gate);
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        await WaitUntilAsync(() => _connection.PendingSpawn is not null || StepOnce());
+
+        var releaseWorld = Substitute.For<IWorld>();
+        var loaded = new CharacterLoadedHandler(NullLogger<CharacterLoadedHandler>.Instance,
+            releaseWorld, gate);
+        loaded.Execute(_connection, new CCharacterLoadedPacket());
+        await WaitUntilAsync(() => _connection.IsClosing || StepOnce());
+
+        releaseWorld.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+        Assert.Null(_connection.Character);
+        Assert.Equal(2, gate.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IWorldEntryGate.CheckAsync)));
+    }
+
     /// <summary>Polls, bounded, for work that finishes on the thread pool.</summary>
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
@@ -421,7 +459,7 @@ public class CharacterSelectChainShould : IDisposable
     }
 
     private CharacterSelectHandler BuildSelectHandler(ICharacterSaver? saver = null, TimeSpan? saveWaitLimit = null,
-        IWorldServer? worldServer = null)
+        IWorldServer? worldServer = null, IWorldEntryGate? entryGate = null)
     {
         var row = new Character
         {
@@ -481,7 +519,7 @@ public class CharacterSelectChainShould : IDisposable
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             saver ?? Substitute.For<ICharacterSaver>(),
-            worldServer ?? Substitute.For<IWorldServer>())
+            worldServer ?? Substitute.For<IWorldServer>(), entryGate: entryGate)
         {
             SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
         };
