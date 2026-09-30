@@ -192,5 +192,54 @@ public class SimulationShould
         Assert.All(seen, p => Assert.Equal(result.Rows.Count, p.RowsTotal));
     }
 
+    [Fact]
+    public void Report_levels_past_the_seeded_class_stats_as_an_issue()
+    {
+        BalanceConfig config = TestData.Config();
+        config.Scenarios.Levels = [1, 20];
+
+        RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick() with { Config = config }, null, CancellationToken.None);
+
+        Assert.Equal(RunStatus.Invalid, result.Status);
+        Issue issue = Assert.Single(result.Issues);
+        Assert.Equal("scenarios", issue.Path);
+        Assert.Contains("Warrior", issue.Message, StringComparison.Ordinal);
+        Assert.Contains("level 17", issue.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Treat_a_null_filter_as_no_filter()
+    {
+        RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick() with { Filter = null! }
+            with { RunsPerRow = 1 }, null, CancellationToken.None);
+
+        Assert.Equal(RunStatus.Done, result.Status);
+        Assert.Equal(TestData.Config().Scenarios.Classes.Length * 10 * 3 * 8, result.Rows.Count);
+    }
+
+    [Fact]
+    public void Carry_on_when_the_progress_handler_throws()
+    {
+        int calls = 0;
+        RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick(),
+            new SyncProgress<RunProgress>(_ => { calls++; throw new InvalidOperationException("handler bug"); }), CancellationToken.None);
+
+        Assert.Equal(RunStatus.Done, result.Status);
+        Assert.Equal(30, result.Rows.Count);
+        Assert.Equal(30, calls);
+    }
+
+    [Fact]
+    public void Return_no_rows_when_cancelled_as_the_last_row_finishes()
+    {
+        using var cts = new CancellationTokenSource();
+        var progress = new SyncProgress<RunProgress>(p => { if (p.RowsDone == p.RowsTotal) cts.Cancel(); });
+
+        RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick(), progress, cts.Token);
+
+        Assert.Equal(RunStatus.Cancelled, result.Status);
+        Assert.Empty(result.Rows);
+    }
+
     private sealed class SyncProgress<T>(Action<T> report) : IProgress<T> { public void Report(T value) => report(value); }
 }

@@ -9,7 +9,8 @@ public static partial class Simulation
     /// <summary>
     /// Runs the request against a copy of <paramref name="seed" /> (which is never changed, so one loaded seed serves
     /// many runs). <paramref name="progress" /> may be called from worker threads, one row at a time, with RowsDone
-    /// rising by one each call. A cancelled run returns Cancelled with no rows.
+    /// rising by one each call. Progress is best-effort: an exception from the handler is ignored. A cancelled run
+    /// returns Cancelled with no rows, even when the token fires as the last row finishes.
     /// </summary>
     public static RunResult Run(SeedTables seed, BalanceConfig defaults, RunRequest request,
         IProgress<RunProgress>? progress, CancellationToken ct)
@@ -52,6 +53,10 @@ public static partial class Simulation
         try
         {
             config.Scenarios.Validate(data);
+            foreach (CharacterClass characterClass in config.Scenarios.Classes)
+            foreach (ushort level in config.Scenarios.LevelRange())
+                if (!data.Tables.ClassLevelStats.Any(r => r.Class == characterClass && r.Level == level))
+                    throw new InvalidDataException($"scenarios: ClassLevelStat {characterClass} level {level} is not seeded");
             try
             {
                 config.Targets.Validate(config.Scenarios);
@@ -85,7 +90,7 @@ public static partial class Simulation
         RunPlan plan;
         try
         {
-            plan = runner.Plan(request.Filter, request.RunsPerRow, request.Seed);
+            plan = runner.Plan(request.Filter ?? RunFilter.None, request.RunsPerRow, request.Seed);
         }
         catch (PlanRefusedException e)
         {
@@ -99,7 +104,18 @@ public static partial class Simulation
         {
             if (progress is null) return;
             // Under the lock so the reports reach the caller in order, one row each.
-            lock (gate) progress.Report(new RunProgress(++done, total));
+            lock (gate)
+            {
+                RunProgress update = new(++done, total);
+                try
+                {
+                    progress.Report(update);
+                }
+                catch (Exception)
+                {
+                    // Progress is best-effort: a caller's faulty handler must not abort the run.
+                }
+            }
         };
 
         IReadOnlyList<RowResult> rows;
@@ -115,6 +131,14 @@ public static partial class Simulation
         {
             return Empty(RunStatus.Cancelled, overrides, [], plan.Seed, plan.Runs);
         }
+        catch (AggregateException e) when (e.Flatten().InnerExceptions.All(x => x is InvalidDataException))
+        {
+            // Backstop: data a check above missed, found while a row ran.
+            return Invalid(new Issue("run", e.Flatten().InnerExceptions[0].Message));
+        }
+
+        if (ct.IsCancellationRequested)
+            return Empty(RunStatus.Cancelled, overrides, [], plan.Seed, plan.Runs);
 
         GradeReport grades = Grader.Grade(rows, data, config.Scenarios, config.Targets);
         return new RunResult(RunStatus.Done, rows, grades, rows.Select(r => r.Key).ToList(),
