@@ -486,9 +486,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Cache once — both phases iterate the same set.
         ImmutableArray<IWorldConnection> conns = Connections;
 
+        _maintenanceCoordinator?.Advance(DateTime.UtcNow, conns);
         foreach (IWorldConnection worldConnection in conns)
             worldConnection.UpdateSession();
-        _maintenanceCoordinator?.Advance(DateTime.UtcNow, conns);
         long t1 = Stopwatch.GetTimestamp();
         double sessionUs = TicksToUs(t1 - t0);
         _sessionUpdateHist.Record((long)sessionUs);

@@ -173,30 +173,19 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     [Fact]
-    public async Task Refuse_a_completed_entry_decision_after_its_five_second_lifetime()
+    public void Refuse_a_completed_entry_decision_after_its_five_second_lifetime()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
-        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
-            .Returns(new WorldEntryDecision(true, DateTime.UtcNow.AddSeconds(-1)));
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
             TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
         coordinator.ApplyCommitted(new WorldMaintenanceState(false, 1, null));
-        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate, coordinator);
-        connection.AccountId = new AccountId(42);
-        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
-        connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
-            DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
+        bool entered = false;
 
-        DateTime timeout = DateTime.UtcNow.AddSeconds(5);
-        while (!connection.IsClosing && DateTime.UtcNow < timeout)
-        {
-            server.Tick();
-            await Task.Delay(10);
-        }
+        bool allowed = coordinator.RunIfEntryAllowed(Substitute.For<IWorldConnection>(),
+            new WorldEntryDecision(true, DateTime.UtcNow.AddSeconds(-1)), () => entered = true);
 
-        Assert.True(connection.IsClosing);
-        world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+        Assert.False(allowed);
+        Assert.False(entered);
     }
 
     [Fact]

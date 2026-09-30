@@ -46,7 +46,9 @@ public sealed class WorldMaintenanceCoordinatorShould
         Assert.Contains("3 minutes", messages[1]);
         Assert.Contains("0 seconds", messages[^1]);
         player.Received(1).CloseAsync();
+        player.Received().BlockForMaintenance();
         admin.DidNotReceive().CloseAsync();
+        admin.DidNotReceive().BlockForMaintenance();
     }
 
     [Fact]
@@ -59,15 +61,18 @@ public sealed class WorldMaintenanceCoordinatorShould
 
         coordinator.Advance(Start, [connecting]);
         connecting.DidNotReceive().CloseAsync();
+        connecting.DidNotReceive().BlockForMaintenance();
 
         connecting.AccountId.Returns(new AccountId(42));
         connecting.AccessLevel.Returns(AccountAccessLevel.Admin);
         coordinator.Advance(Start.AddSeconds(1), [connecting]);
         connecting.DidNotReceive().CloseAsync();
+        connecting.DidNotReceive().BlockForMaintenance();
 
         connecting.AccessLevel.Returns(AccountAccessLevel.Player);
         coordinator.Advance(Start.AddSeconds(2), [connecting]);
         connecting.Received(1).CloseAsync();
+        connecting.Received().BlockForMaintenance();
     }
 
     [Fact]
@@ -142,6 +147,7 @@ public sealed class WorldMaintenanceCoordinatorShould
         Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, packets[1].Header.Type);
         Assert.Equal(DisconnectReason.Maintenance,
             Serializer.Deserialize<SDisconnectPacket>(new MemoryStream(packets[1].Payload)).ReasonCode);
+        player.Received().BlockForMaintenance();
         Task drained = coordinator.WhenDrainedAsync(CancellationToken.None);
         Assert.False(drained.IsCompleted);
         save.SetResult();

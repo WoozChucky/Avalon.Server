@@ -201,6 +201,9 @@ public interface IWorldConnection : IConnection
     /// </summary>
     void UpdateMap();
 
+    /// <summary>Stops dispatching player packets once the maintenance deadline is reached.</summary>
+    void BlockForMaintenance();
+
     /// <summary>
     ///     Drains the continuation queue. Called by <c>WorldServer</c> once per tick after all
     ///     packet-processing passes complete, so continuations from both session and map passes

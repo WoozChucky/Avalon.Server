@@ -30,6 +30,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     private long _lastClientTicks;
     private long _lastServerTicks;
+    private volatile bool _maintenanceBlocked;
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader)
@@ -190,6 +191,8 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
         ProcessQueue(_mapFilterPredicate, dropStaleMapPackets: false);
     }
 
+    public void BlockForMaintenance() => _maintenanceBlocked = true;
+
     public void FlushContinuations()
     {
         ProcessContinuations();
@@ -203,6 +206,12 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
     /// </param>
     private void ProcessQueue(Func<WorldPacket, bool> predicate, bool dropStaleMapPackets)
     {
+        if (_maintenanceBlocked)
+        {
+            while (_receiveQueue.TryDequeue(out _)) { }
+            return;
+        }
+
         const uint MaxPacketsPerUpdate = 150;
         uint processedPackets = 0;
 
@@ -295,6 +304,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     protected override ValueTask OnReceive(NetworkPacketHeader header, Packet? payload)
     {
+        if (_maintenanceBlocked) return ValueTask.CompletedTask;
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
             _receiveQueue.Enqueue(new WorldPacket(header.Type, payload, DateTime.UtcNow.Ticks));

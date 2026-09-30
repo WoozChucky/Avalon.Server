@@ -305,9 +305,9 @@ Client sends CPlayerMovementPacket
 
 ## Maintenance Admission
 
-The Auth server lists each world with a derived status. A non-Admin selecting a visible world in maintenance receives `WorldSelectResult.Maintenance`; a world without a fresh ready heartbeat returns `WorldUnavailable`. The world rechecks the persisted maintenance row at key exchange, before character selection, and before releasing a pending spawn. This also covers a connection returned to character selection by the leave flow. Admins may enter a ready world in maintenance. A failed authoritative read refuses new entry.
+The Auth server lists each world with a derived status. During the scheduled countdown, a ready world remains `Online` and non-Admins may still select and enter it. At the stored UTC deadline, its status becomes `Maintenance` and a non-Admin selecting it receives `WorldSelectResult.Maintenance`; a world without a fresh ready heartbeat returns `WorldUnavailable`. The world rechecks the persisted maintenance row at key exchange, before character selection, and before releasing a pending spawn. These decisions expire after at most five seconds and, for players, no later than the deadline. This also covers a connection returned to character selection by the leave flow. Admins may enter a ready world after the deadline. A failed authoritative read refuses new entry.
 
-Players already in-game receive System chat countdown warnings at enable, three minutes, one minute, thirty seconds, and each second from ten to zero. At zero the world sends `DisconnectReason.Maintenance`, closes non-Admin connections, and completes the usual despawn and save. The process and its listener remain up for Admin verification. Disabling maintenance cancels the rest of the countdown.
+Players already in-game receive System chat countdown warnings at enable, three minutes, one minute, thirty seconds, and each second from ten to zero. At zero the world stops dispatching queued and new packets from authenticated non-Admins, sends `DisconnectReason.Maintenance`, closes their connections, and completes the usual despawn and save. The process and its listener remain up for Admin verification. Disabling maintenance during the countdown cancels it.
 
 ---
 

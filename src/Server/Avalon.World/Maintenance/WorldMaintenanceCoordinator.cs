@@ -132,8 +132,11 @@ public sealed class WorldMaintenanceCoordinator(
             int newCloses = 0;
             foreach (IWorldConnection connection in connections)
             {
-                if (!connection.IsConnected || connection.IsClosing || connection.AccountId is null ||
-                    (connection.AccessLevel & AccountAccessLevel.Admin) != 0 || !_closing.Add(connection))
+                if (connection.AccountId is null || (connection.AccessLevel & AccountAccessLevel.Admin) != 0)
+                    continue;
+
+                connection.BlockForMaintenance();
+                if (!connection.IsConnected || connection.IsClosing || !_closing.Add(connection))
                     continue;
 
                 try
