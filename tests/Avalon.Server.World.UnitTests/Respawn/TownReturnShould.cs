@@ -170,4 +170,46 @@ public class TownReturnShould
         Assert.True(_connection.RespawnInFlight);
         Assert.Contains(_log.Errors, e => e.Exception is InvalidOperationException);
     }
+
+    /// <summary>#700: a caller that retries takes the failure itself, after the flag is cleared; nothing is logged at Error here.</summary>
+    [Fact]
+    public void Hand_a_failure_to_the_callers_handler_instead_of_logging_it()
+    {
+        _registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>())
+            .Returns(Task.FromException<IMapInstance>(new InvalidOperationException("build failed")));
+        var handed = new List<(Exception Failure, bool FlagWhenHanded)>();
+
+        _town.Start(_connection, revive: false, dropEncounter: true,
+            failed: e => handed.Add((e, _connection.RespawnInFlight)));
+
+        var (failure, flagWhenHanded) = Assert.Single(handed);
+        Assert.IsType<InvalidOperationException>(failure);
+        Assert.False(flagWhenHanded);
+        Assert.Empty(_log.Errors);
+    }
+
+    [Fact]
+    public void Not_call_the_failure_handler_for_a_return_that_arrived()
+    {
+        bool called = false;
+
+        _town.Start(_connection, revive: false, dropEncounter: true, failed: _ => called = true);
+
+        Assert.False(called);
+        _world.Received(1).TransferPlayer(_connection, _townInstance);
+    }
+
+    [Fact]
+    public void Log_a_failure_handler_that_throws()
+    {
+        _resolver.ResolveTownAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
+            .Returns<Task<MapTemplateId>>(_ => throw new InvalidOperationException("database down"));
+
+        Exception? escaped = Record.Exception(() => _town.Start(_connection, revive: false, dropEncounter: true,
+            failed: _ => throw new NotSupportedException("handler broke")));
+
+        Assert.Null(escaped);
+        Assert.False(_connection.RespawnInFlight);
+        Assert.Contains(_log.Errors, e => e.Exception is AggregateException);
+    }
 }

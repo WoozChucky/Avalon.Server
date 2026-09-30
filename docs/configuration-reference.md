@@ -169,6 +169,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `MaxPartySize`                   | int    | `6`        | Most characters in one party; a party's instance also holds at most `min(this, the map's MaxPlayers)`. Range `2`–`40` |
 | `PartyInviteTimeoutSeconds`      | int    | `60`       | Seconds a party invite stays open before it expires. Range `1`–`3600` |
 | `PartyLeaveGraceSeconds`         | int    | `60`       | Seconds a character who stopped being a member may stay in the party's instance before it is moved to town. Range `1`–`3600` |
+| `PartyReturnRetrySeconds`        | int    | `5`        | Seconds before that move to town, when it failed (a town lookup or build that faulted), is tried again, at most 5 times while the character is still in that instance and not back in the party (#700). Range `1`–`3600` |
 | `PartyExperienceModeCooldownSeconds` | int | `60`      | Seconds after a switch of the party's experience mode before the leader may switch it again. Range `0`–`86400` (`0` turns the wait off) |
 | `PartyHealthPerExtraPlayer`      | float  | `0.6`      | Creature health added per player present beyond the first in a party's instance, as a share of its base (`0.6` is +60 %). `0` or more; startup refuses anything else |
 | `PartyEligibilityRange`          | float  | `60`       | Metres, on X/Z, from a corpse within which a party member not in the creature's encounter still shares the kill's loot and experience. At least `1`; its own setting, not tied to `InterestRadius` |
@@ -198,6 +199,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "MaxPartySize": 6,
   "PartyInviteTimeoutSeconds": 60,
   "PartyLeaveGraceSeconds": 60,
+  "PartyReturnRetrySeconds": 5,
   "PartyExperienceModeCooldownSeconds": 60,
   "PartyHealthPerExtraPlayer": 0.6,
   "PartyEligibilityRange": 60,
