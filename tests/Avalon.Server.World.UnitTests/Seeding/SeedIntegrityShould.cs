@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
+using CreatureRarity = Avalon.World.Public.Enums.CreatureRarity;
 
 namespace Avalon.Server.World.UnitTests.Seeding;
 

@@ -360,6 +360,55 @@ public class CreatureSpawnerShould
         Assert.True(ObjectStateWriter.From(after, GameEntityFields.None).CanInteract);
     }
 
+    /// <summary>#709: the rarity a creature advertises comes from its template, fixed at spawn.</summary>
+    [Theory]
+    [InlineData(CreatureRarity.Boss)]
+    [InlineData(CreatureRarity.Normal)]
+    public void Fix_The_Rarity_From_The_Template_At_Spawn(CreatureRarity rarity)
+    {
+        CreatureTemplate template = PlainTemplate(63, "Mother Bramble");
+        template.Rarity = rarity;
+
+        var creature = (Creature)SpawnerOver(template).Spawn(template.Id);
+
+        Assert.Equal(rarity, creature.Rarity);
+    }
+
+    /// <summary>
+    /// #709: <c>/reload creatures</c> is forward-only for the advertised rarity too: a creature already
+    /// standing keeps the rarity it spawned with, and only the next spawn of that template is sent the new one.
+    /// </summary>
+    [Fact]
+    public async Task Fix_The_Rarity_At_Spawn_So_A_Creature_Reload_Reaches_Only_Later_Spawns()
+    {
+        CreatureTemplate template = PlainTemplate(64, "Promoted Wolf");
+        template.MinLevel = 1;
+        template.MaxLevel = 1;
+
+        (CreatureSpawner spawner, StaticData data, MutableRepos repos) = ReloadableSpawnerOver(template);
+
+        ICreature before = spawner.Spawn(template.Id);
+
+        repos.Templates[0] = new CreatureTemplate
+        {
+            Id = template.Id,
+            Name = template.Name,
+            MinLevel = 1,
+            MaxLevel = 1,
+            Rarity = CreatureRarity.Boss,
+            HealthModifier = 1f,
+            DamageModifier = 1f,
+            ExperienceModifier = 1f
+        };
+        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
+
+        ICreature after = spawner.Spawn(template.Id);
+
+        Assert.Null(ObjectStateWriter.From(before, GameEntityFields.CreatureUpdate).Rarity);
+        Assert.Equal(Avalon.Network.Packets.State.CreatureRarity.Boss,
+            ObjectStateWriter.From(after, GameEntityFields.CreatureUpdate).Rarity);
+    }
+
     private static CreatureTemplate PlainTemplate(ulong id, string name) => new()
     {
         Id = new CreatureTemplateId(id),
@@ -512,6 +561,7 @@ public class CreatureSpawnerShould
         CreatureRarityModifier[] rarities =
         [
             new() { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f },
+            new() { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.0f, ExperienceMultiplier = 15.0f },
         ];
         var rarityRepository = Substitute.For<ICreatureRarityModifierRepository>();
         rarityRepository.GetAllAsync(Arg.Any<CancellationToken>())

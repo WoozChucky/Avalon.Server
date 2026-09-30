@@ -340,6 +340,12 @@ enum ChatChannel {
    ChatChannel_Party = 1;
    ChatChannel_System = 2;
 }
+enum CreatureRarity {
+   CreatureRarity_Normal = 0;
+   CreatureRarity_Elite = 1;
+   CreatureRarity_Rare = 2;
+   CreatureRarity_Boss = 3;
+}
 enum DialogueOptionKind {
    DialogueOptionKind_Conversation = 0;
    DialogueOptionKind_OpenBank = 1;
@@ -603,6 +609,7 @@ message ObjectState {
    optional uint32 PortalRole = 19;
    optional bool CanInteract = 20;
    optional bool PvpEnabled = 21;
+   optional CreatureRarity Rarity = 22;
 }
 enum PartyExperienceMode {
    PartyExperienceMode_Unknown = 0;
