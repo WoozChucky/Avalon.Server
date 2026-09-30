@@ -140,7 +140,8 @@ public class WorldServerBarrierTickShould : IDisposable
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
-            Substitute.For<Avalon.World.Persistence.ICharacterSaver>())
+            Substitute.For<Avalon.World.Persistence.ICharacterSaver>(),
+            new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance))
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);

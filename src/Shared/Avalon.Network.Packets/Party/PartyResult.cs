@@ -20,4 +20,7 @@ public enum PartyResult : byte
 
     /// <summary>A request the server cannot read: an experience mode of Unknown.</summary>
     Invalid = 14,
+
+    /// <summary>The server failed while handling the request; nothing is known to have changed.</summary>
+    Error = 15,
 }

@@ -132,7 +132,8 @@ public class WorldServerStartupShould
         Substitute.For<IScriptManager>(),
         Substitute.For<IReplicatedCache>(),
         Substitute.For<IScriptHotReloader>(),
-        new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance));
+        new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance),
+        new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance));
 
     /// <summary>
     /// The world server reflects over every packet handler in the assembly and activates each one,

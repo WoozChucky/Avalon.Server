@@ -12,6 +12,7 @@ using Avalon.World.Chat;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Loot;
+using Avalon.World.Parties;
 using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
 using Avalon.World.Quests;
@@ -84,6 +85,36 @@ public class WorldHostGraphShould
                 d => d.ServiceType == typeof(CombatConfig));
             Assert.Equal(ServiceLifetime.Singleton, combatConfig.Lifetime);
             Assert.NotNull(ActivatorUtilities.CreateInstance<CharacterSelectHandler>(host.Services));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
+    /// <summary>
+    /// The member status flush runs from WorldServer.Update (2026-09-30), so the world server must get the same
+    /// party service the handlers do: one singleton, and a constructor parameter with no default to fall back on.
+    /// </summary>
+    [Fact]
+    public async Task Give_the_world_server_the_one_party_service()
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services.AddWorldServices();
+
+            ServiceDescriptor parties = Assert.Single(builder.Services, d => d.ServiceType == typeof(PartyService));
+            Assert.Equal(ServiceLifetime.Singleton, parties.Lifetime);
+
+            ParameterInfo parameter = Assert.Single(Assert.Single(typeof(WorldServer).GetConstructors()).GetParameters(),
+                p => p.ParameterType == typeof(PartyService));
+            Assert.False(parameter.HasDefaultValue);
+            Assert.False(new NullabilityInfoContext().Create(parameter).WriteState is NullabilityState.Nullable);
+
+            using IHost host = builder.Build();
+            Assert.Same(host.Services.GetRequiredService<PartyService>(), host.Services.GetRequiredService<PartyService>());
         }
         finally
         {

@@ -99,6 +99,7 @@ public class PartyPacketsShould
         Assert.Equal(1, (int)PartyResult.Ok);
         Assert.Equal(13, (int)PartyResult.InviteDeclined);
         Assert.Equal(14, (int)PartyResult.Invalid);
+        Assert.Equal(15, (int)PartyResult.Error);
         Assert.Equal(0, (int)PartyExperienceMode.Unknown);
         Assert.Equal(1, (int)PartyExperienceMode.Even);
         Assert.Equal(2, (int)PartyExperienceMode.LevelWeighted);

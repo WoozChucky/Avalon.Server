@@ -542,7 +542,8 @@ public class CharacterLeaveShould : IDisposable
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
-            saver)
+            saver,
+            new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance))
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);

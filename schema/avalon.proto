@@ -649,6 +649,7 @@ enum PartyResult {
    PartyResult_InviteExpired = 12;
    PartyResult_InviteDeclined = 13;
    PartyResult_Invalid = 14;
+   PartyResult_Error = 15;
 }
 message PlacedChunkDto {
    int32 ChunkTemplateId = 1;

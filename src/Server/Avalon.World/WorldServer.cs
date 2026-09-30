@@ -131,7 +131,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _contextFactoryCache = new();
     private readonly Stopwatch _gameTime = new();
     private readonly ILogger<WorldServer> _logger;
-    private readonly PartyService? _parties;
+    private readonly PartyService _parties;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
@@ -170,7 +170,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IReplicatedCache cache,
         IScriptHotReloader scriptHotReloader,
         ICharacterSaver characterSaver,
-        PartyService? parties = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
+        PartyService parties) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions,
         PacketDispatchTelemetry.From(DiagnosticsConfig.World.Source, DiagnosticsConfig.World.Meter,
@@ -513,7 +513,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             AbilityAmountsFlusher.Flush(conns[i]);
 
         // Party members' pools (2026-09-30), to the members in their instance, at most four times a second each.
-        _parties?.FlushMemberStatus();
+        _parties.FlushMemberStatus();
 
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
