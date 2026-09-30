@@ -46,7 +46,8 @@ public class CharacterServiceShould
             });
 
         var service = new CharacterService(characters, slots, items,
-            Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates);
+            Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
+            Substitute.For<ICharacterStatsRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -93,7 +94,8 @@ public class CharacterServiceShould
             .Returns(new List<ItemTemplate> { new() { Id = new ItemTemplateId(1), Name = "Health Potion", Slot = slot } });
 
         var service = new CharacterService(characters, slots, items,
-            Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates);
+            Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
+            Substitute.For<ICharacterStatsRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -131,7 +133,8 @@ public class CharacterServiceShould
             });
 
         var service = new CharacterService(characters, Substitute.For<ICharacterInventoryRepository>(),
-            Substitute.For<IItemInstanceRepository>(), rows, abilities, Substitute.For<IItemTemplateRepository>());
+            Substitute.For<IItemInstanceRepository>(), rows, abilities, Substitute.For<IItemTemplateRepository>(),
+            Substitute.For<ICharacterStatsRepository>());
 
         CharacterAbilitiesDto? result = await service.GetAbilitiesAsync(id);
 
@@ -147,4 +150,51 @@ public class CharacterServiceShould
                 Assert.Equal(PowerType.Mana, costed.Template.CostPowerType);
             });
     }
+
+    /// <summary>The stats the world server last saved for the character (#676).</summary>
+    [Fact]
+    public async Task Return_the_characters_saved_stats()
+    {
+        var id = new CharacterId(42);
+        var stats = Substitute.For<ICharacterStatsRepository>();
+        stats.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new CharacterStats
+        {
+            CharacterId = id, MaxHealth = 320, MaxPower1 = 100, MaxPower2 = 5, Stamina = 26, Strength = 27,
+            Agility = 23, Intellect = 20, Armor = 12, BlockPct = 5f, DodgePct = 3.664f, CritPct = 5.5f,
+            AttackDamage = 54, AbilityDamage = 4,
+        });
+
+        CharacterStatsDto? dto = await StatsService(stats).GetStatsAsync(id);
+
+        Assert.NotNull(dto);
+        Assert.Equal(42u, dto!.CharacterId);
+        Assert.Equal(320u, dto.MaxHealth);
+        Assert.Equal(100u, dto.MaxPower1);
+        Assert.Equal(5u, dto.MaxPower2);
+        Assert.Equal(26u, dto.Stamina);
+        Assert.Equal(27u, dto.Strength);
+        Assert.Equal(23u, dto.Agility);
+        Assert.Equal(20u, dto.Intellect);
+        Assert.Equal(12u, dto.Armor);
+        Assert.Equal(5f, dto.BlockPct);
+        Assert.Equal(3.664f, dto.DodgePct);
+        Assert.Equal(5.5f, dto.CritPct);
+        Assert.Equal(54u, dto.AttackDamage);
+        Assert.Equal(4u, dto.AbilityDamage);
+    }
+
+    /// <summary>A character the world server has never saved stats for has none to return (#676).</summary>
+    [Fact]
+    public async Task Return_no_stats_when_the_character_has_none_saved()
+    {
+        var stats = Substitute.For<ICharacterStatsRepository>();
+        stats.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns((CharacterStats?)null);
+
+        Assert.Null(await StatsService(stats).GetStatsAsync(new CharacterId(42)));
+    }
+
+    private static CharacterService StatsService(ICharacterStatsRepository stats) =>
+        new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
+            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(), stats);
 }

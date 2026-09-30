@@ -16,6 +16,7 @@ public interface ICharacterService
     Task UpdateAnyAsync(Character character, CharacterPatchDto dto, CancellationToken cancellationToken = default);
     Task<CharacterInventoryDto?> GetInventoryAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default);
+    Task<CharacterStatsDto?> GetStatsAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task<PagedResult<Character>> PaginateAsync(CharacterPaginateFilters filters, CancellationToken cancellationToken = default);
 }
 
@@ -27,6 +28,7 @@ public class CharacterService : ICharacterService
     private readonly ICharacterAbilityRepository _characterAbilityRepository;
     private readonly IAbilityTemplateRepository _abilityTemplateRepository;
     private readonly IItemTemplateRepository _itemTemplateRepository;
+    private readonly ICharacterStatsRepository _statsRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
@@ -34,7 +36,8 @@ public class CharacterService : ICharacterService
         IItemInstanceRepository itemInstanceRepository,
         ICharacterAbilityRepository characterAbilityRepository,
         IAbilityTemplateRepository abilityTemplateRepository,
-        IItemTemplateRepository itemTemplateRepository)
+        IItemTemplateRepository itemTemplateRepository,
+        ICharacterStatsRepository statsRepository)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
@@ -42,6 +45,7 @@ public class CharacterService : ICharacterService
         _characterAbilityRepository = characterAbilityRepository;
         _abilityTemplateRepository = abilityTemplateRepository;
         _itemTemplateRepository = itemTemplateRepository;
+        _statsRepository = statsRepository;
     }
 
     public Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default) =>
@@ -131,6 +135,30 @@ public class CharacterService : ICharacterService
                 ItemPower = template.ItemPower ?? 0,
                 RequiredLevel = template.RequiredLevel ?? 0,
             },
+        };
+    }
+
+    public async Task<CharacterStatsDto?> GetStatsAsync(CharacterId id, CancellationToken cancellationToken = default)
+    {
+        var stats = await _statsRepository.GetByCharacterIdAsync(id, cancellationToken);
+        if (stats is null) return null;
+
+        return new CharacterStatsDto
+        {
+            CharacterId = stats.CharacterId.Value,
+            MaxHealth = stats.MaxHealth,
+            MaxPower1 = stats.MaxPower1,
+            MaxPower2 = stats.MaxPower2,
+            Stamina = stats.Stamina,
+            Strength = stats.Strength,
+            Agility = stats.Agility,
+            Intellect = stats.Intellect,
+            Armor = stats.Armor,
+            BlockPct = stats.BlockPct,
+            DodgePct = stats.DodgePct,
+            CritPct = stats.CritPct,
+            AttackDamage = stats.AttackDamage,
+            AbilityDamage = stats.AbilityDamage,
         };
     }
 
