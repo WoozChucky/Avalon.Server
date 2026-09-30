@@ -102,3 +102,6 @@ out/
 
 # dotnet test --logger trx output (#572)
 TestResults/
+
+# Balance simulator output (tools/Avalon.Balance); already matched by out/, named for clarity
+balance/out/
