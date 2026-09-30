@@ -161,8 +161,8 @@ public static class HtmlReport
                   .Append(V(r.WinRatePct)).Append(" % win").Append(worst is { } w2 ? Badge(w2) : "")
                   .Append("<br>").Append(V(r.FightSeconds.Median)).Append(" s")
                   .Append("<br>").Append(VU(r.HealthLeftPct?.Median, " %")).Append(" hp")
-                  .Append("<br>1st spender ").Append(VU(r.FirstSpenderSeconds, " s"))
-                  .Append("<br>starved ").Append(V(r.StarvedPct)).Append(" %</td>");
+                  .Append("<br>1st spender ").Append(VU(r.FirstSpenderSeconds?.Median, " s"))
+                  .Append("<br>starved ").Append(V(r.StarvedPct.Median)).Append(" %</td>");
             }
 
             sb.Append("</tr>");

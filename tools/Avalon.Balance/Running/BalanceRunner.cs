@@ -69,8 +69,8 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
 
     /// <summary>
     /// Win rate and fight length over every run (a loss counts its length, a timeout 300 s); health left over wins only
-    /// (null when none won); time to the first spender the median over runs that cast one (null when none did); starved
-    /// share the median of per-run starved / length x 100; damage as per-run averages.
+    /// (null when none won); time to the first spender over runs that cast one (null when none did); starved share over
+    /// every run, per run starved / length x 100; damage as per-run averages.
     /// </summary>
     private static RowResult Aggregate(RowKey key, List<FightResult> fights, PlayerSnapshot snapshot)
     {
@@ -83,8 +83,8 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
             wins.Count * 100d / fights.Count,
             Distribution.Of(fights.Select(f => f.Seconds).ToArray()),
             wins.Count > 0 ? Distribution.Of(wins.Select(f => f.HealthLeftPct).ToArray()) : null,
-            spenders.Length > 0 ? Distribution.Of(spenders).Median : null,
-            Distribution.Of(fights.Select(f => f.Seconds > 0 ? f.StarvedSeconds * 100d / f.Seconds : 0d).ToArray()).Median,
+            spenders.Length > 0 ? Distribution.Of(spenders) : null,
+            Distribution.Of(fights.Select(f => f.Seconds > 0 ? f.StarvedSeconds * 100d / f.Seconds : 0d).ToArray()),
             Average(fights, f => f.DamageDealt),
             Average(fights, f => f.DamageTaken),
             snapshot);

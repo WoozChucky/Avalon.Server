@@ -15,7 +15,7 @@ public class ReportsShould
 
     private static RowResult Row(CharacterClass c, ushort level, double win) =>
         new(new RowKey(c, level, "forest", "normal-3"), 10, win, new Distribution(15, 20, 25), new Distribution(40, 50, 60),
-            1.5, 3, new Dictionary<string, double> { ["Cleave, the \"big\" one"] = 120.5 }, new Dictionary<string, double> { ["Grey Fen Wolf: Bite"] = 80 },
+            new Distribution(1, 1.5, 2), new Distribution(2, 3, 4.25), new Dictionary<string, double> { ["Cleave, the \"big\" one"] = 120.5 }, new Dictionary<string, double> { ["Grey Fen Wolf: Bite"] = 80 },
             new PlayerSnapshot(300, 100, 50, 4, 20, 5, 3.6f, 5, 3, [new AbilityLine("Cleave", "Damage", 30, 36)]));
 
     private static ReportContext Context(params RowResult[] rows)
@@ -39,6 +39,27 @@ public class ReportsShould
         Assert.StartsWith("class,level,gear,scenario,runs,win_rate,", lines[0], StringComparison.Ordinal);
         Assert.StartsWith("Warrior,1,forest,normal-3,10,96,", lines[1], StringComparison.Ordinal);
         Assert.Contains("green", lines[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Write_p10_median_and_p90_for_the_first_spender_and_the_starved_share()
+    {
+        RowResult noSpender = Row(CharacterClass.Wizard, 1, 80) with { FirstSpenderSeconds = null };
+        ReportContext ctx = Context(Row(CharacterClass.Warrior, 1, 96), noSpender);
+
+        string[] lines = CsvReport.Render(ctx.Rows, ctx.Grades).TrimEnd().Split('\n');
+        string[] header = lines[0].Split(',');
+        string[] warrior = lines[1].Split(',');
+        string[] wizard = lines[2].Split(',');
+        string At(string[] line, string column) => line[Array.IndexOf(header, column)];
+
+        Assert.Equal(["1", "1.5", "2"],
+            new[] { "first_spender_p10", "first_spender_median", "first_spender_p90" }.Select(c => At(warrior, c)));
+        Assert.Equal(["2", "3", "4.25"],
+            new[] { "starved_pct_p10", "starved_pct_median", "starved_pct_p90" }.Select(c => At(warrior, c)));
+        Assert.Equal(["", "", ""],
+            new[] { "first_spender_p10", "first_spender_median", "first_spender_p90" }.Select(c => At(wizard, c)));
+        Assert.Equal(header.Length, warrior.Length);
     }
 
     [Fact]

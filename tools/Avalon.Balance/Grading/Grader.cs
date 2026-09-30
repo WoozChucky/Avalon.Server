@@ -91,10 +91,10 @@ public static class Grader
         foreach (RowResult r in graded.Where(r => r.Key.Scenario == g.ResourceScenario))
         {
             if (r.Key.Class == CharacterClass.Warrior)
-                Add(r.Key, "resource flow", $"Warrior L{r.Key.Level} first spender", r.FirstSpenderSeconds,
+                Add(r.Key, "resource flow", $"Warrior L{r.Key.Level} first spender", r.FirstSpenderSeconds?.Median,
                     new Band { Min = 0, Max = g.WarriorFirstSpenderSeconds }, " s");
             if (ClassPowerType.Of(r.Key.Class) is PowerType.Mana or PowerType.Energy)
-                Add(r.Key, "resource flow", $"{r.Key.Class} L{r.Key.Level} starved share", r.StarvedPct,
+                Add(r.Key, "resource flow", $"{r.Key.Class} L{r.Key.Level} starved share", r.StarvedPct.Median,
                     new Band { Min = 0, Max = g.CasterStarvedPct }, " %");
         }
 

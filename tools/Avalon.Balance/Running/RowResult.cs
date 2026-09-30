@@ -22,8 +22,8 @@ public sealed record PlayerSnapshot(uint Health, uint Power, uint AttackDamage, 
 
 /// <summary>
 /// One row's runs, aggregated: win rate over all runs; fight length over all runs (a loss counts its length, a
-/// timeout 300 s); health left over wins only (null when none won); time to the first spender the median over runs
-/// that cast one (null when none did); starved share the median of starved / length x 100; damage per-run averages.
+/// timeout 300 s); health left over wins only (null when none won); time to the first spender over runs that cast
+/// one (null when none did); starved share over every run, per run starved / length x 100; damage per-run averages.
 /// </summary>
 public sealed record RowResult(
     RowKey Key,
@@ -31,8 +31,8 @@ public sealed record RowResult(
     double WinRatePct,
     Distribution FightSeconds,
     Distribution? HealthLeftPct,
-    double? FirstSpenderSeconds,
-    double StarvedPct,
+    Distribution? FirstSpenderSeconds,
+    Distribution StarvedPct,
     IReadOnlyDictionary<string, double> DamageDealtPerRun,
     IReadOnlyDictionary<string, double> DamageTakenPerRun,
     PlayerSnapshot Snapshot);
