@@ -172,7 +172,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `PartyExperienceModeCooldownSeconds` | int | `60`      | Seconds after a switch of the party's experience mode before the leader may switch it again. Range `0`–`86400` (`0` turns the wait off) |
 | `PartyHealthPerExtraPlayer`      | float  | `0.6`      | Creature health added per player present beyond the first in a party's instance, as a share of its base (`0.6` is +60 %). `0` or more; startup refuses anything else |
 | `PartyEligibilityRange`          | float  | `60`       | Metres, on X/Z, from a corpse within which a party member not in the creature's encounter still shares the kill's loot and experience. At least `1`; its own setting, not tied to `InterestRadius` |
-| `PartyExperienceBonusPerExtra`   | float  | `0.10`     | Experience added to a shared kill per counted member beyond the first (`0.1` is +10 %). `0` or more; startup refuses anything else |
+| `PartyExperienceBonusPerExtra`   | float  | `0.10`     | Experience added to a shared kill per counted member beyond the first (`0.1` is +10 %). `0` to `10`; startup refuses anything else |
 | `PartyExperienceLevelGap`        | int    | `5`        | A character this many levels or more above a creature gets no experience from it, in a party or solo. Range `1`–`1000` |
 
 ```json

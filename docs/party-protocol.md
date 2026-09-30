@@ -3,8 +3,8 @@
 > **Audience:** client developers and LLMs handed the client codebase.
 > **Status:** party play, V1 (2026-09-30). Amended in place when the party protocol changes.
 
-This is the client contract for parties: a group of players who share a procedural (Normal) map instance,
-its kills, its loot and its experience. The wire schema is `schema/avalon.proto` (re-exported with
+This is the client contract for parties: a party is two or more players who share a procedural (Normal) map
+instance, its kills, its loot and its experience. The wire schema is `schema/avalon.proto` (re-exported with
 `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]` numbers in it. Server-side rules are
 described in `CLAUDE.md` under "Parties".
 
@@ -46,9 +46,9 @@ what a payload without the field decodes as.
 | Value | Name | Meaning |
 |---|---|---|
 | 0 | `Unknown` | Never sent; a payload without the field. |
-| 1 | `Ok` | Done (a decline, and a switch to the mode already set, are `Ok` too). |
+| 1 | `Ok` | Done (a decline, and a switch to the mode already set (outside the cooldown and combat), are `Ok` too). |
 | 2 | `NotLeader` | Only the leader may do that (invite into an existing party, kick, promote, switch the mode). |
-| 3 | `NotFound` | The named character is not online, the member is not in your party, or the invite's party no longer exists. |
+| 3 | `NotFound` | The named character is not online, the member is not in your party (or, for a promote, is offline), or the invite's party no longer exists. |
 | 4 | `AlreadyInParty` | The target (or, on accepting, you) is already in a party. |
 | 5 | `PartyFull` | The party has `MaxPartySize` members (6 by default). |
 | 6 | `InvitePending` | The target already holds an invite. |
@@ -86,7 +86,12 @@ A member's own client also gets it when it enters the world while in a party.
 - **No party:** an empty roster, `PartyId` 0 and no members. A character that leaves, is kicked, or whose
   party disbands gets one.
 - `Members` are in join order; the first is the longest-standing. Exactly one has `IsLeader`.
-- `Online` is false for a member who logged out; it stays a member, with its last known level.
+- `Online` is false for a member who logged out; it stays a member, with its last known level. An offline
+  member cannot be promoted (`NotFound`).
+- A leader who leaves while no other member is online hands leadership to the longest-standing member, offline
+  as it is; the next time the server finds that leader offline, leadership passes to the first member online.
+- A character deleted while in a party stays on its party's roster, shown offline, until the party disbands or
+  the server restarts. Kick it to remove it.
 - `SameInstance` is relative to the recipient: whether that member is in the recipient's instance. It is
   always true for the recipient's own entry.
 - `ModeLockedForMs`: how long until the leader may switch the experience mode again, measured when the
@@ -125,7 +130,7 @@ plus a system line when refused):
 | `/kick <name>` | Remove a member (leader only). |
 | `/promote <name>` | Make a member the leader (leader only). |
 | `/partyxp even\|level` | Switch the experience mode (leader only). Anything else is answered with its usage. |
-| `/p <message>` (`/party`) | Party chat. Outside a party: "You are not in a party." |
+| `/p <message>` (`/party`) | Party chat. With no text: "Usage: /p <message>". Outside a party: "You are not in a party." |
 
 System lines the party produces (X is a character name):
 - "X joined the party." / "X left the party." / "X was removed from the party."
