@@ -30,12 +30,12 @@ variant empty
   bytes 0
 
 variant populated
-  field 1 Type : NetworkPacketType = SMSG_WORLD_STATE_REMOVE (12354)
+  field 1 Type : NetworkPacketType = CMSG_PARTY_INVITE_RESPONSE (8369)
   field 2 Flags : NetworkPacketFlags = ClearText (1)
   field 3 Protocol : NetworkProtocol = Both (3)
   field 4 Version : int = 1000
   bytes 10
-    08 c2 60 10 01 18 03 20 e8 07
+    08 b1 41 10 01 18 03 20 e8 07
 
 variant maxima
   field 1 Type : NetworkPacketType = SMSG_UNIT_HEALED (12556)

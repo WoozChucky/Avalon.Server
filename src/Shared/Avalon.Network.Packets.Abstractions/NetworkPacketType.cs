@@ -67,10 +67,6 @@ public enum NetworkPacketType : short
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
     CMSG_CHAT_MESSAGE = 0x2007,
-    CMSG_CHAT_OPEN = 0x2008,
-    CMSG_CHAT_CLOSE = 0x2009,
-    [Obsolete("Retired with the party packets (2026-09-30); never reuse the value.")]
-    CMSG_GROUP_INVITE_RESULT = 0x200A,
     CMSG_PLAYER_INPUT = 0x2060,
 
     // MFA
@@ -163,13 +159,6 @@ public enum NetworkPacketType : short
     SMSG_DISCONNECT = 0x3008,
 
     SMSG_CHAT_MESSAGE = 0x3009,
-    SMSG_CHAT_OPEN = 0x300A,
-    SMSG_CHAT_CLOSE = 0x300B,
-
-    [Obsolete("Retired with the party packets (2026-09-30); never reuse the value.")]
-    SMSG_GROUP_INVITE = 0x300D,
-    [Obsolete("Retired with the party packets (2026-09-30); never reuse the value.")]
-    SMSG_GROUP_INVITE_RESULT = 0x300E,
 
     // MFA
     SMSG_MFA_SETUP = 0x300F,

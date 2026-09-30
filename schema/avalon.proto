@@ -166,10 +166,6 @@ message CChatMessagePacket {
 message CClientInfoPacket {
    optional bytes PublicKey = 1;
 }
-message CCloseChatPacket {
-   uint64 AccountId = 1;
-   uint64 CharacterId = 2;
-}
 message CDialogueChoosePacket {
    uint64 TargetGuid = 1;
    int32 NodeId = 2;
@@ -221,10 +217,6 @@ message CMFASetupPacket {
 message CMFAVerifyPacket {
    optional string MfaHash = 1;
    optional string Code = 2;
-}
-message COpenChatPacket {
-   uint64 AccountId = 1;
-   uint64 CharacterId = 2;
 }
 message CPartyExperienceModePacket {
    PartyExperienceMode Mode = 1;
@@ -480,9 +472,6 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_PING = 8197;
    NetworkPacketType_CMSG_PONG = 8198;
    NetworkPacketType_CMSG_CHAT_MESSAGE = 8199;
-   NetworkPacketType_CMSG_CHAT_OPEN = 8200;
-   NetworkPacketType_CMSG_CHAT_CLOSE = 8201;
-   NetworkPacketType_CMSG_GROUP_INVITE_RESULT = 8202;
    NetworkPacketType_CMSG_MFA_VERIFY = 8203;
    NetworkPacketType_CMSG_MFA_SETUP = 8204;
    NetworkPacketType_CMSG_MFA_CONFIRM = 8205;
@@ -529,10 +518,6 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_PING = 12295;
    NetworkPacketType_SMSG_DISCONNECT = 12296;
    NetworkPacketType_SMSG_CHAT_MESSAGE = 12297;
-   NetworkPacketType_SMSG_CHAT_OPEN = 12298;
-   NetworkPacketType_SMSG_CHAT_CLOSE = 12299;
-   NetworkPacketType_SMSG_GROUP_INVITE = 12301;
-   NetworkPacketType_SMSG_GROUP_INVITE_RESULT = 12302;
    NetworkPacketType_SMSG_MFA_SETUP = 12303;
    NetworkPacketType_SMSG_AUTH_RESULT = 12304;
    NetworkPacketType_SMSG_LOGOUT = 12305;
@@ -791,9 +776,6 @@ message SChunkLayoutPacket {
    repeated PortalPlacementDto Portals = 6;
    uint32 MapId = 7;
 }
-message SCloseChatPacket {
-   optional string ClientId = 1;
-}
 message SDialogueEndPacket {
    uint64 SpeakerGuid = 1;
 }
@@ -882,9 +864,6 @@ message SMapTransitionPacket {
    float SpawnZ = 6;
    optional string MapName = 7;
    optional string MapDescription = 8;
-}
-message SOpenChatPacket {
-   optional string ClientId = 1;
 }
 message SPartyInvitePacket {
    optional string InviterName = 1;

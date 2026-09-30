@@ -92,24 +92,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_CHAT_OPEN",
-      "opcode": 8200,
-      "hex": "0x2008",
-      "message": "COpenChatPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "CMSG_CHAT_CLOSE",
-      "opcode": 8201,
-      "hex": "0x2009",
-      "message": "CCloseChatPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
       "name": "CMSG_MFA_VERIFY",
       "opcode": 8203,
       "hex": "0x200B",
@@ -510,24 +492,6 @@
       "opcode": 12297,
       "hex": "0x3009",
       "message": "SChatMessagePacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_CHAT_OPEN",
-      "opcode": 12298,
-      "hex": "0x300A",
-      "message": "SOpenChatPacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_CHAT_CLOSE",
-      "opcode": 12299,
-      "hex": "0x300B",
-      "message": "SCloseChatPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"
