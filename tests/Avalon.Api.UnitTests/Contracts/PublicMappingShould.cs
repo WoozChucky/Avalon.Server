@@ -31,7 +31,10 @@ public class PublicMappingShould
         Assert.Equal(12ul, dto.Id);
         Assert.Equal("Barkplate Helm", dto.Name);
         Assert.Equal(Avalon.Api.Contract.ItemRarity.Uncommon, dto.Rarity);
+        Assert.Equal(Avalon.Api.Contract.ItemClass.Armor, dto.Class);
+        Assert.Equal(Avalon.Api.Contract.ItemSubClass.Helmet, dto.SubClass);
         Assert.Equal(Avalon.Api.Contract.ItemSlotType.Head, dto.Slot);
+        Assert.Equal(1u, dto.MaxStackSize);
         Assert.Equal((ushort)3, dto.RequiredLevel);
         Assert.Equal((ushort)8, dto.ItemPower);
         Assert.Equal(125u, dto.SellPrice);
@@ -108,17 +111,18 @@ public class PublicMappingShould
     }
 
     [Theory]
-    [InlineData("ConeAbilityScript", AbilityAffects.Hostile, Avalon.Api.Contract.AbilityAmountKind.Damage)]
-    [InlineData("CircleAbilityScript", AbilityAffects.Ally, Avalon.Api.Contract.AbilityAmountKind.Healing)]
-    [InlineData("ChargeAbilityScript", AbilityAffects.Hostile, Avalon.Api.Contract.AbilityAmountKind.None)]
+    [InlineData("ConeAbilityScript", AbilityAffects.Hostile, Avalon.Api.Contract.AbilityAmountKind.Damage, ScalingStat.Attack, Avalon.Api.Contract.AbilityScalingStat.Attack)]
+    [InlineData("CircleAbilityScript", AbilityAffects.Ally, Avalon.Api.Contract.AbilityAmountKind.Healing, ScalingStat.Ability, Avalon.Api.Contract.AbilityScalingStat.Ability)]
+    [InlineData("ChargeAbilityScript", AbilityAffects.Hostile, Avalon.Api.Contract.AbilityAmountKind.None, ScalingStat.Attack, Avalon.Api.Contract.AbilityScalingStat.Attack)]
     public void Map_an_abilitys_tooltip_fields(string script, AbilityAffects affects,
-        Avalon.Api.Contract.AbilityAmountKind kind)
+        Avalon.Api.Contract.AbilityAmountKind kind, ScalingStat scaling,
+        Avalon.Api.Contract.AbilityScalingStat expectedScaling)
     {
         AbilityTemplate cleave = new()
         {
             Id = new AbilityId(210), Name = "Cleave", Cost = 20,
-            CostPowerType = Avalon.Network.Packets.State.PowerType.Fury, CastTime = 0, Cooldown = 800,
-            ScriptName = script, Affects = affects, EffectValue = 10, ScalingStat = ScalingStat.Attack,
+            CostPowerType = Avalon.Network.Packets.State.PowerType.Fury, CastTime = 1500, Cooldown = 800, Range = Avalon.World.Public.Enums.SpellRange.Melee,
+            ScriptName = script, Affects = affects, EffectValue = 10, ScalingStat = scaling,
             ScalingCoefficient = 0.5f, BaseDamageCoefficient = 1f, AllowedClasses = [CharacterClass.Warrior],
         };
 
@@ -128,6 +132,31 @@ public class PublicMappingShould
         Assert.Equal(Avalon.Api.Contract.PowerType.Fury, dto.CostPowerType);
         Assert.Equal(kind, dto.AmountKind);
         Assert.Equal((10u, 0.5f, 1f), (dto.EffectValue, dto.ScalingCoefficient, dto.BaseDamageCoefficient));
-        Assert.Equal(Avalon.Api.Contract.AbilityScalingStat.Attack, dto.ScalingStat);
+        Assert.Equal(expectedScaling, dto.ScalingStat);
+        Assert.Equal(Avalon.Api.Contract.SpellRange.Melee, dto.Range);
+        Assert.Equal(1500u, dto.CastTime);
+        Assert.Equal([CharacterClass.Warrior], dto.AllowedClasses);
+    }
+
+    /// <summary>PublicMapping casts these by ordinal, so each member must keep its name across the pair.</summary>
+    [Theory]
+    [InlineData(typeof(Avalon.Domain.World.ItemRarity), typeof(Avalon.Api.Contract.ItemRarity))]
+    [InlineData(typeof(Avalon.Domain.World.ItemClass), typeof(Avalon.Api.Contract.ItemClass))]
+    [InlineData(typeof(Avalon.Domain.World.ItemSubClass), typeof(Avalon.Api.Contract.ItemSubClass))]
+    [InlineData(typeof(Avalon.Domain.World.ItemSlotType), typeof(Avalon.Api.Contract.ItemSlotType))]
+    [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Api.Contract.StatType))]
+    [InlineData(typeof(Avalon.Domain.World.DamageType), typeof(Avalon.Api.Contract.DamageType))]
+    [InlineData(typeof(Avalon.Network.Packets.State.PowerType), typeof(Avalon.Api.Contract.PowerType))]
+    [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]
+    [InlineData(typeof(Avalon.Network.Packets.Abilities.AbilityAmountKind), typeof(Avalon.Api.Contract.AbilityAmountKind))]
+    [InlineData(typeof(ScalingStat), typeof(Avalon.Api.Contract.AbilityScalingStat))]
+    public void Keep_enum_members_in_step_with_the_contract(Type source, Type target)
+    {
+        Assert.Equal(Enum.GetValues(source).Length, Enum.GetValues(target).Length);
+        foreach (object member in Enum.GetValues(source))
+        {
+            object cast = Enum.ToObject(target, Convert.ToUInt64(member));
+            Assert.Equal(Enum.GetName(source, member), Enum.GetName(target, cast));
+        }
     }
 }
