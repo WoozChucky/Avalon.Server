@@ -328,14 +328,22 @@ is not in the instance. Otherwise, in order:
 3. Melee slots are released both ways: the slot the creature held, and the ring on it.
 4. The corpse remover schedules its removal.
 5. Loot drops, whoever the killer is.
-6. If the killer is a character, it gains experience and may level up.
+6. The kill's experience is shared among the characters eligible for it, and each may level up.
+
+Who shares the kill is decided first, once, before step 1, while the creature is still in its
+encounter (`PartyEligibility`): a killer in no party alone; in a party, every member in the same
+instance, alive or dead, who is in the creature's encounter or within `PartyEligibilityRange`
+(60 m) of the corpse on X/Z, the killer always, and never a character in a party leave countdown
+(a killer in one makes nobody eligible). CLAUDE.md's Parties section has the rules.
 
 ### Loot
 
 `ILootRoller` rolls the template's `LootTableId` and its `MinGold`/`MaxGold` range (copper).
-`ILootAllocator` picks an owner. The only implementation, `InstanceOwnerLootAllocator`, reserves
-every drop for the instance's owner for `GameConfiguration.LootGracePeriod` (default 30 s). In an
-instance with no owner, such as a town, every drop is free for all at once. The drops are placed
+`ILootAllocator` picks an owner for each drop on its own. The only implementation,
+`PartyLootAllocator`, reserves every drop of a solo instance for its owner character, and each drop
+of a party's instance for one eligible member drawn at random (through `ICombatRandom`), in both
+cases for `GameConfiguration.LootGracePeriod` (default 30 s). In an instance with neither owner,
+such as a town, and for a party kill with nobody eligible, every drop is free for all at once. The drops are placed
 around the corpse, kept in the instance's `GroundLootStore`, and broadcast with `SLootSpawnedPacket`.
 A loot failure is logged, and the kill still counts.
 
@@ -343,7 +351,11 @@ CLAUDE.md's World Simulation section describes loot tables and pickup.
 
 ### Experience and level-up
 
-The award is the creature's `Experience`, scaled by the map's level band:
+The creature's `Experience` is first split among the eligible characters (`PartyExperience`): a
+character `PartyExperienceLevelGap` (5) or more levels above the creature gets nothing and is not
+counted, solo too; one counted character gets all of it; several share
+`xp × (1 + PartyExperienceBonusPerExtra × (n − 1))`, evenly or by level as the party's mode says.
+Each share is then scaled by the map's level band, for that character:
 
 - A map with no band (`MapTemplate.MinLevel` or `MaxLevel` unset) scales by 1.
 - Otherwise the award is multiplied by `ExperienceBandDecay` (default 0.75) once for each level the
@@ -351,7 +363,7 @@ The award is the creature's `Experience`, scaled by the map's level band:
 
 If the character's experience plus the award reaches the requirement for its level
 (`CharacterLevelExperiences`), the character gains one level and keeps the overflow. Its stats are
-then recalculated: a living killer is refilled to the new maximums, and a dead one keeps its share of
+then recalculated: a living character is refilled to the new maximums, and a dead one keeps its share of
 each pool, so it is not revived. A level with no requirement row logs a warning and awards nothing.
 
 ---

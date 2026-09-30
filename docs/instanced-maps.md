@@ -15,7 +15,7 @@ Avalon has no single persistent open world. Players gather in shared town instan
 | Type    | Description |
 |---------|-------------|
 | `Town`  | Shared hub with a player cap (default 30). Multiple instances are created automatically when all existing ones are full. New players are always routed to the least-populated instance that still has room. |
-| `Normal`| Private instanced area, one per player (group-ready by design). A 15-minute expiry countdown starts when the last player leaves. Re-entering within that window returns the player to the same live instance. After expiry the instance is freed. |
+| `Normal`| Private instanced area, one per player, or one per party while the character is in a party (see `party-protocol.md` and CLAUDE.md's Parties section). A 15-minute expiry countdown starts when the last player leaves. Re-entering within that window returns the player to the same live instance. After expiry the instance is freed. |
 
 Players move between maps via `CEnterMapPacket`; the server validates that the player is within range of a portal defined for that map pair.
 

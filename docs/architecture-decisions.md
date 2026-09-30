@@ -52,7 +52,7 @@ The Auth server remains the **sole writer** of `AuthDbContext`. It listens on Re
 
 ### Context
 
-`ChatMessageHandler` processes all `CChatMessagePacket` packets. Slash commands (`/invite`, `/who`, etc.) are conceptually different from free-text chat.
+`ChatMessageHandler` processes all `CChatMessagePacket` packets. Slash commands (`/invite`, `/reload`, etc.) are conceptually different from free-text chat.
 
 ### Decision
 
@@ -64,11 +64,11 @@ CChatMessagePacket
 ChatMessageHandler
         │
   message.StartsWith('/') ?
-        ├── YES → CommandDispatcher.DispatchAsync(ctx, commandLine)
+        ├── YES → CommandDispatcher.Dispatch(connection, packet)   (synchronous, on the tick)
         │              └── Resolve ICommand by name or alias
-        │                    ├── Found → ICommand.ExecuteAsync(ctx, args)
-        │                    └── Not Found → send "Unknown command" to sender
-        └── NO  → BroadcastToChunk (existing behaviour)
+        │                    ├── Found → ICommand.Execute(ctx, args)
+        │                    └── Not Found → send "Unknown command." to sender
+        └── NO  → said on ChatChannel.Say to the sender's MapInstance
 ```
 
 ### `ICommand` Interface
@@ -78,16 +78,19 @@ public interface ICommand
 {
     string Name { get; }
     string[] Aliases { get; }
-    Task ExecuteAsync(WorldPacketContext<CChatMessagePacket> ctx, string[] args,
-                      CancellationToken token = default);
+    AccountAccessLevel RequiredAccess => AccessLevels.Player;
+
+    // Runs on the tick, to completion; asynchronous work goes through ctx.Then(task, callback),
+    // whose callback runs on a later tick (revised with party play: commands no longer await).
+    void Execute(CommandContext ctx, string[] args);
 }
 ```
 
 ### DI Registration
 
 ```csharp
-services.AddSingleton<ICommand, GroupInviteCommand>();
-services.AddSingleton<ICommand, WhoCommand>();
+services.AddSingleton<ICommand, ReloadCommand>();
+services.AddSingleton<ICommand, InviteCommand>();
 // etc.
 ```
 
