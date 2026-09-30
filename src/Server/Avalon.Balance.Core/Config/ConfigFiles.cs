@@ -12,6 +12,8 @@ public static class ConfigFiles
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        // A null where the file's type has no null ("classes": null, "pack": [null]) is a bad file, not a later crash.
+        RespectNullableAnnotations = true,
         Converters = { new JsonStringEnumConverter(allowIntegerValues: false) },
     };
 

@@ -29,7 +29,7 @@ public sealed class Scenario
     public int? Offset => LevelOffset switch
     {
         null => 0,
-        { ValueKind: JsonValueKind.Number } e => e.GetInt32(),
+        { ValueKind: JsonValueKind.Number } e => e.TryGetInt32(out int offset) ? offset : null,
         _ => null,
     };
 
@@ -77,26 +77,33 @@ public sealed class ScenarioFile
         if (Runs < 1) throw new InvalidDataException($"scenarios: runs must be 1 or more, not {Runs}");
         if (Levels is not [var first, var last] || first < 1 || first > last)
             throw new InvalidDataException("scenarios: levels must be [first, last] with 1 <= first <= last");
+        if (Classes is null) throw new InvalidDataException("scenarios: classes is missing");
         if (Classes.Length == 0) throw new InvalidDataException("scenarios: classes is empty");
+        if (Gear is null || Gear.Any(g => g is null)) throw new InvalidDataException("scenarios: gear is missing or names a null profile");
+        if (GearProfiles is null) throw new InvalidDataException("scenarios: gearProfiles is missing");
+        if (Scenarios is null || Scenarios.Any(s => s is null)) throw new InvalidDataException("scenarios: scenarios is missing or holds a null scenario");
 
         foreach (string gear in Gear)
         {
             if (string.Equals(gear, NoGear, StringComparison.Ordinal)) continue;
-            if (!GearProfiles.TryGetValue(gear, out Dictionary<CharacterClass, ulong[]>? profile))
+            if (!GearProfiles.TryGetValue(gear, out Dictionary<CharacterClass, ulong[]>? profile) || profile is null)
                 throw new InvalidDataException($"scenarios: gear '{gear}' has no profile in gearProfiles");
             foreach (CharacterClass c in Classes)
             {
-                if (!profile.TryGetValue(c, out ulong[]? ids))
+                if (!profile.TryGetValue(c, out ulong[]? ids) || ids is null)
                     throw new InvalidDataException($"scenarios: gear '{gear}' names no items for {c}");
                 foreach (ulong id in ids) data.Item(id);
             }
         }
 
+        if (Scenarios.Any(s => s.Id is null)) throw new InvalidDataException("scenarios: a scenario has no id");
         if (Scenarios.Select(s => s.Id).Distinct(StringComparer.Ordinal).Count() != Scenarios.Length)
             throw new InvalidDataException("scenarios: two scenarios share an id");
 
         foreach (Scenario s in Scenarios)
         {
+            if (s.Pack is null) throw new InvalidDataException($"scenario '{s.Id}': the pack is missing");
+            if (s.Pack.Any(e => e is null)) throw new InvalidDataException($"scenario '{s.Id}': the pack holds a null entry");
             if (s.Pack.Length == 0) throw new InvalidDataException($"scenario '{s.Id}': the pack is empty");
             if (s.Offset is null && !s.OffsetFromTemplate)
                 throw new InvalidDataException($"scenario '{s.Id}': levelOffset must be a number or \"template\"");

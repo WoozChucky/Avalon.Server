@@ -9,3 +9,7 @@ schema/items/*.json text eol=lf
 
 # CI scripts run under bash on Linux runners and locally in Git Bash; a CR breaks them.
 tools/ci/*.sh text eol=lf
+
+# The balance files and the golden CSV are compared byte for byte by tests: LF on every platform.
+balance/*.json text eol=lf
+tests/Avalon.Balance.UnitTests/Golden/*.csv text eol=lf

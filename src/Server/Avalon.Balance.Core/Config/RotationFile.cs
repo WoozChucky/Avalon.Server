@@ -32,7 +32,7 @@ public sealed partial class RotationFile : Dictionary<CharacterClass, RotationEn
     /// <exception cref="InvalidDataException">The class has no rotation, or an entry names an ability or condition it cannot use.</exception>
     public IReadOnlyList<CompiledRotationEntry> Compile(CharacterClass characterClass, BalanceData data)
     {
-        if (!TryGetValue(characterClass, out RotationEntry[]? entries) || entries.Length == 0)
+        if (!TryGetValue(characterClass, out RotationEntry[]? entries) || entries is null || entries.Length == 0)
             throw new InvalidDataException($"rotations: {characterClass} has no rotation");
 
         HashSet<uint> kit = data.KitOf(characterClass).Select(a => a.Id.Value).ToHashSet();
@@ -40,6 +40,9 @@ public sealed partial class RotationFile : Dictionary<CharacterClass, RotationEn
         for (int i = 0; i < entries.Length; i++)
         {
             string where = $"{characterClass} rotation entry {i + 1}";
+            if (entries[i] is null) throw new InvalidDataException($"{where}: the entry is null");
+            if (entries[i].When is null || entries[i].When.Any(d => d is null || d.Values.Any(v => v is null)))
+                throw new InvalidDataException($"{where}: when is missing or holds a null condition");
             if (!kit.Contains(entries[i].Ability))
                 throw new InvalidDataException($"{where}: ability {entries[i].Ability} is not in the class's kit");
 

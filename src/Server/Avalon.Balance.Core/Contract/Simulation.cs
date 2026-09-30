@@ -16,14 +16,20 @@ public static partial class Simulation
         IProgress<RunProgress>? progress, CancellationToken ct)
     {
         BalanceConfig config = request.Config ?? defaults;
-        int seedValue = request.Seed ?? config.Scenarios.Seed;
-        int runs = request.RunsPerRow ?? config.Scenarios.Runs;
+        int seedValue = request.Seed ?? config.Scenarios?.Seed ?? 0;
+        int runs = request.RunsPerRow ?? config.Scenarios?.Runs ?? 0;
         OverrideReport overrides = OverrideReport.None;
 
         RunResult Invalid(params Issue[] issues) => Empty(RunStatus.Invalid, overrides, issues, seedValue, runs);
 
         if (ct.IsCancellationRequested)
             return Empty(RunStatus.Cancelled, overrides, [], seedValue, runs);
+
+        if (config.Scenarios is null) return Invalid(new Issue("scenarios", "scenarios: the file is missing"));
+        if (config.Targets is null) return Invalid(new Issue("targets", "targets: the file is missing"));
+        if (config.Rotations is null) return Invalid(new Issue("rotations", "rotations: the file is missing"));
+        if (runs > MaxRunsPerRow)
+            return Invalid(new Issue("runsPerRow", $"runsPerRow must be {MaxRunsPerRow} or fewer, not {runs}"));
 
         SeedTables tables = seed.Clone();
         if (request.Overrides is { } given)
@@ -71,7 +77,7 @@ public static partial class Simulation
             configIssues.Add(new Issue("scenarios", e.Message));
         }
 
-        foreach (CharacterClass characterClass in config.Scenarios.Classes)
+        foreach (CharacterClass characterClass in config.Scenarios.Classes ?? [])
         {
             try
             {
@@ -147,6 +153,9 @@ public static partial class Simulation
             new RunSummary(grades.Count(Grade.Green), grades.Count(Grade.Yellow), grades.Count(Grade.Red)),
             overrides, [], plan.Seed, plan.Runs);
     }
+
+    /// <summary>A generous ceiling for a library call; a service caps lower.</summary>
+    public const int MaxRunsPerRow = 100_000;
 
     private static RunResult Empty(RunStatus status, OverrideReport overrides, IReadOnlyList<Issue> issues, int seed, int runs) =>
         new(status, [], new GradeReport([]), [], new RunSummary(0, 0, 0), overrides, issues, seed, runs);

@@ -37,6 +37,11 @@ public sealed class TargetFile
     /// <exception cref="InvalidDataException">The first problem, naming the entry.</exception>
     public void Validate(ScenarioFile scenarios)
     {
+        if (Scenarios is null) throw new InvalidDataException("targets: scenarios is missing");
+        if (Global is null) throw new InvalidDataException("targets: global is missing");
+        if (Global.KillsPerLevel is null) throw new InvalidDataException("targets: global killsPerLevel is missing");
+        if (GradedGear is null) throw new InvalidDataException("targets: gradedGear is missing");
+
         HashSet<string> ids = scenarios.Scenarios.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
 
         if (!scenarios.Gear.Contains(GradedGear, StringComparer.Ordinal))
@@ -47,6 +52,7 @@ public sealed class TargetFile
         {
             if (!ids.Contains(id))
                 throw new InvalidDataException($"targets: scenario '{id}' is not in scenarios.json");
+            if (targets is null) throw new InvalidDataException($"targets: scenario '{id}' has no targets");
             CheckBand(targets.WinRate, $"scenario '{id}' winRate");
             CheckBand(targets.FightSeconds, $"scenario '{id}' fightSeconds");
             CheckBand(targets.HealthLeftPct, $"scenario '{id}' healthLeftPct");
