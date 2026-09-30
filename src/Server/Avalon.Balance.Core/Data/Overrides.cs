@@ -92,14 +92,8 @@ public static class Overrides
                 ?? throw new InvalidDataException($"Override '{key}': no {parts[0]} row '{rowKey}'");
 
             string columnName = parts[^1];
-            if (table.KeyColumns.Contains(columnName, StringComparer.Ordinal))
-                throw new InvalidDataException($"Override '{key}': '{columnName}' is the row's key");
-
-            PropertyInfo column = table.RowType.GetProperty(columnName, BindingFlags.Public | BindingFlags.Instance)
-                ?? throw new InvalidDataException($"Override '{key}': {parts[0]} has no column '{columnName}'");
-
-            if (column.SetMethod is not { IsPublic: true })
-                throw new InvalidDataException($"Override '{key}': {parts[0]}.{columnName} is computed and cannot be overridden");
+            PropertyInfo column = table.Columns().FirstOrDefault(c => string.Equals(c.Name, columnName, StringComparison.Ordinal))
+                ?? throw Refusal(table, parts[0], key, columnName);
 
             object? value = Convert(entry.Value, column.PropertyType, key);
             writes.Add((row, column, value, key, column.GetValue(row)));
@@ -120,6 +114,21 @@ public static class Overrides
         }
 
         return new OverrideReport(applied, stale);
+    }
+
+    /// <summary>Why a column is not in <see cref="Table.Columns" />: the message only diagnoses; Columns() decides.</summary>
+    private static InvalidDataException Refusal(Table table, string tableName, string key, string columnName)
+    {
+        if (table.KeyColumns.Contains(columnName, StringComparer.Ordinal))
+            return new InvalidDataException($"Override '{key}': '{columnName}' is the row's key");
+
+        PropertyInfo? property = table.RowType.GetProperty(columnName, BindingFlags.Public | BindingFlags.Instance);
+        if (property is null)
+            return new InvalidDataException($"Override '{key}': {tableName} has no column '{columnName}'");
+        if (property.SetMethod is not { IsPublic: true })
+            return new InvalidDataException($"Override '{key}': {tableName}.{columnName} is computed and cannot be overridden");
+
+        return new InvalidDataException($"Override '{key}': a {(Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType).Name} column cannot be overridden");
     }
 
     private static object? Convert(JsonElement json, Type type, string key)
