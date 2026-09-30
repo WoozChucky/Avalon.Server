@@ -28,8 +28,8 @@ public class RunQueueShould
     private static RunRequestDto Small(int runs = 10) =>
         new(null, null, new RunFilterDto(["Warrior"], null, null, ["normal-3"]), runs, null);
 
-    private RunWorker Worker() =>
-        new(_queue, _host, _time, Options.Create(_options), NullLogger<RunWorker>.Instance);
+    private RunWorker Worker(RunSimulation? simulate = null) =>
+        new(_queue, _host, _time, Options.Create(_options), NullLogger<RunWorker>.Instance, simulate);
 
     private string Enqueue(RunRequestDto dto)
     {
@@ -68,21 +68,6 @@ public class RunQueueShould
         Assert.Equal(record.Result.Rows.Count, record.Progress.RowsDone);
         Assert.Equal(_time.GetUtcNow(), record.FinishedAt);
         Assert.Empty(record.Issues);
-    }
-
-    [Fact]
-    public async Task Report_running_while_the_simulation_runs()
-    {
-        using RunWorker worker = Worker();
-        string id = Enqueue(new RunRequestDto(null, null, null, 1000, null));
-
-        await worker.StartAsync(CancellationToken.None);
-        RunRecord record = await WaitFor(id, r => r.Status == RunState.Running);
-        _queue.Cancel(id);
-        await WaitFor(id, r => r.IsFinished);
-        await worker.StopAsync(CancellationToken.None);
-
-        Assert.Equal(RunState.Cancelled, record.Status);
     }
 
     [Fact]
@@ -130,22 +115,6 @@ public class RunQueueShould
         Assert.Equal(RunState.Cancelled, record.Status);
         Assert.Null(record.Result);
         Assert.Equal((0, 0), record.Progress);
-    }
-
-    [Fact]
-    public async Task End_a_cancelled_running_run_cancelled_with_no_rows()
-    {
-        using RunWorker worker = Worker();
-        string id = Enqueue(new RunRequestDto(null, null, null, 1000, null));
-        await worker.StartAsync(CancellationToken.None);
-        await WaitFor(id, r => r.Status == RunState.Running);
-
-        Assert.True(_queue.Cancel(id));
-        RunRecord record = await WaitFor(id, r => r.IsFinished);
-        await worker.StopAsync(CancellationToken.None);
-
-        Assert.Equal(RunState.Cancelled, record.Status);
-        Assert.Null(record.Result);
     }
 
     [Fact]
@@ -260,5 +229,108 @@ public class RunQueueShould
 
         Assert.NotEqual(a, b);
         Assert.Matches("^[0-9a-f]{32}$", a);
+    }
+
+    private static RunResult CancelledResult() =>
+        new(RunStatus.Cancelled, [], new GradeReport([]), [], new RunSummary(0, 0, 0), OverrideReport.None, [], 0, 0);
+
+    /// <summary>A simulation that signals it started, then blocks until its token is cancelled.</summary>
+    private static RunSimulation Gated(SemaphoreSlim started) => (_, _, _, _, ct) =>
+    {
+        started.Release();
+        ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(30));
+        return CancelledResult();
+    };
+
+    [Fact]
+    public async Task Report_running_while_the_simulation_runs_and_cancelled_when_it_is_told_to_stop()
+    {
+        using var started = new SemaphoreSlim(0);
+        using RunWorker worker = Worker(Gated(started));
+        string id = Enqueue(Small());
+
+        await worker.StartAsync(CancellationToken.None);
+        Assert.True(await started.WaitAsync(TimeSpan.FromSeconds(30)));
+        Assert.Equal(RunState.Running, _queue.Get(id)!.Status);
+
+        Assert.True(_queue.Cancel(id));
+        RunRecord record = await WaitFor(id, r => r.IsFinished);
+        await worker.StopAsync(CancellationToken.None);
+
+        Assert.Equal(RunState.Cancelled, record.Status);
+        Assert.Null(record.Result);
+    }
+
+    [Fact]
+    public async Task Fail_a_run_whose_simulation_throws_and_still_run_the_next()
+    {
+        int calls = 0;
+        RunSimulation simulate = (seed, defaults, request, progress, ct) =>
+            Interlocked.Increment(ref calls) == 1
+                ? throw new InvalidOperationException("boom: secret-override-value")
+                : Simulation.Run(seed, defaults, request, progress, ct);
+        using RunWorker worker = Worker(simulate);
+        string first = Enqueue(Small());
+        string second = Enqueue(Small());
+
+        await worker.StartAsync(CancellationToken.None);
+        RunRecord failed = await WaitFor(first, r => r.IsFinished);
+        RunRecord next = await WaitFor(second, r => r.IsFinished);
+        await worker.StopAsync(CancellationToken.None);
+
+        Assert.Equal(RunState.Failed, failed.Status);
+        IssueDto issue = Assert.Single(failed.Issues);
+        Assert.Equal(new IssueDto("run", "the run failed"), issue);
+        Assert.Null(failed.Result);
+        Assert.Equal(RunState.Done, next.Status);
+    }
+
+    [Fact]
+    public async Task Keep_no_request_once_a_run_has_ended()
+    {
+        using RunWorker worker = Worker();
+        string cancelledQueued = Enqueue(Small());
+        Assert.NotNull(_queue.Get(cancelledQueued)!.Request);
+        _queue.Cancel(cancelledQueued);
+        string done = Enqueue(Small());
+        string invalid = Enqueue(new RunRequestDto(
+            new Dictionary<string, JsonElement> { ["Nope.1.Health"] = JsonSerializer.SerializeToElement(1) }, null, null, 10, null));
+
+        await worker.StartAsync(CancellationToken.None);
+        await WaitFor(invalid, r => r.IsFinished);
+        await worker.StopAsync(CancellationToken.None);
+
+        Assert.All(new[] { cancelledQueued, done, invalid }, id => Assert.Null(_queue.Get(id)!.Request));
+    }
+
+    [Fact]
+    public async Task Keep_no_request_for_a_failed_run()
+    {
+        using RunWorker worker = Worker((_, _, _, _, _) => throw new InvalidOperationException("boom"));
+        string id = Enqueue(Small());
+
+        await worker.StartAsync(CancellationToken.None);
+        RunRecord record = await WaitFor(id, r => r.IsFinished);
+        await worker.StopAsync(CancellationToken.None);
+
+        Assert.Equal(RunState.Failed, record.Status);
+        Assert.Null(record.Request);
+    }
+
+    [Fact]
+    public void Drop_the_oldest_finished_run_past_the_retention_cap_and_leave_active_runs()
+    {
+        string active = Enqueue(Small());
+        var finished = new List<string>();
+        for (int i = 0; i < _options.MaxRetainedFinished + 1; i++)
+        {
+            string id = Enqueue(Small());
+            Assert.True(_queue.Cancel(id));
+            finished.Add(id);
+        }
+
+        Assert.Null(_queue.Get(finished[0]));
+        Assert.All(finished.Skip(1), id => Assert.NotNull(_queue.Get(id)));
+        Assert.Equal(RunState.Queued, _queue.Get(active)!.Status);
     }
 }

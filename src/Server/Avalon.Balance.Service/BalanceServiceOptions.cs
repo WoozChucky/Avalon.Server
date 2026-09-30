@@ -27,5 +27,8 @@ public sealed class BalanceServiceOptions
     /// <summary>False builds the worker paused: nothing drains the queue. A test seam.</summary>
     public bool RunWorker { get; set; } = true;
 
+    /// <summary>Finished runs kept for polling; past this the oldest finished one is dropped, whatever its age.</summary>
+    public int MaxRetainedFinished { get; set; } = 100;
+
     public TimeSpan ResultTtl { get; set; } = TimeSpan.FromHours(1);
 }

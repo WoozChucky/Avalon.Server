@@ -16,13 +16,16 @@ public sealed class RunWorker : BackgroundService
     private readonly TimeProvider _time;
     private readonly ILogger<RunWorker> _logger;
     private readonly bool _paused;
+    private readonly RunSimulation _simulate;
 
-    public RunWorker(RunQueue queue, BalanceHost host, TimeProvider time, IOptions<BalanceServiceOptions> options, ILogger<RunWorker> logger)
+    public RunWorker(RunQueue queue, BalanceHost host, TimeProvider time, IOptions<BalanceServiceOptions> options, ILogger<RunWorker> logger,
+        RunSimulation? simulate = null)
     {
         _queue = queue;
         _host = host;
         _time = time;
         _logger = logger;
+        _simulate = simulate ?? Simulation.Run;
         // The test seam: a paused worker never drains, so a test can fill the queue. Sweeping still runs.
         _paused = !options.Value.RunWorker;
     }
@@ -66,11 +69,12 @@ public sealed class RunWorker : BackgroundService
     /// <summary>Runs one record to its end state. Never throws.</summary>
     private void Execute(RunRecord record, CancellationToken stoppingToken)
     {
+        RunRequest request = record.Request!; // set until the run ends, and only this worker ends a running record
         try
         {
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
                 record.CancellationTokenSource.Token, stoppingToken);
-            RunResult result = Simulation.Run(_host.Seed, _host.Defaults, record.Request,
+            RunResult result = _simulate(_host.Seed, _host.Defaults, request,
                 new RecordProgress(record), linked.Token);
 
             if (linked.IsCancellationRequested || result.Status == RunStatus.Cancelled)

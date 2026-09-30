@@ -16,16 +16,22 @@ public sealed class RunRecord
     private RunResultDto? _result;
     private IReadOnlyList<IssueDto> _issues = [];
 
+    private RunRequest? _request;
+    private long _finishSequence;
+
     internal RunRecord(string id, RunRequest request, CancellationTokenSource cts)
     {
         Id = id;
-        Request = request;
+        _request = request;
         CancellationTokenSource = cts;
     }
 
     public string Id { get; }
 
-    public RunRequest Request { get; }
+    /// <summary>The request, until the run ends: a finished record keeps no copy of up to 1 MiB of caller data.</summary>
+    public RunRequest? Request => Volatile.Read(ref _request);
+
+    internal long FinishSequence => Interlocked.Read(ref _finishSequence);
 
     public CancellationTokenSource CancellationTokenSource { get; }
 
@@ -62,8 +68,10 @@ public sealed class RunRecord
 
     internal void SetStatus(RunState status) => Volatile.Write(ref _status, (int)status);
 
-    internal void Finish(RunState status, RunResultDto? result, IReadOnlyList<IssueDto> issues, DateTimeOffset now)
+    internal void Finish(RunState status, RunResultDto? result, IReadOnlyList<IssueDto> issues, DateTimeOffset now, long sequence)
     {
+        Volatile.Write(ref _request, null);
+        Interlocked.Exchange(ref _finishSequence, sequence);
         Volatile.Write(ref _result, result);
         Volatile.Write(ref _issues, issues);
         Interlocked.Exchange(ref _finishedTicks, now.UtcTicks);

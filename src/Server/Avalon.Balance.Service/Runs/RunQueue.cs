@@ -16,6 +16,7 @@ namespace Avalon.Balance.Service.Runs;
 public sealed class RunQueue
 {
     private readonly Lock _gate = new();
+    private long _finishCounter;
     private readonly Dictionary<string, RunRecord> _records = new(StringComparer.Ordinal);
     private readonly Queue<RunRecord> _waiting = new();
     private readonly SemaphoreSlim _signal = new(0);
@@ -110,7 +111,7 @@ public sealed class RunQueue
             {
                 case RunState.Queued:
                     record.CancellationTokenSource.Cancel();
-                    record.Finish(RunState.Cancelled, null, [], _time.GetUtcNow());
+                    Finish(record, RunState.Cancelled, null, []);
                     break;
                 case RunState.Running:
                     record.CancellationTokenSource.Cancel();
@@ -163,7 +164,32 @@ public sealed class RunQueue
     public void Complete(RunRecord record, RunState status, RunResultDto? result, IReadOnlyList<IssueDto> issues)
     {
         lock (_gate)
-            record.Finish(status, result, issues, _time.GetUtcNow());
+            Finish(record, status, result, issues);
+    }
+
+    /// <summary>Ends a record and keeps at most MaxRetainedFinished finished ones, oldest out first. Caller holds the lock.</summary>
+    private void Finish(RunRecord record, RunState status, RunResultDto? result, IReadOnlyList<IssueDto> issues)
+    {
+        record.Finish(status, result, issues, _time.GetUtcNow(), ++_finishCounter);
+
+        int finished = 0;
+        foreach (RunRecord r in _records.Values)
+            if (r.IsFinished)
+                finished++;
+
+        while (finished-- > _options.MaxRetainedFinished)
+        {
+            RunRecord? oldest = null;
+            foreach (RunRecord r in _records.Values)
+                if (r.IsFinished && (oldest is null || r.FinishSequence < oldest.FinishSequence))
+                    oldest = r;
+
+            if (oldest is null)
+                break;
+
+            _records.Remove(oldest.Id);
+            oldest.CancellationTokenSource.Dispose();
+        }
     }
 
     private List<Issue> CapIssues(JsonElement? overrides, int? runsPerRow)
