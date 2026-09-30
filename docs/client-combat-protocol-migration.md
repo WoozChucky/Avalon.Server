@@ -74,6 +74,8 @@ Server → all clients in the instance. Triggers death animation + state transit
 
 A creature's killing blow is sent like any other hit, before the death: `SUnitDamagePacket` with `CurrentHealth` 0, `Damage` the health the blow took, and `Result`, the hit's `HitResult` (a killing crit is marked `Crit`) (#506). A character's killing blow arrives the same way, as `SCharacterDamagePacket` to the character (with `AbilityId` and `Result`) and `SUnitDamagePacket` to its watchers. A dodged hit is sent as a hit of 0 marked `Dodged`. `SUnitDeathPacket` is the explicit death signal — use it to trigger the death animation, ragdoll, and (for the local player) the Release UI.
 
+**A corpse's world state (#672).** `ObjectState.IsDead` (field 12) is `true` on a dead creature as well as a dead character. A creature is dead exactly when its health is 0; the world-state update that carries its `CurrentHealth` 0 carries `IsDead = true` in the same message, and a client that first sees the corpse later (it walked into view, or entered the instance) gets `IsDead = true` on the add. A living creature's routine updates leave `IsDead` out, so absent on a creature update means unchanged, not alive. The corpse stays in the world-state stream until its body is removed (`BodyRemoveTimer`), then leaves with an ordinary remove. Creatures are never revived.
+
 ### `SUnitRevivePacket` (`SMSG_UNIT_REVIVE = 0x3108`, encrypted, TCP)
 
 Server → all clients in the instance. Triggers revive animation, snaps position, and resets HP.

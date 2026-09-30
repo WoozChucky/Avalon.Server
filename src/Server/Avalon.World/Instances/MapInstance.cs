@@ -957,7 +957,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             case ObjectType.Creature:
                 if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
                     return null;
-                return ObjectStateWriter.From(updatedCreature, GameEntityFields.CreatureUpdate, _statePool);
+                // The routine selection, plus the death state only when it changed (#672): a creature's
+                // death goes out on the broadcast that carries its 0 health, and the updates of the
+                // living pay nothing for it.
+                return ObjectStateWriter.From(updatedCreature,
+                    GameEntityFields.CreatureUpdate | (updatedObject.Fields & GameEntityFields.IsDead), _statePool);
 
             case ObjectType.SpellProjectile:
                 IWorldObject? updatedAbility = _abilityCastSystem.GetAbility(updatedObject.Guid);

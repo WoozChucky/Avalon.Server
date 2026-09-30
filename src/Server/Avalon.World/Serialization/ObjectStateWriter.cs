@@ -153,9 +153,11 @@ public static class ObjectStateWriter
 
         if (Has(fields, GameEntityFields.IsDead))
         {
-            // Only a character has a death state. A creature reports alive, because the
-            // selections that ask for this are shared between the two kinds.
-            state.IsDead = (unit as ICharacter)?.IsDead ?? false;
+            // A character keeps its own flag, since it is revived and dies again. A creature is dead
+            // at 0 health, the rule every server check on a creature already uses (the hit query, the
+            // heal, the kill, the death broadcast), so its state cannot disagree with them (#672). It
+            // reads only health, so no ICreature, a mod's included, can report a death it has not had.
+            state.IsDead = unit is ICharacter character ? character.IsDead : unit.CurrentHealth == 0;
         }
 
         return state;
