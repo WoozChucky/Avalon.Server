@@ -243,6 +243,71 @@ public class FightSimulatorShould
         Assert.Equal(living, Draws(withCorpse: true));
     }
 
+    [Fact]
+    public void Land_a_projectile_after_a_wind_up_that_completes_on_the_same_tick()
+    {
+        SimCreature alpha = SimCreature.Create(Data, Data.Creature(8), 3, 0);
+        Hold(alpha);
+        alpha.Abilities.First(a => a.Id == 310).CooldownLeft = 0f;   // Howling Roar, 1 s wind-up: the only thing it may choose
+        SimPlayer wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        wizard.Health = wizard.CurrentHealth = 1_000_000;
+        SimAbility bolt = wizard.Ability(210);   // Arcane Bolt: an instant projectile
+        bolt.CooldownLeft = 1_000f;
+        FightSimulator fight = Fight(wizard, Rotation(210), alpha);
+
+        fight.Tick();   // the alpha starts its roar in the creature pass
+        Assert.NotNull(alpha.Casting);
+        while (alpha.Casting!.TimeLeft > (float)Tick) fight.Tick();
+
+        // Next tick the roar completes in the cast pass; the bolt is loosed in the character pass before it and
+        // would kill the alpha. The server lands the bolt in the script pass, after the roar has fired.
+        bolt.CooldownLeft = 0f;
+        alpha.CurrentHealth = 1;
+        fight.Tick();
+
+        Assert.Contains(fight.Result().Casts, c => c.AbilityId == 310);
+        Assert.True(wizard.CurrentHealth < wizard.Health);
+        Assert.True(alpha.IsDead);
+    }
+
+    [Fact]
+    public void Land_a_creatures_projectile_on_the_next_tick()
+    {
+        SimCreature tuskroot = SimCreature.Create(Data, Data.Creature(9), 3, 0);
+        Hold(tuskroot);
+        tuskroot.Abilities.First(a => a.Id == 313).CooldownLeft = 0f;   // Thorn Volley, an instant projectile
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        warrior.Health = warrior.CurrentHealth = 1_000_000;
+        FightSimulator fight = Fight(warrior, Rotation(), tuskroot);
+
+        fight.Tick();
+        Assert.Contains(fight.Result().Casts, c => c.AbilityId == 313);
+        Assert.Equal(warrior.Health, warrior.CurrentHealth);
+
+        fight.Tick();
+        Assert.True(warrior.CurrentHealth < warrior.Health);
+    }
+
+    [Fact]
+    public void Drop_a_creatures_projectile_when_the_creature_dies_before_it_lands()
+    {
+        SimCreature tuskroot = SimCreature.Create(Data, Data.Creature(9), 3, 0);
+        Hold(tuskroot);
+        tuskroot.Abilities.First(a => a.Id == 313).CooldownLeft = 0f;
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        warrior.Health = warrior.CurrentHealth = 1_000_000;
+        var rng = new CountingRandom();
+        var fight = new FightSimulator(Data.Combat.Formula, warrior, [tuskroot], Rotation(), rng);
+
+        fight.Tick();
+        Assert.Contains(fight.Result().Casts, c => c.AbilityId == 313);
+        tuskroot.CurrentHealth = 0;
+        fight.Tick();
+
+        Assert.Equal(warrior.Health, warrior.CurrentHealth);
+        Assert.Equal(0, rng.Draws);
+    }
+
     private sealed class CountingRandom : ICombatRandom
     {
         public long Draws { get; private set; }

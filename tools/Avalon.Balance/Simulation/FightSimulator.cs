@@ -26,7 +26,11 @@ public sealed record FightResult(
 
 /// <summary>
 /// One player against a pack, one server tick at a time. The order inside a tick is MapInstance.Update's:
-/// characters (their cast, then their own update), the cast system, then creature scripts.
+/// characters (their cast, then their own update), the cast system, then creature scripts. Circles and cones hit
+/// when they fire, as their scripts do in Prepare. A projectile hits in the cast system's script pass, as
+/// ProjectileAbilityScript does in Update: after every due wind-up has fired, on the tick it was loosed for one
+/// loosed before that pass (a character's instant cast, any wind-up), on the next tick for one a creature looses in
+/// its script. Projectile travel time is outside the model: in melee every projectile lands on its first pass.
 /// </summary>
 public sealed class FightSimulator
 {
@@ -47,6 +51,7 @@ public sealed class FightSimulator
     private readonly ICombatRandom _rng;
     private readonly int? _coneHits;
     private readonly List<PendingCast> _queue = [];
+    private readonly List<(SimUnit Caster, SimAbility Ability)> _projectiles = [];
     private readonly List<CastEvent> _casts = [];
     private readonly Dictionary<string, long> _dealt = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _taken = new(StringComparer.Ordinal);
@@ -200,6 +205,29 @@ public sealed class FightSimulator
             if (!cast.Caster.IsDead)
                 Fire(cast.Caster, cast.Ability, cast.Started);
         }
+
+        LandProjectiles();
+    }
+
+    /// <summary>
+    /// As InstanceAbilityCastSystem.TickScripts, after AdvanceQueue: every projectile in flight lands, oldest first;
+    /// one whose creature caster died since it was loosed is dropped (IsAbandonedByCreature). Its targets are chosen
+    /// now, so a target that died meanwhile draws no roll.
+    /// </summary>
+    private void LandProjectiles()
+    {
+        if (_projectiles.Count == 0)
+            return;
+
+        (SimUnit Caster, SimAbility Ability)[] inFlight = [.. _projectiles];
+        _projectiles.Clear();
+        foreach ((SimUnit caster, SimAbility ability) in inFlight)
+        {
+            if (caster is SimCreature { IsDead: true })
+                continue;
+
+            Resolve(caster, ability);
+        }
     }
 
     private void Drop(PendingCast cast)
@@ -213,6 +241,14 @@ public sealed class FightSimulator
         ability.CooldownLeft = CombatRules.CooldownAfterFire(caster, ability);
         _casts.Add(new CastEvent(started, Time, caster.Name, ability.Id));
 
+        if (ability.Metadata.Shape == AbilityShape.Projectile)
+            _projectiles.Add((caster, ability));
+        else
+            Resolve(caster, ability);
+    }
+
+    private void Resolve(SimUnit caster, SimAbility ability)
+    {
         if (caster is SimPlayer player)
             FirePlayer(player, ability);
         else
