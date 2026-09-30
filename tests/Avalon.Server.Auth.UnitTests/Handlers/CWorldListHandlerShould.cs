@@ -209,4 +209,26 @@ public class CWorldListHandlerShould
         Assert.Equal((short)WorldStatus.Online, statuses[2]);
         Assert.Equal((short)WorldStatus.Offline, statuses[3]);
     }
+
+    [Fact]
+    public async Task Show_a_ready_scheduled_world_as_online()
+    {
+        var account = MakeAccount();
+        _connection.AccountId.Returns(account.Id);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        var scheduled = MakeWorld(1);
+        scheduled.MaintenanceEnabled = true;
+        scheduled.MaintenanceDeadlineUtc = DateTime.UtcNow.AddMinutes(10);
+        _worldRepository.FindAllAsync().Returns(new List<AvalonWorld> { scheduled });
+        _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(true);
+        NetworkPacket? sent = null;
+        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(call => sent = call.Arg<NetworkPacket>());
+
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldListPacket>
+            { Packet = new CWorldListPacket(), Connection = _connection });
+
+        using var stream = new MemoryStream(sent!.Payload);
+        Assert.Equal((short)WorldStatus.Online,
+            Assert.Single(Serializer.Deserialize<SWorldListPacket>(stream).Worlds!).Status);
+    }
 }

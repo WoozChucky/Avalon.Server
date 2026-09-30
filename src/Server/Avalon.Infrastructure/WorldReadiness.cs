@@ -26,6 +26,7 @@ public sealed class WorldReadiness(IReplicatedCache cache) : IWorldReadiness
         }
     }
 
-    public static WorldStatus Resolve(WorldMaintenanceState state, bool ready)
-        => state.Enabled ? WorldStatus.Maintenance : ready ? WorldStatus.Online : WorldStatus.Offline;
+    public static WorldStatus Resolve(WorldMaintenanceState state, bool ready, DateTime nowUtc)
+        => state.IsCutoffActive(nowUtc) ? WorldStatus.Maintenance
+            : ready ? WorldStatus.Online : WorldStatus.Offline;
 }

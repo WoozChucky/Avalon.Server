@@ -22,11 +22,25 @@ public sealed class WorldReadinessShould
     [Fact]
     public void Maintenance_takes_precedence_over_a_live_heartbeat()
     {
+        DateTime now = DateTime.UtcNow;
         Assert.Equal(WorldStatus.Maintenance,
-            WorldReadiness.Resolve(new WorldMaintenanceState(true, 1, DateTime.UtcNow), true));
+            WorldReadiness.Resolve(new WorldMaintenanceState(true, 1, now), true, now));
         Assert.Equal(WorldStatus.Online,
-            WorldReadiness.Resolve(new WorldMaintenanceState(false, 0, null), true));
+            WorldReadiness.Resolve(new WorldMaintenanceState(false, 0, null), true, now));
         Assert.Equal(WorldStatus.Offline,
-            WorldReadiness.Resolve(new WorldMaintenanceState(false, 0, null), false));
+            WorldReadiness.Resolve(new WorldMaintenanceState(false, 0, null), false, now));
+    }
+
+    [Fact]
+    public void Scheduled_world_stays_online_until_its_deadline()
+    {
+        DateTime now = new(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        var scheduled = new WorldMaintenanceState(true, 1, now.AddMinutes(10));
+
+        Assert.Equal(WorldStatus.Online, WorldReadiness.Resolve(scheduled, true, now));
+        Assert.Equal(WorldStatus.Offline, WorldReadiness.Resolve(scheduled, false, now));
+        Assert.Equal(WorldStatus.Maintenance, WorldReadiness.Resolve(scheduled, true, now.AddMinutes(10)));
+        Assert.Equal(WorldStatus.Maintenance,
+            WorldReadiness.Resolve(new WorldMaintenanceState(true, 2, null), true, now));
     }
 }

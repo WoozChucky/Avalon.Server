@@ -37,12 +37,15 @@ public class WorldService : IWorldService
     private readonly IWorldRepository _repository;
     private readonly IWorldDatabases _databases;
     private readonly IWorldReadiness _readiness;
+    private readonly TimeProvider _time;
 
-    public WorldService(IWorldRepository repository, IWorldDatabases databases, IWorldReadiness readiness)
+    public WorldService(IWorldRepository repository, IWorldDatabases databases, IWorldReadiness readiness,
+        TimeProvider? time = null)
     {
         _repository = repository;
         _databases = databases;
         _readiness = readiness;
+        _time = time ?? TimeProvider.System;
     }
 
     public async Task<PagedResult<WorldDto>> ListAsync(AccountAccessLevel caller, int page, int pageSize,
@@ -62,7 +65,8 @@ public class WorldService : IWorldService
             // Status is derived from Redis and maintenance intent, so it cannot be sorted in SQL.
             // Sort the complete visible set before applying the requested page.
             var visible = await _repository.FindByAsync(filters.GetFilter(), cancellationToken);
-            var allDtos = await Task.WhenAll(visible.Select(w => ToDtoAsync(w, cancellationToken)));
+            DateTime nowUtc = _time.GetUtcNow().UtcDateTime;
+            var allDtos = await Task.WhenAll(visible.Select(w => ToDtoAsync(w, cancellationToken, nowUtc)));
             var sorted = sortDirection == SortDirection.Ascending
                 ? allDtos.OrderBy(w => w.Status).ThenBy(w => w.Id)
                 : allDtos.OrderByDescending(w => w.Status).ThenBy(w => w.Id);
@@ -71,7 +75,8 @@ public class WorldService : IWorldService
         }
 
         var result = await _repository.PaginateAsync(filters, track: false, cancellationToken);
-        var items = await Task.WhenAll(result.Items.Select(w => ToDtoAsync(w, cancellationToken)));
+        DateTime pageNowUtc = _time.GetUtcNow().UtcDateTime;
+        var items = await Task.WhenAll(result.Items.Select(w => ToDtoAsync(w, cancellationToken, pageNowUtc)));
         return new PagedResult<WorldDto>(result.Page, result.PageSize, result.TotalCount, items.ToList());
     }
 
@@ -84,7 +89,7 @@ public class WorldService : IWorldService
         if (world is null || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller))
             return null;
 
-        return await ToDtoAsync(world, cancellationToken);
+        return await ToDtoAsync(world, cancellationToken, _time.GetUtcNow().UtcDateTime);
     }
 
     public async Task<WorldDto> CreateAsync(CreateWorldRequest request, CancellationToken cancellationToken = default)
@@ -109,7 +114,7 @@ public class WorldService : IWorldService
         };
 
         var created = await _repository.CreateAsync(world, cancellationToken);
-        return await ToDtoAsync(created, cancellationToken);
+        return await ToDtoAsync(created, cancellationToken, _time.GetUtcNow().UtcDateTime);
     }
 
     public async Task<WorldDto?> UpdateAsync(ushort id, UpdateWorldRequest request, CancellationToken cancellationToken = default)
@@ -128,10 +133,10 @@ public class WorldService : IWorldService
         world.UpdatedAt = DateTime.UtcNow;
 
         await _repository.UpdateMetadataAsync(world, cancellationToken);
-        return await ToDtoAsync(world, cancellationToken);
+        return await ToDtoAsync(world, cancellationToken, _time.GetUtcNow().UtcDateTime);
     }
 
-    private async Task<WorldDto> ToDtoAsync(WorldEntity w, CancellationToken ct)
+    private async Task<WorldDto> ToDtoAsync(WorldEntity w, CancellationToken ct, DateTime nowUtc)
     {
         bool ready = await _readiness.IsReadyAsync(w.Id.Value, ct);
         var state = new WorldMaintenanceState(w.MaintenanceEnabled, w.MaintenanceRevision,
@@ -146,7 +151,7 @@ public class WorldService : IWorldService
         Port = w.Port,
         MinVersion = w.MinVersion,
         Version = w.Version,
-        Status = (Avalon.Api.Contract.WorldStatus)WorldReadiness.Resolve(state, ready),
+        Status = (Avalon.Api.Contract.WorldStatus)WorldReadiness.Resolve(state, ready, nowUtc),
         Ready = ready,
         CreatedAt = w.CreatedAt,
         UpdatedAt = w.UpdatedAt,

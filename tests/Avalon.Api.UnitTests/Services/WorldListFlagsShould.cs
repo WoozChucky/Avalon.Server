@@ -91,6 +91,26 @@ public sealed class WorldListFlagsShould : IDisposable
     }
 
     [Fact]
+    public async Task Show_a_ready_scheduled_world_as_online_before_its_deadline()
+    {
+        using (var context = _database.CreateDbContext())
+        {
+            var world = context.Worlds.Single(w => w.Id == new WorldId(101));
+            world.MaintenanceEnabled = true;
+            world.MaintenanceRevision = 1;
+            world.MaintenanceDeadlineUtc = DateTime.UtcNow.AddMinutes(10);
+            context.SaveChanges();
+        }
+        var readiness = Substitute.For<IWorldReadiness>();
+        readiness.IsReadyAsync(101, Arg.Any<CancellationToken>()).Returns(true);
+        var service = new WorldService(new WorldRepository(_database), _databases, readiness);
+
+        WorldDto? worldDto = await service.GetAsync(101, AccountAccessLevel.Player);
+
+        Assert.Equal(Avalon.Api.Contract.WorldStatus.Online, worldDto!.Status);
+    }
+
+    [Fact]
     public async Task Keep_hiding_a_configured_world_the_caller_may_not_enter()
     {
         Assert.Null(await Sut().GetAsync(104, AccountAccessLevel.Player));

@@ -79,10 +79,23 @@ public class CWorldSelectHandlerShould
         };
 
     [Fact]
-    public async Task Refuse_visible_maintenance_world_without_reserving_a_session()
+    public async Task Admit_a_Player_during_the_countdown()
     {
         _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
-            .Returns(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5)));
+            .Returns(new WorldMaintenanceState(true, 1, _clock.GetUtcNow().UtcDateTime.AddMinutes(10)));
+        await SelectAsync(AccountAccessLevel.Player, AccountAccessLevel.Player);
+
+        Assert.Equal(WorldSelectResult.Success, Assert.Single(SentPackets()).Result);
+    }
+
+    [Fact]
+    public async Task Refuse_a_Player_at_the_deadline_before_reserving_a_session()
+    {
+        DateTime deadline = _clock.GetUtcNow().UtcDateTime.AddMinutes(10);
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(true, 1, deadline));
+        _clock.Advance(TimeSpan.FromMinutes(10));
+
         await SelectAsync(AccountAccessLevel.Player, AccountAccessLevel.Player);
 
         Assert.Equal(WorldSelectResult.Maintenance, Assert.Single(SentPackets()).Result);
@@ -93,7 +106,8 @@ public class CWorldSelectHandlerShould
     public async Task Let_an_Admin_select_a_ready_maintenance_world()
     {
         _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
-            .Returns(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5)));
+            .Returns(new WorldMaintenanceState(true, 1, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
+        _clock.Advance(TimeSpan.FromMinutes(5));
         await SelectAsync(AccountAccessLevel.Player, AccountAccessLevel.Admin);
 
         Assert.Equal(WorldSelectResult.Success, Assert.Single(SentPackets()).Result);

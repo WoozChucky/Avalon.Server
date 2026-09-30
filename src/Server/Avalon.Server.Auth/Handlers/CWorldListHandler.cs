@@ -12,14 +12,16 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
     private readonly IWorldRepository _worldRepository;
     private readonly IAccountRepository _accountRepository;
     private readonly IWorldReadiness _readiness;
+    private readonly TimeProvider _time;
 
     public CWorldListHandler(ILoggerFactory loggerFactory, IWorldRepository worldRepository,
-        IAccountRepository accountRepository, IWorldReadiness readiness)
+        IAccountRepository accountRepository, IWorldReadiness readiness, TimeProvider? time = null)
     {
         _logger = loggerFactory.CreateLogger<CWorldListHandler>();
         _worldRepository = worldRepository;
         _accountRepository = accountRepository;
         _readiness = readiness;
+        _time = time ?? TimeProvider.System;
     }
 
     public async Task ExecuteAsync(AuthPacketContext<CWorldListPacket> ctx, CancellationToken token = default)
@@ -35,6 +37,7 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
         worlds = worlds.Where(w => AccessLevels.ForWorld(w.AccessLevelRequired).Allows(account.AccessLevel)).ToList();
 
         var worldsInfo = new List<WorldInfo>(worlds.Count);
+        DateTime nowUtc = _time.GetUtcNow().UtcDateTime;
         foreach (var w in worlds)
         {
             bool ready = await _readiness.IsReadyAsync(w.Id.Value, token);
@@ -50,7 +53,7 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
                 Port = w.Port,
                 MinVersion = w.MinVersion,
                 Version = w.Version,
-                Status = (short)WorldReadiness.Resolve(state, ready),
+                Status = (short)WorldReadiness.Resolve(state, ready, nowUtc),
             });
         }
 
