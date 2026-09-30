@@ -1,13 +1,13 @@
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Abilities;
-using Avalon.World.Creatures;
 using Avalon.World.Public.Enums;
-using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Avalon.Balance.Data;
+namespace Avalon.Balance.Core;
+
+/// <summary>The combat formula and every class's stat factors, as the world server's own checks accept them.</summary>
+public sealed record CombatData(CombatFormula Formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors> Factors);
 
 /// <summary>
 /// The seed tables after overrides, validated by the server's own validators, so a row a /reload would refuse stops
@@ -15,10 +15,12 @@ namespace Avalon.Balance.Data;
 /// </summary>
 public sealed class BalanceData
 {
-    private BalanceData(SeedTables tables, AbilityCatalog abilities, CombatPatch combat, CreatureStatDeriver creatureStats)
+    private BalanceData(SeedTables tables, IReadOnlyDictionary<AbilityId, AbilityTemplate> abilities,
+        IReadOnlyList<string> refusedAbilities, CombatData combat, CreatureStatDeriver creatureStats)
     {
         Tables = tables;
         Abilities = abilities;
+        RefusedAbilities = refusedAbilities;
         Combat = combat;
         CreatureStats = creatureStats;
         HostileTemplates = tables.CreatureTemplates
@@ -28,8 +30,14 @@ public sealed class BalanceData
     }
 
     public SeedTables Tables { get; }
-    public AbilityCatalog Abilities { get; }
-    public CombatPatch Combat { get; }
+
+    /// <summary>The ability templates that passed the server's checks, by id.</summary>
+    public IReadOnlyDictionary<AbilityId, AbilityTemplate> Abilities { get; }
+
+    /// <summary>The templates left out, each with its reason; empty for any data <see cref="From" /> accepts.</summary>
+    public IReadOnlyList<string> RefusedAbilities { get; }
+
+    public CombatData Combat { get; }
     public CreatureStatDeriver CreatureStats { get; }
 
     /// <summary>Templates that fight: not invulnerable, and their script declares a kit.</summary>
@@ -38,16 +46,29 @@ public sealed class BalanceData
     /// <exception cref="InvalidDataException">A row the server would refuse; the message names it.</exception>
     public static BalanceData From(SeedTables tables)
     {
-        var abilities = new AbilityCatalog(tables.AbilityTemplates, NullLoggerFactory.Instance);
-        if (abilities.Refused.Count > 0)
-            throw new InvalidDataException("The ability catalog refused: " + string.Join("; ", abilities.Refused));
+        var abilities = new Dictionary<AbilityId, AbilityTemplate>();
+        List<string> refused = [];
+        foreach (AbilityTemplate template in tables.AbilityTemplates.OrderBy(t => t.Id.Value))
+        {
+            if (AbilityRules.Problem(template) is { } reason)
+            {
+                refused.Add($"ability {template.Id.Value} '{template.Name}': {reason}");
+                continue;
+            }
 
-        CombatPatch combat = CombatPatch.Build(tables.CombatFormulas, tables.ClassStatFactors);
-        CreaturesPatch.Validate(tables.CreatureTemplates);
+            abilities[template.Id] = template;
+        }
+
+        if (refused.Count > 0)
+            throw new InvalidDataException("The ability catalog refused: " + string.Join("; ", refused));
+
+        (CombatFormula formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors> factors) =
+            CombatDataRules.Build(tables.CombatFormulas, tables.ClassStatFactors);
+        CreatureTemplateRules.Validate(tables.CreatureTemplates);
         var creatureStats = new CreatureStatDeriver(tables.CreatureBaseStats, tables.CreatureRarityModifiers,
             NullLoggerFactory.Instance);
 
-        return new BalanceData(tables, abilities, combat, creatureStats);
+        return new BalanceData(tables, abilities, refused, new CombatData(formula, factors), creatureStats);
     }
 
     public DerivedCharacterStats CharacterStats(CharacterClass characterClass, ushort level, IEnumerable<ItemTemplate> worn)
@@ -63,7 +84,7 @@ public sealed class BalanceData
         CharacterCreateInfo info = Tables.CharacterCreateInfos.FirstOrDefault(i => i.Class == characterClass)
             ?? throw new InvalidDataException($"CharacterCreateInfo {characterClass} is not seeded");
         return info.StartingSpells
-            .Select(id => Abilities.TryGet(id, out AbilityTemplate? t)
+            .Select(id => Abilities.TryGetValue(id, out AbilityTemplate? t)
                 ? t
                 : throw new InvalidDataException($"{characterClass} starts with ability {id.Value}, which the catalog does not hold"))
             .ToList();

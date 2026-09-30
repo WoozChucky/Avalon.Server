@@ -2,10 +2,9 @@ using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
-using Avalon.World.Configuration;
 using Avalon.World.Public.Abilities;
 
-namespace Avalon.Balance.Simulation;
+namespace Avalon.Balance.Core;
 
 /// <summary>
 /// The server's hit, heal, Fury and haste rules, applied to simulated units. Every number comes from the World
@@ -52,7 +51,7 @@ public static class CombatRules
                 target.CurrentPower = 0;
         }
         else if (target.PowerType == PowerType.Fury)
-            target.GainPower(Fury.FromDamageTaken(lost, before, target.Health, GameConfiguration.DefaultFuryFromDamageTaken));
+            target.GainPower(Fury.FromDamageTaken(lost, before, target.Health, Fury.DefaultFromDamageTaken));
 
         return lost;
     }

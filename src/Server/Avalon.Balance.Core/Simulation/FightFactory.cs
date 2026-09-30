@@ -1,10 +1,7 @@
-using Avalon.Balance.Config;
-using Avalon.Balance.Data;
-using Avalon.Balance.Running;
 using Avalon.Combat;
 using Avalon.Domain.World;
 
-namespace Avalon.Balance.Simulation;
+namespace Avalon.Balance.Core;
 
 public static class FightFactory
 {

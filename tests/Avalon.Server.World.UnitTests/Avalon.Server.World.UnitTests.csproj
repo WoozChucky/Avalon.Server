@@ -37,7 +37,8 @@
     <ProjectReference Include="..\..\src\Server\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\..\tools\Avalon.Exporter\Avalon.Exporter.csproj"/>
-    <ProjectReference Include="..\..\tools\Avalon.Balance\Avalon.Balance.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Balance.Core\Avalon.Balance.Core.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Balance.Data\Avalon.Balance.Data.csproj"/>
   </ItemGroup>
 
 </Project>

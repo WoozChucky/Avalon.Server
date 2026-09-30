@@ -1,8 +1,7 @@
 using System.Text.Json;
-using Avalon.Balance.Data;
 using Avalon.World.Public.Enums;
 
-namespace Avalon.Balance.Config;
+namespace Avalon.Balance.Core;
 
 public sealed class PackEntry
 {

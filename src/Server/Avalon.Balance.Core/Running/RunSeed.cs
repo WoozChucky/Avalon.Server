@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using Avalon.World.Public.Enums;
 
-namespace Avalon.Balance.Running;
+namespace Avalon.Balance.Core;
 
 /// <summary>A run's random seed from the run's coordinates (FNV-1a), so results never depend on scheduling.</summary>
 public static class RunSeed

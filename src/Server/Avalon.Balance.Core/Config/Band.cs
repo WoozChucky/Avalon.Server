@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Avalon.Balance.Config;
+namespace Avalon.Balance.Core;
 
 public enum Grade
 {
@@ -29,14 +29,14 @@ public sealed class Band
     public Grade Grade(double? value, double tolerancePct)
     {
         if (value is not { } v || double.IsNaN(v))
-            return Config.Grade.Red;
+            return Core.Grade.Red;
 
         double distance = Distance(v);
         if (distance == 0d)
-            return Config.Grade.Green;
+            return Core.Grade.Green;
 
         double edge = Min is { } lo && v < lo ? lo : Max!.Value;
-        return distance <= tolerancePct / 100d * Math.Max(Math.Abs(edge), 1d) ? Config.Grade.Yellow : Config.Grade.Red;
+        return distance <= tolerancePct / 100d * Math.Max(Math.Abs(edge), 1d) ? Core.Grade.Yellow : Core.Grade.Red;
     }
 
     public string Describe(string unit) => (Min, Max) switch

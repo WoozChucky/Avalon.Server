@@ -1,11 +1,8 @@
-using Avalon.Balance.Config;
-using Avalon.Balance.Data;
-using Avalon.Balance.Simulation;
 using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
 
-namespace Avalon.Balance.Running;
+namespace Avalon.Balance.Core;
 
 public sealed record RunPlan(
     IReadOnlyList<CharacterClass> Classes,

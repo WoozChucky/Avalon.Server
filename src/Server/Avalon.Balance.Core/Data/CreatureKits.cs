@@ -1,6 +1,6 @@
 using Avalon.Common.ValueObjects;
 
-namespace Avalon.Balance.Data;
+namespace Avalon.Balance.Core;
 
 /// <summary>A creature script's kit: its basic attack, its specials in rotation order, and the specials it casts only from range.</summary>
 public sealed record CreatureKit(AbilityId Basic, IReadOnlyList<AbilityId> Specials, IReadOnlySet<AbilityId> RangedOnly);

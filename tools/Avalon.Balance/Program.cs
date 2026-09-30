@@ -1,11 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Avalon.Balance;
-using Avalon.Balance.Config;
+using Avalon.Balance.Core;
 using Avalon.Balance.Data;
-using Avalon.Balance.Grading;
 using Avalon.Balance.Reporting;
-using Avalon.Balance.Running;
 
 // dotnet run --project tools/Avalon.Balance
 // dotnet run --project tools/Avalon.Balance -- --class Warrior --scenario normal-3 --runs 5000
@@ -24,16 +22,16 @@ try
     string root = RepositoryRoot.Find();
     string balanceDir = Path.Combine(root, "balance");
 
-    SeedTables tables = SeedTables.Read();
+    SeedTables tables = SeedSource.Load();
     string overridesPath = options.OverridesPath is { } given ? Path.GetFullPath(given) : Path.Combine(balanceDir, "overrides.json");
-    OverrideReport overrides = Overrides.ApplyFile(tables, overridesPath, required: options.OverridesPath is not null);
+    OverrideReport overrides = OverrideFiles.Apply(tables, overridesPath, required: options.OverridesPath is not null);
     BalanceData data = BalanceData.From(tables);
 
-    ScenarioFile scenarios = ConfigFiles.Load(Path.Combine(balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+    ScenarioFile scenarios = ConfigFileStore.Load(Path.Combine(balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
     scenarios.Validate(data);
-    TargetFile targets = ConfigFiles.Load(Path.Combine(balanceDir, "targets.json"), ConfigFiles.ParseTargets);
+    TargetFile targets = ConfigFileStore.Load(Path.Combine(balanceDir, "targets.json"), ConfigFiles.ParseTargets);
     targets.Validate(scenarios);
-    RotationFile rotations = ConfigFiles.Load(Path.Combine(balanceDir, "rotations.json"), ConfigFiles.ParseRotations);
+    RotationFile rotations = ConfigFileStore.Load(Path.Combine(balanceDir, "rotations.json"), ConfigFiles.ParseRotations);
 
     var runner = new BalanceRunner(data, scenarios, rotations);
     RunPlan plan = runner.Plan(options.Class, options.Scenario, options.Runs, options.Seed);

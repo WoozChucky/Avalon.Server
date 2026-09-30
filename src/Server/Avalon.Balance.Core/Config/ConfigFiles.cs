@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Avalon.Balance.Config;
+namespace Avalon.Balance.Core;
 
 public static class ConfigFiles
 {
@@ -19,9 +19,6 @@ public static class ConfigFiles
     public static TargetFile ParseTargets(string json) => Parse<TargetFile>(json, "targets");
 
     public static RotationFile ParseRotations(string json) => Parse<RotationFile>(json, "rotations");
-
-    public static T Load<T>(string path, Func<string, T> parse) =>
-        File.Exists(path) ? parse(File.ReadAllText(path)) : throw new FileNotFoundException($"'{path}' not found", path);
 
     private static T Parse<T>(string json, string name)
     {

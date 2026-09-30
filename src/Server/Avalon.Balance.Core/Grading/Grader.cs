@@ -1,12 +1,8 @@
-using Avalon.Balance.Config;
-using Avalon.Balance.Data;
-using Avalon.Balance.Running;
-using Avalon.Balance.Simulation;
 using Avalon.Network.Packets.State;
 using Avalon.Combat;
 using Avalon.World.Public.Enums;
 
-namespace Avalon.Balance.Grading;
+namespace Avalon.Balance.Core;
 
 public sealed record GradedMetric(RowKey? Row, string Check, string Metric, double? Value, Band Band, string Unit, Grade Grade)
 {

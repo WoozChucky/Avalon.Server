@@ -1,8 +1,8 @@
+using Avalon.Balance.Core;
 using Avalon.Balance.Data;
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Combat;
 using Avalon.World.Public.Enums;
 using Xunit;
 
@@ -39,9 +39,9 @@ public class SeedLoadShould
     {
         BalanceData data = TestData.Seeded;
 
-        Assert.Empty(data.Abilities.Refused);
+        Assert.Empty(data.RefusedAbilities);
         foreach (uint id in new uint[] { 200, 201, 202, 210, 211, 212, 220, 221, 222, 230, 231, 232, 300, 316 })
-            Assert.True(data.Abilities.TryGet(new AbilityId(id), out _), $"ability {id}");
+            Assert.True(data.Abilities.TryGetValue(new AbilityId(id), out _), $"ability {id}");
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class SeedLoadShould
     [Fact]
     public void Stop_when_the_ability_catalog_refuses_a_row()
     {
-        SeedTables tables = SeedTables.Read();
+        SeedTables tables = SeedSource.Load();
         tables.AbilityTemplates.Single(a => a.Id.Value == 200).ScriptName = "NotAScript";
 
         var error = Assert.Throws<InvalidDataException>(() => BalanceData.From(tables));

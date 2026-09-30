@@ -1,10 +1,9 @@
-using Avalon.Balance.Data;
 using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
 
-namespace Avalon.Balance.Simulation;
+namespace Avalon.Balance.Core;
 
 public sealed class SimPlayer : SimUnit
 {

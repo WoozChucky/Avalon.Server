@@ -3,12 +3,11 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
-using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 
-namespace Avalon.Balance.Simulation;
+namespace Avalon.Balance.Core;
 
 /// <summary>One ability a unit holds: its row, its runtime metadata (seconds), its cooldown.</summary>
 public sealed class SimAbility(AbilityTemplate template)

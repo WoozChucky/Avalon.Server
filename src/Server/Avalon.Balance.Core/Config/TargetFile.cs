@@ -1,4 +1,4 @@
-namespace Avalon.Balance.Config;
+namespace Avalon.Balance.Core;
 
 public sealed class ScenarioTargets
 {

@@ -1,10 +1,9 @@
-using Avalon.Balance.Data;
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 
-namespace Avalon.Balance.Simulation;
+namespace Avalon.Balance.Core;
 
 public sealed class SimCreature : SimUnit
 {
@@ -40,7 +39,7 @@ public sealed class SimCreature : SimUnit
         DerivedCreatureStats derived = data.CreatureStats.Derive(template, level);
 
         SimAbility? Load(AbilityId id) =>
-            data.Abilities.TryGet(id, out AbilityTemplate? row) ? new SimAbility(row) : null;
+            data.Abilities.TryGetValue(id, out AbilityTemplate? row) ? new SimAbility(row) : null;
 
         SimAbility? basic = Load(kit.Basic);
         List<SimAbility> specials = kit.Specials.Distinct().Where(id => id != kit.Basic).Select(Load).OfType<SimAbility>().ToList();

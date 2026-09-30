@@ -4,7 +4,7 @@ using System.Text.Json;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
 
-namespace Avalon.Balance.Data;
+namespace Avalon.Balance.Core;
 
 public sealed record AppliedOverride(string Key, string Seed, string Value);
 
@@ -41,28 +41,6 @@ public static class Overrides
         ["Item"] = new(typeof(ItemTemplate), ["Id"],
             (t, k) => t.ItemTemplates.FirstOrDefault(i => Text(i.Id.Value) == k)),
     };
-
-    public static OverrideReport ApplyFile(SeedTables tables, string path, bool required)
-    {
-        if (!File.Exists(path))
-        {
-            return required ? throw new FileNotFoundException($"Overrides file '{path}' not found", path) : OverrideReport.None;
-        }
-
-        JsonDocument document;
-        try
-        {
-            document = JsonDocument.Parse(File.ReadAllText(path),
-                new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-        }
-        catch (JsonException e)
-        {
-            throw new InvalidDataException($"Overrides file '{path}' is not valid JSON: {e.Message}", e);
-        }
-
-        using (document)
-            return Apply(tables, document.RootElement);
-    }
 
     public static OverrideReport Apply(SeedTables tables, JsonElement root)
     {

@@ -1,6 +1,6 @@
 using Avalon.World.Public.Enums;
 
-namespace Avalon.Balance.Running;
+namespace Avalon.Balance.Core;
 
 public sealed record RowKey(CharacterClass Class, ushort Level, string Gear, string Scenario);
 

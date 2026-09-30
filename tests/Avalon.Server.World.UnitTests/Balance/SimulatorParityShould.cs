@@ -1,7 +1,6 @@
 using System.Reflection;
-using Avalon.Balance.Config;
+using Avalon.Balance.Core;
 using Avalon.Balance.Data;
-using Avalon.Balance.Simulation;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
@@ -42,7 +41,7 @@ public class SimulatorParityShould
     private const int Seed = 672;
     private const ushort Level = 3;
     private static readonly ulong[] ForestWarrior = [7, 12, 13, 14, 15, 16];
-    private static readonly Lazy<BalanceData> SeededData = new(() => BalanceData.From(SeedTables.Read()));
+    private static readonly Lazy<BalanceData> SeededData = new(() => BalanceData.From(SeedSource.Load()));
     private static BalanceData Data => SeededData.Value;
 
     /// <summary>Close enough to the warrior (at the origin) that Hurled Axe's first step, 18 m/s for one tick, reaches it.</summary>
@@ -450,7 +449,7 @@ public class SimulatorParityShould
     /// </summary>
     private static CreatureSpawner SeededSpawner(Func<CreatureTemplate, short> level)
     {
-        SeedTables seed = SeedTables.Read();
+        SeedTables seed = SeedSource.Load();
         foreach (CreatureTemplate template in seed.CreatureTemplates)
         {
             short pinned = level(template);

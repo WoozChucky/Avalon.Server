@@ -1,9 +1,7 @@
 using Avalon.Balance;
-using Avalon.Balance.Config;
+using Avalon.Balance.Core;
 using Avalon.Balance.Data;
-using Avalon.Balance.Grading;
 using Avalon.Balance.Reporting;
-using Avalon.Balance.Running;
 using Avalon.World.Public.Enums;
 using Xunit;
 
@@ -20,8 +18,8 @@ public class ReportsShould
 
     private static ReportContext Context(params RowResult[] rows)
     {
-        ScenarioFile scenarios = ConfigFiles.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
-        TargetFile targets = ConfigFiles.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
+        ScenarioFile scenarios = ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+        TargetFile targets = ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
         GradeReport grades = Grader.Grade(rows, TestData.Seeded, scenarios, targets);
         return new ReportContext(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero), "abc1234", 672, 10,
             new OverrideReport([new AppliedOverride("Ability.201.EffectValue", "25", "18")], ["Ability.200.EffectValue"]),

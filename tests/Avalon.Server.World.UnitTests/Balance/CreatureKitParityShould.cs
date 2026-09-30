@@ -1,5 +1,5 @@
 using System.Reflection;
-using Avalon.Balance.Data;
+using Avalon.Balance.Core;
 using Avalon.World.Creatures;
 using Avalon.World.Scripts.Creatures;
 using Avalon.World.Scripts.Creatures.Forest;

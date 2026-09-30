@@ -1,4 +1,4 @@
-using Avalon.Balance.Data;
+using Avalon.Balance.Core;
 using Avalon.Common.ValueObjects;
 using Xunit;
 

@@ -26,6 +26,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Server\Avalon.Balance.Core\Avalon.Balance.Core.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Balance.Data\Avalon.Balance.Data.csproj"/>
     <ProjectReference Include="..\..\tools\Avalon.Balance\Avalon.Balance.csproj"/>
   </ItemGroup>
 
