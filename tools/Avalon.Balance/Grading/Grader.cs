@@ -3,7 +3,7 @@ using Avalon.Balance.Data;
 using Avalon.Balance.Running;
 using Avalon.Balance.Simulation;
 using Avalon.Network.Packets.State;
-using Avalon.World.Characters;
+using Avalon.Combat;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.Balance.Grading;

@@ -3,6 +3,9 @@ namespace Avalon.Combat;
 /// <summary>The Fury rules that are pure arithmetic (#526).</summary>
 public static class Fury
 {
+    /// <summary>The default Fury gained per full bar of health lost, for whatever is built without the options.</summary>
+    public const float DefaultFromDamageTaken = 50f;
+
     /// <summary>
     /// Fury a character gains from a hit: <c>floor(lost / maxHealth × factor)</c>, where the health
     /// lost is <c>min(damage, healthBefore)</c>, so overkill does not count. 0 with no maximum health;

@@ -1,7 +1,7 @@
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
 
-namespace Avalon.World.Characters;
+namespace Avalon.Combat;
 
 /// <summary>The power pool each class casts from, set on the character at select.</summary>
 public static class ClassPowerType

@@ -6,7 +6,6 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Abilities;
-using Avalon.World.Characters;
 using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
