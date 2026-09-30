@@ -49,9 +49,19 @@ public static class Overrides
             return required ? throw new FileNotFoundException($"Overrides file '{path}' not found", path) : OverrideReport.None;
         }
 
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path),
-            new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-        return Apply(tables, document.RootElement);
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(File.ReadAllText(path),
+                new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+        }
+        catch (JsonException e)
+        {
+            throw new InvalidDataException($"Overrides file '{path}' is not valid JSON: {e.Message}", e);
+        }
+
+        using (document)
+            return Apply(tables, document.RootElement);
     }
 
     public static OverrideReport Apply(SeedTables tables, JsonElement root)

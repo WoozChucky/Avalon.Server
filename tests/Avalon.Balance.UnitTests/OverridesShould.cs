@@ -121,4 +121,21 @@ public class OverridesShould
         Assert.Same(OverrideReport.None, Overrides.ApplyFile(tables, missing, required: false));
         Assert.Throws<FileNotFoundException>(() => Overrides.ApplyFile(tables, missing, required: true));
     }
+
+    [Fact]
+    public void Name_a_file_that_is_not_json()
+    {
+        SeedTables tables = SeedTables.Read();
+        string broken = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
+        File.WriteAllText(broken, "{ bad");
+        try
+        {
+            InvalidDataException e = Assert.Throws<InvalidDataException>(() => Overrides.ApplyFile(tables, broken, required: true));
+            Assert.Contains(broken, e.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(broken);
+        }
+    }
 }
