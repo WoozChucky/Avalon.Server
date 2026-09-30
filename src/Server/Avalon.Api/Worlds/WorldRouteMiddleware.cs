@@ -26,6 +26,9 @@ namespace Avalon.Api.Worlds;
 /// world is not revealed, even while it is unavailable.</item>
 /// <item>Its databases failed at startup: 503.</item>
 /// </list>
+/// <see cref="PublicWorldScopedAttribute"/> endpoints (/public/world/{worldId}/...) admit anonymous callers
+/// as Players: anyone reads a world every player may enter, a signed-in caller also reads the worlds they
+/// may enter, and everything else is the same empty 404 (503 when its databases failed).
 /// A personal access token is only authenticated by the authorization middleware (through the
 /// default policy's schemes), so this authenticates the same way, explicitly; the handlers cache
 /// their result, so the account is still loaded once per request.
@@ -35,6 +38,12 @@ public sealed class WorldRouteMiddleware(RequestDelegate next)
     public async Task InvokeAsync(HttpContext context)
     {
         Endpoint? endpoint = context.GetEndpoint();
+        if (endpoint?.Metadata.GetMetadata<PublicWorldScopedAttribute>() is not null)
+        {
+            await SelectPublicWorldAsync(context);
+            return;
+        }
+
         if (endpoint?.Metadata.GetMetadata<WorldScopedAttribute>() is null)
         {
             await next(context);
@@ -56,39 +65,71 @@ public sealed class WorldRouteMiddleware(RequestDelegate next)
             return;
         }
 
+        if (await TrySelectWorldAsync(context, context.User.AccessLevel()) is not null)
+        {
+            await next(context);
+        }
+    }
+
+    private static async Task WriteUnavailableAsync(HttpContext context, WorldId id)
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Status = StatusCodes.Status503ServiceUnavailable,
+            Type = "ServiceUnavailable",
+            Title = "World unavailable",
+            Detail = $"World {id.Value} is unavailable",
+            Instance = $"{context.Request.Method} {context.Request.Path}",
+        }, context.RequestAborted);
+    }
+
+    private async Task SelectPublicWorldAsync(HttpContext context)
+    {
+        AccountAccessLevel caller = await PublicCaller.AccessLevelAsync(context);
+        WorldEntity? world = await TrySelectWorldAsync(context, caller);
+        if (world is null)
+        {
+            return;
+        }
+
+        context.Items[PublicWorldScopedAttribute.OpenToEveryoneItem] =
+            AccessLevels.ForWorld(world.AccessLevelRequired).Allows(AccountAccessLevel.Player);
+        await next(context);
+    }
+
+    /// <summary>
+    /// The one non-disclosure order: parse, auth row, access rule, configured, then available. Selects the
+    /// world and returns it, or writes the 404 / 503 and returns null.
+    /// </summary>
+    private static async Task<WorldEntity?> TrySelectWorldAsync(HttpContext context, AccountAccessLevel caller)
+    {
+        IServiceProvider services = context.RequestServices;
         if (!WorldDatabaseSettings.TryParseWorldId(context.Request.RouteValues[WorldScopedAttribute.RouteValue] as string,
                 out WorldId? id))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
+            return null;
         }
 
         WorldEntity? world = await services.GetRequiredService<IWorldRepository>()
             .FindByIdAsync(id, track: false, context.RequestAborted);
         IWorldDatabases databases = services.GetRequiredService<IWorldDatabases>();
         if (world is null
-            || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(context.User.AccessLevel())
+            || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller)
             || !databases.TryGet(id, out _))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
+            return null;
         }
 
         if (!databases.IsAvailable(id))
         {
-            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-            await context.Response.WriteAsJsonAsync(new ProblemDetails
-            {
-                Status = StatusCodes.Status503ServiceUnavailable,
-                Type = "ServiceUnavailable",
-                Title = "World unavailable",
-                Detail = $"World {id.Value} is unavailable",
-                Instance = $"{context.Request.Method} {context.Request.Path}",
-            }, context.RequestAborted);
-            return;
+            await WriteUnavailableAsync(context, id);
+            return null;
         }
 
         services.GetRequiredService<CurrentWorld>().Select(world.Id, world.Name);
-        await next(context);
+        return world;
     }
 }

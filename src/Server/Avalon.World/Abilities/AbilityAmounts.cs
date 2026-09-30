@@ -1,8 +1,8 @@
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Scripts.Abilities;
 
 namespace Avalon.World.Abilities;
 
@@ -26,22 +26,17 @@ public readonly record struct AbilityAmount(AbilityAmountKind Kind, uint Min, ui
 /// </remarks>
 public static class AbilityAmounts
 {
-    private static readonly HashSet<string> DirectScripts = new(StringComparer.Ordinal)
-    {
-        nameof(CircleAbilityScript), nameof(ConeAbilityScript), nameof(ProjectileAbilityScript),
-    };
-
     public static AbilityAmount For(in AttackerCombat caster, AbilityMetadata ability)
     {
-        if (ability.ScriptName is null || !DirectScripts.Contains(ability.ScriptName))
-            return AbilityAmount.None;
+        AbilityAmountKind kind = AbilityAmountMath.KindOf(ability.ScriptName, ability.Affects);
+        if (kind == AbilityAmountKind.None) return AbilityAmount.None;
 
         (float low, float high) = HitResolver.AbilityBaseRange(caster, ability.EffectValue, ability.ScalingStat,
             ability.ScalingCoefficient, ability.BaseDamageCoefficient);
 
-        return ability.Affects == AbilityAffects.Ally
-            ? new AbilityAmount(AbilityAmountKind.Healing, HitResolver.NormalHeal(low), HitResolver.NormalHeal(high))
-            : new AbilityAmount(AbilityAmountKind.Damage, HitResolver.NormalDamage(low), HitResolver.NormalDamage(high));
+        return kind == AbilityAmountKind.Healing
+            ? new AbilityAmount(kind, HitResolver.NormalHeal(low), HitResolver.NormalHeal(high))
+            : new AbilityAmount(kind, HitResolver.NormalDamage(low), HitResolver.NormalDamage(high));
     }
 
     public static AbilityAmountInfo ToInfo(IAbility ability, AbilityAmount amount) => new()
