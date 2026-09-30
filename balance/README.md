@@ -5,6 +5,15 @@ parity, level curve) and "does this change make it better", before a migration i
 data from the EF model (`HasData`), applies `overrides.json`, simulates one player against packs of forest creatures,
 and grades the results against `targets.json`.
 
+## Structure
+
+- `src/Server/Avalon.Balance.Core`: the simulator, the grader and the run contract (`Simulation.Run` takes a seed, a
+  config and a `RunRequest` and returns a `RunResult`; a refusal is an `Issue` with a path, never an exception;
+  progress and cancellation are built in). It references `Avalon.Combat` and `Avalon.Domain` only, so it can run inside
+  a service. `Catalog.Describe` lists every value an override accepts; `ConfigFiles.Save` writes the config files.
+- `src/Server/Avalon.Balance.Data`: reads the seed from the EF model and the files from disk, for Core.
+- `tools/Avalon.Balance`: the command line, a thin wrapper over the two.
+
 ## Running
 
 ```bash
@@ -38,13 +47,20 @@ desktop; narrow it with `--class`, `--scenario` and `--runs` while iterating. Th
   hold is cast. Conditions: `targetsAlive`, `healthPct`, `power`, `powerPct`, each like `">=2"`.
 
 Every config file refuses a field it does not know, so a typo stops the run instead of being ignored.
+`scenarios.json`, `targets.json` and `rotations.json` are kept in the canonical form `ConfigFiles.Save` writes, so
+saving a file unchanged changes nothing; `overrides.json` is yours to format. Save with `ConfigFileStore.Write`.
 
 ## What the simulator models, and what it does not
 
-- Every number comes from the server's code: `CharacterStatsCalculator`, `CreatureStatDeriver`, `HitResolver`,
-  `Haste`, `AbilityCost`, `AbilityAmounts`, `PowerRegen`, `PowerPool` (power gains and which pool a reset empties),
-  `Fury.FromDamageTaken` (Fury from damage taken) and `HealRules` (a heal's cap). Only the order of events in a tick is the simulator's own, and
-  `SimulatorParityShould` (World unit tests) pins it against `CombatService` and the cast system.
+- Every number comes from the server's code, the rules in `Avalon.Combat`: `CharacterStatsCalculator`,
+  `CreatureStatDeriver`, `HitResolver`, `Haste`, `AbilityCost`, `AbilityAmounts`, `PowerRegen`, `PowerPool` (power
+  gains and which pool a reset empties), `Fury.FromDamageTaken` (Fury from damage taken) and `HealRules` (a heal's
+  cap); the data checks (`AbilityRules`, `CombatDataRules`, `CreatureTemplateRules`) are shared the same way. Only the
+  order of events in a tick is the simulator's own, and `SimulatorParityShould` (World unit tests) pins it against
+  `CombatService` and the cast system.
+- **Creature kits are a table.** `CreatureKits.ByScript` in Core lists each script's basic, specials and ranged-only
+  specials, because Core does not read `Avalon.World`'s scripts. A new or changed creature script needs its row
+  updated; `CreatureKitParityShould` (World unit tests) fails when the table and the scripts differ.
 - One step is one server tick (1/60 s). Mana and Energy regenerate at the in-combat rate (`stat x 0.05` a second),
   the fraction of a point carried between ticks as the server carries it, unless a cast-time cast was in progress
   within the last 5 s.
