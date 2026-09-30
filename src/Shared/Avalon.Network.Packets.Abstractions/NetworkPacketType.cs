@@ -180,4 +180,10 @@ public enum NetworkPacketType : short
     // Vendors (#432)
     SMSG_VENDOR_LIST = 0x30A0,
     SMSG_VENDOR_RESULT = 0x30A1,
+
+    // Parties (2026-09-30)
+    SMSG_PARTY_INVITE = 0x30B0,
+    SMSG_PARTY_RESULT = 0x30B1,
+    SMSG_PARTY_ROSTER = 0x30B2,
+    SMSG_PARTY_MEMBER_STATUS = 0x30B3,
 }

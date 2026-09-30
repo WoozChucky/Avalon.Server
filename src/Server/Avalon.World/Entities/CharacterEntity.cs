@@ -9,6 +9,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Inventory;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
@@ -239,6 +240,12 @@ public class CharacterEntity : ICharacter
     /// only by PvpToggle.Send; never saved, so every session starts untold. World-side only.
     /// </summary>
     public DateTime? PvpOffAtTold { get; internal set; }
+
+    /// <summary>
+    /// The party this character is in, or null (2026-09-30). Set only by PartyService, on the tick; World-side,
+    /// never on ICharacter, so no mod can put two players on the same side. Hostility reads it.
+    /// </summary>
+    public PartyId? PartyId { get; internal set; }
 
     /// <summary>Called by PvpToggle after it writes the row: replicates the flag and marks the save.</summary>
     public void MarkPvpChanged()

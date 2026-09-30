@@ -848,6 +848,42 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_PARTY_INVITE",
+      "opcode": 12464,
+      "hex": "0x30B0",
+      "message": "SPartyInvitePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_RESULT",
+      "opcode": 12465,
+      "hex": "0x30B1",
+      "message": "SPartyResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_ROSTER",
+      "opcode": 12466,
+      "hex": "0x30B2",
+      "message": "SPartyRosterPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_MEMBER_STATUS",
+      "opcode": 12467,
+      "hex": "0x30B3",
+      "message": "SPartyMemberStatusPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_CHARACTER_DAMAGED",
       "opcode": 12544,
       "hex": "0x3100",
