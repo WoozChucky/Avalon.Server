@@ -43,6 +43,20 @@ public class CharacterSelectChainShould : IDisposable
     private static readonly CharacterId AnotherCharacter = new(8);
     private static readonly AccountId TheAccount = new(42L);
 
+    /// <summary>
+    /// How long a test waits for work that finishes on the thread pool (a save chain, a read) before
+    /// it fails. It decides nothing: no outcome under test is timed on the wall clock (the select's
+    /// save wait runs on <see cref="_clock" />), so a slow runner only makes a test slower, and this
+    /// bound only stops a broken one from hanging.
+    /// </summary>
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The select handler's clock. It moves only when a test advances it, so the save wait runs out
+    /// exactly when a test says so and never on its own while a test is waiting for a save.
+    /// </summary>
+    private readonly ManualTimerClock _clock = new();
+
     private readonly TcpClient _clientSide;
     private readonly TcpClient _serverSide;
     private readonly Avalon.World.WorldConnection _connection;
@@ -283,7 +297,7 @@ public class CharacterSelectChainShould : IDisposable
         repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
-                await gate.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await gate.Task.WaitAsync(Patience);
                 Volatile.Write(ref committed, 1);
             });
         var saver = new CharacterSaver(repository, NullLogger<CharacterSaver>.Instance);
@@ -299,10 +313,14 @@ public class CharacterSelectChainShould : IDisposable
 
         Assert.False(read.Task.IsCompleted, "the select read the character while its save was still in flight");
 
+        // The select's save wait is on _clock, which never moves here, so only the commit can end it:
+        // however slowly the runner gets the save to commit, the select cannot give up first.
         gate.SetResult();
-        Assert.True(await despawn.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.True(await read.Task.WaitAsync(TimeSpan.FromSeconds(5)), "the read ran before the commit");
+        Assert.True(await despawn.WaitAsync(Patience));
+        Assert.True(await read.Task.WaitAsync(Patience), "the read ran before the commit");
 
+        // The read is recorded as it is made, a moment before the step holding it completes on the
+        // thread pool, so the chain's next flush is polled for rather than stepped once.
         await WaitUntilAsync(() => _connection.PendingSpawn != null || StepOnce());
         Assert.NotNull(_connection.PendingSpawn);
     }
@@ -323,7 +341,17 @@ public class CharacterSelectChainShould : IDisposable
         select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
         Assert.True(_connection.SelectInProgress);
 
-        await WaitUntilAsync(() => !_connection.SelectInProgress || StepOnce());
+        // Just short of the limit the select is still waiting.
+        _clock.Advance(TimeSpan.FromMilliseconds(49));
+        Step(3);
+        Assert.True(_connection.SelectInProgress, "the select gave up before its save wait ran out");
+
+        // The limit runs out inside Advance: the wait's timer fires on this thread, and the step it
+        // ended completes with it, so the next flush runs the chain's give-up. No real timer races
+        // a real deadline.
+        _clock.Advance(TimeSpan.FromMilliseconds(1));
+        Step();
+        Assert.False(_connection.SelectInProgress, "the select was still waiting after its save wait ran out");
         Step(3); // anything the failed select might still have queued
 
         await _characters.DidNotReceiveWithAnyArgs().FindByIdAndAccountAsync(default!, default!, default);
@@ -388,6 +416,8 @@ public class CharacterSelectChainShould : IDisposable
         select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
         select.Execute(kicker, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
 
+        // The kicker's save wait is on _clock, which never moves here, so only the held step can end
+        // it: the delay gives a premature read a chance to show, and cannot time the wait out.
         await Task.Delay(100);
         Assert.False(readByKicker.Task.IsCompleted, "the new select read while the kicked one still had a read in flight");
 
@@ -397,7 +427,7 @@ public class CharacterSelectChainShould : IDisposable
             Level = 1, Map = TownMapId
         });
 
-        await readByKicker.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await readByKicker.Task.WaitAsync(Patience);
         Step(6);
         Assert.Null(_connection.PendingSpawn);
         await _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default(Character)!, default);
@@ -409,10 +439,13 @@ public class CharacterSelectChainShould : IDisposable
         return false;
     }
 
-    /// <summary>Polls, bounded, for work that finishes on the thread pool.</summary>
+    /// <summary>
+    /// Polls for work that finishes on the thread pool, not on a timer, bounded by
+    /// <see cref="Patience" /> only so a broken chain fails instead of hanging.
+    /// </summary>
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        DateTime deadline = DateTime.UtcNow + Patience;
         while (!condition())
         {
             Assert.True(DateTime.UtcNow < deadline, "timed out waiting for the select chain");
@@ -481,7 +514,8 @@ public class CharacterSelectChainShould : IDisposable
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             saver ?? Substitute.For<ICharacterSaver>(),
-            worldServer ?? Substitute.For<IWorldServer>())
+            worldServer ?? Substitute.For<IWorldServer>(),
+            _clock)
         {
             SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
         };

@@ -56,7 +56,13 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// </remarks>
 public class DuplicateCharacterSelectShould : IDisposable
 {
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// How long a test waits for work that finishes on the thread pool (a save, a read, a close)
+    /// before it fails. It decides no outcome: the select's save wait runs on a clock that never
+    /// moves here, so a slow runner only makes a test slower, and this bound only stops a broken
+    /// one from hanging. Generous, because a loaded runner can hold pool work back for seconds.
+    /// </summary>
+    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(30);
     private static readonly CharacterId TheCharacter = new(7);
     private static readonly CharacterId AnotherCharacter = new(8);
     private static readonly CharacterId ThirdCharacter = new(9);
@@ -544,7 +550,10 @@ public class DuplicateCharacterSelectShould : IDisposable
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             _saver,
-            server);
+            server,
+            // Never advanced: the select's save wait ends only when the saves it waits on do, so a
+            // slow runner cannot time it out while a test is still holding a save.
+            new ManualTimerClock());
 
         return (server, select);
     }

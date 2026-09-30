@@ -63,7 +63,8 @@ public class CharacterSelectHandler(
     /// How long a select waits for the character's previous saves before giving up. Past it the
     /// select fails without reading, and the client can select again. Well inside
     /// <see cref="GameConfiguration.CharacterLoadTimeoutSeconds" />, which cancels the whole select,
-    /// so a slow save leaves the rest of the load time to the reads.
+    /// so a slow save leaves the rest of the load time to the reads. Measured on the handler's
+    /// <see cref="TimeProvider" /> (the system clock unless the container supplies another).
     /// </summary>
     public TimeSpan SaveWaitLimit { get; init; } = TimeSpan.FromSeconds(5);
 
@@ -285,7 +286,9 @@ public class CharacterSelectHandler(
 
         if (!idle.IsCompleted)
         {
-            await idle.WaitAsync(SaveWaitLimit, CancellationToken.None)
+            // Timed on the container's clock (the system clock in production), so a test can end the
+            // wait by moving its clock rather than racing a real timer.
+            await idle.WaitAsync(SaveWaitLimit, time ?? TimeProvider.System, CancellationToken.None)
                 .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
             if (!idle.IsCompleted)
