@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps.Navigation;
 
-public class MapNavigator : IMapNavigator, IPathBufferNavigator
+public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigator
 {
     private readonly ILogger<MapNavigator> _logger;
     private DtNavMesh? _navMesh;
@@ -319,23 +319,35 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator
 
     public float SampleGroundHeight(float x, float y, float z)
     {
-        if (_navMesh == null) return y;
+        return FindGround(new Vector3(x, y, z), out Vector3 ground) == NavmeshGroundKind.Under ? ground.y : y;
+    }
+
+    /// <summary>
+    /// One ground query for both <see cref="SampleGroundHeight" /> and its callers that need to know
+    /// whether there was ground at all (#720): the nearest polygon within <see cref="PolyPickExt" />, its
+    /// height under the point when the point is over it, and otherwise its nearest point.
+    /// </summary>
+    public NavmeshGroundKind FindGround(Vector3 near, out Vector3 ground)
+    {
+        ground = near;
+        if (_navMesh == null) return NavmeshGroundKind.NoNavMesh;
 
         var query = _query!;
-        var center = new RcVec3f(x, y, z);
-        var status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out var nearestRef, out _, out _);
+        var center = new RcVec3f(near.x, near.y, near.z);
+        var status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out var nearestRef, out var nearestPt, out _);
         if (status.Failed() || nearestRef == 0)
         {
-            return y;
+            return NavmeshGroundKind.None;
         }
 
-        var pos = center;
-        if (query.GetPolyHeight(nearestRef, pos, out var h).Succeeded())
+        if (query.GetPolyHeight(nearestRef, center, out var h).Succeeded())
         {
-            return h;
+            ground = new Vector3(near.x, h, near.z);
+            return NavmeshGroundKind.Under;
         }
 
-        return y;
+        ground = new Vector3(nearestPt.X, nearestPt.Y, nearestPt.Z);
+        return NavmeshGroundKind.Nearest;
     }
 
     private static void CheckStatus(DtStatus status)
