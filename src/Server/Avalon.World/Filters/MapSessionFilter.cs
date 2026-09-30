@@ -46,6 +46,12 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_ENTER_MAP => true,
             NetworkPacketType.CMSG_RESPAWN_AT_TOWN => true,
             NetworkPacketType.CMSG_CHAT_MESSAGE => true,
+            NetworkPacketType.CMSG_PARTY_INVITE => true,
+            NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE => true,
+            NetworkPacketType.CMSG_PARTY_LEAVE => true,
+            NetworkPacketType.CMSG_PARTY_KICK => true,
+            NetworkPacketType.CMSG_PARTY_PROMOTE => true,
+            NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE => true,
             _ => false
         };
     }

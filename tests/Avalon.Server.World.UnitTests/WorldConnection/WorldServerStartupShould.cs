@@ -6,6 +6,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.World;
 using Avalon.World.Configuration;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Pvp;
 using Avalon.World.Scripts;
@@ -145,6 +146,11 @@ public class WorldServerStartupShould
 
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            if (serviceType == typeof(PartyService))
+                return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
+                    NullLogger<PartyService>.Instance);
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(serviceType.GenericTypeArguments[0]));

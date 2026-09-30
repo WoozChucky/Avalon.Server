@@ -148,4 +148,17 @@ public class MapSessionFilterShould
         Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_VENDOR_SELL));
         Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_VENDOR_BUYBACK));
     }
+
+    [Theory]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_LEAVE)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_KICK)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_PROMOTE)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE)]
+    public void Accept_every_party_request_for_a_character_on_a_map_and_none_without_one(NetworkPacketType type)
+    {
+        Assert.True(For(CharacterOnMap()).CanProcess(type));
+        Assert.False(For(null).CanProcess(type));
+    }
 }

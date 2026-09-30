@@ -17,6 +17,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
 using Avalon.World.Inventory;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
@@ -130,6 +131,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _contextFactoryCache = new();
     private readonly Stopwatch _gameTime = new();
     private readonly ILogger<WorldServer> _logger;
+    private readonly PartyService? _parties;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
@@ -167,7 +169,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IScriptManager scriptManager,
         IReplicatedCache cache,
         IScriptHotReloader scriptHotReloader,
-        ICharacterSaver characterSaver) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
+        ICharacterSaver characterSaver,
+        PartyService? parties = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions,
         PacketDispatchTelemetry.From(DiagnosticsConfig.World.Source, DiagnosticsConfig.World.Meter,
@@ -177,6 +180,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _cache = cache;
         _scriptHotReloader = scriptHotReloader;
         _characterSaver = characterSaver;
+        _parties = parties;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _world = world;
         
@@ -507,6 +511,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Each ability's per-hit amount (#669), in the same flush as the sheet whose stats moved it.
         for (int i = 0; i < conns.Length; i++)
             AbilityAmountsFlusher.Flush(conns[i]);
+
+        // Party members' pools (2026-09-30), to the members in their instance, at most four times a second each.
+        _parties?.FlushMemberStatus();
 
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.

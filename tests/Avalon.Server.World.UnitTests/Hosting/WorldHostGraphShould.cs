@@ -102,6 +102,13 @@ public class WorldHostGraphShould
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUYBACK, typeof(VendorBuybackHandler))]
     [InlineData(NetworkPacketType.CMSG_PVP_TOGGLE, typeof(PvpToggleHandler))]
     [InlineData(NetworkPacketType.CMSG_CHAT_MESSAGE, typeof(ChatMessageHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE, typeof(PartyInviteHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE, typeof(PartyInviteResponseHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_LEAVE, typeof(PartyLeaveHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_KICK, typeof(PartyKickHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_PROMOTE, typeof(PartyPromoteHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE, typeof(PartyExperienceModeHandler))]
+    [InlineData(NetworkPacketType.CMSG_ENTER_MAP, typeof(EnterMapHandler))]
     public async Task Find_And_Build_The_Handler_The_Way_WorldServer_Does(NetworkPacketType opcode, Type expected)
     {
         string workingDirectory = Directory.GetCurrentDirectory();

@@ -103,4 +103,25 @@ public class PartyPacketsShould
         Assert.Equal(1, (int)PartyExperienceMode.Even);
         Assert.Equal(2, (int)PartyExperienceMode.LevelWeighted);
     }
+
+    [Fact]
+    public void Use_the_next_free_client_opcodes()
+    {
+        Assert.Equal(0x20B0, (short)NetworkPacketType.CMSG_PARTY_INVITE);
+        Assert.Equal(0x20B1, (short)NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE);
+        Assert.Equal(0x20B2, (short)NetworkPacketType.CMSG_PARTY_LEAVE);
+        Assert.Equal(0x20B3, (short)NetworkPacketType.CMSG_PARTY_KICK);
+        Assert.Equal(0x20B4, (short)NetworkPacketType.CMSG_PARTY_PROMOTE);
+        Assert.Equal(0x20B5, (short)NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE);
+    }
+
+    [Fact]
+    public void Keep_the_client_field_numbers()
+    {
+        Assert.Equal("0a0141", Hex(new CPartyInvitePacket { TargetName = "A" }));
+        Assert.Equal("0801", Hex(new CPartyInviteResponsePacket { Accept = true }));
+        Assert.Equal("0805", Hex(new CPartyKickPacket { CharacterId = 5 }));
+        Assert.Equal("0805", Hex(new CPartyPromotePacket { CharacterId = 5 }));
+        Assert.Equal("0802", Hex(new CPartyExperienceModePacket { Mode = PartyExperienceMode.LevelWeighted }));
+    }
 }

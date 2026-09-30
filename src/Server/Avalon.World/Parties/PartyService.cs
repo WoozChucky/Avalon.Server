@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
+using Avalon.Network.Packets.State;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -28,6 +29,10 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     private readonly Dictionary<uint, ushort> _lastLevel = [];
     private readonly List<uint> _scratch = [];
     private readonly List<IWorldConnection> _due = [];
+    private readonly Dictionary<uint, (MemberStatus Status, DateTimeOffset At)> _statusSent = [];
+
+    /// <summary>At most this often per member (four times a second).</summary>
+    public static readonly TimeSpan StatusInterval = TimeSpan.FromMilliseconds(250);
 
     // Second marks the countdown is announced at, highest first (spec 2026-09-30 section 2).
     private static readonly int[] CountdownMarks = [60, 30, 10, 5, 4, 3, 2, 1];
@@ -48,7 +53,10 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     public void InstanceChanged(IWorldConnection connection)
     {
         if (connection.Character is { } character && PartyOf(character.Guid.Id) is { } party)
+        {
+            ResetStatuses(party);
             SendRoster(party);
+        }
     }
 
     /// <summary>The character entered the world (World.SpawnInInstance).</summary>
@@ -67,7 +75,10 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             entity.PartyId = party?.Id;
 
         if (party is not null)
+        {
+            ResetStatuses(party);
             SendRoster(party);
+        }
     }
 
     /// <summary>The character left the world (World.LeaveWorldAsync, before the connection lets go of it).</summary>
@@ -78,6 +89,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             return;
 
         _online.Remove(id);
+        _statusSent.Remove(id);
         if (_onlineByName.TryGetValue(character.Name, out uint named) && named == id)
             _onlineByName.Remove(character.Name);
         _lastLevel[id] = character.Level;
@@ -263,6 +275,49 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             SendRoster(party);
     }
 
+    /// <summary>
+    /// Once per tick, from WorldServer.Update after both passes: each online member whose pools changed, and who was
+    /// not sent within <see cref="StatusInterval" />, is sent to the other online members in its instance. A change
+    /// held back by the interval goes on the first flush after it, if it still differs from what was sent.
+    /// </summary>
+    public void FlushMemberStatus()
+    {
+        DateTimeOffset now = time.GetUtcNow();
+        foreach (Party party in _parties.Values)
+        {
+            for (int i = 0; i < party.Members.Count; i++)
+            {
+                uint id = party.Members[i].Id.Value;
+                if (OnlineConnection(id)?.Character is not { } character)
+                    continue;
+
+                var status = MemberStatus.Of(character);
+                if (_statusSent.TryGetValue(id, out (MemberStatus Status, DateTimeOffset At) last)
+                    && (last.Status == status || now - last.At < StatusInterval))
+                    continue;
+
+                _statusSent[id] = (status, now);
+                for (int j = 0; j < party.Members.Count; j++)
+                {
+                    uint other = party.Members[j].Id.Value;
+                    if (other == id || OnlineConnection(other) is not { Character: { } watcher } connection
+                        || watcher.InstanceId != character.InstanceId)
+                        continue;
+
+                    connection.Send(SPartyMemberStatusPacket.Create(id, status.Health, status.MaxHealth, status.Power,
+                        status.MaxPower, status.PowerType, status.IsDead, connection.CryptoSession.Encrypt));
+                }
+            }
+        }
+    }
+
+    /// <summary>Who shares an instance changed: every member is sent afresh on the next flush.</summary>
+    private void ResetStatuses(Party party)
+    {
+        foreach (PartyMember member in party.Members)
+            _statusSent.Remove(member.Id.Value);
+    }
+
     private void OnCharacterOffline(uint characterId) => _countdowns.Remove(characterId);
 
     /// <summary>
@@ -366,6 +421,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             entity.PartyId = party.Id;
 
         OnJoined(id, party);
+        ResetStatuses(party);
         SendRoster(party);
         SendLine(party, $"{character.Name} joined the party.");
     }
@@ -414,6 +470,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// <summary>A character that is no longer a member: no party on the entity, and an empty roster.</summary>
     private void Detach(uint characterId)
     {
+        _statusSent.Remove(characterId);
         if (OnlineConnection(characterId) is not { } connection)
             return;
 
@@ -520,6 +577,13 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             connection.Send(SPartyRosterPacket.Create(party.Id.Value, party.ExperienceMode, lockedForMs, members,
                 connection.CryptoSession.Encrypt));
         }
+    }
+
+    private readonly record struct MemberStatus(uint Health, uint MaxHealth, uint Power, uint MaxPower,
+        PowerType PowerType, bool IsDead)
+    {
+        public static MemberStatus Of(ICharacter c) =>
+            new(c.CurrentHealth, c.Health, c.CurrentPower ?? 0, c.Power ?? 0, c.PowerType, c.IsDead);
     }
 
     private sealed record PartyInvite(uint InviterId, string InviterName, string TargetName, PartyId? PartyId,

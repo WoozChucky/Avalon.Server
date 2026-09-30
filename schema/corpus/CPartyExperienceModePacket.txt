@@ -1,0 +1,43 @@
+# CPartyExperienceModePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message CPartyExperienceModePacket
+
+variant absent
+  field 1 Mode : PartyExperienceMode = Unknown (0)
+  bytes 0
+
+variant empty
+  field 1 Mode : PartyExperienceMode = Unknown (0)
+  bytes 0
+
+variant populated
+  field 1 Mode : PartyExperienceMode = Even (1)
+  bytes 2
+    08 01
+
+variant maxima
+  field 1 Mode : PartyExperienceMode = LevelWeighted (2)
+  bytes 2
+    08 02
+
+variant minima
+  field 1 Mode : PartyExperienceMode = Unknown (0)
+  bytes 0
+
+variant varint-edges
+  field 1 Mode : PartyExperienceMode = <not a declared member> (3)
+  bytes 2
+    08 03

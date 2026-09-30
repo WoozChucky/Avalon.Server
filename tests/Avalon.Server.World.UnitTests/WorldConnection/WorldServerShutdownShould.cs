@@ -13,6 +13,7 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.Entities;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
@@ -197,6 +198,11 @@ public class WorldServerShutdownShould : IDisposable
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            if (serviceType == typeof(PartyService))
+                return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
+                    NullLogger<PartyService>.Instance);
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(serviceType.GenericTypeArguments[0]));

@@ -182,13 +182,6 @@ message CExchangeWorldKeyPacket {
    optional bytes WorldKey = 1;
    optional bytes PublicKey = 2;
 }
-message CGroupInviteResultPacket {
-   uint64 AccountId = 1;
-   uint64 CharacterId = 2;
-   uint64 InviterAccountId = 3;
-   uint64 InviterCharacterId = 4;
-   bool Accepted = 5;
-}
 message CHandshakePacket {
    optional bytes HandshakeData = 1;
 }
@@ -232,6 +225,23 @@ message CMFAVerifyPacket {
 message COpenChatPacket {
    uint64 AccountId = 1;
    uint64 CharacterId = 2;
+}
+message CPartyExperienceModePacket {
+   PartyExperienceMode Mode = 1;
+}
+message CPartyInvitePacket {
+   optional string TargetName = 1;
+}
+message CPartyInviteResponsePacket {
+   bool Accept = 1;
+}
+message CPartyKickPacket {
+   uint32 CharacterId = 1;
+}
+message CPartyLeavePacket {
+}
+message CPartyPromotePacket {
+   uint32 CharacterId = 1;
 }
 message CPingPacket {
    int64 SequenceNumber = 1;
@@ -503,6 +513,12 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_VENDOR_BUY = 8336;
    NetworkPacketType_CMSG_VENDOR_SELL = 8337;
    NetworkPacketType_CMSG_VENDOR_BUYBACK = 8338;
+   NetworkPacketType_CMSG_PARTY_INVITE = 8368;
+   NetworkPacketType_CMSG_PARTY_INVITE_RESPONSE = 8369;
+   NetworkPacketType_CMSG_PARTY_LEAVE = 8370;
+   NetworkPacketType_CMSG_PARTY_KICK = 8371;
+   NetworkPacketType_CMSG_PARTY_PROMOTE = 8372;
+   NetworkPacketType_CMSG_PARTY_EXPERIENCE_MODE = 8373;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_CMSG_PVP_TOGGLE = 8451;
@@ -798,19 +814,6 @@ message SDisconnectPacket {
 }
 message SExchangeWorldKeyPacket {
    optional bytes PublicKey = 1;
-}
-message SGroupInvitePacket {
-   int32 AccountId = 1;
-   int32 InviterAccountId = 2;
-   int32 InviterCharacterId = 3;
-   optional string InviterName = 4;
-}
-message SGroupResultPacket {
-   int32 AccountId = 1;
-   int32 CharacterId = 2;
-   int32 InviterAccountId = 3;
-   int32 InviterCharacterId = 4;
-   bool Accepted = 5;
 }
 message SHandshakePacket {
    optional bytes HandshakeData = 1;
