@@ -127,6 +127,10 @@ spec:
             - name: Application__RateLimiting__ClientAuthPermitsPerMinute
               value: {{ $rateLimiting.clientAuthPermitsPerMinute | quote }}
             {{- end }}
+            {{- if not (kindIs "invalid" .Values.publicWorldId) }}
+            - name: Application__PublicWorldId
+              value: {{ .Values.publicWorldId | quote }}
+            {{- end }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
             {{- with .Values.otel.endpoint }}

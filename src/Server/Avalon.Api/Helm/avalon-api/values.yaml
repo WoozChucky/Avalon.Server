@@ -84,6 +84,11 @@ rateLimiting:
   authenticatedPermitsPerMinute:
   clientAuthPermitsPerMinute:
 
+# The world public tooltip links read when they name none (Application:PublicWorldId): the id of the
+# live world in the auth Worlds table. Left empty, GET /public/world falls back to the first world the
+# caller may read.
+publicWorldId:
+
 # Email (Application:Email) is not set by the chart. The only sender so far, Pickup, writes .eml files
 # to local disk and the API refuses it outside Development, so a chart deployment has no sender and
 # email change answers 501. A real provider will add its settings here.
