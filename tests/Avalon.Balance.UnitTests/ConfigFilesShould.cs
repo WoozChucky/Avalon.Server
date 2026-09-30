@@ -116,4 +116,51 @@ public class ConfigFilesShould
     public void Refuse_a_class_with_no_rotation() =>
         Assert.Throws<InvalidDataException>(() =>
             ConfigFiles.ParseRotations("{}").Compile(CharacterClass.Wizard, TestData.Seeded));
+
+    private static TargetFile CheckedInTargets() =>
+        ConfigFiles.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
+
+    [Fact]
+    public void Refuse_a_misspelt_scenario_field()
+    {
+        var error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseScenarios("""
+            { "runs": 1, "seed": 1, "levels": [1, 1], "classes": ["Warrior"], "gear": ["none"],
+              "scenarios": [ { "id": "normal-1", "pack": [ { "rarity": "Normal" } ], "levelOfset": 2 } ], "gearProfiles": {} }
+            """));
+
+        Assert.StartsWith("scenarios:", error.Message, StringComparison.Ordinal);
+        Assert.Contains("levelOfset", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Refuse_a_misspelt_target_band()
+    {
+        var error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseTargets("""
+            { "scenarios": { "normal-1": { "fightSecs": { "min": 4 } } } }
+            """));
+
+        Assert.StartsWith("targets:", error.Message, StringComparison.Ordinal);
+        Assert.Contains("fightSecs", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_the_checked_in_targets_against_the_checked_in_scenarios() =>
+        CheckedInTargets().Validate(CheckedInScenarios());
+
+    [Theory]
+    [InlineData("""{ "scenarios": { "normal-9": {} } }""", "scenario 'normal-9' is not in scenarios.json")]
+    [InlineData("""{ "global": { "parityScenario": "nope" } }""", "parityScenario 'nope'")]
+    [InlineData("""{ "global": { "resourceScenario": "nope" } }""", "resourceScenario 'nope'")]
+    [InlineData("""{ "gradedGear": "epic" }""", "gradedGear 'epic'")]
+    [InlineData("""{ "scenarios": { "normal-1": { "winRate": { "min": 90, "max": 80 } } } }""",
+        "scenario 'normal-1' winRate has min 90 above max 80")]
+    [InlineData("""{ "global": { "killsPerLevel": { "min": 30, "max": 20 } } }""",
+        "global killsPerLevel has min 30 above max 20")]
+    public void Refuse_targets_that_do_not_fit_the_scenarios(string json, string message)
+    {
+        TargetFile targets = ConfigFiles.ParseTargets(json);
+
+        var error = Assert.Throws<InvalidDataException>(() => targets.Validate(CheckedInScenarios()));
+        Assert.Contains(message, error.Message, StringComparison.Ordinal);
+    }
 }

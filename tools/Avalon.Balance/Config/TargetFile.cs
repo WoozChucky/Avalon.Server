@@ -32,4 +32,36 @@ public sealed class TargetFile
     public Dictionary<string, ScenarioTargets> Scenarios { get; set; } = new(StringComparer.Ordinal);
 
     public GlobalTargets Global { get; set; } = new();
+
+    /// <summary>Checks the targets against the scenarios they grade.</summary>
+    /// <exception cref="InvalidDataException">The first problem, naming the entry.</exception>
+    public void Validate(ScenarioFile scenarios)
+    {
+        HashSet<string> ids = scenarios.Scenarios.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+
+        if (!scenarios.Gear.Contains(GradedGear, StringComparer.Ordinal))
+            throw new InvalidDataException(
+                $"targets: gradedGear '{GradedGear}' is not one of the scenarios' gear ({string.Join(", ", scenarios.Gear)})");
+
+        foreach ((string id, ScenarioTargets targets) in Scenarios)
+        {
+            if (!ids.Contains(id))
+                throw new InvalidDataException($"targets: scenario '{id}' is not in scenarios.json");
+            CheckBand(targets.WinRate, $"scenario '{id}' winRate");
+            CheckBand(targets.FightSeconds, $"scenario '{id}' fightSeconds");
+            CheckBand(targets.HealthLeftPct, $"scenario '{id}' healthLeftPct");
+        }
+
+        if (!ids.Contains(Global.ParityScenario))
+            throw new InvalidDataException($"targets: global parityScenario '{Global.ParityScenario}' is not in scenarios.json");
+        if (!ids.Contains(Global.ResourceScenario))
+            throw new InvalidDataException($"targets: global resourceScenario '{Global.ResourceScenario}' is not in scenarios.json");
+        CheckBand(Global.KillsPerLevel, "global killsPerLevel");
+    }
+
+    private static void CheckBand(Band? band, string name)
+    {
+        if (band is { Min: { } lo, Max: { } hi } && lo > hi)
+            throw new InvalidDataException($"targets: {name} has min {lo} above max {hi}");
+    }
 }
