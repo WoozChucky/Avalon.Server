@@ -13,10 +13,10 @@ public static class Hostility
 {
     /// <summary>
     /// A creature is hostile to a player caster unless it is invulnerable. Two players are hostile only
-    /// when both are flagged and the map is not a town. Nothing is hostile to itself. A creature caster
-    /// (#163) finds every living player hostile, whatever the map: that a hostile creature stands in a town
-    /// at all is the data's decision. Creature on creature is never hostile. A character that is not the
-    /// World-side entity is never hostile, which fails safe.
+    /// when both are flagged, the map is not a town, and they are not in the same party. Nothing is
+    /// hostile to itself. A creature caster (#163) finds every living player hostile, whatever the map:
+    /// that a hostile creature stands in a town at all is the data's decision. Creature on creature is
+    /// never hostile. A character that is not the World-side entity is never hostile, which fails safe.
     /// </summary>
     public static bool IsHostile(IUnit caster, IUnit unit, MapType mapType)
     {
@@ -33,11 +33,16 @@ public static class Hostility
         {
             ICreature creature => !creature.Invulnerable,
             CharacterEntity target => mapType != MapType.Town
-                                      && caster is CharacterEntity { PvpEnabled: true }
-                                      && target.PvpEnabled,
+                                      && caster is CharacterEntity { PvpEnabled: true } attacker
+                                      && target.PvpEnabled
+                                      && !SameParty(attacker, target),
             _ => false,
         };
     }
+
+    /// <summary>Two members of one party are never hostile, whatever their PvP flags (2026-09-30).</summary>
+    private static bool SameParty(CharacterEntity a, CharacterEntity b) =>
+        a.PartyId is not null && a.PartyId.Equals(b.PartyId);
 
     /// <summary>
     /// The caster itself, and every player not hostile to it. Creatures are never allies, so a creature
