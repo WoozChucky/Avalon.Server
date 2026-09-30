@@ -6,6 +6,7 @@ using Avalon.Database.Extensions;
 using Avalon.Database.World.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.World;
+using Avalon.World.Characters;
 using Avalon.World.Chat;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -107,6 +108,9 @@ public static class ServiceExtensions
         services.AddSingleton<ICommand, ReloadCommand>();
         services.AddSingleton<ICommand, GodModeCommand>();
         services.AddSingleton<PvpToggle>();
+        // Who is online, by id and name (#717): fed by PartyService from the world's online and offline hooks and
+        // read by the party invite and the whisper, so the one instance must reach both.
+        services.AddSingleton<OnlineCharacters>();
         services.AddSingleton<PartyService>();
         services.AddSingleton<ICommand, PvpCommand>();
         services.AddSingleton<ICommand, InviteCommand>();
@@ -115,6 +119,7 @@ public static class ServiceExtensions
         services.AddSingleton<ICommand, PromoteCommand>();
         services.AddSingleton<ICommand, PartyExperienceCommand>();
         services.AddSingleton<ICommand, PartyChatCommand>();
+        services.AddSingleton<ICommand, WhisperCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
 
         services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();

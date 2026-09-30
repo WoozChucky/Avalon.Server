@@ -82,6 +82,11 @@ public class WorldHostGraphShould
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is GodModeCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PartyChatCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is InviteCommand);
+            // Whispers (#717). PartyService takes the online lookup optionally and would otherwise keep a private one the
+            // whisper never sees, so only this proves both read the one production registers.
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is WhisperCommand);
+            Assert.Same(host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>(),
+                host.Services.GetRequiredService<PartyService>().Online);
 
             // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
             // every combat service reads the same values. The facing cone it once carried is gone

@@ -339,6 +339,7 @@ enum ChatChannel {
    ChatChannel_Say = 0;
    ChatChannel_Party = 1;
    ChatChannel_System = 2;
+   ChatChannel_Whisper = 3;
 }
 enum CreatureRarity {
    CreatureRarity_Normal = 0;
@@ -773,6 +774,7 @@ message SChatMessagePacket {
    optional string Message = 4;
    .bcl.DateTime DateTime = 5;
    ChatChannel Channel = 6;
+   optional string TargetName = 7;
 }
 message SChunkLayoutPacket {
    int32 Seed = 1;

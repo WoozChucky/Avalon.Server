@@ -121,6 +121,12 @@ power type, and whether it is dead.
 | 0 | `Say` | A plain message: sent to everyone in the **sender's instance**, the sender included. There is no world-wide chat. |
 | 1 | `Party` | `/p <message>`: to every online member of the sender's party, wherever they are, the sender included. |
 | 2 | `System` | The server speaking: sender name "System", account and character 0. Command answers and refusals, "Unknown command.", party joins and leaves, leader changes, mode switches, the leave countdown and health scaling. |
+| 3 | `Whisper` | `/w <player> <message>` (`/whisper`, #717): to one online player, wherever they are on the world server. The recipient's line has the sender in `CharacterName` and no `TargetName`: show "Aren whispers: hi". The sender gets an echo with its own name in `CharacterName` and the recipient in `TargetName` (field 7, set on the echo only, spelled as the recipient's name is): show "To Kaela: hi". So a whisper line with `TargetName` set is always one you sent. A client from before `Whisper` existed reads 3 as an unknown channel; before `TargetName` existed it reads the echo as a line from yourself. |
+
+`/w` refusals are system lines to the sender only, and nothing is sent to anyone else: "Usage: /w <player> <message>"
+(no name or no message), "You can't whisper yourself.", and "No player named X is online." (X as typed; an offline and
+an unknown name get the same line, so it never reveals who exists). Names are matched ignoring case and surrounding
+spaces; the message is kept as typed, trimmed at the ends.
 
 Commands (typed into chat; they send the same requests as the packets and get the same `SMSG_PARTY_RESULT`,
 plus a system line when refused):

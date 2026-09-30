@@ -153,7 +153,7 @@ public sealed class PartyChatCommand(PartyService parties) : ICommand
         if (ctx.Connection.Character is not { } sender)
             return;
 
-        string message = TextAfterCommand(ctx.Packet.Message);
+        string message = CommandText.AfterCommandWord(ctx.Packet.Message);
         if (message.Length == 0)
         {
             ctx.Reply("Usage: /p <message>");
@@ -175,20 +175,5 @@ public sealed class PartyChatCommand(PartyService parties) : ICommand
                     target.CryptoSession.Encrypt, ChatChannel.Party));
             }
         }
-    }
-
-    /// <summary>
-    /// The text as typed after the command word, trimmed at both ends: leading spaces and slashes are skipped, as the
-    /// dispatcher skips them, then the command word, then the spaces after it. string.Join over the dispatcher's
-    /// arguments would collapse repeated spaces inside the text.
-    /// </summary>
-    internal static string TextAfterCommand(string message)
-    {
-        int i = 0;
-        while (i < message.Length && (message[i] == '/' || char.IsWhiteSpace(message[i])))
-            i++;
-        while (i < message.Length && !char.IsWhiteSpace(message[i]))
-            i++;
-        return message[i..].Trim();
     }
 }
