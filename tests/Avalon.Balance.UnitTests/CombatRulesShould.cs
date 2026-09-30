@@ -1,10 +1,8 @@
-using Avalon.Balance.Data;
-using Avalon.Balance.Simulation;
+using Avalon.Balance.Core;
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
-using Avalon.World.Configuration;
 using Avalon.World.Public.Enums;
 using Xunit;
 
@@ -83,7 +81,7 @@ public class CombatRulesShould
         uint lost = CombatRules.HitPlayer(warrior, 48);
 
         Assert.Equal(48u, lost);
-        Assert.Equal(Fury.FromDamageTaken(48, 240, 240, GameConfiguration.DefaultFuryFromDamageTaken), warrior.CurrentPower);
+        Assert.Equal(Fury.FromDamageTaken(48, 240, 240, Fury.DefaultFromDamageTaken), warrior.CurrentPower);
         Assert.Equal(10u, warrior.CurrentPower);   // floor(48 / 240 x 50)
     }
 
@@ -134,7 +132,7 @@ public class CombatRulesShould
             HasteCap = 50f,
             HastePct = 80f,
         };
-        var roar = new SimAbility(Data.Abilities.TryGet(new AbilityId(310), out AbilityTemplate? row) ? row : throw new InvalidOperationException());
+        var roar = new SimAbility(Data.Abilities.TryGetValue(new AbilityId(310), out AbilityTemplate? row) ? row : throw new InvalidOperationException());
 
         Assert.Equal(50f, CombatRules.EffectiveHaste(hasty));
         Assert.Equal(roar.Metadata.CastTime / 1.5f, CombatRules.CastTime(hasty, roar), precision: 5);

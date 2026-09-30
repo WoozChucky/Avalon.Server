@@ -158,7 +158,7 @@ public class GameConfiguration
     public float FuryDecayPerSecond { get; set; } = DefaultFuryDecayPerSecond;
 
     /// <summary>The default of <see cref="FuryFromDamageTaken" />, for whatever is built without the options.</summary>
-    public const float DefaultFuryFromDamageTaken = 50f;
+    public const float DefaultFuryFromDamageTaken = Avalon.Combat.Fury.DefaultFromDamageTaken;
 
     /// <summary>The default of <see cref="FuryDecayPerSecond" />, for whatever is built without the options.</summary>
     public const float DefaultFuryDecayPerSecond = 5f;

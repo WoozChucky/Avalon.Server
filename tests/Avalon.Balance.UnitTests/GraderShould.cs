@@ -1,7 +1,6 @@
 using Avalon.Balance;
-using Avalon.Balance.Config;
-using Avalon.Balance.Grading;
-using Avalon.Balance.Running;
+using Avalon.Balance.Core;
+using Avalon.Balance.Data;
 using Avalon.World.Public.Enums;
 using Xunit;
 
@@ -12,9 +11,9 @@ public class GraderShould
     private static readonly string BalanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
     private static readonly PlayerSnapshot NoSnapshot = new(1, 1, 0, 0, 0, 0, 0, 0, 0, []);
 
-    private static ScenarioFile Scenarios() => ConfigFiles.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+    private static ScenarioFile Scenarios() => ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
 
-    private static TargetFile Targets() => ConfigFiles.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
+    private static TargetFile Targets() => ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
 
     private static RowResult Row(CharacterClass c, ushort level, string scenario, double win, double fight,
         double? health = 50, double? firstSpender = 1, double starved = 0) =>
@@ -139,7 +138,7 @@ public class GraderShould
         targets.YellowTolerancePct = -1;
 
         Assert.Contains("yellowTolerancePct",
-            Assert.Throws<InvalidDataException>(() => Grader.Grade([], TestData.Seeded, Scenarios(), targets)).Message,
+            Assert.Throws<InvalidDataException>(() => targets.Validate(Scenarios())).Message,
             StringComparison.Ordinal);
     }
 

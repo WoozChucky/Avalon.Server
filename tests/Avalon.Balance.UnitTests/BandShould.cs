@@ -1,4 +1,4 @@
-using Avalon.Balance.Config;
+using Avalon.Balance.Core;
 using Xunit;
 
 namespace Avalon.Balance.UnitTests;

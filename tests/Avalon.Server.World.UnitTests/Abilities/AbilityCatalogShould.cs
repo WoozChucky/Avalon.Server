@@ -1,9 +1,11 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Scripts.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -15,6 +17,11 @@ namespace Avalon.Server.World.UnitTests.Abilities;
 /// </summary>
 public class AbilityCatalogShould
 {
+    [Fact]
+    public void Name_the_shape_scripts_the_rules_accept() =>
+        Assert.Equal(
+            new[] { nameof(CircleAbilityScript), nameof(ConeAbilityScript), nameof(ProjectileAbilityScript) },
+            new[] { AbilityRules.CircleScript, AbilityRules.ConeScript, AbilityRules.ProjectileScript });
     /// <summary>
     /// Each row names the reason it expects, so it proves its own rule: with that rule removed the row
     /// is either accepted or refused for a different reason, and the test fails.

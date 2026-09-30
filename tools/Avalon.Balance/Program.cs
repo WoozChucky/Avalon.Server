@@ -1,11 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Avalon.Balance;
-using Avalon.Balance.Config;
+using Avalon.Balance.Core;
 using Avalon.Balance.Data;
-using Avalon.Balance.Grading;
 using Avalon.Balance.Reporting;
-using Avalon.Balance.Running;
+using Avalon.World.Public.Enums;
 
 // dotnet run --project tools/Avalon.Balance
 // dotnet run --project tools/Avalon.Balance -- --class Warrior --scenario normal-3 --runs 5000
@@ -24,31 +23,48 @@ try
     string root = RepositoryRoot.Find();
     string balanceDir = Path.Combine(root, "balance");
 
-    SeedTables tables = SeedTables.Read();
+    SeedTables tables = SeedSource.Load();
     string overridesPath = options.OverridesPath is { } given ? Path.GetFullPath(given) : Path.Combine(balanceDir, "overrides.json");
-    OverrideReport overrides = Overrides.ApplyFile(tables, overridesPath, required: options.OverridesPath is not null);
-    BalanceData data = BalanceData.From(tables);
+    using JsonDocument? overridesFile = OverrideFiles.Read(overridesPath, required: options.OverridesPath is not null);
 
-    ScenarioFile scenarios = ConfigFiles.Load(Path.Combine(balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
-    scenarios.Validate(data);
-    TargetFile targets = ConfigFiles.Load(Path.Combine(balanceDir, "targets.json"), ConfigFiles.ParseTargets);
-    targets.Validate(scenarios);
-    RotationFile rotations = ConfigFiles.Load(Path.Combine(balanceDir, "rotations.json"), ConfigFiles.ParseRotations);
+    var config = new BalanceConfig(
+        ConfigFileStore.Load(Path.Combine(balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios),
+        ConfigFileStore.Load(Path.Combine(balanceDir, "targets.json"), ConfigFiles.ParseTargets),
+        ConfigFileStore.Load(Path.Combine(balanceDir, "rotations.json"), ConfigFiles.ParseRotations));
 
-    var runner = new BalanceRunner(data, scenarios, rotations);
-    RunPlan plan = runner.Plan(options.Class, options.Scenario, options.Runs, options.Seed);
+    var request = new RunRequest(
+        overridesFile?.RootElement,
+        null,
+        new RunFilter(
+            options.Class is { } c ? new HashSet<CharacterClass> { c } : null,
+            null,
+            null,
+            options.Scenario is { } scenarioId ? new HashSet<string>(StringComparer.Ordinal) { scenarioId } : null),
+        options.Runs,
+        options.Seed);
+
     var clock = Stopwatch.StartNew();
-    IReadOnlyList<RowResult> rows = runner.Run(plan);
-    GradeReport grades = Grader.Grade(rows, data, scenarios, targets);
+    RunResult result = Simulation.Run(tables, config, request, null, CancellationToken.None);
+    if (result.Status != RunStatus.Done)
+    {
+        foreach (Issue issue in result.Issues)
+            Console.Error.WriteLine(issue.Message);
+        return 2;
+    }
+
+    IReadOnlyList<RowResult> rows = result.Rows;
+    GradeReport grades = result.Grades;
+    OverrideReport overrides = result.Overrides;
 
     string outDir = options.OutDir is { } o ? Path.GetFullPath(o) : Path.Combine(balanceDir, "out");
     Directory.CreateDirectory(outDir);
-    var context = new ReportContext(DateTimeOffset.UtcNow, Commit(root), plan.Seed, plan.Runs, overrides, rows, grades, scenarios, targets);
+    var context = new ReportContext(DateTimeOffset.UtcNow, Commit(root), result.Seed, result.RunsPerRow, overrides, rows, grades,
+        config.Scenarios, config.Targets);
     File.WriteAllText(Path.Combine(outDir, "report.html"), HtmlReport.Render(context));
     File.WriteAllText(Path.Combine(outDir, "results.csv"), CsvReport.Render(rows, grades));
 
-    Console.WriteLine($"{rows.Count} rows x {plan.Runs} runs in {clock.Elapsed.TotalSeconds:0.0} s: " +
-                      $"{grades.Count(Grade.Green)} green, {grades.Count(Grade.Yellow)} yellow, {grades.Count(Grade.Red)} red");
+    Console.WriteLine($"{rows.Count} rows x {result.RunsPerRow} runs in {clock.Elapsed.TotalSeconds:0.0} s: " +
+                      $"{result.Summary.Green} green, {result.Summary.Yellow} yellow, {result.Summary.Red} red");
     foreach (string stale in overrides.Stale)
         Console.WriteLine($"stale override (already in the seed): {stale}");
     Console.WriteLine($"Report: {Path.Combine(outDir, "report.html")}");

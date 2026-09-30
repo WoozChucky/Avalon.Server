@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Avalon.Balance.Core;
 using Avalon.Balance.Data;
 using Avalon.World.Public.Enums;
 using Xunit;
@@ -9,7 +10,7 @@ public class OverridesShould
 {
     private static (SeedTables Tables, OverrideReport Report) Apply(string json)
     {
-        SeedTables tables = SeedTables.Read();
+        SeedTables tables = SeedSource.Load();
         using JsonDocument document = JsonDocument.Parse(json);
         return (tables, Overrides.Apply(tables, document.RootElement));
     }
@@ -74,7 +75,7 @@ public class OverridesShould
     [Fact]
     public void Refuse_a_key_given_twice_and_write_nothing()
     {
-        SeedTables tables = SeedTables.Read();
+        SeedTables tables = SeedSource.Load();
         using JsonDocument document = JsonDocument.Parse(
             """{ "Ability.200.EffectValue": 30, "Ability.201.EffectValue": 18, "Ability.201.EffectValue": 25 }""");
 
@@ -88,7 +89,7 @@ public class OverridesShould
     [Fact]
     public void Refuse_a_computed_column_and_write_nothing()
     {
-        SeedTables tables = SeedTables.Read();
+        SeedTables tables = SeedSource.Load();
         using JsonDocument document = JsonDocument.Parse(
             """{ "Ability.201.EffectValue": 18, "Item.5.Stackable": true }""");
 
@@ -115,22 +116,22 @@ public class OverridesShould
     [Fact]
     public void Treat_a_missing_default_file_as_empty_and_a_missing_named_file_as_an_error()
     {
-        SeedTables tables = SeedTables.Read();
+        SeedTables tables = SeedSource.Load();
         string missing = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
 
-        Assert.Same(OverrideReport.None, Overrides.ApplyFile(tables, missing, required: false));
-        Assert.Throws<FileNotFoundException>(() => Overrides.ApplyFile(tables, missing, required: true));
+        Assert.Same(OverrideReport.None, OverrideFiles.Apply(tables, missing, required: false));
+        Assert.Throws<FileNotFoundException>(() => OverrideFiles.Apply(tables, missing, required: true));
     }
 
     [Fact]
     public void Name_a_file_that_is_not_json()
     {
-        SeedTables tables = SeedTables.Read();
+        SeedTables tables = SeedSource.Load();
         string broken = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
         File.WriteAllText(broken, "{ bad");
         try
         {
-            InvalidDataException e = Assert.Throws<InvalidDataException>(() => Overrides.ApplyFile(tables, broken, required: true));
+            InvalidDataException e = Assert.Throws<InvalidDataException>(() => OverrideFiles.Apply(tables, broken, required: true));
             Assert.Contains(broken, e.Message, StringComparison.Ordinal);
         }
         finally

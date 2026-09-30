@@ -1,4 +1,4 @@
-using Avalon.Balance.Config;
+using Avalon.Balance.Core;
 using Avalon.Balance.Data;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
@@ -11,7 +11,7 @@ public class ConfigFilesShould
     private static readonly string BalanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
 
     private static ScenarioFile CheckedInScenarios() =>
-        ConfigFiles.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+        ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
 
     [Fact]
     public void Load_the_checked_in_files_against_the_seed()
@@ -19,8 +19,8 @@ public class ConfigFilesShould
         BalanceData data = TestData.Seeded;
         ScenarioFile scenarios = CheckedInScenarios();
         scenarios.Validate(data);
-        TargetFile targets = ConfigFiles.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
-        RotationFile rotations = ConfigFiles.Load(Path.Combine(BalanceDir, "rotations.json"), ConfigFiles.ParseRotations);
+        TargetFile targets = ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
+        RotationFile rotations = ConfigFileStore.Load(Path.Combine(BalanceDir, "rotations.json"), ConfigFiles.ParseRotations);
 
         Assert.Equal(Enumerable.Range(1, 10).Select(l => (ushort)l), scenarios.LevelRange());
         Assert.Equal("forest", targets.GradedGear);
@@ -90,7 +90,7 @@ public class ConfigFilesShould
         var error = Assert.Throws<InvalidDataException>(() => scenarios.Validate(TestData.Seeded));
         Assert.Contains("scenario 'town'", error.Message, StringComparison.Ordinal);
 
-        SeedTables tables = SeedTables.Read();
+        SeedTables tables = SeedSource.Load();
         tables.CreatureTemplates.Single(t => t.Id.Value == 10).Rarity = CreatureRarity.Rare;   // no Boss left
         ScenarioFile boss = ConfigFiles.ParseScenarios("""
             { "runs": 1, "seed": 1, "levels": [1, 1], "classes": ["Warrior"], "gear": ["none"],
@@ -118,7 +118,7 @@ public class ConfigFilesShould
             ConfigFiles.ParseRotations("{}").Compile(CharacterClass.Wizard, TestData.Seeded));
 
     private static TargetFile CheckedInTargets() =>
-        ConfigFiles.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
+        ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
 
     [Fact]
     public void Refuse_a_misspelt_scenario_field()

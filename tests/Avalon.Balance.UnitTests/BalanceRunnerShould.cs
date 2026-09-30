@@ -1,10 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
 using Avalon.Balance;
-using Avalon.Balance.Config;
+using Avalon.Balance.Core;
 using Avalon.Balance.Data;
-using Avalon.Balance.Running;
-using Avalon.Balance.Simulation;
 using Avalon.World.Public.Enums;
 using Xunit;
 
@@ -16,8 +14,8 @@ public class BalanceRunnerShould
 
     private static BalanceRunner Runner()
     {
-        ScenarioFile scenarios = ConfigFiles.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
-        RotationFile rotations = ConfigFiles.Load(Path.Combine(BalanceDir, "rotations.json"), ConfigFiles.ParseRotations);
+        ScenarioFile scenarios = ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+        RotationFile rotations = ConfigFileStore.Load(Path.Combine(BalanceDir, "rotations.json"), ConfigFiles.ParseRotations);
         return new BalanceRunner(TestData.Seeded, scenarios, rotations);
     }
 
@@ -79,7 +77,7 @@ public class BalanceRunnerShould
     [Fact]
     public void Clamp_a_creature_level_to_its_template_range_and_roll_it_for_template_offsets()
     {
-        ScenarioFile scenarios = ConfigFiles.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+        ScenarioFile scenarios = ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
         var wolf = TestData.Seeded.Creature(5);   // levels 2-4
         var random = new Random(1);
 
