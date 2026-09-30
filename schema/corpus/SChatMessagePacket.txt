@@ -22,6 +22,7 @@ variant absent
   field 4 Message : string = null
   field 5 DateTime : DateTime = 0001-01-01T00:00:00.0000000 (Unspecified)
   field 6 Channel : ChatChannel = Say (0)
+  field 7 TargetName : string = null
   bytes 6
     2a 04 08 01 10 0f
 
@@ -32,8 +33,9 @@ variant empty
   field 4 Message : string = "" (0 chars, 0 bytes utf-8)
   field 5 DateTime : DateTime = 0001-01-01T00:00:00.0000000 (Unspecified)
   field 6 Channel : ChatChannel = Say (0)
-  bytes 10
-    1a 00 22 00 2a 04 08 01 10 0f
+  field 7 TargetName : string = "" (0 chars, 0 bytes utf-8)
+  bytes 12
+    1a 00 22 00 2a 04 08 01 10 0f 3a 00
 
 variant populated
   field 1 AccountId : ulong = 300
@@ -42,11 +44,13 @@ variant populated
   field 4 Message : string = "héllo wörld" (11 chars, 13 bytes utf-8)
   field 5 DateTime : DateTime = 2026-01-01T00:00:00.0000001Z (Utc)
   field 6 Channel : ChatChannel = Party (1)
-  bytes 61
+  field 7 TargetName : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+  bytes 76
     08 ac 02 10 13 1a 18 e6 97 a5 e6 9c ac e8 aa 9e
     e3 81 ae e3 83 86 e3 82 ad e3 82 b9 e3 83 88 22
     0d 68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64 2a 0b
-    08 82 80 94 d4 d7 b4 e4 3e 10 05 30 01
+    08 82 80 94 d4 d7 b4 e4 3e 10 05 30 01 3a 0d 68
+    c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64
 
 variant maxima
   field 1 AccountId : ulong = 18446744073709551615
@@ -54,8 +58,9 @@ variant maxima
   field 3 CharacterName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
   field 4 Message : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
   field 5 DateTime : DateTime = 9999-12-31T23:59:59.9999999 (Unspecified)
-  field 6 Channel : ChatChannel = System (2)
-  bytes 300
+  field 6 Channel : ChatChannel = Whisper (3)
+  field 7 TargetName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 435
     08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
     ff ff ff ff ff 01 1a 84 01 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
@@ -74,7 +79,16 @@ variant maxima
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 2a 04 08 02 10 0f 30 02
+    78 ce a9 78 2a 04 08 02 10 0f 30 03 3a 84 01 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78
 
 variant minima
   field 1 AccountId : ulong = 0
@@ -83,8 +97,9 @@ variant minima
   field 4 Message : string = " " (1 chars, 1 bytes utf-8)
   field 5 DateTime : DateTime = 1969-12-31T23:59:59.9999999Z (Utc)
   field 6 Channel : ChatChannel = Say (0)
-  bytes 12
-    1a 01 01 22 01 20 2a 04 08 01 10 05
+  field 7 TargetName : string = " " (1 chars, 1 bytes utf-8)
+  bytes 15
+    1a 01 01 22 01 20 2a 04 08 01 10 05 3a 01 20
 
 variant varint-edges
   field 1 AccountId : ulong = 2097152
@@ -92,8 +107,9 @@ variant varint-edges
   field 3 CharacterName : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
   field 4 Message : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
   field 5 DateTime : DateTime = 1970-01-01T00:02:08.0000000Z (Utc)
-  field 6 Channel : ChatChannel = <not a declared member> (3)
-  bytes 283
+  field 6 Channel : ChatChannel = <not a declared member> (4)
+  field 7 TargetName : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+  bytes 415
     08 80 80 80 01 10 80 80 80 80 01 1a 80 01 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -111,4 +127,12 @@ variant varint-edges
     a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 2a 05 08 80 02 10 03 30 03
+    7a 7a 2a 05 08 80 02 10 03 30 04 3a 81 01 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a

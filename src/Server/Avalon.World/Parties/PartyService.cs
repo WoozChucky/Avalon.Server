@@ -2,6 +2,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
+using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -21,12 +22,15 @@ namespace Avalon.World.Parties;
 /// runs on its own thread after joining the tick thread for at most 5 seconds: a tick still running past that bound
 /// could overlap it. Deadlines are read from the container's TimeProvider inside those calls; there are no timers.
 /// </summary>
-public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvider time, ILogger<PartyService> logger)
+public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvider time, ILogger<PartyService> logger,
+    OnlineCharacters? online = null)
 {
+    // Who is online is shared with the whisper (#717): the service keeps feeding it from the world's online and
+    // offline hooks. Production registers one singleton (WorldHostGraphShould pins that the service gets it).
+    private readonly OnlineCharacters _onlineCharacters = online ?? new OnlineCharacters();
+
     private readonly Dictionary<uint, Party> _parties = [];
     private readonly Dictionary<uint, Party> _partyOf = [];
-    private readonly Dictionary<uint, IWorldConnection> _online = [];
-    private readonly Dictionary<string, uint> _onlineByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, PartyInvite> _invites = [];   // by invitee
     private readonly Dictionary<uint, ushort> _lastLevel = [];
     private readonly List<uint> _scratch = [];
@@ -56,11 +60,13 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public Party? PartyOf(uint characterId) => _partyOf.GetValueOrDefault(characterId);
 
-    public IWorldConnection? OnlineConnection(uint characterId) => _online.GetValueOrDefault(characterId);
+    /// <summary>Who is online, shared with the whisper (#717).</summary>
+    public OnlineCharacters Online => _onlineCharacters;
+
+    public IWorldConnection? OnlineConnection(uint characterId) => _onlineCharacters.ById(characterId);
 
     /// <summary>The online character with this name, ignoring case and surrounding spaces, as an invite looks it up.</summary>
-    public IWorldConnection? OnlineConnectionByName(string name) =>
-        _onlineByName.TryGetValue(name.Trim(), out uint id) ? OnlineConnection(id) : null;
+    public IWorldConnection? OnlineConnectionByName(string name) => _onlineCharacters.ByName(name);
 
     /// <summary>The character moved to another instance (World.TransferPlayer): who shares an instance changed for its whole party.</summary>
     public void InstanceChanged(IWorldConnection connection)
@@ -83,8 +89,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             return;
 
         uint id = character.Guid.Id;
-        _online[id] = connection;
-        _onlineByName[character.Name] = id;
+        _onlineCharacters.Add(connection);
         _lastLevel[id] = character.Level;
 
         Party? party = PartyOf(id);
@@ -102,13 +107,10 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     public void CharacterOffline(IWorldConnection connection, ICharacter character)
     {
         uint id = character.Guid.Id;
-        if (!_online.TryGetValue(id, out IWorldConnection? held) || !ReferenceEquals(held, connection))
+        if (!_onlineCharacters.Remove(connection, character))
             return;
 
-        _online.Remove(id);
         _statusSent.Remove(id);
-        if (_onlineByName.TryGetValue(character.Name, out uint named) && named == id)
-            _onlineByName.Remove(character.Name);
         _lastLevel[id] = character.Level;
 
         EndInvitesOf(id);
@@ -132,7 +134,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         if (party is not null && !party.IsLeader(inviterId))
             return PartyResult.NotLeader;
 
-        if (!_onlineByName.TryGetValue(targetName.Trim(), out uint targetId)
+        if (!_onlineCharacters.TryIdByName(targetName, out uint targetId)
             || OnlineConnection(targetId) is not { Character: { } target } targetConnection)
             return PartyResult.NotFound;
 
@@ -264,7 +266,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         foreach (Party party in _parties.Values)
         {
-            if (!_online.ContainsKey(party.Leader.Value))
+            if (!_onlineCharacters.IsOnline(party.Leader.Value))
                 HandOverLeadership(party);
         }
 
@@ -584,7 +586,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     {
         foreach (PartyMember member in party.Members)
         {
-            if (member.Id.Value == party.Leader.Value || !_online.ContainsKey(member.Id.Value))
+            if (member.Id.Value == party.Leader.Value || !_onlineCharacters.IsOnline(member.Id.Value))
                 continue;
 
             party.Leader = member.Id;

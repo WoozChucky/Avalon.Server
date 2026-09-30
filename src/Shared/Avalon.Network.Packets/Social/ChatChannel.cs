@@ -14,4 +14,10 @@ public enum ChatChannel : byte
 
     /// <summary>From the server: command answers, party notices, countdowns, scaling.</summary>
     System = 2,
+
+    /// <summary>
+    /// A whisper (#717): from one player to one other, wherever each is on the world server. The recipient's line
+    /// carries the sender in CharacterName; the sender's own echo carries the recipient in TargetName as well.
+    /// </summary>
+    Whisper = 3,
 }

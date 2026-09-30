@@ -19,13 +19,20 @@ public class SChatMessagePacket : Packet
 
     [ProtoMember(6)] public ChatChannel Channel { get; set; }
 
+    /// <summary>
+    /// Set only on the echo of a whisper the recipient's connection sent (#717): the name of the character it went to,
+    /// so the client can show "To Kaela: ...". Absent on every other line, the recipient's whisper included, so a line
+    /// with it is always the sender's own; a payload from before it existed reads as null.
+    /// </summary>
+    [ProtoMember(7)] public string? TargetName { get; set; }
+
     public static NetworkPacket Create(ulong accountId, ulong characterId, string characterName, string message,
-        DateTime dateTime, EncryptFunc encryptFunc, ChatChannel channel = ChatChannel.Say)
+        DateTime dateTime, EncryptFunc encryptFunc, ChatChannel channel = ChatChannel.Say, string? targetName = null)
         => PacketSerializationHelper.Serialize(
             new SChatMessagePacket
             {
                 AccountId = accountId, CharacterId = characterId, CharacterName = characterName, Message = message,
-                DateTime = dateTime, Channel = channel
+                DateTime = dateTime, Channel = channel, TargetName = targetName
             },
             PacketType, Flags, Protocol, encryptFunc);
 

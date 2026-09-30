@@ -35,5 +35,25 @@ public class ChatPacketsShould
         Assert.Equal(0, (int)ChatChannel.Say);
         Assert.Equal(1, (int)ChatChannel.Party);
         Assert.Equal(2, (int)ChatChannel.System);
+        Assert.Equal(3, (int)ChatChannel.Whisper);
+    }
+
+    /// <summary>#717: a whisper is channel 3, and the sender's echo names the recipient in field 7.</summary>
+    [Fact]
+    public void Carry_a_whisper_echo_target_as_field_7()
+    {
+        Assert.Equal(DefaultDateTime + "3003", Hex(new SChatMessagePacket { Channel = ChatChannel.Whisper }));
+        Assert.Equal(DefaultDateTime + "3003" + "3a054b61656c61",
+            Hex(new SChatMessagePacket { Channel = ChatChannel.Whisper, TargetName = "Kaela" }));
+    }
+
+    [Fact]
+    public void Read_a_payload_without_a_target_as_none()
+    {
+        using var stream = new MemoryStream(Convert.FromHexString(DefaultDateTime + "3001"));
+        SChatMessagePacket read = Serializer.Deserialize<SChatMessagePacket>(stream);
+
+        Assert.Equal(ChatChannel.Party, read.Channel);
+        Assert.Null(read.TargetName);
     }
 }
