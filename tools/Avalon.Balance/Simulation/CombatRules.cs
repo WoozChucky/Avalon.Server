@@ -34,7 +34,8 @@ public static class CombatRules
 
     /// <summary>
     /// A hit on the player, as CombatService.Hit: health lost is at most what it had; a Fury character that survives
-    /// gains its share of the health lost (#526). Returns the health lost.
+    /// gains its share of the health lost (#526), and one the hit kills has its Fury emptied, as the server's IsDead
+    /// setter does (ResetFury). Returns the health lost.
     /// </summary>
     public static uint HitPlayer(SimPlayer target, uint damage)
     {
@@ -45,7 +46,12 @@ public static class CombatRules
         uint lost = Math.Min(damage, before);
         target.CurrentHealth = before - lost;
 
-        if (target.PowerType == PowerType.Fury)
+        if (target.IsDead)
+        {
+            if (PowerPool.EmptiesOnReset(target.PowerType))
+                target.CurrentPower = 0;
+        }
+        else if (target.PowerType == PowerType.Fury)
             target.GainPower(Fury.FromDamageTaken(lost, before, target.Health, GameConfiguration.DefaultFuryFromDamageTaken));
 
         return lost;
@@ -70,22 +76,34 @@ public static class CombatRules
         return dealt;
     }
 
-    /// <summary>A heal, as CombatService.ApplyHeal: never past the maximum, nothing on the dead. Returns the health restored.</summary>
+    /// <summary>A heal, as CombatService.ApplyHeal: nothing on the dead, then HealRules.After. Returns the health restored.</summary>
     public static uint HealPlayer(SimPlayer target, uint heal)
     {
-        if (target.IsDead || target.CurrentHealth >= target.Health)
+        if (target.IsDead)
             return 0;
 
-        uint restored = Math.Min(heal, target.Health - target.CurrentHealth);
-        target.CurrentHealth += restored;
-        return restored;
+        uint before = target.CurrentHealth;
+        uint after = HealRules.After(before, target.Health, heal);
+        target.CurrentHealth = after;
+        return after > before ? after - before : 0;
     }
 
     /// <summary>As InstanceAbilityCastSystem.CooldownOf: a creature's basic waits its SwingInterval, everything else its cooldown over its haste.</summary>
     public static float CooldownAfterFire(SimUnit caster, SimAbility ability) =>
         caster is SimCreature creature && ReferenceEquals(ability, creature.Basic)
             ? creature.SwingInterval
-            : Haste.Scale(ability.Metadata.Cooldown, caster.HastePct);
+            : Haste.Scale(ability.Metadata.Cooldown, EffectiveHaste(caster));
 
-    public static float CastTime(SimUnit caster, SimAbility ability) => Haste.Scale(ability.Metadata.CastTime, caster.HastePct);
+    /// <summary>As InstanceAbilityCastSystem: the cast time over the caster's effective haste.</summary>
+    public static float CastTime(SimUnit caster, SimAbility ability) => Haste.Scale(ability.Metadata.CastTime, EffectiveHaste(caster));
+
+    /// <summary>
+    /// As InstanceAbilityCastSystem.HasteOf: a character's effective haste from its derived stats, a creature's haste
+    /// capped by the cap it spawned with.
+    /// </summary>
+    public static float EffectiveHaste(SimUnit caster) => caster switch
+    {
+        SimCreature creature => MathF.Min(creature.HastePct, creature.HasteCap),
+        _ => caster.HastePct,
+    };
 }

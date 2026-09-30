@@ -1,5 +1,6 @@
 using Avalon.Balance.Data;
 using Avalon.Balance.Simulation;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Combat;
@@ -95,6 +96,50 @@ public class CombatRulesShould
 
         Assert.True(warrior.IsDead);
         Assert.Equal(0u, warrior.CurrentPower);
+    }
+
+    [Fact]
+    public void Empty_fury_on_the_hit_that_kills()
+    {
+        SimPlayer warrior = Warrior();
+        warrior.CurrentPower = 60;
+
+        CombatRules.HitPlayer(warrior, 1000);
+
+        Assert.True(warrior.IsDead);
+        Assert.Equal(0u, warrior.CurrentPower);
+    }
+
+    [Fact]
+    public void Keep_mana_on_the_hit_that_kills()
+    {
+        SimPlayer wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        uint mana = wizard.CurrentPower!.Value;
+
+        CombatRules.HitPlayer(wizard, 100_000);
+
+        Assert.True(wizard.IsDead);
+        Assert.Equal(mana, wizard.CurrentPower);
+    }
+
+    [Fact]
+    public void Cap_a_creatures_haste_for_cast_times_and_cooldowns()
+    {
+        CreatureTemplate alpha = Data.Creature(8);   // Bramblemaw Alpha: Howling Roar winds up for 1 s
+        var hasty = new SimCreature
+        {
+            Name = "hasty",
+            Template = alpha,
+            Derived = Data.CreatureStats.Derive(alpha, 1),
+            HasteCap = 50f,
+            HastePct = 80f,
+        };
+        var roar = new SimAbility(Data.Abilities.TryGet(new AbilityId(310), out AbilityTemplate? row) ? row : throw new InvalidOperationException());
+
+        Assert.Equal(50f, CombatRules.EffectiveHaste(hasty));
+        Assert.Equal(roar.Metadata.CastTime / 1.5f, CombatRules.CastTime(hasty, roar), precision: 5);
+        Assert.Equal(roar.Metadata.Cooldown / 1.5f, CombatRules.CooldownAfterFire(hasty, roar), precision: 5);
+        Assert.Equal(2.25f / 1.5f, hasty.SwingInterval, precision: 5);
     }
 
     [Fact]

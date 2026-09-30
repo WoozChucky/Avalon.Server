@@ -51,7 +51,11 @@ public abstract class SimUnit : IUnit
 
     public DefenderCombat Defence { get; protected init; }
 
-    public float HastePct { get; protected init; }
+    /// <summary>
+    /// Percentage points: a character's effective haste (already capped), a creature's raw haste, which
+    /// CombatRules.EffectiveHaste caps as the server does. Init-only; public so a test can build a creature past its cap.
+    /// </summary>
+    public float HastePct { get; init; }
 
     public List<SimAbility> Abilities { get; } = [];
 
