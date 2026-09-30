@@ -416,7 +416,7 @@ public class CharacterSelectChainShould : IDisposable
         Assert.True(_connection.TryBeginLeave());
         _connection.EndLeave();
         var gate = Substitute.For<IWorldEntryGate>();
-        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>()).Returns(false);
+        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>()).Returns(default(WorldEntryDecision));
         var select = BuildSelectHandler(entryGate: gate);
 
         select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
@@ -431,7 +431,8 @@ public class CharacterSelectChainShould : IDisposable
     public async Task Refuse_a_pending_spawn_when_maintenance_starts_during_select()
     {
         var gate = Substitute.For<IWorldEntryGate>();
-        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>()).Returns(true, false);
+        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>())
+            .Returns(new WorldEntryDecision(true, DateTime.MaxValue), default(WorldEntryDecision));
         var select = BuildSelectHandler(entryGate: gate);
         select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
         await WaitUntilAsync(() => _connection.PendingSpawn is not null || StepOnce());

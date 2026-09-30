@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using ProtoBuf;
+using Avalon.Server.World.UnitTests.Loot;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 
@@ -26,6 +27,7 @@ public class ExchangeWorldKeyHandlerShould
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
     private readonly ICryptoManager _serverCrypto = Substitute.For<ICryptoManager>();
+    private readonly FixedTimeProvider _clock = new(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero));
     private readonly ExchangeWorldKeyHandler _handler;
 
     private const int ValidKeySize = 32;
@@ -53,15 +55,15 @@ public class ExchangeWorldKeyHandlerShould
             _accountRepository,
             _world,
             _worldRepository,
-            _maintenance);
+            _maintenance, _clock);
 
     [Fact]
-    public async Task Refuse_a_previously_issued_key_after_maintenance_starts()
+    public async Task Refuse_a_previously_issued_key_at_the_maintenance_deadline()
     {
         _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
         _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
-            .Returns(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5)));
+            .Returns(new WorldMaintenanceState(true, 1, _clock.Now.UtcDateTime));
 
         await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
 
@@ -75,6 +77,39 @@ public class ExchangeWorldKeyHandlerShould
         _connection.DidNotReceive().AccountId = Arg.Any<AccountId>();
         _connection.CryptoSession.DidNotReceive().Initialize(Arg.Any<byte[]>());
         await _cache.DidNotReceive().RemoveAsync("account:42:inWorld");
+    }
+
+    [Fact]
+    public async Task Admit_a_Player_during_the_countdown()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(true, 1, _clock.Now.UtcDateTime.AddMinutes(10)));
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
+
+        _connection.Received().AccountId = (AccountId)42L;
+    }
+
+    [Fact]
+    public async Task Refuse_when_the_deadline_arrives_while_exchange_waits_for_maintenance_read()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
+        var read = new TaskCompletionSource<WorldMaintenanceState?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>()).Returns(read.Task);
+        DateTime deadline = _clock.Now.UtcDateTime.AddMinutes(10);
+
+        Task exchange = _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
+        Assert.True(SpinWait.SpinUntil(() => _maintenance.ReceivedCalls().Any(c =>
+            c.GetMethodInfo().Name == nameof(IWorldMaintenanceRepository.ReadAsync)), TimeSpan.FromSeconds(5)));
+        _clock.Now = new DateTimeOffset(deadline);
+        read.SetResult(new WorldMaintenanceState(true, 1, deadline));
+        await exchange;
+
+        _connection.DidNotReceive().AccountId = Arg.Any<AccountId>();
+        _connection.Received(1).Close();
     }
 
     [Fact]

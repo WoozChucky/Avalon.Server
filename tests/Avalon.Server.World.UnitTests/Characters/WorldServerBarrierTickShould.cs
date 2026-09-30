@@ -73,7 +73,7 @@ public class WorldServerBarrierTickShould : IDisposable
     public async Task Timeout_release_checks_maintenance_once_and_never_spawns_a_refused_character()
     {
         var gate = Substitute.For<IWorldEntryGate>();
-        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(false);
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(default(WorldEntryDecision));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate);
         connection.AccountId = new AccountId(42);
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
@@ -95,7 +95,8 @@ public class WorldServerBarrierTickShould : IDisposable
     public async Task Timeout_release_spawns_after_the_entry_check_allows_it()
     {
         var gate = Substitute.For<IWorldEntryGate>();
-        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(true);
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(new WorldEntryDecision(true, DateTime.MaxValue));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate);
         connection.AccountId = new AccountId(42);
         IMapInstance instance = Substitute.For<IMapInstance>();
@@ -115,10 +116,10 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     [Fact]
-    public async Task Do_not_spawn_when_maintenance_applies_after_a_completed_entry_check()
+    public async Task Do_not_spawn_when_the_deadline_applies_after_a_completed_entry_check()
     {
         var gate = Substitute.For<IWorldEntryGate>();
-        var check = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var check = new TaskCompletionSource<WorldEntryDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(check.Task);
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
@@ -133,11 +134,66 @@ public class WorldServerBarrierTickShould : IDisposable
         server.Tick();
         Assert.True(SpinWait.SpinUntil(() => gate.ReceivedCalls().Any(c =>
             c.GetMethodInfo().Name == nameof(IWorldEntryGate.CheckAsync)), TimeSpan.FromSeconds(5)));
-        check.SetResult(true);
+        check.SetResult(new WorldEntryDecision(true, DateTime.MaxValue));
         await Task.Delay(100);
-        coordinator.ApplyCommitted(new WorldMaintenanceState(true, 2, DateTime.UtcNow.AddMinutes(5)));
+        coordinator.ApplyCommitted(new WorldMaintenanceState(true, 2, DateTime.UtcNow));
 
         server.Tick();
+
+        Assert.True(connection.IsClosing);
+        world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+    }
+
+    [Fact]
+    public async Task Spawn_during_countdown_after_a_completed_entry_check()
+    {
+        var gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(new WorldEntryDecision(true, DateTime.UtcNow.AddMinutes(1)));
+        var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
+            Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
+            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+        coordinator.ApplyCommitted(new WorldMaintenanceState(true, 2, DateTime.UtcNow.AddMinutes(1)));
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate, coordinator);
+        connection.AccountId = new AccountId(42);
+        IMapInstance instance = Substitute.For<IMapInstance>();
+        connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance,
+            DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
+
+        DateTime timeout = DateTime.UtcNow.AddSeconds(5);
+        while (connection.PendingSpawn is not null && DateTime.UtcNow < timeout)
+        {
+            server.Tick();
+            await Task.Delay(10);
+        }
+
+        Assert.Null(connection.PendingSpawn);
+        Assert.False(connection.IsClosing);
+        world.Received(1).SpawnInInstance(connection, instance);
+    }
+
+    [Fact]
+    public async Task Refuse_a_completed_entry_decision_after_its_five_second_lifetime()
+    {
+        var gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(new WorldEntryDecision(true, DateTime.UtcNow.AddSeconds(-1)));
+        var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
+            Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
+            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+        coordinator.ApplyCommitted(new WorldMaintenanceState(false, 1, null));
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate, coordinator);
+        connection.AccountId = new AccountId(42);
+        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
+        connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
+            DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
+
+        DateTime timeout = DateTime.UtcNow.AddSeconds(5);
+        while (!connection.IsClosing && DateTime.UtcNow < timeout)
+        {
+            server.Tick();
+            await Task.Delay(10);
+        }
 
         Assert.True(connection.IsClosing);
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);

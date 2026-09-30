@@ -34,11 +34,12 @@ public sealed class WorldMaintenanceCoordinator(
     }
 
     /// <summary>Serializes the final spawn with locally applied maintenance transitions.</summary>
-    public bool RunIfEntryAllowed(IWorldConnection connection, Action enter)
+    public bool RunIfEntryAllowed(IWorldConnection connection, WorldEntryDecision decision, Action enter)
     {
         lock (_sync)
         {
-            if (_state is null || (_state.Enabled &&
+            DateTime nowUtc = clock.GetUtcNow().UtcDateTime;
+            if (!decision.IsValidAt(nowUtc) || _state is null || (_state.IsCutoffActive(nowUtc) &&
                 (connection.AccessLevel & AccountAccessLevel.Admin) == 0))
                 return false;
             enter();

@@ -19,10 +19,11 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
     private readonly IWorld _world;
     private readonly IWorldRepository _worldRepository;
     private readonly IWorldMaintenanceRepository _maintenance;
+    private readonly TimeProvider _clock;
 
     public ExchangeWorldKeyHandler(ILogger<ExchangeWorldKeyHandler> logger, IReplicatedCache cache,
         IAccountRepository accountRepository, IWorld world, IWorldRepository worldRepository,
-        IWorldMaintenanceRepository maintenance)
+        IWorldMaintenanceRepository maintenance, TimeProvider? clock = null)
     {
         _logger = logger;
         _cache = cache;
@@ -30,6 +31,7 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
         _world = world;
         _worldRepository = worldRepository;
         _maintenance = maintenance;
+        _clock = clock ?? TimeProvider.System;
     }
 
     public async Task ExecuteAsync(WorldPacketContext<CExchangeWorldKeyPacket> ctx, CancellationToken token = default)
@@ -78,9 +80,11 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
             return;
 
         WorldMaintenanceState? maintenance;
+        DateTime stateReadAtUtc;
         try
         {
             maintenance = await _maintenance.ReadAsync(_world.Id, token);
+            stateReadAtUtc = _clock.GetUtcNow().UtcDateTime;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -102,7 +106,7 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
             return;
         }
 
-        if (maintenance.Enabled && (account.AccessLevel & AccountAccessLevel.Admin) == 0)
+        if (maintenance.IsCutoffActive(stateReadAtUtc) && (account.AccessLevel & AccountAccessLevel.Admin) == 0)
         {
             GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World is under maintenance",
                 DisconnectReason.Maintenance, _logger);
@@ -123,6 +127,15 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
 
         // Released only once accepted; a refused exchange leaves the mutex to expire on its TTL.
         await _cache.RemoveAsync(CacheKeys.AccountInWorld(accountId));
+
+        DateTime acceptedAtUtc = _clock.GetUtcNow().UtcDateTime;
+        if (acceptedAtUtc >= stateReadAtUtc.AddSeconds(5) ||
+            (maintenance.IsCutoffActive(acceptedAtUtc) && (account.AccessLevel & AccountAccessLevel.Admin) == 0))
+        {
+            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World is under maintenance",
+                DisconnectReason.Maintenance, _logger);
+            return;
+        }
 
         ctx.Connection.CryptoSession.Initialize(ctx.Packet.PublicKey);
 

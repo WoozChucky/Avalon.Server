@@ -7,29 +7,42 @@ namespace Avalon.World.Maintenance;
 
 public interface IWorldEntryGate
 {
-    Task<bool> CheckAsync(AccountId accountId, CancellationToken ct);
+    Task<WorldEntryDecision> CheckAsync(AccountId accountId, CancellationToken ct);
+}
+
+public readonly record struct WorldEntryDecision(bool Allowed, DateTime ValidUntilUtc)
+{
+    public bool IsValidAt(DateTime nowUtc) => Allowed && nowUtc < ValidUntilUtc;
 }
 
 public sealed class WorldEntryGate(
     WorldId worldId,
     IWorldMaintenanceRepository maintenance,
-    IAccountRepository accounts) : IWorldEntryGate
+    IAccountRepository accounts,
+    TimeProvider? clock = null) : IWorldEntryGate
 {
-    public async Task<bool> CheckAsync(AccountId accountId, CancellationToken ct)
+    public async Task<WorldEntryDecision> CheckAsync(AccountId accountId, CancellationToken ct)
     {
         try
         {
             WorldMaintenanceState? state = await maintenance.ReadAsync(worldId, ct);
-            if (state is null) return false;
-            if (!state.Enabled) return true;
+            DateTime readAtUtc = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+            if (state is null) return default;
 
             Account? account = await accounts.FindByIdAsync(accountId, false, ct);
-            return account is { Status: AccountStatus.Active }
-                   && (account.AccessLevel & AccountAccessLevel.Admin) != 0;
+            if (account is not { Status: AccountStatus.Active }) return default;
+            bool admin = (account.AccessLevel & AccountAccessLevel.Admin) != 0;
+            if (state.IsCutoffActive((clock ?? TimeProvider.System).GetUtcNow().UtcDateTime) && !admin)
+                return default;
+
+            DateTime validUntilUtc = readAtUtc.AddSeconds(5);
+            if (state.Enabled && !admin && state.DeadlineUtc is { } deadline && deadline < validUntilUtc)
+                validUntilUtc = deadline;
+            return new WorldEntryDecision(true, validUntilUtc);
         }
         catch (Exception)
         {
-            return false;
+            return default;
         }
     }
 }

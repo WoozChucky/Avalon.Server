@@ -60,7 +60,7 @@ public class CharacterSelectHandler(
     /// thread only, like the rest of the handler; weak, so it holds on to no closed connection.
     /// </summary>
     private readonly ConditionalWeakTable<IWorldConnection, Task> _selectStepInFlight = new();
-    private readonly ConditionalWeakTable<IWorldConnection, Task<bool>> _entryCheckInFlight = new();
+    private readonly ConditionalWeakTable<IWorldConnection, Task<WorldEntryDecision>> _entryCheckInFlight = new();
 
     /// <summary>
     /// How long a select waits for the character's previous saves before giving up. Past it the
@@ -115,7 +115,7 @@ public class CharacterSelectHandler(
         {
             // A repository call must never begin on the simulation tick. The completed result is
             // applied by the connection's continuation queue on a later tick.
-            Task<bool> check = Task.Run(async () =>
+            Task<WorldEntryDecision> check = Task.Run(async () =>
             {
                 try
                 {
@@ -124,15 +124,15 @@ public class CharacterSelectHandler(
                 }
                 catch (Exception)
                 {
-                    return false;
+                    return default;
                 }
             });
             _entryCheckInFlight.Add(connection, check);
-            connection.EnqueueContinuation(check, allowed =>
+            connection.EnqueueContinuation(check, decision =>
             {
                 _entryCheckInFlight.Remove(connection);
                 if (!connection.IsConnected || connection.IsClosing) return;
-                if (!allowed)
+                if (!decision.IsValidAt((time ?? TimeProvider.System).GetUtcNow().UtcDateTime))
                 {
                     GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
                         DisconnectReason.Maintenance, logger);

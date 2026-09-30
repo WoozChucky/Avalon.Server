@@ -15,7 +15,7 @@ namespace Avalon.World.Characters;
 /// </summary>
 public static class CharacterReadinessBarrier
 {
-    private static readonly ConditionalWeakTable<IWorldConnection, Task<bool>> PendingChecks = new();
+    private static readonly ConditionalWeakTable<IWorldConnection, Task<WorldEntryDecision>> PendingChecks = new();
 
     /// <summary>Checks current admission off the tick before a pending character becomes visible.</summary>
     public static void RequestRelease(IWorldConnection connection, IWorld world, ILogger logger,
@@ -25,7 +25,7 @@ public static class CharacterReadinessBarrier
             connection.PendingSpawn is not { } pending || PendingChecks.TryGetValue(connection, out _))
             return;
 
-        Task<bool> check = Task.Run(async () =>
+        Task<WorldEntryDecision> check = Task.Run(async () =>
         {
             try
             {
@@ -34,17 +34,17 @@ public static class CharacterReadinessBarrier
             }
             catch (Exception)
             {
-                return false;
+                return default;
             }
         });
         PendingChecks.Add(connection, check);
-        connection.EnqueueContinuation(check, allowed =>
+        connection.EnqueueContinuation(check, decision =>
         {
             PendingChecks.Remove(connection);
             if (!connection.IsConnected || connection.IsClosing || !ReferenceEquals(connection.PendingSpawn, pending))
                 return;
 
-            if (!allowed)
+            if (maintenance is null && !decision.IsValidAt(DateTime.UtcNow))
             {
                 GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
                     DisconnectReason.Maintenance, logger);
@@ -54,7 +54,7 @@ public static class CharacterReadinessBarrier
             bool released = false;
             if (maintenance is not null)
             {
-                if (!maintenance.RunIfEntryAllowed(connection,
+                if (!maintenance.RunIfEntryAllowed(connection, decision,
                         () => released = Release(connection, world, logger)))
                 {
                     GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
