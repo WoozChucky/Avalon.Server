@@ -1,25 +1,90 @@
 {
   "Warrior": [
-    { "ability": 201, "when": [{ "targetsAlive": ">=2" }] },
-    { "ability": 201, "when": [{ "power": ">=40" }] },
-    { "ability": 202 },
-    { "ability": 200 }
+    {
+      "ability": 201,
+      "when": [
+        {
+          "targetsAlive": "\u003E=2"
+        }
+      ]
+    },
+    {
+      "ability": 201,
+      "when": [
+        {
+          "power": "\u003E=40"
+        }
+      ]
+    },
+    {
+      "ability": 202,
+      "when": []
+    },
+    {
+      "ability": 200,
+      "when": []
+    }
   ],
   "Wizard": [
-    { "ability": 211, "when": [{ "targetsAlive": ">=2" }] },
-    { "ability": 212 },
-    { "ability": 211 },
-    { "ability": 210 }
+    {
+      "ability": 211,
+      "when": [
+        {
+          "targetsAlive": "\u003E=2"
+        }
+      ]
+    },
+    {
+      "ability": 212,
+      "when": []
+    },
+    {
+      "ability": 211,
+      "when": []
+    },
+    {
+      "ability": 210,
+      "when": []
+    }
   ],
   "Hunter": [
-    { "ability": 222, "when": [{ "targetsAlive": ">=2" }] },
-    { "ability": 221 },
-    { "ability": 222 },
-    { "ability": 220 }
+    {
+      "ability": 222,
+      "when": [
+        {
+          "targetsAlive": "\u003E=2"
+        }
+      ]
+    },
+    {
+      "ability": 221,
+      "when": []
+    },
+    {
+      "ability": 222,
+      "when": []
+    },
+    {
+      "ability": 220,
+      "when": []
+    }
   ],
   "Healer": [
-    { "ability": 232, "when": [{ "healthPct": "<=50" }] },
-    { "ability": 231 },
-    { "ability": 230 }
+    {
+      "ability": 232,
+      "when": [
+        {
+          "healthPct": "\u003C=50"
+        }
+      ]
+    },
+    {
+      "ability": 231,
+      "when": []
+    },
+    {
+      "ability": 230,
+      "when": []
+    }
   ]
 }
