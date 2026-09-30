@@ -4,6 +4,7 @@ using Avalon.Server.World.UnitTests.Combat;
 using Avalon.World.Abilities;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Scripts.Abilities;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
@@ -111,6 +112,11 @@ public class AbilityAmountsShould
             (uint healed, _) = HitResolver.ResolveHeal(caster, b, formula, new ScriptedCombatRandom().Doubles(0.99));
             Assert.Equal(HitResolver.NormalHeal(b), healed);
         }
-
     }
+
+    [Fact]
+    public void Share_the_direct_script_names_with_the_api() =>
+        Assert.Equal(
+            new[] { nameof(CircleAbilityScript), nameof(ConeAbilityScript), nameof(ProjectileAbilityScript) }.Order(),
+            AbilityAmountMath.DirectScripts.Order());
 }

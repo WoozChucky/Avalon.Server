@@ -38,15 +38,11 @@ public static class HitResolver
         float baseDamageCoefficient, ICombatRandom rng)
     {
         double statValue = stat == ScalingStat.Ability ? a.AbilityDamage : a.AttackDamage;
-        double total = NonNegative(effectValue) + NonNegative(scaling) * statValue;
-
+        long roll = 0;
         if (NonNegative(baseDamageCoefficient) > 0 && a.WeaponMax > 0)
-        {
-            long min = Math.Min(a.WeaponMin, a.WeaponMax);
-            total += baseDamageCoefficient * rng.NextInt64(min, a.WeaponMax);
-        }
+            roll = rng.NextInt64(Math.Min(a.WeaponMin, a.WeaponMax), a.WeaponMax);
 
-        return (float)total;
+        return (float)AbilityAmountMath.Sum(effectValue, scaling, statValue, baseDamageCoefficient, roll);
     }
 
     /// <summary>
@@ -63,10 +59,10 @@ public static class HitResolver
     /// What <see cref="ResolveDamage" /> deals from <paramref name="baseDamage" /> when nothing procs and the
     /// defender has no armour (#669): the base, floored, with a minimum of 1.
     /// </summary>
-    public static uint NormalDamage(float baseDamage) => Math.Max(1u, Floor(NonNegative(baseDamage)));
+    public static uint NormalDamage(float baseDamage) => AbilityAmountMath.NormalDamage(baseDamage);
 
     /// <summary>What <see cref="ResolveHeal" /> restores from <paramref name="baseHeal" /> without a crit (#669): the base, floored.</summary>
-    public static uint NormalHeal(float baseHeal) => Floor(NonNegative(baseHeal));
+    public static uint NormalHeal(float baseHeal) => AbilityAmountMath.NormalHeal(baseHeal);
 
     public static (uint Damage, HitResult Result) ResolveDamage(in AttackerCombat a, in DefenderCombat d,
         float baseDamage, CombatFormula f, ICombatRandom rng)
