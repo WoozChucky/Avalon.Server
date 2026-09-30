@@ -1042,11 +1042,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             case ObjectType.Creature:
                 if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
                     return null;
-                // The routine selection, plus the death state only when it changed (#672): a creature's
-                // death goes out on the broadcast that carries its 0 health, and the updates of the
-                // living pay nothing for it.
+                // The routine selection, plus two members only when they changed: the death state (#672),
+                // so a creature's death goes out on the broadcast that carries its 0 health, and the
+                // maximum health (2026-09-30), so a party rescale reaches every client already watching
+                // along with the kept share of its current health. The routine updates pay for neither.
                 return ObjectStateWriter.From(updatedCreature,
-                    GameEntityFields.CreatureUpdate | (updatedObject.Fields & GameEntityFields.IsDead), _statePool);
+                    GameEntityFields.CreatureUpdate
+                    | (updatedObject.Fields & (GameEntityFields.IsDead | GameEntityFields.Health)), _statePool);
 
             case ObjectType.SpellProjectile:
                 IWorldObject? updatedAbility = _abilityCastSystem.GetAbility(updatedObject.Guid);
