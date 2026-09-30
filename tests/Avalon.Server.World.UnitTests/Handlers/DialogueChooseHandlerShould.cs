@@ -191,11 +191,11 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void Advance_When_The_Player_Has_Stepped_Back_Within_The_Leash()
     {
-        // 14 m: well past the 5 m needed to open the conversation, still inside the 15 m leash.
+        // 5.5 m: past the 5 m needed to open the conversation, still inside the 6 m leash.
         // Stepping back mid-sentence must not slam the window shut.
         Fixture fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
-        fixture.Npc.Position.Returns(new Vector3(0, 0, 14));
+        fixture.Npc.Position.Returns(new Vector3(0, 0, 5.5f));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
@@ -207,11 +207,11 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void End_The_Conversation_When_The_Player_Has_Walked_Past_The_Leash()
     {
-        // 16 m: the player walked away. Once options have effects, advancing here would let them
-        // act on the NPC from anywhere on the map.
+        // Just past 6 m: the player walked away. Once options have effects, advancing here would let
+        // them act on the NPC from anywhere on the map.
         Fixture fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
-        fixture.Npc.Position.Returns(new Vector3(0, 0, 16));
+        fixture.Npc.Position.Returns(new Vector3(0, 0, NpcInteraction.LeashRange + 0.01f));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
@@ -221,9 +221,17 @@ public class DialogueChooseHandlerShould
     }
 
     [Fact]
+    public void Keep_The_Leash_At_Six_Metres()
+    {
+        // #678: just past the 5 m interact range, so a step back keeps the window and walking off
+        // ends it. Pinned so a change to the number is a decision, not a drift.
+        Assert.Equal(6f, NpcInteraction.LeashRange);
+    }
+
+    [Fact]
     public void Advance_At_Exactly_The_Leash_Range()
     {
-        // The leash is inclusive: exactly 15 m is still with the NPC.
+        // The leash is inclusive: exactly 6 m is still with the NPC.
         Fixture fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
         fixture.Npc.Position.Returns(new Vector3(0, 0, NpcInteraction.LeashRange));
@@ -240,7 +248,7 @@ public class DialogueChooseHandlerShould
     {
         Fixture fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
-        fixture.Npc.Position.Returns(new Vector3(0, 0, 16));
+        fixture.Npc.Position.Returns(new Vector3(0, 0, 7));
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
         // Walking back does not reopen it: the conversation is closed until the next interact.

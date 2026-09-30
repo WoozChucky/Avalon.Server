@@ -22,8 +22,8 @@ namespace Avalon.World.Handlers;
 /// so they log at information rather than debug — worth seeing.
 /// </summary>
 /// <remarks>
-/// Range is re-checked on every choose, but against the generous dialogue leash
-/// (<see cref="NpcInteraction.LeashRange"/>, 15 m), not the 5 m interact range that opening a
+/// Range is re-checked on every choose, but against the dialogue leash
+/// (<see cref="NpcInteraction.LeashRange"/>, 6 m), not the 5 m interact range that opening a
 /// conversation needs. Stepping back a metre mid-sentence should not slam a window shut, so the
 /// 5 m check would be wrong here. No check at all would be wrong too: <c>CurrentDialogue</c> lives
 /// until the connection leaves the instance, and once an option does something (a vendor, a quest,
