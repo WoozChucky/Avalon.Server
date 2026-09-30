@@ -256,6 +256,13 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public bool InCountdown(uint characterId) => _countdowns.ContainsKey(characterId);
 
+    /// <summary>A member levelled up: the roster shows levels.</summary>
+    public void LevelChanged(ICharacter character)
+    {
+        if (PartyOf(character.Guid.Id) is { } party)
+            SendRoster(party);
+    }
+
     private void OnCharacterOffline(uint characterId) => _countdowns.Remove(characterId);
 
     /// <summary>

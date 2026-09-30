@@ -72,7 +72,7 @@ public static class ServiceExtensions
         // #506: every combat roll (dodge, crit, block, weapon, creature swing) goes through this.
         services.AddSingleton<ICombatRandom>(new CombatRandom(Random.Shared));
         services.AddSingleton<ILootRoller, LootRoller>();
-        services.AddSingleton<ILootAllocator, InstanceOwnerLootAllocator>();
+        services.AddSingleton<ILootAllocator, PartyLootAllocator>();
         services.AddSingleton<ICharacterSaver, CharacterSaver>();
         services.AddSingleton<ICharacterSaveScheduler, CharacterSaveScheduler>();
         services.AddSingleton<PredefinedChunkLayoutSource>();

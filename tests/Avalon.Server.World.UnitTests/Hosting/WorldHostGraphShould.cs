@@ -54,7 +54,7 @@ public class WorldHostGraphShould
             // Loot (#460). MapInstance reads these with GetService, so a missing registration would
             // not fail anything else: it would silently make every creature drop nothing.
             Assert.NotNull(host.Services.GetRequiredService<ILootRoller>());
-            Assert.NotNull(host.Services.GetRequiredService<ILootAllocator>());
+            Assert.IsType<PartyLootAllocator>(host.Services.GetRequiredService<ILootAllocator>());
             Assert.NotNull(host.Services.GetRequiredService<TimeProvider>());
 
             // Vendors (#432). Both are optional where they are consumed (World, StaticData,

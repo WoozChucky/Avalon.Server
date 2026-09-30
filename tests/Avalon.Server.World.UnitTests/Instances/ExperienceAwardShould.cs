@@ -45,6 +45,7 @@ public class ExperienceAwardShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 880_001),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = creatureExperience
         };
         instance.AddCreature(creature);
@@ -80,6 +81,7 @@ public class ExperienceAwardShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 880_011),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = 100,
             Health = 10,
             CurrentHealth = 10,
@@ -118,6 +120,7 @@ public class ExperienceAwardShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 880_031),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = 100,
             Health = 10,
             CurrentHealth = 10,
@@ -255,7 +258,7 @@ public class ExperienceAwardShould
     /// StaticData's collections are null until LoadAsync runs, and CreatureKilled reads
     /// CharacterLevelExperiences to decide whether the kill levelled the character up.
     /// </summary>
-    private static StaticData LoadedStaticData()
+    internal static StaticData LoadedStaticData()
     {
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());

@@ -20,6 +20,18 @@ public static class LootPlacement
         IReadOnlyList<RolledDrop> rolled,
         LootAllocation allocation,
         IMapNavigator navigator,
+        Func<uint> nextId) =>
+        Place(corpse, rolled, _ => allocation, navigator, nextId);
+
+    /// <summary>
+    /// The same placement, with each drop's owner and free-for-all time asked of <paramref name="allocationFor" />
+    /// by the drop's index, once per drop and in order: a party kill reserves each drop for its own member.
+    /// </summary>
+    public static IReadOnlyList<GroundLoot> Place(
+        Vector3 corpse,
+        IReadOnlyList<RolledDrop> rolled,
+        Func<int, LootAllocation> allocationFor,
+        IMapNavigator navigator,
         Func<uint> nextId)
     {
         var placed = new List<GroundLoot>(rolled.Count);
@@ -37,6 +49,7 @@ public static class LootPlacement
             float groundY = navigator.SampleGroundHeight(reachable.x, corpse.y, reachable.z);
 
             RolledDrop drop = rolled[i];
+            LootAllocation allocation = allocationFor(i);
             placed.Add(new GroundLoot
             {
                 Guid = new ObjectGuid(ObjectType.Loot, nextId()),
