@@ -1,0 +1,23 @@
+using System.Text;
+using Avalon.World.Public.Enums;
+
+namespace Avalon.Balance.Running;
+
+/// <summary>A run's random seed from the run's coordinates (FNV-1a), so results never depend on scheduling.</summary>
+public static class RunSeed
+{
+    public static int For(int seed, CharacterClass characterClass, ushort level, string gear, string scenario, int run)
+    {
+        unchecked
+        {
+            ulong hash = 14695981039346656037UL;
+            foreach (byte b in Encoding.UTF8.GetBytes($"{seed}|{characterClass}|{level}|{gear}|{scenario}|{run}"))
+            {
+                hash ^= b;
+                hash *= 1099511628211UL;
+            }
+
+            return (int)(hash ^ (hash >> 32));
+        }
+    }
+}
