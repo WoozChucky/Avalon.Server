@@ -166,6 +166,27 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
+    /// A party instance holds at most <c>min(Game:MaxPartySize, map.MaxPlayers)</c>, so a procedural map seeded
+    /// below the default party size turns away a whole party's later members with <c>InstanceFull</c> (#707: the
+    /// forest was seeded at 1). Solo instances are keyed per character, so the cap never lets strangers share one.
+    /// </summary>
+    [Fact]
+    public void Seat_A_Whole_Default_Party_On_Every_Seeded_Procedural_Map()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        int partySize = new Avalon.World.Configuration.GameConfiguration().MaxPartySize;
+        List<MapTemplate> normals = context.MapTemplates.AsNoTracking().ToList()
+            .Where(map => map.MapType == MapType.Normal)
+            .ToList();
+
+        Assert.Contains(normals, map => map.Id.Value == 2); // the forest
+        Assert.All(normals, map => Assert.True(map.MaxPlayers is null || map.MaxPlayers >= partySize,
+            $"{map.Name} seats {map.MaxPlayers}, below the default party size {partySize}"));
+    }
+
+    /// <summary>
     /// Map 1's whole population today is seven town NPCs: Uriel, Borin, the Innkeeper, Marta the
     /// banker (#463), and the three vendors (#432). Pinning the count and the map catches a seed
     /// edit that drops one, or quietly hangs NPCs off the wrong map.

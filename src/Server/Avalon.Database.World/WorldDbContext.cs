@@ -1504,7 +1504,10 @@ public class WorldDbContext : DbContext
                 MaxLevel = 5,
                 AreaTableId = 0,
                 LoadingScreenId = 0,
-                MaxPlayers = 1,
+                // A whole party (Game:MaxPartySize, 6 by default) must fit: a party instance holds at most
+                // min(MaxPartySize, MaxPlayers). Solo instances are keyed per character, so this does not
+                // let strangers share one (#707).
+                MaxPlayers = 6,
                 DefaultSpawnX = 0,
                 DefaultSpawnY = 0,
                 DefaultSpawnZ = 0,
