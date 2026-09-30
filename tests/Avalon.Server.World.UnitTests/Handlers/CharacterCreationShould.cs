@@ -21,6 +21,7 @@ using NSubstitute;
 using NSubstitute.Core;
 using ProtoBuf;
 using Xunit;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 

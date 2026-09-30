@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Avalon.World.Configuration;
+namespace Avalon.Combat;
 
 public class RegenConfiguration
 {

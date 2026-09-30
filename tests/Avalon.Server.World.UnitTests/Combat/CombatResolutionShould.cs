@@ -202,7 +202,7 @@ public class CombatResolutionShould
             CreationDate = DateTime.UtcNow,
         };
         var wizard = new CharacterEntity(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, row,
-            new Avalon.World.Configuration.RegenConfiguration()) { Data = row };
+            new Avalon.Combat.RegenConfiguration()) { Data = row };
         MapInstanceClient caster = Join(instance, wizard);
         wizard.PowerType = PowerType.Mana;
         wizard.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, Staff)]);

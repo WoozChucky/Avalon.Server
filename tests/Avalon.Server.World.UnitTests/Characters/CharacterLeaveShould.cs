@@ -38,6 +38,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

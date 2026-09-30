@@ -8,6 +8,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
 

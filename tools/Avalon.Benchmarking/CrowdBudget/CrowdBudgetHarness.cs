@@ -27,6 +27,7 @@ using DotRecast.Detour.Crowd;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Avalon.Combat;
 
 namespace Avalon.Benchmarking.CrowdBudget;
 

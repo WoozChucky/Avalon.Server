@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
