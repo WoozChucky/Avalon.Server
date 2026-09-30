@@ -113,6 +113,14 @@ public class CreatureCombatScript : AiScript, IReturningHome
     // a tick in range or with a route that can reach starts the count over, as does a new target.
     private static readonly TimeSpan UnreachableGiveUpTime = TimeSpan.FromSeconds(5);
 
+    // The safety net on the walk home (#715): a creature walking home ignores every hit (#610), so one that
+    // never counts as home would be unhittable for good. It is put home and reset once it has come no closer
+    // to home, by ReturnProgressStep on X/Z, for ReturnStallLimit, or has been on its way for ReturnHomeLimit.
+    // The leash is 40 m, 10 s at the slowest seeded run speed (4 m/s), so the cap leaves room for a detour.
+    private static readonly TimeSpan ReturnStallLimit = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ReturnHomeLimit = TimeSpan.FromSeconds(15);
+    private const float ReturnProgressStep = 0.5f;
+
     private readonly ILogger<CreatureCombatScript> _logger;
     private readonly TimeProvider _time;
     private readonly CreatureAbilities _abilities;
@@ -125,6 +133,12 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     // How long, without a break, the creature has had no way to reach its target (#606).
     private TimeSpan _unreachableFor;
+
+    // The walk home's safety net (#715): how long it has been walking home, how long since it last came
+    // ReturnProgressStep closer, and the closest to home (X/Z) it has been. Set by BeginReturn.
+    private TimeSpan _returningFor;
+    private TimeSpan _returnStalledFor;
+    private float _closestToHome = float.MaxValue;
 
     // The destination the journey now in progress was planned for. This is what the mid-walk
     // staleness check in KeepStation measures against, and it answers a different question from the
@@ -204,7 +218,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
             // Release before nulling _target — Release needs the target's guid.
             Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
             _target = null;
-            State = CombatState.Returning;
+            BeginReturn();
             Creature.CurrentHealth = Creature.Health;
             _unreachableFor = TimeSpan.Zero;
             RequestMoveTo(Home);
@@ -317,7 +331,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
         if (State is CombatState.Returning)
         {
-            UpdateReturning(currentPosition);
+            UpdateReturning(currentPosition, deltaTime);
             return;
         }
 
@@ -381,36 +395,108 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     /// <summary>
     /// The Returning state's tick: rest once home, otherwise keep running there, asking for a new route
-    /// when the last one ended short, and snapping home when there is none.
+    /// when the last one ended, snapping home when there is none or it ends short of home, and snapping
+    /// home when the walk makes no progress or takes too long (#715).
     /// </summary>
-    private void UpdateReturning(Vector3 currentPosition)
+    /// <remarks>
+    /// Home is where the fight began, often the creature's spawn, which need not lie on the navmesh: a
+    /// procedural spawn keeps its slot's height, and a spawn near a wall sits in the mesh's eroded border. A
+    /// route home therefore ends at the nearest point the mesh has (a navmesh route's points carry the mesh's
+    /// own height), and a crowd stops within its arrival tolerance of that. Home is reached once the
+    /// locomotion has nothing left to walk and the creature stands within that tolerance of home on X/Z;
+    /// comparing its exact position with home, as before #715, never held for such a home, and the creature
+    /// re-planned the same route for ever, walking home and ignoring every hit.
+    /// </remarks>
+    private void UpdateReturning(Vector3 currentPosition, TimeSpan deltaTime)
     {
-        if (Vector3.Distance(currentPosition, Home) < 0.1f)
+        ICreatureLocomotion locomotion = Context.Locomotion;
+        float tolerance = locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin;
+        float fromHome = HitShapes.Distance2D(currentPosition, Home);
+
+        if (Vector3.Distance(currentPosition, Home) < 0.1f
+            || (fromHome <= tolerance && locomotion.HasArrived(Creature)))
         {
             ResetToIdleAtSpawn();
             return;
         }
 
-        // The journey may be over either because MoveTo at transition-time failed (DotRecast
-        // returned no route — happens when start/end land on disconnected nav polygons) or
-        // because locomotion consumed the last waypoint without us hitting the < 0.1f gate
-        // above (e.g. smoothed last point ≠ exact spawn). Without a regen the creature
-        // drifts: server keeps Position static but MoveState=Running + Velocity is stale,
-        // so the client extrapolates indefinitely.
-        if (Context.Locomotion.HasArrived(Creature))
+        // Standing at the end of a route home that ends short of it: home is farther off the mesh than the
+        // tolerance, or the mesh does not connect to it. A crowd never reports such a partial route as arrived,
+        // so the route's end is judged, not HasArrived.
+        if (locomotion.ResolvedDestination(Creature) is { } routeEnd
+            && HitShapes.Distance2D(routeEnd, Home) > tolerance
+            && Vector3.Distance(currentPosition, routeEnd) <= tolerance)
+        {
+            SnapHome("its route home ends short of home");
+            return;
+        }
+
+        // The journey may be over because MoveTo at transition-time failed (DotRecast returned no route:
+        // start and end on disconnected polygons). Without a new request the creature drifts: the server
+        // keeps Position static but MoveState=Running and a stale Velocity, so the client extrapolates
+        // indefinitely.
+        if (locomotion.HasArrived(Creature))
         {
             RequestMoveTo(Home);
-            if (Context.Locomotion.HasArrived(Creature))
+            if (locomotion.HasArrived(Creature))
             {
-                // Planner can't reach spawn — snap home rather than drift forever.
-                Context.Locomotion.Teleport(Creature, Home);
-                ResetToIdleAtSpawn();
+                SnapHome("no route home exists");
                 return;
             }
         }
 
+        // The safety net (#715): whatever keeps a creature from getting home, it never stays returning, and so
+        // unhittable, for good.
+        _returningFor += deltaTime;
+        if (fromHome < _closestToHome - ReturnProgressStep)
+        {
+            _closestToHome = fromHome;
+            _returnStalledFor = TimeSpan.Zero;
+        }
+        else
+        {
+            _returnStalledFor += deltaTime;
+        }
+
+        if (_returnStalledFor > ReturnStallLimit)
+        {
+            SnapHome($"it came no closer to home for {ReturnStallLimit.TotalSeconds:0} s");
+            return;
+        }
+
+        if (_returningFor > ReturnHomeLimit)
+        {
+            SnapHome($"it was still on its way home after {ReturnHomeLimit.TotalSeconds:0} s");
+            return;
+        }
+
         Creature.MoveState = MoveState.Running;
         Creature.Speed = Creature.Metadata.SpeedRun;
+    }
+
+    /// <summary>
+    /// Puts the creature home through the locomotion and resets it there, exactly as if it had walked home
+    /// (#715). Home rather than where it stands: it is a place the creature stood, and a creature left wherever
+    /// it got stuck would drift a little farther from its spawn with every kite. Logged once, at Warning, since
+    /// the reset ends the return.
+    /// </summary>
+    private void SnapHome(string why)
+    {
+        Vector3 home = Home;
+        _logger.LogWarning(
+            "Creature {CreatureName} ({CreatureGuid}) could not walk home from {Position} to {Home}: {Reason}; put it home and reset it",
+            Creature.Name, Creature.Guid, Creature.Position, home, why);
+        Context.Locomotion.Teleport(Creature, home);
+        ResetToIdleAtSpawn();
+    }
+
+    /// <summary>Starts the walk home: the safety net's clocks start over, measured from where it stands.</summary>
+    private void BeginReturn()
+    {
+        State = CombatState.Returning;
+        _returningFor = TimeSpan.Zero;
+        _returnStalledFor = TimeSpan.Zero;
+        _closestToHome = HitShapes.Distance2D(Creature.Position, Home);
     }
 
     /// <summary>
@@ -423,7 +509,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
         Context.MeleeSlots.Release(target.Guid, Creature.Guid);
         _target = null;
         _unreachableFor = TimeSpan.Zero;
-        State = CombatState.Returning;
+        BeginReturn();
         RequestMoveTo(Home);
         Creature.CurrentHealth = Creature.Health;
     }
@@ -772,6 +858,9 @@ public class CreatureCombatScript : AiScript, IReturningHome
         _target = null;
         _home = null;
         _unreachableFor = TimeSpan.Zero;
+        _returningFor = TimeSpan.Zero;
+        _returnStalledFor = TimeSpan.Zero;
+        _closestToHome = float.MaxValue;
 
         // #627, #163: no cooldown carries into the next fight, whose first attack lands at once.
         _abilities.ResetCooldowns();
