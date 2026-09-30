@@ -13,6 +13,7 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Maps;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
@@ -100,6 +101,7 @@ public static class ServiceExtensions
         services.AddSingleton<ICommand, ReloadCommand>();
         services.AddSingleton<ICommand, GodModeCommand>();
         services.AddSingleton<PvpToggle>();
+        services.AddSingleton<PartyService>();
         services.AddSingleton<ICommand, PvpCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
 

@@ -13,6 +13,7 @@ using Avalon.World.Dialogue;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
@@ -79,6 +80,7 @@ public class World : IWorld
     private readonly IntervalTimer _hotReloadTimer = new();
     private readonly IWorldRepository _worldRepository;
     private readonly InstanceTicker _instanceTicker;
+    private readonly PartyService? _parties;
 
     private Domain.Auth.World? _world;
     private volatile List<Type>? _pendingHotReload;
@@ -103,8 +105,10 @@ public class World : IWorld
         IDialogueRepository dialogueRepository,
         ILootTableRepository lootTableRepository,
         IVendorStockRepository? vendorStockRepository = null,
-        ICombatDataRepository? combatDataRepository = null)
+        ICombatDataRepository? combatDataRepository = null,
+        PartyService? parties = null)
     {
+        _parties = parties;
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
         _configuration = configuration;
@@ -139,6 +143,10 @@ public class World : IWorld
     public void SpawnInInstance(IWorldConnection connection, IMapInstance instance)
     {
         instance.AddCharacter(connection);
+
+        // The party learns the character is online, and its members get the roster (2026-09-30).
+        _parties?.CharacterOnline(connection);
+
         _logger.LogInformation(
             "Character {CharacterName} of account {AccountId} entered instance {InstanceId} (map {MapTemplateId})",
             connection.Character?.Name, connection.AccountId?.Value, instance.InstanceId, instance.TemplateId);
@@ -209,6 +217,16 @@ public class World : IWorld
 
         _logger.LogInformation("Character {CharacterName} of account {AccountId} left the world",
             character.Name, connection.AccountId?.Value);
+
+        // On the tick, before the connection lets go of the character. Contained: it must not cost the logout save.
+        try
+        {
+            _parties?.CharacterOffline(connection, character);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to take character {CharacterId} offline in its party", character.Guid);
+        }
 
         AsyncServiceScope? scope = null;
         Task<bool>? saved = null;

@@ -71,6 +71,10 @@ public class WorldHostGraphShould
             // silently build a second toggle over a different clock. /pvp is found through ICommand.
             Assert.NotNull(host.Services.GetRequiredService<PvpToggle>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PvpCommand);
+
+            // Parties (2026-09-30). World, WorldServer, MapInstance and EnterMapHandler take it optionally, so only
+            // this proves production supplies one.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Parties.PartyService>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is GodModeCommand);
 
             // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
