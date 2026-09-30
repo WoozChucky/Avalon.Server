@@ -1,6 +1,7 @@
 using Avalon.Domain.World;
 using Avalon.World;
 using Avalon.World.Configuration;
+using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Instances;
 
@@ -21,6 +22,7 @@ internal sealed class QuietWorld(StaticData data) : IWorld
     public string CurrentVersion => throw new NotSupportedException();
     public GameTime Time => throw new NotSupportedException();
     public IInstanceRegistry InstanceRegistry => throw new NotSupportedException();
+    public IPartyInstanceRegistry PartyInstances => throw new NotSupportedException();
     public void SpawnInInstance(IWorldConnection connection, IMapInstance instance) => throw new NotSupportedException();
     public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance) => throw new NotSupportedException();
     public Task DeSpawnPlayerAsync(IWorldConnection connection) => throw new NotSupportedException();

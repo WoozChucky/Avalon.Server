@@ -102,4 +102,7 @@ internal sealed class FakePartyInstances : IPartyInstanceRegistry
         Owned.TryGetValue(instanceId, out PartyId? owner) && owner.Equals(party);
 
     public void ForgetParty(PartyId party) => Forgotten.Add(party);
+
+    public Task<IMapInstance> GetOrCreatePartyInstanceAsync(PartyId party, MapTemplateId templateId) =>
+        throw new NotSupportedException();
 }

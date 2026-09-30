@@ -7,6 +7,7 @@ using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -20,7 +21,8 @@ public class EnterMapHandler(
     ILogger<EnterMapHandler> logger,
     ICharacterSaver characterSaver,
     IChunkLibrary chunkLibrary,
-    IWorld world) : WorldPacketHandler<CEnterMapPacket>
+    IWorld world,
+    PartyService? parties = null) : WorldPacketHandler<CEnterMapPacket>
 {
     public override void Execute(IWorldConnection connection, CEnterMapPacket packet)
     {
@@ -120,12 +122,52 @@ public class EnterMapHandler(
                     targetTemplate.MaxPlayers ?? 30),
                 targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, packet.TargetMapId));
         }
+        else if (parties?.PartyOf(characterId) is { } party)
+        {
+            // In a party, a Normal map leads to the party's instance of it (2026-09-30); the first member through builds it.
+            PartyId partyId = party.Id;
+            int capacity = Math.Min(world.Configuration.MaxPartySize,
+                targetTemplate.MaxPlayers is { } max ? max : world.Configuration.MaxPartySize);
+
+            connection.EnqueueContinuation(
+                world.PartyInstances.GetOrCreatePartyInstanceAsync(partyId, targetTemplate.Id),
+                targetInstance => OnPartyInstanceReceived(connection, character, targetInstance, targetTemplate,
+                    packet.TargetMapId, partyId, capacity));
+        }
         else
         {
             connection.EnqueueContinuation(
                 world.InstanceRegistry.GetOrCreateNormalInstanceAsync(characterId, targetTemplate.Id),
                 targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, packet.TargetMapId));
         }
+    }
+
+    private void OnPartyInstanceReceived(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
+        MapTemplate targetTemplate, MapId targetMapId, PartyId partyId, int capacity)
+    {
+        if (!ReferenceEquals(connection.Character, character))
+        {
+            return;
+        }
+
+        // The party can end, or the character leave it, while the instance builds: it is not let in as a member.
+        if (parties?.PartyOf(character.Guid.Id)?.Id.Equals(partyId) != true)
+        {
+            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
+                connection.CryptoSession.Encrypt));
+            return;
+        }
+
+        // Continuations run one after another on the tick and TransferPlayer adds at once, so two members
+        // arriving in one tick are counted correctly.
+        if (targetInstance.PlayerCount >= capacity)
+        {
+            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.InstanceFull,
+                connection.CryptoSession.Encrypt));
+            return;
+        }
+
+        OnInstanceReceived(connection, character, targetInstance, targetTemplate, targetMapId);
     }
 
     private void OnInstanceReceived(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,

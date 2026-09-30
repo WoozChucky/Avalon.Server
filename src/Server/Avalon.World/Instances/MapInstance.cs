@@ -18,6 +18,7 @@ using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
 using Avalon.World.Loot;
 using Avalon.World.Maps.Navigation;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
@@ -115,7 +116,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         IMapNavigator navigator,
         int seed,
         MapType mapType = MapType.Normal,
-        Func<ICreatureLocomotion, ICreatureLocomotion>? locomotion = null)
+        Func<ICreatureLocomotion, ICreatureLocomotion>? locomotion = null,
+        PartyId? ownerPartyId = null)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _world = world;
@@ -123,6 +125,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         TemplateId = templateId;
         MapType = mapType;
         OwnerCharacterId = ownerCharacterId;
+        OwnerPartyId = ownerPartyId;
         AllowedCharacters = ownerCharacterId.HasValue ? new[] { ownerCharacterId.Value } : Array.Empty<uint>();
         Layout = layout;
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
@@ -203,6 +206,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public MapTemplateId TemplateId { get; }
     public MapType MapType { get; }
     public uint? OwnerCharacterId { get; }
+
+    /// <summary>The party that owns this instance, or null (2026-09-30). World-side, init-only; a party instance has no owner character.</summary>
+    public PartyId? OwnerPartyId { get; }
     public IReadOnlyList<uint> AllowedCharacters { get; }
     public int PlayerCount => _characters.Count;
     public DateTime? LastEmptyAt { get; private set; }

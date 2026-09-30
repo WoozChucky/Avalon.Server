@@ -6,6 +6,7 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -38,6 +39,13 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     public Party? PartyOf(uint characterId) => _partyOf.GetValueOrDefault(characterId);
 
     public IWorldConnection? OnlineConnection(uint characterId) => _online.GetValueOrDefault(characterId);
+
+    /// <summary>The character moved to another instance (World.TransferPlayer): who shares an instance changed for its whole party.</summary>
+    public void InstanceChanged(IWorldConnection connection)
+    {
+        if (connection.Character is { } character && PartyOf(character.Guid.Id) is { } party)
+            SendRoster(party);
+    }
 
     /// <summary>The character entered the world (World.SpawnInInstance).</summary>
     public void CharacterOnline(IWorldConnection connection)
@@ -447,6 +455,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         public static readonly NoPartyInstances Instance = new();
         public bool IsPartyInstance(PartyId party, Guid instanceId) => false;
         public void ForgetParty(PartyId party) { }
+
+        public Task<IMapInstance> GetOrCreatePartyInstanceAsync(PartyId party, MapTemplateId templateId) =>
+            throw new InvalidOperationException("No instance registry is attached.");
     }
 }
 

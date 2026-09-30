@@ -12,6 +12,8 @@ public enum MapTransitionResult : byte
     LevelTooLow      = 3,
     LevelTooHigh     = 4,
     GenerationFailed = 5,
+    /// <summary>The party's instance already holds as many players as it may (2026-09-30).</summary>
+    InstanceFull     = 6,
 }
 
 [ProtoContract]

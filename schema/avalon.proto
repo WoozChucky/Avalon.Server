@@ -433,6 +433,7 @@ enum MapTransitionResult {
    MapTransitionResult_LevelTooLow = 3;
    MapTransitionResult_LevelTooHigh = 4;
    MapTransitionResult_GenerationFailed = 5;
+   MapTransitionResult_InstanceFull = 6;
 }
 enum MoveState {
    MoveState_Idle = 0;

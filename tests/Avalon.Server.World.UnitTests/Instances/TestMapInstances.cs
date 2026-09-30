@@ -6,6 +6,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Parties;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -66,7 +67,8 @@ internal static class TestMapInstances
     /// <param name="random">Every combat roll (#506); the instance's own no-proc fallback when omitted.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
-        MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null)
+        MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
+        PartyId? ownerPartyId = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -104,6 +106,7 @@ internal static class TestMapInstances
             layout,
             navigator ?? Substitute.For<IMapNavigator>(),
             seed: 0,
-            mapType: mapType);
+            mapType: mapType,
+            ownerPartyId: ownerPartyId);
     }
 }

@@ -42,6 +42,9 @@ public interface IWorld
 
     IInstanceRegistry InstanceRegistry { get; }
 
+    /// <summary>The registry's party side (2026-09-30). World-side, not on the modding API's IInstanceRegistry.</summary>
+    IPartyInstanceRegistry PartyInstances { get; }
+
     /// <summary>All map templates loaded by the map manager. Convenience accessor for handlers.</summary>
     IReadOnlyList<MapTemplate> MapTemplates { get; }
 
@@ -137,6 +140,7 @@ public class World : IWorld
 
     public GameTime Time { get; } = new();
     public IInstanceRegistry InstanceRegistry { get; private set; } = null!;
+    public IPartyInstanceRegistry PartyInstances { get; private set; } = null!;
     public IReadOnlyList<MapTemplate> MapTemplates => _mapManager.Templates;
     public StaticData Data { get; }
 
@@ -199,6 +203,9 @@ public class World : IWorld
         // the canonical Layout.EntrySpawnWorldPos. TransferPlayer owns instance membership only.
         connection.Character.InstanceId = targetInstance.InstanceId;
         targetInstance.AddCharacter(connection);
+
+        // Who shares an instance changed for the character's whole party (2026-09-30).
+        _parties?.InstanceChanged(connection);
     }
 
     public Task DeSpawnPlayerAsync(IWorldConnection connection) => LeaveWorldAsync(connection);
@@ -418,7 +425,11 @@ public class World : IWorld
         await _chunkLibrary.LoadAsync(token);
 
         var chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
-        InstanceRegistry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory);
+        var registry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory);
+        InstanceRegistry = registry;
+        PartyInstances = registry;
+        // A disband forgets the party's instances in this registry, so no member is routed to them again.
+        _parties?.AttachInstances(registry);
     }
 
     public void Update(TimeSpan deltaTime)
