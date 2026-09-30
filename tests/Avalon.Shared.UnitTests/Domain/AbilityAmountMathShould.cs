@@ -42,4 +42,14 @@ public class AbilityAmountMathShould
     public void Answer_0_0_for_no_amount() =>
         Assert.Equal((0u, 0u), AbilityAmountMath.Range(AbilityAmountKind.None, 50, ScalingStat.Attack, 1f, 1f,
             attackDamage: 10, abilityDamage: 10, weaponMin: 1, weaponMax: 2));
+
+    /// <summary>0.7f × 10 is 7.0 in float but 6.99999988 in double: the weapon term stays a float product.</summary>
+    [Fact]
+    public void Multiply_the_weapon_term_in_float() =>
+        Assert.Equal(7u, AbilityAmountMath.NormalDamage(AbilityAmountMath.Sum(0, 0, 0, 0.7f, 10)));
+
+    [Fact]
+    public void Range_a_fractional_weapon_coefficient_as_combat_does() =>
+        Assert.Equal((7u, 7u), AbilityAmountMath.Range(AbilityAmountKind.Damage, 0, ScalingStat.Attack, 0f, 0.7f,
+            attackDamage: 0, abilityDamage: 0, weaponMin: 10, weaponMax: 10));
 }

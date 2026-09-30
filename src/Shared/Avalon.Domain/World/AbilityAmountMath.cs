@@ -27,7 +27,7 @@ public static class AbilityAmountMath
     {
         double total = NonNegative(effectValue) + NonNegative(scaling) * statValue;
         if (NonNegative(baseDamageCoefficient) > 0)
-            total += baseDamageCoefficient * weaponRoll;
+            total += (float)baseDamageCoefficient * weaponRoll; // float product, as combat always evaluated it
         return total;
     }
 
@@ -38,8 +38,8 @@ public static class AbilityAmountMath
 
         double statValue = stat == ScalingStat.Ability ? abilityDamage : attackDamage;
         long low = Math.Min(weaponMin, weaponMax);
-        double min = Sum(effectValue, scaling, statValue, baseDamageCoefficient, weaponMax > 0 ? low : 0);
-        double max = Sum(effectValue, scaling, statValue, baseDamageCoefficient, weaponMax);
+        float min = (float)Sum(effectValue, scaling, statValue, baseDamageCoefficient, weaponMax > 0 ? low : 0);
+        float max = (float)Sum(effectValue, scaling, statValue, baseDamageCoefficient, weaponMax);
 
         return kind == AbilityAmountKind.Healing
             ? (NormalHeal(min), NormalHeal(max))
