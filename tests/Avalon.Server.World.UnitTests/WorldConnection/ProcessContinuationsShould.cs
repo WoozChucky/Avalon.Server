@@ -114,4 +114,76 @@ public sealed class ProcessContinuationsShould : IDisposable
         Assert.Null(escaped);
         Assert.True(laterInvoked);
     }
+
+    /// <summary>
+    /// #704: a task that succeeds on another thread while the tick is flushing still gets its callback.
+    /// The flush used to read "succeeded?" and then "finished?", so a task that finished between the two
+    /// reads looked faulted and its callback was dropped for good (a Change Character leave then never
+    /// answered or closed its connection). The race is forced as hard as a test can: one thread completes
+    /// each task after a random spin while this one flushes in a tight loop. Before the fix about one
+    /// callback in twenty was lost this way; after it none can be, so this cannot fail spuriously, and a
+    /// run that happens not to hit the window only proves less.
+    /// </summary>
+    [Fact]
+    public void Run_the_callback_of_a_task_that_succeeds_while_the_flush_is_reading_it()
+    {
+        const int iterations = 50_000;
+        TaskCompletionSource<bool>? pending = null;
+        var stop = false;
+        var completer = new Thread(() =>
+        {
+            var spin = new SpinWait();
+            while (!Volatile.Read(ref stop))
+            {
+                if (Volatile.Read(ref pending) is not { } tcs)
+                {
+                    spin.SpinOnce(sleep1Threshold: -1);
+                    continue;
+                }
+
+                Thread.SpinWait(Random.Shared.Next(0, 200));
+                tcs.SetResult(true);
+                Volatile.Write(ref pending, null);
+            }
+        }) { IsBackground = true };
+        completer.Start();
+
+        var lost = 0;
+        try
+        {
+            // Bounded in time too, so a slow or single-core runner only runs fewer rounds.
+            var budget = System.Diagnostics.Stopwatch.StartNew();
+            for (var i = 0; i < iterations && budget.Elapsed < TimeSpan.FromSeconds(3); i++)
+            {
+                var tcs = new TaskCompletionSource<bool>();
+                var invoked = false;
+                _connection.EnqueueContinuation(tcs.Task, _ => invoked = true);
+                Volatile.Write(ref pending, tcs);
+
+                // Flush as the tick does. Once a flush that began with the task already finished still has
+                // not run the callback, an earlier flush dropped it.
+                while (!invoked)
+                {
+                    bool finishedBefore = tcs.Task.IsCompleted;
+                    _connection.FlushContinuations();
+                    if (!invoked && finishedBefore)
+                    {
+                        lost++;
+                        break;
+                    }
+                }
+
+                var spin = new SpinWait();
+                while (Volatile.Read(ref pending) is not null)
+                    spin.SpinOnce(sleep1Threshold: -1);
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref stop, true);
+            completer.Join();
+        }
+
+        Assert.Equal(0, lost);
+    }
 }
