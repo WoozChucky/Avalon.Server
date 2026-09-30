@@ -2,10 +2,12 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
@@ -24,6 +26,7 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -252,6 +255,38 @@ public class PartyMapEntryShould
         Assert.Equal(MapTransitionResult.Success, captured.LastTransition(a).Result);
     }
 
+    /// <summary>
+    /// #707: the forest as seeded (map 2, read from the model's seed data) must take a party's second member, not
+    /// only the one who built the instance. It was seeded with MaxPlayers 1, so the capacity came to min(6, 1).
+    /// </summary>
+    [Fact]
+    public void Let_two_members_into_the_seeded_forest()
+    {
+        MapTemplate forest;
+        using (SqliteDatabase<WorldDbContext> database = SqliteDatabase.World())
+        using (WorldDbContext context = database.CreateDbContext())
+        {
+            forest = context.MapTemplates.AsNoTracking().ToList().Single(map => map.Id.Value == Dungeon);
+        }
+
+        (EnterMapHandler handler, IWorld world, _, PartyClient a, PartyClient b, Captured capturedA, Captured capturedB) =
+            Arrange(forest);
+        int players = 0;
+        var instance = Substitute.For<IMapInstance>();
+        instance.PlayerCount.Returns(_ => players);
+        world.When(w => w.TransferPlayer(Arg.Any<IWorldConnection>(), instance)).Do(_ => players++);
+
+        handler.Execute(a.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
+        handler.Execute(b.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
+        capturedA.Callback!(instance); // A built it and goes in first
+        capturedB.Callback!(instance);
+
+        world.Received(1).TransferPlayer(a.Connection, instance);
+        world.Received(1).TransferPlayer(b.Connection, instance);
+        Assert.Equal(MapTransitionResult.Success, capturedA.LastTransition(a).Result);
+        Assert.Equal(MapTransitionResult.Success, capturedB.LastTransition(b).Result);
+    }
+
     [Fact]
     public void Refuse_entry_when_the_party_changed_while_the_instance_was_building()
     {
@@ -272,6 +307,19 @@ public class PartyMapEntryShould
     /// </summary>
     private static (EnterMapHandler, IWorld, PartyTestWorld, PartyClient, Captured) Arrange(ushort? maxPlayers)
     {
+        (EnterMapHandler handler, IWorld world, PartyTestWorld parties, PartyClient a, _, Captured captured, _) =
+            Arrange(new MapTemplate
+            {
+                Id = new MapTemplateId(Dungeon), MapType = MapType.Normal, MaxPlayers = maxPlayers,
+                Name = "dungeon", Description = "",
+            });
+        return (handler, world, parties, a, captured);
+    }
+
+    /// <summary>As above, entering <paramref name="dungeon" />, with B on the same portal and its continuation captured too.</summary>
+    private static (EnterMapHandler, IWorld, PartyTestWorld, PartyClient, PartyClient, Captured, Captured) Arrange(
+        MapTemplate dungeon)
+    {
         var parties = new PartyTestWorld();
         MapInstance source = SourceWithPortalTo(Dungeon);
 
@@ -287,23 +335,24 @@ public class PartyMapEntryShould
         world.InstanceRegistry.Returns(registry);
         world.PartyInstances.Returns(Substitute.For<IPartyInstanceRegistry>());
         world.Configuration.Returns(parties.Config);
-        world.MapTemplates.Returns(new List<MapTemplate>
-        {
-            new()
-            {
-                Id = new MapTemplateId(Dungeon), MapType = MapType.Normal, MaxPlayers = maxPlayers,
-                Name = "dungeon", Description = "",
-            },
-        });
+        world.MapTemplates.Returns(new List<MapTemplate> { dungeon });
 
-        var captured = new Captured();
-        a.Connection.InGame.Returns(true);
-        a.Connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
-            .Do(call => captured.Callback = call.Arg<Action<IMapInstance>>());
+        b.Character.Position = Vector3.zero;
+        Captured captured = Capture(a);
+        Captured capturedB = Capture(b);
 
         var handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, Substitute.For<ICharacterSaver>(),
             Substitute.For<IChunkLibrary>(), world, parties.Parties);
-        return (handler, world, parties, a, captured);
+        return (handler, world, parties, a, b, captured, capturedB);
+    }
+
+    private static Captured Capture(PartyClient client)
+    {
+        var captured = new Captured();
+        client.Connection.InGame.Returns(true);
+        client.Connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
+            .Do(call => captured.Callback = call.Arg<Action<IMapInstance>>());
+        return captured;
     }
 
     /// <summary>A real instance with a layout and a portal to <paramref name="targetMap" /> at the origin, so Execute reaches the continuation.</summary>
