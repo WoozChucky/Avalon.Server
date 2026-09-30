@@ -31,6 +31,7 @@ dotnet run --project src/Server/Avalon.Server.World
 dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release
 dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release
 dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release
+dotnet publish src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj -c Release -p:SourceRevisionId=$(git rev-parse HEAD)
 
 # Benchmarks
 dotnet run -c Release --project tools/Avalon.Benchmarking
@@ -385,6 +386,41 @@ suppresses regen or the pool cannot regenerate (full included).
 Balance tables change only through `HasData` plus a migration (see Commands); `ModelDriftShould` fails when `HasData`
 changed without one. `balance/README.md` has the file formats and what is not modelled (everyone in melee, no
 projectile travel time, continuous combat, wind-ups always land).
+
+## Balance Service
+
+`Avalon.Balance.Service` (`src/Server/`) is an in-cluster ASP.NET service that runs the simulator for the workbench.
+It is never exposed outside the cluster: a ClusterIP Service, no ingress. `Avalon.Api` proxies the admin
+`/balance/*` calls to it (`catalog`, `runs` POST / GET `{id}` / DELETE `{id}`, `exports`), each behind
+`[Authorize(Policy = AvalonRoles.Admin)]`.
+
+- **Endpoints:** `/catalog`, `/runs` (POST, GET `{id}`, DELETE `{id}`), `/exports`, plus `/health` and `/alive`.
+  Only the last two skip the `X-Balance-Secret` check; every other request needs the header equal to
+  `Balance:SharedSecret` (constant-time compare), else 401 with no detail. The secret is required at startup and
+  at least 32 characters. Responses are camelCase JSON, enums as strings, gzip, no NaN or Infinity (`null`).
+- **Limits:** one run executes at a time and 3 wait; one more gets 429. `runsPerRow` is at most 1000, overrides at
+  most 500 keys, the request body at most 1 MiB (Kestrel, 413). A finished run is kept 1 hour, then 404, and at
+  most 100 finished runs are retained. The queue is in memory, so the chart runs one replica.
+- **Export** (`POST /exports`): branches `balance/<slug>-<yyyyMMdd-HHmm>` from the commit the service was built
+  from, commits only the changed `balance/*.json` files in `ConfigFiles.Save` canonical form, and opens a draft PR
+  against `main` titled `chore(balance): <title>` with a `Player note: No gameplay changes: balance tuning
+  proposal.` line. It uses `Balance:GitHubToken`, a fine-grained token, never logged; without it exports answer
+  503. The build commit is the `+<sha>` of `AssemblyInformationalVersion`, so CI publishes the service with
+  `-p:SourceRevisionId=${{ github.sha }}` on a publish that builds (no `--no-build`); without it exports answer 503.
+- **Seed data:** read from `WorldDbContext`'s design-time model (`HasData`, no database); the `balance/*.json`
+  files are copied next to the binary (`/app/balance` in the image) by the csproj.
+- **API side:** `Application:Balance:Url` and `Application:Balance:SharedSecret`. Unconfigured (either empty) the
+  `/balance/*` endpoints answer 503 ProblemDetails (`BalanceUnavailableException`) and the rest of the API is
+  unaffected. The typed client removes the standard resilience handler, retries only GET (10 s an attempt) and gives
+  POST and DELETE a single 60 s attempt with no retry, so a run or an export is never started twice. A 401 from the
+  service maps to 502: it is our misconfiguration, not the caller's.
+- **Deploy:** chart `avalon-balance` (image `ghcr.io/woozchucky/avalon-server/balance`), secret keys
+  `balance-shared-secret` and optional `github-token`; the api chart takes `balance.url` and the same
+  `balance-shared-secret` key. The homelab wiring is a separate change.
+- **Local dev:** the Aspire AppHost (`src/Server/Avalon`) adds `balance` with a generated, persisted `balance-secret`
+  parameter passed to both the service and the api, and sets the api's `Application__Balance__Url` from the
+  service's endpoint (`http://localhost:5220`). Running the service alone needs `Balance__SharedSecret` (32+
+  characters, e.g. in user-secrets or the environment).
 
 ## ValueObject Pattern
 
