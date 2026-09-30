@@ -72,6 +72,34 @@ public class OverridesShould
     }
 
     [Fact]
+    public void Refuse_a_key_given_twice_and_write_nothing()
+    {
+        SeedTables tables = SeedTables.Read();
+        using JsonDocument document = JsonDocument.Parse(
+            """{ "Ability.200.EffectValue": 30, "Ability.201.EffectValue": 18, "Ability.201.EffectValue": 25 }""");
+
+        var error = Assert.Throws<InvalidDataException>(() => Overrides.Apply(tables, document.RootElement));
+
+        Assert.Contains("'Ability.201.EffectValue' is given twice", error.Message, StringComparison.Ordinal);
+        Assert.Equal(12u, tables.AbilityTemplates.Single(a => a.Id.Value == 200).EffectValue);
+        Assert.Equal(25u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue);
+    }
+
+    [Fact]
+    public void Refuse_a_computed_column_and_write_nothing()
+    {
+        SeedTables tables = SeedTables.Read();
+        using JsonDocument document = JsonDocument.Parse(
+            """{ "Ability.201.EffectValue": 18, "Item.5.Stackable": true }""");
+
+        var error = Assert.Throws<InvalidDataException>(() => Overrides.Apply(tables, document.RootElement));
+
+        Assert.Contains("Override 'Item.5.Stackable'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("cannot be overridden", error.Message, StringComparison.Ordinal);
+        Assert.Equal(25u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue);
+    }
+
+    [Fact]
     public void Stop_on_an_override_the_server_would_refuse()
     {
         (SeedTables tables, _) = Apply("""{ "Ability.200.Reach": -1 }""");

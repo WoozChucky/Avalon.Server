@@ -60,9 +60,13 @@ public static class Overrides
             throw new InvalidDataException("overrides must be a JSON object of \"Table.key.Column\": value");
 
         var writes = new List<(object Row, PropertyInfo Column, object? Value, string Key, object? Seed)>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (JsonProperty entry in root.EnumerateObject())
         {
             string key = entry.Name;
+            if (!seen.Add(key))
+                throw new InvalidDataException($"Override '{key}' is given twice");
+
             string[] parts = key.Split('.');
             if (parts.Length < 2)
                 throw new InvalidDataException($"Override '{key}' is not Table.key.Column");
@@ -83,6 +87,9 @@ public static class Overrides
 
             PropertyInfo column = table.RowType.GetProperty(columnName, BindingFlags.Public | BindingFlags.Instance)
                 ?? throw new InvalidDataException($"Override '{key}': {parts[0]} has no column '{columnName}'");
+
+            if (column.SetMethod is not { IsPublic: true })
+                throw new InvalidDataException($"Override '{key}': {parts[0]}.{columnName} is computed and cannot be overridden");
 
             object? value = Convert(entry.Value, column.PropertyType, key);
             writes.Add((row, column, value, key, column.GetValue(row)));
