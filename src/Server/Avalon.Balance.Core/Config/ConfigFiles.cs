@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -19,6 +20,8 @@ public static class ConfigFiles
         WriteIndented = true,
         IndentSize = 2,
         NewLine = "\n",
+        // The output is files and JSON, never embedded in HTML: keep ">=2" readable.
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter() },

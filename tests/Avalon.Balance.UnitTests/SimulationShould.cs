@@ -41,8 +41,15 @@ public class SimulationShould
     [Fact]
     public void Report_the_rows_the_global_checks_cover()
     {
-        RunResult some = Simulation.Run(TestData.Seed(), TestData.Config(), Quick(), null, CancellationToken.None);
-        Assert.Equal(some.Rows.Select(r => r.Key), some.CheckedRows);
+        RunResult some = Simulation.Run(TestData.Seed(), TestData.Config(),
+            Quick(new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, new HashSet<string> { "none", "forest" }, new HashSet<string> { "normal-3" })),
+            null, CancellationToken.None);
+        string graded = TestData.Config().Targets.GradedGear;
+
+        Assert.Contains(some.Rows, r => r.Key.Gear != graded);
+        Assert.NotEmpty(some.CheckedRows);
+        Assert.Equal(some.Rows.Select(r => r.Key).Where(k => k.Gear == graded), some.CheckedRows);
+        Assert.All(some.CheckedRows, k => Assert.Equal(graded, k.Gear));
     }
 
     [Fact]

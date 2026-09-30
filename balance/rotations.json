@@ -4,7 +4,7 @@
       "ability": 201,
       "when": [
         {
-          "targetsAlive": "\u003E=2"
+          "targetsAlive": ">=2"
         }
       ]
     },
@@ -12,7 +12,7 @@
       "ability": 201,
       "when": [
         {
-          "power": "\u003E=40"
+          "power": ">=40"
         }
       ]
     },
@@ -30,7 +30,7 @@
       "ability": 211,
       "when": [
         {
-          "targetsAlive": "\u003E=2"
+          "targetsAlive": ">=2"
         }
       ]
     },
@@ -52,7 +52,7 @@
       "ability": 222,
       "when": [
         {
-          "targetsAlive": "\u003E=2"
+          "targetsAlive": ">=2"
         }
       ]
     },
@@ -74,7 +74,7 @@
       "ability": 232,
       "when": [
         {
-          "healthPct": "\u003C=50"
+          "healthPct": "<=50"
         }
       ]
     },

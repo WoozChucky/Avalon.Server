@@ -141,7 +141,9 @@ public static partial class Simulation
             return Empty(RunStatus.Cancelled, overrides, [], plan.Seed, plan.Runs);
 
         GradeReport grades = Grader.Grade(rows, data, config.Scenarios, config.Targets);
-        return new RunResult(RunStatus.Done, rows, grades, rows.Select(r => r.Key).ToList(),
+        string gradedGear = config.Targets.GradedGear;
+        return new RunResult(RunStatus.Done, rows, grades,
+            rows.Select(r => r.Key).Where(k => string.Equals(k.Gear, gradedGear, StringComparison.Ordinal)).ToList(),
             new RunSummary(grades.Count(Grade.Green), grades.Count(Grade.Yellow), grades.Count(Grade.Red)),
             overrides, [], plan.Seed, plan.Runs);
     }

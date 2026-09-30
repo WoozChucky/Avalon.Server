@@ -73,4 +73,14 @@ public class ConfigSaveShould
         Assert.Contains("\"gradedGear\":", t);
         Assert.DoesNotContain("\"offset\"", s);
     }
+
+    [Fact]
+    public void Write_comparison_operators_literally()
+    {
+        (_, _, string rotations) = ConfigFiles.Save(TestData.Config());
+
+        Assert.Contains("\">=2\"", rotations);
+        Assert.DoesNotContain("\\" + "u003E", rotations, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\\" + "u003C", rotations, StringComparison.OrdinalIgnoreCase);
+    }
 }
