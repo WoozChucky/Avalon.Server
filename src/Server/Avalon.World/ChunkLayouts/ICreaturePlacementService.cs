@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.World.Entities;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
@@ -97,29 +98,45 @@ public class CreaturePlacementService : ICreaturePlacementService
                             0f,
                             (float)(rng.NextDouble() - 0.5) * 2.0f * SpawnSpreadRadius);
 
-                    var creatureInfo = new CreatureInfo
-                    {
-                        Position = spawnPos,
-                        PrototypeIndex = entry.CreatureId.Value,
-                    };
-                    // One bad row costs one creature, not the map. SpawnTableEntry rows are migration
-                    // SQL rather than model seed data, so a mistyped CreatureId cannot be caught by a
-                    // seed test — and this runs inside MapInstance construction, where a throw makes
-                    // the map unenterable for everyone. Same shape as AttachScript's own catch below.
-                    try
-                    {
-                        var creature = _spawner.Spawn(creatureInfo);
-                        AttachScript(creature, instance);
-                        instance.AddCreature(creature);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex,
-                            "Could not place creature {CreatureId} for slot tag '{Tag}' on map {MapId}; skipping it",
-                            entry.CreatureId, slot.Tag, cfg.MapTemplateId);
-                    }
+                    PlaceProcedural(instance, spawnPos, entry.CreatureId, slot.Tag, cfg.MapTemplateId);
                 }
             }
+        }
+    }
+
+    private void PlaceProcedural(
+        IMapInstance instance, Vector3 spawnPos, CreatureTemplateId creatureId, string tag, MapTemplateId mapId)
+    {
+        // One bad row costs one creature, not the map. SpawnTableEntry rows are migration
+        // SQL rather than model seed data, so a mistyped CreatureId cannot be caught by a
+        // seed test — and this runs inside MapInstance construction, where a throw makes
+        // the map unenterable for everyone. Same shape as AttachScript's own catch below.
+        try
+        {
+            // #720: the slot's height only centres the ground search, as an authored spawn's
+            // OffsetY does; a creature left at it floats, and its home (where a fight starts) is
+            // off the mesh.
+            if (!TryPutOnGround(instance.GetNavigatorForPosition(spawnPos), spawnPos, out Vector3 grounded))
+            {
+                _logger.LogWarning(
+                    "Spawn slot '{Tag}' puts creature {CreatureId} at {Position} on map {MapId}, with no navmesh within reach; skipping it",
+                    tag, creatureId, spawnPos, mapId);
+                return;
+            }
+
+            var creature = _spawner.Spawn(new CreatureInfo
+            {
+                Position = grounded,
+                PrototypeIndex = creatureId.Value,
+            });
+            AttachScript(creature, instance);
+            instance.AddCreature(creature);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Could not place creature {CreatureId} for slot tag '{Tag}' on map {MapId}; skipping it",
+                creatureId, tag, mapId);
         }
     }
 
@@ -171,6 +188,25 @@ public class CreaturePlacementService : ICreaturePlacementService
                     spawn.CreatureTemplateId, spawn.Id, mapTemplateId);
             }
         }
+    }
+
+    /// <summary>
+    /// Where a procedural spawn stands (#720): on the navmesh under <paramref name="slot" />, X/Z kept, or,
+    /// when the slot is just beside the mesh (a pack's spread pushed past its edge), on the mesh's nearest
+    /// point; false when no mesh is within the search box, and the creature is not placed. A map with no
+    /// navmesh keeps the slot as it is, as before. A navigator that cannot say whether it found ground
+    /// gets the authored path's snap, <see cref="IMapNavigator.SampleGroundHeight" />.
+    /// </summary>
+    private static bool TryPutOnGround(IMapNavigator navigator, Vector3 slot, out Vector3 position)
+    {
+        if (navigator is not IGroundNavigator groundNavigator)
+        {
+            position = slot;
+            position.y = navigator.SampleGroundHeight(slot.x, slot.y, slot.z);
+            return true;
+        }
+
+        return groundNavigator.FindGround(slot, out position) != NavmeshGroundKind.None;
     }
 
     /// <summary>
