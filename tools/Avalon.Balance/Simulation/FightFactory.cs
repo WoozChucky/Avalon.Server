@@ -1,9 +1,8 @@
 using Avalon.Balance.Config;
 using Avalon.Balance.Data;
 using Avalon.Balance.Running;
-using Avalon.Domain.World;
-using Avalon.World.Combat;
 using Avalon.Combat;
+using Avalon.Domain.World;
 
 namespace Avalon.Balance.Simulation;
 

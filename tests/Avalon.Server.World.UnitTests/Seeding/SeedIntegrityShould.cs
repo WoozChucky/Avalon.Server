@@ -1,9 +1,10 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
-using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Loot;
@@ -14,7 +15,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Seeding;
 

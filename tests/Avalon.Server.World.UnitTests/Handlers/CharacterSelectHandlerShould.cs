@@ -1,7 +1,5 @@
-using Avalon.World.Characters;
-using Avalon.Network.Packets.Abilities;
-using Avalon.Server.World.UnitTests.Loot;
 using System.IO;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
@@ -11,12 +9,15 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
+using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -32,7 +33,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using ProtoBuf;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 

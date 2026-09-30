@@ -1,4 +1,3 @@
-using Avalon.Combat;
 using Avalon.World.Public.Enums;
 using Xunit;
 

@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
@@ -21,7 +22,6 @@ using NSubstitute;
 using NSubstitute.Core;
 using ProtoBuf;
 using Xunit;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 

@@ -1,5 +1,4 @@
 using Avalon.Domain.World;
-using Avalon.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;

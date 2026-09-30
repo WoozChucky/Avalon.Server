@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -27,7 +28,6 @@ using DotRecast.Detour.Crowd;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Avalon.Combat;
 
 namespace Avalon.Benchmarking.CrowdBudget;
 

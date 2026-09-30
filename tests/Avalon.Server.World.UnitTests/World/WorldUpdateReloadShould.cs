@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
@@ -6,7 +7,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
-using Avalon.World.Creatures;
 using Avalon.World.Maps;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
@@ -15,7 +15,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.World;
 

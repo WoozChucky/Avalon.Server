@@ -1,18 +1,20 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Combat;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
+using Avalon.Database.World.Seeding;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Database.World.Seeding;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
-using Avalon.World.Entities;
+using Avalon.World.Pvp;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -20,8 +22,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
-using Avalon.World.Pvp;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

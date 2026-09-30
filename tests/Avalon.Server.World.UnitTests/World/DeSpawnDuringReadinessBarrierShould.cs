@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
@@ -21,7 +22,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.World;
 

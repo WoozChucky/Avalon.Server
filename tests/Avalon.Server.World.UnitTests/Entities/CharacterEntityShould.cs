@@ -1,6 +1,6 @@
+using Avalon.Combat;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.State;
-using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
@@ -8,7 +8,6 @@ using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

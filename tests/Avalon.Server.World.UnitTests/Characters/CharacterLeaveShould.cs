@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Combat;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -38,7 +39,6 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
+using Avalon.Combat;
 using Avalon.Database.World.Repositories;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
-using Avalon.World.Creatures;
 using Avalon.World.Dialogue;
 using Avalon.World.Localization;
 using Avalon.World.Loot;
@@ -12,7 +12,6 @@ using Avalon.World.Public.Localization;
 using Avalon.World.Reload;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
-using Avalon.Combat;
 
 namespace Avalon.World;
 

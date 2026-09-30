@@ -1,19 +1,18 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Characters;
-using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
-using NSubstitute;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

@@ -1,22 +1,22 @@
+using Avalon.Combat;
 using Avalon.Database;
 using Avalon.Database.Auth.Extensions;
-using Avalon.Database.Extensions;
 using Avalon.Database.Character.Extensions;
+using Avalon.Database.Extensions;
 using Avalon.Database.World.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.World;
 using Avalon.World.Chat;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
-using Avalon.World.Combat;
 using Avalon.World.Loot;
 using Avalon.World.Maps;
 using Avalon.World.Persistence;
-using Avalon.World.Quests;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
+using Avalon.World.Quests;
 using Avalon.World.Reload;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
@@ -24,7 +24,6 @@ using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.Extensions;
 

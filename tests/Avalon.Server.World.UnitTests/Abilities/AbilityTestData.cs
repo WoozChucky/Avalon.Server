@@ -1,9 +1,9 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Abilities;
 using Avalon.World.Public.Enums;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 

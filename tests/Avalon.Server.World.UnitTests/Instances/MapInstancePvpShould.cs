@@ -14,7 +14,6 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 

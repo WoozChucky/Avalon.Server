@@ -1,14 +1,13 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
-using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
 

@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Seeding;
@@ -17,7 +18,6 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 using Avalon.World.Pvp;
 using Avalon.World.Scripts.Creatures;
-using Avalon.Combat;
 
 namespace Avalon.World.Combat;
 

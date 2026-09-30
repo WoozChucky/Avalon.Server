@@ -1,4 +1,3 @@
-using Avalon.Combat;
 
 namespace Avalon.Combat.UnitTests;
 

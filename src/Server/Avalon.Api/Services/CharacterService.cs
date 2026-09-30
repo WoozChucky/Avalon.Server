@@ -1,12 +1,12 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
-using Avalon.Combat;
 
 namespace Avalon.Api.Services;
 

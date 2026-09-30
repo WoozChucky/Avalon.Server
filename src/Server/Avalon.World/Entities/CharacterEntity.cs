@@ -1,24 +1,23 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
+using Avalon.World.Abilities;
+using Avalon.World.Characters;
 using Avalon.World.Configuration;
+using Avalon.World.Inventory;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
-using Avalon.World.Abilities;
-using Avalon.World.Characters;
-using Avalon.World.Combat;
-using Avalon.World.Inventory;
-using Avalon.World.Persistence;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
-using Avalon.Combat;
 
 namespace Avalon.World.Entities;
 

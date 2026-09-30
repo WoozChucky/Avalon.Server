@@ -2,6 +2,7 @@ using System.Reflection;
 using Avalon.Balance.Config;
 using Avalon.Balance.Data;
 using Avalon.Balance.Simulation;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Database.World.Repositories;
@@ -17,7 +18,6 @@ using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Characters;
-using Avalon.World.Combat;
 using Avalon.World.Configuration;
 using Avalon.World.Creatures;
 using Avalon.World.Entities;
@@ -30,7 +30,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Balance;
 

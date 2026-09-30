@@ -1,24 +1,24 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.World.ChunkLayouts;
 using Avalon.Domain.Characters;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
-using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Combat;
-using Avalon.World.Public.Characters;
-using Avalon.World.Public.Creatures;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
+using Avalon.World.Public.Combat;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 

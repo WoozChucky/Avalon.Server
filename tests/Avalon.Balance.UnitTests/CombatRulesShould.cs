@@ -1,13 +1,12 @@
 using Avalon.Balance.Data;
 using Avalon.Balance.Simulation;
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
-using Avalon.World.Combat;
 using Avalon.World.Configuration;
 using Avalon.World.Public.Enums;
 using Xunit;
-using Avalon.Combat;
 
 namespace Avalon.Balance.UnitTests;
 

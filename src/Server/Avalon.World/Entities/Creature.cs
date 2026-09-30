@@ -1,14 +1,13 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
-using Avalon.World.Combat;
 using Avalon.World.Creatures;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
-using Avalon.Combat;
 
 namespace Avalon.World.Entities;
 

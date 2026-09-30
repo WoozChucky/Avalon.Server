@@ -1,4 +1,3 @@
-using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Public.Abilities;

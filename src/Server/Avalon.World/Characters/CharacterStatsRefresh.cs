@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Entities;
@@ -6,7 +7,6 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
-using Avalon.Combat;
 
 namespace Avalon.World.Characters;
 

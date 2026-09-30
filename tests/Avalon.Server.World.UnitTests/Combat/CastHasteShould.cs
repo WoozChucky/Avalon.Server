@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
@@ -13,7 +14,6 @@ using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

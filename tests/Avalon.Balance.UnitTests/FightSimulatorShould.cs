@@ -2,10 +2,9 @@ using System.Text.Json;
 using Avalon.Balance.Config;
 using Avalon.Balance.Data;
 using Avalon.Balance.Simulation;
-using Avalon.World.Combat;
+using Avalon.Combat;
 using Avalon.World.Public.Enums;
 using Xunit;
-using Avalon.Combat;
 
 namespace Avalon.Balance.UnitTests;
 

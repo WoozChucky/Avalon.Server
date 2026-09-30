@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
@@ -9,7 +10,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

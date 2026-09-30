@@ -1,15 +1,14 @@
-using Avalon.World.Public;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Database.Character.Repositories;
-using Avalon.World.Characters;
-using Avalon.World.Inventory;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.World.Inventory;
+using Avalon.World.Public;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
-using Avalon.Combat;
 
 namespace Avalon.World.Handlers;
 

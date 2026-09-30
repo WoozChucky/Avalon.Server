@@ -1,17 +1,16 @@
+using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World.Characters;
-using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
 using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

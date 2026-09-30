@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -10,7 +11,6 @@ using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
 using Avalon.World.Characters;
-using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -26,7 +26,6 @@ using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

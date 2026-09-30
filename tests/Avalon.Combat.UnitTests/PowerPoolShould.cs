@@ -1,5 +1,4 @@
 using Avalon.Network.Packets.State;
-using Avalon.Combat;
 
 namespace Avalon.Combat.UnitTests;
 

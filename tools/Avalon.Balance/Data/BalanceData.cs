@@ -1,12 +1,11 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
-using Avalon.World.Characters;
 using Avalon.World.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
-using Avalon.Combat;
 
 namespace Avalon.Balance.Data;
 

@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
@@ -18,7 +19,6 @@ using Avalon.World.Public.Units;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
-using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

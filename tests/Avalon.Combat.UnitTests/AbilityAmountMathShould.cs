@@ -1,4 +1,3 @@
-using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
 using Xunit;
