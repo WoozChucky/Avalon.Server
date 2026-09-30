@@ -28,6 +28,10 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     private readonly Dictionary<uint, ushort> _lastLevel = [];
     private readonly List<uint> _scratch = [];
     private readonly List<IWorldConnection> _due = [];
+
+    // Second marks the countdown is announced at, highest first (spec 2026-09-30 section 2).
+    private static readonly int[] CountdownMarks = [60, 30, 10, 5, 4, 3, 2, 1];
+    private readonly Dictionary<uint, PartyCountdown> _countdowns = [];
     private IPartyInstanceRegistry _instances = NoPartyInstances.Instance;
     private uint _lastPartyId;
 
@@ -250,14 +254,78 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             SendLine(member.Id.Value, text);
     }
 
-    // Task 7 fills these three in; until then a leave has no countdown.
-    private void OnCharacterOffline(uint characterId) { }
+    public bool InCountdown(uint characterId) => _countdowns.ContainsKey(characterId);
 
-    private void OnRemovedFromParty(uint characterId, Party party, PartyLeaveReason reason) { }
+    private void OnCharacterOffline(uint characterId) => _countdowns.Remove(characterId);
 
-    private void OnJoined(uint characterId, Party party) { }
+    /// <summary>
+    /// A character stopped being a member. Inside that party's instance it gets the leave countdown and is told why
+    /// in the same line; returns whether it did, so a disband does not tell it twice.
+    /// </summary>
+    private bool OnRemovedFromParty(uint characterId, Party party, PartyLeaveReason reason)
+    {
+        if (OnlineConnection(characterId)?.Character is not { } character
+            || !_instances.IsPartyInstance(party.Id, character.InstanceId))
+            return false;
 
-    private static void AdvanceCountdowns(DateTimeOffset now, List<IWorldConnection> due) { }
+        int grace = Config.PartyLeaveGraceSeconds;
+        int next = 0;
+        while (next < CountdownMarks.Length && CountdownMarks[next] >= grace)
+            next++;
+
+        _countdowns[characterId] = new PartyCountdown(character.InstanceId, party.Id,
+            time.GetUtcNow() + TimeSpan.FromSeconds(grace)) { NextMark = next };
+
+        string why = reason switch
+        {
+            PartyLeaveReason.Kicked => "You were removed from the party.",
+            PartyLeaveReason.Disbanded => "The party was disbanded.",
+            _ => "You left the party.",
+        };
+        SendLine(characterId, $"{why} Returning to town in {Seconds(grace)}.");
+        return true;
+    }
+
+    private void OnJoined(uint characterId, Party party)
+    {
+        if (_countdowns.TryGetValue(characterId, out PartyCountdown? countdown) && countdown.Party.Equals(party.Id))
+            _countdowns.Remove(characterId);
+    }
+
+    private void AdvanceCountdowns(DateTimeOffset now, List<IWorldConnection> due)
+    {
+        _scratch.Clear();
+        foreach ((uint id, PartyCountdown countdown) in _countdowns)
+        {
+            // Gone from that instance (a portal, a respawn in town, a transfer): nothing left to do.
+            if (OnlineConnection(id) is not { Character: { } character } connection || character.InstanceId != countdown.InstanceId)
+            {
+                _scratch.Add(id);
+                continue;
+            }
+
+            double remaining = (countdown.Deadline - now).TotalSeconds;
+            if (remaining <= 0)
+            {
+                _scratch.Add(id);
+                due.Add(connection);
+                continue;
+            }
+
+            int seconds = (int)Math.Ceiling(remaining);
+            int announce = 0;
+            while (countdown.NextMark < CountdownMarks.Length && seconds <= CountdownMarks[countdown.NextMark])
+                announce = CountdownMarks[countdown.NextMark++];
+
+            if (announce > 0)
+                SendLine(id, $"Returning to town in {Seconds(announce)}.");
+        }
+
+        foreach (uint id in _scratch)
+            _countdowns.Remove(id);
+    }
+
+    private static string Seconds(int n) => n == 1 ? "1 second" : $"{n} seconds";
 
     private Party? PartyForInvite(PartyInvite invite)
     {
@@ -329,8 +397,8 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             uint id = member.Id.Value;
             _partyOf.Remove(id);
             Detach(id);
-            SendLine(id, "The party was disbanded.");
-            OnRemovedFromParty(id, party, PartyLeaveReason.Disbanded);
+            if (!OnRemovedFromParty(id, party, PartyLeaveReason.Disbanded))
+                SendLine(id, "The party was disbanded.");
         }
 
         logger.LogInformation("Party {PartyId} disbanded", party.Id);
@@ -449,6 +517,14 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     private sealed record PartyInvite(uint InviterId, string InviterName, string TargetName, PartyId? PartyId,
         DateTimeOffset ExpiresAt);
+
+    private sealed class PartyCountdown(Guid instanceId, PartyId party, DateTimeOffset deadline)
+    {
+        public Guid InstanceId { get; } = instanceId;
+        public PartyId Party { get; } = party;
+        public DateTimeOffset Deadline { get; } = deadline;
+        public int NextMark { get; set; }
+    }
 
     private sealed class NoPartyInstances : IPartyInstanceRegistry
     {

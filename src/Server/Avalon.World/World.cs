@@ -468,6 +468,24 @@ public class World : IWorld
             _hotReloadTimer.Reset();
         }
 
+        // Party leave countdowns that ran out (2026-09-30): the character goes to its respawn town, alive or dead,
+        // and a dead one arrives revived as a respawn would. Resolved lazily: TownReturn depends on this World.
+        if (_parties is not null)
+        {
+            IReadOnlyList<IWorldConnection> due = _parties.Tick();
+            if (due.Count > 0 && _serviceProvider.GetService<TownReturn>() is { } town)
+            {
+                foreach (IWorldConnection connection in due)
+                {
+                    if (connection.RespawnInFlight || connection.Character is not { } character)
+                        continue;
+
+                    connection.RespawnInFlight = true;
+                    town.Start(connection, revive: character.IsDead, dropEncounter: true);
+                }
+            }
+        }
+
         // Each instance is contained and timed on its own (#639): one that throws is logged, and the
         // others, and the flushes after this update, still run.
         _instanceTicker.Tick(InstanceRegistry.ActiveInstances, deltaTime);

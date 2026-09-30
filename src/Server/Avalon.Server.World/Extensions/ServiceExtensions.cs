@@ -25,6 +25,7 @@ using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.World.Extensions;
 
@@ -92,6 +93,11 @@ public static class ServiceExtensions
         services.AddSingleton<IQuestProgress, NoQuestProgress>();
 
         services.AddSingleton<IRespawnTargetResolver, RespawnTargetResolver>();
+        services.AddSingleton(sp => new TownReturn(
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger<TownReturn>(),
+            sp.GetRequiredService<IWorld>(),
+            sp.GetRequiredService<IRespawnTargetResolver>(),
+            sp.GetRequiredService<IChunkLibrary>()));
 
         // Combat (Phase D): V1 uses default CombatConfig values. EncounterRegistry +
         // CombatService are constructed per MapInstance, not registered as singletons.
