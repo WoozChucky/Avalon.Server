@@ -1,10 +1,9 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Avalon.Balance.Core;
 using Avalon.Balance.Data;
 using Avalon.Balance.Service.Endpoints;
-using Microsoft.AspNetCore.Http.Features;
+using Avalon.Balance.Service.Runs;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Avalon.Balance.Service;
 
@@ -24,14 +23,13 @@ public static class BalanceServiceHost
             .ValidateOnStart();
 
         builder.Services.AddSingleton(_ => LoadHost());
+        builder.Services.TryAddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<RunQueue>();
+        builder.Services.AddHostedService<RunWorker>();
 
-        builder.Services.ConfigureHttpJsonOptions(o =>
-        {
-            o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-            o.SerializerOptions.DictionaryKeyPolicy = null;
-            o.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
-            o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-        });
+        // The server-wide limit: Kestrel refuses a bigger body with 413 before any handler reads it.
+        // The endpoints read and write JSON with BalanceJson.Options, the one set of options, not the host's.
+        builder.WebHost.ConfigureKestrel(k => k.Limits.MaxRequestBodySize = MaxRequestBodyBytes);
 
         builder.Services.AddResponseCompression(o =>
         {
@@ -44,15 +42,9 @@ public static class BalanceServiceHost
 
         app.MapDefaultEndpoints();
         app.UseMiddleware<SharedSecretMiddleware>();
-        app.Use((context, next) =>
-        {
-            IHttpMaxRequestBodySizeFeature? feature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
-            if (feature is { IsReadOnly: false })
-                feature.MaxRequestBodySize = MaxRequestBodyBytes;
-            return next(context);
-        });
         app.UseResponseCompression();
         app.MapCatalogEndpoints();
+        app.MapRunEndpoints();
 
         return app;
     }

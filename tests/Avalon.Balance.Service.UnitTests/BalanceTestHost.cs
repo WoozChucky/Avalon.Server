@@ -10,13 +10,30 @@ internal static class BalanceTestHost
 {
     public const string Secret = "0123456789abcdef0123456789abcdef-secret";
 
-    public static WebApplication Build(string? secret = Secret)
+    /// <summary>On TestServer. <paramref name="extra" /> adds configuration, e.g. <c>Balance:RunWorker</c>=false to pause the worker.</summary>
+    public static WebApplication Build(string? secret = Secret, IReadOnlyDictionary<string, string?>? extra = null)
+    {
+        WebApplicationBuilder builder = Create(secret, extra);
+        builder.WebHost.UseTestServer();
+        return BalanceServiceHost.Build(builder);
+    }
+
+    /// <summary>On the real Kestrel, on a free loopback port: the only way to see Kestrel's own limits.</summary>
+    public static WebApplication BuildKestrel(string? secret = Secret)
+    {
+        WebApplicationBuilder builder = Create(secret, null);
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        return BalanceServiceHost.Build(builder);
+    }
+
+    private static WebApplicationBuilder Create(string? secret, IReadOnlyDictionary<string, string?>? extra)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder(
             new WebApplicationOptions { EnvironmentName = Environments.Production });
-        builder.WebHost.UseTestServer();
         if (secret is not null)
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Balance:SharedSecret"] = secret });
-        return BalanceServiceHost.Build(builder);
+        if (extra is not null)
+            builder.Configuration.AddInMemoryCollection(extra);
+        return builder;
     }
 }

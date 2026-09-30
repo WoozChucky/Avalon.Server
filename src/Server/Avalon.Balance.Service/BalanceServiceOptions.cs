@@ -24,5 +24,8 @@ public sealed class BalanceServiceOptions
 
     public int MaxOverrides { get; set; } = 500;
 
+    /// <summary>False builds the worker paused: nothing drains the queue. A test seam.</summary>
+    public bool RunWorker { get; set; } = true;
+
     public TimeSpan ResultTtl { get; set; } = TimeSpan.FromHours(1);
 }
