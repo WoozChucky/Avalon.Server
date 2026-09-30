@@ -1,5 +1,5 @@
 name: Publish the server
-description: Publish the three servers, push their images and charts.
+description: Publish the servers, push their images and charts.
 inputs:
   version: { description: "Chart version and primary image tag", required: true }
   extra-tags: { description: "More image tags, one per line", required: false, default: "" }
@@ -12,9 +12,13 @@ runs:
       run: |
         set -euo pipefail
         # PublishReadyToRun infers a runtime identifier for World, so it cannot use --no-build.
-        dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -o src/Server/Avalon.Server.World/out
+        # SourceRevisionId becomes the +<sha> of the assembly's informational version, so it only takes effect on
+        # a publish that builds. The balance service reads it as the commit its exports branch from (without it
+        # exports answer 503), hence no --no-build for it.
+        dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -p:SourceRevisionId=${{ github.sha }} -o src/Server/Avalon.Server.World/out
         dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-build -o src/Server/Avalon.Server.Auth/out
         dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-build -o src/Server/Avalon.Api/out
+        dotnet publish src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj -c Release --no-restore -p:SourceRevisionId=${{ github.sha }} -o src/Server/Avalon.Balance.Service/out
     - uses: docker/login-action@v4.6.0
       with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ inputs.token }}" }
     - name: Build and push the images
@@ -26,7 +30,7 @@ runs:
         # what it still lacks, so three tries a few seconds apart ride that out.
         retry() { local n; for n in 1 2 3; do "$@" && return 0; [[ $n -lt 3 ]] && { echo "::warning::'$*' failed (attempt $n of 3); retrying"; sleep $((n * 10)); }; done; return 1; }
         revision="$(git rev-parse HEAD)"
-        for c in world:Avalon.Server.World auth:Avalon.Server.Auth api:Avalon.Api; do
+        for c in world:Avalon.Server.World auth:Avalon.Server.Auth api:Avalon.Api balance:Avalon.Balance.Service; do
           name="${c%%:*}"; project="${c#*:}"
           image="ghcr.io/woozchucky/avalon-server/$name"
           tags=(-t "$image:$VERSION")
@@ -46,6 +50,7 @@ runs:
         mkdir -p dist/charts
         # avalon-world last: its tag is what the nightly skip and Flux look for.
         for chart in src/Server/Avalon.Api/Helm/avalon-api src/Server/Avalon.Server.Auth/Helm/avalon-auth \
+                     src/Server/Avalon.Balance.Service/Helm/avalon-balance \
                      src/Server/Avalon.Server.World/Helm/avalon-world; do
           bash "$chart/ci/test.sh"
           helm package "$chart" --version "$VERSION" --app-version "$VERSION" -d dist/charts
