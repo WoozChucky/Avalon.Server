@@ -333,6 +333,11 @@ enum CharacterLeaveResult {
    CharacterLeaveResult_Selecting = 3;
    CharacterLeaveResult_AlreadyLeaving = 4;
 }
+enum ChatChannel {
+   ChatChannel_Say = 0;
+   ChatChannel_Party = 1;
+   ChatChannel_System = 2;
+}
 enum DialogueOptionKind {
    DialogueOptionKind_Conversation = 0;
    DialogueOptionKind_OpenBank = 1;
@@ -722,6 +727,7 @@ message SChatMessagePacket {
    optional string CharacterName = 3;
    optional string Message = 4;
    .bcl.DateTime DateTime = 5;
+   ChatChannel Channel = 6;
 }
 message SChunkLayoutPacket {
    int32 Seed = 1;

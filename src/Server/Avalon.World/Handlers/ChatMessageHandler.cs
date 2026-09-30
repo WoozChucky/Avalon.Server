@@ -1,12 +1,17 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Chat;
+using Avalon.World.Instances;
 using Avalon.World.Public;
 
 namespace Avalon.World.Handlers;
 
+/// <summary>
+/// A slash command runs on the tick; anything else is said aloud, to everyone in the sender's instance,
+/// the sender included (spec 2026-09-30 section 5).
+/// </summary>
 [PacketHandler(NetworkPacketType.CMSG_CHAT_MESSAGE)]
-public class ChatMessageHandler(IWorldServer worldServer, ICommandDispatcher commandDispatcher)
+public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatcher)
     : WorldPacketHandler<CChatMessagePacket>
 {
     public override void Execute(IWorldConnection connection, CChatMessagePacket packet)
@@ -15,45 +20,33 @@ public class ChatMessageHandler(IWorldServer worldServer, ICommandDispatcher com
 
         if (message.StartsWith('/'))
         {
-            // On the tick, to completion (spec 2026-09-30 section 5); a command's own async work comes
-            // back through CommandContext.Then.
             if (!commandDispatcher.Dispatch(connection, packet))
             {
-                connection.Send(SChatMessagePacket.Create(0UL, 0UL, "System", "Unknown command.", packet.DateTime,
+                connection.Send(SChatMessagePacket.System("Unknown command.", packet.DateTime,
                     connection.CryptoSession.Encrypt));
             }
 
             return;
         }
 
-        if (!connection.InGame)
+        if (connection.Character is not { } sender)
         {
             return;
         }
 
-        connection.Send(SChatMessagePacket.Create(
-            (ulong)(long)connection.AccountId!,
-            connection.Character!.Guid.Id,
-            connection.Character.Name,
-            message,
-            packet.DateTime,
-            connection.CryptoSession.Encrypt));
+        ulong accountId = connection.AccountId is { } account ? (ulong)account.Value : 0UL;
 
-        // TODO: Message should be sent to players in same instance as current connection, not all players in the world
-        //  Also, in the future, we need to have chat channels (local, global, party, trade, system)
-        foreach (IWorldConnection target in worldServer.Connections)
+        if (world.InstanceRegistry.GetInstanceById(sender.InstanceId) is not MapInstance instance)
         {
-            if (!target.InGame || target.AccountId == connection.AccountId)
-            {
-                continue;
-            }
+            // Nowhere to say it: the sender still sees its own line.
+            connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
+                connection.CryptoSession.Encrypt));
+            return;
+        }
 
-            target.Send(SChatMessagePacket.Create(
-                (ulong)(long)connection.AccountId!,
-                (ulong)connection.Character!.Guid.Id,
-                connection.Character.Name,
-                message,
-                packet.DateTime,
+        foreach (IWorldConnection target in instance.Connections)
+        {
+            target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
                 target.CryptoSession.Encrypt));
         }
     }

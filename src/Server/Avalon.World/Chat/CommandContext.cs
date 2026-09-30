@@ -17,8 +17,7 @@ public sealed class CommandContext(IWorldConnection connection, CChatMessagePack
 
     /// <summary>A system line to the caller.</summary>
     public void Reply(string message) =>
-        Connection.Send(SChatMessagePacket.Create(0UL, 0UL, "System", message, Packet.DateTime,
-            Connection.CryptoSession.Encrypt));
+        Connection.Send(SChatMessagePacket.System(message, Packet.DateTime, Connection.CryptoSession.Encrypt));
 
     /// <summary>Runs <paramref name="callback" /> on the tick once <paramref name="task" /> has succeeded.</summary>
     public void Then<T>(Task<T> task, Action<T> callback) =>

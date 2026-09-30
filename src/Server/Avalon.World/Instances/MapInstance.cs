@@ -213,6 +213,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IReadOnlyList<PortalInstance> Portals => _portals;
 
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
+
+    /// <summary>
+    /// Every connection whose character is in this instance. World-side, not on IMapInstance: the modding API
+    /// must not reach other players' connections. Tick thread only.
+    /// </summary>
+    public IEnumerable<IWorldConnection> Connections => _connections.Values;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
     public IHitQuery Hits => _hits;
