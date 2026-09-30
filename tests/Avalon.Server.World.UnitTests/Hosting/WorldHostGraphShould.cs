@@ -77,6 +77,8 @@ public class WorldHostGraphShould
             // this proves production supplies one.
             Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Parties.PartyService>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is GodModeCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PartyChatCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is InviteCommand);
 
             // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
             // every combat service reads the same values. The facing cone it once carried is gone

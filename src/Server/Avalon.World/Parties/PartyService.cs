@@ -49,6 +49,10 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public IWorldConnection? OnlineConnection(uint characterId) => _online.GetValueOrDefault(characterId);
 
+    /// <summary>The online character with this name, ignoring case and surrounding spaces, as an invite looks it up.</summary>
+    public IWorldConnection? OnlineConnectionByName(string name) =>
+        _onlineByName.TryGetValue(name.Trim(), out uint id) ? OnlineConnection(id) : null;
+
     /// <summary>The character moved to another instance (World.TransferPlayer): who shares an instance changed for its whole party.</summary>
     public void InstanceChanged(IWorldConnection connection)
     {

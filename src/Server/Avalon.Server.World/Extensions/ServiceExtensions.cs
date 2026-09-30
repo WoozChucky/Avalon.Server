@@ -109,6 +109,12 @@ public static class ServiceExtensions
         services.AddSingleton<PvpToggle>();
         services.AddSingleton<PartyService>();
         services.AddSingleton<ICommand, PvpCommand>();
+        services.AddSingleton<ICommand, InviteCommand>();
+        services.AddSingleton<ICommand, LeaveCommand>();
+        services.AddSingleton<ICommand, KickCommand>();
+        services.AddSingleton<ICommand, PromoteCommand>();
+        services.AddSingleton<ICommand, PartyExperienceCommand>();
+        services.AddSingleton<ICommand, PartyChatCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
 
         services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();
