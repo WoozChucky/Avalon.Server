@@ -6,6 +6,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
+using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
@@ -89,6 +90,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly VendorStocks _vendors = new();
 
     private readonly TimeProvider _time;
+
+    // Creature health scaling (2026-09-30), party instances only: set when someone enters or leaves, applied once at
+    // the start of the next Update, so several changes in one tick make one rescale and one message.
+    private double _healthFactor = 1d;
+    private bool _healthFactorOwed;
+    private int _presenceChanges;
+    private string? _presenceChange;
 
     /// <summary>The seeded combat formula, for an instance whose world has no reference data loaded (tests).</summary>
     private static readonly Avalon.Domain.World.CombatFormula SeededFormula = Avalon.Database.World.Seeding.CombatSeed.Formula();
@@ -235,6 +243,56 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public ICreatureLocomotion Locomotion => _locomotion;
     public IMeleeSlots MeleeSlots => _meleeSlots;
 
+    /// <summary>What every creature's maximum health is multiplied by now: 1 outside a party instance.</summary>
+    public double HealthFactor => _healthFactor;
+
+    /// <summary>1 + perExtraPlayer × (players − 1); 1 for one player or none.</summary>
+    public static double HealthFactorFor(int presentPlayers, float perExtraPlayer) =>
+        presentPlayers <= 1 ? 1d : 1d + perExtraPlayer * (double)(presentPlayers - 1);
+
+    /// <summary>In a party instance, owes a rescale at the start of the next Update, naming who came or went.</summary>
+    private void NotePresenceChange(ICharacter character, string verb)
+    {
+        if (OwnerPartyId is null)
+            return;
+
+        _healthFactorOwed = true;
+        _presenceChanges++;
+        _presenceChange = $"{character.Name} has {verb}.";
+    }
+
+    /// <summary>
+    /// Rescales every living creature to the players present (alive or dead, a leave countdown included) and tells
+    /// everyone here, once. Before the creature scripts, so this tick's fights read the new health.
+    /// </summary>
+    private void ApplyHealthFactor()
+    {
+        int changes = _presenceChanges;
+        string? change = _presenceChange;
+        _healthFactorOwed = false;
+        _presenceChanges = 0;
+        _presenceChange = null;
+
+        int players = _characters.Count;
+        double factor = HealthFactorFor(players, _world.Configuration.PartyHealthPerExtraPlayer);
+        if (Math.Abs(factor - _healthFactor) < 1e-9)
+            return;
+
+        _healthFactor = factor;
+        foreach (ICreature creature in _creatures.Values)
+        {
+            if (creature is Creature scaled)
+                scaled.Rescale(factor);
+        }
+
+        int percent = (int)Math.Round(factor * 100, MidpointRounding.AwayFromZero);
+        string text = (changes == 1 && change is not null ? change + " " : string.Empty)
+                      + $"Creatures now have {percent}% health ({players} {(players == 1 ? "player" : "players")}).";
+        DateTime now = _time.GetUtcNow().UtcDateTime;
+        foreach (IWorldConnection connection in _connections.Values)
+            connection.Send(SChatMessagePacket.System(text, now, connection.CryptoSession.Encrypt));
+    }
+
     public bool IsExpired(TimeSpan expiry) =>
         LastEmptyAt.HasValue && (_time.GetUtcNow().UtcDateTime - LastEmptyAt.Value) >= expiry;
 
@@ -331,6 +389,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootSnapshotOwed.Add(connection.Character.Guid);
         _pvpStateOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
+
+        NotePresenceChange(connection.Character, "entered");
     }
 
     public void RemoveCharacter(IWorldConnection connection)
@@ -373,6 +433,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _broadcastStates.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
         _pvpStateOwed.Remove(guid);
+        NotePresenceChange(character, "left");
 
         if (_characters.Count == 0)
         {
@@ -420,6 +481,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         _creatures[creature.Guid] = creature;
         _locomotion.Register(creature, _creatureAgentRadius);
+
+        // A creature spawned later in a party instance starts at the health the players here make.
+        if (_healthFactor != 1d && creature is Creature scaled)
+            scaled.Rescale(_healthFactor);
     }
 
     public void RemoveCreature(ICreature creature)
@@ -680,6 +745,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _abilityCastSystem.DropFinished();
             return;
         }
+
+        if (_healthFactorOwed)
+            ApplyHealthFactor();
 
         _lastBroadcastTime += (float)deltaTime.TotalSeconds;
 
