@@ -42,8 +42,8 @@ Every config file refuses a field it does not know, so a typo stops the run inst
 ## What the simulator models, and what it does not
 
 - Every number comes from the server's code: `CharacterStatsCalculator`, `CreatureStatDeriver`, `HitResolver`,
-  `Haste`, `AbilityCost`, `AbilityAmounts`, `PowerRegen`, `PowerPool` (power gains and which pool a reset empties)
-  and `HealRules` (a heal's cap). Only the order of events in a tick is the simulator's own, and
+  `Haste`, `AbilityCost`, `AbilityAmounts`, `PowerRegen`, `PowerPool` (power gains and which pool a reset empties),
+  `Fury.FromDamageTaken` (Fury from damage taken) and `HealRules` (a heal's cap). Only the order of events in a tick is the simulator's own, and
   `SimulatorParityShould` (World unit tests) pins it against `CombatService` and the cast system.
 - One step is one server tick (1/60 s). Mana and Energy regenerate at the in-combat rate (`stat x 0.05` a second),
   the fraction of a point carried between ticks as the server carries it, unless a cast-time cast was in progress
