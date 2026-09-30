@@ -31,6 +31,7 @@ using Microsoft.Extensions.Options;
 using Avalon.Network.Packets.State;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
+using Avalon.Combat;
 
 namespace Avalon.World.Handlers;
 

@@ -4,6 +4,7 @@ using Avalon.World.Characters;
 using Avalon.World.Combat;
 using Avalon.World.Creatures;
 using Xunit;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

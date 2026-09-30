@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Combat;
 using Avalon.World.Creatures;
+using Avalon.Combat;
 
 namespace Avalon.Balance.Simulation;
 

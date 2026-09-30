@@ -18,6 +18,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
+using Avalon.Combat;
 
 namespace Avalon.World.Entities;
 

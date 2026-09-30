@@ -24,6 +24,7 @@ using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.Extensions;
 

@@ -3,6 +3,7 @@ using Avalon.World.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
+using Avalon.Combat;
 
 namespace Avalon.World.Creatures;
 

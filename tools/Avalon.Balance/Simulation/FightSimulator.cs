@@ -8,6 +8,7 @@ using Avalon.World.Combat;
 using Avalon.World.Configuration;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
+using Avalon.Combat;
 
 namespace Avalon.Balance.Simulation;
 

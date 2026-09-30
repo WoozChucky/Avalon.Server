@@ -26,6 +26,7 @@ using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

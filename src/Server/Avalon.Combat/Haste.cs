@@ -1,4 +1,4 @@
-namespace Avalon.World.Combat;
+namespace Avalon.Combat;
 
 /// <summary>
 /// The one haste rule (#627): a time becomes <c>time / (1 + haste / 100)</c>, haste in percentage points and

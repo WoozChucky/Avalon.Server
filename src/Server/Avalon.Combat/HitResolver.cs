@@ -2,7 +2,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Abilities;
 
-namespace Avalon.World.Combat;
+namespace Avalon.Combat;
 
 /// <summary>
 /// What the attacking side of a hit brings (#506). Chances are percentage points. WeaponMin..WeaponMax is

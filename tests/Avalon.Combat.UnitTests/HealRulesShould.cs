@@ -1,6 +1,6 @@
-using Avalon.World.Combat;
+using Avalon.Combat;
 
-namespace Avalon.Server.World.UnitTests.Combat;
+namespace Avalon.Combat.UnitTests;
 
 /// <summary>A heal never raises health past the maximum, and never lowers health already above it (#548).</summary>
 public class HealRulesShould

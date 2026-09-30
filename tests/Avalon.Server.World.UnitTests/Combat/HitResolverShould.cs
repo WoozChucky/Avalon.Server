@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Xunit;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

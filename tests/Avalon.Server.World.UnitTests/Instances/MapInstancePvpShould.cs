@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
@@ -39,7 +40,7 @@ public class MapInstancePvpShould
         _toggle = new PvpToggle(Options.Create(new GameConfiguration { PvpOffDelay = TimeSpan.FromMinutes(5) }), _clock);
 
     /// <summary>The instance, its combat service and the test share one toggle and one clock.</summary>
-    private MapInstance Build(MapType mapType = MapType.Normal, Avalon.World.Combat.ICombatRandom? random = null) =>
+    private MapInstance Build(MapType mapType = MapType.Normal, Avalon.Combat.ICombatRandom? random = null) =>
         TestMapInstances.Build(NewWorld(), pvp: _toggle, mapType: mapType, random: random);
 
     /// <summary>Both characters flagged with a running off timer, at full health.</summary>

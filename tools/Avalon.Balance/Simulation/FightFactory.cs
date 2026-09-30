@@ -3,6 +3,7 @@ using Avalon.Balance.Data;
 using Avalon.Balance.Running;
 using Avalon.Domain.World;
 using Avalon.World.Combat;
+using Avalon.Combat;
 
 namespace Avalon.Balance.Simulation;
 

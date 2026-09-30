@@ -13,6 +13,7 @@ using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Avalon.Combat;
 
 namespace Avalon.World.Abilities;
 

@@ -1,4 +1,4 @@
-namespace Avalon.World.Combat;
+namespace Avalon.Combat;
 
 /// <summary>The Fury rules that are pure arithmetic (#526).</summary>
 public static class Fury

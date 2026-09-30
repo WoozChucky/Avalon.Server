@@ -4,6 +4,7 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Characters;
 using Avalon.World.Combat;
 using Avalon.World.Public.Enums;
+using Avalon.Combat;
 
 namespace Avalon.Balance.Simulation;
 

@@ -6,6 +6,7 @@ using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Scripts.Abilities;
 using Xunit;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 

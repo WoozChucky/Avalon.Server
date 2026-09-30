@@ -37,6 +37,7 @@ using Avalon.World.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Avalon.Combat;
 
 namespace Avalon.World.Instances;
 

@@ -3,6 +3,7 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
+using Avalon.Combat;
 
 namespace Avalon.World.Abilities;
 

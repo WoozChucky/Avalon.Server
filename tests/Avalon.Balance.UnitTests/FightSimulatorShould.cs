@@ -5,6 +5,7 @@ using Avalon.Balance.Simulation;
 using Avalon.World.Combat;
 using Avalon.World.Public.Enums;
 using Xunit;
+using Avalon.Combat;
 
 namespace Avalon.Balance.UnitTests;
 

@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.World.Combat;
+using Avalon.Combat;
 
 namespace Avalon.World.Characters;
 

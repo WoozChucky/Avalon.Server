@@ -7,6 +7,7 @@ using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
+using Avalon.Combat;
 
 namespace Avalon.Balance.Simulation;
 

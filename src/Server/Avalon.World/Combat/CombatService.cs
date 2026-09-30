@@ -17,6 +17,7 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 using Avalon.World.Pvp;
 using Avalon.World.Scripts.Creatures;
+using Avalon.Combat;
 
 namespace Avalon.World.Combat;
 

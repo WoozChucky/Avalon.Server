@@ -1,6 +1,6 @@
 using Avalon.Network.Packets.State;
 
-namespace Avalon.World.Combat;
+namespace Avalon.Combat;
 
 /// <summary>The power-pool rules that are pure arithmetic (#526): what a gain adds and which pool a reset empties.</summary>
 public static class PowerPool

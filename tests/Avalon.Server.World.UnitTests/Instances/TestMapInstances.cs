@@ -15,6 +15,7 @@ using Avalon.World.Pvp;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 

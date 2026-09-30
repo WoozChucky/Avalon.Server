@@ -8,6 +8,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
+using Avalon.Combat;
 
 namespace Avalon.World.Entities;
 
