@@ -7,6 +7,7 @@ using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Loot;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -109,6 +110,58 @@ public class CharacterEntityRegenShould
         entity.Update(TimeSpan.FromSeconds(1));
 
         Assert.Equal(100u, entity.CurrentHealth);
+    }
+
+    [Fact]
+    public void Update_RegeneratesHealth_OutOfCombat_AtTheConfiguredRate_AtTheServerTick()
+    {
+        // Default rate: 22 Stamina x 0.5 = 11 health a second out of combat. The old per-tick floor gave a whole
+        // point every 1/60 s tick, 60 a second.
+        var entity = MakeCharacter(health: 200, currentHealth: 100, stamina: 22);
+
+        for (int tick = 0; tick < 60; tick++)
+            entity.Update(TimeSpan.FromSeconds(1d / 60d));
+
+        Assert.Equal(111u, entity.CurrentHealth);
+    }
+
+    [Fact]
+    public void Update_DropsTheCarriedHealthFraction_WhenHealthIsFull()
+    {
+        // 23 x 0.5 = 11.5 a second: 1.9 s from 199 fills the pool and leaves 0.85 carried.
+        var entity = MakeCharacter(health: 200, currentHealth: 199, stamina: 23);
+        entity.Update(TimeSpan.FromSeconds(1.9));
+        Assert.Equal(200u, entity.CurrentHealth);
+
+        entity.Update(TimeSpan.FromSeconds(1d / 60d));   // full: the 0.85 is dropped, never banked
+        entity.CurrentHealth = 150;
+        entity.Update(TimeSpan.FromSeconds(1d / 60d));   // 0.19 owed: no whole point yet (0.85 kept would give 151)
+
+        Assert.Equal(150u, entity.CurrentHealth);
+    }
+
+    [Fact]
+    public void Update_DropsTheCarriedHealthFraction_InCombat()
+    {
+        // 23 x 0.5 = 11.5 a second: one second from 100 leaves 0.5 carried; combat must drop it.
+        var clock = new FixedTimeProvider(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero));
+        var entity = new CharacterEntity(NullLoggerFactory.Instance, new Character { Id = 1u, Health = 200 },
+            new RegenConfiguration(), clock);
+        entity.CurrentHealth = 100;
+        entity.Stamina = 23;
+        entity.Spells.Load(Array.Empty<IAbility>());
+        entity.Update(TimeSpan.FromSeconds(1));
+        Assert.Equal(111u, entity.CurrentHealth);
+
+        entity.MarkCombat();
+        entity.Update(TimeSpan.FromSeconds(1d / 60d));   // in combat: no regen, the 0.5 is dropped
+        clock.Now += TimeSpan.FromSeconds(10);            // out of combat again
+
+        // 30 ticks give 5.75: 5 points; with the 0.5 kept it would be 6.25, 6 points.
+        for (int tick = 0; tick < 30; tick++)
+            entity.Update(TimeSpan.FromSeconds(1d / 60d));
+
+        Assert.Equal(116u, entity.CurrentHealth);
     }
 
     // ──────────────────────────────────────────────
@@ -217,6 +270,35 @@ public class CharacterEntityRegenShould
         entity.Update(TimeSpan.FromSeconds(1));
 
         Assert.Equal(100u, entity.CurrentPower!.Value);
+    }
+
+    [Fact]
+    public void Update_RegeneratesMana_InCombat_AtTheConfiguredRate_AtTheServerTick()
+    {
+        // Default rates: 23 Intellect x 0.05 = 1.15 Mana a second in combat. The old per-tick floor gave a whole point
+        // every 1/60 s tick, 60 a second, and filled this pool within a second.
+        var entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 23, powerType: PowerType.Mana);
+        entity.MarkCombat();
+
+        for (int tick = 0; tick < 60; tick++)
+            entity.Update(TimeSpan.FromSeconds(1d / 60d));
+
+        Assert.Equal(51u, entity.CurrentPower!.Value);
+    }
+
+    [Fact]
+    public void Update_DropsTheCarriedFraction_WhenThePoolIsFull()
+    {
+        // Out of combat, 23 x 0.3 = 6.9 a second: one second from 99 fills the pool and leaves 0.9 carried.
+        var entity = MakeCharacter(power: 100, currentPower: 99, regenStat: 23, powerType: PowerType.Mana);
+        entity.Update(TimeSpan.FromSeconds(1));
+        Assert.Equal(100u, entity.CurrentPower!.Value);
+
+        entity.Update(TimeSpan.FromSeconds(1d / 60d));   // full: the 0.9 is dropped, never banked
+        entity.CurrentPower = 50;
+        entity.Update(TimeSpan.FromSeconds(1d / 60d));   // 0.115 owed: no whole point yet (0.9 kept would give 51)
+
+        Assert.Equal(50u, entity.CurrentPower!.Value);
     }
 
     // ──────────────────────────────────────────────
