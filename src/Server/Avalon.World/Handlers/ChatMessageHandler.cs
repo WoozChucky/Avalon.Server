@@ -15,21 +15,13 @@ public class ChatMessageHandler(IWorldServer worldServer, ICommandDispatcher com
 
         if (message.StartsWith('/'))
         {
-            WorldPacketContext<CChatMessagePacket> ctx = new() { Packet = packet, Connection = connection };
-
-            connection.EnqueueContinuation(
-                commandDispatcher.DispatchAsync(ctx),
-                dispatched =>
-                {
-                    if (!dispatched)
-                    {
-                        connection.Send(SChatMessagePacket.Create(
-                            0UL, 0UL, "System",
-                            "Unknown command.",
-                            packet.DateTime,
-                            connection.CryptoSession.Encrypt));
-                    }
-                });
+            // On the tick, to completion (spec 2026-09-30 section 5); a command's own async work comes
+            // back through CommandContext.Then.
+            if (!commandDispatcher.Dispatch(connection, packet))
+            {
+                connection.Send(SChatMessagePacket.Create(0UL, 0UL, "System", "Unknown command.", packet.DateTime,
+                    connection.CryptoSession.Encrypt));
+            }
 
             return;
         }

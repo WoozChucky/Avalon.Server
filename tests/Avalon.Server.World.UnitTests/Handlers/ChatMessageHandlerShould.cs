@@ -27,17 +27,6 @@ public class ChatMessageHandlerShould
         _senderConnection.AccountId.Returns(new AccountId(1));
         _senderConnection.InGame.Returns(true);
 
-        // Make AddQueryCallback invoke the callback synchronously so tests can assert results
-        _senderConnection
-            .When(c => c.EnqueueContinuation(Arg.Any<Task<bool>>(), Arg.Any<Action<bool>>()))
-            .Do(ci =>
-            {
-                var task = ci.Arg<Task<bool>>();
-                var callback = ci.Arg<Action<bool>>();
-                task.Wait();
-                callback(task.Result);
-            });
-
         _worldServer.Connections.Returns(ImmutableArray<IWorldConnection>.Empty);
         _handler = new ChatMessageHandler(_worldServer, _commandDispatcher);
     }
@@ -48,19 +37,18 @@ public class ChatMessageHandlerShould
     [Fact]
     public void Dispatch_SlashCommand_To_CommandDispatcher()
     {
-        _commandDispatcher.DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>())
+        _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>())
             .Returns(true);
 
         _handler.Execute(_senderConnection, MakePacket("/invite PlayerOne"));
 
-        _commandDispatcher.Received(1)
-            .DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>());
+        _commandDispatcher.Received(1).Dispatch(_senderConnection, Arg.Any<CChatMessagePacket>());
     }
 
     [Fact]
     public void Send_System_Error_When_Command_Not_Found()
     {
-        _commandDispatcher.DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>())
+        _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>())
             .Returns(false);
 
         _handler.Execute(_senderConnection, MakePacket("/unknown"));
@@ -71,7 +59,7 @@ public class ChatMessageHandlerShould
     [Fact]
     public void Not_Broadcast_When_Message_Is_Command()
     {
-        _commandDispatcher.DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>())
+        _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>())
             .Returns(true);
 
         var otherConnection = Substitute.For<IWorldConnection>();

@@ -1,5 +1,4 @@
 using Avalon.Common.Accounts;
-using Avalon.Network.Packets.Social;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 
@@ -21,14 +20,13 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
     public string[] Aliases => [];
     public AccountAccessLevel RequiredAccess => AccessLevels.GameMaster;
 
-    public async Task ExecuteAsync(WorldPacketContext<CChatMessagePacket> ctx, string[] args,
-        CancellationToken token = default)
+    public void Execute(CommandContext ctx, string[] args)
     {
         string requested = args.Length == 0 ? string.Empty : args[0].ToLowerInvariant();
 
         if (requested is "maps" or "chunks")
         {
-            Reply(ctx, MapsRefusal);
+            ctx.Reply(MapsRefusal);
             return;
         }
 
@@ -41,20 +39,22 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
 
         if (areas is null)
         {
-            Reply(ctx, Usage);
+            ctx.Reply(Usage);
             return;
         }
 
-        ReloadReport report = await reloader.ReloadAsync(areas, token);
-
-        logger.LogInformation("Account {AccountId} reloaded {Areas}: {Outcomes}",
-            ctx.Connection.AccountId, string.Join(",", areas),
-            string.Join(", ", report.Outcomes.Select(o => $"{o.Area}={(o.Succeeded ? "ok" : "failed")}")));
-
-        foreach (ReloadOutcome outcome in report.Outcomes)
+        // The reload reads the database off the tick; its report is answered on a later tick.
+        ctx.Then(reloader.ReloadAsync(areas, CancellationToken.None), report =>
         {
-            Reply(ctx, Describe(outcome));
-        }
+            logger.LogInformation("Account {AccountId} reloaded {Areas}: {Outcomes}",
+                ctx.Connection.AccountId, string.Join(",", areas),
+                string.Join(", ", report.Outcomes.Select(o => $"{o.Area}={(o.Succeeded ? "ok" : "failed")}")));
+
+            foreach (ReloadOutcome outcome in report.Outcomes)
+            {
+                ctx.Reply(Describe(outcome));
+            }
+        });
     }
 
     private static string Describe(ReloadOutcome outcome)
@@ -79,12 +79,5 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
             ReloadArea.Combat => line + " Affects the next hit; a character's stats change at its next select, gear change or level-up.",
             _ => line
         };
-    }
-
-    private static void Reply(WorldPacketContext<CChatMessagePacket> ctx, string message)
-    {
-        // Safe off the tick thread: both outboxes are created with SingleWriter = false.
-        ctx.Connection.Send(SChatMessagePacket.Create(
-            0UL, 0UL, "System", message, ctx.Packet.DateTime, ctx.Connection.CryptoSession.Encrypt));
     }
 }
