@@ -57,6 +57,10 @@ public sealed class TargetFile
         if (!ids.Contains(Global.ResourceScenario))
             throw new InvalidDataException($"targets: global resourceScenario '{Global.ResourceScenario}' is not in scenarios.json");
         CheckBand(Global.KillsPerLevel, "global killsPerLevel");
+
+        double tol = YellowTolerancePct;
+        if (!(tol >= 0d) || double.IsInfinity(tol))
+            throw new InvalidDataException($"targets: yellowTolerancePct must be a finite 0 or more, not {tol}");
     }
 
     private static void CheckBand(Band? band, string name)

@@ -138,7 +138,7 @@ public class GraderShould
         targets.YellowTolerancePct = -1;
 
         Assert.Contains("yellowTolerancePct",
-            Assert.Throws<InvalidDataException>(() => Grader.Grade([], TestData.Seeded, Scenarios(), targets)).Message,
+            Assert.Throws<InvalidDataException>(() => targets.Validate(Scenarios())).Message,
             StringComparison.Ordinal);
     }
 

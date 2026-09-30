@@ -32,12 +32,10 @@ public static class Grader
     /// Grades each row of <see cref="TargetFile.GradedGear" /> against its scenario's bands, then the global checks
     /// (flat curve, class parity, resource flow) over those rows only, and the levelling pace from the data alone.
     /// </summary>
-    /// <exception cref="InvalidDataException">yellowTolerancePct is negative or not a number.</exception>
+    /// <remarks>The targets must have passed <see cref="TargetFile.Validate" />, which checks yellowTolerancePct.</remarks>
     public static GradeReport Grade(IReadOnlyList<RowResult> rows, BalanceData data, ScenarioFile scenarios, TargetFile targets)
     {
         double tol = targets.YellowTolerancePct;
-        if (!(tol >= 0d) || double.IsInfinity(tol))
-            throw new InvalidDataException($"targets: yellowTolerancePct must be a finite 0 or more, not {tol}");
         GlobalTargets g = targets.Global;
         List<RowResult> graded = rows.Where(r => string.Equals(r.Key.Gear, targets.GradedGear, StringComparison.Ordinal)).ToList();
         var metrics = new List<GradedMetric>();
