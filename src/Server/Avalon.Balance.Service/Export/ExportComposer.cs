@@ -37,24 +37,11 @@ public static partial class ExportComposer
     {
         string title = (request.Title ?? "").Trim();
         var issues = new List<IssueDto>();
-        if (title.Length == 0)
-            issues.Add(new IssueDto("title", "title is required"));
-        else if (title.Length > MaxTitleLength)
-            issues.Add(new IssueDto("title", $"title must be {MaxTitleLength} characters or fewer"));
-        else if (title.Any(char.IsControl))
-            issues.Add(new IssueDto("title", "title must be one line"));
+        if (TitleIssue(title) is { } titleIssue)
+            issues.Add(titleIssue);
 
         Dictionary<string, JsonElement> given = request.Overrides ?? [];
-        OverrideReport report = OverrideReport.None;
-        try
-        {
-            report = Overrides.Apply(host.Seed.Clone(), JsonSerializer.SerializeToElement(given));
-        }
-        catch (InvalidDataException e)
-        {
-            Match key = OverrideKey().Match(e.Message);
-            issues.Add(new IssueDto(key.Success ? $"overrides.{key.Groups[1].Value}" : "overrides", e.Message));
-        }
+        OverrideReport report = ApplyOverrides(host, given, issues);
 
         BalanceConfig config = host.Defaults;
         if (request.Config is { } configDto)
@@ -101,6 +88,32 @@ public static partial class ExportComposer
         return new ExportResultDto(url, branch);
     }
 
+    private static OverrideReport ApplyOverrides(BalanceHost host, Dictionary<string, JsonElement> given, List<IssueDto> issues)
+    {
+        try
+        {
+            return Overrides.Apply(host.Seed.Clone(), JsonSerializer.SerializeToElement(given));
+        }
+        catch (InvalidDataException e)
+        {
+            Match key = OverrideKey().Match(e.Message);
+            issues.Add(new IssueDto(key.Success ? $"overrides.{key.Groups["key"].Value}" : "overrides", e.Message));
+            return OverrideReport.None;
+        }
+    }
+
+    private static IssueDto? TitleIssue(string title)
+    {
+        if (title.Length == 0)
+            return new IssueDto("title", "title is required");
+        if (title.Length > MaxTitleLength)
+            return new IssueDto("title", $"title must be {MaxTitleLength} characters or fewer");
+        // Any control or Unicode line/paragraph separator (U+2028, U+2029, U+0085, CR, LF) would split the commit message.
+        return title.Any(c => char.IsControl(c) || char.GetUnicodeCategory(c) is UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator)
+            ? new IssueDto("title", "title must be one line")
+            : null;
+    }
+
     /// <summary>Flat JSON, sorted by key, indented by 2, ending with a newline; an empty map is <c>{}</c>.</summary>
     private static string OverridesText(Dictionary<string, JsonElement> given, HashSet<string> stale)
     {
@@ -137,7 +150,7 @@ public static partial class ExportComposer
     {
         var sb = new StringBuilder();
         if (!string.IsNullOrWhiteSpace(notes))
-            sb.Append(notes.Trim()).Append("\n\n");
+            sb.Append(DefuseNotes(notes.Trim())).Append("\n\n");
 
         if (report.Applied.Count > 0)
         {
@@ -157,8 +170,8 @@ public static partial class ExportComposer
             sb.Append("## Simulation\n\n")
                 .Append(CultureInfo.InvariantCulture, $"Summary: green {run.Summary.Green}, yellow {run.Summary.Yellow}, red {run.Summary.Red}\n\n");
             MetricDto[] worst = run.Metrics
-                .Where(m => m.Grade != "Green")
-                .OrderByDescending(m => m.Grade == "Red" ? 2 : 1)
+                .Where(m => !string.Equals(m.Grade, "Green", StringComparison.Ordinal))
+                .OrderByDescending(m => string.Equals(m.Grade, "Red", StringComparison.Ordinal) ? 2 : 1)
                 .ThenByDescending(Severity)
                 .Take(WorstMetrics)
                 .ToArray();
@@ -177,6 +190,14 @@ public static partial class ExportComposer
         sb.Append(PlayerNote).Append('\n');
         return sb.ToString();
     }
+
+    /// <summary>
+    /// The release-notes parser takes the first line matching <c>player note:</c> (case-insensitive, after optional whitespace or
+    /// <c>&gt;*-</c>), so user notes must not contain one. A backslash before the colon breaks the match for every spelling and
+    /// position (the parser needs the literal text <c>note:</c>), and Markdown renders a backslash-colon as a plain colon.
+    /// It is applied anywhere in the text, not only at line starts, so odd line separators cannot hide a match.
+    /// </summary>
+    internal static string DefuseNotes(string notes) => PlayerNotePhrase().Replace(notes, "${phrase}\\:");
 
     /// <summary>How far out, relative to the edge crossed; a missing value counts as the farthest.</summary>
     private static double Severity(MetricDto m)
@@ -222,9 +243,12 @@ public static partial class ExportComposer
         }
     }
 
-    [GeneratedRegex("[^a-z0-9]+")]
+    [GeneratedRegex(@"(?<phrase>player\s+note)\s*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex PlayerNotePhrase();
+
+    [GeneratedRegex("[^a-z0-9]+", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex NonSlug();
 
-    [GeneratedRegex(@"^Override '([^']+)'")]
+    [GeneratedRegex(@"^Override '(?<key>[^']+)'", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex OverrideKey();
 }

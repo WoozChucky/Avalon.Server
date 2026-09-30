@@ -72,7 +72,7 @@ public sealed class GitHubRest(HttpClient http) : IGitHub
 
     public async Task PutFileAsync(string branch, string path, string text, string? existingSha, string message, CancellationToken ct)
     {
-        var body = new Dictionary<string, string>
+        var body = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["message"] = message,
             ["content"] = Convert.ToBase64String(Utf8NoBom.GetBytes(text)),

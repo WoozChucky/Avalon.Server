@@ -245,6 +245,38 @@ public class ExportComposerShould
     }
 
     [Fact]
+    public async Task Leave_the_closing_line_as_the_only_player_note_line_whatever_the_notes_say()
+    {
+        FakeGitHub github = GitHubWithDefaults();
+        string notes = "Player note: Added X.\n  > player NOTE: y\n- Player   Note : z\r\nsee also PLAYER NOTE: inline";
+
+        await Compose(Request(overrides: """{"Ability.201.EffectValue":18}""", notes: notes), github);
+
+        string body = github.PullRequests.Single().Body;
+        string[] matching = body.Split('\n').Where(l => System.Text.RegularExpressions.Regex.IsMatch(l, "(?i)player note:")).ToArray();
+        Assert.Equal(["Player note: No gameplay changes: balance tuning proposal."], matching);
+        Assert.Contains("Added X.", body);
+        Assert.Contains("inline", body);
+    }
+
+    [Theory]
+    [InlineData(0x2028)]
+    [InlineData(0x2029)]
+    [InlineData(0x85)]
+    [InlineData(0x0D)]
+    public async Task Refuse_a_title_with_any_line_separator(int separator)
+    {
+        string title = "two" + (char)separator + "lines";
+        FakeGitHub github = GitHubWithDefaults();
+
+        ExportInvalidException e = await Assert.ThrowsAsync<ExportInvalidException>(() =>
+            Compose(Request(title: title, overrides: """{"Ability.201.EffectValue":18}"""), github));
+
+        Assert.Contains(e.Issues, i => i.Path == "title");
+        Assert.Empty(github.Calls);
+    }
+
+    [Fact]
     public async Task Add_the_run_summary_and_its_ten_worst_metrics_to_the_body()
     {
         FakeGitHub github = GitHubWithDefaults();
