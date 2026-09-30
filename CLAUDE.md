@@ -351,7 +351,9 @@ It reads the seed from `WorldDbContext`'s design-time model (`IDesignTimeModel`,
 placeholder string, never connected), applies `balance/overrides.json` (`"Table.key.Column": value`), and validates
 through the server's own `AbilityCatalog`, `CombatPatch.Build` and `CreaturesPatch.Validate`. It never copies a
 balance formula: stats, hits, Fury, haste, costs, power regen, power gains and heal caps (`PowerRegen`, `PowerPool`,
-`HealRules`, see World Simulation) are the World code. The small cast-system bookkeeping it mirrors (the cooldown set
+`HealRules`, see World Simulation) are `Avalon.Combat`, the code the world server runs. It still references
+`Avalon.World` for the ability catalog, the patch checks and the creature kits, until those move into the simulator
+(balance workbench, sub-project 2). The small cast-system bookkeeping it mirrors (the cooldown set
 when a cast fires, a creature's swing interval, a creature's level range) and the fight's event order are pinned by
 `SimulatorParityShould` against `CombatService`, the cast system and `CharacterEntity.Update`. It steps at the server's tick (1/60 s) so cooldowns,
 casts and the event order count as the server's do. Mana and Energy regenerate `stat x coefficient x dt` a tick with
