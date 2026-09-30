@@ -163,6 +163,66 @@ public class ObjectStateWriterShould
         Assert.Equal(new byte[] { 0xA0, 0x01, 0x01 }, stream.ToArray());
     }
 
+    /// <summary>
+    /// #672: a creature is dead at 0 health, the rule every server check on a creature uses, and its
+    /// state says so when asked.
+    /// </summary>
+    [Theory]
+    [InlineData(0u, true)]
+    [InlineData(1u, false)]
+    [InlineData(100u, false)]
+    public void Report_a_creature_dead_exactly_at_0_health(uint currentHealth, bool dead)
+    {
+        Creature creature = (Creature)Npc(canInteract: false);
+        creature.Health = 100;
+        creature.CurrentHealth = currentHealth;
+
+        Assert.Equal(dead, RoundTrip(ObjectStateWriter.From((ICreature)creature, GameEntityFields.All)).IsDead);
+        Assert.Equal(dead, RoundTrip(ObjectStateWriter.From((ICreature)creature, GameEntityFields.IsDead)).IsDead);
+    }
+
+    /// <summary>Any ICreature, not only the World-side one: health is all the rule reads.</summary>
+    [Fact]
+    public void Report_any_creature_at_0_health_as_dead()
+    {
+        var creature = Substitute.For<ICreature>();
+        creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 6));
+        creature.Metadata.Returns(new Avalon.Domain.World.CreatureTemplate { Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3) });
+        creature.CurrentHealth.Returns(0u);
+
+        Assert.True(ObjectStateWriter.From(creature, GameEntityFields.All).IsDead);
+    }
+
+    /// <summary>
+    /// The routine creature update does not ask for the death state, so a living creature's updates pay
+    /// nothing for it; a death is sent because the creature marks it as a change.
+    /// </summary>
+    [Fact]
+    public void Leave_the_death_state_out_of_the_routine_creature_update()
+    {
+        Assert.False(GameEntityFields.CreatureUpdate.HasFlag(GameEntityFields.IsDead));
+        Assert.Null(ObjectStateWriter.From(Npc(canInteract: false), GameEntityFields.CreatureUpdate).IsDead);
+    }
+
+    [Fact]
+    public void Mark_a_creatures_death_state_changed_when_its_health_reaches_0()
+    {
+        Creature creature = (Creature)Npc(canInteract: false);
+        creature.CurrentHealth = 100;
+        creature.ConsumeDirtyFields();
+
+        creature.CurrentHealth = 40;
+        Assert.False(creature.ConsumeDirtyFields().HasFlag(GameEntityFields.IsDead));
+
+        creature.CurrentHealth = 0;
+        GameEntityFields dirty = creature.ConsumeDirtyFields();
+        Assert.True(dirty.HasFlag(GameEntityFields.IsDead));
+        Assert.True(dirty.HasFlag(GameEntityFields.CurrentHealth));
+
+        creature.CurrentHealth = 0;
+        Assert.False(creature.ConsumeDirtyFields().HasFlag(GameEntityFields.IsDead));
+    }
+
     private static ICreature Npc(bool canInteract) => new Creature
     {
         Guid = new ObjectGuid(ObjectType.Creature, 5),

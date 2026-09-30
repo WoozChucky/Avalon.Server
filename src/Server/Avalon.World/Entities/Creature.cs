@@ -153,7 +153,14 @@ public class Creature : ICreature
     public uint CurrentHealth
     {
         get => _currentHealth;
-        set { _currentHealth = value; _dirtyFields |= GameEntityFields.CurrentHealth; }
+        set
+        {
+            // A creature is dead at 0 health (#672), so reaching 0, or leaving it, changes its death
+            // state too: marked, so the broadcast that carries the 0 carries IsDead with it.
+            if ((_currentHealth == 0) != (value == 0)) _dirtyFields |= GameEntityFields.IsDead;
+            _currentHealth = value;
+            _dirtyFields |= GameEntityFields.CurrentHealth;
+        }
     }
 
     public PowerType PowerType
