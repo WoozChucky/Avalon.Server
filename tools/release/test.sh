@@ -16,5 +16,7 @@ check "0.7.1-dev.412" newest-dev 0.7.0 0.7.1-dev.9 0.7.1-dev.412 0.7.1-dev.87 0.
 check ""              newest-dev 0.7.0 latest
 check "0.7.1-nightly.412" nightly-of 0.7.1-dev.412
 check "ERR"           nightly-of 0.7.1
+check "0.7.1-nightly.412" newest-nightly 0.7.0 0.7.1-nightly.9 0.7.1-nightly.412 0.7.1-dev.500 latest
+check ""              newest-nightly 0.7.0 0.7.1-dev.5 latest
 [[ $fail -eq 0 ]] && echo "channel-version: all passed"
 exit $fail

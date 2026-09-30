@@ -6,7 +6,41 @@ on:
       - 'v*'
 
 jobs:
+  # Live gets only what PTR tested (#686): the tag must be on the commit of the newest PTR (nightly) build.
+  # An annotated tag whose message contains [hotfix] skips the check, with a warning.
+  ptr-gate:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: read }
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - uses: imjasonh/setup-crane@v0.7
+      - name: The tag is what PTR runs
+        env: { TAG: "${{ github.ref_name }}", TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: |
+          set -euo pipefail
+          # checkout leaves the tag lightweight; fetch it again to read an annotated tag's message.
+          git fetch -q -f origin "refs/tags/$TAG:refs/tags/$TAG"
+          commit="$(git rev-parse "$TAG^{commit}")"
+          if git tag -l --format='%(contents)' "$TAG" | grep -qF '[hotfix]'; then
+            echo "::warning::$TAG is marked [hotfix]: releasing $commit without checking it against PTR"
+            exit 0
+          fi
+          echo "$TOKEN" | crane auth login ghcr.io -u "${{ github.actor }}" --password-stdin
+          nightly="$(tools/release/channel-version.sh newest-nightly $(crane ls ghcr.io/woozchucky/charts/avalon-world))"
+          if [[ -z "$nightly" ]]; then
+            echo "::error::PTR has no build yet. Tag a commit PTR runs, or mark the tag [hotfix]."
+            exit 1
+          fi
+          ptr="$(crane config "ghcr.io/woozchucky/avalon-server/world:$nightly" | jq -r '.config.Labels["org.opencontainers.image.revision"]')"
+          if [[ "$ptr" != "$commit" ]]; then
+            echo "::error::$TAG is on $commit, but PTR runs $nightly from $ptr. Delete the tag and tag $ptr, or tag again with an annotated message containing [hotfix]."
+            exit 1
+          fi
+          echo "$TAG is what PTR runs ($nightly)"
+
   release:
+    needs: ptr-gate
 
     runs-on: ubuntu-latest
     permissions:
@@ -87,3 +121,13 @@ jobs:
           python -m avalon_release_notes publish --repo "$GITHUB_REPOSITORY" --product server --version "${TAG#v}" \
             --commit "$GITHUB_SHA" --published-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --release-url "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" --public
+
+  # Dev builds are versioned from the newest tag, so build main again now: dev reads X.Y.(Z+1)-dev.N straight
+  # away instead of the previous version's number on the same code (#686).
+  dev-build:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions: { actions: write }
+    steps:
+      - run: gh workflow run dotnet-ci.yml -R "$GITHUB_REPOSITORY" -f ref=main
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
