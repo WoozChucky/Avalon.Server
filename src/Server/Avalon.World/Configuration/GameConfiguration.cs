@@ -169,6 +169,13 @@ public class GameConfiguration
     [Range(1, 3600)]
     public int PartyLeaveGraceSeconds { get; set; } = 60;
 
+    /// <summary>
+    /// Seconds before a leave countdown's return to town that failed is tried again (#700), up to
+    /// PartyService.MaxReturnRetries times.
+    /// </summary>
+    [Range(1, 3600)]
+    public int PartyReturnRetrySeconds { get; set; } = 5;
+
     /// <summary>Seconds after a switch of the experience mode before the leader may switch it again. 0 turns the wait off.</summary>
     [Range(0, 86400)]
     public int PartyExperienceModeCooldownSeconds { get; set; } = 60;

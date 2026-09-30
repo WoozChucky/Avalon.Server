@@ -15,11 +15,16 @@ namespace Avalon.World.Respawn;
 /// the transition and the chunk layout in the same callback. The respawn handler revives on arrival; a party leave
 /// countdown (2026-09-30) moves a living character and drops it from its encounter first. Tick thread; clears
 /// RespawnInFlight when it arrives, and when it fails (a town lookup or an instance build that faults, or a step
-/// that throws), which is logged at Error.
+/// that throws), which is logged at Error, or, when the caller passes <c>failed</c>, handed to it instead (the party
+/// leave countdown retries a failed return, #700).
 /// </summary>
 public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResolver resolver, IChunkLibrary chunkLibrary)
 {
-    public void Start(IWorldConnection connection, bool revive, bool dropEncounter)
+    /// <param name="failed">
+    /// Called on the tick, once, with the failure, after RespawnInFlight is cleared; it then owns the logging. Never
+    /// called for a return that arrived or that was dropped because the character left the connection.
+    /// </param>
+    public void Start(IWorldConnection connection, bool revive, bool dropEncounter, Action<Exception>? failed = null)
     {
         if (connection.Character is not { } ch)
         {
@@ -33,19 +38,20 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
         }
         catch (Exception e)
         {
-            Failed(connection, ch, e);
+            Failed(connection, ch, e, failed);
             return;
         }
 
-        Then(connection, ch, town, townMapId => OnTownResolved(connection, ch, townMapId, revive, dropEncounter));
+        Then(connection, ch, town, failed,
+            townMapId => OnTownResolved(connection, ch, townMapId, revive, dropEncounter, failed));
     }
 
     private void OnTownResolved(IWorldConnection connection, ICharacter ch, MapTemplateId townMapId, bool revive,
-        bool dropEncounter)
+        bool dropEncounter, Action<Exception>? failed)
     {
         var maxPlayers = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId)?.MaxPlayers ?? 30;
 
-        Then(connection, ch, world.InstanceRegistry.GetOrCreateTownInstanceAsync(townMapId, (ushort)maxPlayers),
+        Then(connection, ch, world.InstanceRegistry.GetOrCreateTownInstanceAsync(townMapId, (ushort)maxPlayers), failed,
             townInstance => OnInstanceReady(connection, ch, townMapId, townInstance, revive, dropEncounter));
     }
 
@@ -55,12 +61,13 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
     /// leave RespawnInFlight set for good, so the task is settled first and the callback always runs, as
     /// CommandContext.Then does for chat commands.
     /// </summary>
-    private void Then<T>(IWorldConnection connection, ICharacter ch, Task<T> task, Action<T> callback) =>
+    private void Then<T>(IWorldConnection connection, ICharacter ch, Task<T> task, Action<Exception>? failed,
+        Action<T> callback) =>
         connection.EnqueueContinuation(Settled(task), () =>
         {
             if (!task.IsCompletedSuccessfully)
             {
-                Failed(connection, ch, FailureOf(task));
+                Failed(connection, ch, FailureOf(task), failed);
                 return;
             }
 
@@ -72,19 +79,35 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
             }
             catch (Exception e)
             {
-                Failed(connection, ch, e);
+                Failed(connection, ch, e, failed);
             }
         });
 
     /// <summary>
-    /// The return failed: logged, and the in-flight flag cleared so a later death can respawn, while the connection
-    /// still holds the character it was for (after a character leave the flag belongs to the next character).
+    /// The return failed: the in-flight flag cleared so a later death can respawn, while the connection still holds
+    /// the character it was for (after a character leave the flag belongs to the next character), then logged, or
+    /// handed to the caller's <paramref name="failed" />, contained so its throw is logged rather than lost.
     /// </summary>
-    private void Failed(IWorldConnection connection, ICharacter ch, Exception e)
+    private void Failed(IWorldConnection connection, ICharacter ch, Exception e, Action<Exception>? failed)
     {
-        logger.LogError(e, "Return to town of {Name} failed", ch.Name);
         if (ReferenceEquals(connection.Character, ch))
             connection.RespawnInFlight = false;
+
+        if (failed is null)
+        {
+            logger.LogError(e, "Return to town of {Name} failed", ch.Name);
+            return;
+        }
+
+        try
+        {
+            failed(e);
+        }
+        catch (Exception callbackError)
+        {
+            logger.LogError(new AggregateException(e, callbackError), "Return to town of {Name} failed, and so did its failure handler",
+                ch.Name);
+        }
     }
 
     private static Task Settled(Task task) =>

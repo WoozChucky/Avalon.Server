@@ -211,6 +211,8 @@ public class WorldStartupValidationShould
     [InlineData("MaxPartySize", "41")]
     [InlineData("PartyInviteTimeoutSeconds", "0")]
     [InlineData("PartyLeaveGraceSeconds", "0")]
+    [InlineData("PartyReturnRetrySeconds", "0")]
+    [InlineData("PartyReturnRetrySeconds", "3601")]
     [InlineData("PartyExperienceModeCooldownSeconds", "-1")]
     [InlineData("PartyHealthPerExtraPlayer", "-0.1")]
     [InlineData("PartyHealthPerExtraPlayer", "NaN")]
@@ -243,6 +245,7 @@ public class WorldStartupValidationShould
         Assert.Equal(6, config.MaxPartySize);
         Assert.Equal(60, config.PartyInviteTimeoutSeconds);
         Assert.Equal(60, config.PartyLeaveGraceSeconds);
+        Assert.Equal(5, config.PartyReturnRetrySeconds);
         Assert.Equal(60, config.PartyExperienceModeCooldownSeconds);
         Assert.Equal(0.6f, config.PartyHealthPerExtraPlayer);
         Assert.Equal(60f, config.PartyEligibilityRange);

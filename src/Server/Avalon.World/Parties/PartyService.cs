@@ -8,6 +8,7 @@ using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
+using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -38,6 +39,13 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     // Second marks the countdown is announced at, highest first (spec 2026-09-30 section 2).
     private static readonly int[] CountdownMarks = [60, 30, 10, 5, 4, 3, 2, 1];
     private readonly Dictionary<uint, PartyCountdown> _countdowns = [];
+    private readonly Dictionary<uint, PendingReturn> _returning = [];   // countdown ran out, return under way (#700)
+
+    /// <summary>
+    /// How many times a countdown's return to town that failed is tried again, <c>PartyReturnRetrySeconds</c> apart,
+    /// before it is given up (#700).
+    /// </summary>
+    public const int MaxReturnRetries = 5;
     private IPartyInstanceRegistry _instances = NoPartyInstances.Instance;
     private uint _lastPartyId;
 
@@ -57,6 +65,10 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// <summary>The character moved to another instance (World.TransferPlayer): who shares an instance changed for its whole party.</summary>
     public void InstanceChanged(IWorldConnection connection)
     {
+        // A return under way that moved the character is done: a failure reported after the move is not retried.
+        if (connection.Character is { } moved)
+            _returning.Remove(moved.Guid.Id);
+
         if (connection.Character is { } character && PartyOf(character.Guid.Id) is { } party)
         {
             ResetStatuses(party);
@@ -275,6 +287,81 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public bool InCountdown(uint characterId) => _countdowns.ContainsKey(characterId);
 
+    /// <summary>
+    /// From World.Update, with what <see cref="Tick" /> returned: starts each connection's return to town (alive or
+    /// dead; a dead one arrives revived) and has a failed one tried again (#700). A connection already returning (a
+    /// respawn in flight) is not started twice: its countdown is re-armed as if the return had failed, so it is
+    /// checked again once that settles. Each start is contained.
+    /// </summary>
+    public void StartReturns(IReadOnlyList<IWorldConnection> due, TownReturn town)
+    {
+        for (int i = 0; i < due.Count; i++)
+        {
+            IWorldConnection connection = due[i];
+            if (connection.Character is not { } character)
+                continue;
+
+            uint id = character.Guid.Id;
+            if (connection.RespawnInFlight)
+            {
+                ReturnFailed(id, new InvalidOperationException("A return to town was already under way"));
+                continue;
+            }
+
+            try
+            {
+                connection.RespawnInFlight = true;
+                town.Start(connection, revive: character.IsDead, dropEncounter: true, failed: e => ReturnFailed(id, e));
+            }
+            catch (Exception e)
+            {
+                connection.RespawnInFlight = false;
+                ReturnFailed(id, e);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A countdown's return to town failed (#700). Retried after <c>PartyReturnRetrySeconds</c>, logged at Warning,
+    /// while the character is still online, still inside the instance its countdown was for, and not back in that
+    /// party; at most <see cref="MaxReturnRetries" /> times, and the last failure is logged at Error and given up, as
+    /// is a failure that will not be retried. A retry says nothing to the player: its countdown already reached zero.
+    /// </summary>
+    public void ReturnFailed(uint characterId, Exception failure)
+    {
+        if (!_returning.Remove(characterId, out PendingReturn? pending))
+        {
+            logger.LogError(failure, "Return to town of character {CharacterId} failed; not retried: it is no longer returning",
+                characterId);
+            return;
+        }
+
+        if (OnlineConnection(characterId)?.Character is not { } character || character.InstanceId != pending.InstanceId
+            || PartyOf(characterId)?.Id.Equals(pending.Party) == true)
+        {
+            logger.LogError(failure,
+                "Return to town of character {CharacterId} failed; not retried: it went offline, left instance {InstanceId} or rejoined its party",
+                characterId, pending.InstanceId);
+            return;
+        }
+
+        int attempt = pending.Retries + 1;
+        if (pending.Retries >= MaxReturnRetries)
+        {
+            logger.LogError(failure,
+                "Gave up returning character {CharacterId} to town after {Attempts} attempts; it stays in instance {InstanceId}",
+                characterId, attempt, pending.InstanceId);
+            return;
+        }
+
+        int delay = Config.PartyReturnRetrySeconds;
+        _countdowns[characterId] = new PartyCountdown(pending.InstanceId, pending.Party,
+            time.GetUtcNow() + TimeSpan.FromSeconds(delay)) { NextMark = CountdownMarks.Length, Retries = attempt };
+        logger.LogWarning(failure,
+            "Return to town of character {CharacterId} failed (attempt {Attempt} of {Attempts}); trying again in {Seconds} s",
+            characterId, attempt, MaxReturnRetries + 1, delay);
+    }
+
     /// <summary>A member levelled up: the roster shows levels.</summary>
     public void LevelChanged(ICharacter character)
     {
@@ -325,7 +412,11 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             _statusSent.Remove(member.Id.Value);
     }
 
-    private void OnCharacterOffline(uint characterId) => _countdowns.Remove(characterId);
+    private void OnCharacterOffline(uint characterId)
+    {
+        _countdowns.Remove(characterId);
+        _returning.Remove(characterId);
+    }
 
     /// <summary>
     /// A character stopped being a member. Inside that party's instance it gets the leave countdown and is told why
@@ -344,6 +435,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         _countdowns[characterId] = new PartyCountdown(character.InstanceId, party.Id,
             time.GetUtcNow() + TimeSpan.FromSeconds(grace)) { NextMark = next };
+        _returning.Remove(characterId);
 
         string why = reason switch
         {
@@ -378,6 +470,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             {
                 _scratch.Add(id);
                 due.Add(connection);
+                _returning[id] = new PendingReturn(countdown.InstanceId, countdown.Party, countdown.Retries);
                 continue;
             }
 
@@ -602,7 +695,13 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         public PartyId Party { get; } = party;
         public DateTimeOffset Deadline { get; } = deadline;
         public int NextMark { get; set; }
+
+        /// <summary>Returns already tried and failed before this countdown (0 for the countdown a removal starts).</summary>
+        public int Retries { get; init; }
     }
+
+    /// <summary>A countdown that ran out and whose return to town is under way (#700).</summary>
+    private sealed record PendingReturn(Guid InstanceId, PartyId Party, int Retries);
 
     private sealed class NoPartyInstances : IPartyInstanceRegistry
     {

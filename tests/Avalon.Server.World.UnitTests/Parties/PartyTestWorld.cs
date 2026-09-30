@@ -11,6 +11,7 @@ using Avalon.World.Parties;
 using Avalon.World.Public;
 using Avalon.World.Public.Instances;
 using Avalon.Common.ValueObjects;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -21,10 +22,10 @@ namespace Avalon.Server.World.UnitTests.Parties;
 /// <summary>A PartyService over a manual clock, with characters brought online through connections that record what they are sent.</summary>
 internal sealed class PartyTestWorld
 {
-    public PartyTestWorld(Action<GameConfiguration>? configure = null)
+    public PartyTestWorld(Action<GameConfiguration>? configure = null, ILogger<PartyService>? logger = null)
     {
         configure?.Invoke(Config);
-        Parties = new PartyService(Options.Create(Config), Clock, NullLogger<PartyService>.Instance);
+        Parties = new PartyService(Options.Create(Config), Clock, logger ?? NullLogger<PartyService>.Instance);
         Parties.AttachInstances(Instances);
     }
 

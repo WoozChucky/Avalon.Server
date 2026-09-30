@@ -529,24 +529,35 @@ public class World : IWorld
         catch (Exception e)
         {
             _logger.LogError(e, "Could not return {Count} characters whose party leave countdown ran out to town", due.Count);
+            ReportReturnsFailed(parties, due, e);
             return;
         }
 
+        try
+        {
+            // Each start is contained inside; a failed return is tried again by the party service (#700).
+            parties.StartReturns(due, town);
+        }
+        catch (Exception e)
+        {
+            _partyTickErrors.Failed(e);
+        }
+    }
+
+    private void ReportReturnsFailed(PartyService parties, IReadOnlyList<IWorldConnection> due, Exception failure)
+    {
         foreach (IWorldConnection connection in due)
         {
-            if (connection.RespawnInFlight || connection.Character is not { } character)
+            if (connection.Character is not { } character)
                 continue;
 
             try
             {
-                connection.RespawnInFlight = true;
-                town.Start(connection, revive: character.IsDead, dropEncounter: true);
+                parties.ReturnFailed(character.Guid.Id, failure);
             }
             catch (Exception e)
             {
-                connection.RespawnInFlight = false;
-                _logger.LogError(e, "Failed to start the return to town of character {CharacterId} after its party leave countdown",
-                    character.Guid);
+                _partyTickErrors.Failed(e);
             }
         }
     }
