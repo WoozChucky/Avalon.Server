@@ -172,21 +172,55 @@ public class CharacterService : ICharacterService
             abilityRows.Select(s => s.AbilityId), cancellationToken);
         var templateById = templates.ToDictionary(t => t.Id);
 
+        var stats = await _statsRepository.GetByCharacterIdAsync(id, cancellationToken);
+        var (weaponMin, weaponMax) = await MainHandRangeAsync(id, cancellationToken);
+
         return new CharacterAbilitiesDto
         {
             CharacterId = character.Id.Value,
-            Abilities = abilityRows.Select(row => MapAbility(row, templateById)).ToList(),
+            Abilities = abilityRows
+                .Select(row => MapAbility(row, templateById, stats, weaponMin, weaponMax))
+                .ToList(),
         };
+    }
+
+    /// <summary>The worn main hand's first damage range, as the world server's stats read it (#506); none is 0-0.</summary>
+    private async Task<(uint Min, uint Max)> MainHandRangeAsync(CharacterId id, CancellationToken cancellationToken)
+    {
+        var worn = (await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken))
+            .Where(r => r.Container == Avalon.World.Public.Enums.InventoryType.Equipment)
+            .Select(r => r.ItemId)
+            .ToHashSet();
+        if (worn.Count == 0) return (0, 0);
+
+        var instances = (await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken))
+            .Where(i => worn.Contains(i.Id))
+            .ToList();
+        var templates = await _itemTemplateRepository.GetByIdsAsync(instances.Select(i => i.TemplateId), cancellationToken);
+
+        ItemTemplate? weapon = templates.FirstOrDefault(t => t.Slot == Avalon.Domain.World.ItemSlotType.MainHand);
+        uint max = weapon?.DamageMax1 ?? 0;
+        return (Math.Min(weapon?.DamageMin1 ?? 0, max), max);
+    }
+
+    private static CharacterAbilityAmountDto AmountFor(AbilityTemplate t, CharacterStats? stats, uint weaponMin, uint weaponMax)
+    {
+        var kind = AbilityAmountMath.KindOf(t.ScriptName, t.Affects);
+        var (min, max) = AbilityAmountMath.Range(kind, t.EffectValue, t.ScalingStat, t.ScalingCoefficient,
+            t.BaseDamageCoefficient, stats?.AttackDamage ?? 0, stats?.AbilityDamage ?? 0, weaponMin, weaponMax);
+        return new CharacterAbilityAmountDto { Kind = (Avalon.Api.Contract.AbilityAmountKind)kind, Min = min, Max = max };
     }
 
     private static CharacterAbilityDto MapAbility(
         CharacterAbility row,
-        Dictionary<AbilityId, AbilityTemplate> templateById)
+        Dictionary<AbilityId, AbilityTemplate> templateById,
+        CharacterStats? stats, uint weaponMin, uint weaponMax)
     {
         templateById.TryGetValue(row.AbilityId, out var template);
         return new CharacterAbilityDto
         {
             AbilityId = row.AbilityId.Value,
+            Amount = template is null ? null : AmountFor(template, stats, weaponMin, weaponMax),
             Template = template is null ? null : new CharacterAbilityTemplateDto
             {
                 Id = template.Id.Value,

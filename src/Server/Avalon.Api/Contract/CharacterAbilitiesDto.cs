@@ -12,6 +12,9 @@ public sealed class CharacterAbilityDto
 {
     public uint AbilityId { get; set; }
     public CharacterAbilityTemplateDto? Template { get; set; }
+
+    /// <summary>What one hit deals or heals for this character, from its saved stats and main hand; null when the template is unknown.</summary>
+    public CharacterAbilityAmountDto? Amount { get; set; }
 }
 
 public sealed class CharacterAbilityTemplateDto
@@ -35,4 +38,11 @@ public sealed class CharacterAbilityTemplateDto
     public SpellEffect Effects { get; set; }
     public uint EffectValue { get; set; }
     public List<CharacterClass> AllowedClasses { get; set; } = [];
+}
+
+public sealed class CharacterAbilityAmountDto
+{
+    public AbilityAmountKind Kind { get; set; }
+    public uint Min { get; set; }
+    public uint Max { get; set; }
 }

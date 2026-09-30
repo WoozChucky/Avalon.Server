@@ -103,6 +103,90 @@ public class CharacterServiceShould
         Assert.Equal((Avalon.Api.Contract.ItemSlotType?)slot, item.Template!.SlotType);
     }
 
+    private static CharacterService AbilityService(CharacterId id, AbilityTemplate ability, CharacterStats? stats,
+        ItemTemplate? mainHand)
+    {
+        var characters = Substitute.For<ICharacterRepository>();
+        characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
+            .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Caster" });
+
+        var rows = Substitute.For<ICharacterAbilityRepository>();
+        rows.GetCharacterAbilitiesAsync(id, Arg.Any<CancellationToken>())
+            .Returns(new List<CharacterAbility> { new() { CharacterId = id, AbilityId = ability.Id } });
+        var abilities = Substitute.For<IAbilityTemplateRepository>();
+        abilities.GetByIdsAsync(Arg.Any<IEnumerable<AbilityId>>(), Arg.Any<CancellationToken>())
+            .Returns(new List<AbilityTemplate> { ability });
+
+        var weaponId = new ItemInstanceId(Guid.CreateVersion7());
+        var slots = Substitute.For<ICharacterInventoryRepository>();
+        slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(mainHand is null
+            ? new List<CharacterInventory>()
+            : new List<CharacterInventory>
+            {
+                new() { CharacterId = id, Container = Avalon.World.Public.Enums.InventoryType.Equipment, Slot = 9, ItemId = weaponId },
+            });
+        var instances = Substitute.For<IItemInstanceRepository>();
+        instances.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(mainHand is null
+            ? new List<ItemInstance>()
+            : new List<ItemInstance> { new() { Id = weaponId, TemplateId = mainHand.Id, CharacterId = id, Count = 1 } });
+        var templates = Substitute.For<IItemTemplateRepository>();
+        templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
+            .Returns(mainHand is null ? new List<ItemTemplate>() : new List<ItemTemplate> { mainHand });
+
+        var statsRepository = Substitute.For<ICharacterStatsRepository>();
+        statsRepository.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(stats);
+
+        return new CharacterService(characters, slots, instances, rows, abilities, templates, statsRepository);
+    }
+
+    private static AbilityTemplate Cleave() => new()
+    {
+        Id = new AbilityId(210), Name = "Cleave", ScriptName = "ConeAbilityScript",
+        Affects = Avalon.Network.Packets.Abilities.AbilityAffects.Hostile, EffectValue = 10,
+        ScalingStat = Avalon.World.Public.Abilities.ScalingStat.Attack, ScalingCoefficient = 0.5f, BaseDamageCoefficient = 1f,
+    };
+
+    /// <summary>10 + 0.5 × 40 attack + 1 × (24..28) main hand: 54..58, the world server's own example (#669).</summary>
+    [Fact]
+    public async Task Compute_each_abilitys_per_hit_amount_from_saved_stats_and_the_main_hand()
+    {
+        var id = new CharacterId(42);
+        ItemTemplate axe = new()
+        {
+            Id = new ItemTemplateId(5), Name = "Axe", Slot = Avalon.Domain.World.ItemSlotType.MainHand,
+            DamageMin1 = 24, DamageMax1 = 28,
+        };
+
+        CharacterAbilitiesDto? result = await AbilityService(id, Cleave(),
+            new CharacterStats { CharacterId = id, AttackDamage = 40 }, axe).GetAbilitiesAsync(id);
+
+        CharacterAbilityAmountDto amount = Assert.Single(result!.Abilities).Amount!;
+        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 54u, 58u), (amount.Kind, amount.Min, amount.Max));
+    }
+
+    [Fact]
+    public async Task Compute_amounts_without_stats_or_a_weapon()
+    {
+        var id = new CharacterId(42);
+
+        CharacterAbilitiesDto? result = await AbilityService(id, Cleave(), stats: null, mainHand: null).GetAbilitiesAsync(id);
+
+        CharacterAbilityAmountDto amount = Assert.Single(result!.Abilities).Amount!;
+        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 10u, 10u), (amount.Kind, amount.Min, amount.Max));
+    }
+
+    [Fact]
+    public async Task Report_no_amount_for_an_ability_another_script_runs()
+    {
+        var id = new CharacterId(42);
+        AbilityTemplate charge = Cleave();
+        charge.ScriptName = "ChargeAbilityScript";
+
+        CharacterAbilitiesDto? result = await AbilityService(id, charge, stats: null, mainHand: null).GetAbilitiesAsync(id);
+
+        Assert.Equal(Avalon.Api.Contract.AbilityAmountKind.None, Assert.Single(result!.Abilities).Amount!.Kind);
+    }
+
     /// <summary>A character's abilities carry the pool each cost is spent from (#652).</summary>
     [Fact]
     public async Task Return_each_abilitys_cost_power_type()
