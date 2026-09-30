@@ -332,9 +332,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         (amount, HitResult result) = HitResolver.ResolveHeal(healerCombat, baseHeal, formula, _random);
 
         uint before = target.CurrentHealth;
-        uint after = before >= target.Health
-            ? before // never lower health that sits above the maximum (#548)
-            : (uint)Math.Min((ulong)target.Health, (ulong)before + amount);
+        uint after = HealRules.After(before, target.Health, amount); // never lowers health above the maximum (#548)
         target.CurrentHealth = after;
 
         uint restored = after > before ? after - before : 0;

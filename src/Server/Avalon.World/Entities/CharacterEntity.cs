@@ -389,14 +389,9 @@ public class CharacterEntity : ICharacter
     /// </summary>
     internal void GainPower(uint amount)
     {
-        if (amount == 0 || IsDead) return;
-        if (PowerType is not (PowerType.Mana or PowerType.Energy or PowerType.Fury)) return;
-
-        uint max = Power ?? 0;
         uint current = CurrentPower ?? 0;
-        if (current >= max) return;
-
-        CurrentPower = (uint)Math.Min(max, (ulong)current + amount);
+        uint next = PowerPool.Gain(PowerType, IsDead, current, Power ?? 0, amount);
+        if (next != current) CurrentPower = next;
     }
 
     /// <summary>
@@ -406,7 +401,7 @@ public class CharacterEntity : ICharacter
     internal void ResetFury()
     {
         _furyDecayRemainder = 0d;
-        if (PowerType == PowerType.Fury && CurrentPower != 0)
+        if (PowerPool.EmptiesOnReset(PowerType) && CurrentPower != 0)
             CurrentPower = 0;
     }
 
