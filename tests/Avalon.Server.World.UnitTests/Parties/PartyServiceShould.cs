@@ -178,6 +178,20 @@ public class PartyServiceShould
         Assert.True(_w.Parties.PartyOf(a.Id)!.IsLeader(b.Id));
     }
 
+    /// <summary>Tick would hand leadership straight back from an offline leader, so an offline member cannot be promoted.</summary>
+    [Fact]
+    public void Refuse_to_promote_an_offline_member()
+    {
+        PartyClient a = _w.Online(1, "A");
+        PartyClient b = _w.Online(2, "B");
+        PartyClient c = _w.Online(3, "C");
+        _w.Form(a, b, c);
+        _w.Parties.CharacterOffline(b.Connection, b.Character);
+
+        Assert.Equal(PartyResult.NotFound, _w.Parties.Promote(a.Id, b.Id));
+        Assert.True(_w.Parties.PartyOf(a.Id)!.IsLeader(a.Id));
+    }
+
     [Fact]
     public void Switch_the_experience_mode_at_once_then_hold_it_for_the_cooldown()
     {

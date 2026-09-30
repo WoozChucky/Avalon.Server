@@ -181,8 +181,11 @@ public class GameConfiguration
     [Range(1.0, double.MaxValue)]
     public float PartyEligibilityRange { get; set; } = 60f;
 
-    /// <summary>Experience added to a kill per counted member beyond the first, as a share: 0.1 is +10 %. 0 or more and finite.</summary>
-    [Range(0.0, double.MaxValue)]
+    /// <summary>
+    /// Experience added to a kill per counted member beyond the first, as a share: 0.1 is +10 %. 0 to 10: the bound keeps
+    /// the pool well inside what the experience split's decimal arithmetic can hold.
+    /// </summary>
+    [Range(0.0, 10.0)]
     public float PartyExperienceBonusPerExtra { get; set; } = 0.10f;
 
     /// <summary>A character this many levels or more above a creature gets no experience from it, solo or in a party.</summary>

@@ -150,21 +150,21 @@ public sealed class PartyChatCommand(PartyService parties) : ICommand
 
     public void Execute(CommandContext ctx, string[] args)
     {
-        if (ctx.Connection.Character is not { } sender || args.Length == 0)
+        if (ctx.Connection.Character is not { } sender)
             return;
+
+        string message = TextAfterCommand(ctx.Packet.Message);
+        if (message.Length == 0)
+        {
+            ctx.Reply("Usage: /p <message>");
+            return;
+        }
 
         if (parties.PartyOf(sender.Guid.Id) is not { } party)
         {
             ctx.Reply(PartyReplies.Describe(PartyResult.NotInParty, null)!);
             return;
         }
-
-        // The text as typed after the command (string.Join over args would collapse repeated spaces).
-        string raw = ctx.Packet.Message.TrimStart();
-        int space = raw.IndexOf(' ');
-        string message = space < 0 ? string.Empty : raw[(space + 1)..].Trim();
-        if (message.Length == 0)
-            return;
 
         ulong accountId = ctx.Connection.AccountId is { } account ? (ulong)account.Value : 0UL;
         foreach (PartyMember member in party.Members)
@@ -175,5 +175,20 @@ public sealed class PartyChatCommand(PartyService parties) : ICommand
                     target.CryptoSession.Encrypt, ChatChannel.Party));
             }
         }
+    }
+
+    /// <summary>
+    /// The text as typed after the command word, trimmed at both ends: leading spaces and slashes are skipped, as the
+    /// dispatcher skips them, then the command word, then the spaces after it. string.Join over the dispatcher's
+    /// arguments would collapse repeated spaces inside the text.
+    /// </summary>
+    internal static string TextAfterCommand(string message)
+    {
+        int i = 0;
+        while (i < message.Length && (message[i] == '/' || char.IsWhiteSpace(message[i])))
+            i++;
+        while (i < message.Length && !char.IsWhiteSpace(message[i]))
+            i++;
+        return message[i..].Trim();
     }
 }

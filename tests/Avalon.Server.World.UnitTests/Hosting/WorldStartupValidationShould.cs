@@ -217,6 +217,8 @@ public class WorldStartupValidationShould
     [InlineData("PartyEligibilityRange", "0.5")]
     [InlineData("PartyEligibilityRange", "Infinity")]
     [InlineData("PartyExperienceBonusPerExtra", "-1")]
+    [InlineData("PartyExperienceBonusPerExtra", "10.5")]
+    [InlineData("PartyExperienceBonusPerExtra", "Infinity")]
     [InlineData("PartyExperienceLevelGap", "0")]
     public async Task Refuse_to_start_with_a_party_setting_out_of_range(string setting, string value)
     {

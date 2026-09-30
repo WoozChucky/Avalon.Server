@@ -16,8 +16,9 @@ namespace Avalon.World.Parties;
 /// <summary>
 /// Every party on this world server (spec 2026-09-30 section 1): in memory only, so a restart disbands them all.
 /// Tick thread only, every method: the handlers, the chat commands, World's spawn, transfer and despawn and
-/// World.Update all call it on the tick (the shutdown despawn runs after the tick has been joined). Deadlines are
-/// read from the container's TimeProvider inside those calls; there are no timers.
+/// World.Update all call it on the tick. The one exception is the shutdown despawn, which WorldServer.OnStoppingAsync
+/// runs on its own thread after joining the tick thread for at most 5 seconds: a tick still running past that bound
+/// could overlap it. Deadlines are read from the container's TimeProvider inside those calls; there are no timers.
 /// </summary>
 public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvider time, ILogger<PartyService> logger)
 {
@@ -198,7 +199,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             return PartyResult.NotLeader;
         if (targetId == leaderId)
             return PartyResult.Self;
-        if (party.Find(targetId) is not { } member)
+        // An offline member is refused as one not in the party: Tick hands leadership straight back from an offline
+        // leader, so the promote would only bounce.
+        if (party.Find(targetId) is not { } member || OnlineConnection(targetId) is null)
             return PartyResult.NotFound;
 
         party.Leader = member.Id;

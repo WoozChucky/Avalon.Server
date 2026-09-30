@@ -134,4 +134,40 @@ public class PartyCommandsShould
 
         Assert.Equal(["You are not in a party."], a.Lines());
     }
+
+    [Theory]
+    [InlineData("/p")]
+    [InlineData("/p    ")]
+    [InlineData("/party 	 ")]
+    public void Answer_usage_for_party_chat_with_no_text(string message)
+    {
+        PartyClient a = _w.Online(1, "A");
+        PartyClient b = _w.Online(2, "B");
+        _w.Form(a, b);
+        a.Clear();
+
+        Run(new PartyChatCommand(_w.Parties), a, message);
+
+        Assert.Equal(["Usage: /p <message>"], a.Lines());
+        Assert.DoesNotContain(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE), m => m.Channel == ChatChannel.Party);
+    }
+
+    /// <summary>The dispatcher skips spaces and slashes before the command word, so the text must be found the same way.</summary>
+    [Theory]
+    [InlineData("/ p hello", "hello")]
+    [InlineData("  /p hello", "hello")]
+    [InlineData("//p  hello there ", "hello there")]
+    [InlineData("/p	hello", "hello")]
+    public void Find_the_party_chat_text_after_the_command_word(string message, string expected)
+    {
+        PartyClient a = _w.Online(1, "A");
+        PartyClient b = _w.Online(2, "B");
+        _w.Form(a, b);
+
+        Run(new PartyChatCommand(_w.Parties), a, message);
+
+        SChatMessagePacket heard = Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE),
+            m => m.Channel == ChatChannel.Party);
+        Assert.Equal(expected, heard.Message);
+    }
 }
