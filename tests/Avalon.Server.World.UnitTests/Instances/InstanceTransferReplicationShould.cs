@@ -218,6 +218,8 @@ public class InstanceTransferReplicationShould
             .Do(call => call.Arg<Action<IMapInstance>>()(call.Arg<Task<IMapInstance>>().GetAwaiter().GetResult()));
         connection.When(c => c.EnqueueContinuation(Arg.Any<Task<MapTemplateId>>(), Arg.Any<Action<MapTemplateId>>()))
             .Do(call => call.Arg<Action<MapTemplateId>>()(call.Arg<Task<MapTemplateId>>().GetAwaiter().GetResult()));
+        connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
+            .Do(call => call.Arg<Action>()());
     }
 
     /// <summary>

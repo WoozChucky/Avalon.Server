@@ -75,7 +75,7 @@ public class RespawnAtTownHandlerShould
         handler.Execute(conn, new CRespawnAtTownPacket());
 
         resolver.Received(1).ResolveTownAsync(new MapTemplateId(2), Arg.Any<CancellationToken>());
-        conn.ReceivedWithAnyArgs().EnqueueContinuation<MapTemplateId>(default!, default!);
+        conn.Received(1).EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>());
     }
 
     [Fact]
@@ -97,20 +97,17 @@ public class RespawnAtTownHandlerShould
     [Fact]
     public void Do_nothing_when_the_character_has_left_the_connection_before_the_town_is_ready()
     {
-        var (handler, conn, ch, world, _, _, townInstance) = Build(isDead: true);
-        Action<MapTemplateId>? onTown = null;
-        Action<IMapInstance>? onInstance = null;
-        conn.When(c => c.EnqueueContinuation(Arg.Any<Task<MapTemplateId>>(), Arg.Any<Action<MapTemplateId>>()))
-            .Do(call => onTown = call.Arg<Action<MapTemplateId>>());
-        conn.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
-            .Do(call => onInstance = call.Arg<Action<IMapInstance>>());
+        var (handler, conn, ch, world, _, _, _) = Build(isDead: true);
+        var continuations = new List<Action>();
+        conn.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
+            .Do(call => continuations.Add(call.Arg<Action>()));
         conn.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
         handler.Execute(conn, new CRespawnAtTownPacket());
-        onTown!(new MapTemplateId(1));
+        continuations[0]();   // the town is resolved: the instance is asked for
         conn.Character.Returns((ICharacter?)null);
 
-        Exception? escaped = Record.Exception(() => onInstance!(townInstance));
+        Exception? escaped = Record.Exception(() => continuations[1]());   // the town instance is ready
 
         Assert.Null(escaped);
         world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);

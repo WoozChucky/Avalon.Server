@@ -132,6 +132,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _gameTime = new();
     private readonly ILogger<WorldServer> _logger;
     private readonly PartyService _parties;
+    private readonly ThrottledErrorLog _memberStatusErrors;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
@@ -182,6 +183,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _characterSaver = characterSaver;
         _parties = parties;
         _logger = loggerFactory.CreateLogger<WorldServer>();
+        _memberStatusErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The party member status flush");
         _world = world;
         
         _logger.LogInformation("R2R enabled: {R2R}",
@@ -513,7 +516,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             AbilityAmountsFlusher.Flush(conns[i]);
 
         // Party members' pools (2026-09-30), to the members in their instance, at most four times a second each.
-        _parties.FlushMemberStatus();
+        // Contained: a throw must not cost every connection the ping, outbox and continuation flushes below.
+        try
+        {
+            _parties.FlushMemberStatus();
+        }
+        catch (Exception e)
+        {
+            _memberStatusErrors.Failed(e);
+        }
 
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.

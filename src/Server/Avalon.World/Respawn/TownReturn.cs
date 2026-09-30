@@ -14,7 +14,8 @@ namespace Avalon.World.Respawn;
 /// Moves a character to the respawn town of the map it is on: resolve the town, get its instance, transfer, then
 /// the transition and the chunk layout in the same callback. The respawn handler revives on arrival; a party leave
 /// countdown (2026-09-30) moves a living character and drops it from its encounter first. Tick thread; clears
-/// RespawnInFlight when it arrives.
+/// RespawnInFlight when it arrives, and when it fails (a town lookup or an instance build that faults, or a step
+/// that throws), which is logged at Error.
 /// </summary>
 public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResolver resolver, IChunkLibrary chunkLibrary)
 {
@@ -25,9 +26,18 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
             return;
         }
 
-        connection.EnqueueContinuation(
-            resolver.ResolveTownAsync(new MapTemplateId(ch.Map.Value), CancellationToken.None),
-            townMapId => OnTownResolved(connection, ch, townMapId, revive, dropEncounter));
+        Task<MapTemplateId> town;
+        try
+        {
+            town = resolver.ResolveTownAsync(new MapTemplateId(ch.Map.Value), CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            Failed(connection, ch, e);
+            return;
+        }
+
+        Then(connection, ch, town, townMapId => OnTownResolved(connection, ch, townMapId, revive, dropEncounter));
     }
 
     private void OnTownResolved(IWorldConnection connection, ICharacter ch, MapTemplateId townMapId, bool revive,
@@ -35,10 +45,56 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
     {
         var maxPlayers = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId)?.MaxPlayers ?? 30;
 
-        connection.EnqueueContinuation(
-            world.InstanceRegistry.GetOrCreateTownInstanceAsync(townMapId, (ushort)maxPlayers),
+        Then(connection, ch, world.InstanceRegistry.GetOrCreateTownInstanceAsync(townMapId, (ushort)maxPlayers),
             townInstance => OnInstanceReady(connection, ch, townMapId, townInstance, revive, dropEncounter));
     }
+
+    /// <summary>
+    /// Runs <paramref name="callback" /> on the tick once <paramref name="task" /> has succeeded, and otherwise ends the
+    /// return as failed. The connection's continuation drain logs and drops a faulted task's callback, which would
+    /// leave RespawnInFlight set for good, so the task is settled first and the callback always runs, as
+    /// CommandContext.Then does for chat commands.
+    /// </summary>
+    private void Then<T>(IWorldConnection connection, ICharacter ch, Task<T> task, Action<T> callback) =>
+        connection.EnqueueContinuation(Settled(task), () =>
+        {
+            if (!task.IsCompletedSuccessfully)
+            {
+                Failed(connection, ch, FailureOf(task));
+                return;
+            }
+
+            try
+            {
+#pragma warning disable MA0045 // the task has completed successfully: reading its result does not block
+                callback(task.Result);
+#pragma warning restore MA0045
+            }
+            catch (Exception e)
+            {
+                Failed(connection, ch, e);
+            }
+        });
+
+    /// <summary>
+    /// The return failed: logged, and the in-flight flag cleared so a later death can respawn, while the connection
+    /// still holds the character it was for (after a character leave the flag belongs to the next character).
+    /// </summary>
+    private void Failed(IWorldConnection connection, ICharacter ch, Exception e)
+    {
+        logger.LogError(e, "Return to town of {Name} failed", ch.Name);
+        if (ReferenceEquals(connection.Character, ch))
+            connection.RespawnInFlight = false;
+    }
+
+    private static Task Settled(Task task) =>
+        task.ContinueWith(static _ => { }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
+    private static Exception FailureOf(Task task) =>
+        task.Exception is { InnerExceptions.Count: 1 } single ? single.InnerExceptions[0]
+        : task.Exception is { } many ? many
+        : new TaskCanceledException(task);
 
     private void OnInstanceReady(IWorldConnection connection, ICharacter ch, MapTemplateId townMapId,
         IMapInstance townInstance, bool revive, bool dropEncounter)
@@ -53,81 +109,88 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
             return;
         }
 
-        if (dropEncounter)
-            world.InstanceRegistry.GetInstanceById(ch.InstanceId)?.CombatService.DropPlayerFromEncounter(ch);
-
-        // Transfer first so MapInstance.AddCharacter is the boundary that enables broadcast.
-        // The map transition and chunk layout must go out in this same callback: MapInstance sends
-        // the loot snapshot on its next tick, and the client has to know the map before its drops.
-        world.TransferPlayer(connection, townInstance);
-
-        // Resolve spawn coords from the town's chunk layout. Fall back to template defaults defensively.
-        float spawnX, spawnY, spawnZ;
-        var townTemplate = world.MapTemplates.First(t => t.Id == townMapId);
-        if (townInstance is MapInstance mi && mi.EntrySpawnWorldPos is { } s)
+        try
         {
-            spawnX = s.x; spawnY = s.y; spawnZ = s.z;
-        }
-        else
-        {
-            spawnX = townTemplate.DefaultSpawnX;
-            spawnY = townTemplate.DefaultSpawnY;
-            spawnZ = townTemplate.DefaultSpawnZ;
-        }
+            if (dropEncounter)
+                world.InstanceRegistry.GetInstanceById(ch.InstanceId)?.CombatService.DropPlayerFromEncounter(ch);
 
-        ch.Position = new Vector3(spawnX, spawnY, spawnZ);
+            // Transfer first so MapInstance.AddCharacter is the boundary that enables broadcast.
+            // The map transition and chunk layout must go out in this same callback: MapInstance sends
+            // the loot snapshot on its next tick, and the client has to know the map before its drops.
+            world.TransferPlayer(connection, townInstance);
 
-        // Revive() atomically clears IsDead and restores HP. Both fields dirty in a single
-        // method so the next broadcast tick emits "alive + full HP" together.
-        if (revive)
-            ch.Revive();
-
-        // Clear the in-flight flag so the player can die + respawn again on a future engagement.
-        connection.RespawnInFlight = false;
-
-        // Send the standard transition packet the client already handles.
-        connection.Send(SMapTransitionPacket.Create(
-            MapTransitionResult.Success,
-            townInstance.InstanceId,
-            townMapId,
-            spawnX, spawnY, spawnZ,
-            townTemplate.Name,
-            townTemplate.Description,
-            connection.CryptoSession.Encrypt));
-
-        // Mirror EnterMapHandler.OnInstanceReceived: every chunk-layout-built instance ships
-        // its layout to the client so ClientMapNavigator can rebake the navmesh, the
-        // ChunkLayoutVisualizer can repaint geometry, and PortalRuntimeSpawner can recreate
-        // portal triggers. Town instances always have a Layout; fallback is defensive.
-        if (townInstance is MapInstance layoutMi && layoutMi.Layout is { } layout)
-        {
-            var dtos = layout.Chunks.Select(c => new PlacedChunkDto
+            // Resolve spawn coords from the town's chunk layout. Fall back to template defaults defensively.
+            float spawnX, spawnY, spawnZ;
+            var townTemplate = world.MapTemplates.First(t => t.Id == townMapId);
+            if (townInstance is MapInstance mi && mi.EntrySpawnWorldPos is { } s)
             {
-                ChunkTemplateId = c.TemplateId.Value,
-                ChunkName = chunkLibrary.GetById(c.TemplateId).Name,
-                GridX = c.GridX,
-                GridZ = c.GridZ,
-                Rotation = c.Rotation,
-            }).ToList();
-            var portalDtos = layout.Portals.Select(p => new PortalPlacementDto
+                spawnX = s.x; spawnY = s.y; spawnZ = s.z;
+            }
+            else
             {
-                Role = (byte)p.Role,
-                WorldPos = Vector3Dto.From(p.WorldPos),
-                Radius = p.Radius,
-                TargetMapId = p.TargetMapId,
-            }).ToList();
-            connection.Send(SChunkLayoutPacket.Create(
-                layout.Seed,
-                layoutMi.InstanceId,
-                townMapId.Value,
-                layout.CellSize,
-                dtos,
-                layout.EntrySpawnWorldPos,
-                portalDtos,
+                spawnX = townTemplate.DefaultSpawnX;
+                spawnY = townTemplate.DefaultSpawnY;
+                spawnZ = townTemplate.DefaultSpawnZ;
+            }
+
+            ch.Position = new Vector3(spawnX, spawnY, spawnZ);
+
+            // Revive() atomically clears IsDead and restores HP. Both fields dirty in a single
+            // method so the next broadcast tick emits "alive + full HP" together. A countdown member who
+            // was alive when its return started and died before it arrived arrives alive too.
+            if (revive || ch.IsDead)
+                ch.Revive();
+
+            // Send the standard transition packet the client already handles.
+            connection.Send(SMapTransitionPacket.Create(
+                MapTransitionResult.Success,
+                townInstance.InstanceId,
+                townMapId,
+                spawnX, spawnY, spawnZ,
+                townTemplate.Name,
+                townTemplate.Description,
                 connection.CryptoSession.Encrypt));
-        }
 
-        logger.LogInformation("Character {Name} returned to town {Map} instance {Instance}",
-            ch.Name, townMapId.Value, townInstance.InstanceId);
+            // Mirror EnterMapHandler.OnInstanceReceived: every chunk-layout-built instance ships
+            // its layout to the client so ClientMapNavigator can rebake the navmesh, the
+            // ChunkLayoutVisualizer can repaint geometry, and PortalRuntimeSpawner can recreate
+            // portal triggers. Town instances always have a Layout; fallback is defensive.
+            if (townInstance is MapInstance layoutMi && layoutMi.Layout is { } layout)
+            {
+                var dtos = layout.Chunks.Select(c => new PlacedChunkDto
+                {
+                    ChunkTemplateId = c.TemplateId.Value,
+                    ChunkName = chunkLibrary.GetById(c.TemplateId).Name,
+                    GridX = c.GridX,
+                    GridZ = c.GridZ,
+                    Rotation = c.Rotation,
+                }).ToList();
+                var portalDtos = layout.Portals.Select(p => new PortalPlacementDto
+                {
+                    Role = (byte)p.Role,
+                    WorldPos = Vector3Dto.From(p.WorldPos),
+                    Radius = p.Radius,
+                    TargetMapId = p.TargetMapId,
+                }).ToList();
+                connection.Send(SChunkLayoutPacket.Create(
+                    layout.Seed,
+                    layoutMi.InstanceId,
+                    townMapId.Value,
+                    layout.CellSize,
+                    dtos,
+                    layout.EntrySpawnWorldPos,
+                    portalDtos,
+                    connection.CryptoSession.Encrypt));
+            }
+
+            logger.LogInformation("Character {Name} returned to town {Map} instance {Instance}",
+                ch.Name, townMapId.Value, townInstance.InstanceId);
+        }
+        finally
+        {
+            // Cleared on every path, a throw included, so the player can die and respawn again on a future
+            // engagement. A throw is logged by the caller (Then), which clears it too.
+            connection.RespawnInFlight = false;
+        }
     }
 }

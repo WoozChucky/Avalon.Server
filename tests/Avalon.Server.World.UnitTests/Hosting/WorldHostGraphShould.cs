@@ -73,9 +73,12 @@ public class WorldHostGraphShould
             Assert.NotNull(host.Services.GetRequiredService<PvpToggle>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PvpCommand);
 
-            // Parties (2026-09-30). World, WorldServer, MapInstance and EnterMapHandler take it optionally, so only
-            // this proves production supplies one.
+            // Parties (2026-09-30). World, MapInstance and EnterMapHandler take it optionally (WorldServer requires it,
+            // pinned below), so only this proves production supplies one.
             Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Parties.PartyService>());
+            // World resolves the town return lazily (it depends on World) when a party leave countdown runs out, so only
+            // this proves production registers it.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Respawn.TownReturn>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is GodModeCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PartyChatCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is InviteCommand);

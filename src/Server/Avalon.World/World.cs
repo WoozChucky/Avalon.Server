@@ -84,6 +84,7 @@ public class World : IWorld
     private readonly IWorldRepository _worldRepository;
     private readonly InstanceTicker _instanceTicker;
     private readonly PartyService? _parties;
+    private readonly ThrottledErrorLog _partyTickErrors;
 
     private Domain.Auth.World? _world;
     private volatile List<Type>? _pendingHotReload;
@@ -128,6 +129,8 @@ public class World : IWorld
 
         _instanceTicker = new InstanceTicker(_logger, DiagnosticsConfig.World.Meter,
             serviceProvider.GetService<TimeProvider>());
+        _partyTickErrors = new ThrottledErrorLog(_logger, serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System,
+            "The party tick");
 
         _hotReloadTimer.SetInterval(
             (long)TimeSpan.FromSeconds(configuration.Value.ScriptHotReloadIntervalSeconds).TotalMilliseconds);
@@ -148,8 +151,16 @@ public class World : IWorld
     {
         instance.AddCharacter(connection);
 
-        // The party learns the character is online, and its members get the roster (2026-09-30).
-        _parties?.CharacterOnline(connection);
+        // The party learns the character is online, and its members get the roster (2026-09-30). Contained: a throw
+        // must not cost the character its online row below.
+        try
+        {
+            _parties?.CharacterOnline(connection);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to bring character {CharacterId} online in its party", connection.Character?.Guid);
+        }
 
         _logger.LogInformation(
             "Character {CharacterName} of account {AccountId} entered instance {InstanceId} (map {MapTemplateId})",
@@ -204,8 +215,17 @@ public class World : IWorld
         connection.Character.InstanceId = targetInstance.InstanceId;
         targetInstance.AddCharacter(connection);
 
-        // Who shares an instance changed for the character's whole party (2026-09-30).
-        _parties?.InstanceChanged(connection);
+        // Who shares an instance changed for the character's whole party (2026-09-30). Contained: the transfer has
+        // happened, and the caller still owes the client its map transition.
+        try
+        {
+            _parties?.InstanceChanged(connection);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to tell the party of character {CharacterId} it changed instance",
+                connection.Character?.Guid);
+        }
     }
 
     public Task DeSpawnPlayerAsync(IWorldConnection connection) => LeaveWorldAsync(connection);
@@ -468,29 +488,67 @@ public class World : IWorld
             _hotReloadTimer.Reset();
         }
 
-        // Party leave countdowns that ran out (2026-09-30): the character goes to its respawn town, alive or dead,
-        // and a dead one arrives revived as a respawn would. Resolved lazily: TownReturn depends on this World.
         if (_parties is not null)
-        {
-            IReadOnlyList<IWorldConnection> due = _parties.Tick();
-            if (due.Count > 0 && _serviceProvider.GetService<TownReturn>() is { } town)
-            {
-                foreach (IWorldConnection connection in due)
-                {
-                    if (connection.RespawnInFlight || connection.Character is not { } character)
-                        continue;
-
-                    connection.RespawnInFlight = true;
-                    town.Start(connection, revive: character.IsDead, dropEncounter: true);
-                }
-            }
-        }
+            TickParties(_parties);
 
         // Each instance is contained and timed on its own (#639): one that throws is logged, and the
         // others, and the flushes after this update, still run.
         _instanceTicker.Tick(InstanceRegistry.ActiveInstances, deltaTime);
 
         InstanceRegistry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+    }
+
+    /// <summary>
+    /// Party leave countdowns that ran out (2026-09-30): the character goes to its respawn town, alive or dead, and a
+    /// dead one arrives revived as a respawn would. Contained, the tick and each return on its own: a throw here must
+    /// not leave World.Update before the instances tick, or the tick loop's flushes for everyone after it.
+    /// </summary>
+    private void TickParties(PartyService parties)
+    {
+        IReadOnlyList<IWorldConnection> due;
+        try
+        {
+            due = parties.Tick();
+        }
+        catch (Exception e)
+        {
+            _partyTickErrors.Failed(e);
+            return;
+        }
+
+        if (due.Count == 0)
+            return;
+
+        TownReturn town;
+        try
+        {
+            // Resolved here, not injected: TownReturn depends on this World. Required, so a missing registration is
+            // an error in the log rather than countdowns that end silently with nobody moved.
+            town = _serviceProvider.GetRequiredService<TownReturn>();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not return {Count} characters whose party leave countdown ran out to town", due.Count);
+            return;
+        }
+
+        foreach (IWorldConnection connection in due)
+        {
+            if (connection.RespawnInFlight || connection.Character is not { } character)
+                continue;
+
+            try
+            {
+                connection.RespawnInFlight = true;
+                town.Start(connection, revive: character.IsDead, dropEncounter: true);
+            }
+            catch (Exception e)
+            {
+                connection.RespawnInFlight = false;
+                _logger.LogError(e, "Failed to start the return to town of character {CharacterId} after its party leave countdown",
+                    character.Guid);
+            }
+        }
     }
 
     /// <summary>

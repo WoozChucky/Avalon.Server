@@ -1237,8 +1237,20 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
-        // Taken first, once, while the creature is still in its encounter (spec 2026-09-30 section 4).
-        IReadOnlyList<ICharacter> eligible = EligibleFor(creature, killer);
+        // Taken first, once, while the creature is still in its encounter (spec 2026-09-30 section 4). Contained: a
+        // throw here must not leave a creature at 0 health with its script and no corpse teardown. Nobody is eligible
+        // then: nobody gains experience from it, and a party instance's drops are free for all.
+        IReadOnlyList<ICharacter> eligible;
+        try
+        {
+            eligible = EligibleFor(creature, killer);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Working out who shares the kill of {CreatureGuid} in instance {InstanceId} failed",
+                creature.Guid, InstanceId);
+            eligible = [];
+        }
 
         creature.Script = null;
         TearDownCorpse(creature);
