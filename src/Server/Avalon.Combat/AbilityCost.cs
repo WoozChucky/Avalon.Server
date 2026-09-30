@@ -2,7 +2,7 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Units;
 
-namespace Avalon.World.Abilities;
+namespace Avalon.Combat;
 
 public enum CostCheck
 {

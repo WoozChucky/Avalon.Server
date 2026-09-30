@@ -5,6 +5,7 @@ using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Maps;
 using NSubstitute;
 using Xunit;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 

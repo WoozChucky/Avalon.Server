@@ -1,11 +1,11 @@
 using Avalon.Network.Packets.State;
-using Avalon.World.Abilities;
+using Avalon.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Units;
 using NSubstitute;
 using Xunit;
 
-namespace Avalon.Server.World.UnitTests.Abilities;
+namespace Avalon.Combat.UnitTests;
 
 /// <summary>
 /// #521 item 2: one power rule, used by the handler to check and by the cast system to pay, on both paths. #652: a

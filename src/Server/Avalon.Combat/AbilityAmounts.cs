@@ -1,11 +1,9 @@
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Character;
-using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
-using Avalon.Combat;
 
-namespace Avalon.World.Abilities;
+namespace Avalon.Combat;
 
 /// <summary>One ability's advertised per-hit amount (#669). <see cref="None" /> is "no direct amount", not 0.</summary>
 public readonly record struct AbilityAmount(AbilityAmountKind Kind, uint Min, uint Max)

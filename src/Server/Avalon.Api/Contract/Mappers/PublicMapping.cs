@@ -1,5 +1,6 @@
 using Avalon.Domain.World;
 using DomainFlags = Avalon.Domain.World.ItemTemplateFlags;
+using Avalon.Combat;
 
 namespace Avalon.Api.Contract.Mappers;
 

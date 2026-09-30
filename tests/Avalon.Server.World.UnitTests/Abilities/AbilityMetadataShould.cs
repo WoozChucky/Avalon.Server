@@ -56,7 +56,7 @@ public class AbilityMetadataShould
         Avalon.Domain.World.AbilityTemplate template = AbilityTestData.Cone(1);
         template.PowerGainPerHit = 8;
 
-        Assert.Equal(8, Avalon.World.Abilities.AbilityMetadataMapper.From(template).PowerGainPerHit);
+        Assert.Equal(8, Avalon.Combat.AbilityMetadataMapper.From(template).PowerGainPerHit);
         Assert.Equal(0, BuildMetadata().PowerGainPerHit);
     }
 

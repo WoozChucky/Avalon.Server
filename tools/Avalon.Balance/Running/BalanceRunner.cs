@@ -4,6 +4,7 @@ using Avalon.Balance.Simulation;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
 using Avalon.World.Public.Enums;
+using Avalon.Combat;
 
 namespace Avalon.Balance.Running;
 

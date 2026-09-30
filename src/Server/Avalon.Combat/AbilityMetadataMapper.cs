@@ -1,7 +1,7 @@
 using Avalon.Domain.World;
 using Avalon.World.Public.Abilities;
 
-namespace Avalon.World.Abilities;
+namespace Avalon.Combat;
 
 /// <summary>The one place a template becomes runtime metadata. Milliseconds in, seconds out.</summary>
 public static class AbilityMetadataMapper
