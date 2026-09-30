@@ -3,6 +3,7 @@
 #   dev-version <vX.Y.Z> <run>  -> X.Y.(Z+1)-dev.<run>
 #   newest-dev <tag>...         -> the X.Y.Z-dev.N with the highest N, or nothing
 #   nightly-of <X.Y.Z-dev.N>    -> X.Y.Z-nightly.N
+#   newest-nightly <tag>...     -> the X.Y.Z-nightly.N with the highest N (what PTR runs), or nothing
 set -euo pipefail
 case "${1:-}" in
   dev-version)
@@ -12,8 +13,11 @@ case "${1:-}" in
   newest-dev)
     shift
     printf '%s\n' "$@" | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$' || true; } | sort -t. -k4,4n | tail -n1 ;;
+  newest-nightly)
+    shift
+    printf '%s\n' "$@" | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+$' || true; } | sort -t. -k4,4n | tail -n1 ;;
   nightly-of)
     [[ "${2:-}" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-dev\.([0-9]+)$ ]] || { echo "not a dev version: ${2:-}" >&2; exit 1; }
     echo "${BASH_REMATCH[1]}-nightly.${BASH_REMATCH[2]}" ;;
-  *) echo "usage: $0 dev-version <vX.Y.Z> <run> | newest-dev <tag>... | nightly-of <X.Y.Z-dev.N>" >&2; exit 2 ;;
+  *) echo "usage: $0 dev-version <vX.Y.Z> <run> | newest-dev <tag>... | nightly-of <X.Y.Z-dev.N> | newest-nightly <tag>..." >&2; exit 2 ;;
 esac
