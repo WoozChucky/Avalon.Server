@@ -15,6 +15,8 @@ using NSubstitute;
 using Xunit;
 using ProtoBuf;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.World.Maintenance;
+using Avalon.World.Persistence;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 
@@ -120,12 +122,50 @@ public class ExchangeWorldKeyHandlerShould
         account.AccessLevel = AccountAccessLevel.Admin;
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
         _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
-            .Returns(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5)));
+            .Returns(new WorldMaintenanceState(true, 1, _clock.Now.UtcDateTime));
 
         await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
 
         _connection.Received().AccountId = (AccountId)42L;
+        _connection.DidNotReceive().Close();
         await _cache.Received(1).RemoveAsync("account:42:inWorld");
+    }
+
+    [Fact]
+    public async Task Publish_Admin_access_before_identity_becomes_visible_to_the_maintenance_tick()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        var account = MakeAccount(42);
+        account.AccessLevel = AccountAccessLevel.Admin;
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(true, 1, _clock.Now.UtcDateTime));
+
+        var coordinator = new WorldMaintenanceCoordinator(new WorldId(1), _maintenance,
+            Substitute.For<ICharacterSaver>(), TimeProvider.System,
+            NullLogger<WorldMaintenanceCoordinator>.Instance);
+        coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, _clock.Now.UtcDateTime));
+        var connection = Substitute.For<IWorldConnection, IAccessLevelAssignable>();
+        connection.ServerCrypto.Returns(_serverCrypto);
+        connection.IsConnected.Returns(true);
+        connection.CloseAsync().Returns(Task.CompletedTask);
+        AccountId? publishedId = null;
+        AccountAccessLevel publishedAccess = AccountAccessLevel.Player;
+        connection.AccountId.Returns(_ => publishedId);
+        connection.AccessLevel.Returns(_ => publishedAccess);
+        ((IAccessLevelAssignable)connection).When(c => c.AssignAccessLevel(Arg.Any<AccountAccessLevel>()))
+            .Do(call => publishedAccess = (AccountAccessLevel)call[0]!);
+        connection.When(c => c.AccountId = Arg.Any<AccountId>()).Do(call =>
+        {
+            publishedId = (AccountId)call[0]!;
+            coordinator.Advance(_clock.Now.UtcDateTime, [connection]);
+        });
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize], connection));
+
+        Assert.Equal(AccountAccessLevel.Admin, publishedAccess);
+        connection.DidNotReceive().BlockForMaintenance();
+        connection.DidNotReceive().CloseAsync();
     }
 
     [Fact]

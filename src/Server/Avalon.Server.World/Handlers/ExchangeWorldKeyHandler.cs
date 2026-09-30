@@ -139,11 +139,12 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
 
         ctx.Connection.CryptoSession.Initialize(ctx.Packet.PublicKey);
 
-        ctx.Connection.AccountId = accountId;
         // The maintenance deadline may arrive while an Admin is still at character selection.
-        // Establish access here, before a character has been selected, for the drain exemption.
+        // Establish access before publishing identity, so the tick never drains a newly
+        // authenticated Admin while the exchange is still finishing.
         if (ctx.Connection is IAccessLevelAssignable assignable)
             assignable.AssignAccessLevel(account.AccessLevel);
+        ctx.Connection.AccountId = accountId;
 
         NetworkPacket result = SExchangeWorldKeyPacket.Create(
             ctx.Connection.ServerCrypto.GetPublicKey()

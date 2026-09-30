@@ -45,7 +45,14 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
         Init(client);
     }
 
-    public AccountId? AccountId { get; set; }
+    // Identity is published after access is assigned at exchange. The volatile publication makes
+    // the preceding access write visible to the tick that observes a non-null account ID.
+    private AccountId? _accountId;
+    public AccountId? AccountId
+    {
+        get => Volatile.Read(ref _accountId);
+        set => Volatile.Write(ref _accountId, value);
+    }
 
     /// <summary>Who this connection is, for its packets' spans and log scope.</summary>
     public PacketTags TelemetryTags() =>
