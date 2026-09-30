@@ -22,7 +22,10 @@ public sealed class SeedReader : IDisposable
         _model = _context.GetService<IDesignTimeModel>().Model;
     }
 
-    /// <summary>Every seeded row of <typeparamref name="T" />, as entities; navigations are left unset.</summary>
+    /// <summary>
+    /// Every seeded row of <typeparamref name="T" />, as entities; navigations and shadow properties are left unset.
+    /// A seeded column with no writable property is refused rather than dropped.
+    /// </summary>
     public List<T> Rows<T>() where T : class, new()
     {
         IEntityType type = _model.FindEntityType(typeof(T))
@@ -34,8 +37,14 @@ public sealed class SeedReader : IDisposable
             var row = new T();
             foreach (IProperty property in type.GetProperties())
             {
-                if (property.PropertyInfo is { CanWrite: true } info && seed.TryGetValue(property.Name, out object? value))
-                    info.SetValue(row, value);
+                if (property.IsShadowProperty() || !seed.TryGetValue(property.Name, out object? value))
+                    continue;
+
+                if (property.PropertyInfo is not { CanWrite: true } info)
+                    throw new InvalidDataException(
+                        $"{typeof(T).Name}.{property.Name} is seeded but has no writable property to read it into.");
+
+                info.SetValue(row, value);
             }
 
             rows.Add(row);

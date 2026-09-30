@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Avalon.World.Public.Enums;
 
@@ -11,7 +12,7 @@ public static class RunSeed
         unchecked
         {
             ulong hash = 14695981039346656037UL;
-            foreach (byte b in Encoding.UTF8.GetBytes($"{seed}|{characterClass}|{level}|{gear}|{scenario}|{run}"))
+            foreach (byte b in Encoding.UTF8.GetBytes(Key(seed, characterClass, level, gear, scenario, run)))
             {
                 hash ^= b;
                 hash *= 1099511628211UL;
@@ -20,4 +21,8 @@ public static class RunSeed
             return (int)(hash ^ (hash >> 32));
         }
     }
+
+    /// <summary>The hashed text, formatted invariantly so a negative seed hashes alike on every machine.</summary>
+    private static string Key(int seed, CharacterClass characterClass, ushort level, string gear, string scenario, int run) =>
+        string.Create(CultureInfo.InvariantCulture, $"{seed}|{characterClass}|{level}|{gear}|{scenario}|{run}");
 }

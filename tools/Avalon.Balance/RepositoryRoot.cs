@@ -10,6 +10,9 @@ public static class RepositoryRoot
             directory = directory.Parent;
 
         return directory?.FullName
-            ?? throw new InvalidOperationException($"No Avalon.sln above {AppContext.BaseDirectory}.");
+            ?? throw new RepositoryNotFoundException($"No Avalon.sln above {AppContext.BaseDirectory}.");
     }
 }
+
+/// <summary>The tool is not running from a build inside the repository.</summary>
+public sealed class RepositoryNotFoundException(string message) : Exception(message);

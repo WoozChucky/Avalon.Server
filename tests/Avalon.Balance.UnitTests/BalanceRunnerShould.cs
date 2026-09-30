@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Avalon.Balance;
 using Avalon.Balance.Config;
@@ -36,6 +37,27 @@ public class BalanceRunnerShould
             RunSeed.For(672, CharacterClass.Wizard, 3, "forest", "elite-1", 17));
         Assert.NotEqual(RunSeed.For(672, CharacterClass.Wizard, 3, "forest", "elite-1", 17),
             RunSeed.For(672, CharacterClass.Wizard, 3, "forest", "elite-1", 18));
+    }
+
+    [Fact]
+    public void Derive_the_same_seed_for_a_negative_seed_whatever_the_culture()
+    {
+        CultureInfo before = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            int invariant = RunSeed.For(-672, CharacterClass.Wizard, 3, "forest", "elite-1", 17);
+
+            // Swedish writes a negative number with U+2212, not an ASCII hyphen.
+            CultureInfo.CurrentCulture = new CultureInfo("sv-SE");
+            int swedish = RunSeed.For(-672, CharacterClass.Wizard, 3, "forest", "elite-1", 17);
+
+            Assert.Equal(invariant, swedish);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
     }
 
     [Fact]

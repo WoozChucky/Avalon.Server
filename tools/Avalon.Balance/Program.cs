@@ -54,7 +54,8 @@ try
     Console.WriteLine($"Report: {Path.Combine(outDir, "report.html")}");
     return grades.AnyRed ? 1 : 0;
 }
-catch (Exception e) when (e is ArgumentException or InvalidDataException or FileNotFoundException or JsonException)
+catch (Exception e) when (e is ArgumentException or InvalidDataException or IOException or UnauthorizedAccessException
+                                or JsonException or RepositoryNotFoundException)
 {
     Console.Error.WriteLine(e.Message);
     return 2;
@@ -66,7 +67,7 @@ static string Commit(string root)
     {
         using var git = Process.Start(new ProcessStartInfo("git", "rev-parse --short HEAD")
         {
-            WorkingDirectory = root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,
+            WorkingDirectory = root, RedirectStandardOutput = true, UseShellExecute = false,
         });
         if (git is null) return "unknown";
         string sha = git.StandardOutput.ReadToEnd().Trim();
