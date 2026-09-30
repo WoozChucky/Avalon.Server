@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -10,7 +11,6 @@ using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
 using Avalon.World.Characters;
-using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -201,7 +201,7 @@ public class CombatResolutionShould
             CreationDate = DateTime.UtcNow,
         };
         var wizard = new CharacterEntity(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, row,
-            new Avalon.World.Configuration.RegenConfiguration()) { Data = row };
+            new Avalon.Combat.RegenConfiguration()) { Data = row };
         MapInstanceClient caster = Join(instance, wizard);
         wizard.PowerType = PowerType.Mana;
         wizard.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, Staff)]);

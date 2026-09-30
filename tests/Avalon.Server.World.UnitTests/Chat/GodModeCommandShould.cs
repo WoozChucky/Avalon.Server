@@ -1,11 +1,11 @@
 using System.IO;
+using Avalon.Combat;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.World;
 using Avalon.World.Chat;
-using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;

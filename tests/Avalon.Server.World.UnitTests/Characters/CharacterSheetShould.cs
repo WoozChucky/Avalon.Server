@@ -1,11 +1,12 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
-using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Instances;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Reload;
 using Avalon.World;
 using Avalon.World.Characters;

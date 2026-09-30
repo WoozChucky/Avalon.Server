@@ -1,18 +1,19 @@
-using Avalon.Server.World.UnitTests.Loot;
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Combat;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
-using Avalon.Hosting.Networking;
-using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
+using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -27,6 +28,7 @@ using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
+using Avalon.World.Pvp;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -36,7 +38,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
-using Avalon.World.Pvp;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

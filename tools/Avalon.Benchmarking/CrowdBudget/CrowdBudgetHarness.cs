@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;

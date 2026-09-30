@@ -8,7 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The real maths: stats, creature derivation, hit resolution, costs, scripts' kits. -->
+    <!-- The real maths: stats, creature derivation, hit resolution, costs. -->
+    <ProjectReference Include="..\..\src\Server\Avalon.Combat\Avalon.Combat.csproj"/>
+    <!-- The ability catalog, combat patch checks and scripts' kits, until they move into the simulator (balance workbench, sub-project 2). -->
     <ProjectReference Include="..\..\src\Server\Avalon.World\Avalon.World.csproj"/>
     <!-- The seed is read from WorldDbContext's model, never from a database. -->
     <ProjectReference Include="..\..\src\Server\Avalon.Database.World\Avalon.Database.World.csproj"/>

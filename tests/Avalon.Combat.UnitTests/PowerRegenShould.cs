@@ -1,9 +1,7 @@
-using Avalon.World.Characters;
-using Avalon.World.Configuration;
 using Avalon.World.Public.Enums;
 using Xunit;
 
-namespace Avalon.Server.World.UnitTests.Characters;
+namespace Avalon.Combat.UnitTests;
 
 /// <summary>
 /// The one power-regen rule, shared by CharacterEntity and the balance simulator. The fraction of a point is carried

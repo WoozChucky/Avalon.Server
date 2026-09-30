@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Combat;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;

@@ -1,7 +1,7 @@
 using Avalon.Balance.Data;
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Characters;
 using Avalon.World.Combat;
 using Avalon.World.Public.Enums;
 using Xunit;

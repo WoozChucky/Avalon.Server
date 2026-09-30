@@ -1,4 +1,4 @@
-namespace Avalon.World.Combat;
+namespace Avalon.Combat;
 
 /// <summary>The heal rule that is pure arithmetic.</summary>
 public static class HealRules

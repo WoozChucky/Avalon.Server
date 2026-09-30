@@ -1,7 +1,6 @@
 using Avalon.Network.Packets.State;
-using Avalon.World.Combat;
 
-namespace Avalon.Server.World.UnitTests.Combat;
+namespace Avalon.Combat.UnitTests;
 
 /// <summary>#526: a gain is capped at the maximum, refused to the dead and to a pool no cast spends; Fury alone resets.</summary>
 public class PowerPoolShould

@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;

@@ -1,7 +1,6 @@
-using Avalon.World.Configuration;
 using Avalon.World.Public.Enums;
 
-namespace Avalon.World.Characters;
+namespace Avalon.Combat;
 
 /// <summary>
 /// The one Mana and Energy regeneration rule. Called by <c>CharacterEntity.Update</c> every tick and by the balance
@@ -47,9 +46,9 @@ public static class PowerRegen
     /// <summary>
     /// Adds <paramref name="earned" /> to <paramref name="carry" />, takes the whole points out of it and returns
     /// them, leaving the fraction for the next step. Shared with the entity's out-of-combat health regeneration,
-    /// which carries its own fraction the same way.
+    /// which carries its own fraction the same way. Public so `CharacterEntity` can use it across the assembly boundary.
     /// </summary>
-    internal static uint TakeWholePoints(double earned, ref double carry)
+    public static uint TakeWholePoints(double earned, ref double carry)
     {
         carry += earned;
 

@@ -1,7 +1,7 @@
+using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
-using Avalon.World.Combat;
 using Avalon.World.Configuration;
 using Avalon.World.Public.Abilities;
 

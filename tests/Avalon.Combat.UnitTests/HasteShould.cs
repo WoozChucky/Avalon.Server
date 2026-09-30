@@ -1,6 +1,5 @@
-using Avalon.World.Combat;
 
-namespace Avalon.Server.World.UnitTests.Combat;
+namespace Avalon.Combat.UnitTests;
 
 /// <summary>#627: haste divides a time by 1 + haste / 100; none, or a negative value, leaves it as it is.</summary>
 public class HasteShould

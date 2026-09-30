@@ -1,8 +1,8 @@
 using Avalon.Balance.Config;
+using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
-using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Combat;
 using Avalon.World.Configuration;

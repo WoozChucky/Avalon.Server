@@ -1,10 +1,10 @@
+using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
-using Avalon.World.Creatures;
 using Avalon.World.Dialogue;
 using Avalon.World.Loot;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Dialogue;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Localization;
 using Avalon.World.Vendors;
 

@@ -1,6 +1,6 @@
+using Avalon.Combat;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.State;
-using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
@@ -37,7 +37,7 @@ public class CharacterEntityShould
         CharacterEntity entity = NewEntity();
         entity.PowerType = PowerType.Mana;
 
-        entity.ApplyStats(new Avalon.World.Characters.DerivedCharacterStats(
+        entity.ApplyStats(new Avalon.Combat.DerivedCharacterStats(
             MaxHealth: uint.MaxValue, MaxPower: (uint)int.MaxValue + 1, Stamina: 1, Strength: 1, Agility: 1,
             Intellect: 1, Armor: 0, BlockPct: 0, DodgePct: 0, CritPct: 0, AttackDamage: 0, AbilityDamage: 0),
             Avalon.World.Characters.CurrentValues.Refill, TestCombat.Formula);

@@ -1,7 +1,7 @@
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
 
-namespace Avalon.Domain.World;
+namespace Avalon.Combat;
 
 /// <summary>
 /// The per-hit arithmetic of an ability (#669), shared by the world server's combat and the api's tooltips

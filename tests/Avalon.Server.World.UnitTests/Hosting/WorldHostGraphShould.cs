@@ -64,7 +64,7 @@ public class WorldHostGraphShould
 
             // #506. MapInstance reads the combat random with GetService and otherwise falls back to one
             // that never crits, dodges or blocks, so only this proves production rolls for real.
-            Assert.IsType<Avalon.World.Combat.CombatRandom>(host.Services.GetRequiredService<Avalon.World.Combat.ICombatRandom>());
+            Assert.IsType<Avalon.Combat.CombatRandom>(host.Services.GetRequiredService<Avalon.Combat.ICombatRandom>());
             Assert.IsType<NoQuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
 
             // PvP (#164). MapInstance reads the toggle with GetService, so a missing registration would

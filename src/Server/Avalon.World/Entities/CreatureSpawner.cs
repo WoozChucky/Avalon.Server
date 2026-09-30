@@ -1,12 +1,12 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
+using Avalon.World.Dialogue;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Creatures;
-using Avalon.World.Dialogue;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;

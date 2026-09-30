@@ -1,6 +1,6 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
-using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;

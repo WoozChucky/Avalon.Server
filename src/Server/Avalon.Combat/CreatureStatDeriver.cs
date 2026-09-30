@@ -1,10 +1,9 @@
 using Avalon.Domain.World;
-using Avalon.World.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
-namespace Avalon.World.Creatures;
+namespace Avalon.Combat;
 
 /// <summary>
 /// Stats a creature spawns with, after level, template modifiers and rarity are applied. Armour and the

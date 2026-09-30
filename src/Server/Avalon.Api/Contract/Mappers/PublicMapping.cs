@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Domain.World;
 using DomainFlags = Avalon.Domain.World.ItemTemplateFlags;
 

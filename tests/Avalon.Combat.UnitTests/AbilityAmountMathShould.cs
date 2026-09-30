@@ -1,9 +1,8 @@
-using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
 using Xunit;
 
-namespace Avalon.Shared.UnitTests.Domain;
+namespace Avalon.Combat.UnitTests;
 
 /// <summary>The per-hit arithmetic the world server and the api share (#669, tooltips).</summary>
 public class AbilityAmountMathShould

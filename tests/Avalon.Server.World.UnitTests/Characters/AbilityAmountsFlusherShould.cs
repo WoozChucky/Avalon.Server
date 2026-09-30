@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;

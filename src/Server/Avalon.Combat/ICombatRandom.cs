@@ -1,4 +1,4 @@
-namespace Avalon.World.Combat;
+namespace Avalon.Combat;
 
 /// <summary>
 /// Where every combat roll gets its numbers (#506): dodge, crit and block chances, weapon rolls and

@@ -1,4 +1,4 @@
-using Avalon.World.Combat;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 
