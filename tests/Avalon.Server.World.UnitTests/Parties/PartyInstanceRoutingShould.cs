@@ -7,6 +7,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Instances;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -39,6 +40,7 @@ public class PartyInstanceRoutingShould : IDisposable
     private readonly List<TaskCompletionSource<MapInstance>> _builds = [];
     private readonly List<(MapTemplate Template, PartyId? Party)> _requested = [];
     private readonly List<MapInstance> _instances = [];
+    private readonly FixedTimeProvider _clock = new(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero));
     private readonly InstanceRegistry _registry;
 
     public PartyInstanceRoutingShould()
@@ -100,6 +102,79 @@ public class PartyInstanceRoutingShould : IDisposable
         Assert.NotSame(await solo.WaitAsync(Bound), await party.WaitAsync(Bound));
     }
 
+    /// <summary>
+    /// A disband while the party's build is in flight: the build must not index its instance once it finishes, and the
+    /// instance, which nobody ever enters, must still expire rather than stay live for good.
+    /// </summary>
+    [Fact]
+    public async Task Leave_a_build_finished_after_the_party_was_forgotten_unindexed_and_let_it_expire()
+    {
+        var party = new PartyId(9);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+
+        _registry.ForgetParty(party); // the party disbands mid-build
+        CompleteBuilds();
+        IMapInstance orphan = await first.WaitAsync(Bound);
+
+        // Not indexed: asking again builds anew instead of handing back the orphan.
+        Task<IMapInstance> again = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Assert.Equal(2, _builds.Count);
+        CompleteBuilds();
+        Assert.NotSame(orphan, await again.WaitAsync(Bound));
+
+        _clock.Now += TimeSpan.FromMinutes(15) - TimeSpan.FromSeconds(1);
+        _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+        Assert.Same(orphan, _registry.GetInstanceById(orphan.InstanceId));
+
+        _clock.Now += TimeSpan.FromSeconds(1);
+        _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+        Assert.Null(_registry.GetInstanceById(orphan.InstanceId));
+    }
+
+    /// <summary>A newer build of the same party and map replaced the entry; freeing the older, expired one must keep it.</summary>
+    [Fact]
+    public async Task Keep_the_newer_party_instance_indexed_when_an_older_one_of_the_map_is_freed()
+    {
+        var party = new PartyId(9);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        CompleteBuilds();
+        IMapInstance older = await first.WaitAsync(Bound);
+
+        _clock.Now += TimeSpan.FromMinutes(15); // older is expired but not yet freed
+        Task<IMapInstance> second = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Assert.Equal(2, _builds.Count);
+        CompleteBuilds();
+        IMapInstance newer = await second.WaitAsync(Bound);
+
+        _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+
+        Assert.Null(_registry.GetInstanceById(older.InstanceId));
+        Task<IMapInstance> after = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Assert.Equal(2, _builds.Count); // no third build: the entry still names the newer instance
+        Assert.Same(newer, await after.WaitAsync(Bound));
+    }
+
+    /// <summary>An instance stamped empty at creation must not look expired while someone is in it, however long.</summary>
+    [Fact]
+    public async Task Keep_occupied_party_and_solo_instances_past_the_expiry()
+    {
+        var party = new PartyId(9);
+        Task<IMapInstance> partyBuild = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> soloBuild = _registry.GetOrCreateNormalInstanceAsync(1, DungeonId);
+        CompleteBuilds();
+        var partyInstance = (MapInstance)await partyBuild.WaitAsync(Bound);
+        var soloInstance = (MapInstance)await soloBuild.WaitAsync(Bound);
+        MapInstanceClients.Join(partyInstance, 1);
+        MapInstanceClients.Join(soloInstance, 2);
+
+        _clock.Now += TimeSpan.FromMinutes(20);
+        _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+
+        Assert.Same(partyInstance, await _registry.GetOrCreatePartyInstanceAsync(party, DungeonId).WaitAsync(Bound));
+        Assert.Same(soloInstance, await _registry.GetOrCreateNormalInstanceAsync(1, DungeonId).WaitAsync(Bound));
+        Assert.Equal(2, _builds.Count);
+    }
+
     public void Dispose()
     {
         foreach (MapInstance instance in _instances)
@@ -113,7 +188,8 @@ public class PartyInstanceRoutingShould : IDisposable
             if (_builds[i].Task.IsCompleted)
                 continue;
 
-            MapInstance instance = TestMapInstances.Build(MapInstanceClients.NewWorld(), ownerPartyId: _requested[i].Party);
+            MapInstance instance = TestMapInstances.Build(MapInstanceClients.NewWorld(), time: _clock,
+                ownerPartyId: _requested[i].Party, templateId: _requested[i].Template.Id);
             _instances.Add(instance);
             _builds[i].SetResult(instance);
         }

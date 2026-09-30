@@ -37,6 +37,12 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     private readonly ConcurrentDictionary<(uint PartyId, MapTemplateId TemplateId), Lazy<Task<MapInstance>>>
         _pendingPartyBuilds = new();
 
+    // Parties forgotten while a build of theirs was in flight: that build must not index its instance, or a disband
+    // mid-build would leave the party routed to it. Held only while such a build is pending, under _partyIndexGate,
+    // which also covers every write of _partyInstanceMap from a build and from ForgetParty.
+    private readonly HashSet<uint> _forgottenParties = [];
+    private readonly Lock _partyIndexGate = new();
+
     private readonly ILogger<InstanceRegistry> _logger;
     private readonly IAvalonMapManager _mapManager;
     private readonly IChunkLayoutInstanceFactory _chunkLayoutFactory;
@@ -215,14 +221,43 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             MapInstance instance = await CreateAndInitializeInstanceAsync(templateId, MapType.Normal, null,
                 CancellationToken.None, party);
 
-            _partyInstanceMap.GetOrAdd(party.Value, _ => new ConcurrentDictionary<MapTemplateId, Guid>())[templateId] =
-                instance.InstanceId;
+            lock (_partyIndexGate)
+            {
+                // Forgotten while it built (the party disbanded): left unindexed, it empties and expires like any
+                // instance nobody enters.
+                if (!_forgottenParties.Contains(party.Value))
+                {
+                    _partyInstanceMap.GetOrAdd(party.Value, _ => new ConcurrentDictionary<MapTemplateId, Guid>())
+                        [templateId] = instance.InstanceId;
+                }
+            }
+
             return instance;
         }
         finally
         {
-            _pendingPartyBuilds.TryRemove((party.Value, templateId), out _);
+            lock (_partyIndexGate)
+            {
+                _pendingPartyBuilds.TryRemove((party.Value, templateId), out _);
+                if (!HasPendingPartyBuild(party.Value))
+                {
+                    _forgottenParties.Remove(party.Value);
+                }
+            }
         }
+    }
+
+    private bool HasPendingPartyBuild(uint party)
+    {
+        foreach ((uint PartyId, MapTemplateId TemplateId) key in _pendingPartyBuilds.Keys)
+        {
+            if (key.PartyId == party)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private MapInstance? FindPartyInstance(uint party, MapTemplateId templateId) =>
@@ -236,7 +271,19 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     public bool IsPartyInstance(PartyId party, Guid instanceId) =>
         _instances.TryGetValue(instanceId, out MapInstance? instance) && party.Equals(instance.OwnerPartyId);
 
-    public void ForgetParty(PartyId party) => _partyInstanceMap.TryRemove(party.Value, out _);
+    public void ForgetParty(PartyId party)
+    {
+        lock (_partyIndexGate)
+        {
+            _partyInstanceMap.TryRemove(party.Value, out _);
+
+            // A build still in flight would index its instance once it finishes; it is told not to.
+            if (HasPendingPartyBuild(party.Value))
+            {
+                _forgottenParties.Add(party.Value);
+            }
+        }
+    }
 
     public IMapInstance? GetInstanceById(Guid instanceId) =>
         _instances.TryGetValue(instanceId, out MapInstance? instance) ? instance : null;

@@ -148,6 +148,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // falls back, so an instance built without one (tests) still ticks; production registers it.
         _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
 
+        // Empty from the moment it exists: an instance nobody ever enters (a party build finished after the party
+        // disbanded) still expires, instead of staying live for good. AddCharacter clears it.
+        LastEmptyAt = _time.GetUtcNow().UtcDateTime;
+
         // PvP (#164): the one toggle the handler, /pvp and every instance share. Production registers
         // it (WorldHostGraphShould); the fallback serves instances built without one (tests).
         _pvp = serviceProvider.GetService<PvpToggle>()
