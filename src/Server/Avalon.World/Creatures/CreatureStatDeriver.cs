@@ -1,4 +1,5 @@
 using Avalon.Domain.World;
+using Avalon.World.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
@@ -18,7 +19,14 @@ public readonly record struct DerivedCreatureStats(
     uint Armor = 0,
     float CritPct = 0f,
     float DodgePct = 0f,
-    float BlockPct = 0f);
+    float BlockPct = 0f)
+{
+    /// <summary>What a creature with these stats attacks with (#163): no damage stats, its natural range.</summary>
+    public AttackerCombat Attacker => new(Level, 0, 0, CritPct, DamageMin, DamageMax);
+
+    /// <summary>What a creature with these stats defends with (#506).</summary>
+    public DefenderCombat Defence => new(Armor, DodgePct, BlockPct);
+}
 
 /// <summary>
 /// Turns a creature template plus a level into the stats it spawns with. Pure, and separate from

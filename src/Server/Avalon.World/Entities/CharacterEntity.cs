@@ -48,6 +48,14 @@ public class CharacterEntity : ICharacter
     private double _furyDecayRemainder;
     private const double FuryDecayTolerance = 1e-3;
 
+    // Mana and Energy regeneration (PowerRegen): the fraction of a point earned but not yet given, carried between
+    // ticks so the per-second rate holds at any tick rate; dropped whenever the pool cannot regenerate, full included.
+    private double _powerRegenCarry;
+
+    // Out-of-combat health regeneration: the same carry, dropped whenever health cannot regenerate (in combat,
+    // dead, full, or no Stamina), so a full pool banks nothing and a fight starts the fraction over.
+    private double _healthRegenCarry;
+
     public CharacterEntity()
     {
         _logger = null!;
@@ -152,15 +160,10 @@ public class CharacterEntity : ICharacter
         }
 
         Stamina = stats.Stamina;
-        RegenStat = Class switch
-        {
-            CharacterClass.Wizard or CharacterClass.Healer => stats.Intellect,
-            CharacterClass.Hunter => stats.Agility,
-            _ => 0,
-        };
+        RegenStat = PowerRegen.StatOf(Class, stats);
 
         // #627: both bounded by the formula this refresh read, so a combat reload reaches them at the next refresh.
-        EffectiveHastePct = Math.Clamp(stats.HastePct, 0f, Math.Max(0f, formula.HasteCap));
+        EffectiveHastePct = stats.EffectiveHastePct(formula);
         MovementSpeed = CharacterMovement.SpeedFor(stats.MovementSpeedPct, formula);
 
         Stats = stats;
@@ -173,7 +176,7 @@ public class CharacterEntity : ICharacter
     /// on ICharacter: the modding API cannot change what a hit deals (#622).
     /// </summary>
     internal AttackerCombat Combat => Stats is { } s
-        ? new AttackerCombat(Level, s.AttackDamage, s.AbilityDamage, s.CritPct, s.WeaponMin, s.WeaponMax)
+        ? s.AttackerAt(Level)
         : new AttackerCombat(Level, 0, 0, 0f, 0, 0);
 
     /// <summary>
@@ -192,9 +195,7 @@ public class CharacterEntity : ICharacter
     internal AttackerCombat? AbilityAmountsSentFor { get; set; }
 
     /// <summary>What this character defends with (#506): armour, dodge and block, from the last stats refresh.</summary>
-    internal DefenderCombat Defence => Stats is { } s
-        ? new DefenderCombat(s.Armor, s.DodgePct, s.BlockPct)
-        : default;
+    internal DefenderCombat Defence => Stats is { } s ? s.Defence : default;
 
     public bool IsInCombat =>
         _lastCombatTime != DateTime.MinValue &&
@@ -388,14 +389,9 @@ public class CharacterEntity : ICharacter
     /// </summary>
     internal void GainPower(uint amount)
     {
-        if (amount == 0 || IsDead) return;
-        if (PowerType is not (PowerType.Mana or PowerType.Energy or PowerType.Fury)) return;
-
-        uint max = Power ?? 0;
         uint current = CurrentPower ?? 0;
-        if (current >= max) return;
-
-        CurrentPower = (uint)Math.Min(max, (ulong)current + amount);
+        uint next = PowerPool.Gain(PowerType, IsDead, current, Power ?? 0, amount);
+        if (next != current) CurrentPower = next;
     }
 
     /// <summary>
@@ -405,7 +401,7 @@ public class CharacterEntity : ICharacter
     internal void ResetFury()
     {
         _furyDecayRemainder = 0d;
-        if (PowerType == PowerType.Fury && CurrentPower != 0)
+        if (PowerPool.EmptiesOnReset(PowerType) && CurrentPower != 0)
             CurrentPower = 0;
     }
 
@@ -582,13 +578,21 @@ public class CharacterEntity : ICharacter
             _lastCastTime = _time.GetUtcNow().UtcDateTime;
         }
 
-        float dt = (float)deltaTime.TotalSeconds;
-
-        // Health regeneration (skipped if dead or in combat)
+        // Health regeneration (skipped if dead or in combat). The fraction of a point is carried between ticks,
+        // as power's is, and dropped whenever health cannot regenerate.
         if (!IsInCombat && !IsDead && CurrentHealth > 0 && CurrentHealth < Health && Stamina > 0)
         {
-            uint regen = (uint)Math.Max(1f, Stamina * _regenConfig.HealthRegenOutOfCombatPerStamina * dt);
-            CurrentHealth = Math.Min(Health, CurrentHealth + regen);
+            uint regen = PowerRegen.TakeWholePoints(
+                Stamina * (double)_regenConfig.HealthRegenOutOfCombatPerStamina * deltaTime.TotalSeconds,
+                ref _healthRegenCarry);
+            if (regen > 0)
+            {
+                CurrentHealth = Math.Min(Health, CurrentHealth + regen);
+            }
+        }
+        else
+        {
+            _healthRegenCarry = 0d;
         }
 
         // Fury (#526) never regenerates. Out of combat it drains, carrying the fraction of a point owed
@@ -618,7 +622,8 @@ public class CharacterEntity : ICharacter
             }
         }
 
-        // Power regeneration (Mana / Energy only)
+        // Power regeneration (Mana / Energy only). The fraction of a point is carried between ticks
+        // (PowerRegen.Amount), and dropped whenever the pool cannot regenerate, so a full pool banks nothing.
         if (!IsDead && CurrentPower.HasValue && Power.HasValue &&
             CurrentPower.Value < Power.Value &&
             RegenStat > 0 &&
@@ -628,15 +633,16 @@ public class CharacterEntity : ICharacter
                 _lastCastTime != DateTime.MinValue &&
                 (_time.GetUtcNow().UtcDateTime - _lastCastTime).TotalSeconds < _regenConfig.PowerRegenCastSuppressSeconds;
 
-            if (!castSuppressed)
+            uint regen = PowerRegen.Amount(_regenConfig, RegenStat, IsInCombat, castSuppressed,
+                deltaTime.TotalSeconds, ref _powerRegenCarry);
+            if (regen > 0)
             {
-                float coeff = IsInCombat
-                    ? _regenConfig.PowerRegenInCombatPerStat
-                    : _regenConfig.PowerRegenOutOfCombatPerStat;
-
-                uint regen = (uint)Math.Max(1f, RegenStat * coeff * dt);
                 CurrentPower = Math.Min(Power.Value, CurrentPower.Value + regen);
             }
+        }
+        else
+        {
+            _powerRegenCarry = 0d;
         }
     }
 

@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
+using Avalon.World.Combat;
 
 namespace Avalon.World.Characters;
 
@@ -47,4 +48,15 @@ public readonly record struct DerivedCharacterStats(
         AttackDamage = AttackDamage,
         AbilityDamage = AbilityDamage,
     };
+
+    /// <summary>What a character with these stats attacks with at <paramref name="level" /> (#506).</summary>
+    public AttackerCombat AttackerAt(ushort level) =>
+        new(level, AttackDamage, AbilityDamage, CritPct, WeaponMin, WeaponMax);
+
+    /// <summary>What a character with these stats defends with (#506).</summary>
+    public DefenderCombat Defence => new(Armor, DodgePct, BlockPct);
+
+    /// <summary>The haste that counts (#627): the gear total, 0 to the formula's HasteCap.</summary>
+    public float EffectiveHastePct(Avalon.Domain.World.CombatFormula formula) =>
+        Math.Clamp(HastePct, 0f, Math.Max(0f, formula.HasteCap));
 }
