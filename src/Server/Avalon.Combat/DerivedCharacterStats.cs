@@ -1,9 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
-using Avalon.World.Combat;
-using Avalon.Combat;
 
-namespace Avalon.World.Characters;
+namespace Avalon.Combat;
 
 /// <summary>
 /// What a character's class, level and worn gear add up to (spec #463). Written to the entity by

@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Persistence;
 

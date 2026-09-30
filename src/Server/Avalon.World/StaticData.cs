@@ -12,6 +12,7 @@ using Avalon.World.Public.Localization;
 using Avalon.World.Reload;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
+using Avalon.Combat;
 
 namespace Avalon.World;
 

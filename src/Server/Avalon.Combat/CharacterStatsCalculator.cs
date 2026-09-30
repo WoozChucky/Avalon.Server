@@ -1,7 +1,7 @@
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
 
-namespace Avalon.World.Characters;
+namespace Avalon.Combat;
 
 /// <summary>
 /// The one stats calculation (spec #463, closes #434): a class and level's seeded ClassLevelStat

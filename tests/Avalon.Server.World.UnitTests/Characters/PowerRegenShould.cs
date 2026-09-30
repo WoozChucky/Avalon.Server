@@ -2,6 +2,7 @@ using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Public.Enums;
 using Xunit;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

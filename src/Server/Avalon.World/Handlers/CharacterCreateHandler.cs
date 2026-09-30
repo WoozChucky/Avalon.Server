@@ -9,6 +9,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
+using Avalon.Combat;
 
 namespace Avalon.World.Handlers;
 

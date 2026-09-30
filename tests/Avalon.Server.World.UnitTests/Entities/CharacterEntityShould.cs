@@ -8,6 +8,7 @@ using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -37,7 +38,7 @@ public class CharacterEntityShould
         CharacterEntity entity = NewEntity();
         entity.PowerType = PowerType.Mana;
 
-        entity.ApplyStats(new Avalon.World.Characters.DerivedCharacterStats(
+        entity.ApplyStats(new Avalon.Combat.DerivedCharacterStats(
             MaxHealth: uint.MaxValue, MaxPower: (uint)int.MaxValue + 1, Stamina: 1, Strength: 1, Agility: 1,
             Intellect: 1, Armor: 0, BlockPct: 0, DodgePct: 0, CritPct: 0, AttackDamage: 0, AbilityDamage: 0),
             Avalon.World.Characters.CurrentValues.Refill, TestCombat.Formula);

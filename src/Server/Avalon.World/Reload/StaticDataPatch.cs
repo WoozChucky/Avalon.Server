@@ -7,6 +7,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
 using Avalon.World.Vendors;
+using Avalon.Combat;
 
 namespace Avalon.World.Reload;
 

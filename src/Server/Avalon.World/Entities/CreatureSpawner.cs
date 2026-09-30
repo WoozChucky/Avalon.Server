@@ -12,6 +12,7 @@ using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
+using Avalon.Combat;
 
 namespace Avalon.World.Entities;
 

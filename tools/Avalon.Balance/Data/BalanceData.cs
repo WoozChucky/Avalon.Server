@@ -6,6 +6,7 @@ using Avalon.World.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
+using Avalon.Combat;
 
 namespace Avalon.Balance.Data;
 

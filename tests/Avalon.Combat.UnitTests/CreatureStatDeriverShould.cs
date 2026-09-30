@@ -1,12 +1,12 @@
 using Avalon.Domain.World;
-using Avalon.World.Creatures;
+using Avalon.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
-namespace Avalon.Server.World.UnitTests.Creatures;
+namespace Avalon.Combat.UnitTests;
 
 public class CreatureStatDeriverShould
 {

@@ -21,6 +21,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 using Avalon.World.Pvp;
+using Avalon.Combat;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

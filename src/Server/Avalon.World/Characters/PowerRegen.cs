@@ -1,5 +1,6 @@
 using Avalon.World.Configuration;
 using Avalon.World.Public.Enums;
+using Avalon.Combat;
 
 namespace Avalon.World.Characters;
 
