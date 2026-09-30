@@ -22,6 +22,8 @@ public class PublicWorldController(IWorldRepository worlds, IWorldDatabases data
     [ProducesResponseType(typeof(PublicWorldsDto), StatusCodes.Status200OK)]
     public async Task<PublicWorldsDto> List(CancellationToken ct)
     {
+        // The list varies by caller (staff also see Development/PTR worlds), so it is never shared.
+        Response.Headers.CacheControl = "private, no-cache";
         AccountAccessLevel caller = await PublicCaller.AccessLevelAsync(HttpContext);
 
         List<PublicWorldDto> readable = [];

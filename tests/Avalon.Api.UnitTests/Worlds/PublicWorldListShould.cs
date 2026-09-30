@@ -54,6 +54,17 @@ public sealed class PublicWorldListShould
     }
 
     [Fact]
+    public async Task Never_be_shared_by_a_cache()
+    {
+        await using ApiAuthHost host = await Start(defaultWorld: 2);
+
+        HttpResponseMessage response = await host.Client.GetAsync("/public/world");
+
+        Assert.True(response.Headers.CacheControl!.Private);
+        Assert.True(response.Headers.CacheControl.NoCache);
+    }
+
+    [Fact]
     public async Task List_every_world_a_signed_in_caller_may_enter()
     {
         await using ApiAuthHost host = await Start(defaultWorld: 2);

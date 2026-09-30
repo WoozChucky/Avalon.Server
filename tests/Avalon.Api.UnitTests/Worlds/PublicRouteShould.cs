@@ -27,6 +27,7 @@ public sealed class PublicRouteShould : IAsyncLifetime
     private const ushort Staff = 2;  // Admin only
     private const ushort Ptr = 3;    // PTR only
     private const ushort Down = 4;   // Player, databases failed
+    private const ushort StaffDown = 5; // Admin only, databases failed
 
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
     private readonly IItemTemplateRepository _items = Substitute.For<IItemTemplateRepository>();
@@ -35,14 +36,16 @@ public sealed class PublicRouteShould : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        WorldDatabases databases = new(new ushort[] { Open, Staff, Ptr, Down }
+        WorldDatabases databases = new(new ushort[] { Open, Staff, Ptr, Down, StaffDown }
             .Select(id => new ConfiguredWorld(new WorldId(id), $"Host=w{id}", $"Host=c{id}")));
         databases.MarkUnavailable(new WorldId(Down));
+        databases.MarkUnavailable(new WorldId(StaffDown));
 
         Row(Open, AccountAccessLevel.Player);
         Row(Staff, AccountAccessLevel.Admin);
         Row(Ptr, AccountAccessLevel.PTR);
         Row(Down, AccountAccessLevel.Player);
+        Row(StaffDown, AccountAccessLevel.Admin);
 
         _items.FindByIdAsync(new ItemTemplateId(12), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new ItemTemplate { Id = new ItemTemplateId(12), Name = "Barkplate Helm" });
@@ -139,6 +142,10 @@ public sealed class PublicRouteShould : IAsyncLifetime
     [Fact]
     public async Task Answer_503_for_a_world_whose_databases_failed() =>
         Assert.Equal(HttpStatusCode.ServiceUnavailable, (await Anonymous($"/public/world/{Down}/item/12")).StatusCode);
+
+    [Fact]
+    public async Task Answer_404_not_503_for_an_anonymous_caller_on_an_unavailable_staff_world() =>
+        Assert.Equal(HttpStatusCode.NotFound, (await Anonymous($"/public/world/{StaffDown}/item/12")).StatusCode);
 
     [Fact]
     public async Task Still_refuse_anonymous_callers_on_player_world_routes() =>

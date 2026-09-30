@@ -65,32 +65,10 @@ public sealed class WorldRouteMiddleware(RequestDelegate next)
             return;
         }
 
-        if (!WorldDatabaseSettings.TryParseWorldId(context.Request.RouteValues[WorldScopedAttribute.RouteValue] as string,
-                out WorldId? id))
+        if (await TrySelectWorldAsync(context, context.User.AccessLevel()) is not null)
         {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
+            await next(context);
         }
-
-        WorldEntity? world = await services.GetRequiredService<IWorldRepository>()
-            .FindByIdAsync(id, track: false, context.RequestAborted);
-        IWorldDatabases databases = services.GetRequiredService<IWorldDatabases>();
-        if (world is null
-            || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(context.User.AccessLevel())
-            || !databases.TryGet(id, out _))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        if (!databases.IsAvailable(id))
-        {
-            await WriteUnavailableAsync(context, id);
-            return;
-        }
-
-        services.GetRequiredService<CurrentWorld>().Select(world.Id, world.Name);
-        await next(context);
     }
 
     private static async Task WriteUnavailableAsync(HttpContext context, WorldId id)
@@ -108,34 +86,50 @@ public sealed class WorldRouteMiddleware(RequestDelegate next)
 
     private async Task SelectPublicWorldAsync(HttpContext context)
     {
-        IServiceProvider services = context.RequestServices;
         AccountAccessLevel caller = await PublicCaller.AccessLevelAsync(context);
-
-        if (!WorldDatabaseSettings.TryParseWorldId(context.Request.RouteValues[WorldScopedAttribute.RouteValue] as string,
-                out WorldId? id))
+        WorldEntity? world = await TrySelectWorldAsync(context, caller);
+        if (world is null)
         {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        WorldEntity? world = await services.GetRequiredService<IWorldRepository>()
-            .FindByIdAsync(id, track: false, context.RequestAborted);
-        IWorldDatabases databases = services.GetRequiredService<IWorldDatabases>();
-        if (world is null || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller) || !databases.TryGet(id, out _))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        if (!databases.IsAvailable(id))
-        {
-            await WriteUnavailableAsync(context, id);
             return;
         }
 
         context.Items[PublicWorldScopedAttribute.OpenToEveryoneItem] =
             AccessLevels.ForWorld(world.AccessLevelRequired).Allows(AccountAccessLevel.Player);
-        services.GetRequiredService<CurrentWorld>().Select(world.Id, world.Name);
         await next(context);
+    }
+
+    /// <summary>
+    /// The one non-disclosure order: parse, auth row, access rule, configured, then available. Selects the
+    /// world and returns it, or writes the 404 / 503 and returns null.
+    /// </summary>
+    private static async Task<WorldEntity?> TrySelectWorldAsync(HttpContext context, AccountAccessLevel caller)
+    {
+        IServiceProvider services = context.RequestServices;
+        if (!WorldDatabaseSettings.TryParseWorldId(context.Request.RouteValues[WorldScopedAttribute.RouteValue] as string,
+                out WorldId? id))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return null;
+        }
+
+        WorldEntity? world = await services.GetRequiredService<IWorldRepository>()
+            .FindByIdAsync(id, track: false, context.RequestAborted);
+        IWorldDatabases databases = services.GetRequiredService<IWorldDatabases>();
+        if (world is null
+            || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller)
+            || !databases.TryGet(id, out _))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return null;
+        }
+
+        if (!databases.IsAvailable(id))
+        {
+            await WriteUnavailableAsync(context, id);
+            return null;
+        }
+
+        services.GetRequiredService<CurrentWorld>().Select(world.Id, world.Name);
+        return world;
     }
 }

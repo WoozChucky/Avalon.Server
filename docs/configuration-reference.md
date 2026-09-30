@@ -253,7 +253,7 @@ The API serves any number of worlds, one per `Worlds` row in the auth database (
 
 **At startup** the API migrates the auth database (a failure stops it), then each world's two databases. A world whose migration fails is logged with its id and the exception type and answers 503 until the next restart; the other worlds serve. There is no retry. Every unreachable world adds the driver's connect timeout to startup.
 
-**Routes:** world content and characters are under `/world/{worldId}/...`. A world this API is not configured for, or that the caller may not enter, answers 404 (the same 404 either way); an unavailable world answers 503. `GET /character` lists the caller's characters on every world, with `unavailableWorlds`; `GET /world` says for each world whether it is `configured` and `available`. Character ids are unique only within one world, so a consumer keys a character by `(worldId, id)`. The Redis presence keys name the world too (`presence:world:{worldId}:character:{id}`, #556), and one character's presence is `GET /world/{worldId}/observability/character/{id}`, under the same 404/503 world check; `GET /observability/online` and `GET /observability/instance/{instanceId}` stay cross-world.
+**Routes:** world content and characters are under `/world/{worldId}/...`. A world this API is not configured for, or that the caller may not enter, answers 404 (the same 404 either way); an unavailable world answers 503. `GET /character` lists the caller's characters on every world, with `unavailableWorlds`; `GET /world` says for each world whether it is `configured` and `available`. The anonymous `/public/...` routes are `GET /public/world`, `GET /public/world/{worldId}/item/{id}` and `GET /public/world/{worldId}/ability/{id}`: they serve only worlds every player may enter unless the caller is signed in and may enter more, the list omits unavailable worlds, and any other world answers the same 404 (503 when its databases failed). Character ids are unique only within one world, so a consumer keys a character by `(worldId, id)`. The Redis presence keys name the world too (`presence:world:{worldId}:character:{id}`, #556), and one character's presence is `GET /world/{worldId}/observability/character/{id}`, under the same 404/503 world check; `GET /observability/online` and `GET /observability/instance/{instanceId}` stay cross-world.
 
 **Helm:** a `worlds` map, keyed by world id.
 
@@ -263,6 +263,8 @@ The API serves any number of worlds, one per `Worlds` row in the auth database (
 - The chart refuses to render with no world, a world id the API would refuse, a world missing one of its strings (chart-managed), a string given inline with `existingSecret`, a key that is not a valid Secret key name, a key two settings would read (the chart's own keys included), and the removed `database.world` / `database.characters` values.
 
 The API's `appsettings.json` lists no world, so the published image ships none. Local development gets world 1 (the docker compose databases) from `appsettings.Development.json`, which only the Development environment loads, and the Aspire AppHost sets the same pair. Every other environment has exactly the worlds its environment variables or Helm values give it, and the API refuses to start with none.
+
+**`Application:PublicWorldId`** (optional `ushort`): the world `GET /public/world` names as `defaultWorldId`. It falls back to the first world the caller may read when unset, or when that world is unavailable or not readable by the caller, so set it to the live world in a deployment.
 
 ---
 
