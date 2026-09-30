@@ -120,7 +120,7 @@ public class CharacterSelectHandler(
                 try
                 {
                     return await entryGate.CheckAsync(connection.AccountId!, CancellationToken.None)
-                        .WaitAsync(TimeSpan.FromSeconds(5));
+                        .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
                 }
                 catch (Exception)
                 {
@@ -134,8 +134,10 @@ public class CharacterSelectHandler(
                 if (!connection.IsConnected || connection.IsClosing) return;
                 if (!decision.IsValidAt((time ?? TimeProvider.System).GetUtcNow().UtcDateTime))
                 {
+#pragma warning disable MA0045 // tick continuation cannot await; the close finishes on its own
                     GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
                         DisconnectReason.Maintenance, logger);
+#pragma warning restore MA0045
                     return;
                 }
 

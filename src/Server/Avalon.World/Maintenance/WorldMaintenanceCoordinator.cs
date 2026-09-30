@@ -153,7 +153,7 @@ public sealed class WorldMaintenanceCoordinator(
                 }
             }
             if (newCloses > 0 && (_drainTask is null || _drainTask.IsCompleted))
-                _drainTask = Task.Run(DrainAndLogAsync);
+                _drainTask = Task.Run(DrainAndLogAsync, CancellationToken.None);
         }
     }
 

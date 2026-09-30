@@ -30,13 +30,13 @@ public static class CharacterReadinessBarrier
             try
             {
                 return await gate.CheckAsync(connection.AccountId, CancellationToken.None)
-                    .WaitAsync(TimeSpan.FromSeconds(5));
+                    .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
             }
             catch (Exception)
             {
                 return default;
             }
-        });
+        }, CancellationToken.None);
         PendingChecks.Add(connection, check);
         connection.EnqueueContinuation(check, decision =>
         {
@@ -46,8 +46,10 @@ public static class CharacterReadinessBarrier
 
             if (maintenance is null && !decision.IsValidAt(DateTime.UtcNow))
             {
+#pragma warning disable MA0045 // tick continuation cannot await; the close finishes on its own
                 GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
                     DisconnectReason.Maintenance, logger);
+#pragma warning restore MA0045
                 return;
             }
 
@@ -57,8 +59,10 @@ public static class CharacterReadinessBarrier
                 if (!maintenance.RunIfEntryAllowed(connection, decision,
                         () => released = Release(connection, world, logger)))
                 {
+#pragma warning disable MA0045 // tick continuation cannot await; the close finishes on its own
                     GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
                         DisconnectReason.Maintenance, logger);
+#pragma warning restore MA0045
                     return;
                 }
             }
