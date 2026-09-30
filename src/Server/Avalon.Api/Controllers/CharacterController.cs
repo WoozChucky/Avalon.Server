@@ -88,6 +88,23 @@ public class CharacterController : BaseController
         return Ok(abilities);
     }
 
+    /// <summary>The character's stats as its world last saved them (#676); 404 when none are saved.</summary>
+    [HttpGet("{id}/stats", Name = "GetCharacterStats")]
+    [ProducesResponseType(typeof(CharacterStatsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetStats([FromRoute] uint id, CancellationToken ct)
+    {
+        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        if (character is null) return NotFound();
+
+        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        if (!authz.Succeeded) return NotFoundOrForbid();
+
+        var stats = await _service.GetStatsAsync(new CharacterId(id), ct);
+        return stats is null ? NotFound() : Ok(stats);
+    }
+
     [HttpPatch("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
