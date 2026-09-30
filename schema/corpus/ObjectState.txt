@@ -37,6 +37,7 @@ variant absent
   field 19 PortalRole : byte? = null
   field 20 CanInteract : bool? = null
   field 21 PvpEnabled : bool? = null
+  field 22 Rarity : CreatureRarity? = null
   bytes 0
 
 variant empty
@@ -67,11 +68,12 @@ variant empty
   field 19 PortalRole : byte? = 0
   field 20 CanInteract : bool? = false
   field 21 PvpEnabled : bool? = false
-  bytes 52
+  field 22 Rarity : CreatureRarity? = Normal (0)
+  bytes 55
     12 00 1a 00 25 00 00 00 00 28 00 30 00 38 00 40
     00 48 00 50 00 58 00 60 00 68 00 70 00 78 00 82
     01 00 8d 01 00 00 00 00 90 01 00 98 01 00 a0 01
-    00 a8 01 00
+    00 a8 01 00 b0 01 00
 
 variant populated
   field 1 Guid : ulong = 7
@@ -101,14 +103,15 @@ variant populated
   field 19 PortalRole : byte? = 19
   field 20 CanInteract : bool? = true
   field 21 PvpEnabled : bool? = true
-  bytes 100
+  field 22 Rarity : CreatureRarity? = Elite (1)
+  bytes 103
     08 07 12 0f 0d db 0f 49 40 15 cd cc cc 3d 1d db
     0f 49 40 1a 0f 0d db 0f 49 40 15 cd cc cc 3d 1d
     db 0f 49 40 25 f9 02 15 50 28 02 30 07 38 ac 02
     40 01 48 80 d0 ac f3 0e 50 c0 84 3d 58 ac 02 60
     01 68 c0 84 3d 70 07 78 ac 02 82 01 05 61 6c 70
     68 61 8d 01 00 00 10 c0 90 01 13 98 01 13 a0 01
-    01 a8 01 01
+    01 a8 01 01 b0 01 01
 
 variant maxima
   field 1 Guid : ulong = 18446744073709551615
@@ -138,7 +141,8 @@ variant maxima
   field 19 PortalRole : byte? = 255
   field 20 CanInteract : bool? = true
   field 21 PvpEnabled : bool? = true
-  bytes 274
+  field 22 Rarity : CreatureRarity? = Boss (3)
+  bytes 277
     08 ff ff ff ff ff ff ff ff ff 01 12 0f 0d ff ff
     7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 1a 0f 0d ff
     ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 25 ff ff
@@ -156,7 +160,7 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 8d 01 ff
     ff 7f 7f 90 01 ff ff 03 98 01 ff 01 a0 01 01 a8
-    01 01
+    01 01 b0 01 03
 
 variant minima
   field 1 Guid : ulong = 0
@@ -186,13 +190,14 @@ variant minima
   field 19 PortalRole : byte? = 0
   field 20 CanInteract : bool? = false
   field 21 PvpEnabled : bool? = false
-  bytes 83
+  field 22 Rarity : CreatureRarity? = Normal (0)
+  bytes 86
     12 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff ff 7f
     ff 1a 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff ff
     7f ff 25 ff ff 7f ff 28 00 30 00 38 00 40 00 48
     00 50 00 58 00 60 00 68 00 70 00 78 00 82 01 01
     00 8d 01 ff ff 7f ff 90 01 00 98 01 00 a0 01 00
-    a8 01 00
+    a8 01 00 b0 01 00
 
 variant varint-edges
   field 1 Guid : ulong = 2097151
@@ -222,7 +227,8 @@ variant varint-edges
   field 19 PortalRole : byte? = 128
   field 20 CanInteract : bool? = true
   field 21 PvpEnabled : bool? = true
-  bytes 234
+  field 22 Rarity : CreatureRarity? = <not a declared member> (4)
+  bytes 237
     08 ff ff 7f 12 0f 0d 00 00 80 00 15 00 00 80 00
     1d 00 00 80 00 1a 0f 0d 00 00 80 00 15 00 00 80
     00 1d 00 00 80 00 25 00 00 80 00 28 04 30 80 80
@@ -237,7 +243,7 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 8d 01 00 00 80 00 90 01 80 01
-    98 01 80 01 a0 01 01 a8 01 01
+    98 01 80 01 a0 01 01 a8 01 01 b0 01 04
 
 variant float-specials
   field 1 Guid : ulong = 7
@@ -267,11 +273,12 @@ variant float-specials
   field 19 PortalRole : byte? = 19
   field 20 CanInteract : bool? = true
   field 21 PvpEnabled : bool? = true
-  bytes 100
+  field 22 Rarity : CreatureRarity? = Elite (1)
+  bytes 103
     08 07 12 0f 0d ff ff 7f 00 15 ff ff 7f 7f 1d 00
     00 c0 ff 1a 0f 0d ff ff 7f 00 15 ff ff 7f 7f 1d
     00 00 c0 ff 25 01 00 c0 7f 28 02 30 07 38 ac 02
     40 01 48 80 d0 ac f3 0e 50 c0 84 3d 58 ac 02 60
     01 68 c0 84 3d 70 07 78 ac 02 82 01 05 61 6c 70
     68 61 8d 01 00 00 80 7f 90 01 13 98 01 13 a0 01
-    01 a8 01 01
+    01 a8 01 01 b0 01 01

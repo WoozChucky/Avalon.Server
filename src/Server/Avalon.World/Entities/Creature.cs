@@ -50,6 +50,18 @@ public class Creature : ICreature
     /// </remarks>
     public bool CanInteract { get; init; }
 
+    /// <summary>
+    /// How dangerous this creature is, fixed by <see cref="CreatureSpawner"/> from its template's
+    /// <c>Rarity</c> and replicated as <c>ObjectState.Rarity</c> (#709) for a rarity-coloured nameplate.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not on <see cref="ICreature"/>, for the reason <see cref="CanInteract"/> is not: a mod
+    /// must not be able to change the rarity a creature advertises. Init-only, because it is decided once at
+    /// spawn: a <c>/reload creatures</c> reaches only creatures spawned after it. It says what the client is
+    /// told and nothing else; the stats the rarity scaled were fixed at spawn by <c>CreatureStatDeriver</c>.
+    /// </remarks>
+    public Avalon.World.Public.Enums.CreatureRarity Rarity { get; init; }
+
     /// <summary>Metres. Copied from <c>CreatureTemplate.BodyRadius</c> by <see cref="CreatureSpawner"/>.</summary>
     public float BodyRadius { get; init; } = UnitBody.DefaultCreatureRadius;
 

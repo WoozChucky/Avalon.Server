@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.State;
 using Avalon.Combat;
 using Avalon.World.Public.Enums;
+using CreatureRarity = Avalon.World.Public.Enums.CreatureRarity;
 
 namespace Avalon.Balance.Core;
 

@@ -62,7 +62,8 @@ The result is stored on the creature as `ICreature.Experience`. That is what a k
 
 `CreatureSpawner.Spawn` also sets the creature's `Name`, its speed (the template's `SpeedWalk`),
 `ScriptName`, `Invulnerable`, `BodyRadius` (the default radius when the template's is not a finite
-value above 0), and `CanInteract`, fixed at spawn from the dialogue catalog. A creature's casts are
+value above 0), `CanInteract`, fixed at spawn from the dialogue catalog, and `Rarity`, the template's,
+which the client is sent as `ObjectState.Rarity` for a coloured nameplate (#709). A creature's casts are
 free (#163), so it has no pool and `Power` is 0. Its abilities are not set here: its script loads them
 when it attaches (see Abilities under Combat).
 

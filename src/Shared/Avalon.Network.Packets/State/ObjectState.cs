@@ -106,4 +106,16 @@ public class ObjectState
     ///     Creatures, portals and spells never carry it.
     /// </summary>
     [ProtoMember(21)] public bool? PvpEnabled { get; set; }
+
+    /// <summary>
+    ///     How dangerous this creature is (#709), so a client can colour its nameplate by rarity.
+    /// </summary>
+    /// <remarks>
+    ///     Only a creature that is not <see cref="CreatureRarity.Normal" /> carries it, and every creature
+    ///     state of one carries it, whatever else changed, like <see cref="CreatureMetadataId" />, so a
+    ///     client that first sees the creature on an update still learns it. A Normal creature leaves it
+    ///     out, so absent on a creature state means Normal. Characters, portals and spells never carry it.
+    ///     It is fixed when the creature spawns, from its template.
+    /// </remarks>
+    [ProtoMember(22)] public CreatureRarity? Rarity { get; set; }
 }

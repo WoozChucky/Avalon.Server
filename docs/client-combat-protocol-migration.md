@@ -76,6 +76,8 @@ A creature's killing blow is sent like any other hit, before the death: `SUnitDa
 
 **A corpse's world state (#672).** `ObjectState.IsDead` (field 12) is `true` on a dead creature as well as a dead character. A creature is dead exactly when its health is 0; the world-state update that carries its `CurrentHealth` 0 carries `IsDead = true` in the same message, and a client that first sees the corpse later (it walked into view, or entered the instance) gets `IsDead = true` on the add. A living creature's routine updates leave `IsDead` out, so absent on a creature update means unchanged, not alive. The corpse stays in the world-state stream until its body is removed (`BodyRemoveTimer`), then leaves with an ordinary remove. Creatures are never revived.
 
+**A creature's rarity (#709).** `ObjectState.Rarity` (field 22, enum `CreatureRarity`: Normal 0, Elite 1, Rare 2, Boss 3) is on every state of a creature that is not Normal, the add and every update alike, whatever else changed, so a client can colour the nameplate from whichever message it sees first. Absent on a creature state means Normal. Characters, portals and projectiles never carry it. It is fixed when the creature spawns; a server-side template change reaches only creatures spawned after it.
+
 ### `SUnitRevivePacket` (`SMSG_UNIT_REVIVE = 0x3108`, encrypted, TCP)
 
 Server → all clients in the instance. Triggers revive animation, snaps position, and resets HP.
