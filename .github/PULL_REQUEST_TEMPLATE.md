@@ -12,7 +12,7 @@
 
 ## Player note
 
-Player note: <!-- Required. Written like a patch note: third person, starting with what changed. E.g. "Fixed an issue where heals could raise health above the maximum." / "Added browser sign-in to the launcher." / "Increased the world server's connection limit." For internal work: "No gameplay changes: faster builds." Shown on the public changelog. -->
+Player note: <!-- Required. Written like a patch note: third person, starting with what changed. E.g. "Fixed an issue where heals could raise health above the maximum." / "Added browser sign-in to the launcher." / "Increased the world server's connection limit." For internal work: "No gameplay changes: faster builds." Link an item or ability with [item:14] or [ability:210] (optionally [item:14@3]); the release fills in its name. Shown on the public changelog. -->
 
 ## Checklist
 

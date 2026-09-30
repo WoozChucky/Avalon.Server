@@ -92,7 +92,7 @@ jobs:
           DIST_S3_SECRET_KEY: ${{ secrets.DIST_S3_SECRET_KEY }}
         run: |
           set -euo pipefail
-          python -m pip install -q "avalon-release-notes[s3] @ git+https://github.com/WoozChucky/avalon-release-notes@v0.3.0"
+          python -m pip install -q "avalon-release-notes[s3] @ git+https://github.com/WoozChucky/avalon-release-notes@v0.4.0"
           python -m avalon_release_notes publish --repo "$GITHUB_REPOSITORY" --product server --channel dev \
             --version "${{ needs.publish.outputs.version }}" --commit "${{ needs.publish.outputs.commit }}" \
             --published-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --public
