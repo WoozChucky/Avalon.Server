@@ -17,8 +17,19 @@ public class SChatMessagePacket : Packet
     [ProtoMember(4)] public string Message { get; set; }
     [ProtoMember(5)] public DateTime DateTime { get; set; }
 
-    public static NetworkPacket Create(ulong accountId, ulong characterId, string characterName, string message, DateTime dateTime, EncryptFunc encryptFunc)
+    [ProtoMember(6)] public ChatChannel Channel { get; set; }
+
+    public static NetworkPacket Create(ulong accountId, ulong characterId, string characterName, string message,
+        DateTime dateTime, EncryptFunc encryptFunc, ChatChannel channel = ChatChannel.Say)
         => PacketSerializationHelper.Serialize(
-            new SChatMessagePacket { AccountId = accountId, CharacterId = characterId, CharacterName = characterName, Message = message, DateTime = dateTime },
+            new SChatMessagePacket
+            {
+                AccountId = accountId, CharacterId = characterId, CharacterName = characterName, Message = message,
+                DateTime = dateTime, Channel = channel
+            },
             PacketType, Flags, Protocol, encryptFunc);
+
+    /// <summary>A line from the server, on the system channel.</summary>
+    public static NetworkPacket System(string message, DateTime dateTime, EncryptFunc encryptFunc)
+        => Create(0UL, 0UL, "System", message, dateTime, encryptFunc, ChatChannel.System);
 }

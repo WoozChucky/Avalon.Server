@@ -11,6 +11,7 @@ using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Parties;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -110,17 +111,36 @@ public class WorldServerBarrierTickShould : IDisposable
         Assert.Equal(CombatSeed.Formula().CritCap, character.SheetSent?.CritPct);
     }
 
+    /// <summary>
+    /// A party member status flush that throws is contained (party play, final review): the ping, outbox and continuation
+    /// flushes after it still run for every connection. The party service is made to throw through its clock.
+    /// </summary>
+    [Fact]
+    public void Run_the_rest_of_the_tick_when_the_party_status_flush_throws()
+    {
+        var clock = new BreakableClock { Broken = true };
+        var parties = new PartyService(Options.Create(new GameConfiguration()), clock, NullLogger<PartyService>.Instance);
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build(parties);
+        bool continued = false;
+        connection.EnqueueContinuation(Task.CompletedTask, () => continued = true);
+
+        Exception? thrown = Record.Exception(() => server.Tick());
+
+        Assert.Null(thrown);
+        Assert.True(continued);
+    }
+
     /// <summary>Reference data with the seeded combat formula, which the tick's sheet flush reads (#506).</summary>
     private static readonly Lazy<StaticData> SeededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
 
-    private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build()
+    private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(PartyService? parties = null)
     {
         StaticData data = SeededData.Value;   // loaded outside Returns, which it would otherwise interrupt
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CharacterLoadTimeoutSeconds = 15 });
         world.Data.Returns(data);
 
-        var server = new TestWorldServer(world);
+        var server = new TestWorldServer(world, parties);
         var connection = new Avalon.World.WorldConnection(
             server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
         server.Add(connection);
@@ -130,7 +150,7 @@ public class WorldServerBarrierTickShould : IDisposable
     /// <summary>Reaches one tick without the socket loop that normally drives it.</summary>
     private sealed class TestWorldServer : WorldServer
     {
-        public TestWorldServer(IWorld world) : base(
+        public TestWorldServer(IWorld world, PartyService? parties = null) : base(
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
             new AnyServiceProvider(),
@@ -139,7 +159,8 @@ public class WorldServerBarrierTickShould : IDisposable
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
-            Substitute.For<Avalon.World.Persistence.ICharacterSaver>())
+            Substitute.For<Avalon.World.Persistence.ICharacterSaver>(),
+            parties ?? new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance))
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
@@ -160,6 +181,11 @@ public class WorldServerBarrierTickShould : IDisposable
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            if (serviceType == typeof(PartyService))
+                return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
+                    NullLogger<PartyService>.Instance);
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(

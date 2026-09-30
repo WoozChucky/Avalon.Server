@@ -3,13 +3,14 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Maps;
+using Avalon.World.Parties;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Instances;
 
-public class InstanceRegistry : IInstanceRegistry
+public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 {
     // characterId → { templateId → instanceId } for Normal map re-entry. Keyed by character
     // (not account) so different characters on the same account land in different instances
@@ -27,6 +28,20 @@ public class InstanceRegistry : IInstanceRegistry
     // finishes would otherwise bake two navmeshes and orphan the first instance until it expires.
     private readonly ConcurrentDictionary<(uint CharacterId, MapTemplateId TemplateId), Lazy<Task<MapInstance>>>
         _pendingNormalBuilds = new();
+
+    // partyId → { templateId → instanceId }: the party's instances (2026-09-30). Written from builds on the thread
+    // pool and read on the tick, hence concurrent.
+    private readonly ConcurrentDictionary<uint, ConcurrentDictionary<MapTemplateId, Guid>> _partyInstanceMap = new();
+
+    // One build per party and map in flight, as for towns and characters (#442).
+    private readonly ConcurrentDictionary<(uint PartyId, MapTemplateId TemplateId), Lazy<Task<MapInstance>>>
+        _pendingPartyBuilds = new();
+
+    // Parties forgotten while a build of theirs was in flight: that build must not index its instance, or a disband
+    // mid-build would leave the party routed to it. Held only while such a build is pending, under _partyIndexGate,
+    // which also covers every write of _partyInstanceMap from a build and from ForgetParty.
+    private readonly HashSet<uint> _forgottenParties = [];
+    private readonly Lock _partyIndexGate = new();
 
     private readonly ILogger<InstanceRegistry> _logger;
     private readonly IAvalonMapManager _mapManager;
@@ -178,6 +193,98 @@ public class InstanceRegistry : IInstanceRegistry
         return null;
     }
 
+    public async Task<IMapInstance> GetOrCreatePartyInstanceAsync(PartyId party, MapTemplateId templateId)
+    {
+        MapInstance? existing = FindPartyInstance(party.Value, templateId);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        Lazy<Task<MapInstance>> build = _pendingPartyBuilds.GetOrAdd((party.Value, templateId),
+            key => new Lazy<Task<MapInstance>>(() => BuildPartyAsync(party, key.TemplateId)));
+
+        return await build.Value;
+    }
+
+    private async Task<MapInstance> BuildPartyAsync(PartyId party, MapTemplateId templateId)
+    {
+        try
+        {
+            MapInstance? finished = FindPartyInstance(party.Value, templateId);
+            if (finished is not null)
+            {
+                return finished;
+            }
+
+            // Shared by every member entering; see BuildTownAsync on the token.
+            MapInstance instance = await CreateAndInitializeInstanceAsync(templateId, MapType.Normal, null,
+                CancellationToken.None, party);
+
+            lock (_partyIndexGate)
+            {
+                // Forgotten while it built (the party disbanded): left unindexed, it empties and expires like any
+                // instance nobody enters.
+                if (!_forgottenParties.Contains(party.Value))
+                {
+                    _partyInstanceMap.GetOrAdd(party.Value, _ => new ConcurrentDictionary<MapTemplateId, Guid>())
+                        [templateId] = instance.InstanceId;
+                }
+            }
+
+            return instance;
+        }
+        finally
+        {
+            lock (_partyIndexGate)
+            {
+                _pendingPartyBuilds.TryRemove((party.Value, templateId), out _);
+                if (!HasPendingPartyBuild(party.Value))
+                {
+                    _forgottenParties.Remove(party.Value);
+                }
+            }
+        }
+    }
+
+    private bool HasPendingPartyBuild(uint party)
+    {
+        foreach ((uint PartyId, MapTemplateId TemplateId) key in _pendingPartyBuilds.Keys)
+        {
+            if (key.PartyId == party)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private MapInstance? FindPartyInstance(uint party, MapTemplateId templateId) =>
+        _partyInstanceMap.TryGetValue(party, out ConcurrentDictionary<MapTemplateId, Guid>? maps)
+        && maps.TryGetValue(templateId, out Guid id)
+        && _instances.TryGetValue(id, out MapInstance? instance)
+        && !instance.IsExpired(TimeSpan.FromMinutes(15))
+            ? instance
+            : null;
+
+    public bool IsPartyInstance(PartyId party, Guid instanceId) =>
+        _instances.TryGetValue(instanceId, out MapInstance? instance) && party.Equals(instance.OwnerPartyId);
+
+    public void ForgetParty(PartyId party)
+    {
+        lock (_partyIndexGate)
+        {
+            _partyInstanceMap.TryRemove(party.Value, out _);
+
+            // A build still in flight would index its instance once it finishes; it is told not to.
+            if (HasPendingPartyBuild(party.Value))
+            {
+                _forgottenParties.Add(party.Value);
+            }
+        }
+    }
+
     public IMapInstance? GetInstanceById(Guid instanceId) =>
         _instances.TryGetValue(instanceId, out MapInstance? instance) ? instance : null;
 
@@ -221,16 +328,24 @@ public class InstanceRegistry : IInstanceRegistry
             {
                 characterMap.Remove(instance.TemplateId);
             }
+
+            if (instance.OwnerPartyId is { } party
+                && _partyInstanceMap.TryGetValue(party.Value, out ConcurrentDictionary<MapTemplateId, Guid>? partyMaps))
+            {
+                // Only while the entry still names this instance: a newer build of the map may have replaced it.
+                partyMaps.TryRemove(new KeyValuePair<MapTemplateId, Guid>(instance.TemplateId, id));
+            }
         }
     }
 
     private async Task<MapInstance> CreateAndInitializeInstanceAsync(MapTemplateId templateId, MapType mapType,
-        uint? ownerCharacterId, CancellationToken cancellationToken = default)
+        uint? ownerCharacterId, CancellationToken cancellationToken = default, PartyId? ownerParty = null)
     {
         MapTemplate template = _mapManager.Templates.FirstOrDefault(t => t.Id == templateId)
                                ?? throw new InvalidOperationException($"MapTemplate {templateId} not found.");
 
-        MapInstance instance = await _chunkLayoutFactory.BuildAsync(template, ownerCharacterId, cancellationToken);
+        MapInstance instance = await _chunkLayoutFactory.BuildAsync(template, ownerCharacterId, cancellationToken,
+            ownerParty);
 
         _instances[instance.InstanceId] = instance;
         _logger.LogInformation("Created {MapType} instance {InstanceId} for map {TemplateId}",

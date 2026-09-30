@@ -110,15 +110,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_GROUP_INVITE_RESULT",
-      "opcode": 8202,
-      "hex": "0x200A",
-      "message": "CGroupInviteResultPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
       "name": "CMSG_MFA_VERIFY",
       "opcode": 8203,
       "hex": "0x200B",
@@ -380,6 +371,60 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_PARTY_INVITE",
+      "opcode": 8368,
+      "hex": "0x20B0",
+      "message": "CPartyInvitePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_INVITE_RESPONSE",
+      "opcode": 8369,
+      "hex": "0x20B1",
+      "message": "CPartyInviteResponsePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_LEAVE",
+      "opcode": 8370,
+      "hex": "0x20B2",
+      "message": "CPartyLeavePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_KICK",
+      "opcode": 8371,
+      "hex": "0x20B3",
+      "message": "CPartyKickPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_PROMOTE",
+      "opcode": 8372,
+      "hex": "0x20B4",
+      "message": "CPartyPromotePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_EXPERIENCE_MODE",
+      "opcode": 8373,
+      "hex": "0x20B5",
+      "message": "CPartyExperienceModePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_CAST_ABILITY",
       "opcode": 8449,
       "hex": "0x2101",
@@ -483,24 +528,6 @@
       "opcode": 12299,
       "hex": "0x300B",
       "message": "SCloseChatPacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_GROUP_INVITE",
-      "opcode": 12301,
-      "hex": "0x300D",
-      "message": "SGroupInvitePacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_GROUP_INVITE_RESULT",
-      "opcode": 12302,
-      "hex": "0x300E",
-      "message": "SGroupResultPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"
@@ -843,6 +870,42 @@
       "opcode": 12449,
       "hex": "0x30A1",
       "message": "SVendorResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_INVITE",
+      "opcode": 12464,
+      "hex": "0x30B0",
+      "message": "SPartyInvitePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_RESULT",
+      "opcode": 12465,
+      "hex": "0x30B1",
+      "message": "SPartyResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_ROSTER",
+      "opcode": 12466,
+      "hex": "0x30B2",
+      "message": "SPartyRosterPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_MEMBER_STATUS",
+      "opcode": 12467,
+      "hex": "0x30B3",
+      "message": "SPartyMemberStatusPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

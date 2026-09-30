@@ -106,6 +106,7 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             MoveState = MoveState.Idle,
             Level = stats.Level,
             Health = stats.Health,
+            BaseMaxHealth = stats.Health,
             CurrentHealth = stats.Health,
             DamageMin = stats.DamageMin,
             DamageMax = stats.DamageMax,

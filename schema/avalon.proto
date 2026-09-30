@@ -182,13 +182,6 @@ message CExchangeWorldKeyPacket {
    optional bytes WorldKey = 1;
    optional bytes PublicKey = 2;
 }
-message CGroupInviteResultPacket {
-   uint64 AccountId = 1;
-   uint64 CharacterId = 2;
-   uint64 InviterAccountId = 3;
-   uint64 InviterCharacterId = 4;
-   bool Accepted = 5;
-}
 message CHandshakePacket {
    optional bytes HandshakeData = 1;
 }
@@ -232,6 +225,23 @@ message CMFAVerifyPacket {
 message COpenChatPacket {
    uint64 AccountId = 1;
    uint64 CharacterId = 2;
+}
+message CPartyExperienceModePacket {
+   PartyExperienceMode Mode = 1;
+}
+message CPartyInvitePacket {
+   optional string TargetName = 1;
+}
+message CPartyInviteResponsePacket {
+   bool Accept = 1;
+}
+message CPartyKickPacket {
+   uint32 CharacterId = 1;
+}
+message CPartyLeavePacket {
+}
+message CPartyPromotePacket {
+   uint32 CharacterId = 1;
 }
 message CPingPacket {
    int64 SequenceNumber = 1;
@@ -333,6 +343,11 @@ enum CharacterLeaveResult {
    CharacterLeaveResult_Selecting = 3;
    CharacterLeaveResult_AlreadyLeaving = 4;
 }
+enum ChatChannel {
+   ChatChannel_Say = 0;
+   ChatChannel_Party = 1;
+   ChatChannel_System = 2;
+}
 enum DialogueOptionKind {
    DialogueOptionKind_Conversation = 0;
    DialogueOptionKind_OpenBank = 1;
@@ -428,6 +443,7 @@ enum MapTransitionResult {
    MapTransitionResult_LevelTooLow = 3;
    MapTransitionResult_LevelTooHigh = 4;
    MapTransitionResult_GenerationFailed = 5;
+   MapTransitionResult_InstanceFull = 6;
 }
 enum MoveState {
    MoveState_Idle = 0;
@@ -497,6 +513,12 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_VENDOR_BUY = 8336;
    NetworkPacketType_CMSG_VENDOR_SELL = 8337;
    NetworkPacketType_CMSG_VENDOR_BUYBACK = 8338;
+   NetworkPacketType_CMSG_PARTY_INVITE = 8368;
+   NetworkPacketType_CMSG_PARTY_INVITE_RESPONSE = 8369;
+   NetworkPacketType_CMSG_PARTY_LEAVE = 8370;
+   NetworkPacketType_CMSG_PARTY_KICK = 8371;
+   NetworkPacketType_CMSG_PARTY_PROMOTE = 8372;
+   NetworkPacketType_CMSG_PARTY_EXPERIENCE_MODE = 8373;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_CMSG_PVP_TOGGLE = 8451;
@@ -549,6 +571,10 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_ITEM_RESULT = 12432;
    NetworkPacketType_SMSG_VENDOR_LIST = 12448;
    NetworkPacketType_SMSG_VENDOR_RESULT = 12449;
+   NetworkPacketType_SMSG_PARTY_INVITE = 12464;
+   NetworkPacketType_SMSG_PARTY_RESULT = 12465;
+   NetworkPacketType_SMSG_PARTY_ROSTER = 12466;
+   NetworkPacketType_SMSG_PARTY_MEMBER_STATUS = 12467;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -592,6 +618,38 @@ message ObjectState {
    optional uint32 PortalRole = 19;
    optional bool CanInteract = 20;
    optional bool PvpEnabled = 21;
+}
+enum PartyExperienceMode {
+   PartyExperienceMode_Unknown = 0;
+   PartyExperienceMode_Even = 1;
+   PartyExperienceMode_LevelWeighted = 2;
+}
+message PartyMemberDto {
+   uint32 CharacterId = 1;
+   optional string Name = 2;
+   uint32 Class = 3;
+   uint32 Level = 4;
+   bool IsLeader = 5;
+   bool Online = 6;
+   bool SameInstance = 7;
+}
+enum PartyResult {
+   PartyResult_Unknown = 0;
+   PartyResult_Ok = 1;
+   PartyResult_NotLeader = 2;
+   PartyResult_NotFound = 3;
+   PartyResult_AlreadyInParty = 4;
+   PartyResult_PartyFull = 5;
+   PartyResult_InvitePending = 6;
+   PartyResult_NoInvite = 7;
+   PartyResult_InCombat = 8;
+   PartyResult_OnCooldown = 9;
+   PartyResult_Self = 10;
+   PartyResult_NotInParty = 11;
+   PartyResult_InviteExpired = 12;
+   PartyResult_InviteDeclined = 13;
+   PartyResult_Invalid = 14;
+   PartyResult_Error = 15;
 }
 message PlacedChunkDto {
    int32 ChunkTemplateId = 1;
@@ -722,6 +780,7 @@ message SChatMessagePacket {
    optional string CharacterName = 3;
    optional string Message = 4;
    .bcl.DateTime DateTime = 5;
+   ChatChannel Channel = 6;
 }
 message SChunkLayoutPacket {
    int32 Seed = 1;
@@ -756,19 +815,6 @@ message SDisconnectPacket {
 }
 message SExchangeWorldKeyPacket {
    optional bytes PublicKey = 1;
-}
-message SGroupInvitePacket {
-   int32 AccountId = 1;
-   int32 InviterAccountId = 2;
-   int32 InviterCharacterId = 3;
-   optional string InviterName = 4;
-}
-message SGroupResultPacket {
-   int32 AccountId = 1;
-   int32 CharacterId = 2;
-   int32 InviterAccountId = 3;
-   int32 InviterCharacterId = 4;
-   bool Accepted = 5;
 }
 message SHandshakePacket {
    optional bytes HandshakeData = 1;
@@ -839,6 +885,31 @@ message SMapTransitionPacket {
 }
 message SOpenChatPacket {
    optional string ClientId = 1;
+}
+message SPartyInvitePacket {
+   optional string InviterName = 1;
+   uint32 InviterClass = 2;
+   uint32 InviterLevel = 3;
+   uint32 ExpiresInMs = 4;
+}
+message SPartyMemberStatusPacket {
+   uint32 CharacterId = 1;
+   uint32 Health = 2;
+   uint32 MaxHealth = 3;
+   uint32 Power = 4;
+   uint32 MaxPower = 5;
+   PowerType PowerType = 6;
+   bool IsDead = 7;
+}
+message SPartyResultPacket {
+   PartyResult Result = 1;
+   optional string Name = 2;
+}
+message SPartyRosterPacket {
+   uint32 PartyId = 1;
+   PartyExperienceMode ExperienceMode = 2;
+   uint32 ModeLockedForMs = 3;
+   repeated PartyMemberDto Members = 4;
 }
 message SPingPacket {
    int64 ServerTimestamp = 1;

@@ -166,6 +166,14 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `InterestRemoveMargin`           | float  | `10`       | Metres added to `InterestRadius` before an object already in a client's view is removed from it (#593), so one standing near the edge does not flicker in and out. `0` or more and finite (`0` turns the margin off); startup refuses anything else |
 | `FuryFromDamageTaken`            | float  | `50`       | Fury a character whose pool is Fury gains when hit (#526): `floor(health lost / max health × this)`, the health lost capped at what it had before the hit. `0` or more and finite (`0` turns it off); startup refuses anything else |
 | `FuryDecayPerSecond`             | float  | `5`        | Fury lost per second out of combat, down to 0 (#526); never in combat. `0` or more and finite (`0` turns it off); startup refuses anything else |
+| `MaxPartySize`                   | int    | `6`        | Most characters in one party; a party's instance also holds at most `min(this, the map's MaxPlayers)`. Range `2`–`40` |
+| `PartyInviteTimeoutSeconds`      | int    | `60`       | Seconds a party invite stays open before it expires. Range `1`–`3600` |
+| `PartyLeaveGraceSeconds`         | int    | `60`       | Seconds a character who stopped being a member may stay in the party's instance before it is moved to town. Range `1`–`3600` |
+| `PartyExperienceModeCooldownSeconds` | int | `60`      | Seconds after a switch of the party's experience mode before the leader may switch it again. Range `0`–`86400` (`0` turns the wait off) |
+| `PartyHealthPerExtraPlayer`      | float  | `0.6`      | Creature health added per player present beyond the first in a party's instance, as a share of its base (`0.6` is +60 %). `0` or more; startup refuses anything else |
+| `PartyEligibilityRange`          | float  | `60`       | Metres, on X/Z, from a corpse within which a party member not in the creature's encounter still shares the kill's loot and experience. At least `1`; its own setting, not tied to `InterestRadius` |
+| `PartyExperienceBonusPerExtra`   | float  | `0.10`     | Experience added to a shared kill per counted member beyond the first (`0.1` is +10 %). `0` to `10`; startup refuses anything else |
+| `PartyExperienceLevelGap`        | int    | `5`        | A character this many levels or more above a creature gets no experience from it, in a party or solo. Range `1`–`1000` |
 
 ```json
 "Game": {
@@ -186,7 +194,15 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "InterestRadius": 60,
   "InterestRemoveMargin": 10,
   "FuryFromDamageTaken": 50,
-  "FuryDecayPerSecond": 5
+  "FuryDecayPerSecond": 5,
+  "MaxPartySize": 6,
+  "PartyInviteTimeoutSeconds": 60,
+  "PartyLeaveGraceSeconds": 60,
+  "PartyExperienceModeCooldownSeconds": 60,
+  "PartyHealthPerExtraPlayer": 0.6,
+  "PartyEligibilityRange": 60,
+  "PartyExperienceBonusPerExtra": 0.10,
+  "PartyExperienceLevelGap": 5
 }
 ```
 

@@ -6,6 +6,8 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
+using Avalon.Network.Packets.Party;
+using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
@@ -18,6 +20,7 @@ using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
 using Avalon.World.Loot;
 using Avalon.World.Maps.Navigation;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
@@ -81,6 +84,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly ILootRoller? _lootRoller;
     private readonly ILootAllocator? _lootAllocator;
 
+    /// <summary>Who shares a kill, and how its experience is split (2026-09-30). Null in tests built without one: solo rules.</summary>
+    private readonly PartyService? _parties;
+
     /// <summary>
     /// Vendor stock (#432): one state per vendor creature that has had a shop open here. It lives as
     /// long as the instance, so for the persistent town a restart is what resets it.
@@ -88,6 +94,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly VendorStocks _vendors = new();
 
     private readonly TimeProvider _time;
+
+    // Creature health scaling (2026-09-30), party instances only: set when someone enters or leaves, applied once at
+    // the start of the next Update, so several changes in one tick make one rescale and one message.
+    private double _healthFactor = 1d;
+    private bool _healthFactorOwed;
+    private int _presenceChanges;
+    private string? _presenceChange;
 
     /// <summary>The seeded combat formula, for an instance whose world has no reference data loaded (tests).</summary>
     private static readonly Avalon.Domain.World.CombatFormula SeededFormula = Avalon.Database.World.Seeding.CombatSeed.Formula();
@@ -115,7 +128,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         IMapNavigator navigator,
         int seed,
         MapType mapType = MapType.Normal,
-        Func<ICreatureLocomotion, ICreatureLocomotion>? locomotion = null)
+        Func<ICreatureLocomotion, ICreatureLocomotion>? locomotion = null,
+        PartyId? ownerPartyId = null)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _world = world;
@@ -123,6 +137,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         TemplateId = templateId;
         MapType = mapType;
         OwnerCharacterId = ownerCharacterId;
+        OwnerPartyId = ownerPartyId;
         AllowedCharacters = ownerCharacterId.HasValue ? new[] { ownerCharacterId.Value } : Array.Empty<uint>();
         Layout = layout;
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
@@ -144,6 +159,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // The container's clock, the one the loot allocator and the vendor handlers read (#432). It
         // falls back, so an instance built without one (tests) still ticks; production registers it.
         _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+
+        // Empty from the moment it exists: an instance nobody ever enters (a party build finished after the party
+        // disbanded) still expires, instead of staying live for good. AddCharacter clears it.
+        LastEmptyAt = _time.GetUtcNow().UtcDateTime;
 
         // PvP (#164): the one toggle the handler, /pvp and every instance share. Production registers
         // it (WorldHostGraphShould); the fallback serves instances built without one (tests).
@@ -180,6 +199,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootRoller = serviceProvider.GetService<ILootRoller>();
         _lootAllocator = serviceProvider.GetService<ILootAllocator>();
 
+        // Optional too: an instance built without it (tests) shares nothing, so every kill is its killer's alone.
+        _parties = serviceProvider.GetService<PartyService>();
+
         // Vendor quest gates (#432). Falls back, so an instance built without it (tests) still
         // ticks; production registers it.
         _quests = serviceProvider.GetService<IQuestProgress>() ?? NoQuestProgress.Instance;
@@ -203,6 +225,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public MapTemplateId TemplateId { get; }
     public MapType MapType { get; }
     public uint? OwnerCharacterId { get; }
+
+    /// <summary>The party that owns this instance, or null (2026-09-30). World-side, init-only; a party instance has no owner character.</summary>
+    public PartyId? OwnerPartyId { get; }
     public IReadOnlyList<uint> AllowedCharacters { get; }
     public int PlayerCount => _characters.Count;
     public DateTime? LastEmptyAt { get; private set; }
@@ -213,11 +238,67 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IReadOnlyList<PortalInstance> Portals => _portals;
 
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
+
+    /// <summary>
+    /// Every connection whose character is in this instance. World-side, not on IMapInstance: the modding API
+    /// must not reach other players' connections. Tick thread only.
+    /// </summary>
+    public IEnumerable<IWorldConnection> Connections => _connections.Values;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
     public IHitQuery Hits => _hits;
     public ICreatureLocomotion Locomotion => _locomotion;
     public IMeleeSlots MeleeSlots => _meleeSlots;
+
+    /// <summary>What every creature's maximum health is multiplied by now: 1 outside a party instance.</summary>
+    public double HealthFactor => _healthFactor;
+
+    /// <summary>1 + perExtraPlayer × (players − 1); 1 for one player or none.</summary>
+    public static double HealthFactorFor(int presentPlayers, float perExtraPlayer) =>
+        presentPlayers <= 1 ? 1d : 1d + perExtraPlayer * (double)(presentPlayers - 1);
+
+    /// <summary>In a party instance, owes a rescale at the start of the next Update, naming who came or went.</summary>
+    private void NotePresenceChange(ICharacter character, string verb)
+    {
+        if (OwnerPartyId is null)
+            return;
+
+        _healthFactorOwed = true;
+        _presenceChanges++;
+        _presenceChange = $"{character.Name} has {verb}.";
+    }
+
+    /// <summary>
+    /// Rescales every living creature to the players present (alive or dead, a leave countdown included) and tells
+    /// everyone here, once. Before the creature scripts, so this tick's fights read the new health.
+    /// </summary>
+    private void ApplyHealthFactor()
+    {
+        int changes = _presenceChanges;
+        string? change = _presenceChange;
+        _healthFactorOwed = false;
+        _presenceChanges = 0;
+        _presenceChange = null;
+
+        int players = _characters.Count;
+        double factor = HealthFactorFor(players, _world.Configuration.PartyHealthPerExtraPlayer);
+        if (Math.Abs(factor - _healthFactor) < 1e-9)
+            return;
+
+        _healthFactor = factor;
+        foreach (ICreature creature in _creatures.Values)
+        {
+            if (creature is Creature scaled)
+                scaled.Rescale(factor);
+        }
+
+        int percent = (int)Math.Round(factor * 100, MidpointRounding.AwayFromZero);
+        string text = (changes == 1 && change is not null ? change + " " : string.Empty)
+                      + $"Creatures now have {percent}% health ({players} {(players == 1 ? "player" : "players")}).";
+        DateTime now = _time.GetUtcNow().UtcDateTime;
+        foreach (IWorldConnection connection in _connections.Values)
+            connection.Send(SChatMessagePacket.System(text, now, connection.CryptoSession.Encrypt));
+    }
 
     public bool IsExpired(TimeSpan expiry) =>
         LastEmptyAt.HasValue && (_time.GetUtcNow().UtcDateTime - LastEmptyAt.Value) >= expiry;
@@ -315,6 +396,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootSnapshotOwed.Add(connection.Character.Guid);
         _pvpStateOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
+
+        NotePresenceChange(connection.Character, "entered");
     }
 
     public void RemoveCharacter(IWorldConnection connection)
@@ -357,6 +440,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _broadcastStates.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
         _pvpStateOwed.Remove(guid);
+        NotePresenceChange(character, "left");
 
         if (_characters.Count == 0)
         {
@@ -404,6 +488,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         _creatures[creature.Guid] = creature;
         _locomotion.Register(creature, _creatureAgentRadius);
+
+        // A creature spawned later in a party instance starts at the health the players here make.
+        if (_healthFactor != 1d && creature is Creature scaled)
+            scaled.Rescale(_healthFactor);
     }
 
     public void RemoveCreature(ICreature creature)
@@ -568,8 +656,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// Rolls, allocates and places a dying creature's drops and tells everyone here. Tick thread:
     /// CreatureKilled is called by this instance's combat service inside combat and ability
     /// processing. Reads the Loot and Items areas as they are now, so a reload applies to the next kill.
+    /// Each drop is allocated on its own, among the characters that share the kill (2026-09-30).
     /// </summary>
-    private void DropLoot(ICreature creature)
+    private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible)
     {
         if (_lootRoller is null || _lootAllocator is null || creature.Metadata is not CreatureTemplate template)
         {
@@ -586,9 +675,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 return;
             }
 
-            LootAllocation allocation = _lootAllocator.Allocate(creature, this);
+            ILootAllocator allocator = _lootAllocator;
             IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
-                creature.Position, rolled, allocation, GetNavigatorForPosition(creature.Position), IObject.GenerateId);
+                creature.Position, rolled, _ => allocator.Allocate(OwnerCharacterId, OwnerPartyId, eligible),
+                GetNavigatorForPosition(creature.Position), IObject.GenerateId);
 
             foreach (GroundLoot drop in drops)
             {
@@ -664,6 +754,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _abilityCastSystem.DropFinished();
             return;
         }
+
+        if (_healthFactorOwed)
+            ApplyHealthFactor();
 
         _lastBroadcastTime += (float)deltaTime.TotalSeconds;
 
@@ -958,11 +1051,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             case ObjectType.Creature:
                 if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
                     return null;
-                // The routine selection, plus the death state only when it changed (#672): a creature's
-                // death goes out on the broadcast that carries its 0 health, and the updates of the
-                // living pay nothing for it.
+                // The routine selection, plus two members only when they changed: the death state (#672),
+                // so a creature's death goes out on the broadcast that carries its 0 health, and the
+                // maximum health (2026-09-30), so a party rescale reaches every client already watching
+                // along with the kept share of its current health. The routine updates pay for neither.
                 return ObjectStateWriter.From(updatedCreature,
-                    GameEntityFields.CreatureUpdate | (updatedObject.Fields & GameEntityFields.IsDead), _statePool);
+                    GameEntityFields.CreatureUpdate
+                    | (updatedObject.Fields & (GameEntityFields.IsDead | GameEntityFields.Health)), _statePool);
 
             case ObjectType.SpellProjectile:
                 IWorldObject? updatedAbility = _abilityCastSystem.GetAbility(updatedObject.Guid);
@@ -1142,17 +1237,43 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
+        // Taken first, once, while the creature is still in its encounter (spec 2026-09-30 section 4). Contained: a
+        // throw here must not leave a creature at 0 health with its script and no corpse teardown. Nobody is eligible
+        // then: nobody gains experience from it, and a party instance's drops are free for all.
+        IReadOnlyList<ICharacter> eligible;
+        try
+        {
+            eligible = EligibleFor(creature, killer);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Working out who shares the kill of {CreatureGuid} in instance {InstanceId} failed",
+                creature.Guid, InstanceId);
+            eligible = [];
+        }
+
         creature.Script = null;
         TearDownCorpse(creature);
         _corpseRemover.ScheduleRemoval(creature);
 
-        // Whatever killed it: loot does not depend on the killer being a character.
-        DropLoot(creature);
+        // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
+        // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
+        DropLoot(creature, eligible);
+        AwardExperience(creature, eligible);
+    }
 
-        if (killer is ICharacter character)
-        {
-            AwardExperience(character, creature);
-        }
+    /// <summary>
+    /// The characters that share this kill: the killer alone outside a party, or every present, eligible member of
+    /// its party. Empty when the killer is not a character or is in a leave countdown.
+    /// </summary>
+    private IReadOnlyList<ICharacter> EligibleFor(ICreature creature, IUnit killer)
+    {
+        ICharacter? character = killer as ICharacter;
+        Party? party = character is null ? null : _parties?.PartyOf(character.Guid.Id);
+        Func<uint, bool> inCountdown = _parties is null ? static _ => false : _parties.InCountdown;
+
+        return PartyEligibility.For(character, party, _characters, inCountdown,
+            _combatService.GetEncounterFor(creature), creature.Position, _world.Configuration.PartyEligibilityRange);
     }
 
     /// <summary>
@@ -1188,10 +1309,34 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Gives a character the experience for a kill, scaled by this map's level band, and levels it up
+    /// Splits the kill's experience among the eligible (2026-09-30), then awards each share through the band.
+    /// The split leaves out anyone the level gap or more above the creature, solo too.
+    /// </summary>
+    private void AwardExperience(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    {
+        if (eligible.Count == 0)
+        {
+            return;
+        }
+
+        PartyExperienceMode mode = _parties?.PartyOf(eligible[0].Guid.Id)?.ExperienceMode ?? PartyExperienceMode.Even;
+        GameConfiguration config = _world.Configuration;
+
+        // creature.Experience is the value derived at spawn — base stats by level, scaled by the template's
+        // modifiers and its rarity, or the template's authored override if it had one. Not Metadata.Experience,
+        // which is only that optional override.
+        foreach (ExperienceShare share in PartyExperience.Split(creature.Experience, creature.Level, eligible, mode,
+                     config.PartyExperienceBonusPerExtra, config.PartyExperienceLevelGap))
+        {
+            AwardExperience(share.Member, share.Experience);
+        }
+    }
+
+    /// <summary>
+    /// Gives a character its share of a kill's experience, scaled by this map's level band, and levels it up
     /// when that reaches its level's requirement. A level with no requirement awards nothing.
     /// </summary>
-    private void AwardExperience(ICharacter character, ICreature creature)
+    private void AwardExperience(ICharacter character, uint experience)
     {
         CharacterLevelExperience? expRequirement =
             _world.Data.CharacterLevelExperiences.FirstOrDefault(exp => exp.Level == character.Level);
@@ -1201,7 +1346,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
-        uint creatureExperience = ScaledExperience(character, creature);
+        uint creatureExperience = ScaledExperience(character, experience);
         if (character.Experience + creatureExperience >= expRequirement.Experience)
         {
             LevelUp(character, creatureExperience, expRequirement);
@@ -1212,12 +1357,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    /// <summary>The kill's experience for this character, scaled by this map's level band.</summary>
-    private uint ScaledExperience(ICharacter character, ICreature creature)
+    /// <summary>This character's share of the kill's experience, scaled by this map's level band.</summary>
+    private uint ScaledExperience(ICharacter character, uint experience)
     {
-        // creature.Experience is the value derived at spawn — base stats by level, scaled by the
-        // template's modifiers and its rarity, or the template's authored override if it had one. Not
-        // Metadata.Experience, which is only that optional override.
         MapTemplate? mapTemplate = _world.MapTemplates.FirstOrDefault(map => map.Id == TemplateId);
 
         double bandScale = BandScale(
@@ -1226,7 +1368,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             mapTemplate?.MaxLevel,
             _world.Configuration.ExperienceBandDecay);
 
-        return (uint)Math.Round(creature.Experience * bandScale, MidpointRounding.AwayFromZero);
+        return (uint)Math.Round(experience * bandScale, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>
@@ -1252,6 +1394,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _logger.LogWarning("No class stats for {Class} level {Level}; {Name} keeps its old maximums",
                 entity.Class, entity.Level, entity.Name);
         }
+
+        // The party roster shows levels.
+        _parties?.LevelChanged(character);
     }
 
     /// <summary>

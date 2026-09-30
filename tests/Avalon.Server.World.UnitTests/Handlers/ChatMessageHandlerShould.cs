@@ -1,21 +1,23 @@
-using System.Collections.Immutable;
-using Avalon.Common;
+using System.IO;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
+using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
 using Avalon.World.Chat;
 using Avalon.World.Handlers;
+using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using NSubstitute;
+using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 
 public class ChatMessageHandlerShould
 {
-    private readonly IWorldServer _worldServer = Substitute.For<IWorldServer>();
+    private readonly IWorld _world = MapInstanceClients.NewWorld();
     private readonly ICommandDispatcher _commandDispatcher = Substitute.For<ICommandDispatcher>();
     private readonly IWorldConnection _senderConnection = Substitute.For<IWorldConnection>();
     private readonly IAvalonCryptoSession _senderCrypto = new FakeAvalonCryptoSession();
@@ -27,19 +29,7 @@ public class ChatMessageHandlerShould
         _senderConnection.AccountId.Returns(new AccountId(1));
         _senderConnection.InGame.Returns(true);
 
-        // Make AddQueryCallback invoke the callback synchronously so tests can assert results
-        _senderConnection
-            .When(c => c.EnqueueContinuation(Arg.Any<Task<bool>>(), Arg.Any<Action<bool>>()))
-            .Do(ci =>
-            {
-                var task = ci.Arg<Task<bool>>();
-                var callback = ci.Arg<Action<bool>>();
-                task.Wait();
-                callback(task.Result);
-            });
-
-        _worldServer.Connections.Returns(ImmutableArray<IWorldConnection>.Empty);
-        _handler = new ChatMessageHandler(_worldServer, _commandDispatcher);
+        _handler = new ChatMessageHandler(_world, _commandDispatcher);
     }
 
     private CChatMessagePacket MakePacket(string message) =>
@@ -48,19 +38,18 @@ public class ChatMessageHandlerShould
     [Fact]
     public void Dispatch_SlashCommand_To_CommandDispatcher()
     {
-        _commandDispatcher.DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>())
+        _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>())
             .Returns(true);
 
         _handler.Execute(_senderConnection, MakePacket("/invite PlayerOne"));
 
-        _commandDispatcher.Received(1)
-            .DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>());
+        _commandDispatcher.Received(1).Dispatch(_senderConnection, Arg.Any<CChatMessagePacket>());
     }
 
     [Fact]
     public void Send_System_Error_When_Command_Not_Found()
     {
-        _commandDispatcher.DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>())
+        _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>())
             .Returns(false);
 
         _handler.Execute(_senderConnection, MakePacket("/unknown"));
@@ -69,91 +58,62 @@ public class ChatMessageHandlerShould
     }
 
     [Fact]
-    public void Not_Broadcast_When_Message_Is_Command()
+    public void Say_nothing_aloud_for_a_command()
     {
-        _commandDispatcher.DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>())
-            .Returns(true);
+        _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>()).Returns(true);
+        MapInstance here = TestMapInstances.Build(_world);
+        _world.InstanceRegistry.GetInstanceById(here.InstanceId).Returns(here);
+        MapInstanceClient sender = MapInstanceClients.Join(here, 1);
+        MapInstanceClient neighbour = MapInstanceClients.Join(here, 2);
 
-        var otherConnection = Substitute.For<IWorldConnection>();
-        otherConnection.InGame.Returns(true);
-        otherConnection.AccountId.Returns(new AccountId(2));
-        otherConnection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        _worldServer.Connections.Returns(ImmutableArray.Create(otherConnection));
+        _handler.Execute(sender.Connection, MakePacket("/invite PlayerOne"));
 
-        _handler.Execute(_senderConnection, MakePacket("/invite PlayerOne"));
-
-        otherConnection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        Assert.Empty(neighbour.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
     }
 
     [Fact]
-    public void Broadcast_Plain_Message_To_Other_InGame_Connections()
+    public void Send_a_plain_message_to_everyone_in_the_senders_instance_only()
     {
-        var otherConnection = Substitute.For<IWorldConnection>();
-        otherConnection.InGame.Returns(true);
-        otherConnection.AccountId.Returns(new AccountId(2));
-        otherConnection.CryptoSession.Returns(new FakeAvalonCryptoSession());
+        MapInstance here = TestMapInstances.Build(_world);
+        MapInstance elsewhere = TestMapInstances.Build(_world);
+        _world.InstanceRegistry.GetInstanceById(here.InstanceId).Returns(here);
+        _world.InstanceRegistry.GetInstanceById(elsewhere.InstanceId).Returns(elsewhere);
+        MapInstanceClient sender = MapInstanceClients.Join(here, 1);
+        MapInstanceClient neighbour = MapInstanceClients.Join(here, 2);
+        MapInstanceClient stranger = MapInstanceClients.Join(elsewhere, 3);
+        sender.Connection.AccountId.Returns(new AccountId(1));
 
-        var character = Substitute.For<ICharacter>();
-        character.Name.Returns("HeroOne");
-        character.Guid.Returns(new ObjectGuid(ObjectType.Character, 42));
-        _senderConnection.Character.Returns(character);
+        _handler.Execute(sender.Connection, MakePacket("Hello"));
 
-        _worldServer.Connections.Returns(ImmutableArray.Create(otherConnection));
-
-        _handler.Execute(_senderConnection, MakePacket("Hello world"));
-
-        otherConnection.Received(1).Send(Arg.Any<NetworkPacket>());
+        SChatMessagePacket heard = Assert.Single(neighbour.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
+        Assert.Equal("Hello", heard.Message);
+        Assert.Equal(ChatChannel.Say, heard.Channel);
+        Assert.Single(sender.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)); // the echo
+        Assert.Empty(stranger.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
     }
 
     [Fact]
-    public void Sender_Receives_Echo_But_Not_Broadcast()
+    public void Send_nothing_for_a_sender_with_no_character()
     {
-        var character = Substitute.For<ICharacter>();
-        character.Name.Returns("HeroOne");
-        character.Guid.Returns(new ObjectGuid(ObjectType.Character, 42));
-        _senderConnection.Character.Returns(character);
+        _senderConnection.Character.Returns((ICharacter?)null);
 
-        // Sender is in the world connections list but should be skipped by the broadcast loop;
-        // the only Send to the sender is the echo before the loop.
-        _worldServer.Connections.Returns(ImmutableArray.Create(_senderConnection));
+        _handler.Execute(_senderConnection, MakePacket("Hello"));
 
-        _handler.Execute(_senderConnection, MakePacket("Hello world"));
-
-        // Exactly one send: the echo — NOT a second one from the broadcast loop.
-        _senderConnection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _senderConnection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 
     [Fact]
-    public void Not_Broadcast_To_Connections_Not_InGame()
+    public void Answer_an_unknown_command_on_the_system_channel()
     {
-        var offlineConnection = Substitute.For<IWorldConnection>();
-        offlineConnection.InGame.Returns(false);
-        offlineConnection.AccountId.Returns(new AccountId(3));
+        _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>()).Returns(false);
+        var sent = new List<NetworkPacket>();
+        _senderConnection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
 
-        var character = Substitute.For<ICharacter>();
-        character.Name.Returns("HeroOne");
-        character.Guid.Returns(new ObjectGuid(ObjectType.Character, 42));
-        _senderConnection.Character.Returns(character);
+        _handler.Execute(_senderConnection, MakePacket("/nope"));
 
-        _worldServer.Connections.Returns(ImmutableArray.Create(offlineConnection));
-
-        _handler.Execute(_senderConnection, MakePacket("Hello world"));
-
-        offlineConnection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-    }
-
-    [Fact]
-    public void Not_Broadcast_When_Sender_Not_InGame()
-    {
-        _senderConnection.InGame.Returns(false);
-
-        var otherConnection = Substitute.For<IWorldConnection>();
-        otherConnection.InGame.Returns(true);
-        otherConnection.AccountId.Returns(new AccountId(2));
-        _worldServer.Connections.Returns(ImmutableArray.Create(otherConnection));
-
-        _handler.Execute(_senderConnection, MakePacket("Hello world"));
-
-        otherConnection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        using var stream = new MemoryStream(Assert.Single(sent).Payload);
+        SChatMessagePacket reply = Serializer.Deserialize<SChatMessagePacket>(stream);
+        Assert.Equal(ChatChannel.System, reply.Channel);
+        Assert.Equal("Unknown command.", reply.Message);
     }
 }

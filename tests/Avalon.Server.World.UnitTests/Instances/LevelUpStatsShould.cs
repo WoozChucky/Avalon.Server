@@ -113,6 +113,7 @@ public class LevelUpStatsShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 434_010u + (uint)fromLevel),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = (ushort)fromLevel, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = 1,
         };
         instance.AddCreature(creature);

@@ -1,0 +1,83 @@
+# SPartyMemberStatusPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SPartyMemberStatusPacket
+
+variant absent
+  field 1 CharacterId : uint = 0
+  field 2 Health : uint = 0
+  field 3 MaxHealth : uint = 0
+  field 4 Power : uint = 0
+  field 5 MaxPower : uint = 0
+  field 6 PowerType : PowerType = None (0)
+  field 7 IsDead : bool = false
+  bytes 0
+
+variant empty
+  field 1 CharacterId : uint = 0
+  field 2 Health : uint = 0
+  field 3 MaxHealth : uint = 0
+  field 4 Power : uint = 0
+  field 5 MaxPower : uint = 0
+  field 6 PowerType : PowerType = None (0)
+  field 7 IsDead : bool = false
+  bytes 0
+
+variant populated
+  field 1 CharacterId : uint = 300
+  field 2 Health : uint = 300
+  field 3 MaxHealth : uint = 1000000
+  field 4 Power : uint = 42
+  field 5 MaxPower : uint = 4000000000
+  field 6 PowerType : PowerType = Energy (3)
+  field 7 IsDead : bool = true
+  bytes 22
+    08 ac 02 10 ac 02 18 c0 84 3d 20 2a 28 80 d0 ac
+    f3 0e 30 03 38 01
+
+variant maxima
+  field 1 CharacterId : uint = 4294967295
+  field 2 Health : uint = 4294967295
+  field 3 MaxHealth : uint = 4294967295
+  field 4 Power : uint = 4294967295
+  field 5 MaxPower : uint = 4294967295
+  field 6 PowerType : PowerType = Energy (3)
+  field 7 IsDead : bool = true
+  bytes 34
+    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
+    ff 0f 20 ff ff ff ff 0f 28 ff ff ff ff 0f 30 03
+    38 01
+
+variant minima
+  field 1 CharacterId : uint = 0
+  field 2 Health : uint = 0
+  field 3 MaxHealth : uint = 0
+  field 4 Power : uint = 0
+  field 5 MaxPower : uint = 0
+  field 6 PowerType : PowerType = None (0)
+  field 7 IsDead : bool = false
+  bytes 0
+
+variant varint-edges
+  field 1 CharacterId : uint = 16383
+  field 2 Health : uint = 268435455
+  field 3 MaxHealth : uint = 127
+  field 4 Power : uint = 268435456
+  field 5 MaxPower : uint = 128
+  field 6 PowerType : PowerType = <not a declared member> (4)
+  field 7 IsDead : bool = true
+  bytes 23
+    08 ff 7f 10 ff ff ff 7f 18 7f 20 80 80 80 80 01
+    28 80 01 30 04 38 01

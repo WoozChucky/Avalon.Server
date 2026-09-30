@@ -59,6 +59,31 @@ public class Creature : ICreature
     public uint DamageMax { get; set; }
     public uint Experience { get; set; }
 
+    /// <summary>
+    /// The maximum health <see cref="CreatureStatDeriver" /> gave it at spawn, never changed (2026-09-30). 0 means
+    /// unknown (a creature built without the spawner), and such a creature is never rescaled.
+    /// </summary>
+    public uint BaseMaxHealth { get; init; }
+
+    /// <summary>
+    /// Sets the maximum to the base times <paramref name="factor" />, rounded, at least 1, and keeps the share of the
+    /// pool it had (<see cref="CharacterStatsCalculator.KeepShare" />), so a living creature stays alive. A creature at
+    /// 0 health is never rescaled (#672: a corpse stays dead). World-side, not on ICreature: no mod scales health.
+    /// </summary>
+    public void Rescale(double factor)
+    {
+        if (BaseMaxHealth == 0 || CurrentHealth == 0 || !double.IsFinite(factor) || factor <= 0)
+            return;
+
+        double scaled = Math.Round(BaseMaxHealth * factor, MidpointRounding.AwayFromZero);
+        uint max = scaled >= uint.MaxValue ? uint.MaxValue : Math.Max(1u, (uint)scaled);
+        if (max == Health)
+            return;
+
+        CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, Health, max);
+        Health = max;
+    }
+
     // What combat resolves this creature's hits with (#506), fixed at spawn by CreatureSpawner from
     // CreatureStatDeriver. World-side and init-only, deliberately not on ICreature: the modding API
     // cannot change a creature's defences. A /reload creatures reaches only creatures spawned after it.

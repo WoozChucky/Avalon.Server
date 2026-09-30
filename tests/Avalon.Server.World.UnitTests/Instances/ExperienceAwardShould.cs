@@ -45,6 +45,7 @@ public class ExperienceAwardShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 880_001),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = creatureExperience
         };
         instance.AddCreature(creature);
@@ -80,6 +81,7 @@ public class ExperienceAwardShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 880_011),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = 100,
             Health = 10,
             CurrentHealth = 10,
@@ -118,6 +120,7 @@ public class ExperienceAwardShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 880_031),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = 100,
             Health = 10,
             CurrentHealth = 10,
@@ -214,6 +217,47 @@ public class ExperienceAwardShould
         instance.Dispose();
     }
 
+    /// <summary>
+    /// Working out who shares a kill is contained: a throw there must not leave a creature at 0 health with its script
+    /// and no corpse teardown. Nobody is eligible then, so nobody gains experience. Made to throw through the killer's id,
+    /// which the party lookup reads first.
+    /// </summary>
+    [Fact]
+    public void Still_Take_The_Kill_When_Working_Out_Who_Shares_It_Throws()
+    {
+        var world = Substitute.For<Avalon.World.IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate>());
+        StaticData data = LoadedStaticData();
+        world.Data.Returns(data);
+        var parties = new Avalon.World.Parties.PartyService(
+            Microsoft.Extensions.Options.Options.Create(new GameConfiguration()), new ManualTimerClock(),
+            NullLogger<Avalon.World.Parties.PartyService>.Instance);
+
+        MapInstance instance = TestMapInstances.Build(world, parties: parties);
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 880_041),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9,
+            Experience = 100,
+        };
+        instance.AddCreature(creature);
+        creature.Script = new Avalon.World.Scripts.Creatures.CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
+
+        ICharacter killer = Substitute.For<ICharacter>();
+        killer.Guid.Returns(_ => throw new InvalidOperationException("broken killer"));
+        killer.Level.Returns((ushort)9);
+
+        Exception? thrown = Record.Exception(() => instance.ReportKill(creature, killer));
+
+        Assert.Null(thrown);
+        Assert.Null(creature.Script);
+        killer.DidNotReceive().Experience = Arg.Any<ulong>();
+        instance.Dispose();
+    }
+
     [Theory]
     [InlineData(3, 1, 5, 1.0)]      // inside the band
     [InlineData(1, 1, 5, 1.0)]      // on the lower edge
@@ -255,7 +299,7 @@ public class ExperienceAwardShould
     /// StaticData's collections are null until LoadAsync runs, and CreatureKilled reads
     /// CharacterLevelExperiences to decide whether the kill levelled the character up.
     /// </summary>
-    private static StaticData LoadedStaticData()
+    internal static StaticData LoadedStaticData()
     {
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());

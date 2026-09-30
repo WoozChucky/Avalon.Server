@@ -6,6 +6,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Parties;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -64,9 +65,13 @@ internal static class TestMapInstances
     /// <param name="mapType">The instance's map type; Normal when omitted.</param>
     /// <param name="time">The container's clock; the system clock when omitted.</param>
     /// <param name="random">Every combat roll (#506); the instance's own no-proc fallback when omitted.</param>
+    /// <param name="ownerPartyId">The party that owns the instance; none when omitted.</param>
+    /// <param name="templateId">The instance's map template; map 1 when omitted.</param>
+    /// <param name="parties">The party service kills are shared through; none when omitted, so every kill is solo.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
-        MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null)
+        MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
+        PartyId? ownerPartyId = null, MapTemplateId? templateId = null, PartyService? parties = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -82,6 +87,10 @@ internal static class TestMapInstances
         if (pvp is not null)
         {
             serviceProvider.GetService(typeof(PvpToggle)).Returns(pvp);
+        }
+        if (parties is not null)
+        {
+            serviceProvider.GetService(typeof(PartyService)).Returns(parties);
         }
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
@@ -99,11 +108,12 @@ internal static class TestMapInstances
             NullLoggerFactory.Instance,
             serviceProvider,
             world,
-            new MapTemplateId(1),
+            templateId ?? new MapTemplateId(1),
             ownerCharacterId: null,
             layout,
             navigator ?? Substitute.For<IMapNavigator>(),
             seed: 0,
-            mapType: mapType);
+            mapType: mapType,
+            ownerPartyId: ownerPartyId);
     }
 }

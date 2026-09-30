@@ -32,7 +32,7 @@ public interface IMapInstance : ISimulationContext
 
     int PlayerCount { get; }
 
-    /// <summary>Set when the last player leaves; cleared when a player enters. Null while players are present.</summary>
+    /// <summary>Set when the instance is created and when the last player leaves; cleared when a player enters. Null while players are present.</summary>
     DateTime? LastEmptyAt { get; }
 
     /// <summary>True if this is a Normal map that has been empty longer than <paramref name="expiry"/>.</summary>

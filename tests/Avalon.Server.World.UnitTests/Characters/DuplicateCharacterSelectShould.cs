@@ -21,6 +21,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -686,7 +687,8 @@ public class DuplicateCharacterSelectShould : IDisposable
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
-            saver)
+            saver,
+            new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance))
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
@@ -707,6 +709,11 @@ public class DuplicateCharacterSelectShould : IDisposable
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            if (serviceType == typeof(PartyService))
+                return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
+                    NullLogger<PartyService>.Instance);
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(

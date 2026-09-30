@@ -12,6 +12,7 @@ using Avalon.World.Chat;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Loot;
+using Avalon.World.Parties;
 using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
 using Avalon.World.Quests;
@@ -54,7 +55,7 @@ public class WorldHostGraphShould
             // Loot (#460). MapInstance reads these with GetService, so a missing registration would
             // not fail anything else: it would silently make every creature drop nothing.
             Assert.NotNull(host.Services.GetRequiredService<ILootRoller>());
-            Assert.NotNull(host.Services.GetRequiredService<ILootAllocator>());
+            Assert.IsType<PartyLootAllocator>(host.Services.GetRequiredService<ILootAllocator>());
             Assert.NotNull(host.Services.GetRequiredService<TimeProvider>());
 
             // Vendors (#432). Both are optional where they are consumed (World, StaticData,
@@ -71,7 +72,16 @@ public class WorldHostGraphShould
             // silently build a second toggle over a different clock. /pvp is found through ICommand.
             Assert.NotNull(host.Services.GetRequiredService<PvpToggle>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PvpCommand);
+
+            // Parties (2026-09-30). World, MapInstance and EnterMapHandler take it optionally (WorldServer requires it,
+            // pinned below), so only this proves production supplies one.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Parties.PartyService>());
+            // World resolves the town return lazily (it depends on World) when a party leave countdown runs out, so only
+            // this proves production registers it.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Respawn.TownReturn>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is GodModeCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PartyChatCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is InviteCommand);
 
             // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
             // every combat service reads the same values. The facing cone it once carried is gone
@@ -80,6 +90,36 @@ public class WorldHostGraphShould
                 d => d.ServiceType == typeof(CombatConfig));
             Assert.Equal(ServiceLifetime.Singleton, combatConfig.Lifetime);
             Assert.NotNull(ActivatorUtilities.CreateInstance<CharacterSelectHandler>(host.Services));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
+    /// <summary>
+    /// The member status flush runs from WorldServer.Update (2026-09-30), so the world server must get the same
+    /// party service the handlers do: one singleton, and a constructor parameter with no default to fall back on.
+    /// </summary>
+    [Fact]
+    public async Task Give_the_world_server_the_one_party_service()
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services.AddWorldServices();
+
+            ServiceDescriptor parties = Assert.Single(builder.Services, d => d.ServiceType == typeof(PartyService));
+            Assert.Equal(ServiceLifetime.Singleton, parties.Lifetime);
+
+            ParameterInfo parameter = Assert.Single(Assert.Single(typeof(WorldServer).GetConstructors()).GetParameters(),
+                p => p.ParameterType == typeof(PartyService));
+            Assert.False(parameter.HasDefaultValue);
+            Assert.False(new NullabilityInfoContext().Create(parameter).WriteState is NullabilityState.Nullable);
+
+            using IHost host = builder.Build();
+            Assert.Same(host.Services.GetRequiredService<PartyService>(), host.Services.GetRequiredService<PartyService>());
         }
         finally
         {
@@ -97,6 +137,14 @@ public class WorldHostGraphShould
     [InlineData(NetworkPacketType.CMSG_VENDOR_SELL, typeof(VendorSellHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUYBACK, typeof(VendorBuybackHandler))]
     [InlineData(NetworkPacketType.CMSG_PVP_TOGGLE, typeof(PvpToggleHandler))]
+    [InlineData(NetworkPacketType.CMSG_CHAT_MESSAGE, typeof(ChatMessageHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE, typeof(PartyInviteHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE, typeof(PartyInviteResponseHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_LEAVE, typeof(PartyLeaveHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_KICK, typeof(PartyKickHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_PROMOTE, typeof(PartyPromoteHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE, typeof(PartyExperienceModeHandler))]
+    [InlineData(NetworkPacketType.CMSG_ENTER_MAP, typeof(EnterMapHandler))]
     public async Task Find_And_Build_The_Handler_The_Way_WorldServer_Does(NetworkPacketType opcode, Type expected)
     {
         string workingDirectory = Directory.GetCurrentDirectory();

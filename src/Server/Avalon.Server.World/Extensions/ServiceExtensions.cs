@@ -13,6 +13,7 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Maps;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
@@ -24,6 +25,7 @@ using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.World.Extensions;
 
@@ -70,7 +72,7 @@ public static class ServiceExtensions
         // #506: every combat roll (dodge, crit, block, weapon, creature swing) goes through this.
         services.AddSingleton<ICombatRandom>(new CombatRandom(Random.Shared));
         services.AddSingleton<ILootRoller, LootRoller>();
-        services.AddSingleton<ILootAllocator, InstanceOwnerLootAllocator>();
+        services.AddSingleton<ILootAllocator, PartyLootAllocator>();
         services.AddSingleton<ICharacterSaver, CharacterSaver>();
         services.AddSingleton<ICharacterSaveScheduler, CharacterSaveScheduler>();
         services.AddSingleton<PredefinedChunkLayoutSource>();
@@ -91,17 +93,28 @@ public static class ServiceExtensions
         services.AddSingleton<IQuestProgress, NoQuestProgress>();
 
         services.AddSingleton<IRespawnTargetResolver, RespawnTargetResolver>();
+        services.AddSingleton(sp => new TownReturn(
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger<TownReturn>(),
+            sp.GetRequiredService<IWorld>(),
+            sp.GetRequiredService<IRespawnTargetResolver>(),
+            sp.GetRequiredService<IChunkLibrary>()));
 
         // Combat (Phase D): V1 uses default CombatConfig values. EncounterRegistry +
         // CombatService are constructed per MapInstance, not registered as singletons.
         services.AddSingleton<CombatConfig>();
 
         // Chat commands
-        services.AddSingleton<ICommand, GroupInviteCommand>();
         services.AddSingleton<ICommand, ReloadCommand>();
         services.AddSingleton<ICommand, GodModeCommand>();
         services.AddSingleton<PvpToggle>();
+        services.AddSingleton<PartyService>();
         services.AddSingleton<ICommand, PvpCommand>();
+        services.AddSingleton<ICommand, InviteCommand>();
+        services.AddSingleton<ICommand, LeaveCommand>();
+        services.AddSingleton<ICommand, KickCommand>();
+        services.AddSingleton<ICommand, PromoteCommand>();
+        services.AddSingleton<ICommand, PartyExperienceCommand>();
+        services.AddSingleton<ICommand, PartyChatCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
 
         services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();
