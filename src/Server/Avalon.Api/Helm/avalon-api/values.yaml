@@ -3,7 +3,7 @@
 # plain values in the pod spec. Either:
 #  - name a Secret you manage in existingSecret (preferred: the values never pass through Helm). It
 #    needs the keys database-auth-connection-string and jwt-signing-key, one pair per world
-#    (worlds.<id>, below), plus cache-password, notification-private-key and distribution-secret-key if used. Leave every
+#    (worlds.<id>, below), plus cache-password, notification-private-key, distribution-secret-key and balance-shared-secret if used. Leave every
 #    secret value below empty: the chart refuses to render with existingSecret set and a value
 #    given, rather than ignore it. The chart cannot see a change to your Secret, so after rotating
 #    a key in it restart the pods yourself:
@@ -152,6 +152,13 @@ otel:
   serviceName: ""
   # Extra resource attributes, e.g. {deployment.environment: production}.
   resourceAttributes: {}
+
+# The balance service the admin /balance endpoints forward to (Avalon.Balance.Service, in cluster).
+# Empty url: nothing rendered and those endpoints answer 503. The shared secret is the key
+# "balance-shared-secret" of existingSecret (the same value the service holds), or sharedSecret below.
+balance:
+  url: ""
+  sharedSecret: ""
 
 # Game distribution (Garage/S3, see homelab docs/avalon.md). Empty endpoint: the /client endpoints
 # answer 503. publicUrl is the host presigned links point at; the key should be read-only. The

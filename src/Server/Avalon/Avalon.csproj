@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Avalon.Api\Avalon.Api.csproj"/>
+    <ProjectReference Include="..\Avalon.Balance.Service\Avalon.Balance.Service.csproj"/>
     <ProjectReference Include="..\Avalon.Server.Auth\Avalon.Server.Auth.csproj"/>
     <ProjectReference Include="..\Avalon.Server.World\Avalon.Server.World.csproj"/>
   </ItemGroup>

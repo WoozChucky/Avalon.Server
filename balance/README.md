@@ -92,3 +92,7 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
    `Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_only" dotnet ef migrations add <Name> --project src/Server/Avalon.Database.World --startup-project src/Server/Avalon.Api --context WorldDbContext`
 3. Remove the entry from `overrides.json`; the next run reports any leftover as stale.
 4. `ModelDriftShould` fails if step 2 was skipped.
+
+The balance workbench, the admin page that runs the simulator through `Avalon.Balance.Service` and exports a tuning
+proposal as a draft pull request, edits these files from the dashboard; this folder stays the source of truth, and an
+export commits only the changed `balance/*.json` files.

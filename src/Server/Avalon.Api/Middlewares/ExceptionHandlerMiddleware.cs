@@ -88,6 +88,9 @@ public class ExceptionHandlerMiddleware
             // Game distribution: no store configured, or a published build that is not there.
             Distribution.DistributionUnavailableException => WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable,
                 "ServiceUnavailable", "Service unavailable", exception.Message),
+            // The balance workbench's service: not configured, or not reachable. Fixed wording; the
+            // exception's inner cause stays in the log.
+            Balance.BalanceUnavailableException => WriteBalanceUnavailableAsync(context, exception),
             BusinessException => WriteProblemAsync(context, (int)HttpStatusCode.BadRequest,
                 exception.GetType().Name, "Client error", exception.Message),
             // An Accounts check constraint refused the row (#503 follow-up): a username or an email
@@ -104,6 +107,9 @@ public class ExceptionHandlerMiddleware
             // Authentication fails closed either way: the request never reaches the endpoint.
             DbException or RetryLimitExceededException => WriteDatabaseUnavailableAsync(context, exception),
             RedisConnectionException => WriteCacheUnavailableAsync(context, exception),
+            // The caller hung up: nothing is listening for a body, and it is not a fault of ours.
+            OperationCanceledException when context.RequestAborted.IsCancellationRequested =>
+                WriteRequestAbortedAsync(context, exception),
             _ => WriteUnexpectedErrorAsync(context, exception),
         });
     }
@@ -145,6 +151,13 @@ public class ExceptionHandlerMiddleware
             AccountValueRefused);
     }
 
+    private Task WriteBalanceUnavailableAsync(HttpContext context, Exception exception)
+    {
+        _logger.LogWarning(exception, "Balance service unavailable");
+        return WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable, "ServiceUnavailable",
+            "Service unavailable", exception.Message);
+    }
+
     private Task WriteDatabaseUnavailableAsync(HttpContext context, Exception exception)
     {
         context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
@@ -157,6 +170,12 @@ public class ExceptionHandlerMiddleware
         context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
         _logger.LogError(exception, "Cache unavailable");
         return WriteServiceUnavailableAsync(context);
+    }
+
+    private Task WriteRequestAbortedAsync(HttpContext context, Exception exception)
+    {
+        _logger.LogDebug(exception, "The request was aborted by the caller");
+        return Task.CompletedTask;
     }
 
     private Task WriteUnexpectedErrorAsync(HttpContext context, Exception exception)

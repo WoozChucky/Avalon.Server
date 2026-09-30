@@ -70,6 +70,16 @@ spec:
                   name: {{ include "avalon-api.secretName" . }}
                   key: notification-private-key
                   optional: true
+            - name: Application__Balance__SharedSecret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" . }}
+                  key: balance-shared-secret
+                  optional: true
+            {{- with .Values.balance.url }}
+            - name: Application__Balance__Url
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.distribution.endpoint }}
             - name: Application__Distribution__Endpoint
               value: {{ . | quote }}

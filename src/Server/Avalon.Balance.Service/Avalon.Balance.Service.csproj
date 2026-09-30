@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+    <PublicSign>true</PublicSign>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\..\sgKey.snk">
+      <Link>sgKey.snk</Link>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Avalon.Balance.Core\Avalon.Balance.Core.csproj"/>
+    <ProjectReference Include="..\Avalon.Balance.Data\Avalon.Balance.Data.csproj"/>
+    <ProjectReference Include="..\Avalon.Balance.Contract\Avalon.Balance.Contract.csproj"/>
+    <ProjectReference Include="..\Avalon.ServiceDefaults\Avalon.ServiceDefaults.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\..\balance\*.json" LinkBase="balance" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

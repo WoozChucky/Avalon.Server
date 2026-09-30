@@ -2,6 +2,7 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
+using Avalon.Api.Balance;
 using Avalon.Api.Config;
 using Avalon.Api.Controllers;
 using Avalon.Api.Middlewares;
@@ -69,6 +70,13 @@ public static class ServiceRegistration
         else
             services.AddSingleton<Distribution.IDistributionStore, Distribution.UnconfiguredDistributionStore>();
         services.AddSingleton<Distribution.ClientDistributionService>();
+
+        // The balance workbench's service (in-cluster). Without it the /balance endpoints answer 503.
+        Balance.BalanceConfiguration balance = config.Balance ?? new();
+        if (balance.IsConfigured)
+            services.AddBalanceClient(balance);
+        else
+            services.AddSingleton<Balance.IBalanceClient, Balance.UnconfiguredBalanceClient>();
 
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();

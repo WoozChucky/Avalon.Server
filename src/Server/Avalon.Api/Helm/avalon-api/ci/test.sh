@@ -133,4 +133,14 @@ grep -A1 "name: Application__RateLimiting__ClientAuthPermitsPerMinute" <<<"$rl" 
 on=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=true)
 grep -A1 "name: Application__RateLimiting__Enabled" <<<"$on" | grep -q '"true"'                        || { echo "rateLimiting.enabled=true missing"; exit 1; }
 ! grep -q "Application__RateLimiting__AnonymousPermitsPerMinute" <<<"$on"                             || { echo "an unset limit must not render"; exit 1; }
+# Balance service (admin /balance proxy): the URL renders only when set; the secret is always a
+# secretKeyRef, optional, so an unset key leaves the admin endpoints answering 503.
+! grep -q "Application__Balance__Url" <<<"$out"                                                || { echo "balance url rendered without a value"; exit 1; }
+grep -A4 "name: Application__Balance__SharedSecret" <<<"$out" | grep -q "key: balance-shared-secret" || { echo "balance secret must come from the Secret"; exit 1; }
+grep -A5 "name: Application__Balance__SharedSecret" <<<"$out" | grep -q "optional: true"       || { echo "balance secret must be optional"; exit 1; }
+bal=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set balance.url=http://balance-avalon-balance:8080)
+grep -A1 "name: Application__Balance__Url" <<<"$bal" | grep -q '"http://balance-avalon-balance:8080"' || { echo "balance url missing"; exit 1; }
+must_fail "existingSecret + inline balance.sharedSecret must fail" --set existingSecret=x "${W1[@]}" --set balance.sharedSecret=leak
+balsec=$(helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set balance.sharedSecret=s3cret)
+grep -q 'balance-shared-secret: "s3cret"' <<<"$balsec"                                         || { echo "balance secret must reach the chart-managed Secret"; exit 1; }
 echo "avalon-api chart OK"

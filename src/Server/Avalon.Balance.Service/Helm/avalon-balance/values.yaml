@@ -1,0 +1,53 @@
+# Secrets reach the pod through a Kubernetes Secret (secretKeyRef), never as plain values in the pod
+# spec. Either:
+#  - name a Secret you manage in existingSecret (preferred). It needs the key balance-shared-secret
+#    (at least 32 characters, the value Avalon.Api sends in X-Balance-Secret) and may hold github-token
+#    (a fine-grained token for exports; without it exports answer 503). Leave sharedSecret and
+#    githubToken empty: the chart refuses to render with existingSecret set and a value given. After
+#    rotating a key in your Secret, restart the pod yourself; or
+#  - leave existingSecret empty and pass the values below from files (--set-file sharedSecret=./s.key);
+#    the chart then creates the Secret, and a checksum annotation restarts the pod when it changes.
+existingSecret: ""
+sharedSecret: ""
+githubToken: ""
+
+# The repository exports open their draft pull request in.
+repository: WoozChucky/Avalon.Server
+
+image:
+  repository: ghcr.io/woozchucky/avalon-server/balance
+  pullPolicy: IfNotPresent
+  # Empty means the chart's appVersion, which the release sets to the git tag.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+
+# ClusterIP only: the service is never exposed outside the cluster, and the chart has no ingress.
+# One replica only: the run queue and finished results are in memory.
+service:
+  port: 8080
+
+resources:
+  limits:
+    cpu: 2
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# ASP.NET Core environment. Health endpoints are mapped in every environment.
+environment: Production
+
+# OpenTelemetry export (OTLP gRPC), e.g. http://otel-collector:4317.
+# Empty: nothing is exported.
+otel:
+  endpoint: ""
+  # Defaults to the release's full name.
+  serviceName: ""
+  # Extra resource attributes, e.g. {deployment.environment: production}.
+  resourceAttributes: {}

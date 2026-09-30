@@ -33,6 +33,8 @@ Hosts: **API** is `Avalon.Api`, **Auth** the auth server, **World** the world se
 | `NotificationConfig`        | `Avalon.Api.Config`                | `Application:Notification` | API | Not validated |
 | `EnvironmentConfig`         | `Avalon.Api.Config`                | `Application:Environment` | API | Not validated |
 | `DistributionConfiguration` | `Avalon.Api.Distribution`          | `Application:Distribution` | API | Not validated; left incomplete, the `/client` endpoints answer 503 |
+| `BalanceConfiguration`      | `Avalon.Api.Balance`               | `Application:Balance` | API | Not validated; left incomplete, the admin `/balance` endpoints answer 503 |
+| `BalanceServiceOptions`     | `Avalon.Balance.Service`           | `Balance` | Balance service | `ValidateOnStart` (`SharedSecret` required, 32 characters or more). See [Balance Service](#balance-service) |
 
 The API's `Cache` settings are therefore under `Application:Cache` (`Application__Cache__Host`), not `Cache`,
 while its database settings are under the top-level `Database`, as on the servers.
@@ -476,6 +478,41 @@ credentials will load from user-secrets or the environment, like the JWT signing
 The `Authorization: Avalon avp_...` scheme takes no configuration and there is no shared secret. Each
 token belongs to one account; only its SHA-256 hash is stored, and `AvalonAuthenticationHandler` looks
 it up per request. See [Security — Session Management](security-session-management.md#rest-api-authentication).
+
+---
+
+## Balance Service
+
+The balance service (`Avalon.Balance.Service`) is reached only from inside the cluster, by `Avalon.Api`. Both sides
+hold the same shared secret.
+
+**Service** (`Balance`, as `Balance__<Name>` in the environment):
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `SharedSecret` | none, required | The value callers send in `X-Balance-Secret`; at least 32 characters, else the service refuses to start. `/health` and `/alive` do not check it |
+| `GitHubToken` | empty | A fine-grained token for exports; without it `POST /exports` answers 503. Never logged |
+| `Repository` | `WoozChucky/Avalon.Server` | The repository exports open their draft pull request in |
+| `MaxQueued` | 3 | Runs waiting behind the running one; one more gets 429 |
+| `MaxRunsPerRow` | 1000 | The most `runsPerRow` a request may ask for |
+| `MaxOverrides` | 500 | The most override keys a request may carry |
+| `ResultTtl` | `01:00:00` | How long a finished run is kept before it answers 404 |
+| `MaxRetainedFinished` | 100 | Finished runs kept; past this the oldest goes, whatever its age |
+| `RunWorker` | `true` | False builds the worker paused, nothing drains the queue. A test seam |
+
+Exports branch from the commit in the assembly's informational version (`+<sha>`), which CI sets with
+`-p:SourceRevisionId="$(git rev-parse HEAD)"` (the checked-out commit; `github.sha` is main's head on a manual release); a build without it answers exports with 503.
+
+**API** (`Application:Balance`):
+
+| Setting | Meaning |
+|---------|---------|
+| `Url` | The service's in-cluster address, e.g. `http://avalon-balance:8080` |
+| `SharedSecret` | Sent as `X-Balance-Secret`; the same value as the service's `Balance:SharedSecret` |
+
+Both are needed: with either empty the admin `/balance/*` endpoints answer 503 and nothing else changes. In the
+Helm charts the secret is the key `balance-shared-secret` of the Secret, for both charts; the api chart's
+`balance.url` renders `Application__Balance__Url` only when set.
 
 ---
 
