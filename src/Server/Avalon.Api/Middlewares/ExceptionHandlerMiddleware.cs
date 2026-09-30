@@ -88,6 +88,9 @@ public class ExceptionHandlerMiddleware
             // Game distribution: no store configured, or a published build that is not there.
             Distribution.DistributionUnavailableException => WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable,
                 "ServiceUnavailable", "Service unavailable", exception.Message),
+            // The balance workbench's service: not configured, or not reachable. Fixed wording; the
+            // exception's inner cause stays in the log.
+            Balance.BalanceUnavailableException => WriteBalanceUnavailableAsync(context, exception),
             BusinessException => WriteProblemAsync(context, (int)HttpStatusCode.BadRequest,
                 exception.GetType().Name, "Client error", exception.Message),
             // An Accounts check constraint refused the row (#503 follow-up): a username or an email
@@ -143,6 +146,13 @@ public class ExceptionHandlerMiddleware
         _logger.LogError(exception, "An account row was refused by a check constraint");
         return WriteProblemAsync(context, (int)HttpStatusCode.BadRequest, "BusinessException", "Client error",
             AccountValueRefused);
+    }
+
+    private Task WriteBalanceUnavailableAsync(HttpContext context, Exception exception)
+    {
+        _logger.LogWarning(exception, "Balance service unavailable");
+        return WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable, "ServiceUnavailable",
+            "Service unavailable", exception.Message);
     }
 
     private Task WriteDatabaseUnavailableAsync(HttpContext context, Exception exception)

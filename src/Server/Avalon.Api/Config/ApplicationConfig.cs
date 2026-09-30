@@ -14,4 +14,5 @@ public class ApplicationConfig
     public ForwardedHeadersConfig? ForwardedHeaders { get; set; }
     public EmailConfig? Email { get; set; }
     public Distribution.DistributionConfiguration? Distribution { get; set; }
+    public Balance.BalanceConfiguration? Balance { get; set; }
 }
