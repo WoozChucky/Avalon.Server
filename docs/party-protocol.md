@@ -34,8 +34,10 @@ Server to client.
 `PartyMemberDto`: 1 `CharacterId`, 2 `Name`, 3 `Class`, 4 `Level`, 5 `IsLeader`, 6 `Online`, 7 `SameInstance`.
 
 **Retired.** The old group packets are gone: `CMSG_GROUP_INVITE_RESULT` (`0x200A`), `SMSG_GROUP_INVITE`
-(`0x300D`) and `SMSG_GROUP_INVITE_RESULT` (`0x300E`). Their values stay in `NetworkPacketType`, marked
-obsolete, and are never reused. A client must delete its handlers and emitters for them.
+(`0x300D`) and `SMSG_GROUP_INVITE_RESULT` (`0x300E`). Their values were deleted from `NetworkPacketType`
+(#697) and dropped out of `schema/opcodes.json` and `schema/avalon.proto`, so their numbers are free: a
+retired opcode is deleted, and its number may be reused once clients have re-vendored the schema. A client
+must delete its handlers and emitters for them.
 
 ## 2. Answers
 
