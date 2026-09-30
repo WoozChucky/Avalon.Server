@@ -116,6 +116,11 @@ public static class BalanceClientRegistration
                 client.BaseAddress = new Uri(config.Url.TrimEnd('/') + "/");
                 client.DefaultRequestHeaders.Add(BalanceClient.SecretHeader, config.SharedSecret);
             })
+            // The service gzips its answers, and a raw body is what the controller forwards.
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+            })
             .RemoveAllResilienceHandlers();
         http.AddResilienceHandler("balance", builder =>
             {

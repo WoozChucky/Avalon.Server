@@ -43,13 +43,19 @@ public sealed class BalanceControllerShould
     }
 
     private static Task<ApiAuthHost> Host(IBalanceClient client) =>
-        ApiAuthHost.StartAsync(configure: s => s.AddSingleton(client));
+        ApiAuthHost.StartAsync(configure: s =>
+        {
+            s.AddSingleton(client);
+            // As Program.cs: the API's own serializer drops nulls, which the forwarded bodies must keep.
+            s.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(o =>
+                o.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull);
+        });
 
     [Fact]
     public async Task Let_an_admin_read_the_catalog()
     {
         IBalanceClient client = Substitute.For<IBalanceClient>();
-        client.CatalogAsync(Arg.Any<CancellationToken>()).Returns(new BalanceResponse<CatalogDto>(200, Catalog, null));
+        client.CatalogAsync(Arg.Any<CancellationToken>()).Returns(new BalanceResponse<CatalogDto>(200, Catalog, """{"version":"1.0.0","commit":"abc"}"""));
         await using ApiAuthHost host = await Host(client);
 
         using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/catalog", "", Admin);
@@ -64,13 +70,28 @@ public sealed class BalanceControllerShould
     {
         IBalanceClient client = Substitute.For<IBalanceClient>();
         client.StartRunAsync(Arg.Any<RunRequestDto>(), Arg.Any<CancellationToken>())
-            .Returns(new BalanceResponse<RunAcceptedDto>(202, new RunAcceptedDto("r1"), null));
+            .Returns(new BalanceResponse<RunAcceptedDto>(202, new RunAcceptedDto("r1"), """{"runId":"r1"}"""));
         await using ApiAuthHost host = await Host(client);
 
         using HttpResponseMessage response = await SendAsync(host, "POST", "/balance/runs", "{}", Admin);
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Contains("\"runId\":\"r1\"", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Forward_a_success_body_byte_for_byte_with_its_nulls()
+    {
+        const string raw = """{"runId":"r1","status":"running","rowsDone":0,"rowsTotal":4,"result":null,"issues":[]}""";
+        IBalanceClient client = Substitute.For<IBalanceClient>();
+        client.GetRunAsync("r1", Arg.Any<CancellationToken>())
+            .Returns(new BalanceResponse<RunStatusDto>(200, new RunStatusDto("r1", "running", 0, 4, null, []), raw));
+        await using ApiAuthHost host = await Host(client);
+
+        using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/runs/r1", "", Admin);
+
+        Assert.Equal(raw, await response.Content.ReadAsStringAsync());
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]

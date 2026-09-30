@@ -107,6 +107,9 @@ public class ExceptionHandlerMiddleware
             // Authentication fails closed either way: the request never reaches the endpoint.
             DbException or RetryLimitExceededException => WriteDatabaseUnavailableAsync(context, exception),
             RedisConnectionException => WriteCacheUnavailableAsync(context, exception),
+            // The caller hung up: nothing is listening for a body, and it is not a fault of ours.
+            OperationCanceledException when context.RequestAborted.IsCancellationRequested =>
+                WriteRequestAbortedAsync(context, exception),
             _ => WriteUnexpectedErrorAsync(context, exception),
         });
     }
@@ -167,6 +170,12 @@ public class ExceptionHandlerMiddleware
         context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
         _logger.LogError(exception, "Cache unavailable");
         return WriteServiceUnavailableAsync(context);
+    }
+
+    private Task WriteRequestAbortedAsync(HttpContext context, Exception exception)
+    {
+        _logger.LogDebug(exception, "The request was aborted by the caller");
+        return Task.CompletedTask;
     }
 
     private Task WriteUnexpectedErrorAsync(HttpContext context, Exception exception)

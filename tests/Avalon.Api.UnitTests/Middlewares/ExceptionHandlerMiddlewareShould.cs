@@ -146,4 +146,33 @@ public class ExceptionHandlerMiddlewareShould
     }
 
     private sealed class FakeDbException(string message) : DbException(message);
+
+    [Fact]
+    public async Task Write_nothing_when_the_caller_hung_up()
+    {
+        using var aborted = new CancellationTokenSource();
+        var context = new DefaultHttpContext { RequestAborted = aborted.Token };
+        context.Response.Body = new MemoryStream();
+        aborted.Cancel();
+        var middleware = new ExceptionHandlerMiddleware(_ => throw new OperationCanceledException(aborted.Token),
+            NullLoggerFactory.Instance);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(0, context.Response.Body.Length);
+        Assert.NotEqual(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Still_answer_500_for_a_cancellation_the_caller_did_not_cause()
+    {
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        var middleware = new ExceptionHandlerMiddleware(_ => throw new OperationCanceledException(),
+            NullLoggerFactory.Instance);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+    }
 }

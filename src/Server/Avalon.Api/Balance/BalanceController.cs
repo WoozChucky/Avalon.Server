@@ -64,11 +64,8 @@ public class BalanceController : Controllers.BaseController
     public async Task<IActionResult> Export([FromBody] ExportRequestDto request, CancellationToken ct) =>
         Forward(await _client.ExportAsync(request, ct));
 
-    private IActionResult Forward<T>(BalanceResponse<T> response) =>
-        response.IsSuccess && response.Value is not null
-            ? StatusCode(response.Status, response.Value)
-            : Forward((BalanceResponse)response);
-
+    // The service's JSON goes out as received, success included: re-serializing with the API's own
+    // options would drop the nulls the wire format relies on. The typed DTOs only describe the OpenAPI.
     private IActionResult Forward(BalanceResponse response) =>
         response.Json is { } json
             ? new ContentResult { StatusCode = response.Status, Content = json, ContentType = "application/json" }
