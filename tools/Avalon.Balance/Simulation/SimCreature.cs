@@ -3,7 +3,6 @@ using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
-using Avalon.World.Creatures;
 
 namespace Avalon.Balance.Simulation;
 
@@ -17,6 +16,9 @@ public sealed class SimCreature : SimUnit
 
     public IReadOnlyList<SimAbility> Specials { get; private init; } = [];
 
+    /// <summary>Specials this creature casts only from range, which never happens in melee.</summary>
+    public IReadOnlySet<AbilityId> RangedOnly { get; private init; } = new HashSet<AbilityId>();
+
     public required float HasteCap { get; init; }
 
     /// <summary>As Creature.SwingInterval: BaseAttackTime over 1 + haste / 100, haste at most the cap.</summary>
@@ -24,7 +26,7 @@ public sealed class SimCreature : SimUnit
 
     /// <summary>The forest scripts' rotation in melee: the first ready special in kit order, else the basic.</summary>
     public SimAbility? Choose() =>
-        Specials.FirstOrDefault(s => s.Ready && !CreatureKits.RangedOnly.Contains(s.Id))
+        Specials.FirstOrDefault(s => s.Ready && !RangedOnly.Contains(s.Id))
         ?? (Basic is { Ready: true } basic ? basic : null);
 
     /// <summary>
@@ -33,7 +35,7 @@ public sealed class SimCreature : SimUnit
     /// </summary>
     public static SimCreature Create(BalanceData data, CreatureTemplate template, ushort level, int index)
     {
-        CreatureAbilityKit kit = CreatureKits.For(template.ScriptName)
+        CreatureKit kit = (template.ScriptName is not null && CreatureKits.ByScript.TryGetValue(template.ScriptName, out CreatureKit? found) ? found : null)
             ?? throw new InvalidDataException($"CreatureTemplate {template.Id.Value} '{template.Name}' has no kit");
         DerivedCreatureStats derived = data.CreatureStats.Derive(template, level);
 
@@ -50,6 +52,7 @@ public sealed class SimCreature : SimUnit
             Derived = derived,
             Basic = basic,
             Specials = specials,
+            RangedOnly = kit.RangedOnly,
             HasteCap = data.Combat.Formula.HasteCap,
             Attack = derived.Attacker,
             Defence = derived.Defence,

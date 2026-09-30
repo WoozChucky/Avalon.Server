@@ -22,7 +22,7 @@ public sealed class BalanceData
         Combat = combat;
         CreatureStats = creatureStats;
         HostileTemplates = tables.CreatureTemplates
-            .Where(t => !t.Invulnerable && CreatureKits.For(t.ScriptName) is not null)
+            .Where(t => !t.Invulnerable && t.ScriptName is not null && CreatureKits.ByScript.ContainsKey(t.ScriptName))
             .OrderBy(t => t.Id.Value)
             .ToList();
     }
