@@ -180,9 +180,11 @@ public static class HtmlReport
     private static void LineChart(StringBuilder sb, string title, List<ushort> levels,
         IEnumerable<(int Slot, CharacterClass Class, double?[] Values)> series, Band? band, double yMax, string unit)
     {
-        const int w = 560, h = 220, left = 44, right = 12, top = 12, bottom = 28;
+        // inset keeps the first and last markers (r 4) off the y-axis labels and the plot edge.
+        const int w = 560, h = 220, left = 44, right = 12, top = 12, bottom = 28, inset = 14;
         yMax = Math.Max(yMax, 1);
-        double X(int i) => left + (levels.Count <= 1 ? (w - left - right) / 2d : i * (w - left - right) / (double)(levels.Count - 1));
+        const double span = w - left - right - 2 * inset;
+        double X(int i) => left + inset + (levels.Count <= 1 ? span / 2d : i * span / (levels.Count - 1));
         double Y(double v) => top + (h - top - bottom) * (1 - Math.Clamp(v / yMax, 0, 1));
 
         sb.Append("<figure><figcaption>").Append(E(title)).Append(band is null ? "" : $" &middot; target {E(band.Describe(unit))}")
