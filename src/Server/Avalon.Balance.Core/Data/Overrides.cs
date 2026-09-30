@@ -19,27 +19,49 @@ public sealed record OverrideReport(IReadOnlyList<AppliedOverride> Applied, IRea
 /// </summary>
 public static class Overrides
 {
-    private sealed record Table(Type RowType, string[] KeyColumns, Func<SeedTables, string, object?> Find, bool Keyless = false);
+    internal sealed record Table(
+        Type RowType,
+        string[] KeyColumns,
+        Func<SeedTables, string, object?> Find,
+        Func<SeedTables, IEnumerable<(string Key, object Row)>> Rows,
+        bool Keyless = false)
+    {
+        /// <summary>The columns an override may write: public, settable, not the row's key, and of a type Apply converts.</summary>
+        public IEnumerable<PropertyInfo> Columns() => RowType
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.GetIndexParameters().Length == 0
+                && p.SetMethod is { IsPublic: true }
+                && !KeyColumns.Contains(p.Name, StringComparer.Ordinal)
+                && Supports(p.PropertyType));
+    }
 
-    private static readonly Dictionary<string, Table> Tables = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, Table> Tables = new(StringComparer.Ordinal)
     {
         ["Ability"] = new(typeof(AbilityTemplate), ["Id"],
-            (t, k) => t.AbilityTemplates.FirstOrDefault(a => Text(a.Id.Value) == k)),
+            (t, k) => t.AbilityTemplates.FirstOrDefault(a => Text(a.Id.Value) == k),
+            t => t.AbilityTemplates.Select(a => (Text(a.Id.Value), (object)a))),
         ["ClassLevelStat"] = new(typeof(ClassLevelStat), ["Class", "Level"],
             (t, k) => k.Split('.') is [var c, var l] && Enum.TryParse(c, false, out CharacterClass cls)
                 ? t.ClassLevelStats.FirstOrDefault(r => r.Class == cls && Text(r.Level) == l)
-                : null),
+                : null,
+            t => t.ClassLevelStats.Select(r => ($"{r.Class}.{Text(r.Level)}", (object)r))),
         ["ClassStatFactors"] = new(typeof(ClassStatFactors), ["Class"],
-            (t, k) => Enum.TryParse(k, false, out CharacterClass cls) ? t.ClassStatFactors.FirstOrDefault(r => r.Class == cls) : null),
-        ["CombatFormula"] = new(typeof(CombatFormula), ["Id"], (t, _) => t.CombatFormulas.SingleOrDefault(), Keyless: true),
+            (t, k) => Enum.TryParse(k, false, out CharacterClass cls) ? t.ClassStatFactors.FirstOrDefault(r => r.Class == cls) : null,
+            t => t.ClassStatFactors.Select(r => (r.Class.ToString(), (object)r))),
+        ["CombatFormula"] = new(typeof(CombatFormula), ["Id"], (t, _) => t.CombatFormulas.SingleOrDefault(),
+            t => t.CombatFormulas.Take(1).Select(r => ("", (object)r)), Keyless: true),
         ["CreatureBaseStats"] = new(typeof(CreatureBaseStat), ["Level"],
-            (t, k) => t.CreatureBaseStats.FirstOrDefault(r => Text(r.Level) == k)),
+            (t, k) => t.CreatureBaseStats.FirstOrDefault(r => Text(r.Level) == k),
+            t => t.CreatureBaseStats.Select(r => (Text(r.Level), (object)r))),
         ["CreatureRarityModifiers"] = new(typeof(CreatureRarityModifier), ["Rarity"],
-            (t, k) => Enum.TryParse(k, false, out CreatureRarity r) ? t.CreatureRarityModifiers.FirstOrDefault(m => m.Rarity == r) : null),
+            (t, k) => Enum.TryParse(k, false, out CreatureRarity r) ? t.CreatureRarityModifiers.FirstOrDefault(m => m.Rarity == r) : null,
+            t => t.CreatureRarityModifiers.Select(m => (m.Rarity.ToString(), (object)m))),
         ["CreatureTemplate"] = new(typeof(CreatureTemplate), ["Id"],
-            (t, k) => t.CreatureTemplates.FirstOrDefault(c => Text(c.Id.Value) == k)),
+            (t, k) => t.CreatureTemplates.FirstOrDefault(c => Text(c.Id.Value) == k),
+            t => t.CreatureTemplates.Select(c => (Text(c.Id.Value), (object)c))),
         ["Item"] = new(typeof(ItemTemplate), ["Id"],
-            (t, k) => t.ItemTemplates.FirstOrDefault(i => Text(i.Id.Value) == k)),
+            (t, k) => t.ItemTemplates.FirstOrDefault(i => Text(i.Id.Value) == k),
+            t => t.ItemTemplates.Select(i => (Text(i.Id.Value), (object)i))),
     };
 
     public static OverrideReport Apply(SeedTables tables, JsonElement root)
@@ -135,9 +157,18 @@ public static class Overrides
         throw new InvalidDataException($"Override '{key}': a {target.Name} column cannot be overridden");
     }
 
+    /// <summary>The column types Convert can write.</summary>
+    internal static bool Supports(Type type)
+    {
+        Type target = Nullable.GetUnderlyingType(type) ?? type;
+        return target.IsEnum || target == typeof(bool) || target == typeof(string) || target == typeof(float)
+            || target == typeof(double) || target == typeof(byte) || target == typeof(short) || target == typeof(ushort)
+            || target == typeof(int) || target == typeof(uint) || target == typeof(long) || target == typeof(ulong);
+    }
+
     private static string Text(ulong value) => value.ToString(CultureInfo.InvariantCulture);
 
-    private static string Show(object? value) => value switch
+    internal static string Show(object? value) => value switch
     {
         null => "null",
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),

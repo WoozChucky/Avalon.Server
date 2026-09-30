@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.Balance.Core;
@@ -24,6 +25,7 @@ public sealed class Scenario
     /// <summary>At most this many creatures a cone hits; null hits every living one.</summary>
     public int? ConeHits { get; set; }
 
+    [JsonIgnore]
     public int? Offset => LevelOffset switch
     {
         null => 0,
@@ -31,10 +33,12 @@ public sealed class Scenario
         _ => null,
     };
 
+    [JsonIgnore]
     public bool OffsetFromTemplate =>
         LevelOffset is { ValueKind: JsonValueKind.String } e && string.Equals(e.GetString(), "template", StringComparison.Ordinal);
 
     /// <summary>Creatures at the player's own level: the scenarios the flat-curve check reads.</summary>
+    [JsonIgnore]
     public bool SameLevel => Offset == 0;
 }
 
