@@ -9,7 +9,7 @@ public enum VendorResult : byte
 {
     Ok = 0,
 
-    /// <summary>No open vendor conversation within 15 m of the vendor.</summary>
+    /// <summary>No open vendor conversation within 6 m of the vendor (the dialogue leash).</summary>
     ShopClosed = 1,
 
     /// <summary>An unknown or quest-gated row, an empty or out-of-range Bag slot, or an unknown buyback index.</summary>

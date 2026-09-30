@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.World;
+using Avalon.World.Dialogue;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Enums;
 using NSubstitute;
@@ -60,11 +61,23 @@ public class BankAccessShould
     }
 
     [Fact]
+    public async Task Stay_usable_after_a_step_back_past_the_interact_range()
+    {
+        // 5.5 m from the banker (at z = 3): too far to open a conversation, close enough to keep one.
+        var w = await BankerWorld.CreateAsync();
+        w.OpenBank();
+        w.Character.Position = new Vector3(0, 0, 3 + 5.5f);
+
+        Assert.True(BankAccess.TryUse(w.Connection, w.Character, w.World));
+        Assert.Empty(w.Sent);
+    }
+
+    [Fact]
     public async Task Be_usable_at_exactly_the_leash()
     {
         var w = await BankerWorld.CreateAsync();
         w.OpenBank();
-        w.Character.Position = new Vector3(0, 0, 3 + 15);
+        w.Character.Position = new Vector3(0, 0, 3 + NpcInteraction.LeashRange);
 
         Assert.True(BankAccess.TryUse(w.Connection, w.Character, w.World));
     }
@@ -74,7 +87,7 @@ public class BankAccessShould
     {
         var w = await BankerWorld.CreateAsync();
         w.OpenBank();
-        w.Character.Position = new Vector3(0, 0, 19);
+        w.Character.Position = new Vector3(0, 0, 3 + NpcInteraction.LeashRange + 0.01f);
 
         Assert.False(BankAccess.TryUse(w.Connection, w.Character, w.World));
 
