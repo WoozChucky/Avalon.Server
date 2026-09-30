@@ -160,7 +160,7 @@ public class CharacterEntity : ICharacter
         };
 
         // #627: both bounded by the formula this refresh read, so a combat reload reaches them at the next refresh.
-        EffectiveHastePct = Math.Clamp(stats.HastePct, 0f, Math.Max(0f, formula.HasteCap));
+        EffectiveHastePct = stats.EffectiveHastePct(formula);
         MovementSpeed = CharacterMovement.SpeedFor(stats.MovementSpeedPct, formula);
 
         Stats = stats;
@@ -173,7 +173,7 @@ public class CharacterEntity : ICharacter
     /// on ICharacter: the modding API cannot change what a hit deals (#622).
     /// </summary>
     internal AttackerCombat Combat => Stats is { } s
-        ? new AttackerCombat(Level, s.AttackDamage, s.AbilityDamage, s.CritPct, s.WeaponMin, s.WeaponMax)
+        ? s.AttackerAt(Level)
         : new AttackerCombat(Level, 0, 0, 0f, 0, 0);
 
     /// <summary>
@@ -192,9 +192,7 @@ public class CharacterEntity : ICharacter
     internal AttackerCombat? AbilityAmountsSentFor { get; set; }
 
     /// <summary>What this character defends with (#506): armour, dodge and block, from the last stats refresh.</summary>
-    internal DefenderCombat Defence => Stats is { } s
-        ? new DefenderCombat(s.Armor, s.DodgePct, s.BlockPct)
-        : default;
+    internal DefenderCombat Defence => Stats is { } s ? s.Defence : default;
 
     public bool IsInCombat =>
         _lastCombatTime != DateTime.MinValue &&
