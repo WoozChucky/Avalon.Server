@@ -15,9 +15,31 @@ public class CombatAssemblyShould
     {
         string[] referenced = Combat.GetReferencedAssemblies().Select(a => a.Name!).ToArray();
 
-        Assert.DoesNotContain(referenced, n => n == "Avalon.World");
+        // Avalon.World.Public (the modding API's types) is the one world assembly Domain already brings.
+        Assert.DoesNotContain(referenced, n => n.StartsWith("Avalon.World", StringComparison.Ordinal) && n != "Avalon.World.Public");
+        Assert.DoesNotContain(referenced, n => n.StartsWith("Avalon.Server", StringComparison.Ordinal));
         Assert.DoesNotContain(referenced, n => n.StartsWith("Avalon.Database", StringComparison.Ordinal));
         Assert.DoesNotContain(referenced, n => n.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Reference_only_the_domain_project()
+    {
+        string csproj = Path.Combine(RepositoryRoot(), "src", "Server", "Avalon.Combat", "Avalon.Combat.csproj");
+        string[] references = System.Xml.Linq.XDocument.Load(csproj)
+            .Descendants("ProjectReference")
+            .Select(r => Path.GetFileName(r.Attribute("Include")!.Value.Replace('\\', '/')))
+            .ToArray();
+
+        Assert.Equal(["Avalon.Domain.csproj"], references);
+    }
+
+    private static string RepositoryRoot()
+    {
+        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "Avalon.sln")))
+                return dir.FullName;
+        throw new InvalidOperationException("Avalon.sln not found above " + AppContext.BaseDirectory);
     }
 
     [Theory]
