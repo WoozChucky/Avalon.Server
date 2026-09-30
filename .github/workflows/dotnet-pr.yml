@@ -56,7 +56,7 @@ jobs:
       - name: Publish Api
         run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-build -o src/Server/Avalon.Api/out
       - name: Publish Balance Service
-        run: dotnet publish src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj -c Release --no-restore -p:SourceRevisionId=${{ github.sha }} -o src/Server/Avalon.Balance.Service/out
+        run: dotnet publish src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj -c Release --no-restore -p:SourceRevisionId="$(git rev-parse HEAD)" -o src/Server/Avalon.Balance.Service/out
 
   charts:
     runs-on: ubuntu-latest

@@ -501,7 +501,7 @@ hold the same shared secret.
 | `RunWorker` | `true` | False builds the worker paused, nothing drains the queue. A test seam |
 
 Exports branch from the commit in the assembly's informational version (`+<sha>`), which CI sets with
-`-p:SourceRevisionId=<sha>`; a build without it answers exports with 503.
+`-p:SourceRevisionId="$(git rev-parse HEAD)"` (the checked-out commit; `github.sha` is main's head on a manual release); a build without it answers exports with 503.
 
 **API** (`Application:Balance`):
 

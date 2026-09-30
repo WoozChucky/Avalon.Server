@@ -406,7 +406,7 @@ It is never exposed outside the cluster: a ClusterIP Service, no ingress. `Avalo
   against `main` titled `chore(balance): <title>` with a `Player note: No gameplay changes: balance tuning
   proposal.` line. It uses `Balance:GitHubToken`, a fine-grained token, never logged; without it exports answer
   503. The build commit is the `+<sha>` of `AssemblyInformationalVersion`, so CI publishes the service with
-  `-p:SourceRevisionId=${{ github.sha }}` on a publish that builds (no `--no-build`); without it exports answer 503.
+  `-p:SourceRevisionId="$(git rev-parse HEAD)"` (the checked-out commit, not `github.sha`, which is main's head on a manual release) on a publish that builds (no `--no-build`); without it exports answer 503.
 - **Seed data:** read from `WorldDbContext`'s design-time model (`HasData`, no database); the `balance/*.json`
   files are copied next to the binary (`/app/balance` in the image) by the csproj.
 - **API side:** `Application:Balance:Url` and `Application:Balance:SharedSecret`. Unconfigured (either empty) the
