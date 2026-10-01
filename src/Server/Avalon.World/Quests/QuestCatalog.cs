@@ -196,8 +196,8 @@ public sealed class QuestCatalog
             {
                 if (!items.TryGetValue(itemId.Value, out ItemTemplate? item))
                     return $"objective {objective.Id} names item template {itemId.Value}, which does not exist";
-                if (objective.Type == QuestObjectiveType.Collect && !item.Flags.HasFlag(ItemTemplateFlags.QuestItem))
-                    return $"objective {objective.Id} collects item template {itemId.Value}, which is not a QuestItem";
+                if (objective.Type == QuestObjectiveType.Collect && ItemUseRules.CollectObjectiveProblem(item, objective.Id) is { } collect)
+                    return collect;
             }
 
             foreach (QuestItemDrop drop in objective.Drops)
@@ -218,8 +218,8 @@ public sealed class QuestCatalog
                 return $"reward item template {reward.ItemTemplateId.Value} does not exist";
             if (reward.Count == 0)
                 return $"reward item template {reward.ItemTemplateId.Value} has count 0";
-            if (item.Flags.HasFlag(ItemTemplateFlags.Unique))
-                return $"reward item template {reward.ItemTemplateId.Value} is Unique; a turn-in could not always pay it";
+            if (ItemUseRules.QuestRewardProblem(item) is { } rewardProblem)
+                return rewardProblem;
         }
 
         if (quest.ScriptName is { Length: > 0 } name)

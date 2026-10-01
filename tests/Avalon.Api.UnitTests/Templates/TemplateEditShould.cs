@@ -351,15 +351,190 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Contains("0.5", errors["baseAttackTime"]!.AsArray()[0]!.GetValue<string>());
     }
 
+    // ---- Item edits and the vendors and quests that use the item (the world's Vendors and Quests reloads) ----
+
+    private const int FixtureText = 90001;
+    private const uint FixtureQuest = 90010;
+    private const uint FixtureObjective = 90011;
+
+    /// <summary>Runs a change against the editable world's database, straight, as a migration or hand edit would.</summary>
+    private void Seed(Action<WorldDbContext> change)
+    {
+        using WorldDbContext db = _sqlite.CreateWorld(new WorldId(Editable));
+        change(db);
+        db.SaveChanges();
+    }
+
+    private ulong SeededCreature()
+    {
+        using WorldDbContext db = _sqlite.CreateWorld(new WorldId(Editable));
+        return db.CreatureTemplates.AsEnumerable().Min(t => t.Id.Value);
+    }
+
+    private int StockOf(ulong item, uint? priceOverride = null)
+    {
+        int id = 0;
+        Seed(db =>
+        {
+            var stock = new Avalon.Domain.World.VendorStock
+            {
+                CreatureTemplateId = new Avalon.Common.ValueObjects.CreatureTemplateId(SeededCreature()),
+                Sequence = 1,
+                ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(item),
+                PriceOverride = priceOverride,
+            };
+            db.VendorStocks.Add(stock);
+            db.SaveChanges();
+            id = stock.Id;
+        });
+        return id;
+    }
+
+    private void QuestOf(ulong? collects, ulong? pays)
+    {
+        Seed(db =>
+        {
+            var text = new Avalon.Common.ValueObjects.LocalizedTextId(FixtureText);
+            db.LocalizedTexts.Add(new Avalon.Domain.World.LocalizedText { Id = text, Text = "Fixture" });
+            db.SaveChanges();
+            var creature = new Avalon.Common.ValueObjects.CreatureTemplateId(SeededCreature());
+            var quest = new Avalon.Domain.World.QuestTemplate
+            {
+                Id = new Avalon.Common.ValueObjects.QuestTemplateId(FixtureQuest),
+                TitleTextId = text, DescriptionTextId = text, CompletionTextId = text,
+                GiverCreatureId = creature, EnderCreatureId = creature, LevelRequirement = 1,
+            };
+            quest.Stages.Add(new Avalon.Domain.World.QuestStage { QuestId = quest.Id, Sequence = 0, DescriptionTextId = text });
+            quest.Objectives.Add(collects is { } item
+                ? new Avalon.Domain.World.QuestObjective
+                {
+                    Id = FixtureObjective, QuestId = quest.Id, StageSequence = 0,
+                    Type = Avalon.Domain.World.QuestObjectiveType.Collect,
+                    ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(item), Count = 1, DescriptionTextId = text,
+                }
+                : new Avalon.Domain.World.QuestObjective
+                {
+                    Id = FixtureObjective, QuestId = quest.Id, StageSequence = 0,
+                    Type = Avalon.Domain.World.QuestObjectiveType.Talk, CreatureTemplateId = creature, Count = 1,
+                    DescriptionTextId = text,
+                });
+            if (pays is { } reward)
+                quest.ItemRewards.Add(new Avalon.Domain.World.QuestItemReward
+                    { QuestId = quest.Id, ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(reward), Count = 1 });
+            db.QuestTemplates.Add(quest);
+        });
+    }
+
+    private void SetItem(ulong id, Action<Avalon.Domain.World.ItemTemplate> change) =>
+        Seed(db => change(db.ItemTemplates.Find(new Avalon.Common.ValueObjects.ItemTemplateId(id))!));
+
+    private async Task<JsonObject> PutItemErrorsAsync(ulong id, Action<JsonObject> edit)
+    {
+        (JsonObject json, string version) = await ReadAsync("item", id);
+        edit(json);
+        HttpResponseMessage response = await PutAsync(Editable, "item", id, json, Tag(version));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(version, (await ReadAsync("item", id)).Version);
+        Assert.Empty(_signal.Requests);
+        JsonObject body = await BodyAsync(response);
+        return body["errors"]?.AsObject() ?? throw new InvalidOperationException(body.ToJsonString());
+    }
+
+    [Fact]
+    public async Task Refuse_making_an_item_a_quest_item_while_a_vendor_sells_it()
+    {
+        ulong id = FirstId("item");
+        SetItem(id, i => i.Flags = Avalon.Domain.World.ItemTemplateFlags.None);
+        int stock = StockOf(id);
+
+        JsonObject errors = await PutItemErrorsAsync(id, j => j["flags"] = 2048);
+
+        string message = errors["flags"]!.AsArray()[0]!.GetValue<string>();
+        Assert.Contains($"stock row {stock} of creature template {SeededCreature()}", message, StringComparison.Ordinal);
+        Assert.Contains("quest item", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Refuse_raising_the_sell_price_above_what_a_vendor_asks()
+    {
+        ulong id = FirstId("item");
+        SetItem(id, i => { i.Flags = Avalon.Domain.World.ItemTemplateFlags.None; i.BuyPrice = 100; i.SellPrice = 10; });
+        int stock = StockOf(id, priceOverride: 50);
+
+        JsonObject errors = await PutItemErrorsAsync(id, j => j["sellPrice"] = 60);
+
+        string message = errors["sellPrice"]!.AsArray()[0]!.GetValue<string>();
+        Assert.Contains($"stock row {stock} of creature template {SeededCreature()}", message, StringComparison.Ordinal);
+        Assert.Contains("below the item's SellPrice 60", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Refuse_clearing_the_quest_item_flag_of_an_item_a_quest_collects()
+    {
+        ulong id = FirstId("item");
+        SetItem(id, i => i.Flags = Avalon.Domain.World.ItemTemplateFlags.QuestItem);
+        QuestOf(collects: id, pays: null);
+
+        JsonObject errors = await PutItemErrorsAsync(id, j => j["flags"] = 0);
+
+        string message = errors["flags"]!.AsArray()[0]!.GetValue<string>();
+        Assert.Contains($"Quest {FixtureQuest}", message, StringComparison.Ordinal);
+        Assert.Contains($"objective {FixtureObjective}", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Refuse_making_a_quest_reward_item_unique()
+    {
+        ulong id = FirstId("item");
+        SetItem(id, i => i.Flags = Avalon.Domain.World.ItemTemplateFlags.None);
+        QuestOf(collects: null, pays: id);
+
+        JsonObject errors = await PutItemErrorsAsync(id, j => j["flags"] = 4);
+
+        string message = errors["flags"]!.AsArray()[0]!.GetValue<string>();
+        Assert.Contains($"Quest {FixtureQuest}", message, StringComparison.Ordinal);
+        Assert.Contains("Unique", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Save_an_item_edit_that_no_vendor_or_quest_minds()
+    {
+        ulong id = FirstId("item");
+        SetItem(id, i => { i.Flags = Avalon.Domain.World.ItemTemplateFlags.None; i.BuyPrice = 100; i.SellPrice = 10; });
+        StockOf(id);
+        QuestOf(collects: null, pays: id);
+        (JsonObject json, string version) = await ReadAsync("item", id);
+        json["name"] = "Renamed";
+        json["sellPrice"] = 20;
+
+        HttpResponseMessage response = await PutAsync(Editable, "item", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Not_refuse_an_unrelated_edit_because_a_vendor_row_was_already_invalid()
+    {
+        ulong id = FirstId("item");
+        SetItem(id, i => { i.Flags = Avalon.Domain.World.ItemTemplateFlags.None; i.BuyPrice = 100; i.SellPrice = 10; });
+        StockOf(id, priceOverride: 5); // already below the SellPrice, so the world refuses this row today
+        (JsonObject json, string version) = await ReadAsync("item", id);
+        json["name"] = "Renamed";
+
+        HttpResponseMessage response = await PutAsync(Editable, "item", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     [Fact]
     public async Task Audit_only_the_fields_that_changed()
     {
         ulong id = FirstId("item");
         (JsonObject json, string version) = await ReadAsync("item", id);
         string oldName = json["name"]!.GetValue<string>();
-        uint oldSell = json["sellPrice"]!.GetValue<uint>();
+        uint oldSell = json["maxStackSize"]!.GetValue<uint>();
         json["name"] = "Audited";
-        json["sellPrice"] = oldSell + 7;
+        json["maxStackSize"] = oldSell + 7;
 
         Assert.Equal(HttpStatusCode.OK, (await PutAsync(Editable, "item", id, json, Tag(version))).StatusCode);
 
@@ -373,8 +548,8 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal(ApiAuthHost.AccountIdValue, entry.State["AccountId"]);
         var changes = Assert.IsAssignableFrom<IReadOnlyList<TemplateChange>>(entry.State["@Changes"]);
         Assert.Equal(
-            [new TemplateChange("name", oldName, "Audited"),
-             new TemplateChange("sellPrice", oldSell.ToString(), (oldSell + 7).ToString())],
+            [new TemplateChange("maxStackSize", oldSell.ToString(), (oldSell + 7).ToString()),
+             new TemplateChange("name", oldName, "Audited")],
             changes.OrderBy(c => c.Field, StringComparer.Ordinal));
     }
 

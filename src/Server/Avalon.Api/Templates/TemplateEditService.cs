@@ -55,7 +55,7 @@ public sealed class TemplateEditService(
             "Item", TemplateReloadArea.Items, TemplateFields.Item,
             (db, ct2) => db.ItemTemplates.FindAsync([new ItemTemplateId(id)], ct2).AsTask(),
             TemplateVersion.Of, TemplateValidation.Item,
-            (_, _, _, _) => Task.CompletedTask),
+            TemplateItemUsers.ValidateAsync),
             caller, id, ifMatch, request, ct);
 
     public Task<TemplateEditResult<AbilityTemplate>> EditAbilityAsync(
