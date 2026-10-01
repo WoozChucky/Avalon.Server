@@ -117,7 +117,6 @@ public class CreatureTemplateController : BaseController
         LootTableId = t.LootTableId?.Value,
         MinGold = t.MinGold,
         MaxGold = t.MaxGold,
-        AIName = t.AIName,
         MovementType = t.MovementType,
         DetectionRange = t.DetectionRange,
         MovementId = t.MovementId,
@@ -132,7 +131,6 @@ public class CreatureTemplateController : BaseController
         BaseAttackTime = t.BaseAttackTime,
         RangeAttackTime = t.RangeAttackTime,
         Experience = t.Experience,
-        RespawnTimerSecs = t.RespawnTimerSecs,
         BodyRemoveTimerSecs = t.BodyRemoveTimerSecs,
     };
 }

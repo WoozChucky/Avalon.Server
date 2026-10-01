@@ -410,6 +410,30 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Contains(UnknownMessage(creatureScript), ScriptErrors(await BodyAsync(abilityResponse)));
     }
 
+    [Fact]
+    public async Task Read_and_save_a_creature_in_a_world_that_still_has_the_dropped_columns()
+    {
+        // #745: a world server that has not migrated yet (Asthoria, on 0.11.0) keeps AIName and RespawnTimerSecs.
+        // EF ignores columns it does not map, so the api reads and updates the row as usual.
+        using (WorldDbContext db = _sqlite.CreateWorld(new WorldId(Editable)))
+        {
+            db.Database.ExecuteSqlRaw("ALTER TABLE \"CreatureTemplates\" ADD COLUMN \"AIName\" TEXT NOT NULL DEFAULT ''");
+            db.Database.ExecuteSqlRaw("ALTER TABLE \"CreatureTemplates\" ADD COLUMN \"RespawnTimerSecs\" INTEGER NOT NULL DEFAULT 180");
+        }
+
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync("creature");
+        Assert.False(json.ContainsKey("aiName"));
+        Assert.False(json.ContainsKey("respawnTimerSecs"));
+        json["name"] = "Renamed on a world with the old columns";
+
+        HttpResponseMessage response = await PutAsync(Editable, "creature", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using WorldDbContext check = _sqlite.CreateWorld(new WorldId(Editable));
+        Assert.Equal("Renamed on a world with the old columns",
+            check.CreatureTemplates.AsEnumerable().Single(t => t.Id.Value == id).Name);
+    }
+
     [Theory]
     [InlineData("creature")]
     [InlineData("ability")]

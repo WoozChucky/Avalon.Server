@@ -20,7 +20,6 @@ public sealed class CreatureTemplateDto
     public int? LootTableId { get; set; }
     public int MinGold { get; set; }
     public int MaxGold { get; set; }
-    public string AIName { get; set; } = "";
     public short MovementType { get; set; }
     public float DetectionRange { get; set; }
     public int MovementId { get; set; }
@@ -37,12 +36,6 @@ public sealed class CreatureTemplateDto
     public int RangeAttackTime { get; set; }
     /// <summary>Null means the server derives it from the creature's level.</summary>
     public uint? Experience { get; set; }
-
-    /// <summary>
-    /// Stored but not used: creatures do not respawn (#598). Kept so generated clients keep compiling.
-    /// </summary>
-    [Description("Stored but not used: creatures do not respawn, so the server never reads this value.")]
-    public int RespawnTimerSecs { get; set; }
 
     /// <summary>Seconds before the creature's corpse is removed.</summary>
     public int BodyRemoveTimerSecs { get; set; }

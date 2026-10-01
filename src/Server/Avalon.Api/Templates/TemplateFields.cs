@@ -58,7 +58,6 @@ internal static class TemplateFields
         C("lootTableId", e => e.LootTableId?.Value, (e, r) => e.LootTableId = r.LootTableId is { } id ? new LootTableId(id) : null),
         C("minGold", e => e.MinGold, (e, r) => e.MinGold = r.MinGold),
         C("maxGold", e => e.MaxGold, (e, r) => e.MaxGold = r.MaxGold),
-        C("aiName", e => e.AIName, (e, r) => e.AIName = r.AIName),
         C("movementType", e => e.MovementType, (e, r) => e.MovementType = r.MovementType),
         C("detectionRange", e => e.DetectionRange, (e, r) => e.DetectionRange = r.DetectionRange),
         C("movementId", e => e.MovementId, (e, r) => e.MovementId = r.MovementId),
@@ -73,7 +72,6 @@ internal static class TemplateFields
         C("baseAttackTime", e => e.BaseAttackTime, (e, r) => e.BaseAttackTime = r.BaseAttackTime),
         C("rangeAttackTime", e => e.RangeAttackTime, (e, r) => e.RangeAttackTime = r.RangeAttackTime),
         C("experience", e => e.Experience, (e, r) => e.Experience = r.Experience),
-        C("respawnTimerSecs", e => e.RespawnTimerSecs, (e, r) => e.RespawnTimerSecs = r.RespawnTimerSecs),
         C("bodyRemoveTimerSecs", e => e.BodyRemoveTimerSecs, (e, r) => e.BodyRemoveTimerSecs = r.BodyRemoveTimerSecs),
     ];
 
