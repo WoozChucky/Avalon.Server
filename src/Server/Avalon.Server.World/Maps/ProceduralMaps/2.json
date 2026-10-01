@@ -2,7 +2,7 @@
   "mapTemplateId": 2,
   "chunkPool": "forest_pool",
   "spawnTable": "forest_creatures",
-  "mainPathMin": 10,
+  "mainPathMin": 12,
   "mainPathMax": 16,
   "branchChance": 0.5,
   "branchMaxDepth": 3,

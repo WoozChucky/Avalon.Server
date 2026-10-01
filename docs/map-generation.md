@@ -367,8 +367,9 @@ edges. Groups are placed on the main path only, never on a branch: a group with 
 last step, every other group at most once per layout and no earlier than the config's `MinSetPieceStep` (the boss's
 group ignores it). The forest's is 8, the step its 5-8 band begins (owner decision), so a party leaving the entry never
 meets a set piece's level 5-8 packs and Alphas in the next cells; the generator draws no number for a group it does not
-offer, so a pool without groups is unaffected. On the forest that leaves about one non-boss set piece every two runs
-(545 in 1000 seeds, against 1162 without the limit). The forest has three: `forest_clearing_big`,
+offer, so a pool without groups is unaffected. The forest's main path is 12-16 steps (raised from 10, owner decision),
+so every run has at least three steps a set piece may take: 690 non-boss set pieces in 1000 seeds (545 with a minimum
+of 10). The forest has three: `forest_clearing_big`,
 `forest_grove_ruin` and the boss arena `forest_arena`. `forest_boss_01` is no longer in the forest pool (its files stay
 in the catalog), so the arena ends every run.
 

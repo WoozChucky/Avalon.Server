@@ -431,7 +431,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         Assert.Equal(9, table.Entries.Count);
         Assert.DoesNotContain(table.Entries, e => e.CreatureId.Value == 2);
         ProceduralMapConfig config = Assert.Single(await read.ProceduralMapConfigs.ToListAsync());
-        Assert.Equal(((ushort)10, (ushort)16), (config.MainPathMin, config.MainPathMax));
+        Assert.Equal(((ushort)12, (ushort)16), (config.MainPathMin, config.MainPathMax));
         Assert.Equal(3, config.DepthBands.Count);
         Assert.Equal(1, config.SpawnTableId.Value);
     }

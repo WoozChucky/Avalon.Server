@@ -44,7 +44,7 @@ public class CommittedForestGenerationShould
     {
         ProceduralMapConfig config = ForestConfig();
 
-        Assert.Equal(((ushort)10, (ushort)16, 0.5f, (byte)3), (config.MainPathMin, config.MainPathMax, config.BranchChance, config.BranchMaxDepth));
+        Assert.Equal(((ushort)12, (ushort)16, 0.5f, (byte)3), (config.MainPathMin, config.MainPathMax, config.BranchChance, config.BranchMaxDepth));
         Assert.Equal(new (int, int?, ushort, ushort)[] { (1, 3, 1, 3), (4, 7, 3, 6), (8, null, 5, 8) },
             config.DepthBands.OrderBy(b => b.MinDepth).Select(b => (b.MinDepth, b.MaxDepth, b.MinLevel, b.MaxLevel)));
     }
@@ -61,7 +61,7 @@ public class CommittedForestGenerationShould
         {
             ChunkLayout layout = generator.Generate(ForestConfig(), pool, seed * 7919, groups);
 
-            Assert.InRange(layout.MainPathLength, 10, 16);
+            Assert.InRange(layout.MainPathLength, 12, 16);
             Assert.Equal("forest_arena", layout.BossChunk?.Group);
             Assert.Equal(0, layout.EntryChunk.Depth);
 
@@ -106,7 +106,7 @@ public class CommittedForestGenerationShould
             }
         }
 
-        Assert.True(placed > 400, $"only {placed} set pieces were placed in 1000 runs");   // measured 545
+        Assert.True(placed > 550, $"only {placed} set pieces were placed in 1000 runs");   // measured 690
     }
 
     [Fact]
