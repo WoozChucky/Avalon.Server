@@ -27,6 +27,11 @@ grep -A1 "ASPNETCORE_ENVIRONMENT" <<<"$out" | grep -q 'Production'    || { echo 
 pw=$(helm template t . $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicWorldId=2)
 grep -A1 "name: Application__PublicWorldId" <<<"$pw" | grep -q 'value: "2"' || { echo "publicWorldId must render as Application__PublicWorldId"; exit 1; }
 
+# The link previews' public site URL: only when set, so previews leave og:url out otherwise.
+! grep -q "Application__PublicSiteUrl" <<<"$out"                       || { echo "publicSiteUrl must not render unset"; exit 1; }
+ps=$(helm template t . $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicSiteUrl=https://avalon.example)
+grep -A1 "name: Application__PublicSiteUrl" <<<"$ps" | grep -q 'value: "https://avalon.example"' || { echo "publicSiteUrl must render as Application__PublicSiteUrl"; exit 1; }
+
 # Worlds (#523): one world, its keys as named, and no single World/Characters pair any more.
 grep -A4 "name: Database__Worlds__1__World__ConnectionString" <<<"$out" | grep -q 'key: "world-one"'           || { echo "world 1's world string must come from its key"; exit 1; }
 grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$out" | grep -q 'key: "characters-one"' || { echo "world 1's characters string must come from its key"; exit 1; }
