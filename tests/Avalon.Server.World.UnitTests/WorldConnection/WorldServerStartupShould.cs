@@ -61,6 +61,33 @@ public class WorldServerStartupShould
         }
     }
 
+    /// <summary>The API publishes reload requests on the world's own channel; subscribing elsewhere is silent.</summary>
+    [Fact]
+    public async Task Subscribe_to_its_own_reload_channel_once_loaded()
+    {
+        var cache = Substitute.For<IReplicatedCache>();
+        Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>? onReload = null;
+        cache.SubscribeAsync(CacheKeys.WorldReloadChannel(1), Arg.Any<Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>>())
+            .Returns(call =>
+            {
+                onReload = call.ArgAt<Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>>(1);
+                return Task.CompletedTask;
+            });
+        var server = new TestWorldServer(_world, _port, cache);
+        await server.StartAsync(CancellationToken.None);
+        try
+        {
+            _load.SetResult();
+            await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+
+            Assert.NotNull(onReload);
+        }
+        finally
+        {
+            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+        }
+    }
+
     [Fact]
     public async Task Never_open_the_port_when_the_world_fails_to_load()
     {
@@ -127,14 +154,14 @@ public class WorldServerStartupShould
         return port;
     }
 
-    private sealed class TestWorldServer(IWorld world, int port) : WorldServer(
+    private sealed class TestWorldServer(IWorld world, int port, IReplicatedCache? cache = null) : WorldServer(
         Substitute.For<IPacketManager>(),
         NullLoggerFactory.Instance,
         new AnyServiceProvider(),
         Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = (ushort)port }),
         world,
         Substitute.For<IScriptManager>(),
-        Substitute.For<IReplicatedCache>(),
+        cache ?? Substitute.For<IReplicatedCache>(),
         Substitute.For<IScriptHotReloader>(),
         new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance),
         new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance));

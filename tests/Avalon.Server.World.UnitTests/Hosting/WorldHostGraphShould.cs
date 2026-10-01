@@ -54,6 +54,9 @@ public class WorldHostGraphShould
             // depend back on ICreatureSpawner, so resolving this must not throw for a cycle.
             Assert.NotNull(host.Services.GetRequiredService<ICreatureSpawner>());
 
+            // WorldServer resolves this when it starts; a missing registration stops the world from starting.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Reload.ReloadRequestHandler>());
+
             // Loot (#460). MapInstance reads these with GetService, so a missing registration would
             // not fail anything else: it would silently make every creature drop nothing.
             Assert.NotNull(host.Services.GetRequiredService<ILootRoller>());
