@@ -297,25 +297,31 @@ public static class ChunkCatalogSeeder
                         throw new InvalidDataException($"{path}: group '{group.Name}' member '{member.Chunk}' has a negative cell");
                 }
 
-                var cells = group.Members.Select(m => (m.CellX, m.CellZ)).ToHashSet();
-                int sizeX = group.Members.Max(m => m.CellX) + 1, sizeZ = group.Members.Max(m => m.CellZ) + 1;
-                if (cells.Count != group.Members.Count || cells.Count != sizeX * sizeZ)
-                    throw new InvalidDataException($"{path}: group '{group.Name}' cells do not fill a {sizeX}x{sizeZ} rectangle once each");
-
-                foreach (GroupMemberDto member in group.Members)
-                {
-                    foreach ((string side, int dx, int dz) in new[] { ("N", 0, 1), ("E", 1, 0), ("S", 0, -1), ("W", -1, 0) })
-                    {
-                        bool inner = cells.Contains((member.CellX + dx, member.CellZ + dz));
-                        if (inner && metas[member.Chunk].Exits.TryGetValue(side, out string[]? slots) && slots.Length > 0)
-                            throw new InvalidDataException(
-                                $"{path}: group '{group.Name}' member '{member.Chunk}' has an exit on its inner {side} edge");
-                    }
-                }
+                CheckGroupShape(path, group, metas);
             }
         }
 
         return groups;
+    }
+
+    /// <summary>A group's cells fill a whole rectangle once each, and no member declares an exit facing another member.</summary>
+    private static void CheckGroupShape(string path, GroupDto group, Dictionary<string, ChunkMetaDto> metas)
+    {
+        var cells = group.Members.Select(m => (m.CellX, m.CellZ)).ToHashSet();
+        int sizeX = group.Members.Max(m => m.CellX) + 1, sizeZ = group.Members.Max(m => m.CellZ) + 1;
+        if (cells.Count != group.Members.Count || cells.Count != sizeX * sizeZ)
+            throw new InvalidDataException($"{path}: group '{group.Name}' cells do not fill a {sizeX}x{sizeZ} rectangle once each");
+
+        foreach (GroupMemberDto member in group.Members)
+        {
+            foreach ((string side, int dx, int dz) in new[] { ("N", 0, 1), ("E", 1, 0), ("S", 0, -1), ("W", -1, 0) })
+            {
+                bool inner = cells.Contains((member.CellX + dx, member.CellZ + dz));
+                if (inner && metas[member.Chunk].Exits.TryGetValue(side, out string[]? slots) && slots.Length > 0)
+                    throw new InvalidDataException(
+                        $"{path}: group '{group.Name}' member '{member.Chunk}' has an exit on its inner {side} edge");
+            }
+        }
     }
 
     /// <summary>Every group is written afresh on each start, like a town layout: nothing refers to a group's id.</summary>
