@@ -7,8 +7,9 @@ public readonly record struct ExperienceShare(ICharacter Member, uint Experience
 
 /// <summary>
 /// How a kill's experience is shared (spec 2026-09-30 section 4). Pure. A member <c>levelGap</c> or more
-/// levels above the creature, or at <c>maxLevel</c> (the maximum level, <c>ExperienceAward.MaxLevel</c>, #735; null
-/// for none), gets nothing and is not counted, solo too. n = 1: everything, no bonus. Otherwise the
+/// levels above the creature, or one <c>canGainExperience</c> refuses (<c>ExperienceAward.CanGainExperience</c>: at the
+/// maximum level or before a gap in the levels, #735; null lets everyone gain), gets nothing and is not counted, solo
+/// too. n = 1: everything, no bonus. Otherwise the
 /// pool is xp × (1 + bonus × (n − 1)); Even gives floor(pool / n) each, LevelWeighted floor(pool × level / Σ levels).
 /// The map's level band is applied afterwards, per member, by MapInstance.
 /// </summary>
@@ -16,12 +17,12 @@ public static class PartyExperience
 {
     public static IReadOnlyList<ExperienceShare> Split(uint experience, ushort creatureLevel,
         IReadOnlyList<ICharacter> eligible, PartyExperienceMode mode, float bonusPerExtra, int levelGap,
-        ushort? maxLevel = null)
+        Func<ICharacter, bool>? canGainExperience = null)
     {
         var counted = new List<ICharacter>(eligible.Count);
         foreach (ICharacter member in eligible)
         {
-            if (member.Level < creatureLevel + levelGap && (maxLevel is null || member.Level < maxLevel))
+            if (member.Level < creatureLevel + levelGap && (canGainExperience is null || canGainExperience(member)))
                 counted.Add(member);
         }
 

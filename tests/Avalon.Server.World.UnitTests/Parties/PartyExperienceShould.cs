@@ -18,10 +18,11 @@ public class PartyExperienceShould
     private static uint[] Split(uint xp, ushort creatureLevel, PartyExperienceMode mode, params ushort[] levels) =>
         SplitCapped(xp, creatureLevel, mode, maxLevel: null, levels);
 
+    /// <summary>A member can gain experience only below <paramref name="maxLevel"/> (null: always).</summary>
     private static uint[] SplitCapped(uint xp, ushort creatureLevel, PartyExperienceMode mode, ushort? maxLevel,
         params ushort[] levels) =>
         PartyExperience.Split(xp, creatureLevel, levels.Select(At).ToList(), mode, bonusPerExtra: 0.10f, levelGap: 5,
-                maxLevel: maxLevel)
+                canGainExperience: maxLevel is { } max ? member => member.Level < max : null)
             .Select(s => s.Experience).ToArray();
 
     [Fact]

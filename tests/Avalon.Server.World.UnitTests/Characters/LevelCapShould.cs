@@ -42,10 +42,13 @@ public class LevelCapShould
     }
 
     [Fact]
-    public async Task Take_the_highest_level_with_a_row_as_the_maximum()
+    public async Task Let_no_character_gain_experience_at_the_highest_level_with_a_row()
     {
-        Assert.Equal((ushort)3, ExperienceAward.MaxLevel(await TestStaticData.LoadAsync(levels: Levels)));
-        Assert.Null(ExperienceAward.MaxLevel(await TestStaticData.LoadAsync(levels: [])));
+        StaticData data = await TestStaticData.LoadAsync(levels: Levels);
+
+        Assert.True(ExperienceAward.CanGainExperience(Character(2, 0), data));
+        Assert.False(ExperienceAward.CanGainExperience(Character(3, 0), data));
+        Assert.False(ExperienceAward.CanGainExperience(Character(1, 0), await TestStaticData.LoadAsync(levels: [])));
     }
 
     [Fact]
@@ -116,7 +119,7 @@ public class LevelCapShould
 
         ExperienceAward.Grant(character, 1_000_000, data, parties: null, new TestLog());
 
-        Assert.Equal(max, ExperienceAward.MaxLevel(data));
+        Assert.False(ExperienceAward.CanGainExperience(character, data));
         Assert.Equal(max, character.Level);
         Assert.Equal(0ul, character.Experience);
         Assert.Equal(seeded.Single(l => l.Level == max).Experience, character.RequiredExperience);
