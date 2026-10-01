@@ -73,6 +73,9 @@ public class ReloadRequestHandlerShould
         Assert.False(outcome.Succeeded);
         Assert.Contains("InvalidOperationException", outcome.Summary, StringComparison.Ordinal);
         Assert.DoesNotContain("secret detail", outcome.Summary, StringComparison.Ordinal);
+        Assert.Equal(
+            "The world kept its previous Abilities data: InvalidOperationException. The saved values are in the database and load on the next successful reload or restart.",
+            outcome.Summary);
     }
 
     [Fact]
@@ -127,7 +130,11 @@ public class ReloadRequestHandlerShould
 
         await Sut().HandleAsync(Request(Guid.NewGuid(), "Items"));
 
-        Assert.False(Assert.Single(Published().Outcomes).Succeeded);
+        ReloadOutcomeMessage outcome = Assert.Single(Published().Outcomes);
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(
+            "The world kept its previous Items data: InvalidOperationException. The saved values are in the database and load on the next successful reload or restart.",
+            outcome.Summary);
     }
 
     [Fact]

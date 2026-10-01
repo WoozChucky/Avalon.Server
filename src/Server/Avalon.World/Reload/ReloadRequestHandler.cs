@@ -110,12 +110,20 @@ public sealed class ReloadRequestHandler(
             catch (Exception ex)
             {
                 logger.LogError(ex, "The reload of {Areas} on world {WorldId} threw", string.Join(",", areas.Keys), _worldId);
-                failure = $"{ex.GetType().Name}. Nothing changed.";
+                failure = ex.GetType().Name;
             }
         }
 
         return [.. names.Select(name => Describe(name, areas, byArea, failure))];
     }
+
+    /// <summary>
+    /// A failed area. The API shows this beside a save that is already committed, so it says what the world kept
+    /// and where the saved values are, not just that nothing changed.
+    /// </summary>
+    private static ReloadOutcomeMessage Kept(string area, string reason) => new(area, false,
+        $"The world kept its previous {area} data: {reason}. " +
+        "The saved values are in the database and load on the next successful reload or restart.");
 
     private static ReloadOutcomeMessage Describe(
         string name, Dictionary<string, ReloadArea> areas, Dictionary<ReloadArea, ReloadOutcome> byArea, string? failure)
@@ -127,7 +135,7 @@ public sealed class ReloadRequestHandler(
 
         if (failure is not null)
         {
-            return new ReloadOutcomeMessage(name, false, failure);
+            return Kept(name, failure);
         }
 
         if (!byArea.TryGetValue(area, out ReloadOutcome? outcome))
@@ -137,6 +145,6 @@ public sealed class ReloadRequestHandler(
 
         return outcome.Succeeded
             ? new ReloadOutcomeMessage(name, true, outcome.Summary)
-            : new ReloadOutcomeMessage(name, false, $"{outcome.Error?.GetType().Name ?? "Reload failed"}. Nothing changed.");
+            : Kept(name, outcome.Error?.GetType().Name ?? "Reload failed");
     }
 }

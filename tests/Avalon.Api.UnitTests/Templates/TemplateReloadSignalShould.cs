@@ -144,12 +144,12 @@ public class TemplateReloadSignalShould
         ReloadRequestMessage request = await NextPublishedAsync(0);
 
         Answer(request.RequestId,
-            new ReloadOutcomeMessage("Creatures", false, "InvalidOperationException. Nothing changed."),
+            new ReloadOutcomeMessage("Creatures", false, "InvalidOperationException. The saved values are in the database and load on the next successful reload or restart."),
             new ReloadOutcomeMessage("Items", true, "fine"));
 
         TemplateReloadResult result = await pending;
         Assert.Equal(TemplateReloadResult.Failed, result.Status);
-        Assert.Equal("InvalidOperationException. Nothing changed.", result.Summary);
+        Assert.Equal("InvalidOperationException. The saved values are in the database and load on the next successful reload or restart.", result.Summary);
     }
 
     [Fact]
