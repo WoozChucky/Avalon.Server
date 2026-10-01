@@ -1504,8 +1504,15 @@ public class WorldDbContext : DbContext
             Slot = null
         });
 
-        // The storyline's items (#433). The Boar Tusk drops only for characters collecting it (QuestItemDrops) and
-        // is never sold; the Alpha's Fang Pendant is quest 3's reward, for any class.
+        SeedForestStorylineItems(builder);
+    }
+
+    /// <summary>
+    /// The storyline's items (#433). The Boar Tusk drops only for characters collecting it (QuestItemDrops) and is
+    /// never sold; the Alpha's Fang Pendant is quest 3's reward, for any class.
+    /// </summary>
+    private static void SeedForestStorylineItems(EntityTypeBuilder<ItemTemplate> builder)
+    {
         builder.HasData(
             new ItemTemplate
             {
@@ -2035,7 +2042,7 @@ public class WorldDbContext : DbContext
     {
         builder.HasData(
             new LocalizedTextLocale { TextId = 25, Locale = AccountLocale.ptPT, Text = "Desbastar a Manada" },
-            new LocalizedTextLocale { TextId = 26, Locale = AccountLocale.ptPT, Text = "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e escornam quem se desvia. Abate seis deles antes que mais alguém tenha de ser trazido para casa." },
+            new LocalizedTextLocale { TextId = 26, Locale = AccountLocale.ptPT, Text = "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e atacam com as presas quem se aproxima. Abate seis deles antes que mais alguém tenha de ser trazido para casa." },
             new LocalizedTextLocale { TextId = 27, Locale = AccountLocale.ptPT, Text = "Menos seis presas no mato. Os caminhos vão respirar melhor por isso." },
             new LocalizedTextLocale { TextId = 28, Locale = AccountLocale.ptPT, Text = "Thornback Boars abatidos" },
             new LocalizedTextLocale { TextId = 29, Locale = AccountLocale.ptPT, Text = "Presas para o Borin" },

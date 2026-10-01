@@ -27,7 +27,7 @@ namespace Avalon.Database.World.Migrations
                 values: new object[,]
                 {
                     { "ptPT", 25, "Desbastar a Manada" },
-                    { "ptPT", 26, "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e escornam quem se desvia. Abate seis deles antes que mais alguém tenha de ser trazido para casa." },
+                    { "ptPT", 26, "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e atacam com as presas quem se aproxima. Abate seis deles antes que mais alguém tenha de ser trazido para casa." },
                     { "ptPT", 27, "Menos seis presas no mato. Os caminhos vão respirar melhor por isso." },
                     { "ptPT", 28, "Thornback Boars abatidos" },
                     { "ptPT", 29, "Presas para o Borin" },

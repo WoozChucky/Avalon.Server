@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    [Migration("20261001022021_SeedQuestStoryline")]
+    [Migration("20261001022539_SeedQuestStoryline")]
     partial class SeedQuestStoryline
     {
         /// <inheritdoc />
@@ -5253,7 +5253,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 26,
                             Locale = "ptPT",
-                            Text = "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e escornam quem se desvia. Abate seis deles antes que mais alguém tenha de ser trazido para casa."
+                            Text = "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e atacam com as presas quem se aproxima. Abate seis deles antes que mais alguém tenha de ser trazido para casa."
                         },
                         new
                         {

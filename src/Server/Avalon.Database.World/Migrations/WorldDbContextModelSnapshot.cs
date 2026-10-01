@@ -5250,7 +5250,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 26,
                             Locale = "ptPT",
-                            Text = "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e escornam quem se desvia. Abate seis deles antes que mais alguém tenha de ser trazido para casa."
+                            Text = "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e atacam com as presas quem se aproxima. Abate seis deles antes que mais alguém tenha de ser trazido para casa."
                         },
                         new
                         {
