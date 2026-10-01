@@ -89,7 +89,9 @@ template with an old deriver.
 For each chunk spawn slot, skipping the `empty` and `entry` tags, the service picks one
 `SpawnTableEntry` with the slot's tag, weighted by `Weight`, and spawns between `MinCount` and
 `MaxCount` of that creature. A single creature stands on the slot's centre. A pack is spread at
-random within 1.5 m of it on each axis. The random seed is the layout's seed.
+random within 1.5 m of it on each axis. The random seed is the layout's seed. On a map with depth
+bands the level comes from the piece's band, and a `leader` slot rolls its `leader_pack` around the
+leader; see "Depth and depth bands" in [map-generation.md](map-generation.md).
 
 ### Authored: `PlaceAuthoredAsync`
 

@@ -296,7 +296,7 @@ Procedural maps generate their layout at runtime from a chunk pool + RNG seed.
 
 Use distinct names from town chunks (e.g. `forest_*`, `dungeon_*`). Important markers:
 - **Entry chunk** — must declare a `ChunkSpawnSlotMarker` tagged `"entry"` AND a `ChunkPortalSlotMarker` with `Role = Back`. The generator picks an entry chunk from candidates that have both.
-- **Boss chunk** (optional) — declares a spawn slot tagged `"boss"` AND a `ChunkPortalSlotMarker` with `Role = Forward`. Procedural generator places the boss at the end of the main path if `ProceduralMapConfig.HasBoss = true`.
+- **Boss chunk** (optional) — declares a spawn slot tagged `"boss"` AND a `ChunkPortalSlotMarker` with `Role = Forward`. Procedural generator places the boss at the end of the main path if `ProceduralMapConfig.HasBoss = true`. A set piece can carry the boss instead: on the forest the boss arena `forest_arena` ends the main path (see "Chunk groups (set pieces)").
 - **Path chunks** — common middles. Declare any tags you want spawn tables to filter on.
 
 Export, sync, import as before.
