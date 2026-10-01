@@ -7,6 +7,7 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
+using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
@@ -110,6 +111,57 @@ public class QuestTurnInShould
 
         Assert.Equal(QuestResult.BagFull, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
         Assert.Equal(2, Held(c, Tusk));
+        Assert.Equal(0ul, c.Character.Experience);
+        Assert.Equal((ushort)1, c.Character.Level);
+        Assert.Equal(0ul, c.Character.Data!.Money);
+        Assert.True(c.Character.Quests.IsActive(Tusks));
+    }
+
+    /// <summary>Answered as Accept answers them: past the leash TooFar, a dead ender NoConversation; nothing taken or paid.</summary>
+    [Theory]
+    [InlineData(false, QuestResult.TooFar)]
+    [InlineData(true, QuestResult.NoConversation)]
+    public async Task Refuse_a_turn_in_past_the_leash_or_at_a_dead_ender_and_take_nothing(bool dead, QuestResult expected)
+    {
+        (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
+        if (dead)
+            ender.CurrentHealth = 0;
+        else
+            c.Character.Position = new Avalon.Common.Mathematics.Vector3(Avalon.World.Dialogue.NpcInteraction.LeashRange + 1, 0, 0);
+
+        Assert.Equal(expected, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
+
+        Assert.Null(c.Connection.CurrentDialogue);
+        Assert.Equal(2, Held(c, Tusk));
+        Assert.Equal(0, Held(c, Tonic));
+        Assert.Equal(0ul, c.Character.Experience);
+        Assert.Equal(0ul, c.Character.Data!.Money);
+        Assert.True(c.Character.Quests.IsActive(Tusks));
+        Assert.False(c.Character.Quests.IsCompleted(Tusks));
+    }
+
+    /// <summary>
+    /// A reward a reload made Unique blocks the turn-in: answered Error, logged at Error naming the quest, and nothing
+    /// is taken or paid.
+    /// </summary>
+    [Fact]
+    public async Task Log_and_refuse_a_turn_in_whose_reward_a_reload_made_unique()
+    {
+        (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
+        w.Data.ItemTemplates.Single(t => t.Id.Value == Tonic).Flags |= ItemTemplateFlags.Unique;
+        var logger = NSubstitute.Substitute.For<Microsoft.Extensions.Logging.ILogger<QuestService>>();
+        var quests = new QuestService(w.World, NSubstitute.Substitute.For<IServiceProvider>(), w.Economy, w.Random, w.Clock, logger);
+
+        Assert.Equal(QuestResult.Error, quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
+
+        Assert.Contains(logger.ReceivedCalls(), call => call.GetMethodInfo().Name == "Log"
+            && (Microsoft.Extensions.Logging.LogLevel)call.GetArguments()[0]! == Microsoft.Extensions.Logging.LogLevel.Error
+            && call.GetArguments()[2]!.ToString()!.Contains($"Quest {Tusks} ", StringComparison.Ordinal)
+            && call.GetArguments()[2]!.ToString()!.Contains($"{Tonic}", StringComparison.Ordinal));
+        Assert.Equal(2, Held(c, Tusk));
+        Assert.Equal(0, Held(c, Tonic));
+        Assert.Equal(0ul, c.Character.Experience);
+        Assert.Equal(0ul, c.Character.Data!.Money);
         Assert.True(c.Character.Quests.IsActive(Tusks));
     }
 

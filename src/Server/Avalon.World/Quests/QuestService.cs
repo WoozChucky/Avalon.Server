@@ -189,6 +189,8 @@ public sealed class QuestService(
 
         QuestResult decision = QuestTurnInRules.Decide(character, quest, active, FindTemplate, world.Configuration.MaxMoney,
             out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards);
+        if (decision == QuestResult.Error)
+            LogUnpayableRewards(quest);
         if (decision != QuestResult.Ok)
             return decision;
 
@@ -211,6 +213,21 @@ public sealed class QuestService(
         character.Quests.Say($"Quest completed: {Title(character, quest)}.");
         AfterConversationChange(connection, character, npc);
         return QuestResult.Ok;
+    }
+
+    /// <summary>
+    /// A reward template that is gone or Unique blocks every turn-in of the quest (a reload since the catalog was
+    /// built), so it is logged at Error, naming the quest and the template.
+    /// </summary>
+    private void LogUnpayableRewards(QuestView quest)
+    {
+        foreach (QuestItemRewardView reward in quest.ItemRewards)
+        {
+            ItemTemplate? template = FindTemplate(reward.ItemTemplateId);
+            if (template is null || template.Flags.HasFlag(ItemTemplateFlags.Unique))
+                logger.LogError("Quest {QuestId} cannot be turned in: reward item template {Item} is {Problem}",
+                    quest.Id, reward.ItemTemplateId.Value, template is null ? "missing" : "Unique");
+        }
     }
 
     private ItemTemplate? FindTemplate(ItemTemplateId id) =>
