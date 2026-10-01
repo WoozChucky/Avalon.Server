@@ -53,8 +53,8 @@ public class ClientDistributionController : BaseController
     }
 
     /// <summary>
-    /// The public changelog, newest first: server and launcher releases for everyone, game client builds
-    /// for the channels the caller may use (homelab spec 2026-09-27-avalon-changelog-design §7). Page with
+    /// The public changelog, newest first: live server and launcher releases for everyone, dev and ptr
+    /// server entries and game client builds for the channels the caller may use (homelab spec 2026-09-27-avalon-changelog-design §7). Page with
     /// <paramref name="before" /> and <paramref name="beforeId" />: the last entry's <c>publishedAt</c> and
     /// <c>id</c> on the previous page.
     /// </summary>
@@ -72,8 +72,8 @@ public class ClientDistributionController : BaseController
         Channel? parsed = null;
         if (channel is not null)
         {
-            // Only game client builds have channels.
-            if (product != "client" || !ChannelNames.TryParse(channel, out Channel c))
+            // Game client builds and server releases have channels; launcher releases do not.
+            if (product is not ("client" or "server") || !ChannelNames.TryParse(channel, out Channel c))
                 return BadRequest();
             parsed = c;
         }

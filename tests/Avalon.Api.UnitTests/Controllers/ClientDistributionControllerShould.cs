@@ -138,11 +138,32 @@ public class ClientDistributionControllerShould
     [Theory]
     [InlineData("nightly", null)]   // no such product
     [InlineData("client", "nightly")]  // no such channel
-    [InlineData("server", "ptr")]   // only the client has channels
-    [InlineData(null, "ptr")]       // a channel needs the client product
+    [InlineData("launcher", "ptr")] // launcher entries have no channel
+    [InlineData(null, "ptr")]       // a channel needs a product that has channels
     public async Task Refuse_an_unknown_product_or_channel(string? product, string? channel)
     {
         Assert.IsType<BadRequestResult>(await Sut().Changelog(product, channel, 20, null, null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Filter_server_entries_by_channel()
+    {
+        // Live server entries are filed without a channel (they predate channels).
+        ChangelogEntries("changelog/server/", 2, "server", null);
+
+        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", "live", 20, null, null, CancellationToken.None));
+
+        Assert.Equal(["0.1.0", "0.0.0"], ((IReadOnlyList<ChangelogEntryDto>)result.Value!).Select(e => e.Version));
+    }
+
+    [Fact]
+    public async Task Answer_a_server_channel_the_caller_may_not_see_with_nothing()
+    {
+        ChangelogEntries("changelog/server/", 2, "server", null);
+
+        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", "dev", 20, null, null, CancellationToken.None));
+
+        Assert.Empty((IReadOnlyList<ChangelogEntryDto>)result.Value!);
     }
 
     [Fact]
