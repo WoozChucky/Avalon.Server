@@ -97,8 +97,35 @@ public class QuestItemDropShould
         (MapInstance instance, PartyClient a, PartyClient _) = PartyOfTwo(w);
         using (instance)
         {
-            var quest = a.Character.Quests.Start(QuestTestData.Tusks, DateTime.UnixEpoch);
-            a.Character.Quests.SetProgress(quest, TusksCollect, 2);
+            a.Character.Quests.Start(QuestTestData.Tusks, DateTime.UnixEpoch);
+            Assert.Equal(Avalon.World.Inventory.InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAdd(new ItemTemplateId(Tusk), 2));
+
+            instance.ReportKill(Boar(instance, w), a.Character);
+
+            Assert.Empty(Tusks(instance));
+        }
+    }
+
+    /// <summary>
+    /// Review fix: the roll asks the Bag, as the pickup does, not the count recorded at the last flush. A member who
+    /// picks up the tusk that completes the count and kills again in the same tick, before the flush recounts, gets
+    /// no new reserved tusk it could never take.
+    /// </summary>
+    [Fact]
+    public async Task Roll_nothing_for_a_member_whose_pickup_this_tick_completed_the_count()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        (MapInstance instance, PartyClient a, PartyClient _) = PartyOfTwo(w);
+        using (instance)
+        {
+            ActiveQuest quest = a.Character.Quests.Start(QuestTestData.Tusks, DateTime.UnixEpoch);
+            w.Economy.InventoryOf(a.Character).TryAdd(new ItemTemplateId(Tusk), 1);
+            a.Character.Quests.SetProgress(quest, TusksCollect, 1);   // as the last flush recounted it
+            instance.ReportKill(Boar(instance, w), a.Character);
+            GroundLoot tusk = Assert.Single(Tusks(instance));
+            Assert.Equal(LootPickupResult.Ok, LootPickup.TryPickUp(a.Character, instance.Drops, tusk.Guid, 100f, DateTime.UnixEpoch,
+                w.Economy, NullLogger.Instance, w.Quests).Result);
+            Assert.Equal(1u, quest.ProgressOf(TusksCollect));   // no flush yet
 
             instance.ReportKill(Boar(instance, w), a.Character);
 

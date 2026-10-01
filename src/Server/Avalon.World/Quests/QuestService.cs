@@ -167,14 +167,16 @@ public sealed class QuestService(
 
     /// <summary>
     /// Adds to one objective of an active quest's current stage, capped at its count. False, changing nothing, for
-    /// 0, a quest that is not active (or is ready), unknown to the catalog, or an objective outside the current stage.
+    /// 0, a quest that is not active (or is ready), unknown to the catalog, an objective outside the current stage,
+    /// or a Collect objective, whose count comes only from the Bag (RecountCollect).
     /// </summary>
     public bool AddProgress(CharacterEntity character, uint questId, uint objectiveId, uint amount)
     {
         if (amount == 0
             || character.Quests.Get(questId) is not { State: CharacterQuestState.Active } active
             || !Catalog.TryGet(questId, out QuestView? quest)
-            || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is not { } objective)
+            || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is not { } objective
+            || objective.Type == Domain.World.QuestObjectiveType.Collect)
             return false;
 
         ulong total = (ulong)active.ProgressOf(objectiveId) + amount;
@@ -263,10 +265,10 @@ public sealed class QuestService(
 
             foreach (QuestDropView drop in drops)
             {
-                if (character.Quests.Get(drop.QuestId) is not { State: CharacterQuestState.Active } active
+                if (character.Quests.Get(drop.QuestId) is not { } active
                     || !catalog.TryGet(drop.QuestId, out QuestView? quest)
                     || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == drop.ObjectiveId) is not { } objective
-                    || active.ProgressOf(objective.Id) >= objective.Count)
+                    || !StillNeeds(character, active, objective))
                     continue;
 
                 if (random.NextDouble() * 100.0 < drop.Chance)
@@ -305,19 +307,28 @@ public sealed class QuestService(
             return true;
 
         QuestCatalog catalog = Catalog;
-        long held = HeldInBag(character, item);
         foreach (ActiveQuest active in character.Quests.Active)
         {
-            if (active.State == CharacterQuestState.Active
-                && catalog.TryGet(active.QuestId, out QuestView? quest)
+            if (catalog.TryGet(active.QuestId, out QuestView? quest)
                 && CurrentStage(quest, active) is { } stage
-                && stage.Objectives.Any(o => o.Type == Domain.World.QuestObjectiveType.Collect
-                                             && o.ItemTemplateId?.Value == item.Value && held < o.Count))
+                && stage.Objectives.Any(o => o.ItemTemplateId?.Value == item.Value && StillNeeds(character, active, o)))
                 return true;
         }
 
         return false;
     }
+
+    /// <summary>
+    /// The one "still needs this quest item" rule (#433), for the drop roll and the pickup alike: an Active quest's
+    /// Collect objective (the caller passes one of its current stage) while the Bag holds fewer than its count. The
+    /// Bag, never the recorded progress, which is recounted only at the end of the tick: a pickup and a kill in the
+    /// same tick must agree, or a drop could be reserved for a character that may never take it.
+    /// </summary>
+    private static bool StillNeeds(CharacterEntity character, ActiveQuest active, QuestObjectiveView objective) =>
+        active.State == CharacterQuestState.Active
+        && objective.Type == Domain.World.QuestObjectiveType.Collect
+        && objective.ItemTemplateId is { } item
+        && HeldInBag(character, item) < objective.Count;
 
     public static long HeldInBag(CharacterEntity character, ItemTemplateId item) =>
         character.Container(InventoryType.Bag).Items.Where(i => i.TemplateId.Value == item.Value).Sum(i => (long)i.Count);

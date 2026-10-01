@@ -139,6 +139,19 @@ public class QuestCollectShould
         Assert.Equal(1u, quest.ProgressOf(TusksCollect));
     }
 
+    /// <summary>Review fix: a Collect count comes only from the Bag; AddProgress refuses it and changes nothing.</summary>
+    [Fact]
+    public async Task Refuse_progress_added_to_a_collect_objective()
+    {
+        (QuestTestWorld w, QuestClient c) = await WithTusksReadyToAcceptAsync();
+        w.Accept(c, Tusks);
+
+        Assert.False(w.Quests.AddProgress(c.Character, Tusks, TusksCollect, 2));
+
+        Assert.Equal(0u, c.Character.Quests.Get(Tusks)!.ProgressOf(TusksCollect));
+        Assert.Equal(CharacterQuestState.Active, c.Character.Quests.Get(Tusks)!.State);
+    }
+
     [Fact]
     public async Task Refuse_to_sell_a_quest_item()
     {
