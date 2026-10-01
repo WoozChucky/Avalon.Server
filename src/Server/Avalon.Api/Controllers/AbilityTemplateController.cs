@@ -1,5 +1,6 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
+using Avalon.Api.Templates;
 using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -8,6 +9,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Controllers;
 
@@ -18,10 +20,17 @@ namespace Avalon.Api.Controllers;
 public class AbilityTemplateController : BaseController
 {
     private readonly IAbilityTemplateRepository _repository;
+    private readonly ICurrentWorld _world;
+    private readonly TemplateEditingOptions _editing;
 
-    public AbilityTemplateController(IAbilityTemplateRepository repository)
+    public AbilityTemplateController(
+        IAbilityTemplateRepository repository,
+        ICurrentWorld world,
+        IOptions<TemplateEditingOptions> editing)
     {
         _repository = repository;
+        _world = world;
+        _editing = editing.Value;
     }
 
     [HttpGet(Name = "ListAbilityTemplates")]
@@ -47,12 +56,19 @@ public class AbilityTemplateController : BaseController
     public async Task<IActionResult> Get([FromRoute] uint id, CancellationToken ct)
     {
         var template = await _repository.FindByIdAsync(new AbilityId(id), track: false, ct);
-        return template is null ? NotFound() : Ok(ToDto(template));
+        if (template is null)
+            return NotFound();
+
+        AbilityTemplateDto dto = ToDto(template);
+        Response.Headers.ETag = $"\"{dto.Version}\"";
+        return Ok(dto);
     }
 
-    private static AbilityTemplateDto ToDto(AbilityTemplate t) => new()
+    private AbilityTemplateDto ToDto(AbilityTemplate t) => new()
     {
         Id = t.Id.Value,
+        Version = TemplateVersion.Of(t),
+        Editable = _world.Id is { } world && _editing.IsEditable(world),
         Name = t.Name,
         CastTime = t.CastTime,
         Cooldown = t.Cooldown,

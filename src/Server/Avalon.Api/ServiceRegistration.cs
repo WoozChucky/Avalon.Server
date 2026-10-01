@@ -61,6 +61,12 @@ public static class ServiceRegistration
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<Templates.TemplateEditingOptions>()
+            .BindConfiguration(Templates.TemplateEditingOptions.Section)
+            .ValidateOnStart();
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<Templates.TemplateEditingOptions>,
+            Templates.TemplateEditingOptionsValidator>();
+
         services.AddOptions<MapAssetConfig>()
             .BindConfiguration("Application:MapAssets");
 

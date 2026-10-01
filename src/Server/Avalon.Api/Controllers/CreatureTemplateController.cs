@@ -1,5 +1,6 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
+using Avalon.Api.Templates;
 using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -8,6 +9,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Controllers;
 
@@ -18,10 +20,17 @@ namespace Avalon.Api.Controllers;
 public class CreatureTemplateController : BaseController
 {
     private readonly ICreatureTemplateRepository _repository;
+    private readonly ICurrentWorld _world;
+    private readonly TemplateEditingOptions _editing;
 
-    public CreatureTemplateController(ICreatureTemplateRepository repository)
+    public CreatureTemplateController(
+        ICreatureTemplateRepository repository,
+        ICurrentWorld world,
+        IOptions<TemplateEditingOptions> editing)
     {
         _repository = repository;
+        _world = world;
+        _editing = editing.Value;
     }
 
     [HttpGet(Name = "ListCreatureTemplates")]
@@ -47,12 +56,19 @@ public class CreatureTemplateController : BaseController
     public async Task<IActionResult> Get([FromRoute] ulong id, CancellationToken ct)
     {
         var template = await _repository.FindByIdAsync(new CreatureTemplateId(id), track: false, ct);
-        return template is null ? NotFound() : Ok(ToDto(template));
+        if (template is null)
+            return NotFound();
+
+        CreatureTemplateDto dto = ToDto(template);
+        Response.Headers.ETag = $"\"{dto.Version}\"";
+        return Ok(dto);
     }
 
-    private static CreatureTemplateDto ToDto(CreatureTemplate t) => new()
+    private CreatureTemplateDto ToDto(CreatureTemplate t) => new()
     {
         Id = t.Id.Value,
+        Version = TemplateVersion.Of(t),
+        Editable = _world.Id is { } world && _editing.IsEditable(world),
         Name = t.Name,
         SubName = t.SubName,
         IconName = t.IconName,

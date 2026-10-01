@@ -45,4 +45,13 @@ public sealed class ItemTemplateDto
     public uint? StatValue9 { get; set; }
     public StatType? StatType10 { get; set; }
     public uint? StatValue10 { get; set; }
+
+    /// <summary>
+    /// The row's version: a lowercase hex SHA-256 of its stored values, also sent as the ETag on a single read.
+    /// An edit sends it back as If-Match.
+    /// </summary>
+    public string Version { get; set; } = "";
+
+    /// <summary>Whether this world's templates can be edited; false on a read-only world.</summary>
+    public bool Editable { get; set; }
 }

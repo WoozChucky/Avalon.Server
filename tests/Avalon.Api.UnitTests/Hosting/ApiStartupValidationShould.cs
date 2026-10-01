@@ -128,6 +128,30 @@ public class ApiStartupValidationShould
         provider.GetRequiredService<IStartupValidator>().Validate();
     }
 
+    /// <summary>A reload timeout of zero or less would time every save out before it started waiting.</summary>
+    [Theory]
+    [InlineData("00:00:00")]
+    [InlineData("-00:00:05")]
+    public void Refuse_to_start_with_a_non_positive_template_reload_timeout(string timeout)
+    {
+        using ServiceProvider provider = Build("localhost:6379", ("Application:Templates:ReloadTimeout", timeout));
+
+        var refused = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IStartupValidator>().Validate());
+
+        Assert.Contains("Application:Templates:ReloadTimeout must be a positive time span", refused.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Refuse_to_start_without_a_template_reload_timeout()
+    {
+        using ServiceProvider provider = Build("localhost:6379", ("Application:Templates:ReloadTimeout", null));
+
+        Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IStartupValidator>().Validate());
+    }
+
     [Fact]
     public void Refuse_to_start_without_the_auth_database()
     {
@@ -179,6 +203,8 @@ public class ApiStartupValidationShould
         var settings = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Database:Auth:ConnectionString"] = Unreachable,
+            // appsettings.json's default; the options check refuses a host without one.
+            ["Application:Templates:ReloadTimeout"] = "00:00:10",
             ["Database:Worlds:1:World:ConnectionString"] = Unreachable,
             ["Database:Worlds:1:Characters:ConnectionString"] = Unreachable,
         };
