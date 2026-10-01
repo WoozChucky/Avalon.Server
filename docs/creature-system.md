@@ -397,11 +397,10 @@ These `CreatureTemplate` fields are deliberately unread. Do not assume any of th
 
 | Field | Why |
 |---|---|
-| `RespawnTimerSecs` | Creatures do not respawn. Kept for a future revival mechanic. |
 | `ManaModifier` | A creature's casts are free, and it has no pool (#163). |
 | `RegenHealth` | Creatures do not regenerate health. |
 
-`RangeAttackTime`, `DmgSchool`, `AIName`, `MovementType`, `MovementId` and `Family` are not read by
+`RangeAttackTime`, `DmgSchool`, `MovementType`, `MovementId` and `Family` are not read by
 the world server either.
 
 ---

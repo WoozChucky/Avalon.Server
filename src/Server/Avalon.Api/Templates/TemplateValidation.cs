@@ -106,7 +106,6 @@ public static class TemplateValidation
         if (r.MinGold < 0) e.Add("minGold", "Min gold must be 0 or more.");
         if (r.MaxGold < r.MinGold) e.Add("maxGold", "Max gold must not be below min gold.");
         if (r.RangeAttackTime < 0) e.Add("rangeAttackTime", "Must be 0 or more.");
-        if (r.RespawnTimerSecs < 0) e.Add("respawnTimerSecs", "Must be 0 or more.");
         if (r.BodyRemoveTimerSecs < 0) e.Add("bodyRemoveTimerSecs", "Must be 0 or more.");
         // BaseAttackTime is the world loader's rule: CreatureTemplateRules, run by CreatureWorldRules.
         return e;

@@ -55,8 +55,6 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     /// <summary>Copper. With <see cref="MinGold"/> also 0, the creature drops no pile.</summary>
     public int MaxGold { get; set; }
 
-    public string AIName { get; set; } = string.Empty;
-
     public short MovementType { get; set; }
 
     public float DetectionRange { get; set; }
@@ -106,15 +104,6 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     /// </summary>
     [Column("Exp")]
     public uint? Experience { get; set; }
-
-    /// <summary>
-    /// Seconds before the creature re-spawns after death. Default 180 (3 minutes).
-    /// </summary>
-    /// <remarks>
-    /// Unread since creatures stopped respawning on a timer. Kept because a deliberate revival
-    /// mechanic is the intended replacement and will plausibly want a number here.
-    /// </remarks>
-    public int RespawnTimerSecs { get; set; } = 180;
 
     /// <summary>
     /// Seconds before the creature's corpse is removed from its instance. Default 10.
