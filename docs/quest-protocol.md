@@ -113,7 +113,9 @@ after the last, the quest is ready to turn in.
 Every request is answered with exactly one `SMSG_QUEST_RESULT` carrying the request's `QuestId`. It is sent
 after any dialogue packet the request caused (the re-sent root), and **before** the `SMSG_QUEST_UPDATE` and
 system lines it caused, which go out at the end of the tick (section 6). A connection with no character in
-the world gets no answer. A request that threw on the server is logged and answered `Error`.
+the world gets no answer. A request that threw on the server is logged and answered `Error`. An accept or a
+turn-in that has happened is answered `Ok` even if re-sending the NPC's root then failed (logged); the client
+then keeps the dialogue node it had until it talks to the NPC again.
 
 | Value | Name | Meaning |
 |---|---|---|
@@ -168,7 +170,7 @@ sent at the end of the tick in quest id order:
 
 | `Kind` | When | What it carries |
 |---|---|---|
-| `Accepted` (1) | The quest was accepted this tick. | `State`, `Stage`, `Progress` and `Display` (as a log entry). Add it to the log. |
+| `Accepted` (1) | The quest was accepted this tick. | `State`, `Stage`, `Progress` and `Display` (as a log entry). Add it to the log, or replace the entry when the client still holds the quest (see below). |
 | `Progress` (2) | A count, the stage or the state changed. | `State`, `Stage`, `Progress` (every objective, as in the log); no `Display`. Replace the entry's state, stage and counts. |
 | `Removed` (3) | The quest was abandoned. | Only `QuestId`. Drop it from the log. |
 | `Completed` (4) | The quest was turned in. | Only `QuestId`. Drop it from the log and add the id to the completed set. |
@@ -176,7 +178,9 @@ sent at the end of the tick in quest id order:
 An accept stays `Accepted` for the rest of its tick, whatever progress follows in the same tick, so the update
 carries the display. A quest accepted and abandoned in the same tick arrives as `Removed` only; a client
 ignores a `Removed` for a quest it never had. A quest accepted and turned in in the same tick arrives as
-`Completed` only; a client just adds the id to the completed set.
+`Completed` only; a client just adds the id to the completed set. A quest abandoned and accepted again in the
+same tick arrives as `Accepted` only, for a quest the client still holds: a client replaces that entry with the
+one the update carries (the new accept's stage and counts).
 
 **Order within a tick.** For one connection, the end of the tick sends, in this order: the quest updates, the
 quest system lines (section 9), the markers (section 7), and only then `SMSG_INVENTORY_UPDATE`. So a turn-in's
