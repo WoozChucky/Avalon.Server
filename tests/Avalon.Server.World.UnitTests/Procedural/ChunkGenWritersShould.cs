@@ -212,4 +212,92 @@ public class ChunkGenWritersShould
     [Fact]
     public void Accept_a_single_piece_blocker_and_slot_on_its_cell_edges() =>
         Assert.Single(ChunkFiles.For([Sample with { Blockers = [new BoxBlocker(0, 4, 26, 30)], Slots = [new Slot("pack", 30, 0)] }]));
+
+    // ---- town squares (town beautification, 2026-10-01) ----
+
+    private static TownSquare Square(params TownPiece[] pieces) => new("town_test_01", 0, 0, [Side.N],
+        [new WallSegment("Wall_S", 0, 30, -0.25f, 0.25f), new WallSegment("Wall_N_L", 0, 12, 29.75f, 30.25f), new WallSegment("Wall_N_R", 18, 30, 29.75f, 30.25f)],
+        pieces, IsEntry: false, HasForwardPortal: false, ["town"]);
+
+    [Fact]
+    public void Accept_a_square_whose_pieces_keep_the_owners_rules() =>
+        TownRules.Check(Square(
+            new BoxPiece("House", "body", Material.Plaster, 4, 10, 4, 10, 0, 3.2f),
+            new GablePiece("House", "roof", Material.Roof, 3.7f, 10.3f, 3.7f, 10.3f, 3.2f, 5f),
+            new CylinderPiece("Well", "ring", Material.Stone, 20, 20, 1, 0, 1),
+            new BoxPiece("House", "porch deck", Material.Wood, 10, 12, 5, 9, 0, 0.2f, Walkable: true),
+            new BoxPiece("House", "porch roof", Material.Roof, 9.9f, 12.4f, 4.7f, 9.3f, 3.2f, 3.5f)));
+
+    [Fact]
+    public void Refuse_a_piece_within_two_metres_of_a_wall()
+    {
+        // A crate 0.75 m from Wall_S (Z -0.25..0.25).
+        var refusal = Assert.Throws<InvalidOperationException>(() =>
+            TownRules.Check(Square(new BoxPiece("Crate", "crate", Material.Wood, 10, 11, 1, 2, 0, 1))));
+        Assert.Contains("Wall_S", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Refuse_a_piece_in_a_doorway_lane() =>
+        Assert.Contains("lane", Assert.Throws<InvalidOperationException>(() =>
+            TownRules.Check(Square(new BoxPiece("Crate", "crate", Material.Wood, 14, 15, 27.5f, 28.5f, 0, 1)))).Message, StringComparison.Ordinal);
+
+    [Fact]
+    public void Refuse_a_roof_with_less_than_two_and_a_half_metres_of_headroom() =>
+        Assert.Contains("headroom", Assert.Throws<InvalidOperationException>(() =>
+            TownRules.Check(Square(new BoxPiece("Stall", "roof", Material.Cloth, 10, 13, 10, 13, 2.4f, 2.65f)))).Message, StringComparison.Ordinal);
+
+    [Fact]
+    public void Refuse_a_walkable_riser_over_the_navmesh_step() =>
+        Assert.Contains("riser", Assert.Throws<InvalidOperationException>(() =>
+            TownRules.Check(Square(new BoxPiece("Bank", "step", Material.Stone, 10, 12, 10, 14, 0, 0.35f, Walkable: true)))).Message, StringComparison.Ordinal);
+
+    [Fact]
+    public void Refuse_a_solid_in_the_arrival_to_portal_corridor()
+    {
+        var sw = new TownSquare("town_sw_01", 0, 0, [Side.N], [], [new BoxPiece("Crate", "crate", Material.Wood, 14, 15, 20, 21, 0, 1)], true, false, ["town"]);
+        Assert.Contains("corridor", Assert.Throws<InvalidOperationException>(() => TownRules.Check(sw)).Message, StringComparison.Ordinal);
+
+        var lintel = new TownSquare("town_nw_01", 0, 1, [Side.S], [], [new BoxPiece("Gate arch", "lintel", Material.Stone, 10.5f, 19.5f, 11.25f, 12.75f, 4.5f, 5.5f)], false, true, ["town"]);
+        TownRules.Check(lintel);   // above 2.5 m: allowed
+    }
+
+    [Theory]
+    [InlineData(25f, 32f, 5f, 10f)]
+    [InlineData(5f, 10f, -0.5f, 3f)]
+    [InlineData(float.NaN, 10f, 5f, 10f)]
+    public void Refuse_a_piece_outside_its_cell(float minX, float maxX, float minZ, float maxZ) =>
+        Assert.Throws<InvalidOperationException>(() =>
+            Square(new BoxPiece("Crate", "crate", Material.Wood, minX, maxX, minZ, maxZ, 0, 1)).Validate());
+
+    [Fact]
+    public void Refuse_a_piece_named_like_a_wall() =>
+        Assert.Throws<InvalidOperationException>(() =>
+            Square(new BoxPiece("Wall", "post", Material.Stone, 10, 11, 10, 11, 0, 3)).Validate());
+
+    [Theory]
+    [InlineData("Town hall", "porch deck", "TownHall_porch_deck")]
+    [InlineData("Hunter's lodge", "post", "HuntersLodge_post")]
+    [InlineData("Crates (lodge)", "crate 3 (stacked)", "CratesLodge_crate_3_stacked")]
+    [InlineData("General-goods stall", "awning", "GeneralGoodsStall_awning")]
+    [InlineData("Benches", "bench NE", "Benches_bench_ne")]
+    public void Name_an_object_from_its_building_and_part(string building, string part, string expected) =>
+        Assert.Equal(expected, TownSquare.ObjectName(building, part));
+
+    [Fact]
+    public void Describe_a_square_as_the_seeders_catalog_entry()
+    {
+        var sw = new TownSquare("town_sw_01", 0, 0, [Side.N, Side.E], [], [], true, false, ["town", "entry"]);
+        var nw = new TownSquare("town_nw_01", 0, 1, [Side.E, Side.S], [], [], false, true, ["town"]);
+
+        ChunkMetaDto swMeta = sw.ToMeta();
+        ChunkMetaDto nwMeta = nw.ToMeta();
+
+        Assert.Equal(new SpawnSlotDto("entry", 15, 0, 15), Assert.Single(swMeta.SpawnSlots));
+        Assert.Empty(swMeta.PortalSlots);
+        Assert.Equal(["center"], swMeta.Exits["N"]);
+        Assert.Empty(swMeta.Exits["S"]);
+        Assert.Equal(new PortalSlotDto("Forward", 15, 0, 15), Assert.Single(nwMeta.PortalSlots));
+        Assert.Empty(nwMeta.SpawnSlots);
+    }
 }
