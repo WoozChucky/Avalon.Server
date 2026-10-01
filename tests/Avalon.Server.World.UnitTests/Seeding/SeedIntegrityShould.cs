@@ -979,7 +979,7 @@ public class SeedIntegrityShould
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<QuestTemplate> quests = SeededQuests(context);
+        List<QuestTemplate> quests = SeededQuests(context).Where(q => q.Id.Value <= 3).ToList();
 
         Assert.Equal([1u, 2u, 3u], quests.Select(q => q.Id.Value));
         Assert.Equal([(1ul, 1ul), (1ul, 2ul), (2ul, 2ul)], quests.Select(q => (q.GiverCreatureId.Value, q.EnderCreatureId.Value)));
@@ -1005,6 +1005,63 @@ public class SeedIntegrityShould
         Assert.Equal((58ul, 1u), (Assert.Single(quests[2].ItemRewards).ItemTemplateId.Value, quests[2].ItemRewards[0].Count));
     }
 
+    /// <summary>Forest content pass: the second chain, 4 → 5 → 6 → 7 → 8, as the spec's table gives it.</summary>
+    [Fact]
+    public void Seed_the_forest_chain_as_designed()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        List<QuestTemplate> quests = SeededQuests(context).Where(q => q.Id.Value >= 4).ToList();
+
+        Assert.Equal([4u, 5u, 6u, 7u, 8u], quests.Select(q => q.Id.Value));
+        Assert.Equal([(14ul, 14ul), (13ul, 13ul), (3ul, 11ul), (2ul, 2ul), (1ul, 1ul)],
+            quests.Select(q => (q.GiverCreatureId.Value, q.EnderCreatureId.Value)));
+        Assert.Equal(new uint?[] { null, 4, 5, 6, 7 }, quests.Select(q => q.RequiredQuestId?.Value));
+        Assert.Equal([(ushort)2, (ushort)3, (ushort)4, (ushort)5, (ushort)7], quests.Select(q => q.LevelRequirement));
+        Assert.Equal([(300u, 200ul), (400u, 250ul), (500u, 300ul), (700u, 400ul), (1500u, 1000ul)],
+            quests.Select(q => (q.RewardExperience, q.RewardMoney)));
+        Assert.All(quests, q => Assert.Null(q.ScriptName));
+        Assert.All(quests, q => Assert.Null(q.ClassRequirement));
+
+        Assert.Equal(
+            [(401u, 0, QuestObjectiveType.Collect, 59ul, 6u), (501u, 0, QuestObjectiveType.Collect, 60ul, 8u),
+             (601u, 0, QuestObjectiveType.Kill, 7ul, 8u), (602u, 0, QuestObjectiveType.Collect, 61ul, 3u),
+             (701u, 0, QuestObjectiveType.Collect, 62ul, 1u),
+             (801u, 0, QuestObjectiveType.Kill, 8ul, 2u), (802u, 1, QuestObjectiveType.Talk, 12ul, 1u),
+             (803u, 2, QuestObjectiveType.Collect, 63ul, 1u)],
+            quests.SelectMany(q => q.Objectives).OrderBy(o => o.Id)
+                .Select(o => (o.Id, o.StageSequence, o.Type, o.CreatureTemplateId?.Value ?? o.ItemTemplateId!.Value, o.Count)));
+
+        Assert.Equal([(401u, 6ul, 50f), (501u, 5ul, 50f), (602u, 7ul, 35f), (701u, 9ul, 100f), (803u, 10ul, 100f)],
+            quests.SelectMany(q => q.Objectives).SelectMany(o => o.Drops).OrderBy(d => d.ObjectiveId)
+                .Select(d => (d.ObjectiveId, d.CreatureTemplateId.Value, d.Chance)));
+
+        Assert.Equal([(4u, 2ul, 3u), (6u, 56ul, 2u), (7u, 64ul, 1u), (8u, 65ul, 1u)],
+            quests.SelectMany(q => q.ItemRewards).OrderBy(r => r.QuestId.Value)
+                .Select(r => (r.QuestId.Value, r.ItemTemplateId.Value, r.Count)));
+
+        Assert.Equal([0, 1, 2], quests.Single(q => q.Id.Value == 8).Stages.OrderBy(s => s.Sequence).Select(s => s.Sequence));
+        Assert.All(quests.Where(q => q.Id.Value != 8), q => Assert.Single(q.Stages));
+    }
+
+    /// <summary>Quest options are offered only on an NPC's root node, so every giver and ender, and every talk target, must have one.</summary>
+    [Fact]
+    public void Give_every_quest_giver_ender_and_talk_target_a_dialogue_root()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        HashSet<ulong> rooted = context.DialogueNodes.AsNoTracking().ToList().Where(n => n.IsRoot)
+            .Select(n => n.CreatureTemplateId.Value).ToHashSet();
+
+        foreach (QuestTemplate quest in SeededQuests(context))
+        {
+            Assert.Contains(quest.GiverCreatureId.Value, rooted);
+            Assert.Contains(quest.EnderCreatureId.Value, rooted);
+            Assert.All(quest.Objectives.Where(o => o.Type == QuestObjectiveType.Talk),
+                o => Assert.Contains(o.CreatureTemplateId!.Value, rooted));
+        }
+    }
+
     [Fact]
     public void Load_every_seeded_quest_through_the_catalog_without_refusing_any()
     {
@@ -1016,7 +1073,7 @@ public class SeedIntegrityShould
             NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(3, catalog.All.Count);
+        Assert.Equal(8, catalog.All.Count);
     }
 
     [Fact]
