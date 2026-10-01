@@ -137,6 +137,14 @@ spec:
             - name: Application__RateLimiting__ClientAuthPermitsPerMinute
               value: {{ $rateLimiting.clientAuthPermitsPerMinute | quote }}
             {{- end }}
+            {{- range $i, $id := .Values.templates.editableWorlds }}
+            - name: {{ printf "Application__Templates__EditableWorlds__%d" $i }}
+              value: {{ $id | toString | quote }}
+            {{- end }}
+            {{- with .Values.templates.reloadTimeout }}
+            - name: Application__Templates__ReloadTimeout
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.publicSiteUrl }}
             - name: Application__PublicSiteUrl
               value: {{ . | quote }}

@@ -6,6 +6,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.World;
 using Avalon.World.Configuration;
+using Avalon.World.Reload;
 using Avalon.World.Parties;
 using Avalon.World.Quests;
 using Avalon.World.Persistence;
@@ -37,6 +38,8 @@ public class WorldServerStartupShould
     {
         _world.LoadAsync(Arg.Any<CancellationToken>()).Returns(_load.Task);
         _world.Configuration.Returns(new GameConfiguration());
+        // The server subscribes to its own world's reload channel, so it needs to know its id.
+        _world.Id.Returns(new Avalon.Domain.Auth.WorldId(1));
     }
 
     [Fact]
@@ -51,6 +54,33 @@ public class WorldServerStartupShould
             _load.SetResult();
 
             await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+        }
+        finally
+        {
+            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+        }
+    }
+
+    /// <summary>The API publishes reload requests on the world's own channel; subscribing elsewhere is silent.</summary>
+    [Fact]
+    public async Task Subscribe_to_its_own_reload_channel_once_loaded()
+    {
+        var cache = Substitute.For<IReplicatedCache>();
+        Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>? onReload = null;
+        cache.SubscribeAsync(CacheKeys.WorldReloadChannel(1), Arg.Any<Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>>())
+            .Returns(call =>
+            {
+                onReload = call.ArgAt<Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>>(1);
+                return Task.CompletedTask;
+            });
+        var server = new TestWorldServer(_world, _port, cache);
+        await server.StartAsync(CancellationToken.None);
+        try
+        {
+            _load.SetResult();
+            await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+
+            Assert.NotNull(onReload);
         }
         finally
         {
@@ -124,14 +154,14 @@ public class WorldServerStartupShould
         return port;
     }
 
-    private sealed class TestWorldServer(IWorld world, int port) : WorldServer(
+    private sealed class TestWorldServer(IWorld world, int port, IReplicatedCache? cache = null) : WorldServer(
         Substitute.For<IPacketManager>(),
         NullLoggerFactory.Instance,
         new AnyServiceProvider(),
         Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = (ushort)port }),
         world,
         Substitute.For<IScriptManager>(),
-        Substitute.For<IReplicatedCache>(),
+        cache ?? Substitute.For<IReplicatedCache>(),
         Substitute.For<IScriptHotReloader>(),
         new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance),
         new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance));
@@ -147,6 +177,10 @@ public class WorldServerStartupShould
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
+
+            if (serviceType == typeof(ReloadRequestHandler))
+                return new ReloadRequestHandler(Substitute.For<IReferenceDataReloader>(), Substitute.For<IReplicatedCache>(),
+                    Options.Create(new GameConfiguration { WorldId = 1 }), NullLogger<ReloadRequestHandler>.Instance);
 
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);

@@ -26,14 +26,19 @@ IResourceBuilder<ProjectResource> balanceService = builder
     .AddProject<Avalon_Balance_Service>("balance")
     .WithEnvironment("Balance__SharedSecret", balanceSecret);
 
+// The local Development world (#523): the id the api's world databases below are keyed by, and the one world
+// whose templates admins may edit live (Application:Templates:EditableWorlds). Production worlds stay out of it.
+const int devWorldId = 1;
+
 IResourceBuilder<ProjectResource> apiProject = builder
     .AddProject<Avalon_Api>("api")
-    // World 1 (#523), the same local databases the api's appsettings.Development.json names.
-    .WithEnvironment("Database__Worlds__1__World__ConnectionString",
+    // The Development world, the same local databases the api's appsettings.Development.json names.
+    .WithEnvironment($"Database__Worlds__{devWorldId}__World__ConnectionString",
         "Server=localhost;Port=5432;Database=world;User Id=postgres;Password=123;")
-    .WithEnvironment("Database__Worlds__1__Characters__ConnectionString",
+    .WithEnvironment($"Database__Worlds__{devWorldId}__Characters__ConnectionString",
         "Server=localhost;Port=5432;Database=characters;User Id=postgres;Password=123;")
     // The public site's local dev server (Avalon.Dashboard apps/public, vite), for link previews' og:url.
+    .WithEnvironment("Application__Templates__EditableWorlds__0", devWorldId.ToString())
     .WithEnvironment("Application__PublicSiteUrl", "http://localhost:5173")
     .WithEnvironment("Application__Balance__SharedSecret", balanceSecret)
     .WithEnvironment("Application__Balance__Url", balanceService.GetEndpoint("http"))

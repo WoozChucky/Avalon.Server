@@ -18,7 +18,8 @@ public class ItemTemplateControllerShould
     private readonly IItemTemplateRepository _repository = Substitute.For<IItemTemplateRepository>();
 
     private ItemTemplateController MakeSut(ClaimsPrincipal user) =>
-        new(_repository)
+        new(_repository, Substitute.For<Avalon.Api.Worlds.ICurrentWorld>(),
+            Microsoft.Extensions.Options.Options.Create(new Avalon.Api.Templates.TemplateEditingOptions()))
         {
             ControllerContext = new ControllerContext
             {

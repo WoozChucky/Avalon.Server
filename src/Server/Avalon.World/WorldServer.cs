@@ -21,6 +21,7 @@ using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Telemetry;
@@ -128,6 +129,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private readonly IReplicatedCache _cache;
+    private readonly IServiceProvider _services;
     private readonly ConcurrentDictionary<Type, Func<IConnection, Packet?, object>>
         _contextFactoryCache = new();
     private readonly Stopwatch _gameTime = new();
@@ -182,6 +184,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         _scriptManager = scriptManager;
         _cache = cache;
+        _services = serviceProvider;
         _scriptHotReloader = scriptHotReloader;
         _characterSaver = characterSaver;
         _parties = parties;
@@ -604,8 +607,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     #region Cache Subscriptions
 
-    private async Task CacheSubscribeAsync() =>
+    private async Task CacheSubscribeAsync()
+    {
         await _cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, DelayedDisconnect);
+
+        // The API asks this world, and only this world, to reload after a template save. Required: a host that
+        // builds a WorldServer registers the handler, so a missing one fails startup rather than going unnoticed.
+        var reloads = _services.GetRequiredService<ReloadRequestHandler>();
+        await _cache.SubscribeAsync(CacheKeys.WorldReloadChannel(_world.Id.Value), reloads.OnMessage);
+    }
 
     private void DelayedDisconnect(RedisChannel channel, RedisValue value)
     {

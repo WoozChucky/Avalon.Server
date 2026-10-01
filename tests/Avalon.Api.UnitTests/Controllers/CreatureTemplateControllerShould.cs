@@ -17,7 +17,8 @@ public class CreatureTemplateControllerShould
     private readonly ICreatureTemplateRepository _repository = Substitute.For<ICreatureTemplateRepository>();
 
     private CreatureTemplateController MakeSut(ClaimsPrincipal user) =>
-        new(_repository)
+        new(_repository, Substitute.For<Avalon.Api.Worlds.ICurrentWorld>(),
+            Microsoft.Extensions.Options.Options.Create(new Avalon.Api.Templates.TemplateEditingOptions()))
         {
             ControllerContext = new ControllerContext
             {

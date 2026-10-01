@@ -97,6 +97,15 @@ publicSiteUrl: ""
 # to local disk and the API refuses it outside Development, so a chart deployment has no sender and
 # email change answers 501. A real provider will add its settings here.
 
+# Live template editing (Application:Templates): the worlds on which admins may edit item, ability and
+# creature templates, by world id (the auth Worlds table), rendered as indexed env. Left empty, no world
+# is editable and the PUT endpoints answer 403. Keep production worlds out of this list: an edit applies to
+# the running world on save. reloadTimeout is how long a save waits for the world's reload answer before
+# reporting it pending (a TimeSpan, e.g. 00:00:10); left empty, the API's appsettings default applies.
+templates:
+  editableWorlds: []
+  reloadTimeout: ""
+
 replicaCount: 1
 
 image:
