@@ -150,6 +150,7 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]
     [InlineData(typeof(Avalon.Network.Packets.Abilities.AbilityAmountKind), typeof(Avalon.Api.Contract.AbilityAmountKind))]
     [InlineData(typeof(ScalingStat), typeof(Avalon.Api.Contract.AbilityScalingStat))]
+    [InlineData(typeof(Avalon.Domain.World.ItemTemplateFlags), typeof(Avalon.Api.Contract.ItemTemplateFlags))]
     public void Keep_enum_members_in_step_with_the_contract(Type source, Type target)
     {
         Assert.Equal(Enum.GetValues(source).Length, Enum.GetValues(target).Length);

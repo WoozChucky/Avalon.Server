@@ -11,6 +11,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
+using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
@@ -21,7 +22,7 @@ namespace Avalon.World.Handlers;
 /// to a monster, a corpse, or something across the map gets no reply rather than an error packet.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_INTERACT)]
-public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
+public class InteractHandler(ILogger<InteractHandler> logger, IWorld world, QuestService? quests = null)
     : WorldPacketHandler<CInteractPacket>
 {
     // The catalogs live on StaticData, not in DI — they are built during World.LoadAsync once the
@@ -103,13 +104,15 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
     /// Shared with DialogueChooseHandler's advance path, so both send a node's options, and what
     /// each will do (DialogueOptionKinds, #522), the same way. One TextContext is built and reused
     /// across the node and all its options — the class-name resolution inside it is the expensive part.
+    /// <paramref name="leading" /> (the character's quest options, #433) goes before the node's own options.
     /// </summary>
     internal static void Send(
         IWorldConnection connection,
         ICreature npc,
         DialogueNodeView node,
         ICharacter character,
-        StaticData data)
+        StaticData data,
+        IReadOnlyList<SDialogueOptionInfo>? leading = null)
     {
         ILocalizedTextCatalog text = data.LocalizedTexts;
         TextContext context = text.ContextFor(character, connection.Locale);
@@ -117,6 +120,10 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
         // DialogueActions and Dialogue are read separately; safe only because this runs on the tick thread, where /reload patches also apply.
         List<SDialogueOptionInfo> options =
             DialogueOptionKinds.OptionsOf(node, data.DialogueActions, data.Dialogue, text, context);
+
+        // #433: quest options (turn-ins, then offers) come before the node's own options.
+        if (leading is { Count: > 0 })
+            options.InsertRange(0, leading);
 
         connection.Send(SDialogueNodePacket.Create(
             npc.Guid.RawValue,
@@ -127,6 +134,54 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
             connection.CryptoSession.Encrypt));
     }
 
+    /// <summary>
+    /// Quest talk credit (#433). Contained: a quest (or its script) that throws costs this talk's credit, never the
+    /// conversation, which opens after it either way.
+    /// </summary>
+    private void CreditTalk(ICharacter character, ICreature npc)
+    {
+        if (quests is null || character is not CharacterEntity talker)
+            return;
+
+        try
+        {
+            quests.Interacted(talker, npc);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Quest talk credit for character {CharacterId} at NPC {NpcGuid} (template {TemplateId}) failed; the conversation still opens",
+                talker.Guid.Id, npc.Guid, npc.Metadata.Id.Value);
+        }
+    }
+
+    /// <summary>
+    /// Sends the opened node. #433: talking to the named NPC completes a Talk objective first, before the node's
+    /// quest options are built, so a quest that becomes ready by this very conversation already shows its turn-in.
+    /// </summary>
     private void SendNode(IWorldConnection connection, ICreature npc, DialogueNodeView node, ICharacter character)
-        => Send(connection, npc, node, character, world.Data);
+    {
+        CreditTalk(character, npc);
+        Send(connection, npc, node, character, world.Data, QuestOptions(connection, npc, node, character));
+    }
+
+    /// <summary>
+    /// The character's quest options at this node (#433), or none. Contained like the talk credit: a quest that
+    /// throws loses its options here, and the NPC still opens with its own.
+    /// </summary>
+    private List<SDialogueOptionInfo>? QuestOptions(IWorldConnection connection, ICreature npc, DialogueNodeView node, ICharacter character)
+    {
+        if (quests is null || character is not CharacterEntity questing)
+            return null;
+
+        try
+        {
+            return quests.DialogueOptionsFor(connection, questing, npc, node);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Quest options for character {CharacterId} at NPC {NpcGuid} (template {TemplateId}) failed; the NPC opens without them",
+                questing.Guid.Id, npc.Guid, npc.Metadata.Id.Value);
+            return null;
+        }
+    }
 }

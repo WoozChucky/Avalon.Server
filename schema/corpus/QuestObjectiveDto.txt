@@ -1,0 +1,88 @@
+# QuestObjectiveDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message QuestObjectiveDto
+
+variant absent
+  field 1 ObjectiveId : uint = 0
+  field 2 Kind : QuestObjectiveKind = Unknown (0)
+  field 3 TargetId : ulong = 0
+  field 4 Count : uint = 0
+  field 5 Text : string = null
+  bytes 0
+
+variant empty
+  field 1 ObjectiveId : uint = 0
+  field 2 Kind : QuestObjectiveKind = Unknown (0)
+  field 3 TargetId : ulong = 0
+  field 4 Count : uint = 0
+  field 5 Text : string = "" (0 chars, 0 bytes utf-8)
+  bytes 2
+    2a 00
+
+variant populated
+  field 1 ObjectiveId : uint = 4000000000
+  field 2 Kind : QuestObjectiveKind = Collect (2)
+  field 3 TargetId : ulong = 19
+  field 4 Count : uint = 65535
+  field 5 Text : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
+  bytes 37
+    08 80 d0 ac f3 0e 10 02 18 13 20 ff ff 03 2a 15
+    65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61
+    73 74 72 61 6c
+
+variant maxima
+  field 1 ObjectiveId : uint = 4294967295
+  field 2 Kind : QuestObjectiveKind = Scripted (4)
+  field 3 TargetId : ulong = 18446744073709551615
+  field 4 Count : uint = 4294967295
+  field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 160
+    08 ff ff ff ff 0f 10 04 18 ff ff ff ff ff ff ff
+    ff ff 01 20 ff ff ff ff 0f 2a 84 01 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+
+variant minima
+  field 1 ObjectiveId : uint = 0
+  field 2 Kind : QuestObjectiveKind = Unknown (0)
+  field 3 TargetId : ulong = 0
+  field 4 Count : uint = 0
+  field 5 Text : string = "\0" (1 chars, 1 bytes utf-8)
+  bytes 3
+    2a 01 00
+
+variant varint-edges
+  field 1 ObjectiveId : uint = 16384
+  field 2 Kind : QuestObjectiveKind = <not a declared member> (5)
+  field 3 TargetId : ulong = 268435456
+  field 4 Count : uint = 127
+  field 5 Text : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+  bytes 143
+    08 80 80 01 10 05 18 80 80 80 80 01 20 7f 2a 7f
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78

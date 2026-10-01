@@ -20,6 +20,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Telemetry;
@@ -133,6 +134,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ILogger<WorldServer> _logger;
     private readonly PartyService _parties;
     private readonly ThrottledErrorLog _memberStatusErrors;
+    private readonly QuestService? _quests;
+    private readonly ThrottledErrorLog _questFlushErrors;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
@@ -185,6 +188,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _memberStatusErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The party member status flush");
+        // #433. Optional here, like the clock above, so the tests that build a WorldServer from a bare provider still do.
+        _quests = serviceProvider.GetService<QuestService>();
+        _questFlushErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest flush");
         _world = world;
         
         _logger.LogInformation("R2R enabled: {R2R}",
@@ -497,6 +504,24 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         double worldUs = TicksToUs(t2 - t1);
         _worldUpdateHist.Record((long)worldUs);
         _worldUpdateDuration.Record(worldUs);
+
+        // Quest counts, log, updates, lines and markers (#433), before the inventory flush below clears the slot
+        // changes the collect recount reads. Each step is contained inside the flush (a throwing recount still lets the
+        // log and markers out), and the flush per connection: one character's throw costs nobody else.
+        if (_quests is not null)
+        {
+            for (int i = 0; i < conns.Length; i++)
+            {
+                try
+                {
+                    QuestFlusher.Flush(conns[i], _quests);
+                }
+                catch (Exception e)
+                {
+                    _questFlushErrors.Failed(e);
+                }
+            }
+        }
 
         // Inventory and money changed anywhere in this tick, in either pass, leave as one packet per
         // connection with each slot at its final value (spec #459 section 3). Before the ping below,

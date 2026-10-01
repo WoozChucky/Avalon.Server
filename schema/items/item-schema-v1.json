@@ -376,6 +376,10 @@
         "value": 205
       },
       {
+        "name": "Amulet",
+        "value": 206
+      },
+      {
         "name": "QuestItem",
         "value": 300
       },
@@ -512,6 +516,10 @@
       {
         "name": "NoTrade",
         "value": 1024
+      },
+      {
+        "name": "QuestItem",
+        "value": 2048
       }
     ],
     "CharacterClass": [

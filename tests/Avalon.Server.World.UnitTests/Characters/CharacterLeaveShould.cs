@@ -24,6 +24,7 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
+using Avalon.World.Quests;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
@@ -557,6 +558,8 @@ public class CharacterLeaveShould : IDisposable
     /// </summary>
     private sealed class AnyServiceProvider : IServiceProvider
     {
+        private QuestService? _quests;
+
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
@@ -569,6 +572,10 @@ public class CharacterLeaveShould : IDisposable
             if (serviceType == typeof(PartyService))
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
+
+            // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
+            if (serviceType == typeof(QuestService))
+                return _quests ??= Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(

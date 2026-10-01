@@ -15,6 +15,12 @@ public class SDialogueOptionInfo
     /// the client does not know means "do not offer this option".
     /// </summary>
     [ProtoMember(3)] public DialogueOptionKind Kind { get; set; }
+
+    /// <summary>
+    /// Set on a QuestOffer or QuestTurnIn option only (#433): the quest it is about. Such an option's OptionId is
+    /// the quest id negated, so it can never collide with an authored option's (always positive) id.
+    /// </summary>
+    [ProtoMember(4)] public uint? QuestId { get; set; }
 }
 
 /// <summary>

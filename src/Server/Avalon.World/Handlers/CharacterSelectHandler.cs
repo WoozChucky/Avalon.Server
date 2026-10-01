@@ -28,6 +28,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Quests;
 using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -49,7 +50,9 @@ public class CharacterSelectHandler(
     IAccountRepository accountRepository,
     ICharacterSaver characterSaver,
     IWorldServer worldServer,
-    TimeProvider? time = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    TimeProvider? time = null,
+    ICharacterQuestRepository? questRepository = null,
+    QuestService? questService = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -148,6 +151,12 @@ public class CharacterSelectHandler(
                 }
 
                 connection.Locale = account.Locale;
+
+                // The quest lines follow the account's locale (#433). This lookup is not ordered with the select
+                // chain, so when it lands after the character was built, the character gets it here; otherwise
+                // Spawn copies it from the connection.
+                if ((connection.Character ?? connection.PendingSpawn?.Character) is CharacterEntity selected)
+                    selected.Quests.Locale = account.Locale;
 
                 if (connection is IAccessLevelAssignable assignable)
                 {
@@ -562,14 +571,14 @@ public class CharacterSelectHandler(
         connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encrypt));
 
         Step(connection, select, characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
-            spells => OnSpellsReceived(connection, entity, instance, spells));
+            spells => OnSpellsReceived(connection, select, entity, instance, spells));
         _parentActivity = activity;
     }
 
     private static IEnumerable<ItemSlotDto> ToDtos(InventoryType container, IReadOnlyCollection<InventoryItem> items)
         => items.Select(item => ItemSlotDtoMapper.ToDto(container, item));
 
-    private void OnSpellsReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
+    private void OnSpellsReceived(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance,
         IReadOnlyCollection<CharacterAbility> spells)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
@@ -635,14 +644,54 @@ public class CharacterSelectHandler(
 
         connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));
 
+        // #433: the quest log, then the pending spawn. No repository (tests that build the handler without one) is
+        // an empty log, as a character that never took a quest has.
+        if (questRepository is null)
+        {
+            Spawn(connection, entity, instance);
+            return;
+        }
+
+        Step(connection, select, questRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        {
+            entity.Quests.Load(rows);
+            Spawn(connection, entity, instance);
+        });
+    }
+
+    private void Spawn(IWorldConnection connection, CharacterEntity entity, IMapInstance instance)
+    {
         // All data loaded, but the client has not composed the map yet. The entity is held as a
         // pending spawn instead of being assigned and spawned here, so nothing on the tick sees a
         // character whose client is still loading. CharacterLoadedHandler releases it when the
         // client reports in; WorldServer's tick releases it anyway once the barrier expires.
+        // Nothing renders quest text before the spawn, so the locale is copied as late as it can be; an account
+        // lookup landing after this sets it on the pending character itself.
+        entity.Quests.Locale = connection.Locale;
+        RecountCollect(entity);
         connection.SetPendingSpawn(entity, instance, DateTime.UtcNow.Ticks);
 
         logger.LogInformation(
             "Character {CharacterName} selected for account {AccountId}; awaiting the client's load report",
             entity.Data?.Name, connection.AccountId);
+    }
+
+    /// <summary>
+    /// #433: with the bag and the quest log both loaded, every Collect objective counts what the bag holds, so a
+    /// log-in never shows stale collect progress. Contained: a quest throw costs the recount, never the select.
+    /// </summary>
+    private void RecountCollect(CharacterEntity entity)
+    {
+        if (questService is null)
+            return;
+
+        try
+        {
+            questService.RecountAtSelect(entity);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Recounting the quest items of character {CharacterId} at select failed", entity.Guid.Id);
+        }
     }
 }

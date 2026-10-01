@@ -263,24 +263,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_QUEST_STATUS",
-      "opcode": 8256,
-      "hex": "0x2040",
-      "message": "CQuestStatusPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "CMSG_QUEST_LIST",
-      "opcode": 8257,
-      "hex": "0x2041",
-      "message": "CQuestListPacket",
-      "direction": "ClientToServer",
-      "flags": null,
-      "flagNames": null
-    },
-    {
       "name": "CMSG_AUDIO_RECORD",
       "opcode": 8272,
       "hex": "0x2050",
@@ -402,6 +384,33 @@
       "opcode": 8373,
       "hex": "0x20B5",
       "message": "CPartyExperienceModePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_QUEST_ACCEPT",
+      "opcode": 8384,
+      "hex": "0x20C0",
+      "message": "CQuestAcceptPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_QUEST_TURN_IN",
+      "opcode": 8385,
+      "hex": "0x20C1",
+      "message": "CQuestTurnInPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_QUEST_ABANDON",
+      "opcode": 8386,
+      "hex": "0x20C2",
+      "message": "CQuestAbandonPacket",
       "direction": "ClientToServer",
       "flags": 4,
       "flagNames": "Encrypted"
@@ -870,6 +879,51 @@
       "opcode": 12467,
       "hex": "0x30B3",
       "message": "SPartyMemberStatusPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_OFFER",
+      "opcode": 12480,
+      "hex": "0x30C0",
+      "message": "SQuestOfferPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_RESULT",
+      "opcode": 12481,
+      "hex": "0x30C1",
+      "message": "SQuestResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_LOG",
+      "opcode": 12482,
+      "hex": "0x30C2",
+      "message": "SQuestLogPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_UPDATE",
+      "opcode": 12483,
+      "hex": "0x30C3",
+      "message": "SQuestUpdatePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_MARKERS",
+      "opcode": 12484,
+      "hex": "0x30C4",
+      "message": "SQuestMarkersPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

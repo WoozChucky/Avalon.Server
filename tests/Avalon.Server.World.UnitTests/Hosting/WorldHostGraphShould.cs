@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Hosting;
 using Avalon.Network.Packets.Abstractions;
@@ -19,6 +20,7 @@ using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NSubstitute;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Hosting;
@@ -63,10 +65,16 @@ public class WorldHostGraphShould
             Assert.NotNull(host.Services.GetRequiredService<IVendorStockRepository>());
             Assert.NotNull(host.Services.GetRequiredService<ICombatDataRepository>());
 
+            // Quests (#433). Production registers the quest repository; that CharacterSelectHandler is handed it (it
+            // takes it optionally and loads an empty log without it) is Hand_the_quest_service_to_the_handlers.
+            Assert.NotNull(host.Services.GetRequiredService<ICharacterQuestRepository>());
+
             // #506. MapInstance reads the combat random with GetService and otherwise falls back to one
             // that never crits, dodges or blocks, so only this proves production rolls for real.
             Assert.IsType<Avalon.Combat.CombatRandom>(host.Services.GetRequiredService<Avalon.Combat.ICombatRandom>());
-            Assert.IsType<NoQuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
+            Assert.IsType<QuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
+            // #433. MapInstance and WorldServer read it with GetService, so only this proves production registers it.
+            Assert.NotNull(host.Services.GetRequiredService<QuestService>());
 
             // PvP (#164). MapInstance reads the toggle with GetService, so a missing registration would
             // silently build a second toggle over a different clock. /pvp is found through ICommand.
@@ -149,7 +157,12 @@ public class WorldHostGraphShould
     [InlineData(NetworkPacketType.CMSG_PARTY_KICK, typeof(PartyKickHandler))]
     [InlineData(NetworkPacketType.CMSG_PARTY_PROMOTE, typeof(PartyPromoteHandler))]
     [InlineData(NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE, typeof(PartyExperienceModeHandler))]
+    [InlineData(NetworkPacketType.CMSG_QUEST_ACCEPT, typeof(QuestAcceptHandler))]
+    [InlineData(NetworkPacketType.CMSG_QUEST_TURN_IN, typeof(QuestTurnInHandler))]
+    [InlineData(NetworkPacketType.CMSG_QUEST_ABANDON, typeof(QuestAbandonHandler))]
     [InlineData(NetworkPacketType.CMSG_ENTER_MAP, typeof(EnterMapHandler))]
+    [InlineData(NetworkPacketType.CMSG_INTERACT, typeof(InteractHandler))]
+    [InlineData(NetworkPacketType.CMSG_DIALOGUE_CHOOSE, typeof(DialogueChooseHandler))]
     public async Task Find_And_Build_The_Handler_The_Way_WorldServer_Does(NetworkPacketType opcode, Type expected)
     {
         string workingDirectory = Directory.GetCurrentDirectory();
@@ -171,6 +184,54 @@ public class WorldHostGraphShould
             Directory.SetCurrentDirectory(workingDirectory);
         }
     }
+
+    /// <summary>
+    /// Quests (#433): these handlers take the quest service, and some the quest repository or the quest progress, as
+    /// optional constructor parameters, so a handler the container builds without them would silently go without.
+    /// Without the repository CharacterSelectHandler spawns every character with an empty log, its completed quests
+    /// included, so each could turn the storyline in again for its rewards every session; without the service no log
+    /// is loaded, InteractHandler and DialogueChooseHandler offer no quests and credit no talk, and LootPickupHandler
+    /// lets anyone pick up a quest item; without the progress DialogueChooseHandler unlocks no gated stock. Built the
+    /// way WorldServer builds them (handing a handler that needs it the IWorldServer), each must hold the container's
+    /// own.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(InteractHandler))]
+    [InlineData(typeof(DialogueChooseHandler))]
+    [InlineData(typeof(CharacterSelectHandler))]
+    [InlineData(typeof(LootPickupHandler))]
+    public async Task Hand_the_quest_service_to_the_handlers(Type handlerType)
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services.AddWorldServices();
+            using IHost host = builder.Build();
+
+            bool needsWorldServer = handlerType.GetConstructors()
+                .Any(c => c.GetParameters().Any(p => p.ParameterType == typeof(IWorldServer)));
+            object handler = needsWorldServer
+                ? ActivatorUtilities.CreateInstance(host.Services, handlerType, Substitute.For<IWorldServer>())
+                : ActivatorUtilities.CreateInstance(host.Services, handlerType);
+
+            Assert.Same(host.Services.GetRequiredService<QuestService>(), CapturedOfType<QuestService>(handler));
+            if (handlerType == typeof(DialogueChooseHandler))
+                Assert.Same(host.Services.GetRequiredService<IQuestProgress>(), CapturedOfType<IQuestProgress>(handler));
+            if (handlerType == typeof(CharacterSelectHandler))
+                Assert.Same(host.Services.GetRequiredService<ICharacterQuestRepository>(),
+                    CapturedOfType<ICharacterQuestRepository>(handler));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
+    /// <summary>The one field of this type a handler holds (a primary constructor's captured parameter).</summary>
+    private static T? CapturedOfType<T>(object handler) where T : class =>
+        (T?)Assert.Single(handler.GetType().GetFields(BindingFlags.Instance | BindingFlags.NonPublic),
+            f => f.FieldType == typeof(T)).GetValue(handler);
 
     /// <summary>
     /// The restock timer a sale starts and the vendor pass that restocks it read one clock (#432):

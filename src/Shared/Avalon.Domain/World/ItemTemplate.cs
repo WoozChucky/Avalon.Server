@@ -106,7 +106,7 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
         {
             ItemClass.Consumable => itemSubClass is ItemSubClass.Potion or ItemSubClass.Food or ItemSubClass.Scroll,
             ItemClass.Weapon => itemSubClass is ItemSubClass.OneHanded or ItemSubClass.TwoHanded or ItemSubClass.Ranged,
-            ItemClass.Armor => itemSubClass is ItemSubClass.Shield or ItemSubClass.Helmet or ItemSubClass.Chest or ItemSubClass.Legs or ItemSubClass.Boots or ItemSubClass.Gloves,
+            ItemClass.Armor => itemSubClass is ItemSubClass.Shield or ItemSubClass.Helmet or ItemSubClass.Chest or ItemSubClass.Legs or ItemSubClass.Boots or ItemSubClass.Gloves or ItemSubClass.Amulet,
             ItemClass.Quest => itemSubClass == ItemSubClass.QuestItem,
             ItemClass.Crafting => itemSubClass == ItemSubClass.CraftingMaterial,
             ItemClass.Junk => itemSubClass == ItemSubClass.JunkItem,
@@ -156,6 +156,12 @@ public enum ItemTemplateFlags
     NoSell = 256,
     NoDestroy = 512,
     NoTrade = 1024,
+
+    /// <summary>
+    /// A quest item (#433): counted by Collect objectives, dropped only for characters who need it, never sold,
+    /// and taken back on turn-in or abandon.
+    /// </summary>
+    QuestItem = 2048,
 }
 
 public enum ItemSlotType : ushort
@@ -210,6 +216,9 @@ public enum ItemSubClass
     Legs = 203,
     Boots = 204,
     Gloves = 205,
+
+    /// <summary>A neck piece (#433: the Alpha's Fang Pendant). Worn in EquipmentSlots.Neck.</summary>
+    Amulet = 206,
     // Quest Subclasses
     QuestItem = 300,
     // Crafting Subclasses

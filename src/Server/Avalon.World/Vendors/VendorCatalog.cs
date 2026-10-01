@@ -124,6 +124,10 @@ public sealed class VendorCatalog
         if (!items.TryGetValue(row.ItemTemplateId.Value, out ItemTemplate? item))
             return $"item template {row.ItemTemplateId.Value} does not exist";
 
+        // A quest item comes only from its quest (#433): sold, it would fill a Collect objective for gold.
+        if (item.Flags.HasFlag(ItemTemplateFlags.QuestItem))
+            return $"item template {row.ItemTemplateId.Value} is a quest item; quest items are never sold";
+
         // Selling below what the vendor pays back would let a player buy and sell it forever for a
         // profit (#432). At exactly the SellPrice the round trip gains nothing.
         uint price = row.PriceOverride ?? item.BuyPrice;

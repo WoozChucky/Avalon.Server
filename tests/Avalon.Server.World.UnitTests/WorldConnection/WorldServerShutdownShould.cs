@@ -14,6 +14,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Parties;
+using Avalon.World.Quests;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
@@ -192,6 +193,8 @@ public class WorldServerShutdownShould : IDisposable
     /// </summary>
     private sealed class AnyServiceProvider : IServiceProvider
     {
+        private QuestService? _quests;
+
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
@@ -204,6 +207,10 @@ public class WorldServerShutdownShould : IDisposable
             if (serviceType == typeof(PartyService))
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
+
+            // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
+            if (serviceType == typeof(QuestService))
+                return _quests ??= Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(serviceType.GenericTypeArguments[0]));

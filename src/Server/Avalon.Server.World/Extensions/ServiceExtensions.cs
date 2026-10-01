@@ -88,10 +88,10 @@ public static class ServiceExtensions
         services.AddSingleton<IScriptHotReloader, ScriptHotReloader>();
         services.AddSingleton<IScriptDatabase, ScriptDatabase>();
 
-        //services.AddSingleton<IQuestManager, QuestManager>();
+        services.AddSingleton<QuestService>();
 
-        // Vendor quest gates (#432). Nothing can meet a requirement until quests exist (#433).
-        services.AddSingleton<IQuestProgress, NoQuestProgress>();
+        // Vendor quest gates (#432), met over each character's quest log (#433).
+        services.AddSingleton<IQuestProgress, QuestProgress>();
 
         services.AddSingleton<IRespawnTargetResolver, RespawnTargetResolver>();
         services.AddSingleton(sp => new TownReturn(

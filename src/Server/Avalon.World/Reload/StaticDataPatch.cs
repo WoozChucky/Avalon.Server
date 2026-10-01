@@ -108,3 +108,12 @@ public sealed record CombatPatch(CombatFormula Formula, IReadOnlyDictionary<Char
         return new CombatPatch(f, byClass);
     }
 }
+
+/// <summary>
+/// Quests (#433), validated against the creature and item templates read in the same prepare. Forward-only: a
+/// character's log keeps its rows; what changes is what is offered, credited and paid from the next tick.
+/// </summary>
+public sealed record QuestsPatch(Quests.QuestCatalog Catalog) : StaticDataPatch(ReloadArea.Quests)
+{
+    public override string Describe() => Catalog.Describe();
+}

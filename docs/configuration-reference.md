@@ -175,6 +175,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `PartyEligibilityRange`          | float  | `60`       | Metres, on X/Z, from a corpse within which a party member not in the creature's encounter still shares the kill's loot and experience. At least `1`; its own setting, not tied to `InterestRadius` |
 | `PartyExperienceBonusPerExtra`   | float  | `0.10`     | Experience added to a shared kill per counted member beyond the first (`0.1` is +10 %). `0` to `10`; startup refuses anything else |
 | `PartyExperienceLevelGap`        | int    | `5`        | A character this many levels or more above a creature gets no experience from it, in a party or solo. Range `1`–`1000` |
+| `MaxActiveQuests`                | int    | `20`       | How many quests a character may hold at once; an accept past it is answered `LogFull` (#433). Range `1`–`100` |
 
 ```json
 "Game": {
@@ -204,7 +205,8 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "PartyHealthPerExtraPlayer": 0.6,
   "PartyEligibilityRange": 60,
   "PartyExperienceBonusPerExtra": 0.10,
-  "PartyExperienceLevelGap": 5
+  "PartyExperienceLevelGap": 5,
+  "MaxActiveQuests": 20
 }
 ```
 

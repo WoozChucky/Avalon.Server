@@ -44,6 +44,13 @@ public static class VendorRules
     public static ulong UnitPrice(VendorStockView row, ItemTemplate item) =>
         Math.Max(row.PriceOverride ?? item.BuyPrice, item.SellPrice);
 
+    /// <summary>
+    /// A quest item is never sold (#433). VendorCatalog refuses such a row, but a later /reload items can flag a
+    /// stocked item QuestItem without a vendor reload, so the rule is enforced here too, as the price floor is: the
+    /// row is hidden from the list and a buy of it is NotFound, until /reload vendors drops it.
+    /// </summary>
+    public static bool IsStockable(ItemTemplate item) => !item.Flags.HasFlag(ItemTemplateFlags.QuestItem);
+
     /// <summary>A row with a quest requirement is shown, and sold, only once IQuestProgress says it is met.</summary>
     public static bool IsVisible(VendorStockView row, CharacterEntity character, IQuestProgress quests) =>
         row.Requirement is not { } requirement || quests.IsMet(character, requirement.QuestId, requirement.State);
@@ -81,7 +88,8 @@ public static class VendorRules
             }
         }
 
-        if (row is null || !IsVisible(row, character, quests) || findTemplate(row.ItemTemplateId) is not { } item)
+        if (row is null || !IsVisible(row, character, quests) || findTemplate(row.ItemTemplateId) is not { } item
+            || !IsStockable(item))
             return new BuyDecision(VendorResult.NotFound, null);
 
         uint buying = count ?? 1;
@@ -142,6 +150,7 @@ public static class VendorRules
 
         if (findTemplate(item.TemplateId) is not { } template
             || template.Flags.HasFlag(ItemTemplateFlags.NoSell)
+            || template.Flags.HasFlag(ItemTemplateFlags.QuestItem)
             || template.SellPrice == 0)
             return new SellDecision(VendorResult.NotSellable, null);
 

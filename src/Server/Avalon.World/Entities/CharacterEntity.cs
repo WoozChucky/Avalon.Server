@@ -17,6 +17,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
+using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
@@ -59,6 +60,7 @@ public class CharacterEntity : ICharacter
 
     public CharacterEntity()
     {
+        Quests = new QuestLog(SaveState);
         _logger = null!;
         _equipment = null!;
         _bag = null!;
@@ -73,6 +75,7 @@ public class CharacterEntity : ICharacter
         RegenConfiguration regenConfig, TimeProvider? time = null,
         float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond)
     {
+        Quests = new QuestLog(SaveState);
         _time = time ?? TimeProvider.System;
         _furyDecayPerSecond = furyDecayPerSecond;
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
@@ -229,6 +232,12 @@ public class CharacterEntity : ICharacter
 
     /// <summary>What the next save must write. Marked by the inventory service and the wallet.</summary>
     public SaveStateTracker SaveState { get; } = new();
+
+    /// <summary>
+    /// The character's quests (#433). World-side, never on ICharacter: the modding API reaches quests only through
+    /// a QuestScript's IQuestContext. Loaded at select; every change marks <see cref="SaveState" />.
+    /// </summary>
+    public QuestLog Quests { get; }
 
     /// <summary>World-side only, not on ICharacter: the modding API cannot read or set PvP (#164).</summary>
     public bool PvpEnabled => Data?.PvpEnabled ?? false;

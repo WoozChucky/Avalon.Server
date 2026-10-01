@@ -74,6 +74,7 @@ nav:
     - Creature System: creature-system.md
     - Instanced Maps: instanced-maps.md
     - Party Protocol: party-protocol.md
+    - Quest Protocol: quest-protocol.md
   - API Reference: api-reference.md
   - Contributing: contributing.md
   - Dev Benchmarks: benchmarks.md

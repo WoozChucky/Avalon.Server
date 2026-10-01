@@ -62,13 +62,18 @@ internal static class WireBytes
     /// </summary>
     /// <remarks>
     /// This is the wider transformation, and it is needed only in the direction that goes back
-    /// through the server. Eleven string members and four message members in the protocol carry
+    /// through the server. Several string and message members in the protocol carry
     /// a C# initializer, so protobuf-net deserializes an absent field into an empty value and
     /// writes it out again - which makes its own encode-decode-encode cycle non-idempotent,
     /// independently of any schema. Holding the return trip to equality outside these fields is
     /// the strongest statement that stays true.
+    ///
+    /// Given the message's <paramref name="descriptor" />, the same is done inside every nested
+    /// message, and a nested message left with no bytes is set aside too: a message member that
+    /// the server reads back from an empty field holds its own initialized strings, and writes
+    /// them out one level down (the quest display, #433, is the first such member).
     /// </remarks>
-    internal static byte[] WithoutEmptyLengthDelimited(byte[] bytes)
+    internal static byte[] WithoutEmptyLengthDelimited(byte[] bytes, MessageDescriptor? descriptor = null)
     {
         var kept = new MemoryStream(bytes.Length);
 
@@ -76,6 +81,23 @@ internal static class WireBytes
         {
             if (field.Type == WireFormat.WireType.LengthDelimited && field.PayloadLength == 0)
             {
+                continue;
+            }
+
+            if (field.Type == WireFormat.WireType.LengthDelimited
+                && descriptor?.FindFieldByNumber(field.Number) is { FieldType: FieldType.Message } nested)
+            {
+                byte[] payload = bytes.AsSpan(field.Start + field.Length - field.PayloadLength, field.PayloadLength).ToArray();
+                byte[] inner = WithoutEmptyLengthDelimited(payload, nested.MessageType);
+                if (inner.Length == 0)
+                {
+                    continue;
+                }
+
+                var output = new CodedOutputStream(kept, leaveOpen: true);
+                output.WriteTag(field.Number, WireFormat.WireType.LengthDelimited);
+                output.WriteBytes(ByteString.CopyFrom(inner));
+                output.Flush();
                 continue;
             }
 

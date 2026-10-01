@@ -52,6 +52,9 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_PARTY_KICK => true,
             NetworkPacketType.CMSG_PARTY_PROMOTE => true,
             NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE => true,
+            NetworkPacketType.CMSG_QUEST_ACCEPT => true,
+            NetworkPacketType.CMSG_QUEST_TURN_IN => true,
+            NetworkPacketType.CMSG_QUEST_ABANDON => true,
             _ => false
         };
     }

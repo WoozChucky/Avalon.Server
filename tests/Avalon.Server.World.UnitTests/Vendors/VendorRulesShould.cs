@@ -211,6 +211,27 @@ public class VendorRulesShould
         AssertUnchanged(character, 1000, 0);
     }
 
+    /// <summary>
+    /// Final review M5: a /reload items that flags a stocked item QuestItem stops it being sold at once, as the price
+    /// floor holds after a SellPrice change, without waiting for /reload vendors to drop the row.
+    /// </summary>
+    [Fact]
+    public void Answer_NotFound_to_buying_an_item_a_reload_made_a_quest_item()
+    {
+        CharacterEntity character = Arrange([], 1000, dead: false);
+        var flagged = new ItemTemplate
+        {
+            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+        };
+        ItemTemplate? FindFlagged(ItemTemplateId id) => id == Tonic.Id ? flagged : Find(id);
+
+        BuyDecision decision = VendorRules.DecideBuy(character, true, Stock(), TonicSequence, null, FindFlagged, NoQuestProgress.Instance);
+
+        Assert.Equal(new BuyDecision(VendorResult.NotFound, null), decision);
+        AssertUnchanged(character, 1000, 0);
+    }
+
     /// <summary>The spec's quest-gate case: with no quest system every gated row stays hidden.</summary>
     [Fact]
     public void Hide_every_gated_row_while_no_quest_can_be_met()

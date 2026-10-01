@@ -83,6 +83,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly GroundLootStore _groundLoot = new();
     private readonly ILootRoller? _lootRoller;
     private readonly ILootAllocator? _lootAllocator;
+    private readonly QuestService? _questService;
 
     /// <summary>Who shares a kill, and how its experience is split (2026-09-30). Null in tests built without one: solo rules.</summary>
     private readonly PartyService? _parties;
@@ -198,6 +199,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Production registers both; WorldHostGraphShould proves it.
         _lootRoller = serviceProvider.GetService<ILootRoller>();
         _lootAllocator = serviceProvider.GetService<ILootAllocator>();
+        _questService = serviceProvider.GetService<QuestService>();
 
         // Optional too: an instance built without it (tests) shares nothing, so every kill is its killer's alone.
         _parties = serviceProvider.GetService<PartyService>();
@@ -653,14 +655,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Rolls, allocates and places a dying creature's drops and tells everyone here. Tick thread:
-    /// CreatureKilled is called by this instance's combat service inside combat and ability
-    /// processing. Reads the Loot and Items areas as they are now, so a reload applies to the next kill.
-    /// Each drop is allocated on its own, among the characters that share the kill (2026-09-30).
+    /// Rolls, allocates and places a dying creature's drops and tells everyone here. Tick thread: CreatureKilled is
+    /// called by this instance's combat service inside combat and ability processing. Reads the Loot, Items and
+    /// Quests areas as they are now, so a reload applies to the next kill. Each table drop is allocated on its own,
+    /// among the characters that share the kill (2026-09-30); each quest drop (#433) belongs to the member it was
+    /// rolled for, for good. All of them are placed in one ring.
     /// </summary>
     private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible)
     {
-        if (_lootRoller is null || _lootAllocator is null || creature.Metadata is not CreatureTemplate template)
+        IReadOnlyList<(RolledDrop Drop, uint Owner)> questDrops = RollQuestDrops(creature, eligible);
+        bool rollsTable = _lootRoller is not null && _lootAllocator is not null && creature.Metadata is CreatureTemplate;
+        if (!rollsTable && questDrops.Count == 0)
         {
             return;
         }
@@ -669,15 +674,26 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // that killed the creature. One bad table costs one kill's loot, nothing more.
         try
         {
-            IReadOnlyList<RolledDrop> rolled = _lootRoller.Roll(template, _world.Data.Loot, _world.Data.ItemTemplates);
-            if (rolled.Count == 0)
+            IReadOnlyList<RolledDrop> table = rollsTable
+                ? _lootRoller!.Roll((CreatureTemplate)creature.Metadata, _world.Data.Loot, _world.Data.ItemTemplates)
+                : [];
+            if (table.Count == 0 && questDrops.Count == 0)
             {
                 return;
             }
 
-            ILootAllocator allocator = _lootAllocator;
+            var rolled = new List<RolledDrop>(table.Count + questDrops.Count);
+            rolled.AddRange(table);
+            foreach ((RolledDrop drop, uint _) in questDrops)
+                rolled.Add(drop);
+
+            ILootAllocator? allocator = _lootAllocator;
+            int tableCount = table.Count;
             IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
-                creature.Position, rolled, _ => allocator.Allocate(OwnerCharacterId, OwnerPartyId, eligible),
+                creature.Position, rolled,
+                i => i < tableCount
+                    ? allocator!.Allocate(OwnerCharacterId, OwnerPartyId, eligible)
+                    : new LootAllocation(questDrops[i - tableCount].Owner, DateTime.MaxValue),
                 GetNavigatorForPosition(creature.Position), IObject.GenerateId);
 
             foreach (GroundLoot drop in drops)
@@ -690,7 +706,27 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         catch (Exception e)
         {
             _logger.LogError(e, "Could not drop loot for creature {CreatureGuid} (template {TemplateId}); the kill still counts",
-                creature.Guid, template.Id.Value);
+                creature.Guid, creature.Metadata.Id.Value);
+        }
+    }
+
+    /// <summary>The quest drops a kill rolls (#433). Contained: a throw costs this kill's quest drops, nothing else.</summary>
+    private IReadOnlyList<(RolledDrop Drop, uint Owner)> RollQuestDrops(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    {
+        if (_questService is null || eligible.Count == 0)
+        {
+            return [];
+        }
+
+        try
+        {
+            return _questService.RollQuestDrops(creature, eligible);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Rolling quest drops for the kill of {CreatureGuid} in instance {InstanceId} failed",
+                creature.Guid, InstanceId);
+            return [];
         }
     }
 
@@ -1256,10 +1292,33 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         TearDownCorpse(creature);
         _corpseRemover.ScheduleRemoval(creature);
 
+        // #433: kill credit for everyone who shares the kill, before the drops, which read the same quests.
+        CreditQuests(creature, eligible);
+
         // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
         // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
         DropLoot(creature, eligible);
         AwardExperience(creature, eligible);
+    }
+
+    /// <summary>
+    /// Quest credit for a kill (#433). Contained, as the eligibility is: a throw costs this kill's quest credit, never
+    /// the corpse teardown, the loot or the experience after it.
+    /// </summary>
+    private void CreditQuests(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    {
+        if (_questService is null || eligible.Count == 0)
+            return;
+
+        try
+        {
+            _questService.CreatureKilled(creature, eligible);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Quest credit for the kill of {CreatureGuid} in instance {InstanceId} failed; the kill still counts",
+                creature.Guid, InstanceId);
+        }
     }
 
     /// <summary>
@@ -1333,29 +1392,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Gives a character its share of a kill's experience, scaled by this map's level band, and levels it up
-    /// when that reaches its level's requirement. A level with no requirement awards nothing.
+    /// Gives a character its share of a kill's experience, scaled by this map's level band, through the one level-up
+    /// helper quests use too (#433): it levels past every requirement the award covers. A level with no requirement
+    /// awards nothing.
     /// </summary>
-    private void AwardExperience(ICharacter character, uint experience)
-    {
-        CharacterLevelExperience? expRequirement =
-            _world.Data.CharacterLevelExperiences.FirstOrDefault(exp => exp.Level == character.Level);
-        if (expRequirement is null)
-        {
-            _logger.LogWarning("Experience requirement for level {Level} not found", character.Level);
-            return;
-        }
-
-        uint creatureExperience = ScaledExperience(character, experience);
-        if (character.Experience + creatureExperience >= expRequirement.Experience)
-        {
-            LevelUp(character, creatureExperience, expRequirement);
-        }
-        else
-        {
-            character.Experience += creatureExperience;
-        }
-    }
+    private void AwardExperience(ICharacter character, uint experience) =>
+        ExperienceAward.Grant(character, ScaledExperience(character, experience), _world.Data, _parties, _logger);
 
     /// <summary>This character's share of the kill's experience, scaled by this map's level band.</summary>
     private uint ScaledExperience(ICharacter character, uint experience)
@@ -1369,34 +1411,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _world.Configuration.ExperienceBandDecay);
 
         return (uint)Math.Round(experience * bandScale, MidpointRounding.AwayFromZero);
-    }
-
-    /// <summary>
-    /// Raises the character one level, carrying over the experience past the requirement, and
-    /// recalculates its stats at the new level.
-    /// </summary>
-    private void LevelUp(ICharacter character, uint creatureExperience, CharacterLevelExperience expRequirement)
-    {
-        ulong diff = character.Experience + creatureExperience - expRequirement.Experience;
-        character.Level++;
-        character.Experience = diff;
-        character.RequiredExperience = _world.Data.CharacterLevelExperiences
-            .FirstOrDefault(exp => exp.Level == character.Level)?.Experience ?? 0;
-
-        // #434: the new level's stats. A living killer has health and power refilled to the new
-        // maximums. A kill can land after its killer has died (a projectile in flight): a dead
-        // killer gets the new maximums but keeps its share of each pool instead, so its health
-        // stays at 0 and it is not revived.
-        if (character is CharacterEntity entity
-            && !CharacterStatsRefresh.Apply(entity, _world.Data,
-                entity.IsDead ? CurrentValues.KeepShare : CurrentValues.Refill))
-        {
-            _logger.LogWarning("No class stats for {Class} level {Level}; {Name} keeps its old maximums",
-                entity.Class, entity.Level, entity.Name);
-        }
-
-        // The party roster shows levels.
-        _parties?.LevelChanged(character);
     }
 
     /// <summary>

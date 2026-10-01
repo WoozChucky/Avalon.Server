@@ -15,4 +15,5 @@ public enum ItemTemplateFlags
     NoSell = 256,
     NoDestroy = 512,
     NoTrade = 1024,
+    QuestItem = 2048,
 }

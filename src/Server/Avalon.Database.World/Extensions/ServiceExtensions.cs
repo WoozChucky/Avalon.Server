@@ -56,6 +56,7 @@ public static class ServiceExtensions
             .AddSingleton<IMapChunkPlacementRepository, MapChunkPlacementRepository>()
             .AddSingleton<ILootTableRepository, LootTableRepository>()
             .AddSingleton<IVendorStockRepository, VendorStockRepository>()
+            .AddSingleton<IQuestRepository, QuestRepository>()
             .AddSingleton<ICombatDataRepository, CombatDataRepository>();
 
         return services;

@@ -183,6 +183,25 @@ public class VendorCatalogShould
         Assert.Contains("25", catalog.Refused[0].Reason, StringComparison.Ordinal);
     }
 
+    /// <summary>A quest item comes only from its quest (#433); a stock row selling one is refused, and the rest load.</summary>
+    [Fact]
+    public void Refuse_a_row_that_sells_a_quest_item()
+    {
+        var tusk = new ItemTemplate
+        {
+            Id = new ItemTemplateId(751), Name = "Tusk", Class = ItemClass.Quest, SubClass = ItemSubClass.QuestItem,
+            MaxStackSize = 20, BuyPrice = 10, Flags = ItemTemplateFlags.QuestItem,
+        };
+
+        VendorCatalog catalog = new([Row(1, 1, Tonic), Row(2, 2, tusk)], [.. Items, tusk], NullLoggerFactory.Instance);
+
+        Assert.Equal([1], catalog.RowsFor(Smith).Select(r => r.Id));
+        VendorStockRefusal refusal = Assert.Single(catalog.Refused);
+        Assert.Equal((2, Smith), (refusal.Id, refusal.Vendor));
+        Assert.Contains("751", refusal.Reason, StringComparison.Ordinal);
+        Assert.Contains("quest item", refusal.Reason, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Refuse_a_duplicate_sequence_and_keep_the_lowest_id()
     {

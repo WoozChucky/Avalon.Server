@@ -43,11 +43,6 @@ public enum NetworkPacketType : short
     CMSG_ENTER_MAP    = 0x2021,
     CMSG_RESPAWN_AT_TOWN = 0x2022,
 
-    // Quest
-    CMSG_QUEST_STATUS = 0x2040,
-    CMSG_QUEST_LIST = 0x2041,
-    CMSG_QUEST_QUERY_AVAILABLE = 0x2042,
-
     // World
     CMSG_INTERACT = 0x2030,
     CMSG_DIALOGUE_CHOOSE = 0x2031,
@@ -89,6 +84,11 @@ public enum NetworkPacketType : short
     CMSG_PARTY_KICK = 0x20B3,
     CMSG_PARTY_PROMOTE = 0x20B4,
     CMSG_PARTY_EXPERIENCE_MODE = 0x20B5,
+
+    // Quests (#433)
+    CMSG_QUEST_ACCEPT = 0x20C0,
+    CMSG_QUEST_TURN_IN = 0x20C1,
+    CMSG_QUEST_ABANDON = 0x20C2,
 
     /**************************************************************************
      * Server Packets
@@ -186,4 +186,11 @@ public enum NetworkPacketType : short
     SMSG_PARTY_RESULT = 0x30B1,
     SMSG_PARTY_ROSTER = 0x30B2,
     SMSG_PARTY_MEMBER_STATUS = 0x30B3,
+
+    // Quests (#433)
+    SMSG_QUEST_OFFER = 0x30C0,
+    SMSG_QUEST_RESULT = 0x30C1,
+    SMSG_QUEST_LOG = 0x30C2,
+    SMSG_QUEST_UPDATE = 0x30C3,
+    SMSG_QUEST_MARKERS = 0x30C4,
 }

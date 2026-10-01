@@ -6,6 +6,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Loot;
 using Avalon.World.Parties;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -13,6 +14,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
 using Avalon.World.Pvp;
+using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -68,10 +70,14 @@ internal static class TestMapInstances
     /// <param name="ownerPartyId">The party that owns the instance; none when omitted.</param>
     /// <param name="templateId">The instance's map template; map 1 when omitted.</param>
     /// <param name="parties">The party service kills are shared through; none when omitted, so every kill is solo.</param>
+    /// <param name="quests">The quest service kills are credited through; none when omitted.</param>
+    /// <param name="lootRoller">The loot roller a kill drops through; none when omitted, so no kill drops anything.</param>
+    /// <param name="lootAllocator">Who a drop is reserved for; none when omitted, so no kill drops anything.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
         MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
-        PartyId? ownerPartyId = null, MapTemplateId? templateId = null, PartyService? parties = null)
+        PartyId? ownerPartyId = null, MapTemplateId? templateId = null, PartyService? parties = null,
+        QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -91,6 +97,18 @@ internal static class TestMapInstances
         if (parties is not null)
         {
             serviceProvider.GetService(typeof(PartyService)).Returns(parties);
+        }
+        if (quests is not null)
+        {
+            serviceProvider.GetService(typeof(QuestService)).Returns(quests);
+        }
+        if (lootRoller is not null)
+        {
+            serviceProvider.GetService(typeof(ILootRoller)).Returns(lootRoller);
+        }
+        if (lootAllocator is not null)
+        {
+            serviceProvider.GetService(typeof(ILootAllocator)).Returns(lootAllocator);
         }
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);

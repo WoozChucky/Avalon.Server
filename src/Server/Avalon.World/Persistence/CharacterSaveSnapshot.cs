@@ -83,8 +83,37 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
             ? derived.ToRow(row.Id)
             : null;
 
+        CharacterQuestWrite? quests = null;
+        if (marks.Quests is { Count: > 0 } questMarks)
+        {
+            List<uint> rewrite = [];
+            List<CharacterQuest> active = [];
+            List<CharacterQuestObjective> objectives = [];
+            List<CharacterCompletedQuest> completed = [];
+            foreach (uint questId in questMarks.Keys.Order())
+            {
+                // Memory is authoritative: whatever the quest is now is what the rows become.
+                rewrite.Add(questId);
+                if (character.Quests.Get(questId) is { } quest)
+                {
+                    active.Add(new CharacterQuest
+                    {
+                        CharacterId = row.Id, QuestId = questId, State = quest.State, Stage = quest.Stage, AcceptedAt = quest.AcceptedAt,
+                    });
+                    objectives.AddRange(quest.Progress.Select(p => new CharacterQuestObjective
+                        { CharacterId = row.Id, QuestId = questId, ObjectiveId = p.Key, Progress = p.Value }));
+                }
+                else if (character.Quests.CompletedAt(questId) is { } at)
+                {
+                    completed.Add(new CharacterCompletedQuest { CharacterId = row.Id, QuestId = questId, CompletedAt = at });
+                }
+            }
+
+            quests = new CharacterQuestWrite(rewrite, active, objectives, completed);
+        }
+
         return new CharacterSaveSnapshot(
-            new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats),
+            new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats, quests),
             marks);
     }
 }

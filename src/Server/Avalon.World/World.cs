@@ -23,6 +23,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Respawn;
+using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -110,7 +111,8 @@ public class World : IWorld
         ILootTableRepository lootTableRepository,
         IVendorStockRepository? vendorStockRepository = null,
         ICombatDataRepository? combatDataRepository = null,
-        PartyService? parties = null)
+        PartyService? parties = null,
+        IQuestRepository? questRepository = null)
     {
         _parties = parties;
         _logger = loggerFactory.CreateLogger<World>();
@@ -125,7 +127,8 @@ public class World : IWorld
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
             abilityTemplateRepository, characterLevelExperienceRepository, creatureTemplateRepository,
             creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
-            dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository);
+            dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository,
+            questRepository, serviceProvider.GetService<IScriptManager>());
 
         _instanceTicker = new InstanceTicker(_logger, DiagnosticsConfig.World.Meter,
             serviceProvider.GetService<TimeProvider>());

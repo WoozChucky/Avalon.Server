@@ -16,6 +16,7 @@ using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
+using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
@@ -455,7 +456,7 @@ public class CharacterSelectChainShould : IDisposable
     }
 
     private CharacterSelectHandler BuildSelectHandler(ICharacterSaver? saver = null, TimeSpan? saveWaitLimit = null,
-        IWorldServer? worldServer = null)
+        IWorldServer? worldServer = null, IAccountRepository? accounts = null)
     {
         var row = new Character
         {
@@ -513,7 +514,7 @@ public class CharacterSelectChainShould : IDisposable
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
-            Substitute.For<IAccountRepository>(),
+            accounts ?? Substitute.For<IAccountRepository>(),
             saver ?? Substitute.For<ICharacterSaver>(),
             worldServer ?? Substitute.For<IWorldServer>(),
             _clock)
@@ -544,6 +545,55 @@ public class CharacterSelectChainShould : IDisposable
         _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(rows);
         _itemInstances.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(instances);
+    }
+
+    /// <summary>
+    /// #433: the account lookup that carries the locale is not ordered with the select chain. When it lands after
+    /// the pending spawn exists, the character's quest lines must still follow the account's locale, not the
+    /// connection's enUS default the spawn copied.
+    /// </summary>
+    [Fact]
+    public void Give_the_selected_character_the_accounts_locale_when_the_lookup_lands_after_the_spawn()
+    {
+        var lookup = new TaskCompletionSource<Avalon.Domain.Auth.Account?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var accounts = Substitute.For<IAccountRepository>();
+        accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(lookup.Task);
+        CharacterSelectHandler select = BuildSelectHandler(accounts: accounts);
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        Step(6);
+        var character = (CharacterEntity)_connection.PendingSpawn!.Character;
+        Assert.Equal(Avalon.Common.Accounts.AccountLocale.enUS, character.Quests.Locale);
+
+        lookup.SetResult(AccountIn(Avalon.Common.Accounts.AccountLocale.deDE));
+        Step();
+
+        Assert.Equal(Avalon.Common.Accounts.AccountLocale.deDE, _connection.Locale);
+        Assert.Equal(Avalon.Common.Accounts.AccountLocale.deDE, character.Quests.Locale);
+    }
+
+    private static Avalon.Domain.Auth.Account AccountIn(Avalon.Common.Accounts.AccountLocale locale) => new()
+    {
+        Id = TheAccount, Username = "TESTER", Salt = [], Verifier = [], Email = "tester@example.com",
+        JoinDate = DateTime.UnixEpoch, Locale = locale,
+    };
+
+    /// <summary>
+    /// The account lookup landing before the spawn: Spawn copies the connection's locale onto the character.
+    /// </summary>
+    [Fact]
+    public void Give_the_selected_character_the_accounts_locale_when_the_lookup_lands_first()
+    {
+        var accounts = Substitute.For<IAccountRepository>();
+        accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Avalon.Domain.Auth.Account?>(AccountIn(Avalon.Common.Accounts.AccountLocale.frFR)));
+        CharacterSelectHandler select = BuildSelectHandler(accounts: accounts);
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        Step(6);
+
+        Assert.Equal(Avalon.Common.Accounts.AccountLocale.frFR,
+            ((CharacterEntity)_connection.PendingSpawn!.Character).Quests.Locale);
     }
 
     /// <summary>
