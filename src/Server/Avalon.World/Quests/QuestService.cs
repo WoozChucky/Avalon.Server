@@ -56,6 +56,9 @@ public sealed class QuestService(
     private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _scriptErrors = [];
     private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _refusedAdvances = [];
 
+    // When building each quest's log entry or update last threw and was logged, and how many were left out since.
+    private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _clientBuildErrors = [];
+
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
 
@@ -756,7 +759,17 @@ public sealed class QuestService(
         {
             foreach ((uint questId, QuestClientChange change) in log.ClientChanges.OrderBy(c => c.Key))
             {
-                if (UpdatePacket(connection, character, questId, change) is { } update)
+                NetworkPacket? update = null;
+                try
+                {
+                    update = UpdatePacket(connection, character, questId, change);
+                }
+                catch (Exception e)
+                {
+                    LogClientBuildFailure(e, character, questId, "update");
+                }
+
+                if (update is not null)
                     connection.Send(update);
             }
         }
@@ -786,14 +799,22 @@ public sealed class QuestService(
                 continue;
             }
 
-            entries.Add(new QuestLogEntryDto
+            // One quest whose entry cannot be built is left out; the log still goes out with the others.
+            try
             {
-                QuestId = quest.Id,
-                State = StateOf(active.State),
-                Stage = active.Stage,
-                Display = QuestDisplay.Build(quest, text, context, completionText: false),
-                Progress = ProgressOf(quest, active),
-            });
+                entries.Add(new QuestLogEntryDto
+                {
+                    QuestId = quest.Id,
+                    State = StateOf(active.State),
+                    Stage = active.Stage,
+                    Display = QuestDisplay.Build(quest, text, context, completionText: false),
+                    Progress = ProgressOf(quest, active),
+                });
+            }
+            catch (Exception e)
+            {
+                LogClientBuildFailure(e, character, quest.Id, "log entry");
+            }
         }
 
         return SQuestLogPacket.Create(entries, character.Quests.Completed.Order().ToList(), connection.CryptoSession.Encrypt);
@@ -828,6 +849,15 @@ public sealed class QuestService(
         }
 
         return SQuestUpdatePacket.Create(update, connection.CryptoSession.Encrypt);
+    }
+
+    /// <summary>Logged at Error at most once per quest per <see cref="ThrottledErrorLog.Interval" />, counting the throws left out.</summary>
+    private void LogClientBuildFailure(Exception e, CharacterEntity character, uint questId, string what)
+    {
+        if (!Throttled(_clientBuildErrors, questId, out int suppressed))
+            logger.LogError(e, "Building the quest {What} for quest {QuestId} and character {CharacterId} failed; it was left out. " +
+                               "{Suppressed} earlier failures for this quest were not logged",
+                what, questId, character.Guid.Id, suppressed);
     }
 
     private static QuestStateKind StateOf(CharacterQuestState state) => state switch

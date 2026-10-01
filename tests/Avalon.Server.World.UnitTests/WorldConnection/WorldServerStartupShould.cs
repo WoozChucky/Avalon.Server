@@ -142,6 +142,8 @@ public class WorldServerStartupShould
     /// </summary>
     private sealed class AnyServiceProvider : IServiceProvider
     {
+        private QuestService? _quests;
+
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
@@ -150,13 +152,13 @@ public class WorldServerStartupShould
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
-            // The quest handlers (#433) take the one quest service.
-            if (serviceType == typeof(QuestService))
-                return Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
-
             if (serviceType == typeof(PartyService))
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
+
+            // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
+            if (serviceType == typeof(QuestService))
+                return _quests ??= Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(serviceType.GenericTypeArguments[0]));

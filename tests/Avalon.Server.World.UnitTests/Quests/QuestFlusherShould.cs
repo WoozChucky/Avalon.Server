@@ -83,6 +83,32 @@ public class QuestFlusherShould
         Assert.True(c.Character.SaveState.HasChanges);
     }
 
+    /// <summary>
+    /// A quest whose log entry cannot be built (here a reward the display build trips over) is left out; the log still
+    /// goes out once with the others, the lines go out once, nothing is left owed, and the markers are still sent.
+    /// </summary>
+    [Fact]
+    public async Task Leave_a_quest_whose_entry_throws_out_of_the_log_and_send_the_rest()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        Creature giver = w.Place(Giver);
+        QuestClient c = w.Join();
+        w.Accept(c, Hunt);
+        c.Character.Quests.Start(Tusks, DateTime.UnixEpoch);
+        Assert.True(w.Data.Quests.TryGet(Tusks, out QuestView? tusks));
+        ((IList<QuestItemRewardView>)tusks!.ItemRewards)[0] = null!;
+
+        Tick(w, c);
+        Tick(w, c);
+
+        Assert.Equal([Hunt], Assert.Single(c.Read<SQuestLogPacket>(NetworkPacketType.SMSG_QUEST_LOG)).Quests.Select(q => q.QuestId));
+        Assert.Equal(["Quest accepted: A Test Quest."], c.Lines());
+        Assert.Empty(c.Character.Quests.ClientChanges);
+        Assert.Empty(Updates(c));
+        QuestMarkerDto marker = Assert.Single(Assert.Single(c.Read<SQuestMarkersPacket>(NetworkPacketType.SMSG_QUEST_MARKERS)).Markers);
+        Assert.Equal(giver.Guid.RawValue, marker.CreatureGuid);
+    }
+
     [Fact]
     public async Task Send_one_update_per_quest_per_tick_with_the_display_only_on_accept()
     {
