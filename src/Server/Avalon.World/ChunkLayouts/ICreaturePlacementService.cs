@@ -37,6 +37,11 @@ public class CreaturePlacementService : ICreaturePlacementService
     // without spilling out of the chunk's spawn slot footprint.
     private const float SpawnSpreadRadius = 1.5f;
 
+    // Forest content pass: a leader slot spawns its own creature (a Bramblemaw Alpha) and then its pack.
+    private const string LeaderTag = "leader";
+    private const string LeaderPackTag = "leader_pack";
+    private const string BossTag = "boss";
+
     private readonly ICreatureSpawner _spawner;
     private readonly IChunkLibrary _library;
     private readonly ISpawnTableRepository _spawnTableRepo;
@@ -74,43 +79,66 @@ public class CreaturePlacementService : ICreaturePlacementService
 
         var rng = new Random(seed);
 
+        // Forest content pass: a map with depth bands rolls each creature's level from its piece's band (a set
+        // piece's from the highest), and the boss stands at the top of the highest. Without bands nothing below
+        // draws a level, so the random stream and every spawn are what they always were.
+        IReadOnlyList<ProceduralDepthBand> bands = cfg.DepthBands;
+        ushort? bossLevel = DepthBandLevels.BossLevel(bands);
+
         foreach (var chunk in layout.Chunks)
         {
             var tpl = _library.GetById(chunk.TemplateId);
+            LevelRange? range = DepthBandLevels.For(bands, chunk.Depth, setPiece: chunk.Group is not null);
+
             foreach (var slot in tpl.SpawnSlots)
             {
                 if (slot.Tag.Equals("empty", StringComparison.OrdinalIgnoreCase)) continue;
                 if (slot.Tag.Equals("entry", StringComparison.OrdinalIgnoreCase)) continue;
                 if (!entriesByTag.TryGetValue(slot.Tag, out var entries) || entries.Count == 0) continue;
 
-                var entry = WeightedPick(entries, rng);
-                int count = rng.Next(entry.MinCount, entry.MaxCount + 1);
                 var slotCenter = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, chunk.Rotation, layout.CellSize, chunk.WorldPos);
+                ushort? fixedLevel = slot.Tag.Equals(BossTag, StringComparison.OrdinalIgnoreCase) ? bossLevel : null;
+                PlaceRoll(instance, entries, slotCenter, slot.Tag, cfg.MapTemplateId, rng, range, fixedLevel, spreadAlways: false);
 
-                for (int i = 0; i < count; i++)
+                if (slot.Tag.Equals(LeaderTag, StringComparison.OrdinalIgnoreCase)
+                    && entriesByTag.TryGetValue(LeaderPackTag, out var pack) && pack.Count > 0)
                 {
-                    // Spread multi-spawn packs around the slot center so they don't stack
-                    // on top of each other. Single-spawn entries (boss) land exactly on center.
-                    var spawnPos = count == 1
-                        ? slotCenter
-                        : slotCenter + new Vector3(
-                            (float)(rng.NextDouble() - 0.5) * 2.0f * SpawnSpreadRadius,
-                            0f,
-                            (float)(rng.NextDouble() - 0.5) * 2.0f * SpawnSpreadRadius);
-
-                    PlaceProcedural(instance, spawnPos, entry.CreatureId, slot.Tag, cfg.MapTemplateId);
+                    // The pack spreads around its leader, which stands on the slot's centre.
+                    PlaceRoll(instance, pack, slotCenter, LeaderPackTag, cfg.MapTemplateId, rng, range, fixedLevel: null, spreadAlways: true);
                 }
             }
         }
     }
 
-    private void PlaceProcedural(
-        IMapInstance instance, Vector3 spawnPos, CreatureTemplateId creatureId, string tag, MapTemplateId mapId)
+    /// <summary>One spawn-table roll at a slot: a weighted entry, a count, then each creature, spread unless alone.</summary>
+    private void PlaceRoll(IMapInstance instance, IList<SpawnTableEntry> entries, Vector3 slotCenter, string tag,
+        MapTemplateId mapId, Random rng, LevelRange? range, ushort? fixedLevel, bool spreadAlways)
     {
-        // One bad row costs one creature, not the map. SpawnTableEntry rows are migration
-        // SQL rather than model seed data, so a mistyped CreatureId cannot be caught by a
-        // seed test — and this runs inside MapInstance construction, where a throw makes
-        // the map unenterable for everyone. Same shape as AttachScript's own catch below.
+        var entry = WeightedPick(entries, rng);
+        int count = rng.Next(entry.MinCount, entry.MaxCount + 1);
+
+        for (int i = 0; i < count; i++)
+        {
+            // Spread multi-spawn packs around the slot center so they don't stack
+            // on top of each other. Single-spawn entries (boss) land exactly on center.
+            var spawnPos = count == 1 && !spreadAlways
+                ? slotCenter
+                : slotCenter + new Vector3(
+                    (float)(rng.NextDouble() - 0.5) * 2.0f * SpawnSpreadRadius,
+                    0f,
+                    (float)(rng.NextDouble() - 0.5) * 2.0f * SpawnSpreadRadius);
+
+            ushort? level = fixedLevel ?? (range is { } r ? (ushort)rng.Next(r.Min, r.Max + 1) : null);
+            PlaceProcedural(instance, spawnPos, entry.CreatureId, tag, mapId, level);
+        }
+    }
+
+    private void PlaceProcedural(IMapInstance instance, Vector3 spawnPos, CreatureTemplateId creatureId, string tag, MapTemplateId mapId, ushort? level)
+    {
+        // One bad row costs one creature, not the map. SpawnTableEntry rows come from Maps/spawn-tables.json, whose
+        // creature ids ChunkCatalogSeeder checks at start-up, but a template can still go away afterwards (a reload),
+        // and this runs inside MapInstance construction, where a throw makes the map unenterable for everyone. Same
+        // shape as AttachScript's own catch below.
         try
         {
             // #720: the slot's height only centres the ground search, as an authored spawn's
@@ -124,11 +152,12 @@ public class CreaturePlacementService : ICreaturePlacementService
                 return;
             }
 
-            var creature = _spawner.Spawn(new CreatureInfo
+            var info = new CreatureInfo
             {
                 Position = grounded,
                 PrototypeIndex = creatureId.Value,
-            });
+            };
+            var creature = level is { } chosen ? _spawner.Spawn(info, chosen) : _spawner.Spawn(info);
             AttachScript(creature, instance);
             instance.AddCreature(creature);
         }
