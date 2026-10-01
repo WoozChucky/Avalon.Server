@@ -161,4 +161,14 @@ public class MapSessionFilterShould
         Assert.True(For(CharacterOnMap()).CanProcess(type));
         Assert.False(For(null).CanProcess(type));
     }
+
+    [Theory]
+    [InlineData(NetworkPacketType.CMSG_QUEST_ACCEPT)]
+    [InlineData(NetworkPacketType.CMSG_QUEST_TURN_IN)]
+    [InlineData(NetworkPacketType.CMSG_QUEST_ABANDON)]
+    public void Accept_every_quest_request_for_a_character_on_a_map_and_none_without_one(NetworkPacketType type)
+    {
+        Assert.True(For(CharacterOnMap()).CanProcess(type));
+        Assert.False(For(null).CanProcess(type));
+    }
 }

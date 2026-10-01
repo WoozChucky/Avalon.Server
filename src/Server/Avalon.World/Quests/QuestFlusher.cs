@@ -22,6 +22,11 @@ public static class QuestFlusher
 
         // The OnEnterInstance script hooks, once per instance (a login, a portal, a respawn).
         quests.EnteredInstanceIfChanged(character);
+
+        // The log the first time, then each changed quest once; then the lines; then the markers, whose inputs
+        // (instance, level, log, catalog) the steps above may just have changed.
+        quests.FlushClient(connection, character);
+        quests.FlushMarkers(connection, character);
     }
 
     private static bool TouchedTheBag(InventoryClientChanges changes)

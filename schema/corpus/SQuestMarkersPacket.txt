@@ -1,0 +1,71 @@
+# SQuestMarkersPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SQuestMarkersPacket
+
+variant absent
+  field 1 Markers : List<QuestMarkerDto> = null
+  bytes 0
+
+variant empty
+  field 1 Markers : List<QuestMarkerDto> = 0 elements
+  bytes 0
+
+variant populated
+  field 1 Markers : List<QuestMarkerDto> = 2 elements
+    element 0
+      field 1 CreatureGuid : ulong = 300
+      field 2 Marker : QuestMarker = Available (2)
+    element 1
+      field 1 CreatureGuid : ulong = 42
+      field 2 Marker : QuestMarker = None (1)
+  bytes 13
+    0a 05 08 ac 02 10 02 0a 04 08 2a 10 01
+
+variant maxima
+  field 1 Markers : List<QuestMarkerDto> = 3 elements
+    element 0
+      field 1 CreatureGuid : ulong = 18446744073709551615
+      field 2 Marker : QuestMarker = ReadyToTurnIn (3)
+    element 1
+      field 1 CreatureGuid : ulong = 18446744073709551615
+      field 2 Marker : QuestMarker = ReadyToTurnIn (3)
+    element 2
+      field 1 CreatureGuid : ulong = 18446744073709551615
+      field 2 Marker : QuestMarker = ReadyToTurnIn (3)
+  bytes 45
+    0a 0d 08 ff ff ff ff ff ff ff ff ff 01 10 03 0a
+    0d 08 ff ff ff ff ff ff ff ff ff 01 10 03 0a 0d
+    08 ff ff ff ff ff ff ff ff ff 01 10 03
+
+variant minima
+  field 1 Markers : List<QuestMarkerDto> = 1 element
+    element 0
+      field 1 CreatureGuid : ulong = 0
+      field 2 Marker : QuestMarker = Unknown (0)
+  bytes 2
+    0a 00
+
+variant varint-edges
+  field 1 Markers : List<QuestMarkerDto> = 2 elements
+    element 0
+      field 1 CreatureGuid : ulong = 268435455
+      field 2 Marker : QuestMarker = <not a declared member> (4)
+    element 1
+      field 1 CreatureGuid : ulong = 2097152
+      field 2 Marker : QuestMarker = <not a declared member> (4)
+  bytes 18
+    0a 07 08 ff ff ff 7f 10 04 0a 07 08 80 80 80 01
+    10 04

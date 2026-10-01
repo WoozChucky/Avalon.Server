@@ -687,7 +687,7 @@ public class CharacterSelectHandler(
 
         try
         {
-            questService.RecountCollect(entity);
+            questService.RecountAtSelect(entity);
         }
         catch (Exception e)
         {

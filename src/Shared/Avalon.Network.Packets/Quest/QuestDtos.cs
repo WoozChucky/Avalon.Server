@@ -72,3 +72,61 @@ public class QuestDisplayDto
     [ProtoMember(3)] public List<QuestStageDto> Stages { get; set; } = [];
     [ProtoMember(4)] public QuestRewardsDto? Rewards { get; set; }
 }
+
+/// <summary>Where a held quest stands (#433). Append-only.</summary>
+public enum QuestStateKind
+{
+    Unknown = 0,
+    Active = 1,
+    ReadyToTurnIn = 2,
+}
+
+/// <summary>What an SMSG_QUEST_UPDATE says happened (#433). Append-only.</summary>
+public enum QuestUpdateKind
+{
+    Unknown = 0,
+    /// <summary>Newly accepted: the update carries the display data, as the log does.</summary>
+    Accepted = 1,
+    /// <summary>A count, the stage or the state changed: progress only, no display data.</summary>
+    Progress = 2,
+    /// <summary>Abandoned: drop it from the log.</summary>
+    Removed = 3,
+    /// <summary>Turned in: drop it from the log and count it completed.</summary>
+    Completed = 4,
+}
+
+/// <summary>What a quest NPC shows over its head for one character (#433). Append-only.</summary>
+public enum QuestMarker
+{
+    Unknown = 0,
+    None = 1,
+    Available = 2,
+    ReadyToTurnIn = 3,
+}
+
+[ProtoContract]
+public class QuestProgressDto
+{
+    [ProtoMember(1)] public uint ObjectiveId { get; set; }
+    [ProtoMember(2)] public uint Progress { get; set; }
+}
+
+[ProtoContract]
+public class QuestLogEntryDto
+{
+    [ProtoMember(1)] public uint QuestId { get; set; }
+    [ProtoMember(2)] public QuestStateKind State { get; set; }
+    [ProtoMember(3)] public int Stage { get; set; }
+    [ProtoMember(4)] public QuestDisplayDto? Display { get; set; }
+
+    /// <summary>Every objective of the quest, any stage, with its count (0 for one not reached).</summary>
+    [ProtoMember(5)] public List<QuestProgressDto> Progress { get; set; } = [];
+}
+
+[ProtoContract]
+public class QuestMarkerDto
+{
+    /// <summary>Raw ObjectGuid of the NPC creature.</summary>
+    [ProtoMember(1)] public ulong CreatureGuid { get; set; }
+    [ProtoMember(2)] public QuestMarker Marker { get; set; }
+}

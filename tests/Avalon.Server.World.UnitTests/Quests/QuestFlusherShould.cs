@@ -1,0 +1,150 @@
+using Avalon.Common.ValueObjects;
+using Avalon.Domain.Characters;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Quest;
+using Avalon.World.Entities;
+using Avalon.World.Inventory;
+using Avalon.World.Quests;
+using Xunit;
+using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
+
+namespace Avalon.Server.World.UnitTests.Quests;
+
+/// <summary>
+/// QuestFlusher (#433): the whole log once, when the character first flushes; then at most one update per quest
+/// per tick, display data only on an accept; the milestone lines on the system channel.
+/// </summary>
+public class QuestFlusherShould
+{
+    private static void Tick(QuestTestWorld w, QuestClient c) => QuestFlusher.Flush(c.Connection, w.Quests);
+
+    private static List<SQuestUpdatePacket> Updates(QuestClient c) => c.Read<SQuestUpdatePacket>(NetworkPacketType.SMSG_QUEST_UPDATE);
+
+    [Fact]
+    public async Task Send_the_whole_log_once_on_entering_the_world()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        QuestClient c = w.Join();
+        QuestTestWorld.Complete(c, Hunt);
+        var quest = c.Character.Quests.Start(Tusks, DateTime.UnixEpoch);
+        c.Character.Quests.SetProgress(quest, TusksCollect, 1);
+
+        Tick(w, c);
+        Tick(w, c);
+
+        SQuestLogPacket log = Assert.Single(c.Read<SQuestLogPacket>(NetworkPacketType.SMSG_QUEST_LOG));
+        QuestLogEntryDto entry = Assert.Single(log.Quests);
+        Assert.Equal((Tusks, QuestStateKind.Active, 0, "A Test Quest"), (entry.QuestId, entry.State, entry.Stage, entry.Display!.Title));
+        Assert.Equal(1u, Assert.Single(entry.Progress, p => p.ObjectiveId == TusksCollect).Progress);
+        Assert.Equal([Hunt], log.CompletedQuestIds);
+        Assert.Empty(Updates(c));   // the log already carried what the start marked
+    }
+
+    /// <summary>Review Focus 2.</summary>
+    [Fact]
+    public async Task Leave_a_quest_the_catalog_no_longer_has_out_of_the_log()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        QuestClient c = w.Join();
+        c.Character.Quests.Start(99999, DateTime.UnixEpoch);
+        c.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
+
+        Tick(w, c);
+
+        Assert.Equal([Hunt], Assert.Single(c.Read<SQuestLogPacket>(NetworkPacketType.SMSG_QUEST_LOG)).Quests.Select(q => q.QuestId));
+    }
+
+    /// <summary>
+    /// The select-time recount (#433) brings the loaded log up to the bag. What it changed is in the log the client
+    /// gets on entering, so it is neither said again as fresh progress nor sent again as updates; it is still saved.
+    /// </summary>
+    [Fact]
+    public async Task Not_replay_the_select_recount_as_fresh_progress_on_entering_the_world()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        QuestClient c = w.Join();
+        c.Character.Quests.Load(new Avalon.Database.Character.Repositories.CharacterQuestRows(
+            [new CharacterQuest { CharacterId = c.Id, QuestId = Tusks, State = CharacterQuestState.Active, Stage = 0, AcceptedAt = DateTime.UnixEpoch }],
+            [],
+            [new CharacterCompletedQuest { CharacterId = c.Id, QuestId = Hunt, CompletedAt = DateTime.UnixEpoch }]));
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(c.Character).TryAdd(new ItemTemplateId(Tusk), 2));
+        InventoryUpdateFlusher.Flush(c.Connection);   // the bag came with the load, not with this tick
+        c.Clear();
+
+        w.Quests.RecountAtSelect(c.Character);
+        Tick(w, c);
+        Tick(w, c);
+
+        QuestLogEntryDto entry = Assert.Single(Assert.Single(c.Read<SQuestLogPacket>(NetworkPacketType.SMSG_QUEST_LOG)).Quests);
+        Assert.Equal(QuestStateKind.ReadyToTurnIn, entry.State);
+        Assert.Equal(2u, Assert.Single(entry.Progress, p => p.ObjectiveId == TusksCollect).Progress);
+        Assert.Empty(c.Lines());
+        Assert.Empty(Updates(c));
+        Assert.True(c.Character.SaveState.HasChanges);
+    }
+
+    [Fact]
+    public async Task Send_one_update_per_quest_per_tick_with_the_display_only_on_accept()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        QuestClient c = w.Join();
+        Tick(w, c);
+        c.Clear();
+
+        w.Accept(c, Hunt);
+        w.Quests.AddProgress(c.Character, Hunt, HuntKill, 1);
+        Tick(w, c);
+
+        SQuestUpdatePacket accepted = Assert.Single(Updates(c));
+        Assert.Equal((QuestUpdateKind.Accepted, QuestStateKind.Active), (accepted.Kind, accepted.State));
+        Assert.NotNull(accepted.Display);
+        Assert.Equal(1u, Assert.Single(accepted.Progress, p => p.ObjectiveId == HuntKill).Progress);
+        c.Clear();
+
+        w.Quests.AddProgress(c.Character, Hunt, HuntKill, 1);
+        Tick(w, c);
+
+        SQuestUpdatePacket progress = Assert.Single(Updates(c));
+        Assert.Equal((QuestUpdateKind.Progress, QuestStateKind.ReadyToTurnIn), (progress.Kind, progress.State));
+        Assert.Null(progress.Display);
+    }
+
+    [Fact]
+    public async Task Send_Removed_for_an_abandon_and_Completed_for_a_turn_in()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        QuestClient c = w.Join();
+        w.Accept(c, Hunt);
+        Tick(w, c);
+        c.Clear();
+
+        w.Quests.Abandon(c.Character, Hunt);
+        Tick(w, c);
+        Assert.Equal(QuestUpdateKind.Removed, Assert.Single(Updates(c)).Kind);
+        c.Clear();
+
+        w.Accept(c, Hunt);
+        w.Quests.AddProgress(c.Character, Hunt, HuntKill, 2);
+        Tick(w, c);
+        c.Clear();
+        Creature giver = w.Place(Giver);
+        w.Talk(c, giver);
+        Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, Hunt, giver.Guid.RawValue));
+        Tick(w, c);
+        Assert.Equal(QuestUpdateKind.Completed, Assert.Single(Updates(c)).Kind);
+    }
+
+    [Fact]
+    public async Task Send_the_milestone_lines_on_the_system_channel_and_only_once()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        QuestClient c = w.Join();
+        w.Accept(c, Hunt);
+        w.Quests.AddProgress(c.Character, Hunt, HuntKill, 1);
+
+        Tick(w, c);
+        Tick(w, c);
+
+        Assert.Equal(["Quest accepted: A Test Quest.", "Things done: 1/2"], c.Lines());
+    }
+}

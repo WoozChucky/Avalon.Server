@@ -7,6 +7,7 @@ using Avalon.Infrastructure;
 using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Parties;
+using Avalon.World.Quests;
 using Avalon.World.Persistence;
 using Avalon.World.Pvp;
 using Avalon.World.Scripts;
@@ -149,6 +150,10 @@ public class WorldServerStartupShould
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            // The quest handlers (#433) take the one quest service.
+            if (serviceType == typeof(QuestService))
+                return Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
+
             if (serviceType == typeof(PartyService))
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);

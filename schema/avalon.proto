@@ -253,15 +253,16 @@ message CPongPacket {
 }
 message CPvpTogglePacket {
 }
-message CQuestListPacket {
-   int32 AccountId = 1;
-   int32 CharacterId = 2;
-   int32 MapId = 3;
+message CQuestAbandonPacket {
+   uint32 QuestId = 1;
 }
-message CQuestStatusPacket {
-   int32 AccountId = 1;
-   int32 CharacterId = 2;
-   int32 QuestId = 3;
+message CQuestAcceptPacket {
+   uint32 QuestId = 1;
+   uint64 NpcGuid = 2;
+}
+message CQuestTurnInPacket {
+   uint32 QuestId = 1;
+   uint64 NpcGuid = 2;
 }
 message CRegisterPacket {
    optional string Username = 1;
@@ -500,9 +501,6 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_RESPAWN_AT_TOWN = 8226;
    NetworkPacketType_CMSG_INTERACT = 8240;
    NetworkPacketType_CMSG_DIALOGUE_CHOOSE = 8241;
-   NetworkPacketType_CMSG_QUEST_STATUS = 8256;
-   NetworkPacketType_CMSG_QUEST_LIST = 8257;
-   NetworkPacketType_CMSG_QUEST_QUERY_AVAILABLE = 8258;
    NetworkPacketType_CMSG_AUDIO_RECORD = 8272;
    NetworkPacketType_CMSG_PLAYER_INPUT = 8288;
    NetworkPacketType_CMSG_LOOT_PICKUP = 8304;
@@ -517,6 +515,9 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_PARTY_KICK = 8371;
    NetworkPacketType_CMSG_PARTY_PROMOTE = 8372;
    NetworkPacketType_CMSG_PARTY_EXPERIENCE_MODE = 8373;
+   NetworkPacketType_CMSG_QUEST_ACCEPT = 8384;
+   NetworkPacketType_CMSG_QUEST_TURN_IN = 8385;
+   NetworkPacketType_CMSG_QUEST_ABANDON = 8386;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_CMSG_PVP_TOGGLE = 8451;
@@ -570,6 +571,10 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_PARTY_ROSTER = 12466;
    NetworkPacketType_SMSG_PARTY_MEMBER_STATUS = 12467;
    NetworkPacketType_SMSG_QUEST_OFFER = 12480;
+   NetworkPacketType_SMSG_QUEST_RESULT = 12481;
+   NetworkPacketType_SMSG_QUEST_LOG = 12482;
+   NetworkPacketType_SMSG_QUEST_UPDATE = 12483;
+   NetworkPacketType_SMSG_QUEST_MARKERS = 12484;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -672,6 +677,23 @@ message QuestDisplayDto {
    repeated QuestStageDto Stages = 3;
    QuestRewardsDto Rewards = 4;
 }
+message QuestLogEntryDto {
+   uint32 QuestId = 1;
+   QuestStateKind State = 2;
+   int32 Stage = 3;
+   QuestDisplayDto Display = 4;
+   repeated QuestProgressDto Progress = 5;
+}
+enum QuestMarker {
+   QuestMarker_Unknown = 0;
+   QuestMarker_None = 1;
+   QuestMarker_Available = 2;
+   QuestMarker_ReadyToTurnIn = 3;
+}
+message QuestMarkerDto {
+   uint64 CreatureGuid = 1;
+   QuestMarker Marker = 2;
+}
 message QuestObjectiveDto {
    uint32 ObjectiveId = 1;
    QuestObjectiveKind Kind = 2;
@@ -691,6 +713,23 @@ enum QuestOfferMode {
    QuestOfferMode_Offer = 1;
    QuestOfferMode_TurnIn = 2;
 }
+message QuestProgressDto {
+   uint32 ObjectiveId = 1;
+   uint32 Progress = 2;
+}
+enum QuestResult {
+   QuestResult_Unknown = 0;
+   QuestResult_Ok = 1;
+   QuestResult_NotAvailable = 2;
+   QuestResult_NotActive = 3;
+   QuestResult_NotReady = 4;
+   QuestResult_LogFull = 5;
+   QuestResult_BagFull = 6;
+   QuestResult_MoneyCap = 7;
+   QuestResult_TooFar = 8;
+   QuestResult_NoConversation = 9;
+   QuestResult_Error = 10;
+}
 message QuestRewardItemDto {
    uint64 ItemTemplateId = 1;
    uint32 Count = 2;
@@ -704,6 +743,18 @@ message QuestStageDto {
    int32 Sequence = 1;
    optional string Text = 2;
    repeated QuestObjectiveDto Objectives = 3;
+}
+enum QuestStateKind {
+   QuestStateKind_Unknown = 0;
+   QuestStateKind_Active = 1;
+   QuestStateKind_ReadyToTurnIn = 2;
+}
+enum QuestUpdateKind {
+   QuestUpdateKind_Unknown = 0;
+   QuestUpdateKind_Accepted = 1;
+   QuestUpdateKind_Progress = 2;
+   QuestUpdateKind_Removed = 3;
+   QuestUpdateKind_Completed = 4;
 }
 enum RegisterResult {
    RegisterResult_UnknownError = 0;
@@ -974,11 +1025,30 @@ message SPvpStatePacket {
    bool Enabled = 1;
    uint32 OffInMs = 2;
 }
+message SQuestLogPacket {
+   repeated QuestLogEntryDto Quests = 1;
+   repeated uint32 CompletedQuestIds = 2 [packed = false];
+}
+message SQuestMarkersPacket {
+   repeated QuestMarkerDto Markers = 1;
+}
 message SQuestOfferPacket {
    uint32 QuestId = 1;
    uint64 NpcGuid = 2;
    QuestOfferMode Mode = 3;
    QuestDisplayDto Quest = 4;
+}
+message SQuestResultPacket {
+   QuestResult Result = 1;
+   uint32 QuestId = 2;
+}
+message SQuestUpdatePacket {
+   uint32 QuestId = 1;
+   QuestUpdateKind Kind = 2;
+   QuestStateKind State = 3;
+   int32 Stage = 4;
+   QuestDisplayDto Display = 5;
+   repeated QuestProgressDto Progress = 6;
 }
 message SRegisterResultPacket {
    RegisterResult Result = 1;

@@ -12,6 +12,7 @@ using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Parties;
+using Avalon.World.Quests;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -183,6 +184,10 @@ public class WorldServerBarrierTickShould : IDisposable
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            // The quest handlers (#433) take the one quest service.
+            if (serviceType == typeof(QuestService))
+                return Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
+
             if (serviceType == typeof(PartyService))
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);

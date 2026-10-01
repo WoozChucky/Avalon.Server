@@ -1,7 +1,9 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
+using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
 using Avalon.World.Characters;
 using Avalon.World.Dialogue;
@@ -379,6 +381,23 @@ public sealed class QuestService(
     }
 
     /// <summary>
+    /// The select-time recount (#433): RecountCollect over the log just loaded, then what it owes the client is
+    /// dropped (the save marks stay). The whole log the client gets on entering the world already shows every count
+    /// and state the recount set, so its milestone lines and updates would only repeat it as fresh progress.
+    /// </summary>
+    public void RecountAtSelect(CharacterEntity character)
+    {
+        try
+        {
+            RecountCollect(character);
+        }
+        finally
+        {
+            character.Quests.ClearClientChanges();
+        }
+    }
+
+    /// <summary>
     /// Whether the character may take a drop of this item (#433). Anything but a quest item, or an item whose
     /// template is gone (the pickup refuses that itself), may be taken. A quest item only while a Collect objective
     /// for it in the current stage of one of its Active quests still lacks some in the Bag: a drop rolled for a
@@ -718,6 +737,164 @@ public sealed class QuestService(
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// What the client is owed this tick (#433): the whole log the first time (which carries every change already, so
+    /// the pending updates are dropped), otherwise one SMSG_QUEST_UPDATE per changed quest in id order; then the
+    /// milestone lines on the system channel. Clears what it sent.
+    /// </summary>
+    public void FlushClient(IWorldConnection connection, CharacterEntity character)
+    {
+        QuestLog log = character.Quests;
+        if (!log.LogSent)
+        {
+            connection.Send(LogPacket(connection, character));
+            log.LogSent = true;
+        }
+        else if (log.ClientChanges.Count > 0)
+        {
+            foreach ((uint questId, QuestClientChange change) in log.ClientChanges.OrderBy(c => c.Key))
+            {
+                if (UpdatePacket(connection, character, questId, change) is { } update)
+                    connection.Send(update);
+            }
+        }
+
+        if (log.PendingLines.Count > 0)
+        {
+            DateTime now = time.GetUtcNow().UtcDateTime;
+            foreach (string line in log.PendingLines)
+                connection.Send(SChatMessagePacket.System(line, now, connection.CryptoSession.Encrypt));
+        }
+
+        log.ClearClientChanges();
+    }
+
+    private NetworkPacket LogPacket(IWorldConnection connection, CharacterEntity character)
+    {
+        QuestCatalog catalog = Catalog;
+        ILocalizedTextCatalog text = world.Data.LocalizedTexts;
+        TextContext context = text.ContextFor(character, connection.Locale);
+        List<QuestLogEntryDto> entries = [];
+        foreach (ActiveQuest active in character.Quests.Active.OrderBy(a => a.QuestId))
+        {
+            if (!catalog.TryGet(active.QuestId, out QuestView? quest))
+            {
+                logger.LogWarning("Character {CharacterId} holds quest {QuestId}, which the catalog does not have; it is left out of the log",
+                    character.Guid.Id, active.QuestId);
+                continue;
+            }
+
+            entries.Add(new QuestLogEntryDto
+            {
+                QuestId = quest.Id,
+                State = StateOf(active.State),
+                Stage = active.Stage,
+                Display = QuestDisplay.Build(quest, text, context, completionText: false),
+                Progress = ProgressOf(quest, active),
+            });
+        }
+
+        return SQuestLogPacket.Create(entries, character.Quests.Completed.Order().ToList(), connection.CryptoSession.Encrypt);
+    }
+
+    private NetworkPacket? UpdatePacket(IWorldConnection connection, CharacterEntity character, uint questId, QuestClientChange change)
+    {
+        var update = new SQuestUpdatePacket { QuestId = questId };
+        switch (change)
+        {
+            case QuestClientChange.Removed:
+                update.Kind = QuestUpdateKind.Removed;
+                break;
+            case QuestClientChange.Completed:
+                update.Kind = QuestUpdateKind.Completed;
+                break;
+            default:
+                if (character.Quests.Get(questId) is not { } active || !Catalog.TryGet(questId, out QuestView? quest))
+                    return null;
+
+                update.Kind = change == QuestClientChange.Accepted ? QuestUpdateKind.Accepted : QuestUpdateKind.Progress;
+                update.State = StateOf(active.State);
+                update.Stage = active.Stage;
+                update.Progress = ProgressOf(quest, active);
+                if (change == QuestClientChange.Accepted)
+                {
+                    ILocalizedTextCatalog text = world.Data.LocalizedTexts;
+                    update.Display = QuestDisplay.Build(quest, text, text.ContextFor(character, connection.Locale), completionText: false);
+                }
+
+                break;
+        }
+
+        return SQuestUpdatePacket.Create(update, connection.CryptoSession.Encrypt);
+    }
+
+    private static QuestStateKind StateOf(CharacterQuestState state) => state switch
+    {
+        CharacterQuestState.Active => QuestStateKind.Active,
+        CharacterQuestState.ReadyToTurnIn => QuestStateKind.ReadyToTurnIn,
+        _ => QuestStateKind.Unknown,
+    };
+
+    private static List<QuestProgressDto> ProgressOf(QuestView quest, ActiveQuest active) =>
+        quest.Objectives.Select(o => new QuestProgressDto { ObjectiveId = o.Id, Progress = active.ProgressOf(o.Id) }).ToList();
+
+    /// <summary>
+    /// SMSG_QUEST_MARKERS (#433): every quest NPC in the character's instance with its marker for this character,
+    /// worked out again only when the instance, the level, the quest log or the catalog generation changed since the
+    /// last time, and sent only when the list differs from the one last sent.
+    /// </summary>
+    public void FlushMarkers(IWorldConnection connection, CharacterEntity character)
+    {
+        QuestLog log = character.Quests;
+        QuestCatalog catalog = Catalog;
+        if (log.MarkersInstance == character.InstanceId && log.MarkersLevel == character.Level
+            && log.MarkersVersion == log.Version && ReferenceEquals(log.MarkersCatalog, catalog))
+            return;
+
+        if (world.InstanceRegistry.GetInstanceById(character.InstanceId) is not { } instance)
+            return;
+
+        log.MarkersInstance = character.InstanceId;
+        log.MarkersLevel = character.Level;
+        log.MarkersVersion = log.Version;
+        log.MarkersCatalog = catalog;
+
+        List<(ulong Creature, byte Marker)> markers = [];
+        foreach (ICreature creature in instance.Creatures.Values)
+        {
+            if (catalog.IsQuestNpc(creature.Metadata.Id))
+                markers.Add((creature.Guid.RawValue, (byte)MarkerFor(character, creature.Metadata.Id)));
+        }
+
+        markers.Sort();
+        if (log.MarkersSent is { } sent && sent.SequenceEqual(markers))
+            return;
+
+        log.MarkersSent = markers;
+        connection.Send(SQuestMarkersPacket.Create(
+            markers.Select(m => new QuestMarkerDto { CreatureGuid = m.Creature, Marker = (QuestMarker)m.Marker }).ToList(),
+            connection.CryptoSession.Encrypt));
+    }
+
+    /// <summary>A ready turn-in outranks an available quest; a quest refused only by a full log still shows as available.</summary>
+    public QuestMarker MarkerFor(CharacterEntity character, CreatureTemplateId npc)
+    {
+        QuestCatalog catalog = Catalog;
+        foreach (QuestView quest in catalog.EndedBy(npc))
+        {
+            if (character.Quests.Get(quest.Id) is { State: CharacterQuestState.ReadyToTurnIn })
+                return QuestMarker.ReadyToTurnIn;
+        }
+
+        foreach (QuestView quest in catalog.GivenBy(npc))
+        {
+            if (Availability(character, quest) is QuestResult.Ok or QuestResult.LogFull)
+                return QuestMarker.Available;
+        }
+
+        return QuestMarker.None;
     }
 
     /// <summary>After an accept or a turn-in, the NPC's root again, so its quest options are current.</summary>

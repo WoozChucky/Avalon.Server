@@ -213,3 +213,22 @@ internal sealed class QuestTestWorld
     /// <summary>Marks a quest completed in the character's log, as a turn-in would have.</summary>
     public static void Complete(QuestClient client, uint questId) => client.Character.Quests.Complete(questId, DateTime.UnixEpoch);
 }
+
+/// <summary>
+/// A quest service for the containers that stand a whole WorldServer up (#433): the quest handlers need one to be
+/// built, and the tick flushes through it. No quests, no texts, and no instance it can find, so it sends only the empty
+/// log a character gets on entering the world, and no markers.
+/// </summary>
+internal static class InertQuestService
+{
+    public static QuestService Create()
+    {
+        StaticData data = TestStaticData.LoadAsync(TestStaticData.Repositories()).GetAwaiter().GetResult();
+        IWorld world = Substitute.For<IWorld>();
+        world.Data.Returns(data);
+        world.Configuration.Returns(new GameConfiguration());
+        world.InstanceRegistry.GetInstanceById(Arg.Any<Guid>()).Returns((IMapInstance?)null);
+        return new QuestService(world, Substitute.For<IServiceProvider>(), Substitute.For<ICharacterEconomy>(),
+            new SteadyLootRandom(0), TimeProvider.System, NullLogger<QuestService>.Instance);
+    }
+}
