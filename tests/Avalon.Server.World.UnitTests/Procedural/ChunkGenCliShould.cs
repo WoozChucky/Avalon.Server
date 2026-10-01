@@ -64,7 +64,10 @@ public sealed class ChunkGenCliShould : IDisposable
         Assert.Equal(before, Snapshot());
     }
 
-    /// <summary>A temporary copy that cannot be removed (a file held open in it) is reported, never thrown over the exit code.</summary>
+    /// <summary>
+    /// A temporary copy that cannot be removed is reported, never thrown over the exit code. The delete is made to fail
+    /// directly: a file held open blocks it on Windows only, so it would prove nothing on Linux.
+    /// </summary>
     [Fact]
     public void Report_a_staging_copy_it_cannot_remove_without_throwing()
     {
@@ -72,8 +75,7 @@ public sealed class ChunkGenCliShould : IDisposable
         Directory.CreateDirectory(staging);
         try
         {
-            using (new FileStream(Path.Combine(staging, "held.obj"), FileMode.Create, FileAccess.ReadWrite, FileShare.None))
-                ChunkGenCli.DeleteStaging(staging, _error);
+            ChunkGenCli.DeleteStaging(staging, _error, _ => throw new IOException("in use"));
 
             Assert.StartsWith($"could not remove the temporary copy {staging}: ", _error.ToString(), StringComparison.Ordinal);
         }

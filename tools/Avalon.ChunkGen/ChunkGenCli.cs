@@ -98,11 +98,11 @@ public static class ChunkGenCli
     /// Removes the temporary copy of Maps/. A copy that cannot be removed (a file held open in it, say) is only reported:
     /// it runs in a finally, where a throw would replace the run's own exit code and message.
     /// </summary>
-    public static void DeleteStaging(string staging, TextWriter error)
+    public static void DeleteStaging(string staging, TextWriter error, Action<string>? delete = null)
     {
         try
         {
-            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+            if (Directory.Exists(staging)) (delete ?? (path => Directory.Delete(path, recursive: true)))(staging);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
