@@ -40,9 +40,22 @@ public class QuestCatalogExportShould
     {
         List<JsonElement> quests = SeededQuests();
 
-        Assert.Equal([1, 2, 3], quests.Select(q => q.GetProperty("id").GetInt32()));
-        Assert.Equal(["Thinning the Herd", "Tusks for Borin", "The Alpha's Howl"],
+        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8], quests.Select(q => q.GetProperty("id").GetInt32()));
+        Assert.Equal(["Thinning the Herd", "Tusks for Borin", "The Alpha's Howl", "Wings for the Still", "Pelts Before Frost",
+                "What the Husks Carry", "Heartwood", "Mother of Thorns"],
             quests.Select(q => q.GetProperty("title").GetString()));
+    }
+
+    /// <summary>Quest 8: a kill stage, a talk to Garrick, then the Bramble Heart.</summary>
+    [Fact]
+    public void Carry_the_mother_of_thorns_stages_in_order()
+    {
+        JsonElement mother = SeededQuests().Single(q => q.GetProperty("id").GetInt32() == 8);
+
+        List<JsonElement> stages = mother.GetProperty("stages").EnumerateArray().ToList();
+        Assert.Equal([(801, 1, 8L, 2)], Objectives(stages[0]));
+        Assert.Equal([(802, 3, 12L, 1)], Objectives(stages[1]));
+        Assert.Equal([(803, 2, 63L, 1)], Objectives(stages[2]));
     }
 
     /// <summary>"The Alpha's Howl": three stages in order, each with its objectives' type, target and count.</summary>
