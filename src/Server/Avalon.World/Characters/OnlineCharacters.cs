@@ -18,6 +18,9 @@ public sealed class OnlineCharacters
     /// <summary>The connection holding this online character, or none.</summary>
     public IWorldConnection? ById(uint characterId) => _byId.GetValueOrDefault(characterId);
 
+    /// <summary>The connection of every online character (#723: a deleted character leaves their ignore lists).</summary>
+    public IEnumerable<IWorldConnection> Connections => _byId.Values;
+
     /// <summary>Whether this character is online.</summary>
     public bool IsOnline(uint characterId) => _byId.ContainsKey(characterId);
 

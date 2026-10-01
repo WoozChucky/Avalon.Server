@@ -52,7 +52,8 @@ public class CharacterSelectHandler(
     IWorldServer worldServer,
     TimeProvider? time = null,
     ICharacterQuestRepository? questRepository = null,
-    QuestService? questService = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    QuestService? questService = null,
+    ICharacterIgnoreRepository? ignoreRepository = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -648,13 +649,35 @@ public class CharacterSelectHandler(
         // an empty log, as a character that never took a quest has.
         if (questRepository is null)
         {
-            Spawn(connection, entity, instance);
+            LoadIgnores(connection, select, entity, instance);
             return;
         }
 
         Step(connection, select, questRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
         {
             entity.Quests.Load(rows);
+            LoadIgnores(connection, select, entity, instance);
+        });
+    }
+
+    /// <summary>
+    /// #723: the ignore list, before the pending spawn, so every chat check from the character's first tick in the world
+    /// runs against it; the whole list is sent with the rest of select, empty too, so a client replaces whatever it held
+    /// for an earlier character. No repository (tests that build the handler without one) is an empty list.
+    /// </summary>
+    private void LoadIgnores(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance)
+    {
+        if (ignoreRepository is null)
+        {
+            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
+            Spawn(connection, entity, instance);
+            return;
+        }
+
+        Step(connection, select, ignoreRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        {
+            entity.Ignores.Load(rows);
+            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
             Spawn(connection, entity, instance);
         });
     }

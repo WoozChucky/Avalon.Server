@@ -3,12 +3,13 @@ using Avalon.Network.Packets.Social;
 using Avalon.World.Chat;
 using Avalon.World.Instances;
 using Avalon.World.Public;
+using Avalon.World.Social;
 
 namespace Avalon.World.Handlers;
 
 /// <summary>
 /// A slash command runs on the tick; anything else is said aloud, to everyone in the sender's instance,
-/// the sender included (spec 2026-09-30 section 5).
+/// the sender included (spec 2026-09-30 section 5), except a listener that ignores the sender (#723).
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_CHAT_MESSAGE)]
 public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatcher,
@@ -57,6 +58,10 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         rateLimiter.Record(sender.Guid.Id);
         foreach (IWorldConnection target in instance.Connections)
         {
+            // A listener ignoring the sender does not hear it (#723); nobody is told.
+            if (Ignoring.Hides(target, sender.Guid.Id))
+                continue;
+
             target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
                 target.CryptoSession.Encrypt));
         }

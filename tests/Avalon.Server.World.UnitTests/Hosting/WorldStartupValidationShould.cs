@@ -255,6 +255,24 @@ public class WorldStartupValidationShould
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData("501")]
+    public async Task Refuse_to_start_with_an_ignore_list_cap_out_of_range(string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+            ["Game:MaxIgnoredCharacters"] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+
+        Assert.Contains("MaxIgnoredCharacters", refused.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Default_the_party_settings_to_the_spec()
     {
@@ -270,6 +288,7 @@ public class WorldStartupValidationShould
         Assert.Equal(0.10f, config.PartyExperienceBonusPerExtra);
         Assert.Equal(5, config.PartyExperienceLevelGap);
         Assert.Equal(20, config.MaxActiveQuests);
+        Assert.Equal(50, config.MaxIgnoredCharacters);
     }
 
     private static async Task<IHost> BuildAsync(Dictionary<string, string?> overrides)

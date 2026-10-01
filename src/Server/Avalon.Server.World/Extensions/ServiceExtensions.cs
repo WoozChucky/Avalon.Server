@@ -23,6 +23,7 @@ using Avalon.World.Reload;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Social;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -122,6 +123,10 @@ public static class ServiceExtensions
         services.AddSingleton<ICommand, PartyExperienceCommand>();
         services.AddSingleton<ICommand, PartyChatCommand>();
         services.AddSingleton<ICommand, WhisperCommand>();
+        // The ignore list (#723).
+        services.AddSingleton<ICommand, IgnoreCommand>();
+        services.AddSingleton<ICommand, UnignoreCommand>();
+        services.AddSingleton<ICommand, IgnoreListCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
 
         services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();
