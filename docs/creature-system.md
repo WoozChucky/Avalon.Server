@@ -362,10 +362,13 @@ Each share is then scaled by the map's level band, for that character:
 - Otherwise the award is multiplied by `ExperienceBandDecay` (default 0.75) once for each level the
   character sits outside the band. Inside the band it is not scaled.
 
-If the character's experience plus the award reaches the requirement for its level
-(`CharacterLevelExperiences`), the character gains one level and keeps the overflow. Its stats are
-then recalculated: a living character is refilled to the new maximums, and a dead one keeps its share of
-each pool, so it is not revived. A level with no requirement row logs a warning and awards nothing.
+The award then goes through `ExperienceAward.Grant`, the one level-up helper kills and quest turn-ins share. While
+the character's experience reaches the requirement for its level (`CharacterLevelExperiences`), it gains that level and
+carries the rest, as many levels as the award covers. A level is entered only when it has a row, so the highest seeded
+level (15) is the cap (#735): there the experience is held at that level's threshold and nothing more is added, and
+nothing is logged. Copper and items are paid at the cap as anywhere else. After each level-up the stats are
+recalculated: a living character is refilled to the new maximums, and a dead one keeps its share of each pool, so it is
+not revived. A character whose current level has no row (none does today) logs a warning and is awarded nothing.
 
 ---
 
