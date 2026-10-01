@@ -155,7 +155,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         File.WriteAllText(groupsPath, groups.ToJsonString());
     }
 
-    /// <summary>The generator tool (Task 9) validates its output with this reader, so it must work with no database.</summary>
+    /// <summary>tools/Avalon.ChunkGen validates its output with this reader, so it must work with no database.</summary>
     [Fact]
     public async Task Read_the_committed_catalog_without_a_database()
     {
@@ -234,6 +234,132 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         await using WorldDbContext db = database.CreateDbContext();
 
         await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
+    }
+
+    /// <summary>Adds an empty "test_pool" to the copy's chunk-pools.json and writes <paramref name="groupsJson" /> as its chunk-groups.json.</summary>
+    private static void WriteGroupsFile(string root, string groupsJson)
+    {
+        string poolsPath = Path.Combine(root, "chunk-pools.json");
+        JsonObject pools = JsonNode.Parse(File.ReadAllText(poolsPath))!.AsObject();
+        pools["test_pool"] = new JsonArray();
+        File.WriteAllText(poolsPath, pools.ToJsonString());
+        File.WriteAllText(Path.Combine(root, "chunk-groups.json"), groupsJson);
+    }
+
+    private static async Task<InvalidDataException> RefuseAndWriteNothing(string root)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using WorldDbContext db = database.CreateDbContext();
+
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
+        Assert.Equal(0, await db.ChunkTemplates.CountAsync());
+        Assert.Contains("chunk-groups.json", error.Message);
+        return error;
+    }
+
+    [Fact]
+    public async Task Refuse_a_group_defined_twice()
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupMembers(root, "g");
+        WriteGroupMembers(root, "h");
+        WriteGroupsFile(root, """
+            { "test_pool": [
+                { "name": "twice", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "g_se", "cellX": 1, "cellZ": 0 } ] },
+                { "name": "twice", "members": [ { "chunk": "h_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "h_se", "cellX": 1, "cellZ": 0 } ] } ] }
+            """);
+
+        InvalidDataException error = await RefuseAndWriteNothing(root);
+        Assert.Contains("defined twice", error.Message);
+    }
+
+    [Fact]
+    public async Task Refuse_a_chunk_in_two_groups()
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupMembers(root, "g");
+        WriteGroupMembers(root, "h");
+        WriteGroupsFile(root, """
+            { "test_pool": [
+                { "name": "first", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "g_se", "cellX": 1, "cellZ": 0 } ] },
+                { "name": "second", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "h_se", "cellX": 1, "cellZ": 0 } ] } ] }
+            """);
+
+        InvalidDataException error = await RefuseAndWriteNothing(root);
+        Assert.Contains("'g_sw' is in two groups", error.Message);
+    }
+
+    [Fact]
+    public async Task Refuse_a_member_that_is_not_1x1()
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupMembers(root, "g");
+        File.WriteAllText(Path.Combine(root, "Chunks", "g_wide.json"),
+            """{ "name": "g_wide", "assetKey": "chunks/g_wide", "cellFootprintX": 2, "cellFootprintZ": 1, "cellSize": 30, "exits": { "N": [], "E": [], "S": [], "W": [] }, "spawnSlots": [], "portalSlots": [], "tags": ["test"] }""");
+        File.WriteAllText(Path.Combine(root, "Chunks", "g_wide.obj"), "o Floor\nv 0 0 0\nv 60 0 0\nv 60 0 30\nf 1 2 3\n");
+        WriteGroupsFile(root, """
+            { "test_pool": [ { "name": "wide", "members": [
+                { "chunk": "g_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "g_wide", "cellX": 1, "cellZ": 0 } ] } ] }
+            """);
+
+        InvalidDataException error = await RefuseAndWriteNothing(root);
+        Assert.Contains("'g_wide' is not 1x1", error.Message);
+    }
+
+    [Fact]
+    public async Task Refuse_a_group_of_one()
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupMembers(root, "g");
+        WriteGroupsFile(root, """{ "test_pool": [ { "name": "alone", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 } ] } ] }""");
+
+        InvalidDataException error = await RefuseAndWriteNothing(root);
+        Assert.Contains("at least two members", error.Message);
+    }
+
+    [Fact]
+    public async Task Refuse_a_negative_cell()
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupMembers(root, "g");
+        WriteGroupsFile(root, """
+            { "test_pool": [ { "name": "negative", "members": [
+                { "chunk": "g_sw", "cellX": -1, "cellZ": 0 }, { "chunk": "g_se", "cellX": 0, "cellZ": 0 } ] } ] }
+            """);
+
+        InvalidDataException error = await RefuseAndWriteNothing(root);
+        Assert.Contains("'g_sw' has a negative cell", error.Message);
+    }
+
+    [Fact]
+    public async Task Refuse_a_group_without_members_naming_the_file()
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupsFile(root, """{ "test_pool": [ { "name": "empty" } ] }""");
+
+        InvalidDataException error = await RefuseAndWriteNothing(root);
+        Assert.Contains("'empty'", error.Message);
+    }
+
+    [Fact]
+    public async Task Leave_the_groups_alone_when_chunk_groups_json_is_missing()
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupMembers(root, "g");
+        WriteGroup(root, "test_pool", "test_group", "g");
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using (WorldDbContext first = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(first, root);
+
+        File.Delete(Path.Combine(root, "chunk-groups.json"));
+        ChunkCatalogSeedResult second;
+        await using (WorldDbContext db = database.CreateDbContext())
+            second = await ChunkCatalogSeeder.SeedAsync(db, root);
+
+        Assert.Equal(0, second.GroupsReplaced);
+        await using WorldDbContext read = database.CreateDbContext();
+        ChunkGroup group = await read.ChunkGroups.Include(g => g.Members).SingleAsync(g => g.Name == "test_group");
+        Assert.Equal(4, group.Members.Count);
     }
 
     private static string CommittedMapsRoot()

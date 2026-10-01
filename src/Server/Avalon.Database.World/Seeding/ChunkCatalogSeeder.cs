@@ -261,6 +261,8 @@ public static class ChunkCatalogSeeder
 
             foreach (GroupDto group in list)
             {
+                if (group.Members is null)
+                    throw new InvalidDataException($"{path}: group '{group.Name}' has no members list");
                 if (!groupNames.Add(group.Name))
                     throw new InvalidDataException($"{path}: group '{group.Name}' is defined twice");
                 if (group.Members.Count < 2)

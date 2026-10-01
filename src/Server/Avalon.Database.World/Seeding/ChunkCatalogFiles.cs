@@ -1,3 +1,6 @@
+// The DTO set of the files under Maps/ is kept in one file, beside the catalog record that holds them.
+#pragma warning disable MA0048
+
 namespace Avalon.Database.World.Seeding;
 
 /// <summary>
