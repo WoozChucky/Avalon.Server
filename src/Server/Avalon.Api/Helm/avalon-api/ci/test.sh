@@ -148,4 +148,13 @@ grep -A1 "name: Application__Balance__Url" <<<"$bal" | grep -q '"http://balance-
 must_fail "existingSecret + inline balance.sharedSecret must fail" --set existingSecret=x "${W1[@]}" --set balance.sharedSecret=leak
 balsec=$(helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set balance.sharedSecret=s3cret)
 grep -q 'balance-shared-secret: "s3cret"' <<<"$balsec"                                         || { echo "balance secret must reach the chart-managed Secret"; exit 1; }
+# Live template editing: the editable worlds (indexed env) and the reload timeout render only when set.
+! grep -q "Application__Templates__" <<<"$out"                                                 || { echo "templates env rendered without a value"; exit 1; }
+tpl=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set 'templates.editableWorlds={2,5}' --set templates.reloadTimeout=00:00:20)
+grep -A1 "name: Application__Templates__EditableWorlds__0" <<<"$tpl" | grep -q '"2"'           || { echo "editableWorlds[0] missing"; exit 1; }
+grep -A1 "name: Application__Templates__EditableWorlds__1" <<<"$tpl" | grep -q '"5"'           || { echo "editableWorlds[1] missing"; exit 1; }
+! grep -q "Application__Templates__EditableWorlds__2" <<<"$tpl"                                || { echo "rendered an extra editable world"; exit 1; }
+grep -A1 "name: Application__Templates__ReloadTimeout" <<<"$tpl" | grep -q '"00:00:20"'        || { echo "reloadTimeout missing"; exit 1; }
+tpo=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set templates.reloadTimeout=00:00:20)
+! grep -q "Application__Templates__EditableWorlds" <<<"$tpo"                                   || { echo "empty editableWorlds must not render"; exit 1; }
 echo "avalon-api chart OK"

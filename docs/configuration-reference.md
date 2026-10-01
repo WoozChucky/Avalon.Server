@@ -34,6 +34,7 @@ Hosts: **API** is `Avalon.Api`, **Auth** the auth server, **World** the world se
 | `EnvironmentConfig`         | `Avalon.Api.Config`                | `Application:Environment` | API | Not validated |
 | `DistributionConfiguration` | `Avalon.Api.Distribution`          | `Application:Distribution` | API | Not validated; left incomplete, the `/client` endpoints answer 503 |
 | `BalanceConfiguration`      | `Avalon.Api.Balance`               | `Application:Balance` | API | Not validated; left incomplete, the admin `/balance` endpoints answer 503 |
+| `TemplateEditingOptions`    | `Avalon.Api.Templates`             | `Application:Templates` | API | `ValidateOnStart` (`ReloadTimeout` greater than zero). See `Application:Templates` below |
 | `BalanceServiceOptions`     | `Avalon.Balance.Service`           | `Balance` | Balance service | `ValidateOnStart` (`SharedSecret` required, 32 characters or more). See [Balance Service](#balance-service) |
 
 The API's `Cache` settings are therefore under `Application:Cache` (`Application__Cache__Host`), not `Cache`,
@@ -289,6 +290,12 @@ The API's `appsettings.json` lists no world, so the published image ships none. 
 **`Application:PublicWorldId`** (optional `ushort`): the world `GET /public/world` names as `defaultWorldId`. It falls back to the first world the caller may read when unset, or when that world is unavailable or not readable by the caller, so set it to the live world in a deployment.
 
 **`Application:PublicSiteUrl`** (optional string, no default; Helm `publicSiteUrl`): the public website's base URL, e.g. `https://avalon.example`. It must be an absolute http or https URL with no query or fragment (a trailing slash is dropped); anything else stops the API at startup, naming the setting. `GET /public/preview/item/{id}` and `/ability/{id}` (link previews for bots that run no JavaScript; `?world=N`, else the default world) name `<PublicSiteUrl>/item/{id}` as the page's `og:url`, adding `?world=N` only when `world` was given. Unset, a preview leaves `og:url` out and its link is relative (`/item/{id}`).
+
+**`Application:Templates`** (live template editing; defaults in the API's `appsettings.json`):
+- `EditableWorlds` (list of world ids, default empty; Helm `templates.editableWorlds`, rendered as indexed env `Application__Templates__EditableWorlds__0`, `__1`, ...): the worlds on which an admin may `PUT` item, ability and creature templates. A `PUT` for any other world answers 403 `This world is not editable`, so with the default no world is editable. An edit reaches the running world on save, so keep production worlds out. The Aspire AppHost lists the local Development world (the id it keys the world databases by).
+- `ReloadTimeout` (TimeSpan, default `00:00:10`; Helm `templates.reloadTimeout`): how long a save waits for the world server to answer its reload request over Redis before the response reports the reload `pending`. The save is already committed either way. It must be greater than zero, else the API refuses to start, naming `Application:Templates:ReloadTimeout`.
+
+Both Helm values render only when set.
 
 **`Application:Previews`** (defaults in the API's `appsettings.json`): `SiteName` (`og:site_name` and the not-found title; left out when empty), `AbilityColour` and `RarityColours` (an `ItemRarity` name to a `#RRGGBB` colour; the `theme-color` of an ability and of an item of that rarity). They mirror the Dashboard's `rarity.ts`. A missing or malformed colour leaves `theme-color` out; it never fails the request. Override one with e.g. `Application__Previews__RarityColours__Epic`.
 
