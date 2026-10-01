@@ -42,6 +42,7 @@ public class LevelUpStatsShould
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
                 new CharacterLevelExperience { Level = 2, Experience = 500 },
+                new CharacterLevelExperience { Level = 3, Experience = 900 },   // level 2 is not the maximum (#735)
             ]);
         var world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
@@ -76,8 +77,8 @@ public class LevelUpStatsShould
 
     /// <summary>
     /// #463 final review: against the seeded rows, not hand-written ones. The seed once stopped at
-    /// level 5, so a level-up to 6 found no row and left health where it was; 15 is the highest
-    /// level the seeded experience table lets a character reach (#735: the cap). Warrior health is
+    /// level 5, so a level-up to 6 found no row and left health where it was; the highest level the
+    /// seeded experience table lets a character reach is the cap (15 today, #735). Warrior health is
     /// BaseHp + 10 per Stamina: 400 at 5, 440 at 6, 760 at 14, 800 at 15.
     /// </summary>
     [Theory]

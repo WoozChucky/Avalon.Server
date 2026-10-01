@@ -353,8 +353,8 @@ CLAUDE.md's World Simulation section describes loot tables and pickup.
 ### Experience and level-up
 
 The creature's `Experience` is first split among the eligible characters (`PartyExperience`): a
-character `PartyExperienceLevelGap` (5) or more levels above the creature gets nothing and is not
-counted, solo too; one counted character gets all of it; several share
+character `PartyExperienceLevelGap` (5) or more levels above the creature, or at the maximum level
+(#735), gets nothing and is not counted, solo too; one counted character gets all of it; several share
 `xp × (1 + PartyExperienceBonusPerExtra × (n − 1))`, evenly or by level as the party's mode says.
 Each share is then scaled by the map's level band, for that character:
 
@@ -364,9 +364,10 @@ Each share is then scaled by the map's level band, for that character:
 
 The award then goes through `ExperienceAward.Grant`, the one level-up helper kills and quest turn-ins share. While
 the character's experience reaches the requirement for its level (`CharacterLevelExperiences`), it gains that level and
-carries the rest, as many levels as the award covers. A level is entered only when it has a row, so the highest seeded
-level (15) is the cap (#735): there the experience is held at that level's threshold and nothing more is added, and
-nothing is logged. Copper and items are paid at the cap as anywhere else. After each level-up the stats are
+carries the rest, as many levels as the award covers. The maximum level is the highest level with a row (15 today;
+`ExperienceAward.MaxLevel`, #735). A character at it gains no experience from any source, and an award that levels a
+character into it stops there and discards the rest, so the character enters the maximum level with 0. Nothing is
+logged for being at the cap. Copper and items are paid at the cap as anywhere else. After each level-up the stats are
 recalculated: a living character is refilled to the new maximums, and a dead one keeps its share of each pool, so it is
 not revived. A character whose current level has no row (none does today) logs a warning and is awarded nothing.
 

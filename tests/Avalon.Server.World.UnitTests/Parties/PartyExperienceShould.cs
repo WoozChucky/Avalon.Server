@@ -16,7 +16,12 @@ public class PartyExperienceShould
     }
 
     private static uint[] Split(uint xp, ushort creatureLevel, PartyExperienceMode mode, params ushort[] levels) =>
-        PartyExperience.Split(xp, creatureLevel, levels.Select(At).ToList(), mode, bonusPerExtra: 0.10f, levelGap: 5)
+        SplitCapped(xp, creatureLevel, mode, maxLevel: null, levels);
+
+    private static uint[] SplitCapped(uint xp, ushort creatureLevel, PartyExperienceMode mode, ushort? maxLevel,
+        params ushort[] levels) =>
+        PartyExperience.Split(xp, creatureLevel, levels.Select(At).ToList(), mode, bonusPerExtra: 0.10f, levelGap: 5,
+                maxLevel: maxLevel)
             .Select(s => s.Experience).ToArray();
 
     [Fact]
@@ -46,4 +51,21 @@ public class PartyExperienceShould
     [Fact]
     public void Give_a_solo_character_the_gap_or_more_above_nothing() =>
         Assert.Empty(Split(100, 10, PartyExperienceMode.Even, 15));
+
+    /// <summary>#735: a member at the maximum level is left out like one past the gap, so the other is alone: no bonus.</summary>
+    [Fact]
+    public void Give_the_other_member_the_whole_solo_share_when_one_of_two_is_at_the_maximum_level() =>
+        Assert.Equal([100u], SplitCapped(100, 18, PartyExperienceMode.Even, maxLevel: 20, 20, 10));
+
+    /// <summary>#735: three members, one at the maximum: n is 2, the bonus one extra member's, the weights the two left.</summary>
+    [Theory]
+    [InlineData(PartyExperienceMode.Even, 55u, 55u)]           // 100 x 1.1 / 2
+    [InlineData(PartyExperienceMode.LevelWeighted, 50u, 60u)]  // 110 x L / 22
+    public void Leave_a_member_at_the_maximum_level_out_of_n_the_bonus_and_the_weighting(
+        PartyExperienceMode mode, uint first, uint second) =>
+        Assert.Equal([first, second], SplitCapped(100, 18, mode, maxLevel: 20, 10, 20, 12));
+
+    [Fact]
+    public void Give_a_solo_character_at_the_maximum_level_nothing() =>
+        Assert.Empty(SplitCapped(100, 18, PartyExperienceMode.Even, maxLevel: 20, 20));
 }

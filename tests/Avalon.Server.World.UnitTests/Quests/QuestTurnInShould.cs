@@ -69,19 +69,19 @@ public class QuestTurnInShould
         Assert.Equal(900ul, c.Character.RequiredExperience);
     }
 
-    /// <summary>#735: at the last seeded level the reward's experience is held at the threshold; money and items are paid in full.</summary>
+    /// <summary>#735: at the maximum level the reward pays no experience; money and items are paid in full.</summary>
     [Fact]
-    public async Task Pay_money_and_items_and_hold_experience_at_the_level_cap()
+    public async Task Pay_money_and_items_but_no_experience_at_the_level_cap()
     {
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(
             levels: [new CharacterLevelExperience { Level = 1, Experience = 400 }]);
-        c.Character.Experience = 390;   // the reward is 50; only 10 fit under the cap
+        c.Character.Experience = 390;   // the reward is 50, and none of it is given
 
         QuestResult result = w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue);
 
         Assert.Equal(QuestResult.Ok, result);
         Assert.Equal((ushort)1, c.Character.Level);
-        Assert.Equal(400ul, c.Character.Experience);
+        Assert.Equal(390ul, c.Character.Experience);
         Assert.Equal(30ul, c.Character.Data!.Money);
         Assert.Equal(2, Held(c, Tonic));
         Assert.True(c.Character.Quests.IsCompleted(Tusks));

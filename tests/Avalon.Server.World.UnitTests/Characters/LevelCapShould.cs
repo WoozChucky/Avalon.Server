@@ -12,9 +12,9 @@ using Xunit;
 namespace Avalon.Server.World.UnitTests.Characters;
 
 /// <summary>
-/// #735: the maximum level is the highest level with a CharacterLevelExperiences row. A character there keeps earning
-/// up to that level's threshold and no further; it never reaches a level with no row, and nothing is logged for simply
-/// being at the cap.
+/// #735: the maximum level is the highest level with a CharacterLevelExperiences row. A character there gains no
+/// experience from any source; an award that levels a character into it stops there and the rest is discarded, so it
+/// enters the maximum level with none. Nothing is logged for simply being at the cap.
 /// </summary>
 public class LevelCapShould
 {
@@ -34,8 +34,22 @@ public class LevelCapShould
         return character;
     }
 
+    private static List<CharacterLevelExperience> SeededLevels()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        return context.CharacterLevelExperiences.AsNoTracking().ToList();
+    }
+
     [Fact]
-    public async Task Stop_at_the_last_levels_threshold_when_one_award_crosses_the_cap()
+    public async Task Take_the_highest_level_with_a_row_as_the_maximum()
+    {
+        Assert.Equal((ushort)3, ExperienceAward.MaxLevel(await TestStaticData.LoadAsync(levels: Levels)));
+        Assert.Null(ExperienceAward.MaxLevel(await TestStaticData.LoadAsync(levels: [])));
+    }
+
+    [Fact]
+    public async Task Stop_at_the_maximum_level_with_no_experience_when_one_award_crosses_several_levels()
     {
         StaticData data = await TestStaticData.LoadAsync(levels: Levels);
         ICharacter character = Character(1, 0);
@@ -43,35 +57,36 @@ public class LevelCapShould
         ExperienceAward.Grant(character, 10_000, data, parties: null, new TestLog());
 
         Assert.Equal((ushort)3, character.Level);
-        Assert.Equal(300ul, character.Experience);
+        Assert.Equal(0ul, character.Experience);
         Assert.Equal(300ul, character.RequiredExperience);
     }
 
     [Fact]
-    public async Task Keep_earning_at_the_cap_up_to_the_threshold()
+    public async Task Discard_the_rest_of_an_award_that_levels_into_the_maximum_level()
     {
         StaticData data = await TestStaticData.LoadAsync(levels: Levels);
-        ICharacter character = Character(3, 250);
+        ICharacter character = Character(2, 150);
 
-        ExperienceAward.Grant(character, 30, data, parties: null, new TestLog());
-        Assert.Equal(280ul, character.Experience);
+        ExperienceAward.Grant(character, 100, data, parties: null, new TestLog());   // 250 covers 200; 50 left over
 
-        ExperienceAward.Grant(character, 100, data, parties: null, new TestLog());
         Assert.Equal((ushort)3, character.Level);
-        Assert.Equal(300ul, character.Experience);
+        Assert.Equal(0ul, character.Experience);
     }
 
-    [Fact]
-    public async Task Add_nothing_and_log_nothing_once_at_the_threshold()
+    [Theory]
+    [InlineData(0ul)]
+    [InlineData(250ul)]
+    [InlineData(300ul)]
+    public async Task Gain_nothing_and_log_nothing_at_the_maximum_level(ulong experience)
     {
         StaticData data = await TestStaticData.LoadAsync(levels: Levels);
-        ICharacter character = Character(3, 300);
+        ICharacter character = Character(3, experience);
         var log = new TestLog();
 
         ExperienceAward.Grant(character, 5_000, data, parties: null, log);
 
         Assert.Equal((ushort)3, character.Level);
-        Assert.Equal(300ul, character.Experience);
+        Assert.Equal(experience, character.Experience);
         Assert.DoesNotContain(log.Entries, e => e.Level >= LogLevel.Warning);
     }
 
@@ -90,19 +105,36 @@ public class LevelCapShould
         Assert.Contains(log.Entries, e => e.Level == LogLevel.Warning);
     }
 
+    /// <summary>The shipped seed: a character two levels below its highest row, handed far more than it needs.</summary>
     [Fact]
-    public async Task Cap_the_seeded_table_at_level_fifteen()
+    public async Task Cap_the_seeded_table_at_its_highest_level()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-        List<CharacterLevelExperience> seeded = context.CharacterLevelExperiences.AsNoTracking().ToList();
+        List<CharacterLevelExperience> seeded = SeededLevels();
+        ushort max = seeded.Max(l => l.Level);
         StaticData data = await TestStaticData.LoadAsync(levels: seeded);
-        ICharacter character = Character(13, 0);
+        ICharacter character = Character((ushort)(max - 2), 0);
 
         ExperienceAward.Grant(character, 1_000_000, data, parties: null, new TestLog());
 
-        Assert.Equal((ushort)15, character.Level);
-        Assert.Equal(13_600ul, character.Experience);
-        Assert.Equal(13_600ul, character.RequiredExperience);
+        Assert.Equal(max, ExperienceAward.MaxLevel(data));
+        Assert.Equal(max, character.Level);
+        Assert.Equal(0ul, character.Experience);
+        Assert.Equal(seeded.Single(l => l.Level == max).Experience, character.RequiredExperience);
+    }
+
+    /// <summary>The shipped seed: one level below the highest, an award that crosses into it loses what is left over.</summary>
+    [Fact]
+    public async Task Discard_the_rest_of_an_award_that_crosses_into_the_seeded_maximum()
+    {
+        List<CharacterLevelExperience> seeded = SeededLevels();
+        ushort max = seeded.Max(l => l.Level);
+        ulong below = seeded.Single(l => l.Level == max - 1).Experience;
+        StaticData data = await TestStaticData.LoadAsync(levels: seeded);
+        ICharacter character = Character((ushort)(max - 1), below - 300);
+
+        ExperienceAward.Grant(character, 1_000, data, parties: null, new TestLog());   // 700 past the requirement
+
+        Assert.Equal(max, character.Level);
+        Assert.Equal(0ul, character.Experience);
     }
 }

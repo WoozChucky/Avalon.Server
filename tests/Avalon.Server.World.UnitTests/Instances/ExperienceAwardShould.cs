@@ -275,6 +275,7 @@ public class ExperienceAwardShould
             new CharacterLevelExperience { Level = 1, Experience = 100 },
             new CharacterLevelExperience { Level = 2, Experience = 200 },
             new CharacterLevelExperience { Level = 3, Experience = 1000 },
+            new CharacterLevelExperience { Level = 4, Experience = 2000 },   // so level 3 is not the maximum (#735)
         ]);
         world.Data.Returns(data);
 
@@ -361,10 +362,14 @@ public class ExperienceAwardShould
 
         var levels = Substitute.For<ICharacterLevelExperienceRepository>();
         // Well above anything a single scaled award can reach, so this kill cannot level the
-        // character up and the assertion is on the award itself.
+        // character up and the assertion is on the award itself. The level-10 row keeps 9 below the maximum
+        // level, where nothing is awarded (#735).
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(
             Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>(
-                [new CharacterLevelExperience { Level = 9, Experience = 6500 }]));
+            [
+                new CharacterLevelExperience { Level = 9, Experience = 6500 },
+                new CharacterLevelExperience { Level = 10, Experience = 7000 },
+            ]));
 
         var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
         creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())

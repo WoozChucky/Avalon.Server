@@ -384,8 +384,8 @@ public class MapInstanceLootShould
     }
 
     /// <summary>
-    /// #735: only experience stops at the cap. A killer at the last seeded level (here the only level, 1, with its
-    /// threshold already reached) still takes the kill, and the kill still drops its sword and its copper pile.
+    /// #735: a killer at the maximum level (here the only level with a row, 1) gains no experience from the kill, but
+    /// the kill still takes effect and drops its sword and its copper pile.
     /// </summary>
     [Fact]
     public async Task Still_drop_a_kills_loot_for_a_killer_at_the_level_cap()
@@ -394,7 +394,7 @@ public class MapInstanceLootShould
         using MapInstance instance = await Build();
         MapInstanceClient killer = Join(instance, 460_901);
         killer.Character.Level = 1;
-        killer.Character.Experience = 100;
+        killer.Character.Experience = 40;
 
         Kill(instance, 460_902, killer.Character);
 
@@ -403,6 +403,6 @@ public class MapInstanceLootShould
         Assert.Equal(Sword.Id.Value, spawned.Drops[0].ItemTemplateId);
         Assert.Equal(5UL, spawned.Drops[1].Gold);
         Assert.Equal((ushort)1, killer.Character.Level);
-        Assert.Equal(100ul, killer.Character.Experience);
+        Assert.Equal(40ul, killer.Character.Experience);
     }
 }
