@@ -284,6 +284,172 @@ public class ChunkGenWritersShould
     public void Name_an_object_from_its_building_and_part(string building, string part, string expected) =>
         Assert.Equal(expected, TownSquare.ObjectName(building, part));
 
+    private static readonly TownSquare SampleSquare = new("town_test_01", 0, 0, [Side.N, Side.E],
+        [
+            new WallSegment("Wall_N_L", 0, 12, 29.75f, 30.25f), new WallSegment("Wall_N_R", 18, 30, 29.75f, 30.25f),
+            new WallSegment("Wall_E_L", 29.75f, 30.25f, 0, 12), new WallSegment("Wall_E_R", 29.75f, 30.25f, 18, 30),
+            new WallSegment("Wall_S", 0, 30, -0.25f, 0.25f), new WallSegment("Wall_W", -0.25f, 0.25f, 0, 30),
+        ],
+        [
+            new BoxPiece("House", "body", Material.Plaster, 4, 10, 4, 10, 0, 3.2f),
+            new GablePiece("House", "roof", Material.Roof, 3.7f, 10.3f, 3.7f, 12.3f, 3.2f, 5f),
+            new CylinderPiece("House", "post", Material.Wood, 11, 5, 0.12f, 0, 3),
+            new CylinderPiece("House", "post", Material.Wood, 11, 9, 0.12f, 0, 3),
+            new BoxPiece("House", "porch deck", Material.Wood, 10, 12, 4.5f, 9.5f, 0, 0.2f, Walkable: true),
+        ], IsEntry: true, HasForwardPortal: false, ["town", "entry"]);
+
+    [Fact]
+    public void Write_a_town_square_as_named_objects_with_materials()
+    {
+        string obj = ObjWriter.Write(SampleSquare);
+        string[] lines = obj.Split('\n');
+
+        Assert.Equal("# Avalon chunk: town_test_01", lines[0]);
+        List<string> objects = lines.Where(l => l.StartsWith("o ", StringComparison.Ordinal)).Select(l => l[2..]).ToList();
+        Assert.Equal(["Floor", "Wall_N_L", "Wall_N_R", "Wall_E_L", "Wall_E_R", "Wall_S", "Wall_W",
+            "House_body", "House_roof", "House_post_1", "House_post_2", "House_porch_deck"], objects);
+
+        List<string> materials = lines.Where(l => l.StartsWith("usemtl ", StringComparison.Ordinal)).Select(l => l[7..]).ToList();
+        Assert.Equal(["stone", "stone", "stone", "stone", "stone", "stone", "plaster", "roof", "wood", "wood", "wood"], materials);
+        Assert.DoesNotContain(lines, l => l.StartsWith("mtllib", StringComparison.Ordinal));
+
+        // Every usemtl follows its "o" line directly, before any vertex.
+        for (int i = 1; i < lines.Length; i++)
+            if (lines[i].StartsWith("usemtl ", StringComparison.Ordinal))
+                Assert.StartsWith("o ", lines[i - 1], StringComparison.Ordinal);
+    }
+
+    /// <summary>Today's floor and walls: the same boxes the Unity exporter wrote (ReadTown in TownNpcPlacementShould reads them by name).</summary>
+    [Fact]
+    public void Reproduce_the_floor_and_wall_boxes_of_a_town_square()
+    {
+        Dictionary<string, (float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ)> boxes = BoundsByObject(ObjWriter.Write(SampleSquare));
+
+        Assert.Equal((0f, 30f, -0.05f, 0.05f, 0f, 30f), boxes["Floor"]);
+        Assert.Equal((0f, 12f, 0f, 2f, 29.75f, 30.25f), boxes["Wall_N_L"]);
+        Assert.Equal((29.75f, 30.25f, 0f, 2f, 18f, 30f), boxes["Wall_E_R"]);
+        Assert.Equal((0f, 30f, 0f, 2f, -0.25f, 0.25f), boxes["Wall_S"]);
+        Assert.Equal((-0.25f, 0.25f, 0f, 2f, 0f, 30f), boxes["Wall_W"]);
+    }
+
+    [Fact]
+    public void Draw_a_gable_with_its_ridge_along_the_longer_axis()
+    {
+        List<Vector3> vertices = Vertices(ObjWriter.Write(SampleSquare))["House_roof"];
+
+        Assert.Equal(6, vertices.Count);
+        List<Vector3> ridge = vertices.Where(v => v.y == 5f).ToList();
+        Assert.Equal(2, ridge.Count);
+        Assert.All(ridge, v => Assert.Equal(7f, v.x));          // the footprint is 6.6 x 8.6: the ridge runs along Z, at the X middle
+        Assert.Equal([3.7f, 12.3f], ridge.Select(v => v.z).Order());
+        Assert.Equal(4, vertices.Count(v => v.y == 3.2f));
+    }
+
+    [Fact]
+    public void Wind_every_face_of_a_town_square_outward() => AssertOutward(ObjWriter.Write(SampleSquare));
+
+    [Fact]
+    public void Never_write_negative_zero_for_a_town_square()
+    {
+        TownSquare square = SampleSquare with { Pieces = [new BoxPiece("Crate", "crate", Material.Wood, 0.00001f, 1, 10, 11, -0.00001f, 1)] };
+
+        string obj = ObjWriter.Write(square);
+
+        Assert.DoesNotContain("-0 ", obj, StringComparison.Ordinal);
+        Assert.DoesNotContain("-0\n", obj, StringComparison.Ordinal);
+        Assert.DoesNotContain("\r", obj, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Bake_a_town_square_a_player_can_walk_onto_its_porch()
+    {
+        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(SampleSquare), 0, 0)]);
+
+        Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(11f, 1f, 7f), out Vector3 deck));   // on the porch deck
+        Assert.InRange(deck.y, -0.1f, 0.5f);
+        Vector3 stop = navigator.RaycastWalkable(new Vector3(20f, 0.15f, 7f), new Vector3(2f, 0.15f, 7f));
+        Assert.True(stop.x >= 10f && stop.x < 11f, $"the walk west along z = 7 stopped at x = {stop.x}, expected on the deck against the body at x = 10");
+    }
+
+    [Fact]
+    public async Task Read_a_town_square_back_through_the_seeders_catalog_reader()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"avalon-chunkgen-{Guid.NewGuid():N}");
+        try
+        {
+            CopyDirectory(Path.Combine(AppContext.BaseDirectory, "Maps"), root);
+            foreach ((string name, string obj, string json) in ChunkFiles.For([SampleSquare]))
+            {
+                File.WriteAllText(Path.Combine(root, "Chunks", name + ".obj"), obj);
+                File.WriteAllText(Path.Combine(root, "Chunks", name + ".json"), json);
+            }
+
+            ChunkCatalogFiles files = await ChunkCatalogSeeder.ReadCatalogAsync(root);
+
+            ChunkMetaDto read = Assert.Single(files.Chunks, c => c.Name == "town_test_01");
+            Assert.Equal(new SpawnSlotDto("entry", 15, 0, 15), Assert.Single(read.SpawnSlots));
+            Assert.Equal(["town", "entry"], read.Tags);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>Vertices by "o" object, in file order; "usemtl" and other lines are ignored, as the bake ignores them.</summary>
+    private static Dictionary<string, List<Vector3>> Vertices(string obj)
+    {
+        var objects = new Dictionary<string, List<Vector3>>(StringComparer.Ordinal);
+        string current = "";
+        foreach (string line in obj.Split('\n'))
+        {
+            string[] p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (line.StartsWith("o ", StringComparison.Ordinal)) { current = p[1]; objects[current] = []; }
+            else if (line.StartsWith("v ", StringComparison.Ordinal))
+                objects[current].Add(new Vector3(float.Parse(p[1], CultureInfo.InvariantCulture), float.Parse(p[2], CultureInfo.InvariantCulture),
+                    float.Parse(p[3], CultureInfo.InvariantCulture)));
+        }
+        return objects;
+    }
+
+    private static Dictionary<string, (float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ)> BoundsByObject(string obj) =>
+        Vertices(obj).ToDictionary(o => o.Key, o => (o.Value.Min(v => v.x), o.Value.Max(v => v.x), o.Value.Min(v => v.y), o.Value.Max(v => v.y),
+            o.Value.Min(v => v.z), o.Value.Max(v => v.z)), StringComparer.Ordinal);
+
+    private static void AssertOutward(string obj)
+    {
+        var vertices = new List<Vector3>();
+        string current = "";
+        var objects = new Dictionary<string, List<Vector3>>(StringComparer.Ordinal);
+        var faces = new List<(string Object, int A, int B, int C)>();
+        foreach (string line in obj.Split('\n'))
+        {
+            string[] p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (line.StartsWith("o ", StringComparison.Ordinal)) { current = p[1]; objects[current] = []; }
+            else if (line.StartsWith("v ", StringComparison.Ordinal))
+            {
+                var v = new Vector3(float.Parse(p[1], CultureInfo.InvariantCulture), float.Parse(p[2], CultureInfo.InvariantCulture),
+                    float.Parse(p[3], CultureInfo.InvariantCulture));
+                vertices.Add(v);
+                objects[current].Add(v);
+            }
+            else if (line.StartsWith("f ", StringComparison.Ordinal))
+                faces.Add((current, int.Parse(p[1], CultureInfo.InvariantCulture) - 1, int.Parse(p[2], CultureInfo.InvariantCulture) - 1,
+                    int.Parse(p[3], CultureInfo.InvariantCulture) - 1));
+        }
+
+        Assert.NotEmpty(faces);
+        foreach ((string name, int a, int b, int c) in faces)
+        {
+            List<Vector3> solid = objects[name];
+            var centre = new Vector3(solid.Average(v => v.x), solid.Average(v => v.y), solid.Average(v => v.z));
+            Vector3 u = vertices[b] - vertices[a], w = vertices[c] - vertices[a];
+            var normal = new Vector3(u.y * w.z - u.z * w.y, u.z * w.x - u.x * w.z, u.x * w.y - u.y * w.x);
+            Vector3 outward = (vertices[a] + vertices[b] + vertices[c]) / 3f - centre;
+            Assert.True(normal.x * outward.x + normal.y * outward.y + normal.z * outward.z > 0, $"a face of {name} faces inward");
+        }
+    }
+
     [Fact]
     public void Describe_a_square_as_the_seeders_catalog_entry()
     {
