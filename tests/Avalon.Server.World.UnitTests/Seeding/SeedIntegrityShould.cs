@@ -790,7 +790,7 @@ public class SeedIntegrityShould
     [InlineData(201u, ScalingStat.Attack, 0.6f, 1.5f)]
     [InlineData(202u, ScalingStat.Attack, 0.5f, 1.0f)]
     [InlineData(210u, ScalingStat.Ability, 0.25f, 0f)]
-    [InlineData(211u, ScalingStat.Ability, 0.8f, 0f)]
+    [InlineData(211u, ScalingStat.Ability, 0.4f, 0f)]
     [InlineData(212u, ScalingStat.Ability, 0.5f, 0f)]
     [InlineData(220u, ScalingStat.Attack, 0.3f, 1.0f)]
     [InlineData(221u, ScalingStat.Attack, 0.6f, 1.2f)]
@@ -805,6 +805,17 @@ public class SeedIntegrityShould
 
         AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == id);
         Assert.Equal((stat, scaling, weapon), (ability.ScalingStat, ability.ScalingCoefficient, ability.BaseDamageCoefficient));
+    }
+
+    /// <summary>#732: Flame Burst halved from 35 + 0.8 x ability damage to 18 + 0.4 x ability damage.</summary>
+    [Fact]
+    public void Seed_flame_burst_at_half_its_first_damage()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        AbilityTemplate burst = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == 211);
+        Assert.Equal((18u, 0.4f, 25u, 3f), (burst.EffectValue, burst.ScalingCoefficient, burst.Cost, burst.Radius));
     }
 
     /// <summary>#506: the starter weapons roll 4-7, the forest weapons 7-11, and the two-handed Thornwood Staff 9-14.</summary>
