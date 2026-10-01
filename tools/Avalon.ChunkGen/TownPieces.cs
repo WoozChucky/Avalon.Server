@@ -4,9 +4,9 @@ namespace Avalon.ChunkGen;
 /// Glimmerdell (map 1), the approved layout of 2026-10-01: four 30 m squares, world X/Z 0-60, the arrival point at
 /// (15, 15) south-west, the forest portal at (15, 45) north-west, the market south-east and the bank and inn north-east,
 /// with the inner walls at X = 30 and Z = 30 opened at 12-18 and 42-48. Buildings are solid facades; porches, stalls and
-/// the smithy's lean-to are open-fronted with at least 2.5 m under their roofs. Every solid prop is at least 1.05 m
-/// tall (owner decision 8): the navmesh climbs any step of 1.0 m or less, so a lower bench or crate would be walked
-/// over. Every coordinate is chunk-local.
+/// the smithy's lean-to are open-fronted with at least 2.5 m under their roofs. Every solid prop's top is at least
+/// 1.05 m up (owner decision 8): the navmesh climbs any step of 1.0 m or less, so a lower bench, crate or floating bar
+/// would be walked over. Every coordinate is chunk-local.
 /// Edit this file and rerun "dotnet run --project tools/Avalon.ChunkGen -- town"; TownPiecesShould checks the rules and
 /// the committed files, TownNpcPlacementShould the NPC spots against it.
 /// </summary>
@@ -95,7 +95,7 @@ public static class TownPieces
         Box("Cart", "bed", Material.Wood, 4f, 6.4f, 14f, 17.6f, 0.5f, 1.4f),
         Box("Cart", "wheel W", Material.Wood, 3.8f, 4f, 15.2f, 16.4f, 0f, 1.2f),
         Box("Cart", "wheel E", Material.Wood, 6.4f, 6.6f, 15.2f, 16.4f, 0f, 1.2f),
-        Box("Cart", "shaft", Material.Wood, 4.9f, 5.5f, 17.6f, 19.6f, 0.6f, 0.8f),
+        Box("Cart", "shaft", Material.Wood, 4.9f, 5.5f, 17.6f, 19.6f, 0f, 1.05f),   // from the floor: a floating bar's top would be a step
         Box("Crates (lodge)", "crate 1", Material.Wood, 7.5f, 8.5f, 15f, 16f, 0f, 1.05f),
         Box("Crates (lodge)", "crate 2", Material.Wood, 8.5f, 9.5f, 15f, 16f, 0f, 1.05f),
         Box("Crates (lodge)", "crate 3 (stacked)", Material.Wood, 8f, 9f, 15f, 16f, 1.05f, 2.05f),

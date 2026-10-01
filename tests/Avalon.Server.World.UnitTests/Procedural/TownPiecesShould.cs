@@ -129,40 +129,76 @@ public class TownPiecesShould
         Assert.True(stop.z >= 44.5f, $"the walk north along x = 15 stopped at z = {stop.z}");
     }
 
+    /// <summary>Every solid piece: non-walkable and standing below 2 m (roof slabs and gables above that are never walked against).</summary>
+    private static IEnumerable<(TownSquare Square, TownPiece Piece)> SolidPieces() =>
+        TownPieces.Squares().SelectMany(s => s.Pieces.Where(p => !p.Walkable && p.Y0 < TownRules.SolidBelow).Select(p => (s, p)));
+
     /// <summary>
     /// Recast climbs any step of 0.8 m or less (floor(0.9 / 0.2) voxels) and a span top rounds up to a 0.2 m voxel, so a
-    /// prop whose top is at or under 1.0 m would be a step the navmesh walks over. Every solid piece (a non-walkable
-    /// piece standing on the floor) must stop a walk at its edge: a walkable ray from 1.5 m west of its footprint toward
-    /// its centre never enters it (owner decision 8 raised every low prop to 1.05 m). A ray that starts inside another
-    /// solid stops where it starts and proves nothing, which is accepted: a prop wedged against a building is solid by
-    /// its neighbour.
+    /// top at or under 1.0 m above the ground beside it would be a step the navmesh walks over. Every solid piece,
+    /// floating ones included (the cart's bed, the stacked crate), must stop a walk at its edge: a walkable ray from
+    /// 1.5 m west of its footprint toward its centre never enters it (owner decision 8 raised every low prop to 1.05 m
+    /// and put the cart's shaft on the floor). A ray that starts inside another solid stops where it starts and proves
+    /// nothing, which is accepted: a prop wedged against a building is solid by its neighbour.
     /// </summary>
     [Fact]
     public void Stop_a_walk_at_the_edge_of_every_solid_piece()
     {
         var entered = new List<string>();
-        foreach (TownSquare square in TownPieces.Squares())
+        foreach ((TownSquare square, TownPiece piece) in SolidPieces())
         {
             (float ox, float oz) = square.Origin;
-            foreach (TownPiece piece in square.Pieces.Where(p => !p.Walkable && p.Y0 <= 0.05f))
-            {
-                (float minX, _, _, _) = piece.Bounds;
-                (float cx, float cz) = piece.Centre;
-                var from = new Vector3(ox + minX - 1.5f, 0.15f, oz + cz);
-                var to = new Vector3(ox + cx, 0.15f, oz + cz);
-                Vector3 stop = Town.Value.RaycastWalkable(from, to);
-                if (stop.x > ox + minX + 0.05f)
-                    entered.Add($"{square.Name}: {piece.Building}/{piece.Part} entered to x = {stop.x:0.00} (edge {ox + minX:0.00})");
-            }
+            (float minX, _, _, _) = piece.Bounds;
+            (float cx, float cz) = piece.Centre;
+            var from = new Vector3(ox + minX - 1.5f, 0.15f, oz + cz);
+            var to = new Vector3(ox + cx, 0.15f, oz + cz);
+            Vector3 stop = Town.Value.RaycastWalkable(from, to);
+            if (stop.x > ox + minX + 0.05f)
+                entered.Add($"{square.Name}: {piece.Building}/{piece.Part} entered to x = {stop.x:0.00} (edge {ox + minX:0.00})");
         }
         Assert.True(entered.Count == 0, "a walk entered: " + string.Join("; ", entered));
     }
 
-    /// <summary>The rule above, stated once for the data: every solid prop is at least 1.05 m tall, above the navmesh step.</summary>
+    /// <summary>
+    /// Stronger than the rays, which skip a piece wedged against another: no solid piece's top is reachable from the
+    /// arrival point. A path to the point just above a piece's top centre ends on the floor beside it (or short of
+    /// it), never on the piece: a top within the climb of a reachable surface, a bench, a floating bar, a crate on a
+    /// crate, would end the path on itself. Roof tops and building interiors are navmesh islands nothing reaches.
+    /// </summary>
     [Fact]
-    public void Keep_every_solid_piece_above_the_navmesh_step() =>
-        Assert.All(TownPieces.Squares().SelectMany(s => s.Pieces).Where(p => !p.Walkable && p.Y0 <= 0.05f),
-            p => Assert.True(p.Top >= 1.05f, $"{p.Building}/{p.Part} top {p.Top}"));
+    public void Reach_no_solid_pieces_top_from_the_arrival_point()
+    {
+        var arrival = new Vector3(TownPieces.ArrivalX, 1f, TownPieces.ArrivalZ);
+        var reached = new List<string>();
+        foreach ((TownSquare square, TownPiece piece) in SolidPieces())
+        {
+            (float ox, float oz) = square.Origin;
+            (float cx, float cz) = piece.Centre;
+            List<Vector3> path = Town.Value.FindPath(arrival, new Vector3(ox + cx, piece.Top + 0.3f, oz + cz));
+            if (path.Count == 0) continue;
+            Vector3 end = path[^1];
+            bool onTop = piece.DistanceTo(end.x - ox, end.z - oz) <= 0.05f && end.y > piece.Y0 + 0.1f;
+            if (onTop)
+                reached.Add($"{square.Name}: {piece.Building}/{piece.Part} reached at ({end.x:0.0}, {end.y:0.00}, {end.z:0.0})");
+        }
+        Assert.True(reached.Count == 0, "a path ends on: " + string.Join("; ", reached));
+    }
+
+    /// <summary>
+    /// The rule above, stated once for the data: every solid piece's top is at least 1.05 m up, unless it is enclosed by
+    /// another solid that stands at least as high (the fountain's water inside its basin).
+    /// </summary>
+    [Fact]
+    public void Keep_every_solid_pieces_top_above_the_navmesh_step()
+    {
+        foreach ((TownSquare square, TownPiece piece) in SolidPieces())
+        {
+            bool enclosed = square.Pieces.Any(q => !ReferenceEquals(q, piece) && !q.Walkable && q.Top >= piece.Top && q.Y0 <= piece.Y0
+                && q.Bounds.MinX <= piece.Bounds.MinX && q.Bounds.MaxX >= piece.Bounds.MaxX
+                && q.Bounds.MinZ <= piece.Bounds.MinZ && q.Bounds.MaxZ >= piece.Bounds.MaxZ);
+            Assert.True(piece.Top >= 1.05f || enclosed, $"{square.Name}: {piece.Building}/{piece.Part} top {piece.Top}");
+        }
+    }
 
     private static string Lf(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal);
 

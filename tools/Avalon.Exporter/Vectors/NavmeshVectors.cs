@@ -88,18 +88,20 @@ public static class NavmeshVectors
                 // Tile world size is 32 * 0.3 = 9.6, and the grid starts at the geometry's own
                 // minimum, so the seams fall at -0.25 + k * 9.6: 9.35, 18.95, 28.55. Agent values
                 // handed to a tile header in VOXELS rather than world units are observable only
-                // across a seam, so these cross one, two and several of them.
-                Ray(5f, 5f, 15f, 5f, "crosses the x = 9.35 tile seam"),
-                Ray(5f, 5f, 25f, 5f, "crosses the x = 9.35 and 18.95 tile seams"),
-                Ray(5f, 14f, 25f, 14f, "starts inside the town hall, crosses two seams a metre below the z = 14.35 one"),
-                Ray(14f, 5f, 14f, 25f, "north on z = 14 through the fountain's basin -- a transposed tile index lands elsewhere"),
+                // across a seam, so these cross one, two and several of them. They run on open floor
+                // north of the arrival plaza and east of the fountain, clear of the buildings.
+                Ray(5f, 27f, 15f, 27f, "crosses the x = 9.35 tile seam"),
+                Ray(5f, 27f, 25f, 27f, "crosses the x = 9.35 and 18.95 tile seams"),
+                Ray(5f, 27.55f, 25f, 27.55f, "crosses two seams a metre below the z = 28.55 one"),
+                Ray(21.5f, 5f, 21.5f, 25f, "the same, on z -- a transposed tile index lands elsewhere"),
 
                 // A SHALLOW diagonal, not a 45-degree one. A ray along x = z from an integer start
                 // passes exactly through the point where four tiles meet, and Detour cannot step a
                 // raycast through a vertex: it clamps there, on a knife edge that two Recast
-                // implementations may fall on either side of. This crosses every seam on both axes
-                // without ever crossing a tile corner.
-                Ray(2f, 3f, 27f, 28f, "shallow diagonal across the seams on both axes, into the town hall"),
+                // implementations may fall on either side of. This crosses two seams on each axis
+                // without ever coming within a metre of a tile corner, on the portal square's open
+                // ground west of the arch and north of the cart.
+                Ray(3f, 38f, 19f, 52f, "shallow diagonal across the seams on both axes"),
 
                 // Into walls, from several angles and distances. The navmesh is eroded by the agent
                 // radius before a polygon reaches a wall, so these clamp short of the wall's face.
@@ -131,7 +133,7 @@ public static class NavmeshVectors
             ],
             [
                 Ground(15f, 15f, "open floor, south-west quadrant"),
-                Ground(45f, 45f, "on the well's rim, north-east quadrant: no ground, the height asked is given back"),
+                Ground(45f, 45f, "on the well's rim: no polygon under the point, only beside it, so the height asked is given back"),
                 // The decks sit under porch roofs whose tops are walkable islands; sampled from a metre
                 // up, as a player standing on them is, so the deck is the nearest polygon.
                 Ground(50f, 50f, "on the inn's porch deck", y: 1f),
@@ -489,14 +491,16 @@ public static class NavmeshVectors
         # HEIGHT COVERAGE IS BOUNDED BY THE CHUNK LIBRARY, and that is a real gap rather than an
         # oversight. Every chunk floor the server ships is a flat slab: a town floor's top face is at
         # local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical. The town squares
-        # carry buildings and props besides (solids the bake cuts around; every prop is over 1 m,
-        # above the 0.9 m climb, so each stops a walk) and walkable risers of 0.1-0.3 m
+        # carry buildings and props besides (solids the bake cuts around; every prop's top is over
+        # 1 m, above the 0.9 m climb, so each stops a walk) and walkable risers of 0.1-0.3 m
         # (porch decks, the bank's steps), which quantise into the same 0.2 m voxel as the floor
         # beside them. The 'forest-floors' layout puts the two floor heights beside each other -- the
         # largest vertical variation two floors can produce -- and its ground rows all come back at
         # one height, because 5 cm is a quarter of the bake's 0.2 cell height and both floors quantise
         # to the same voxel. So these vectors pin SampleGroundHeight at a single height on open
         # ground, and the town's deck and step rows at whatever voxel the bake gives a riser.
+        # Building interiors and roof tops bake as navmesh islands that nothing reaches (the
+        # forest's blocker tops do too); a ground query over one answers the island's height.
         #
         # THAT FLATNESS HAS A SECOND CONSEQUENCE, and it is the one easier to miss: the agent values
         # written into each TILE HEADER are unpinned by anything here. Detour reads walkableHeight
