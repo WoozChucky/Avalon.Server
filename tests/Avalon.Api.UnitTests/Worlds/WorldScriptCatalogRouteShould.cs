@@ -117,6 +117,22 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         Assert.False((await response.Content.ReadFromJsonAsync<WorldScriptCatalogDto>())!.Published);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Say_published_false_instead_of_failing_when_redis_cannot_be_read(bool wrongType)
+    {
+        Exception failure = wrongType
+            ? new StackExchange.Redis.RedisServerException("WRONGTYPE")
+            : new StackExchange.Redis.RedisTimeoutException("timeout", StackExchange.Redis.CommandStatus.Unknown);
+        _cache.GetAsync(CacheKeys.WorldScriptCatalog(Two)).Returns(Task.FromException<string?>(failure));
+
+        HttpResponseMessage response = await Get($"/world/{Two}/scripts", AccountAccessLevel.GameMaster);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False((await response.Content.ReadFromJsonAsync<WorldScriptCatalogDto>())!.Published);
+    }
+
     [Fact]
     public async Task Refuse_a_player()
     {

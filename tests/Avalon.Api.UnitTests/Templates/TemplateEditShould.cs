@@ -14,7 +14,9 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World;
 using Avalon.Database.World.Extensions;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
 using Avalon.Infrastructure.Scripts;
+using StackExchange.Redis;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -474,6 +476,26 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.DoesNotContain(ScriptErrors(await BodyAsync(response)), m => m.StartsWith("Unknown script", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("creature")]
+    [InlineData("ability")]
+    public async Task Save_a_changed_script_name_when_redis_cannot_be_read(string kind)
+    {
+        var cache = Substitute.For<IReplicatedCache>();
+        cache.GetAsync(Arg.Any<string>())
+            .Returns(Task.FromException<string?>(new RedisServerException("WRONGTYPE")));
+        _catalog.Real = new WorldScriptCatalog(cache, new LoggerOf<WorldScriptCatalog>(_logs.CreateLogger("test")));
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync(kind);
+        json["scriptName"] = Unlisted;
+
+        HttpResponseMessage response = await PutAsync(Editable, kind, id, json, Tag(version));
+
+        // The catalog check is skipped, so the save reaches the template's own rules: no "Unknown script" 400.
+        if (response.StatusCode != HttpStatusCode.OK)
+            Assert.DoesNotContain(ScriptErrors(await BodyAsync(response)), m => m.StartsWith("Unknown script", StringComparison.Ordinal));
+        Assert.NotEqual(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
     [Fact]
     public async Task Ask_the_catalog_of_the_world_being_edited()
     {
@@ -869,10 +891,13 @@ public sealed class TemplateEditShould : IAsyncLifetime
         public ScriptCatalogSnapshot? Snapshot { get; set; }
         public List<WorldId> Asked { get; } = [];
 
+        /// <summary>When set, answers in place of <see cref="Snapshot"/>: the real catalog over a cache that fails.</summary>
+        public IWorldScriptCatalog? Real { get; set; }
+
         public Task<ScriptCatalogSnapshot?> GetAsync(WorldId world, CancellationToken ct)
         {
             Asked.Add(world);
-            return Task.FromResult(Snapshot);
+            return Real is { } real ? real.GetAsync(world, ct) : Task.FromResult(Snapshot);
         }
     }
 
