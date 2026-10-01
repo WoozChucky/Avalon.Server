@@ -394,16 +394,33 @@ public sealed class TemplateEditShould : IAsyncLifetime
         (JsonObject ability, string abilityVersion, ulong abilityId) = await ReadFirstAsync("ability");
         string creatureScript = creature["scriptName"]!.GetValue<string>();
         string abilityScript = ability["scriptName"]!.GetValue<string>();
-        // Each script is listed, but only under the other kind.
-        _catalog.Snapshot = new ScriptCatalogSnapshot([abilityScript], [creatureScript], []);
+        // Each script is listed, but only under the other kind, and each save moves to the other's script.
+        _catalog.Snapshot = new ScriptCatalogSnapshot([creatureScript], [abilityScript], []);
+        creature["scriptName"] = abilityScript;
+        ability["scriptName"] = creatureScript;
 
         HttpResponseMessage creatureResponse = await PutAsync(Editable, "creature", creatureId, creature, Tag(creatureVersion));
         HttpResponseMessage abilityResponse = await PutAsync(Editable, "ability", abilityId, ability, Tag(abilityVersion));
 
         Assert.Equal(HttpStatusCode.BadRequest, creatureResponse.StatusCode);
-        Assert.Contains(UnknownMessage(creatureScript), ScriptErrors(await BodyAsync(creatureResponse)));
+        Assert.Contains(UnknownMessage(abilityScript), ScriptErrors(await BodyAsync(creatureResponse)));
         Assert.Equal(HttpStatusCode.BadRequest, abilityResponse.StatusCode);
-        Assert.Contains(UnknownMessage(abilityScript), ScriptErrors(await BodyAsync(abilityResponse)));
+        Assert.Contains(UnknownMessage(creatureScript), ScriptErrors(await BodyAsync(abilityResponse)));
+    }
+
+    [Theory]
+    [InlineData("creature")]
+    [InlineData("ability")]
+    public async Task Let_a_row_with_an_unlisted_script_be_saved_while_its_script_name_is_unchanged(string kind)
+    {
+        // The catalog does not list the row's own script, but the save does not touch it.
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync(kind);
+        _catalog.Snapshot = new ScriptCatalogSnapshot([], [], []);
+        json["name"] = "Renamed, script untouched";
+
+        HttpResponseMessage response = await PutAsync(Editable, kind, id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

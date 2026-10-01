@@ -61,35 +61,51 @@ public sealed class TemplateEditService(
             caller, id, ifMatch, request, ct);
 
     public Task<TemplateEditResult<AbilityTemplate>> EditAbilityAsync(
-        TemplateEditCaller caller, uint id, string ifMatch, UpdateAbilityTemplateRequest request, CancellationToken ct) =>
-        RunAsync(new Kind<AbilityTemplate, UpdateAbilityTemplateRequest>(
+        TemplateEditCaller caller, uint id, string ifMatch, UpdateAbilityTemplateRequest request, CancellationToken ct)
+    {
+        string? stored = null; // the script name as the row held it, before the request is applied
+        return RunAsync(new Kind<AbilityTemplate, UpdateAbilityTemplateRequest>(
             "Ability", TemplateReloadArea.Abilities, TemplateFields.Ability,
-            (db, ct2) => db.AbilityTemplates.FindAsync([new AbilityId(id)], ct2).AsTask(),
+            async (db, ct2) =>
+            {
+                AbilityTemplate? found = await db.AbilityTemplates.FindAsync([new AbilityId(id)], ct2);
+                stored = found?.ScriptName;
+                return found;
+            },
             TemplateVersion.Of, TemplateValidation.Ability,
             async (_, row, errors, ct2) =>
             {
                 TemplateValidation.AbilityWorldRules(errors, row);
                 ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
-                TemplateValidation.ScriptKnown(errors, row.ScriptName, catalog, c => c.Ability);
+                TemplateValidation.ScriptKnown(errors, row.ScriptName, stored, catalog, c => c.Ability);
             }),
             caller, id, ifMatch, request, ct);
+    }
 
     public Task<TemplateEditResult<CreatureTemplate>> EditCreatureAsync(
-        TemplateEditCaller caller, ulong id, string ifMatch, UpdateCreatureTemplateRequest request, CancellationToken ct) =>
-        RunAsync(new Kind<CreatureTemplate, UpdateCreatureTemplateRequest>(
+        TemplateEditCaller caller, ulong id, string ifMatch, UpdateCreatureTemplateRequest request, CancellationToken ct)
+    {
+        string? stored = null; // the script name as the row held it, before the request is applied
+        return RunAsync(new Kind<CreatureTemplate, UpdateCreatureTemplateRequest>(
             "Creature", TemplateReloadArea.Creatures, TemplateFields.Creature,
-            (db, ct2) => db.CreatureTemplates.FindAsync([new CreatureTemplateId(id)], ct2).AsTask(),
+            async (db, ct2) =>
+            {
+                CreatureTemplate? found = await db.CreatureTemplates.FindAsync([new CreatureTemplateId(id)], ct2);
+                stored = found?.ScriptName;
+                return found;
+            },
             TemplateVersion.Of, TemplateValidation.Creature,
             async (db, row, errors, ct2) =>
             {
                 TemplateValidation.CreatureWorldRules(errors, row);
                 ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
-                TemplateValidation.ScriptKnown(errors, row.ScriptName, catalog, c => c.Ai);
+                TemplateValidation.ScriptKnown(errors, row.ScriptName, stored, catalog, c => c.Ai);
                 // A loot table that does not exist would break its foreign key, which is not a check violation.
                 if (row.LootTableId is { } loot && await db.LootTables.FindAsync([loot], ct2) is null)
                     errors.Add("lootTableId", $"There is no loot table {loot.Value}.");
             }),
             caller, id, ifMatch, request, ct);
+    }
 
     /// <summary>One template kind: where its row is, how to read it, check it and which fields it has.</summary>
     private sealed record Kind<TRow, TRequest>(

@@ -148,12 +148,15 @@ public static class TemplateValidation
     /// <summary>
     /// A script name the world's published catalog does not list (<paramref name="known"/> is the list for this kind of
     /// template). Not checked while no catalog is published (<paramref name="catalog"/> null: no world has reported in),
-    /// and an empty name is never unknown: whether a template needs a script is its own rule.
+    /// and an empty name is never unknown: whether a template needs a script is its own rule. A name equal to
+    /// <paramref name="stored"/> is not checked: only a change of script is, so a row that already names an unlisted
+    /// script can still have its other fields edited.
     /// </summary>
-    public static void ScriptKnown(TemplateErrors errors, string? scriptName, ScriptCatalogSnapshot? catalog,
+    public static void ScriptKnown(TemplateErrors errors, string? scriptName, string? stored, ScriptCatalogSnapshot? catalog,
         Func<ScriptCatalogSnapshot, IReadOnlyList<string>> known)
     {
         if (catalog is null || string.IsNullOrWhiteSpace(scriptName)) return;
+        if (string.Equals(scriptName, stored, StringComparison.Ordinal)) return;
         if (!known(catalog).Contains(scriptName, StringComparer.Ordinal))
             errors.Add("scriptName", $"Unknown script '{scriptName}' on this world");
     }
