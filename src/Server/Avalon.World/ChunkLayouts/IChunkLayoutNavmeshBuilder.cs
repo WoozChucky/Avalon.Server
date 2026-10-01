@@ -18,11 +18,30 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
     private readonly ILogger<ChunkLayoutNavmeshBuilder> _logger;
     private readonly IChunkLibrary _library;
 
+    /// <summary>
+    /// Where Maps/Chunks is read from, or null for the process working directory at bake time (the server's content
+    /// root; tools/Avalon.ChunkGen and tools/Avalon.Exporter stand in theirs for the length of a bake).
+    /// </summary>
+    private readonly string? _contentRoot;
+
     public ChunkLayoutNavmeshBuilder(ILoggerFactory lf, IChunkLibrary library)
     {
         _logger = lf.CreateLogger<ChunkLayoutNavmeshBuilder>();
         _library = library;
     }
+
+    private ChunkLayoutNavmeshBuilder(ILoggerFactory lf, IChunkLibrary library, string contentRoot) : this(lf, library)
+    {
+        _contentRoot = contentRoot;
+    }
+
+    /// <summary>
+    /// A builder reading Maps/Chunks under <paramref name="contentRoot" /> rather than the working directory, for tests
+    /// that must not change the process directory. A second public constructor would make the container's resolution
+    /// ambiguous (see PredefinedChunkLayoutSource.ForTesting), so this is a factory.
+    /// </summary>
+    public static ChunkLayoutNavmeshBuilder ForTesting(ILoggerFactory lf, IChunkLibrary library, string contentRoot) =>
+        new(lf, library, contentRoot);
 
     public Task<DtNavMesh> BuildAsync(ChunkLayout layout, CancellationToken ct) =>
         Task.Run(() => BakeNavmesh(layout), ct);
@@ -60,7 +79,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
             // ChunkTemplateId is a DB surrogate key, NOT the filename — resolve it through
             // the in-memory chunk library.
             var name = _library.GetById(chunk.TemplateId).Name;
-            string path = Path.Combine(Directory.GetCurrentDirectory(), "Maps", "Chunks",
+            string path = Path.Combine(_contentRoot ?? Directory.GetCurrentDirectory(), "Maps", "Chunks",
                 $"{name}.obj");
             if (!File.Exists(path))
                 throw new NavmeshBuildFailedException($"Chunk obj not found: {path}");
@@ -75,6 +94,8 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
     private static int AppendTransformed(System.Text.StringBuilder sb, string objText, Vector3 origin, byte rotation, float cellSize, int vOffset)
     {
         int vCount = 0;
+        // Only "v" and "f" lines are read: "o", "usemtl", "mtllib", "s", "g" and comments are dropped here, so the
+        // combined obj handed to DotRecast never carries them (ChunkObjParserShould).
         foreach (var raw in objText.Split('\n'))
         {
             var line = raw.Trim();
