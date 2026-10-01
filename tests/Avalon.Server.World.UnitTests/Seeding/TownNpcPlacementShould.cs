@@ -44,10 +44,11 @@ public class TownNpcPlacementShould
         public bool Contains(float x, float z) => x >= MinX && x <= MaxX && z >= MinZ && z <= MaxZ;
     }
 
-    private sealed record TownGeometry(Vector3 Entry, List<WallBox> Walls, List<(string Chunk, Vector3 Origin)> Chunks);
+    private sealed record TownGeometry(Vector3 Entry, float CellSize, List<WallBox> Walls, List<(string Chunk, Vector3 Origin)> Chunks);
 
     private static readonly Lazy<TownGeometry> Town = new(ReadTown, isThreadSafe: true);
     private static readonly Lazy<DtNavMesh> TownNavMesh = new(BakeTown, isThreadSafe: true);
+    private static readonly Lazy<List<MapCreatureSpawn>> TownSpawns = new(ReadTownSpawns, isThreadSafe: true);
 
     private static string MapsDir => Path.Combine(AppContext.BaseDirectory, "Maps");
 
@@ -109,7 +110,7 @@ public class TownNpcPlacementShould
 
         Assert.NotNull(entry);
         Assert.NotEmpty(walls);
-        return new TownGeometry(entry!.Value, walls, chunks);
+        return new TownGeometry(entry!.Value, cellSize, walls, chunks);
     }
 
     /// <summary>The town navmesh baked as ChunkLayoutNavmeshBuilder bakes it, from the objs in the output folder.</summary>
@@ -128,7 +129,7 @@ public class TownNpcPlacementShould
                 {
                     Vector3 w = ChunkRotation.LocalToWorld(float.Parse(parts[1], CultureInfo.InvariantCulture),
                         float.Parse(parts[2], CultureInfo.InvariantCulture), float.Parse(parts[3], CultureInfo.InvariantCulture),
-                        0, 30f, origin);
+                        0, Town.Value.CellSize, origin);
                     sb.Append(CultureInfo.InvariantCulture, $"v {w.x} {w.y} {w.z}\n");
                     count++;
                 }
@@ -158,11 +159,17 @@ public class TownNpcPlacementShould
         }
     }
 
-    private static List<MapCreatureSpawn> SeededSpawns()
+    /// <summary>The seeded spawns on the town (map 1), read once for every test in the class.</summary>
+    private static List<MapCreatureSpawn> SeededSpawns() => TownSpawns.Value;
+
+    private static List<MapCreatureSpawn> ReadTownSpawns()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        return context.MapCreatureSpawns.AsNoTracking().ToList();
+        List<MapCreatureSpawn> spawns = context.MapCreatureSpawns.AsNoTracking().ToList()
+            .Where(s => s.MapTemplateId.Value == 1).ToList();
+        Assert.NotEmpty(spawns);
+        return spawns;
     }
 
     private static (float X, float Z) WorldOf(MapCreatureSpawn spawn) =>
@@ -214,17 +221,29 @@ public class TownNpcPlacementShould
         }
     }
 
-    /// <summary>The doorway constants below are only meaningful while the geometry really has those openings.</summary>
+    /// <summary>
+    /// The doorway constants are only meaningful while the geometry really has those openings: in both inner walls
+    /// (X = 30 and Z = 30), each opening is clear of every wall across its whole width and closed on either side.
+    /// </summary>
     [Fact]
     public void Find_every_doorway_open_in_the_town_geometry()
     {
+        const float Step = 0.25f;
         foreach ((float from, float to) in Doorways)
         {
-            float middle = (from + to) / 2f;
-            Assert.DoesNotContain(Town.Value.Walls, w => w.Contains(InnerWall, middle));   // a gap in the X = 30 wall
-            Assert.DoesNotContain(Town.Value.Walls, w => w.Contains(middle, InnerWall));   // a gap in the Z = 30 wall
-            Assert.Contains(Town.Value.Walls, w => w.Contains(InnerWall, from - 1f));      // the wall closes either side
+            // Strictly inside the opening: the walls either side end exactly at its edges.
+            int samples = (int)MathF.Round((to - from) / Step) - 1;
+            for (int i = 1; i <= samples; i++)
+            {
+                float along = from + i * Step;
+                Assert.DoesNotContain(Town.Value.Walls, w => w.Contains(InnerWall, along));   // a gap in the X = 30 wall
+                Assert.DoesNotContain(Town.Value.Walls, w => w.Contains(along, InnerWall));   // a gap in the Z = 30 wall
+            }
+
+            Assert.Contains(Town.Value.Walls, w => w.Contains(InnerWall, from - 1f));         // the X = 30 wall closes either side
             Assert.Contains(Town.Value.Walls, w => w.Contains(InnerWall, to + 1f));
+            Assert.Contains(Town.Value.Walls, w => w.Contains(from - 1f, InnerWall));         // the Z = 30 wall closes either side
+            Assert.Contains(Town.Value.Walls, w => w.Contains(to + 1f, InnerWall));
         }
     }
 
