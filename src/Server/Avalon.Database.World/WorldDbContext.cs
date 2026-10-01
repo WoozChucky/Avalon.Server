@@ -1827,55 +1827,52 @@ public class WorldDbContext : DbContext
             .HasForeignKey(b => b.PathId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // Town (map 1). Offsets are metres from the map's entry spawn point and the facings are
-        // yaw in degrees, chosen so each NPC looks back toward an arriving player: forward is
-        // (sin yaw, 0, cos yaw), so atan2(-offsetX, -offsetZ) points at the entry.
-        //
-        // These positions are deliberately provisional. The town's geometry lives in the chunk
-        // .obj assets rather than in this repository, so they were picked to put the three NPCs
-        // in a visible arc a few metres in front of the player instead of against any particular
-        // doorway. Retuning them is a data change, not a code change.
+        // Town (map 1) in districts: a 2x2 grid of 30 m squares, world X/Z 0-60, the entry spawn at (15, 15) in the
+        // south-west arrival square, the forest portal north-west, the market south-east and the bank and inn
+        // north-east, with inner walls at X = 30 and Z = 30 opened at 12-18 and 42-48 along each (town_*.obj).
+        // Offsets are metres from the entry spawn; the facings are yaw in degrees, forward (sin yaw, 0, cos yaw), so
+        // facing a point is atan2(dx, dz) from the NPC to it, rounded to a whole degree. Every NPC stands at least
+        // 2 m from any wall and off the doorway lanes (TownNpcPlacementShould).
         builder.HasData(
             new MapCreatureSpawn
             {
-                Id = 1, MapTemplateId = 1, CreatureTemplateId = 1,     // Uriel
-                OffsetX = -3f, OffsetY = 0f, OffsetZ = 4f, Facing = 143f
+                Id = 1, MapTemplateId = 1, CreatureTemplateId = 1,     // Uriel, (15, 19), facing the arrival point
+                OffsetX = 0f, OffsetY = 0f, OffsetZ = 4f, Facing = 180f
             },
             new MapCreatureSpawn
             {
-                Id = 2, MapTemplateId = 1, CreatureTemplateId = 2,     // Borin Stoutbeard
-                OffsetX = 3f, OffsetY = 0f, OffsetZ = 4f, Facing = 217f
+                Id = 2, MapTemplateId = 1, CreatureTemplateId = 2,     // Borin Stoutbeard, (19, 27), facing the arrival point
+                OffsetX = 4f, OffsetY = 0f, OffsetZ = 12f, Facing = 198f
             },
             new MapCreatureSpawn
             {
-                Id = 3, MapTemplateId = 1, CreatureTemplateId = 3,     // Innkeeper
-                OffsetX = 0f, OffsetY = 0f, OffsetZ = 7f, Facing = 180f
+                Id = 3, MapTemplateId = 1, CreatureTemplateId = 3,     // Innkeeper, (50, 56), facing the bank and inn centre (45, 45)
+                OffsetX = 35f, OffsetY = 0f, OffsetZ = 41f, Facing = 204f
             });
 
-        // Marta (#463), beyond Uriel on the same side, facing the entry: atan2(6, -6) = 135 degrees.
+        // Marta (#463), the banker, (40, 56), facing the bank and inn centre (45, 45).
         builder.HasData(new MapCreatureSpawn
         {
             Id = 4, MapTemplateId = 1, CreatureTemplateId = 11,     // Marta Ledgerwell
-            OffsetX = -6f, OffsetY = 0f, OffsetZ = 6f, Facing = 135f
+            OffsetX = 25f, OffsetY = 0f, OffsetZ = 41f, Facing = 156f
         });
 
-        // The vendors (#432), grouped around Marta on the same side, each facing the entry:
-        // atan2(9, -4) = 114, atan2(9, -8) = 132, atan2(6, -10) = 149 degrees.
+        // The vendors (#432), in the market, each facing the market centre (45, 15).
         builder.HasData(
             new MapCreatureSpawn
             {
-                Id = 5, MapTemplateId = 1, CreatureTemplateId = 12,     // Garrick Emberforge
-                OffsetX = -9f, OffsetY = 0f, OffsetZ = 4f, Facing = 114f
+                Id = 5, MapTemplateId = 1, CreatureTemplateId = 12,     // Garrick Emberforge, (40, 4)
+                OffsetX = 25f, OffsetY = 0f, OffsetZ = -11f, Facing = 24f
             },
             new MapCreatureSpawn
             {
-                Id = 6, MapTemplateId = 1, CreatureTemplateId = 13,     // Hilde Brassbuckle
-                OffsetX = -9f, OffsetY = 0f, OffsetZ = 8f, Facing = 132f
+                Id = 6, MapTemplateId = 1, CreatureTemplateId = 13,     // Hilde Brassbuckle, (50, 4)
+                OffsetX = 35f, OffsetY = 0f, OffsetZ = -11f, Facing = 336f
             },
             new MapCreatureSpawn
             {
-                Id = 7, MapTemplateId = 1, CreatureTemplateId = 14,     // Tobin Marrowfield
-                OffsetX = -6f, OffsetY = 0f, OffsetZ = 10f, Facing = 149f
+                Id = 7, MapTemplateId = 1, CreatureTemplateId = 14,     // Tobin Marrowfield, (56, 15)
+                OffsetX = 41f, OffsetY = 0f, OffsetZ = 0f, Facing = 270f
             });
     }
 
