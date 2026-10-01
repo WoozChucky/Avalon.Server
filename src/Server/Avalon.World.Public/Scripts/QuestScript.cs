@@ -18,7 +18,11 @@ public abstract class QuestScript
     /// <summary>Called for stage 0 right after <see cref="OnAccepted" />, and for each later stage as it starts.</summary>
     public virtual void OnStageStarted(IQuestContext context, int stage) { }
 
-    /// <summary>A creature died and this character shared the kill.</summary>
+    /// <summary>
+    /// A creature died and this character shared the kill. The kill's own credit is counted first, so when it
+    /// completed the stage the context is already the new stage's (its <see cref="IQuestContext.Stage" /> and counts);
+    /// a kill that made the quest ready reaches no hook.
+    /// </summary>
     public virtual void OnCreatureKilled(IQuestContext context, QuestCreatureView creature) { }
 
     /// <summary>This character opened a conversation with an NPC.</summary>
@@ -27,7 +31,9 @@ public abstract class QuestScript
     /// <summary>
     /// This character arrived in an instance other than the one this hook last ran for: a portal, a respawn, and
     /// every login (nothing about it is saved, so each login is a fresh arrival, even in the same town). Not once per
-    /// instance ever: leaving and coming back runs it again.
+    /// instance ever: leaving and coming back runs it again. Which instance it last ran for is remembered per
+    /// character, not per quest, so a quest accepted while the character is already inside an instance, or one that
+    /// goes from ready back to active, hears it only on the next arrival.
     /// </summary>
     public virtual void OnEnterInstance(IQuestContext context, QuestInstanceView instance) { }
 }
