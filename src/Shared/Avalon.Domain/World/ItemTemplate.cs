@@ -106,7 +106,7 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
         {
             ItemClass.Consumable => itemSubClass is ItemSubClass.Potion or ItemSubClass.Food or ItemSubClass.Scroll,
             ItemClass.Weapon => itemSubClass is ItemSubClass.OneHanded or ItemSubClass.TwoHanded or ItemSubClass.Ranged,
-            ItemClass.Armor => itemSubClass is ItemSubClass.Shield or ItemSubClass.Helmet or ItemSubClass.Chest or ItemSubClass.Legs or ItemSubClass.Boots or ItemSubClass.Gloves or ItemSubClass.Amulet,
+            ItemClass.Armor => itemSubClass is ItemSubClass.Shield or ItemSubClass.Helmet or ItemSubClass.Chest or ItemSubClass.Legs or ItemSubClass.Boots or ItemSubClass.Gloves or ItemSubClass.Amulet or ItemSubClass.Ring,
             ItemClass.Quest => itemSubClass == ItemSubClass.QuestItem,
             ItemClass.Crafting => itemSubClass == ItemSubClass.CraftingMaterial,
             ItemClass.Junk => itemSubClass == ItemSubClass.JunkItem,
@@ -219,6 +219,9 @@ public enum ItemSubClass
 
     /// <summary>A neck piece (#433: the Alpha's Fang Pendant). Worn in EquipmentSlots.Neck.</summary>
     Amulet = 206,
+
+    /// <summary>A ring (forest content pass: the Heartwood Band and the Thornheart Signet). Worn in EquipmentSlots.Finger1/Finger2.</summary>
+    Ring = 207,
     // Quest Subclasses
     QuestItem = 300,
     // Crafting Subclasses

@@ -1065,6 +1065,49 @@ public class SeedIntegrityShould
         Assert.False(pendant.Flags.HasFlag(ItemTemplateFlags.Unique));
     }
 
+    /// <summary>Forest content pass, quests 4-8: five quest items that drop only for characters collecting them and are never sold.</summary>
+    [Theory]
+    [InlineData(59ul, "Blightfly Wing")]
+    [InlineData(60ul, "Fen Wolf Pelt")]
+    [InlineData(61ul, "Ledger Page")]
+    [InlineData(62ul, "Tuskroot Heartwood")]
+    [InlineData(63ul, "Bramble Heart")]
+    public void Seed_the_chains_quest_items_as_never_sold_and_never_looted(ulong id, string name)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+
+        Assert.Equal(name, item.Name);
+        Assert.Equal((ItemClass.Quest, ItemSubClass.QuestItem), (item.Class, item.SubClass));
+        Assert.True(item.Flags.HasFlag(ItemTemplateFlags.QuestItem));
+        Assert.True(item.Flags.HasFlag(ItemTemplateFlags.NoSell));
+        Assert.Equal(20u, item.MaxStackSize);
+        Assert.Equal((0u, 0u), (item.BuyPrice, item.SellPrice));
+        Assert.DoesNotContain(context.LootTableEntries.AsNoTracking().ToList(), e => e.ItemTemplateId?.Value == id);
+        Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), s => s.ItemTemplateId.Value == id);
+    }
+
+    /// <summary>The chain's two rewards: rings for every class, in a finger slot, never Unique (a reward must always fit).</summary>
+    [Theory]
+    [InlineData(64ul, "Heartwood Band", ItemRarity.Uncommon, (ushort)5, 3u, 2u)]
+    [InlineData(65ul, "Thornheart Signet", ItemRarity.Rare, (ushort)7, 5u, 4u)]
+    public void Seed_the_chains_rings_for_every_class(ulong id, string name, ItemRarity rarity, ushort level, uint stamina, uint armor)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate ring = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+
+        Assert.Equal(name, ring.Name);
+        Assert.Equal((ItemClass.Armor, ItemSubClass.Ring, ItemSlotType.Finger, rarity), (ring.Class, ring.SubClass, ring.Slot, ring.Rarity));
+        Assert.Equal(level, ring.RequiredLevel);
+        Assert.Equal(4, ring.AllowedClasses.Count);
+        Assert.Equal((StatType.Stamina, stamina), (ring.StatType1, ring.StatValue1));
+        Assert.Equal((StatType.Armor, armor), (ring.StatType2, ring.StatValue2));
+        Assert.False(ring.Flags.HasFlag(ItemTemplateFlags.Unique));
+        Assert.Equal(1u, ring.MaxStackSize);
+    }
+
     [Fact]
     public void Gate_no_vendor_row_behind_a_quest_yet()
     {

@@ -1518,6 +1518,7 @@ public class WorldDbContext : DbContext
         });
 
         SeedForestStorylineItems(builder);
+        SeedForestChainItems(builder);
     }
 
     /// <summary>
@@ -1562,6 +1563,77 @@ public class WorldDbContext : DbContext
                 StatValue2 = 1,
             });
     }
+
+    /// <summary>
+    /// Quests 4-8 (forest content pass): five quest items, each dropped only for characters collecting it
+    /// (QuestItemDrops) and never sold, and the chain's two rewards, rings for any class. The rings' numbers follow the
+    /// Alpha's Fang Pendant and are first drafts for the balance tool.
+    /// </summary>
+    private static void SeedForestChainItems(EntityTypeBuilder<ItemTemplate> builder)
+    {
+        builder.HasData(
+            ChainQuestItem(59, "Blightfly Wing"),
+            ChainQuestItem(60, "Fen Wolf Pelt"),
+            ChainQuestItem(61, "Ledger Page"),
+            ChainQuestItem(62, "Tuskroot Heartwood"),
+            ChainQuestItem(63, "Bramble Heart"),
+            new ItemTemplate
+            {
+                Id = 64,
+                Name = "Heartwood Band",
+                Class = ItemClass.Armor,
+                SubClass = ItemSubClass.Ring,
+                Flags = ItemTemplateFlags.None,
+                MaxStackSize = 1,
+                DisplayId = 64,
+                Rarity = ItemRarity.Uncommon,
+                BuyPrice = 400,
+                SellPrice = 100,
+                Slot = ItemSlotType.Finger,
+                ItemPower = 5,
+                RequiredLevel = 5,
+                StatType1 = StatType.Stamina,
+                StatValue1 = 3,
+                StatType2 = StatType.Armor,
+                StatValue2 = 2,
+            },
+            new ItemTemplate
+            {
+                Id = 65,
+                Name = "Thornheart Signet",
+                Class = ItemClass.Armor,
+                SubClass = ItemSubClass.Ring,
+                Flags = ItemTemplateFlags.None,
+                MaxStackSize = 1,
+                DisplayId = 65,
+                Rarity = ItemRarity.Rare,
+                BuyPrice = 800,
+                SellPrice = 200,
+                Slot = ItemSlotType.Finger,
+                ItemPower = 7,
+                RequiredLevel = 7,
+                StatType1 = StatType.Stamina,
+                StatValue1 = 5,
+                StatType2 = StatType.Armor,
+                StatValue2 = 4,
+            });
+    }
+
+    /// <summary>A quest item as the Boar Tusk is: QuestItem and NoSell, stacks to 20, worth nothing.</summary>
+    private static ItemTemplate ChainQuestItem(ulong id, string name) => new()
+    {
+        Id = id,
+        Name = name,
+        Class = ItemClass.Quest,
+        SubClass = ItemSubClass.QuestItem,
+        Flags = ItemTemplateFlags.QuestItem | ItemTemplateFlags.NoSell,
+        MaxStackSize = 20,
+        DisplayId = (uint)id,
+        Rarity = ItemRarity.Common,
+        BuyPrice = 0,
+        SellPrice = 0,
+        Slot = null,
+    };
 
     /// <summary>
     /// One piece of forest armour: Uncommon, level 1, for one class, with up to three stats. Used by

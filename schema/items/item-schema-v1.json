@@ -380,6 +380,10 @@
         "value": 206
       },
       {
+        "name": "Ring",
+        "value": 207
+      },
+      {
         "name": "QuestItem",
         "value": 300
       },
