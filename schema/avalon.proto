@@ -351,6 +351,8 @@ enum DialogueOptionKind {
    DialogueOptionKind_Conversation = 0;
    DialogueOptionKind_OpenBank = 1;
    DialogueOptionKind_OpenShop = 2;
+   DialogueOptionKind_QuestOffer = 3;
+   DialogueOptionKind_QuestTurnIn = 4;
 }
 enum DisconnectReason {
    DisconnectReason_Unknown = 0;
@@ -567,6 +569,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_PARTY_RESULT = 12465;
    NetworkPacketType_SMSG_PARTY_ROSTER = 12466;
    NetworkPacketType_SMSG_PARTY_MEMBER_STATUS = 12467;
+   NetworkPacketType_SMSG_QUEST_OFFER = 12480;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -662,6 +665,45 @@ enum PowerType {
    PowerType_Mana = 1;
    PowerType_Fury = 2;
    PowerType_Energy = 3;
+}
+message QuestDisplayDto {
+   optional string Title = 1;
+   optional string Text = 2;
+   repeated QuestStageDto Stages = 3;
+   QuestRewardsDto Rewards = 4;
+}
+message QuestObjectiveDto {
+   uint32 ObjectiveId = 1;
+   QuestObjectiveKind Kind = 2;
+   uint64 TargetId = 3;
+   uint32 Count = 4;
+   optional string Text = 5;
+}
+enum QuestObjectiveKind {
+   QuestObjectiveKind_Unknown = 0;
+   QuestObjectiveKind_Kill = 1;
+   QuestObjectiveKind_Collect = 2;
+   QuestObjectiveKind_Talk = 3;
+   QuestObjectiveKind_Scripted = 4;
+}
+enum QuestOfferMode {
+   QuestOfferMode_Unknown = 0;
+   QuestOfferMode_Offer = 1;
+   QuestOfferMode_TurnIn = 2;
+}
+message QuestRewardItemDto {
+   uint64 ItemTemplateId = 1;
+   uint32 Count = 2;
+}
+message QuestRewardsDto {
+   uint32 Experience = 1;
+   uint64 Money = 2;
+   repeated QuestRewardItemDto Items = 3;
+}
+message QuestStageDto {
+   int32 Sequence = 1;
+   optional string Text = 2;
+   repeated QuestObjectiveDto Objectives = 3;
 }
 enum RegisterResult {
    RegisterResult_UnknownError = 0;
@@ -799,6 +841,7 @@ message SDialogueOptionInfo {
    int32 OptionId = 1;
    optional string Text = 2;
    DialogueOptionKind Kind = 3;
+   optional uint32 QuestId = 4;
 }
 message SDisconnectPacket {
    optional string Reason = 1;
@@ -930,6 +973,12 @@ message SPongPacket {
 message SPvpStatePacket {
    bool Enabled = 1;
    uint32 OffInMs = 2;
+}
+message SQuestOfferPacket {
+   uint32 QuestId = 1;
+   uint64 NpcGuid = 2;
+   QuestOfferMode Mode = 3;
+   QuestDisplayDto Quest = 4;
 }
 message SRegisterResultPacket {
    RegisterResult Result = 1;

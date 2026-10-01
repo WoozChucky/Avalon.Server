@@ -62,8 +62,8 @@ public class WireRoundTripShould
             // than out of it: a member the contract initializes comes back empty rather than
             // null, so the server writes a field the reference reader had left out. That is
             // the server's own encode-decode asymmetry, not a disagreement about the bytes.
-            byte[] expected = WireBytes.WithoutEmptyLengthDelimited(fromReference);
-            byte[] actual = WireBytes.WithoutEmptyLengthDelimited(andBack);
+            byte[] expected = WireBytes.WithoutEmptyLengthDelimited(fromReference, descriptor);
+            byte[] actual = WireBytes.WithoutEmptyLengthDelimited(andBack, descriptor);
 
             Assert.True(
                 expected.AsSpan().SequenceEqual(actual),

@@ -186,4 +186,7 @@ public enum NetworkPacketType : short
     SMSG_PARTY_RESULT = 0x30B1,
     SMSG_PARTY_ROSTER = 0x30B2,
     SMSG_PARTY_MEMBER_STATUS = 0x30B3,
+
+    // Quests (#433)
+    SMSG_QUEST_OFFER = 0x30C0,
 }

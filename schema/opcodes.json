@@ -875,6 +875,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_QUEST_OFFER",
+      "opcode": 12480,
+      "hex": "0x30C0",
+      "message": "SQuestOfferPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_CHARACTER_DAMAGED",
       "opcode": 12544,
       "hex": "0x3100",

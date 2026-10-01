@@ -1,13 +1,16 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Quest;
+using Avalon.Network.Packets.World;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
+using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Parties;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
 using Microsoft.Extensions.Logging;
@@ -51,6 +54,72 @@ public sealed class QuestService(
 
     public static QuestStageView? CurrentStage(QuestView quest, ActiveQuest active) =>
         active.Stage >= 0 && active.Stage < quest.Stages.Count ? quest.Stages[active.Stage] : null;
+
+    /// <summary>
+    /// The quest options this character gets at this node (#433): none unless it is the NPC's root; otherwise one
+    /// QuestTurnIn per quest ready to hand in here (by id), then one QuestOffer per quest this NPC gives that the
+    /// character may accept, by level then id. A quest refused only because the log is full is still offered, so
+    /// the accept can say LogFull. Each option's id is the quest id negated.
+    /// </summary>
+    public List<SDialogueOptionInfo> DialogueOptionsFor(IWorldConnection connection, CharacterEntity character, ICreature npc, DialogueNodeView node)
+    {
+        if (NpcInteraction.RootFor(world.Data.Dialogue, npc.Metadata.Id) is not { } root || root.Id.Value != node.Id.Value)
+            return [];
+
+        QuestCatalog catalog = Catalog;
+        ILocalizedTextCatalog text = world.Data.LocalizedTexts;
+        TextContext context = text.ContextFor(character, connection.Locale);
+        List<SDialogueOptionInfo> options = [];
+
+        foreach (QuestView quest in catalog.EndedBy(npc.Metadata.Id))
+        {
+            if (character.Quests.Get(quest.Id) is { State: CharacterQuestState.ReadyToTurnIn })
+                options.Add(Option(quest, DialogueOptionKind.QuestTurnIn, text, context));
+        }
+
+        foreach (QuestView quest in catalog.GivenBy(npc.Metadata.Id))
+        {
+            if (Availability(character, quest) is QuestResult.Ok or QuestResult.LogFull)
+                options.Add(Option(quest, DialogueOptionKind.QuestOffer, text, context));
+        }
+
+        return options;
+    }
+
+    /// <summary>
+    /// A chosen dialogue option whose id is negative is a quest option (#433). When this character is offered it at
+    /// this node now, the quest's offer goes out; otherwise it is logged and ignored. The conversation stays where
+    /// it is either way. False only for an authored (non-negative) id, which the caller handles.
+    /// </summary>
+    public bool TryChoose(IWorldConnection connection, CharacterEntity character, ICreature npc, DialogueNodeView node, int optionId)
+    {
+        if (optionId >= 0)
+            return false;
+
+        SDialogueOptionInfo? offered = DialogueOptionsFor(connection, character, npc, node).FirstOrDefault(o => o.OptionId == optionId);
+        if (offered?.QuestId is not { } questId || !Catalog.TryGet(questId, out QuestView? quest))
+        {
+            logger.LogInformation("Quest option {Option} is not offered to character {CharacterId} by {Npc}",
+                optionId, character.Guid.Id, npc.Metadata.Id.Value);
+            return true;
+        }
+
+        bool turnIn = offered.Kind == DialogueOptionKind.QuestTurnIn;
+        ILocalizedTextCatalog text = world.Data.LocalizedTexts;
+        connection.Send(SQuestOfferPacket.Create(questId, npc.Guid.RawValue,
+            turnIn ? QuestOfferMode.TurnIn : QuestOfferMode.Offer,
+            QuestDisplay.Build(quest, text, text.ContextFor(character, connection.Locale), completionText: turnIn),
+            connection.CryptoSession.Encrypt));
+        return true;
+    }
+
+    private static SDialogueOptionInfo Option(QuestView quest, DialogueOptionKind kind, ILocalizedTextCatalog text, TextContext context) => new()
+    {
+        OptionId = -(int)quest.Id,
+        Text = text.Get(quest.TitleTextId, context),
+        Kind = kind,
+        QuestId = quest.Id,
+    };
 
     /// <summary>
     /// CMSG_QUEST_ACCEPT (#433): an open conversation with the NPC inside the leash, the NPC is the quest's giver,
@@ -216,8 +285,13 @@ public sealed class QuestService(
     {
     }
 
-    /// <summary>Task 5: re-send the NPC's root so its quest options are current.</summary>
+    /// <summary>After an accept or a turn-in, the NPC's root again, so its quest options are current.</summary>
     private void AfterConversationChange(IWorldConnection connection, CharacterEntity character, ICreature npc)
     {
+        if (NpcInteraction.RootFor(world.Data.Dialogue, npc.Metadata.Id) is not { } root)
+            return;
+
+        connection.CurrentDialogue = (npc.Guid, root.Id);
+        InteractHandler.Send(connection, npc, root, character, world.Data, DialogueOptionsFor(connection, character, npc, root));
     }
 }
