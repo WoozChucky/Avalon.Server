@@ -648,7 +648,7 @@ public class DuplicateCharacterSelectShould : IDisposable
             localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            dialogue, LootRepositories.Empty());
+            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off());
 
         await world.LoadAsync(CancellationToken.None);
         if (town is not null)

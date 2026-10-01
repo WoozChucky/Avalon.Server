@@ -86,7 +86,7 @@ public class World : IWorld
     private readonly IWorldRepository _worldRepository;
     private readonly InstanceTicker _instanceTicker;
     private readonly PartyService? _parties;
-    private readonly ChatRateLimiter? _chatRateLimiter;
+    private readonly ChatRateLimiter _chatRateLimiter;
     private readonly ThrottledErrorLog _partyTickErrors;
 
     private Domain.Auth.World? _world;
@@ -111,11 +111,11 @@ public class World : IWorld
         IChunkLibrary chunkLibrary,
         IDialogueRepository dialogueRepository,
         ILootTableRepository lootTableRepository,
+        ChatRateLimiter chatRateLimiter,
         IVendorStockRepository? vendorStockRepository = null,
         ICombatDataRepository? combatDataRepository = null,
         PartyService? parties = null,
-        IQuestRepository? questRepository = null,
-        ChatRateLimiter? chatRateLimiter = null)
+        IQuestRepository? questRepository = null)
     {
         _parties = parties;
         _chatRateLimiter = chatRateLimiter;
@@ -263,7 +263,7 @@ public class World : IWorld
         }
 
         // The character's chat window goes with it (#722). Cannot throw: a dictionary remove under a lock.
-        _chatRateLimiter?.Forget(character.Guid.Id);
+        _chatRateLimiter.Forget(character.Guid.Id);
 
         AsyncServiceScope? scope = null;
         Task<bool>? saved = null;

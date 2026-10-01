@@ -324,8 +324,7 @@ public class ChatRateLimitShould
             r.Texts,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            r.Dialogue, r.Loot,
-            chatRateLimiter: _limiter);
+            r.Dialogue, r.Loot, _limiter);
         PartyClient a = _w.Online(1, "Aren");
         Send(a, "x");
         Assert.Equal(1, _limiter.TrackedCharacters);

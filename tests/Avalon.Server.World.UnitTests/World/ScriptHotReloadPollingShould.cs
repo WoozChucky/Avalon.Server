@@ -161,7 +161,7 @@ public class ScriptHotReloadPollingShould
             localizedText,
             reloader,
             Substitute.For<IChunkLibrary>(),
-            dialogue, LootRepositories.Empty(), parties: parties);
+            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(), parties: parties);
 
         await world.LoadAsync(CancellationToken.None);
         return world;

@@ -273,7 +273,7 @@ public class InstanceTransferReplicationShould
                 r.Texts,
                 Substitute.For<IScriptHotReloader>(),
                 chunks,
-                r.Dialogue, r.Loot);
+                r.Dialogue, r.Loot, Avalon.Server.World.UnitTests.Chat.ChatLimits.Off());
             await world.LoadAsync(CancellationToken.None);
 
             // Registered through the registry's own creation paths, so TransferPlayer finds them.

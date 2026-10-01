@@ -334,7 +334,7 @@ public class DeSpawnDuringReadinessBarrierShould
             localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            dialogue, LootRepositories.Empty());
+            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off());
 
         await world.LoadAsync(CancellationToken.None);
         return (world, characterRepository, saver);
