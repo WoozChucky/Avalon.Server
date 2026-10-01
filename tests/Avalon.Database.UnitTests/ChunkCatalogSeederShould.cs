@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Database.World.Seeding;
@@ -110,6 +111,129 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(
             () => ChunkCatalogSeeder.SeedAsync(db, root));
         Assert.Contains("forest_path_02", error.Message);
+    }
+
+    /// <summary>Four 1x1 member chunks with exits only on their outer edges, written next to the committed catalog.</summary>
+    private static void WriteGroupMembers(string root, string prefix, bool innerExit = false)
+    {
+        (string Suffix, string Exits)[] members =
+        [
+            ("sw", "\"N\": [" + (innerExit ? "\"center\"" : "") + "], \"E\": [], \"S\": [\"center\"], \"W\": []"),
+            ("se", "\"N\": [], \"E\": [\"center\"], \"S\": [], \"W\": []"),
+            ("nw", "\"N\": [], \"E\": [], \"S\": [], \"W\": []"),
+            ("ne", "\"N\": [\"center\"], \"E\": [], \"S\": [], \"W\": []"),
+        ];
+        foreach ((string suffix, string exits) in members)
+        {
+            string name = $"{prefix}_{suffix}";
+            File.WriteAllText(Path.Combine(root, "Chunks", name + ".json"),
+                $$"""{ "name": "{{name}}", "assetKey": "chunks/{{name}}", "cellFootprintX": 1, "cellFootprintZ": 1, "cellSize": 30, "exits": { {{exits}} }, "spawnSlots": [], "portalSlots": [], "tags": ["test"] }""");
+            File.WriteAllText(Path.Combine(root, "Chunks", name + ".obj"), "o Floor\nv 0 0 0\nv 30 0 0\nv 30 0 30\nf 1 2 3\n");
+        }
+    }
+
+    /// <summary>
+    /// Adds an empty "test_pool" to the copy's chunk-pools.json, then the group under <paramref name="pool" /> in its
+    /// chunk-groups.json, keeping every group already there.
+    /// </summary>
+    private static void WriteGroup(string root, string pool, string group, string prefix, int neX = 1, int neZ = 1)
+    {
+        string poolsPath = Path.Combine(root, "chunk-pools.json");
+        JsonObject pools = JsonNode.Parse(File.ReadAllText(poolsPath))!.AsObject();
+        pools["test_pool"] = new JsonArray();
+        File.WriteAllText(poolsPath, pools.ToJsonString());
+
+        string groupsPath = Path.Combine(root, "chunk-groups.json");
+        JsonObject groups = File.Exists(groupsPath) ? JsonNode.Parse(File.ReadAllText(groupsPath))!.AsObject() : new JsonObject();
+        groups[pool] = JsonNode.Parse($$"""
+            [ { "name": "{{group}}", "members": [
+                { "chunk": "{{prefix}}_sw", "cellX": 0, "cellZ": 0 },
+                { "chunk": "{{prefix}}_se", "cellX": 1, "cellZ": 0 },
+                { "chunk": "{{prefix}}_nw", "cellX": 0, "cellZ": 1 },
+                { "chunk": "{{prefix}}_ne", "cellX": {{neX}}, "cellZ": {{neZ}} } ] } ]
+            """);
+        File.WriteAllText(groupsPath, groups.ToJsonString());
+    }
+
+    /// <summary>The generator tool (Task 9) validates its output with this reader, so it must work with no database.</summary>
+    [Fact]
+    public async Task Read_the_committed_catalog_without_a_database()
+    {
+        ChunkCatalogFiles files = await ChunkCatalogSeeder.ReadCatalogAsync(CommittedMapsRoot());
+
+        Assert.Equal(18, files.Chunks.Count);
+        Assert.Contains("forest_pool", files.Pools.Keys);
+        Assert.Single(files.Layouts);
+    }
+
+    [Fact]
+    public async Task Seed_a_group_of_four_with_its_cells()
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupMembers(root, "g");
+        WriteGroup(root, "test_pool", "test_group", "g");
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using (WorldDbContext db = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(db, root);
+
+        await using WorldDbContext read = database.CreateDbContext();
+        ChunkPool testPool = await read.ChunkPools.Include(p => p.Groups).ThenInclude(g => g.Members)
+            .SingleAsync(p => p.Name == "test_pool");
+        ChunkGroup group = Assert.Single(testPool.Groups);
+        Assert.Equal("test_group", group.Name);
+        Dictionary<int, string> names = await read.ChunkTemplates.ToDictionaryAsync(t => t.Id.Value, t => t.Name);
+        Assert.Equal(["g_sw@0,0", "g_se@1,0", "g_nw@0,1", "g_ne@1,1"],
+            group.Members.OrderBy(m => m.CellZ).ThenBy(m => m.CellX).Select(m => $"{names[m.ChunkTemplateId.Value]}@{m.CellX},{m.CellZ}"));
+    }
+
+    [Fact]
+    public async Task Replace_the_groups_when_run_again()
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupMembers(root, "g");
+        WriteGroup(root, "test_pool", "test_group", "g");
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using (WorldDbContext first = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(first, root);
+        await using (WorldDbContext second = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(second, root);
+
+        await using WorldDbContext read = database.CreateDbContext();
+        ChunkGroup group = await read.ChunkGroups.Include(g => g.Members).SingleAsync(g => g.Name == "test_group");
+        Assert.Equal(4, group.Members.Count);
+    }
+
+    [Theory]
+    [InlineData("unknown_pool", "g", 1, 1, false)]   // a pool chunk-pools.json does not name
+    [InlineData("test_pool", "nope", 1, 1, false)]   // members that do not exist
+    [InlineData("test_pool", "g", 0, 0, false)]      // two members on one cell
+    [InlineData("test_pool", "g", 2, 1, false)]      // cells that are not a full rectangle
+    [InlineData("test_pool", "g", 1, 1, true)]       // an exit on an inner edge
+    public async Task Refuse_a_bad_group_and_write_nothing(string pool, string prefix, int neX, int neZ, bool innerExit)
+    {
+        string root = CopyOfCommittedMaps();
+        WriteGroupMembers(root, "g", innerExit);
+        WriteGroup(root, pool, "test_group", prefix, neX, neZ);
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using WorldDbContext db = database.CreateDbContext();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
+        Assert.Equal(0, await db.ChunkTemplates.CountAsync());
+    }
+
+    [Fact]
+    public async Task Refuse_a_group_member_that_is_also_a_pool_member()
+    {
+        string root = CopyOfCommittedMaps();
+        File.WriteAllText(Path.Combine(root, "chunk-groups.json"), """
+            { "forest_pool": [ { "name": "bad", "members": [
+                { "chunk": "forest_path_01", "cellX": 0, "cellZ": 0 },
+                { "chunk": "forest_path_02", "cellX": 1, "cellZ": 0 } ] } ] }
+            """);
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using WorldDbContext db = database.CreateDbContext();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
     }
 
     private static string CommittedMapsRoot()

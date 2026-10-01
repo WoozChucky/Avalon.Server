@@ -81,6 +81,7 @@ public class WorldDbContext : DbContext
     public DbSet<AbilityTemplate> AbilityTemplates { get; set; } = null!;
     public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
     public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
+    public DbSet<ChunkGroup> ChunkGroups { get; set; } = null!;
     public DbSet<SpawnTable> SpawnTables { get; set; } = null!;
     public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
     public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
@@ -165,6 +166,30 @@ public class WorldDbContext : DbContext
                 .HasForeignKey(m => m.ChunkTemplateId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        Configure(modelBuilder.Entity<ChunkGroup>());
+        Configure(modelBuilder.Entity<ChunkGroupMember>());
+    }
+
+    private static void Configure(EntityTypeBuilder<ChunkGroup> e)
+    {
+        e.ToTable("ChunkGroups");
+        e.HasKey(g => g.Id);
+        e.Property(g => g.Id).ValueGeneratedOnAdd();
+        e.Property(g => g.Name).IsRequired().HasMaxLength(100);
+        e.HasIndex(g => g.Name).IsUnique();
+        e.Property(g => g.ChunkPoolId).HasConversion(v => v.Value, v => new ChunkPoolId(v)).IsRequired();
+        e.HasMany(g => g.Members).WithOne().HasForeignKey(m => m.ChunkGroupId).OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<ChunkGroupMember> e)
+    {
+        e.ToTable("ChunkGroupMembers");
+        e.HasKey(m => new { m.ChunkGroupId, m.CellX, m.CellZ });
+        e.Property(m => m.ChunkTemplateId).HasConversion(v => v.Value, v => new ChunkTemplateId(v)).IsRequired();
+        e.HasOne<ChunkTemplate>().WithMany().HasForeignKey(m => m.ChunkTemplateId).OnDelete(DeleteBehavior.Cascade);
+        // A chunk belongs to one group at most, so a member is never placed twice.
+        e.HasIndex(m => m.ChunkTemplateId).IsUnique();
     }
 
     /// <summary>
@@ -1731,6 +1756,11 @@ public class WorldDbContext : DbContext
         builder.HasMany(b => b.Memberships)
             .WithOne(m => m.Pool)
             .HasForeignKey(m => m.ChunkPoolId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(b => b.Groups)
+            .WithOne()
+            .HasForeignKey(g => g.ChunkPoolId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 

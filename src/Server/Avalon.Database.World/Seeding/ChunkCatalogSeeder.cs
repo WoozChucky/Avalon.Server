@@ -7,12 +7,13 @@ using Microsoft.EntityFrameworkCore;
 namespace Avalon.Database.World.Seeding;
 
 /// <summary>What one <see cref="ChunkCatalogSeeder.SeedAsync" /> run wrote.</summary>
-public sealed record ChunkCatalogSeedResult(int TemplatesAdded, int TemplatesUpdated, int LayoutsReplaced, int PoolsSynced);
+public sealed record ChunkCatalogSeedResult(
+    int TemplatesAdded, int TemplatesUpdated, int LayoutsReplaced, int PoolsSynced, int GroupsReplaced);
 
 /// <summary>
 /// Brings the world database's chunk catalog in line with the files committed under Maps/:
-/// <c>Chunks/&lt;name&gt;.json</c> (+ its <c>.obj</c>), <c>TownLayouts/*.json</c> and
-/// <c>chunk-pools.json</c>. Chunk templates are matched by name, so existing ids (and everything
+/// <c>Chunks/&lt;name&gt;.json</c> (+ its <c>.obj</c>), <c>TownLayouts/*.json</c>,
+/// <c>chunk-pools.json</c> and <c>chunk-groups.json</c>. Chunk templates are matched by name, so existing ids (and everything
 /// referencing them) survive; templates with no file are left alone. Every file is read and
 /// validated before anything is written, and the writes share one transaction.
 /// </summary>
@@ -23,27 +24,43 @@ public static class ChunkCatalogSeeder
     public static async Task<ChunkCatalogSeedResult> SeedAsync(WorldDbContext db, string mapsRoot,
         CancellationToken ct = default)
     {
-        List<ChunkMetaDto> chunks = await LoadChunksAsync(mapsRoot, ct);
-        HashSet<string> chunkNames = chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
-        List<(string Path, TownLayoutDto Layout)> layouts = await LoadLayoutsAsync(mapsRoot, chunkNames, ct);
-        Dictionary<string, string[]> pools = await LoadPoolsAsync(mapsRoot, chunkNames, ct);
+        ChunkCatalogFiles files = await ReadCatalogAsync(mapsRoot, ct);
+        HashSet<string> chunkNames = files.Chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        (int added, int updated) = await UpsertTemplatesAsync(db, chunks, ct);
+        (int added, int updated) = await UpsertTemplatesAsync(db, files.Chunks, ct);
         Dictionary<string, ChunkTemplate> byName = await db.ChunkTemplates
             .Where(t => chunkNames.Contains(t.Name))
             .ToDictionaryAsync(t => t.Name, StringComparer.Ordinal, ct);
 
-        foreach ((string path, TownLayoutDto layout) in layouts)
+        foreach ((string path, TownLayoutDto layout) in files.Layouts)
             await ReplaceLayoutAsync(db, path, layout, byName, ct);
 
-        foreach ((string pool, string[] members) in pools)
+        foreach ((string pool, string[] members) in files.Pools)
             await SyncPoolAsync(db, pool, members, byName, ct);
+
+        if (files.Groups is not null)
+            await ReplaceGroupsAsync(db, files.Groups, byName, ct);
 
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
-        return new ChunkCatalogSeedResult(added, updated, layouts.Count, pools.Count);
+        return new ChunkCatalogSeedResult(added, updated, files.Layouts.Count, files.Pools.Count,
+            files.Groups?.Values.Sum(g => g.Length) ?? 0);
+    }
+
+    /// <summary>
+    /// Reads and checks every file under Maps/ without a database, throwing InvalidDataException naming the first
+    /// problem. SeedAsync starts with it, and tools/Avalon.ChunkGen validates the pieces it writes with it.
+    /// </summary>
+    public static async Task<ChunkCatalogFiles> ReadCatalogAsync(string mapsRoot, CancellationToken ct = default)
+    {
+        List<ChunkMetaDto> chunks = await LoadChunksAsync(mapsRoot, ct);
+        HashSet<string> chunkNames = chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+        List<(string, TownLayoutDto)> layouts = await LoadLayoutsAsync(mapsRoot, chunkNames, ct);
+        Dictionary<string, string[]> pools = await LoadPoolsAsync(mapsRoot, chunkNames, ct);
+        Dictionary<string, GroupDto[]>? groups = await LoadGroupsAsync(mapsRoot, chunks, pools, ct);
+        return new ChunkCatalogFiles(chunks, layouts, pools, groups);
     }
 
     private static async Task<List<ChunkMetaDto>> LoadChunksAsync(string mapsRoot, CancellationToken ct)
@@ -106,7 +123,7 @@ public static class ChunkCatalogSeeder
     }
 
     private static async Task<(int Added, int Updated)> UpsertTemplatesAsync(WorldDbContext db,
-        List<ChunkMetaDto> chunks, CancellationToken ct)
+        IReadOnlyList<ChunkMetaDto> chunks, CancellationToken ct)
     {
         List<ChunkTemplate> existing = await db.ChunkTemplates.ToListAsync(ct);
         Dictionary<string, ChunkTemplate> byName = existing.ToDictionary(t => t.Name, StringComparer.Ordinal);
@@ -220,6 +237,99 @@ public static class ChunkCatalogSeeder
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Maps/chunk-groups.json, or null when there is none (the groups in the database are then left alone, as pools
+    /// are). Every group must name a pool chunk-pools.json names, a unique name, and 1x1 member chunks that exist, sit in
+    /// no pool and no other group, fill a whole rectangle of cells, and declare no exit on a side facing another member.
+    /// </summary>
+    private static async Task<Dictionary<string, GroupDto[]>?> LoadGroupsAsync(string mapsRoot, IReadOnlyList<ChunkMetaDto> chunks,
+        Dictionary<string, string[]> pools, CancellationToken ct)
+    {
+        string path = Path.Combine(mapsRoot, "chunk-groups.json");
+        if (!File.Exists(path)) return null;
+
+        Dictionary<string, GroupDto[]> groups = await ReadAsync<Dictionary<string, GroupDto[]>>(path, ct);
+        Dictionary<string, ChunkMetaDto> metas = chunks.ToDictionary(c => c.Name, StringComparer.Ordinal);
+        HashSet<string> pooled = pools.Values.SelectMany(m => m).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> groupNames = new(StringComparer.Ordinal);
+        HashSet<string> grouped = new(StringComparer.Ordinal);
+
+        foreach ((string pool, GroupDto[] list) in groups)
+        {
+            if (!pools.ContainsKey(pool))
+                throw new InvalidDataException($"{path}: pool '{pool}' is not in chunk-pools.json");
+
+            foreach (GroupDto group in list)
+            {
+                if (!groupNames.Add(group.Name))
+                    throw new InvalidDataException($"{path}: group '{group.Name}' is defined twice");
+                if (group.Members.Count < 2)
+                    throw new InvalidDataException($"{path}: group '{group.Name}' needs at least two members");
+
+                foreach (GroupMemberDto member in group.Members)
+                {
+                    if (!metas.TryGetValue(member.Chunk, out ChunkMetaDto? meta))
+                        throw new InvalidDataException($"{path}: group '{group.Name}' names unknown chunk '{member.Chunk}'");
+                    if (meta.CellFootprintX != 1 || meta.CellFootprintZ != 1)
+                        throw new InvalidDataException($"{path}: group '{group.Name}' member '{member.Chunk}' is not 1x1");
+                    if (pooled.Contains(member.Chunk))
+                        throw new InvalidDataException($"{path}: group '{group.Name}' member '{member.Chunk}' is also a pool member");
+                    if (!grouped.Add(member.Chunk))
+                        throw new InvalidDataException($"{path}: chunk '{member.Chunk}' is in two groups");
+                    if (member.CellX < 0 || member.CellZ < 0)
+                        throw new InvalidDataException($"{path}: group '{group.Name}' member '{member.Chunk}' has a negative cell");
+                }
+
+                var cells = group.Members.Select(m => (m.CellX, m.CellZ)).ToHashSet();
+                int sizeX = group.Members.Max(m => m.CellX) + 1, sizeZ = group.Members.Max(m => m.CellZ) + 1;
+                if (cells.Count != group.Members.Count || cells.Count != sizeX * sizeZ)
+                    throw new InvalidDataException($"{path}: group '{group.Name}' cells do not fill a {sizeX}x{sizeZ} rectangle once each");
+
+                foreach (GroupMemberDto member in group.Members)
+                {
+                    foreach ((string side, int dx, int dz) in new[] { ("N", 0, 1), ("E", 1, 0), ("S", 0, -1), ("W", -1, 0) })
+                    {
+                        bool inner = cells.Contains((member.CellX + dx, member.CellZ + dz));
+                        if (inner && metas[member.Chunk].Exits.TryGetValue(side, out string[]? slots) && slots.Length > 0)
+                            throw new InvalidDataException(
+                                $"{path}: group '{group.Name}' member '{member.Chunk}' has an exit on its inner {side} edge");
+                    }
+                }
+            }
+        }
+
+        return groups;
+    }
+
+    /// <summary>Every group is written afresh on each start, like a town layout: nothing refers to a group's id.</summary>
+    private static async Task ReplaceGroupsAsync(WorldDbContext db, IReadOnlyDictionary<string, GroupDto[]> groups,
+        Dictionary<string, ChunkTemplate> byName, CancellationToken ct)
+    {
+        db.ChunkGroups.RemoveRange(await db.ChunkGroups.Include(g => g.Members).ToListAsync(ct));
+        await db.SaveChangesAsync(ct);
+
+        Dictionary<string, ChunkPoolId> poolIds = await db.ChunkPools.ToDictionaryAsync(p => p.Name, p => p.Id, StringComparer.Ordinal, ct);
+        foreach ((string pool, GroupDto[] list) in groups)
+        {
+            foreach (GroupDto group in list)
+            {
+                db.ChunkGroups.Add(new ChunkGroup
+                {
+                    Name = group.Name,
+                    ChunkPoolId = poolIds[pool],
+                    Members = group.Members.Select(m => new ChunkGroupMember
+                    {
+                        ChunkTemplateId = byName[m.Chunk].Id,
+                        CellX = (byte)m.CellX,
+                        CellZ = (byte)m.CellZ,
+                    }).ToList(),
+                });
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
     private static ushort BuildExitMask(IDictionary<string, string[]> exits)
     {
         ushort mask = 0;
@@ -241,33 +351,4 @@ public static class ChunkCatalogSeeder
     private static async Task<T> ReadAsync<T>(string path, CancellationToken ct) =>
         JsonSerializer.Deserialize<T>(await File.ReadAllTextAsync(path, ct), Json)
         ?? throw new InvalidDataException($"{path}: empty");
-
-    private sealed record ChunkMetaDto(
-        string Name,
-        string AssetKey,
-        byte CellFootprintX,
-        byte CellFootprintZ,
-        float CellSize,
-        Dictionary<string, string[]> Exits,
-        List<SpawnSlotDto> SpawnSlots,
-        List<PortalSlotDto> PortalSlots,
-        string[] Tags);
-
-    private sealed record SpawnSlotDto(string Tag, float LocalX, float LocalY, float LocalZ);
-
-    private sealed record PortalSlotDto(string Role, float LocalX, float LocalY, float LocalZ);
-
-    private sealed record TownLayoutDto(int MapTemplateId, string MapName, float CellSize, List<TownChunkPlacementDto> Chunks);
-
-    private sealed record TownChunkPlacementDto(
-        string ChunkName,
-        short GridX,
-        short GridZ,
-        byte Rotation,
-        bool IsEntry,
-        EntrySpawnDto? EntrySpawn,
-        ushort? BackPortalTargetMapId,
-        ushort? ForwardPortalTargetMapId);
-
-    private sealed record EntrySpawnDto(float LocalX, float LocalY, float LocalZ);
 }
