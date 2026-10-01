@@ -418,6 +418,9 @@ public static class NavmeshVectors
 
         public IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids) =>
             ids.ToDictionary(id => id, GetById);
+
+        public IReadOnlyList<ChunkGroupDefinition> GetGroupsByPool(ChunkPoolId poolId) =>
+            throw new NotSupportedException("The navmesh export places chunks itself; it selects none.");
     }
 
     private const string Header = """

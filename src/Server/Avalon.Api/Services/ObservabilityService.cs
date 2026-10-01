@@ -336,11 +336,11 @@ public class ObservabilityService : IObservabilityService
                 .FindByTemplateIdAsync(new MapTemplateId(instance.TemplateId), ct);
             if (config is null) return false;
 
-            IReadOnlyList<ChunkPoolMember>? members = await GetPoolMembersCachedAsync(worldId, config.ChunkPoolId, ct);
-            if (members is null) return false;
+            ProceduralPoolResolution? resolution = await GetPoolResolutionCachedAsync(worldId, config.ChunkPoolId, ct);
+            if (resolution is null) return false;
 
             return !string.Equals(
-                LayoutConfigVersion.Compute(config, members),
+                LayoutConfigVersion.Compute(config, resolution.Members, resolution.Groups),
                 instance.ConfigVersion,
                 StringComparison.Ordinal);
         }
@@ -360,7 +360,7 @@ public class ObservabilityService : IObservabilityService
     /// <see cref="IProceduralLayoutInputsResolver"/> — and <see cref="GetPlayerPresenceAsync"/>
     /// is polled by the admin dashboard every PRESENCE_POLL_MS (1.5s), so an open player-detail
     /// view would otherwise repeat both full-table reads on every poll. Caching the resolved
-    /// member list by <see cref="ChunkPoolId"/> for 30 seconds cuts that to one pair of reads
+    /// member list and set pieces by <see cref="ChunkPoolId"/> for 30 seconds cuts that to one pair of reads
     /// per pool per 30s window regardless of how many admins are watching.
     ///
     /// Tradeoff, written down deliberately: a pool-weight or geometry edit can take up to 30s to
@@ -378,18 +378,18 @@ public class ObservabilityService : IObservabilityService
     /// other <c>ValueObject&lt;ushort&gt;</c> another feature might one day cache here.
     /// Keyed by world too: pool 3 of one world is not pool 3 of another (#523).
     /// </summary>
-    private async Task<IReadOnlyList<ChunkPoolMember>?> GetPoolMembersCachedAsync(
+    private async Task<ProceduralPoolResolution?> GetPoolResolutionCachedAsync(
         ushort worldId, ChunkPoolId poolId, CancellationToken ct)
     {
         string cacheKey = $"obs:poolMembers:{worldId}:{poolId.Value}";
-        if (_poolMemberCache.TryGetValue(cacheKey, out IReadOnlyList<ChunkPoolMember>? cached)) return cached;
+        if (_poolMemberCache.TryGetValue(cacheKey, out ProceduralPoolResolution? cached)) return cached;
 
         IProceduralLayoutInputsResolver inputs = _perWorld.LayoutInputs(new WorldId(worldId));
         ChunkPool? pool = await inputs.FindPoolAsync(poolId, ct);
         if (pool is null) return null;
 
         ProceduralPoolResolution resolution = await inputs.ResolveMembersAsync(pool, ct);
-        _poolMemberCache.Set(cacheKey, resolution.Members, TimeSpan.FromSeconds(30));
-        return resolution.Members;
+        _poolMemberCache.Set(cacheKey, resolution, TimeSpan.FromSeconds(30));
+        return resolution;
     }
 }

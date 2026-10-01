@@ -221,6 +221,69 @@ public class ChunkLibraryShould
         await Assert.ThrowsAsync<InvalidProceduralConfigException>(() => lib.LoadAsync(CancellationToken.None));
     }
 
+    private static (ChunkTemplate Entry, ChunkPool Pool, List<ChunkTemplate> Templates) PoolWithBossGroup()
+    {
+        var entry = new ChunkTemplate
+        {
+            Id = new ChunkTemplateId(1), Name = "Entry", Exits = 0b_000_000_000_010,
+            SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
+            PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
+        };
+        var a = new ChunkTemplate { Id = new ChunkTemplateId(2), Name = "a", Exits = 0b_000_010_000_000 };
+        var b = new ChunkTemplate { Id = new ChunkTemplateId(3), Name = "b", SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "boss" } } };
+        var pool = new ChunkPool
+        {
+            Id = new ChunkPoolId(1), Name = "p1",
+            Memberships = new List<ChunkPoolMembership>
+            {
+                new() { ChunkPoolId = new ChunkPoolId(1), ChunkTemplateId = entry.Id, Template = entry }
+            },
+            Groups = new List<ChunkGroup>
+            {
+                new()
+                {
+                    Id = 1, Name = "arena", ChunkPoolId = new ChunkPoolId(1),
+                    Members = new List<ChunkGroupMember>
+                    {
+                        new() { ChunkGroupId = 1, ChunkTemplateId = a.Id, CellX = 0, CellZ = 0 },
+                        new() { ChunkGroupId = 1, ChunkTemplateId = b.Id, CellX = 1, CellZ = 0 },
+                    }
+                }
+            }
+        };
+        return (entry, pool, [entry, a, b]);
+    }
+
+    [Fact]
+    public async Task Hand_out_a_pools_groups_with_their_templates()
+    {
+        (_, ChunkPool pool, List<ChunkTemplate> templates) = PoolWithBossGroup();
+        var lib = BuildLibraryWith(templates, [pool], configs: []);
+
+        await lib.LoadAsync(CancellationToken.None);
+
+        ChunkGroupDefinition group = Assert.Single(lib.GetGroupsByPool(new ChunkPoolId(1)));
+        Assert.Equal("arena", group.Name);
+        Assert.Equal(["a", "b"], group.Cells.OrderBy(c => c.CellX).Select(c => c.Template.Name));
+        Assert.Empty(lib.GetGroupsByPool(new ChunkPoolId(9)));
+    }
+
+    [Fact]
+    public async Task Count_a_boss_group_as_the_pools_boss()
+    {
+        (_, ChunkPool pool, List<ChunkTemplate> templates) = PoolWithBossGroup();
+        var lib = BuildLibraryWith(templates, [pool], configs:
+        [
+            new ProceduralMapConfig
+            {
+                MapTemplateId = new MapTemplateId(14), ChunkPoolId = new ChunkPoolId(1), SpawnTableId = new SpawnTableId(1),
+                MainPathMin = 2, MainPathMax = 2, BackPortalTargetMapId = 1, HasBoss = true,
+            }
+        ]);
+
+        await lib.LoadAsync(CancellationToken.None);   // no InvalidProceduralConfigException
+    }
+
     // Helper extracts repeated ServiceCollection + scope-factory wiring.
     private static ChunkLibrary BuildLibraryWith(
         IReadOnlyList<ChunkTemplate> templates,

@@ -35,6 +35,11 @@ public class ProceduralLayoutInputsResolver : IProceduralLayoutInputsResolver
             .Select(m => new ChunkPoolMember(byId[m.ChunkTemplateId], m.Weight))
             .ToList();
 
-        return new ProceduralPoolResolution(members, byId);
+        List<ChunkGroupDefinition> groups = pool.Groups
+            .Select(g => ChunkGroupDefinition.From(g, byId))
+            .OfType<ChunkGroupDefinition>()
+            .ToList();
+
+        return new ProceduralPoolResolution(members, byId, groups);
     }
 }
