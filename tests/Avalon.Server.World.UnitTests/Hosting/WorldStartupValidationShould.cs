@@ -237,6 +237,24 @@ public class WorldStartupValidationShould
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("MaxActiveQuests", "0")]
+    [InlineData("MaxActiveQuests", "101")]
+    public async Task Refuse_to_start_with_a_quest_setting_out_of_range(string setting, string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+            ["Game:" + setting] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+
+        Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Default_the_party_settings_to_the_spec()
     {
@@ -251,6 +269,7 @@ public class WorldStartupValidationShould
         Assert.Equal(60f, config.PartyEligibilityRange);
         Assert.Equal(0.10f, config.PartyExperienceBonusPerExtra);
         Assert.Equal(5, config.PartyExperienceLevelGap);
+        Assert.Equal(20, config.MaxActiveQuests);
     }
 
     private static async Task<IHost> BuildAsync(Dictionary<string, string?> overrides)

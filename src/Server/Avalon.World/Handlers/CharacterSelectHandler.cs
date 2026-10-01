@@ -638,6 +638,7 @@ public class CharacterSelectHandler(
 
         // #433: the quest log, then the pending spawn. No repository (tests that build the handler without one) is
         // an empty log, as a character that never took a quest has.
+        entity.Quests.Locale = connection.Locale;
         if (questRepository is null)
         {
             Spawn(connection, entity, instance);

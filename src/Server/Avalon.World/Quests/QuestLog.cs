@@ -81,6 +81,9 @@ public sealed class QuestLog(SaveStateTracker save)
     /// <summary>True once this session's SMSG_QUEST_LOG has gone out. Never saved.</summary>
     public bool LogSent { get; set; }
 
+    /// <summary>The locale this session's lines are written in; set at select from the connection. Never saved.</summary>
+    public Avalon.Common.Accounts.AccountLocale Locale { get; set; }
+
     // The markers last sent (QuestFlusher), and what they were computed from. Never saved.
     public Guid? MarkersInstance { get; set; }
     public ushort MarkersLevel { get; set; }

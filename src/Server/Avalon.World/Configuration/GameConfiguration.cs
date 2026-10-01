@@ -199,6 +199,10 @@ public class GameConfiguration
     [Range(1, 1000)]
     public int PartyExperienceLevelGap { get; set; } = 5;
 
+    /// <summary>How many quests a character may hold at once (#433). A full log refuses an accept with LogFull.</summary>
+    [Range(1, 100)]
+    public int MaxActiveQuests { get; set; } = 20;
+
     /// <summary>The default of <see cref="FuryFromDamageTaken" />, for whatever is built without the options.</summary>
     public const float DefaultFuryFromDamageTaken = Avalon.Combat.Fury.DefaultFromDamageTaken;
 
