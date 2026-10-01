@@ -8,10 +8,11 @@ namespace Avalon.World.Characters;
 
 /// <summary>
 /// Gives a character experience already worked out by its caller (a kill's band-scaled share, a quest's reward,
-/// #433) and levels it up past every requirement the total covers, carrying the rest. The maximum level is the highest
-/// level with a requirement row (<see cref="MaxLevel"/>, the one source; #735): a character there gains no experience
-/// at all, and an award that levels a character into it stops there, the rest discarded, so it enters the maximum level
-/// with none. Nothing is logged for being at the cap. Each new level refreshes the stats (#434): a living character is
+/// #433) and levels it up past every requirement the total covers, carrying the rest. A character can gain experience
+/// only while its level and the next both have a requirement row (<see cref="CanGainExperience"/>, the one rule the
+/// award and the party split share; #735): so at the highest level with a row (the maximum level), and on a level
+/// whose next level is missing (a gap, treated exactly like the maximum), it gains nothing, and an award that levels a
+/// character onto such a level stops there, the rest discarded, so it arrives with none. Nothing is logged for either. Each new level refreshes the stats (#434): a living character is
 /// refilled to the new maximums, a dead one keeps its share of each pool, so a level-up never revives a corpse. The
 /// party roster shows levels, so it is resent. A character whose current level has no row (none does today) is awarded
 /// nothing and a warning is logged. Copper and items never pass through here, so they are paid at the cap as anywhere
@@ -28,32 +29,24 @@ public static class ExperienceAward
             return;
         }
 
-        ushort maxLevel = MaxLevel(data) ?? requirement.Level;   // never null here: the current level has a row
-        if (character.Level >= maxLevel)
-            return;
+        CharacterLevelExperience? next = Requirement(data, (ushort)(character.Level + 1));
+        if (next is null)
+            return;   // the maximum level, or the level before a gap: no experience, and nothing logged
 
         ulong total = character.Experience + experience;
         bool levelled = false;
 
-        // Level strictly rises and stops at the maximum, so this ends: at the first requirement the total does not
-        // reach, or on entering the maximum level, where the rest of the award is discarded.
+        // Level strictly rises and the rows are finite, so this ends: at the first requirement the total does not
+        // reach, or on arriving at a level whose next level has no row, where the rest of the award is discarded.
         while (total >= requirement.Experience)
         {
-            CharacterLevelExperience? next = Requirement(data, (ushort)(character.Level + 1));
-            if (next is null)
-            {
-                // A gap in the rows below the maximum (none today): the next level cannot be entered, so the total
-                // stops at this level's threshold.
-                total = requirement.Experience;
-                break;
-            }
-
             total -= requirement.Experience;
             character.Level++;
             levelled = true;
             requirement = next;
 
-            if (character.Level >= maxLevel)
+            next = Requirement(data, (ushort)(character.Level + 1));
+            if (next is null)
             {
                 total = 0;
                 break;
@@ -77,20 +70,13 @@ public static class ExperienceAward
     }
 
     /// <summary>
-    /// The maximum level: the highest level with a requirement row, or null when there are none. The one definition the
-    /// award and the party split (<see cref="PartyExperience"/>) share.
+    /// Whether <paramref name="character"/> can still gain experience: its level and the next both have a requirement
+    /// row. False at the maximum level (the highest row), on the level before a gap in the rows, and on a level with no
+    /// row at all. The one rule <see cref="Grant"/> and the party split (<see cref="PartyExperience"/>) share (#735).
     /// </summary>
-    public static ushort? MaxLevel(StaticData data)
-    {
-        ushort? max = null;
-        foreach (CharacterLevelExperience row in data.CharacterLevelExperiences)
-        {
-            if (max is null || row.Level > max)
-                max = row.Level;
-        }
-
-        return max;
-    }
+    public static bool CanGainExperience(ICharacter character, StaticData data) =>
+        Requirement(data, character.Level) is not null
+        && Requirement(data, (ushort)(character.Level + 1)) is not null;
 
     private static CharacterLevelExperience? Requirement(StaticData data, ushort level) =>
         data.CharacterLevelExperiences.FirstOrDefault(e => e.Level == level);
