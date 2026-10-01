@@ -179,6 +179,14 @@ public static class CacheKeys
     private static string Digest(string secret) =>
         Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(secret)));
 
+    /// <summary>
+    /// The script names a world accepts in a template's ScriptName, written by that world after its scripts load and
+    /// after a hot reload. Value: JSON <c>ScriptCatalogSnapshot</c> (<c>{ "ai": [], "ability": [], "quest": [] }</c>),
+    /// sorted names, with no expiry: it stays true until the world publishes again. A missing key means no build of the
+    /// world has reported in yet, which the Api treats as "do not check".
+    /// </summary>
+    public static string WorldScriptCatalog(ushort worldId) => $"world:{worldId}:scripts";
+
     // ── Presence (live player observability) ──────────────────────────────────
 
     /// <summary>

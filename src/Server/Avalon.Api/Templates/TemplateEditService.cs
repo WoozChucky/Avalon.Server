@@ -5,6 +5,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.Auth;
 using Avalon.Domain.World;
+using Avalon.Infrastructure.Scripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
@@ -47,6 +48,7 @@ public readonly record struct TemplateEditCaller(WorldId World, AccountId Accoun
 public sealed class TemplateEditService(
     IDbContextFactory<WorldDbContext> contexts,
     ITemplateReloadSignal reload,
+    IWorldScriptCatalog scripts,
     ILogger<TemplateEditService> logger)
 {
     public Task<TemplateEditResult<ItemTemplate>> EditItemAsync(
@@ -64,10 +66,11 @@ public sealed class TemplateEditService(
             "Ability", TemplateReloadArea.Abilities, TemplateFields.Ability,
             (db, ct2) => db.AbilityTemplates.FindAsync([new AbilityId(id)], ct2).AsTask(),
             TemplateVersion.Of, TemplateValidation.Ability,
-            (_, row, errors, _) =>
+            async (_, row, errors, ct2) =>
             {
                 TemplateValidation.AbilityWorldRules(errors, row);
-                return Task.CompletedTask;
+                ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
+                TemplateValidation.ScriptKnown(errors, row.ScriptName, catalog, c => c.Ability);
             }),
             caller, id, ifMatch, request, ct);
 
@@ -80,6 +83,8 @@ public sealed class TemplateEditService(
             async (db, row, errors, ct2) =>
             {
                 TemplateValidation.CreatureWorldRules(errors, row);
+                ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
+                TemplateValidation.ScriptKnown(errors, row.ScriptName, catalog, c => c.Ai);
                 // A loot table that does not exist would break its foreign key, which is not a check violation.
                 if (row.LootTableId is { } loot && await db.LootTables.FindAsync([loot], ct2) is null)
                     errors.Add("lootTableId", $"There is no loot table {loot.Value}.");

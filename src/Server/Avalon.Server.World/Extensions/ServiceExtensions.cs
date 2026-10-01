@@ -124,6 +124,7 @@ public static class ServiceExtensions
 
         services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();
         services.AddSingleton<ReloadRequestHandler>();
+        services.AddSingleton<ScriptCatalogPublisher>();
 
         return services;
     }

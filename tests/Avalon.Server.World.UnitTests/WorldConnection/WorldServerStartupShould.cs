@@ -88,6 +88,38 @@ public class WorldServerStartupShould
         }
     }
 
+    /// <summary>The admin app's dropdown reads what this publishes; a world that never does leaves it unchecked.</summary>
+    [Fact]
+    public async Task Publish_its_script_catalog_once_loaded_and_again_after_a_hot_reload()
+    {
+        var cache = Substitute.For<IReplicatedCache>();
+        var scripts = Substitute.For<IScriptManager>();
+        var hotReloader = Substitute.For<IScriptHotReloader>();
+        var server = new TestWorldServer(_world, _port, cache, scripts, hotReloader);
+        await server.StartAsync(CancellationToken.None);
+        try
+        {
+            _load.SetResult();
+            await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+            await UntilAsync(() => Task.FromResult(CatalogWrites(cache) == 1), "the catalog was not published after load");
+            scripts.Received(1).Load();
+
+            List<Type> types = [typeof(Avalon.Server.World.UnitTests.Scripts.ThrowOnLeaveScript)];
+            hotReloader.ScriptsHotReloaded += Raise.Event<ScriptsHotReloadedEventHandler>(types);
+
+            await UntilAsync(() => Task.FromResult(CatalogWrites(cache) == 2), "the catalog was not published after a hot reload");
+            scripts.Received(1).RegisterHotReloaded(types);
+        }
+        finally
+        {
+            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+        }
+    }
+
+    private static int CatalogWrites(IReplicatedCache cache) => cache.ReceivedCalls().Count(c =>
+        c.GetMethodInfo().Name == nameof(IReplicatedCache.SetAsync) &&
+        (string)c.GetArguments()[0]! == CacheKeys.WorldScriptCatalog(1));
+
     [Fact]
     public async Task Never_open_the_port_when_the_world_fails_to_load()
     {
@@ -154,15 +186,16 @@ public class WorldServerStartupShould
         return port;
     }
 
-    private sealed class TestWorldServer(IWorld world, int port, IReplicatedCache? cache = null) : WorldServer(
+    private sealed class TestWorldServer(IWorld world, int port, IReplicatedCache? cache = null,
+        IScriptManager? scripts = null, IScriptHotReloader? hotReloader = null) : WorldServer(
         Substitute.For<IPacketManager>(),
         NullLoggerFactory.Instance,
-        new AnyServiceProvider(),
+        new AnyServiceProvider(scripts ??= Substitute.For<IScriptManager>(), cache ??= Substitute.For<IReplicatedCache>()),
         Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = (ushort)port }),
         world,
-        Substitute.For<IScriptManager>(),
-        cache ?? Substitute.For<IReplicatedCache>(),
-        Substitute.For<IScriptHotReloader>(),
+        scripts,
+        cache,
+        hotReloader ?? Substitute.For<IScriptHotReloader>(),
         new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance),
         new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance));
 
@@ -170,7 +203,7 @@ public class WorldServerStartupShould
     /// The world server reflects over every packet handler in the assembly and activates each one,
     /// so standing it up needs a container that answers for all of their dependencies.
     /// </summary>
-    private sealed class AnyServiceProvider : IServiceProvider
+    private sealed class AnyServiceProvider(IScriptManager scripts, IReplicatedCache cache) : IServiceProvider
     {
         private QuestService? _quests;
 
@@ -181,6 +214,10 @@ public class WorldServerStartupShould
             if (serviceType == typeof(ReloadRequestHandler))
                 return new ReloadRequestHandler(Substitute.For<IReferenceDataReloader>(), Substitute.For<IReplicatedCache>(),
                     Options.Create(new GameConfiguration { WorldId = 1 }), NullLogger<ReloadRequestHandler>.Instance);
+
+            if (serviceType == typeof(ScriptCatalogPublisher))
+                return new ScriptCatalogPublisher(scripts, cache, Options.Create(new GameConfiguration { WorldId = 1 }),
+                    Substitute.For<ILogger<ScriptCatalogPublisher>>());
 
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);

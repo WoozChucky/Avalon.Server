@@ -1,6 +1,7 @@
 using Avalon.Api.Contract;
 using Avalon.Combat;
 using Avalon.Domain.World;
+using Avalon.Infrastructure.Scripts;
 
 namespace Avalon.Api.Templates;
 
@@ -142,6 +143,19 @@ public static class TemplateValidation
         // CK_CreatureTemplates_BodyRadius_Positive.
         if (!float.IsFinite(row.BodyRadius) || row.BodyRadius <= 0f)
             errors.Add("bodyRadius", "Body radius must be a finite number above 0.");
+    }
+
+    /// <summary>
+    /// A script name the world's published catalog does not list (<paramref name="known"/> is the list for this kind of
+    /// template). Not checked while no catalog is published (<paramref name="catalog"/> null: no world has reported in),
+    /// and an empty name is never unknown: whether a template needs a script is its own rule.
+    /// </summary>
+    public static void ScriptKnown(TemplateErrors errors, string? scriptName, ScriptCatalogSnapshot? catalog,
+        Func<ScriptCatalogSnapshot, IReadOnlyList<string>> known)
+    {
+        if (catalog is null || string.IsNullOrWhiteSpace(scriptName)) return;
+        if (!known(catalog).Contains(scriptName, StringComparer.Ordinal))
+            errors.Add("scriptName", $"Unknown script '{scriptName}' on this world");
     }
 
     private static string AbilityField(string problem) => problem switch

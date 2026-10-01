@@ -10,15 +10,32 @@ public interface IScriptManager
     Type? GetAiScript(string name);
     Type? GetAbilityScript(string name);
     Type? GetQuestScript(string name);
+
+    /// <summary>The names an AI script can be given in a creature template, sorted. <c>[ChainedScript]</c> types are not among them.</summary>
+    IReadOnlyList<string> AiScriptNames { get; }
+
+    /// <summary>The names an ability script can be given in an ability template, sorted.</summary>
+    IReadOnlyList<string> AbilityScriptNames { get; }
+
+    /// <summary>The names a quest script can be given in a quest, sorted.</summary>
+    IReadOnlyList<string> QuestScriptNames { get; }
+
+    /// <summary>
+    /// Registers AI scripts compiled at runtime (the hot reloader's), by name, in place of any script of that name.
+    /// <c>[ChainedScript]</c> types are skipped, as <see cref="Load"/> skips them.
+    /// </summary>
+    void RegisterHotReloaded(IEnumerable<Type> aiScriptTypes);
 }
 
 public class ScriptManager : IScriptManager
 {
     private readonly ILogger<ScriptManager> _logger;
 
-    private IDictionary<string, Type> _aiScripts = new Dictionary<string, Type>();
-    private IDictionary<string, Type> _abilityScripts = new Dictionary<string, Type>();
-    private IDictionary<string, Type> _questScripts = new Dictionary<string, Type>();
+    // Replaced whole, never changed in place: the hot reloader's thread registers while the tick thread reads.
+    private volatile IReadOnlyDictionary<string, Type> _aiScripts = new Dictionary<string, Type>();
+    private volatile IReadOnlyDictionary<string, Type> _abilityScripts = new Dictionary<string, Type>();
+    private volatile IReadOnlyDictionary<string, Type> _questScripts = new Dictionary<string, Type>();
+    private readonly object _registration = new();
 
     public ScriptManager(ILoggerFactory loggerFactory)
     {
@@ -49,6 +66,29 @@ public class ScriptManager : IScriptManager
 
         _questScripts = questScripts.ToDictionary(t => t.Name, t => t);
     }
+
+    public IReadOnlyList<string> AiScriptNames => Sorted(_aiScripts);
+
+    public IReadOnlyList<string> AbilityScriptNames => Sorted(_abilityScripts);
+
+    public IReadOnlyList<string> QuestScriptNames => Sorted(_questScripts);
+
+    public void RegisterHotReloaded(IEnumerable<Type> aiScriptTypes)
+    {
+        lock (_registration)
+        {
+            Dictionary<string, Type> scripts = new(_aiScripts);
+            foreach (Type type in aiScriptTypes.Where(t => !t.IsDefined(typeof(ChainedScriptAttribute), inherit: false)))
+            {
+                scripts[type.Name] = type;
+            }
+
+            _aiScripts = scripts;
+        }
+    }
+
+    private static string[] Sorted(IReadOnlyDictionary<string, Type> scripts) =>
+        scripts.Keys.Order(StringComparer.Ordinal).ToArray();
 
     public Type? GetAiScript(string name)
     {
