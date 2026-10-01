@@ -58,6 +58,29 @@ public sealed record ChunkPiece(
     public const float BlockerHeight = 3f;
     public const float FloorThickness = 0.2f;
 
+    /// <summary>
+    /// Refuses a blocker or a slot that does not lie within the piece's 0-30 m cell (its edges included): the bake and the
+    /// spawner would place it in a neighbouring chunk's ground.
+    /// </summary>
+    public void Validate()
+    {
+        foreach (Blocker blocker in Blockers)
+        {
+            (float minX, float maxX, float minZ, float maxZ) = blocker.Bounds;
+            if (!WithinCell(minX) || !WithinCell(maxX) || !WithinCell(minZ) || !WithinCell(maxZ))
+                throw new InvalidOperationException($"{Name}: blocker {blocker} lies outside the 0-30 m cell");
+        }
+
+        foreach (Slot slot in Slots)
+        {
+            if (!WithinCell(slot.X) || !WithinCell(slot.Z))
+                throw new InvalidOperationException($"{Name}: slot {slot} lies outside the 0-30 m cell");
+        }
+    }
+
+    /// <summary>NaN is outside.</summary>
+    private static bool WithinCell(float v) => v >= 0f && v <= CellSize;
+
     /// <summary>The piece's catalog entry, as the seeder's own DTO: a 1x1 chunk, exits at the centre of the named sides.</summary>
     public ChunkMetaDto ToMeta() => new(
         Name,

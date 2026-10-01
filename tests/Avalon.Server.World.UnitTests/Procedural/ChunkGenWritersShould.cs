@@ -120,7 +120,7 @@ public class ChunkGenWritersShould
         }
     }
 
-    private static void CopyDirectory(string source, string target)
+    internal static void CopyDirectory(string source, string target)
     {
         foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
         {
@@ -150,4 +150,40 @@ public class ChunkGenWritersShould
     public void Refuse_a_blocker_across_a_groups_inner_edge() =>
         Assert.Throws<InvalidOperationException>(() =>
             new ChunkGroupPiece("bad", [(0, 0, Side.S)], [new BoxBlocker(25, 35, 5, 10)], [], ["forest"]).Members().ToList());
+    [Theory]
+    [InlineData(30f, 10f)]
+    [InlineData(10f, 30f)]
+    [InlineData(65f, 10f)]
+    public void Refuse_a_group_slot_on_an_inner_edge_or_outside_the_frame(float x, float z) =>
+        Assert.Throws<InvalidOperationException>(() =>
+            new ChunkGroupPiece("bad", [(0, 0, Side.S)], [], [new Slot("pack", x, z)], ["forest"]).Members().ToList());
+
+    [Fact]
+    public void Refuse_a_group_blocker_outside_the_frame() =>
+        Assert.Throws<InvalidOperationException>(() =>
+            new ChunkGroupPiece("bad", [(0, 0, Side.S)], [new CylinderBlocker(75, 10, 2)], [], ["forest"]).Members().ToList());
+
+    [Fact]
+    public void Refuse_a_single_piece_blocker_outside_its_cell()
+    {
+        var piece = Sample with { Name = "bad", Blockers = [new BoxBlocker(25, 32, 5, 10)] };
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => ChunkFiles.For([piece]));
+        Assert.Contains("bad", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(31f, 5f)]
+    [InlineData(5f, -1f)]
+    [InlineData(float.NaN, 5f)]
+    public void Refuse_a_single_piece_slot_outside_its_cell(float x, float z)
+    {
+        var piece = Sample with { Name = "bad", Slots = [new Slot("pack", x, z)] };
+
+        Assert.Throws<InvalidOperationException>(() => ChunkFiles.For([piece]));
+    }
+
+    [Fact]
+    public void Accept_a_single_piece_blocker_and_slot_on_its_cell_edges() =>
+        Assert.Single(ChunkFiles.For([Sample with { Blockers = [new BoxBlocker(0, 4, 26, 30)], Slots = [new Slot("pack", 30, 0)] }]));
 }

@@ -23,6 +23,15 @@ public sealed record ChunkGroupPiece(
             if (CellOf(minX, cell) != CellOf(maxX, cell) || CellOf(minZ, cell) != CellOf(maxZ, cell)
                 || minX % cell == 0 || maxX % cell == 0 || minZ % cell == 0 || maxZ % cell == 0)
                 throw new InvalidOperationException($"{Name}: blocker {blocker} crosses or touches a cell edge");
+            if (!InFrame(CellOf(minX, cell)) || !InFrame(CellOf(minZ, cell)))
+                throw new InvalidOperationException($"{Name}: blocker {blocker} lies outside the 60 x 60 m frame");
+        }
+
+        // A slot on a cell edge, or outside the frame, belongs to no member: refuse it rather than drop it.
+        foreach (Slot slot in Slots)
+        {
+            if (!(slot.X > 0f && slot.X < 2 * cell && slot.Z > 0f && slot.Z < 2 * cell) || slot.X == cell || slot.Z == cell)
+                throw new InvalidOperationException($"{Name}: slot {slot} lies on a cell edge or outside the 60 x 60 m frame");
         }
 
         foreach ((int x, int z, string suffix) in Cells)
@@ -41,4 +50,6 @@ public sealed record ChunkGroupPiece(
     }
 
     private static int CellOf(float v, float cell) => (int)MathF.Floor(v / cell);
+
+    private static bool InFrame(int cell) => cell is 0 or 1;
 }
