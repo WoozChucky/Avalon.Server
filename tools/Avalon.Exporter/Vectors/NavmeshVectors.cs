@@ -104,19 +104,19 @@ public static class NavmeshVectors
                 // Into walls, from several angles and distances. The navmesh is eroded by the agent
                 // radius before a polygon reaches a wall, so these clamp short of the wall's face.
                 Ray(25f, 25f, 35f, 25f, "head-on into the x = 30 wall"),
-                Ray(20f, 25f, 40f, 25f, "the same wall from twice the distance"),
+                Ray(20f, 25f, 40f, 25f, "the same line from twice the distance, stopped by the bench at (24, 24.75)"),
                 // 45 degrees at the corner where both walls meet -- and it stops at the TILE corner
                 // (28.55) rather than at either wall's eroded face (28.85, where the head-on row
                 // above stops). The barrier is a polygon edge on the tile seam, not the wall.
                 Ray(25f, 25f, 35f, 35f, "45 degrees, clamping on the tile corner short of the walls"),
-                Ray(25f, 5f, 25f, 35f, "north into the z = 30 wall"),
+                Ray(25f, 5f, 25f, 35f, "starts within the agent radius of the bench at (24, 5.25): no step"),
                 Ray(28.9f, 25f, 35f, 25f, "flush against the x = 30 wall, pointing into it"),
-                Ray(25f, 28.9f, 25f, 5f, "flush against the z = 30 wall, pointing away from it"),
+                Ray(25f, 28.9f, 25f, 5f, "flush against the z = 30 wall, south until the bench at (24, 24.75)"),
 
                 // The doorways: 12..18 and 42..48 are open, so these cross a chunk seam and arrive.
                 Ray(15f, 25f, 15f, 35f, "through the z = 30 doorway at x = 15"),
                 Ray(25f, 45f, 35f, 45f, "through the x = 30 doorway at z = 45"),
-                Ray(15f, 25f, 45f, 25f, "at the doorways' own centre line but across a wall"),
+                Ray(15f, 25f, 45f, 25f, "at the doorways' centre line, east, stopped by the bench at (24, 24.75) before the wall"),
 
                 Ray(9000f, 9000f, 9001f, 9000f, "starts off the mesh entirely", y: 0f),
                 Ray(-5f, 15f, 15f, 15f, "starts outside the town's west edge", y: 0f),
@@ -126,7 +126,7 @@ public static class NavmeshVectors
                 Ray(15f, 15f, 5f, 15f, "west from the arrival point onto the town hall's porch, stopping short of its body"),
                 Ray(15f, 35f, 15f, 45f, "north under the gate arch to the portal"),
                 Ray(50f, 45f, 50f, 50f, "north onto the inn's porch step and deck"),
-                Ray(15f, 3f, 15f, 12f, "north into the fountain's basin"),
+                Ray(15f, 3f, 15f, 12f, "starts within the agent radius of the bench south of the fountain: no step"),
                 Ray(45f, 20f, 58f, 15f, "east across the market toward the armourer's stall"),
             ],
             [
@@ -489,8 +489,8 @@ public static class NavmeshVectors
         # HEIGHT COVERAGE IS BOUNDED BY THE CHUNK LIBRARY, and that is a real gap rather than an
         # oversight. Every chunk floor the server ships is a flat slab: a town floor's top face is at
         # local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical. The town squares
-        # carry buildings and props besides (solids the bake cuts around; the agent climbs 0.9 m, so
-        # a prop over 1 m stops a walk and a lower one is a bump) and walkable risers of 0.1-0.3 m
+        # carry buildings and props besides (solids the bake cuts around; every prop is over 1 m,
+        # above the 0.9 m climb, so each stops a walk) and walkable risers of 0.1-0.3 m
         # (porch decks, the bank's steps), which quantise into the same 0.2 m voxel as the floor
         # beside them. The 'forest-floors' layout puts the two floor heights beside each other -- the
         # largest vertical variation two floors can produce -- and its ground rows all come back at

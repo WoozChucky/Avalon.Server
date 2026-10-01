@@ -370,10 +370,10 @@ exporter wrote.
 stages, validates (`ChunkCatalogSeeder.ReadCatalogAsync`), bakes the four squares together and writes them, as the
 forest command does; a square breaking a layout rule is refused before anything is written (`TownRules`: nothing within
 2 m of a wall, the doorway lanes and the arrival-to-portal corridor clear, 2.5 m of headroom under every roof, walkable
-risers of at most 0.3 m). `TownPiecesShould` fails when the committed files differ from a fresh run, when a piece that
-should be solid lets a walk in (Recast climbs any step of 0.8 m or less and rounds a top up to a 0.2 m voxel, so a prop
-over 1 m stops a walk and a lower one, a bench, a crate, a counter, is a bump a player walks over), or when a solid sits
-in the 1.0-1.05 m band where that rounding is a coin toss. `TownNpcPlacementShould` checks the seven NPC spots against
+risers of at most 0.3 m). `TownPiecesShould` fails when the committed files differ from a fresh run, when a solid piece
+lets a walk in on the baked navmesh (Recast climbs any step of 0.8 m or less and rounds a top up to a 0.2 m voxel, so a
+prop at or under 1.0 m would be walked over), or when a solid prop is under 1.05 m tall (every bench, crate, barrel,
+counter and the well ring is 1.05 m, owner decision). `TownNpcPlacementShould` checks the seven NPC spots against
 the same data. The four older hand-authored `town_*` chunks are listed by the tool and never touched. A geometry change
 here needs a restart (instances bake once) and a re-export of the navmesh vectors (`tools/Avalon.Exporter -- navmesh`),
 which the client vendors.

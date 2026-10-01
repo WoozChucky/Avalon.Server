@@ -8,8 +8,8 @@ namespace Avalon.Server.World.UnitTests.Procedural;
 /// <summary>
 /// Glimmerdell's four squares (town beautification, 2026-10-01): what is committed is what the tool writes, today's
 /// floor and walls are reproduced, and the owner's rules hold: nothing within 2 m of a wall, the doorway lanes and the
-/// arrival-to-portal corridor clear, 2.5 m of headroom under every roof, risers within the navmesh step, and no prop
-/// top that the baked navmesh climbs.
+/// arrival-to-portal corridor clear, 2.5 m of headroom under every roof, risers within the navmesh step, and every
+/// solid piece solid to movement on the baked navmesh.
 /// </summary>
 public class TownPiecesShould
 {
@@ -131,11 +131,11 @@ public class TownPiecesShould
 
     /// <summary>
     /// Recast climbs any step of 0.8 m or less (floor(0.9 / 0.2) voxels) and a span top rounds up to a 0.2 m voxel, so a
-    /// prop whose top is above 1.0 m is solid to movement and one at or below it is a step the navmesh walks over
-    /// (benches, crates, barrels, counters, the well ring). Every solid prop and building must stop a walk at its
-    /// edge: a walkable ray from 1.5 m west of its footprint toward its centre never enters it (the fountain basin
-    /// did at 0.8 m; the owner raised it to 1.1 m, decision 1). A ray that starts inside another solid stops where it
-    /// starts and proves nothing, which is accepted: a prop wedged against a building is solid by its neighbour.
+    /// prop whose top is at or under 1.0 m would be a step the navmesh walks over. Every solid piece (a non-walkable
+    /// piece standing on the floor) must stop a walk at its edge: a walkable ray from 1.5 m west of its footprint toward
+    /// its centre never enters it (owner decision 8 raised every low prop to 1.05 m). A ray that starts inside another
+    /// solid stops where it starts and proves nothing, which is accepted: a prop wedged against a building is solid by
+    /// its neighbour.
     /// </summary>
     [Fact]
     public void Stop_a_walk_at_the_edge_of_every_solid_piece()
@@ -144,7 +144,7 @@ public class TownPiecesShould
         foreach (TownSquare square in TownPieces.Squares())
         {
             (float ox, float oz) = square.Origin;
-            foreach (TownPiece piece in square.Pieces.Where(p => !p.Walkable && p.Y0 <= 0.05f && p.Top > 1.0f))
+            foreach (TownPiece piece in square.Pieces.Where(p => !p.Walkable && p.Y0 <= 0.05f))
             {
                 (float minX, _, _, _) = piece.Bounds;
                 (float cx, float cz) = piece.Centre;
@@ -158,11 +158,11 @@ public class TownPiecesShould
         Assert.True(entered.Count == 0, "a walk entered: " + string.Join("; ", entered));
     }
 
-    /// <summary>The rule above, stated once for the data: no solid prop sits in the 1.0-1.05 m band where the voxel maths is a coin toss.</summary>
+    /// <summary>The rule above, stated once for the data: every solid prop is at least 1.05 m tall, above the navmesh step.</summary>
     [Fact]
-    public void Keep_every_solid_piece_clear_of_the_navmesh_step_band() =>
+    public void Keep_every_solid_piece_above_the_navmesh_step() =>
         Assert.All(TownPieces.Squares().SelectMany(s => s.Pieces).Where(p => !p.Walkable && p.Y0 <= 0.05f),
-            p => Assert.True(p.Top <= 1.0f || p.Top >= 1.05f, $"{p.Building}/{p.Part} top {p.Top}"));
+            p => Assert.True(p.Top >= 1.05f, $"{p.Building}/{p.Part} top {p.Top}"));
 
     private static string Lf(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal);
 
