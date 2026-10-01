@@ -66,4 +66,27 @@ public class DepthBandLevelsShould
     [Fact]
     public void Refuse_a_band_at_level_zero() => Assert.NotNull(DepthBandLevels.Problem(
         [new() { MinDepth = 1, MaxDepth = null, MinLevel = 0, MaxLevel = 3 }]));
+
+    [Fact]
+    public void Refuse_a_band_that_starts_below_depth_zero() => Assert.Equal("band from depth -1 starts below 0",
+        DepthBandLevels.Problem([new() { MinDepth = -1, MaxDepth = 3, MinLevel = 1, MaxLevel = 3 }]));
+
+    [Fact]
+    public void Refuse_a_band_that_ends_before_it_starts() => Assert.Equal("band from depth 4 ends at depth 2",
+        DepthBandLevels.Problem([new() { MinDepth = 4, MaxDepth = 2, MinLevel = 1, MaxLevel = 3 }]));
+
+    /// <summary>A gap between bands is allowed: a depth in it rolls from the creature template's own range.</summary>
+    [Fact]
+    public void Accept_a_gap_between_bands_and_leave_a_depth_in_it_to_the_template()
+    {
+        List<ProceduralDepthBand> gapped =
+        [
+            new() { MinDepth = 1, MaxDepth = 3, MinLevel = 1, MaxLevel = 3 },
+            new() { MinDepth = 6, MaxDepth = null, MinLevel = 4, MaxLevel = 6 },
+        ];
+
+        Assert.Null(DepthBandLevels.Problem(gapped));
+        Assert.Null(DepthBandLevels.For(gapped, 4, setPiece: false));
+        Assert.Equal(new LevelRange(4, 6), DepthBandLevels.For(gapped, 6, setPiece: false));
+    }
 }
