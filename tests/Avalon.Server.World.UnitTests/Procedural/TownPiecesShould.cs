@@ -185,19 +185,39 @@ public class TownPiecesShould
     }
 
     /// <summary>
-    /// The rule above, stated once for the data: every solid piece's top is at least 1.05 m up, unless it is enclosed by
-    /// another solid that stands at least as high (the fountain's water inside its basin).
+    /// The rule above, stated once for the data: every solid piece's top is at least 1.05 m up, unless a ring whose rim
+    /// is that high encloses it (the fountain's water inside its basin, whose surface the rim keeps off the plaza).
     /// </summary>
     [Fact]
     public void Keep_every_solid_pieces_top_above_the_navmesh_step()
     {
         foreach ((TownSquare square, TownPiece piece) in SolidPieces())
         {
-            bool enclosed = square.Pieces.Any(q => !ReferenceEquals(q, piece) && !q.Walkable && q.Top >= piece.Top && q.Y0 <= piece.Y0
-                && q.Bounds.MinX <= piece.Bounds.MinX && q.Bounds.MaxX >= piece.Bounds.MaxX
-                && q.Bounds.MinZ <= piece.Bounds.MinZ && q.Bounds.MaxZ >= piece.Bounds.MaxZ);
+            bool enclosed = square.Pieces.OfType<RingPiece>().Any(ring => !ReferenceEquals(ring, piece) && ring.Top >= 1.05f && ring.Encloses(piece));
             Assert.True(piece.Top >= 1.05f || enclosed, $"{square.Name}: {piece.Building}/{piece.Part} top {piece.Top}");
         }
+    }
+
+    /// <summary>The fountain reads as water in a basin: a rim the navmesh cannot climb, the water disc inside it, its surface below the rim.</summary>
+    [Fact]
+    public void Hold_the_fountains_water_inside_its_rim()
+    {
+        List<TownPiece> fountain = [.. TownPieces.Squares().Single(s => s.Name == "town_sw_01").Pieces.Where(p => p.Building == "Fountain")];
+        RingPiece basin = Assert.IsType<RingPiece>(fountain.Single(p => p.Part == "basin"));
+        CylinderPiece water = Assert.IsType<CylinderPiece>(fountain.Single(p => p.Part == "water"));
+
+        Assert.True(basin.Top >= 1.05f, "the rim must stand above the navmesh step");
+        Assert.InRange(basin.Radius - basin.InnerRadius, 0.3f, 0.41f);   // a 0.3-0.4 m rim (0.4 in single precision rounds just above)
+        Assert.True(basin.Encloses(water), "the water must lie inside the rim");
+        Assert.True(water.Top < basin.Top, "the water's surface must sit below the rim top");
+
+        // Nothing walks onto the water from the plaza: the rim stops a walk, and the water's surface is an island.
+        var from = new Vector3(basin.X - basin.Radius - 1.5f, 0.15f, basin.Z);
+        Vector3 stop = Town.Value.RaycastWalkable(from, new Vector3(basin.X, 0.15f, basin.Z));
+        Assert.True(stop.x <= basin.X - basin.Radius + 0.05f, $"the walk entered the basin to x = {stop.x:0.00}");
+        List<Vector3> path = Town.Value.FindPath(new Vector3(TownPieces.ArrivalX, 1f, TownPieces.ArrivalZ), new Vector3(water.X + 1f, water.Top + 0.3f, water.Z));
+        if (path.Count > 0)
+            Assert.True(water.DistanceTo(path[^1].x, path[^1].z) > 0.05f || path[^1].y < water.Y0 + 0.1f, $"a path reached the water at {path[^1]}");
     }
 
     private static string Lf(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal);

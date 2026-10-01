@@ -358,8 +358,8 @@ reached on the baked navmesh. The tool writes LF line ends, and `.gitattributes`
 
 Glimmerdell's four squares (`town_sw_01`, `town_se_01`, `town_nw_01`, `town_ne_01`, map 1) are generated too, since the
 town beautification (2026-10-01): `tools/Avalon.ChunkGen/TownPieces.cs` holds the approved layout as data, chunk-local,
-over a small shape model (`TownSquare.cs`: boxes, twelve-sided cylinders, gabled roof blocks, and today's wall boxes by
-name). Each building part and prop is its own obj object named `<Building>_<part>` with a `usemtl` line
+over a small shape model (`TownSquare.cs`: boxes, twelve-sided cylinders and rings, gabled roof blocks, and today's
+wall boxes by name; the fountain's basin is a ring with the water disc inside it). Each building part and prop is its own obj object named `<Building>_<part>` with a `usemtl` line
 (`stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`; the walls `stone`, the floor untagged); the
 server's bake reads only `v` and `f` lines (`ChunkObjParserShould`), the client colours the materials. The floor
 (y -0.05 to 0.05) and the walls (0.5 m thick, 2 m high, the inner ones opened at 12-18) are the same boxes the Unity

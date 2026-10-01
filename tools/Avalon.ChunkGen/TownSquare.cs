@@ -69,6 +69,40 @@ public sealed record CylinderPiece(string Building, string Part, Material Materi
 }
 
 /// <summary>
+/// A twelve-sided ring: a hollow rim standing on the floor, the fountain's basin, with its hole open to the ground (or
+/// to a water disc) inside. Solid between <paramref name="InnerRadius" /> and <paramref name="Radius" />.
+/// </summary>
+public sealed record RingPiece(string Building, string Part, Material Material, float X, float Z, float Radius, float InnerRadius, float Y0, float Top)
+    : TownPiece(Building, Part, Material, Y0, Top, Walkable: false)
+{
+    public override (float MinX, float MaxX, float MinZ, float MaxZ) Bounds => (X - Radius, X + Radius, Z - Radius, Z + Radius);
+
+    /// <summary>Distance to the outer circle: the hole is not open ground to anything outside the ring.</summary>
+    public override float DistanceTo(float x, float z) =>
+        Math.Max(0f, MathF.Sqrt((x - X) * (x - X) + (z - Z) * (z - Z)) - Radius);
+
+    public override (float X, float Z) Centre => (X, Z);
+
+    /// <summary>Whether a piece's footprint lies wholly inside the hole and no higher than the rim (the water disc of a basin).</summary>
+    public bool Encloses(TownPiece piece)
+    {
+        float reach;
+        if (piece is CylinderPiece cylinder)
+        {
+            reach = MathF.Sqrt((cylinder.X - X) * (cylinder.X - X) + (cylinder.Z - Z) * (cylinder.Z - Z)) + cylinder.Radius;
+        }
+        else
+        {
+            (float minX, float maxX, float minZ, float maxZ) = piece.Bounds;
+            reach = 0f;
+            foreach ((float cx, float cz) in new[] { (minX, minZ), (maxX, minZ), (minX, maxZ), (maxX, maxZ) })
+                reach = Math.Max(reach, MathF.Sqrt((cx - X) * (cx - X) + (cz - Z) * (cz - Z)));
+        }
+        return reach <= InnerRadius && piece.Top <= Top;
+    }
+}
+
+/// <summary>
 /// A sloped roof block: a prism whose eaves lie on the footprint at <paramref name="Eaves" /> and whose ridge runs the
 /// full length of the longer footprint axis (X when square) at <paramref name="Ridge" />, with triangular ends.
 /// </summary>
@@ -107,6 +141,8 @@ public sealed record WallSegment(string Name, float MinX, float MaxX, float MinZ
     {
         if (piece is CylinderPiece cylinder)
             return Math.Max(0f, DistanceTo(cylinder.X, cylinder.Z) - cylinder.Radius);
+        if (piece is RingPiece ring)
+            return Math.Max(0f, DistanceTo(ring.X, ring.Z) - ring.Radius);
         (float minX, float maxX, float minZ, float maxZ) = piece.Bounds;
         float dx = Math.Max(Math.Max(MinX - maxX, 0f), minX - MaxX);
         float dz = Math.Max(Math.Max(MinZ - maxZ, 0f), minZ - MaxZ);
@@ -153,6 +189,8 @@ public sealed record TownSquare(
                 throw new InvalidOperationException($"{Name}: {piece.Building}/{piece.Part} has no height ({piece.Y0} to {piece.Top})");
             if (piece is CylinderPiece { Radius: <= 0f })
                 throw new InvalidOperationException($"{Name}: {piece.Building}/{piece.Part} has no radius");
+            if (piece is RingPiece ring && (ring.InnerRadius <= 0f || ring.InnerRadius >= ring.Radius))
+                throw new InvalidOperationException($"{Name}: {piece.Building}/{piece.Part} has no rim ({ring.InnerRadius} inside {ring.Radius})");
             if (piece.ObjectName.StartsWith("Wall", StringComparison.Ordinal))
                 throw new InvalidOperationException($"{Name}: {piece.Building}/{piece.Part} would be named like a wall ({piece.ObjectName})");
         }
@@ -286,11 +324,17 @@ public static class TownRules
     /// <summary>Whether a piece's footprint and an axis-aligned rectangle share any area (a cylinder by its circle).</summary>
     public static bool Overlaps(TownPiece piece, (float MinX, float MaxX, float MinZ, float MaxZ) rect)
     {
-        if (piece is CylinderPiece cylinder)
+        (float cx, float cz, float r) = piece switch
         {
-            float dx = Math.Max(Math.Max(rect.MinX - cylinder.X, 0f), cylinder.X - rect.MaxX);
-            float dz = Math.Max(Math.Max(rect.MinZ - cylinder.Z, 0f), cylinder.Z - rect.MaxZ);
-            return dx * dx + dz * dz < cylinder.Radius * cylinder.Radius;
+            CylinderPiece cylinder => (cylinder.X, cylinder.Z, cylinder.Radius),
+            RingPiece ring => (ring.X, ring.Z, ring.Radius),
+            _ => (0f, 0f, 0f),
+        };
+        if (r > 0f)
+        {
+            float dx = Math.Max(Math.Max(rect.MinX - cx, 0f), cx - rect.MaxX);
+            float dz = Math.Max(Math.Max(rect.MinZ - cz, 0f), cz - rect.MaxZ);
+            return dx * dx + dz * dz < r * r;
         }
 
         (float minX, float maxX, float minZ, float maxZ) = piece.Bounds;
