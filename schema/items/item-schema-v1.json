@@ -512,6 +512,10 @@
       {
         "name": "NoTrade",
         "value": 1024
+      },
+      {
+        "name": "QuestItem",
+        "value": 2048
       }
     ],
     "CharacterClass": [

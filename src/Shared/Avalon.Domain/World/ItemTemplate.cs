@@ -156,6 +156,12 @@ public enum ItemTemplateFlags
     NoSell = 256,
     NoDestroy = 512,
     NoTrade = 1024,
+
+    /// <summary>
+    /// A quest item (#433): counted by Collect objectives, dropped only for characters who need it, never sold,
+    /// and taken back on turn-in or abandon.
+    /// </summary>
+    QuestItem = 2048,
 }
 
 public enum ItemSlotType : ushort

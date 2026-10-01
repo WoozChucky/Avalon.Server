@@ -2,6 +2,7 @@
 using Avalon.Database.World;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -10,9 +11,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    partial class WorldDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261001000537_ReshapeQuests")]
+    partial class ReshapeQuests
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -273,7 +276,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 5000L,
                             Cost = 25L,
                             CostPowerType = 1,
-                            EffectValue = 18L,
+                            EffectValue = 35L,
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
@@ -284,7 +287,7 @@ namespace Avalon.Database.World.Migrations
                             Radius = 3f,
                             Range = 20,
                             Reach = 18f,
-                            ScalingCoefficient = 0.4f,
+                            ScalingCoefficient = 0.8f,
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,

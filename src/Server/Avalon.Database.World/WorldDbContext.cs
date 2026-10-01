@@ -68,9 +68,11 @@ public class WorldDbContext : DbContext
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
     public DbSet<MapTemplate> MapTemplates { get; set; } = null!;
-    public DbSet<QuestReward> QuestRewards { get; set; } = null!;
-    public DbSet<QuestRewardTemplate> QuestRewardTemplates { get; set; } = null!;
     public DbSet<QuestTemplate> QuestTemplates { get; set; } = null!;
+    public DbSet<QuestStage> QuestStages { get; set; } = null!;
+    public DbSet<QuestObjective> QuestObjectives { get; set; } = null!;
+    public DbSet<QuestItemReward> QuestItemRewards { get; set; } = null!;
+    public DbSet<QuestItemDrop> QuestItemDrops { get; set; } = null!;
     public DbSet<ClassLevelStat> ClassLevelStats { get; set; } = null!;
     public DbSet<CharacterLevelExperience> CharacterLevelExperiences { get; set; } = null!;
     public DbSet<CreatureBaseStat> CreatureBaseStats { get; set; } = null!;
@@ -120,9 +122,11 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<CreatureTemplate>());
         Configure(modelBuilder.Entity<ItemTemplate>());
         Configure(modelBuilder.Entity<MapTemplate>());
-        Configure(modelBuilder.Entity<QuestReward>());
-        Configure(modelBuilder.Entity<QuestRewardTemplate>());
         Configure(modelBuilder.Entity<QuestTemplate>());
+        Configure(modelBuilder.Entity<QuestStage>());
+        Configure(modelBuilder.Entity<QuestObjective>());
+        Configure(modelBuilder.Entity<QuestItemReward>());
+        Configure(modelBuilder.Entity<QuestItemDrop>());
         Configure(modelBuilder.Entity<ClassLevelStat>());
         Configure(modelBuilder.Entity<CharacterLevelExperience>());
         Configure(modelBuilder.Entity<CreatureBaseStat>());
@@ -303,21 +307,6 @@ public class WorldDbContext : DbContext
             StartingItems = [1, 2],
             StartingSpells = [230, 231, 232]
         });
-    }
-
-    private static void Configure(EntityTypeBuilder<QuestReward> builder)
-    {
-        builder.HasKey(b => new {b.QuestId, b.RewardId});
-
-        builder.HasOne(b => b.Quest)
-            .WithMany(q => q.Rewards)
-            .HasForeignKey(b => b.QuestId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(b => b.Reward)
-            .WithMany()
-            .HasForeignKey(b => b.RewardId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void Configure(EntityTypeBuilder<ClassLevelStat> builder)
@@ -583,19 +572,116 @@ public class WorldDbContext : DbContext
             new ClassLevelStat { Class = CharacterClass.Healer,  Level = 16, BaseHp = 288, BaseMana = 320, Stamina = 35, Strength = 20, Agility = 36, Intellect = 53 });
     }
 
-    // ReSharper disable once UnusedParameter.Local
-    private static void Configure(EntityTypeBuilder<QuestRewardTemplate> builder)
-    {
-    }
-
+    /// <summary>Quests (#433). Reference data; QuestCatalog validates it on load and on /reload quests.</summary>
     private static void Configure(EntityTypeBuilder<QuestTemplate> builder)
     {
+        builder.ToTable("QuestTemplates");
         builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new QuestTemplateId(v))
+            .IsRequired()
+            .ValueGeneratedNever();
+        builder.Property(b => b.TitleTextId).HasConversion(v => v.Value, v => new LocalizedTextId(v)).IsRequired();
+        builder.Property(b => b.DescriptionTextId).HasConversion(v => v.Value, v => new LocalizedTextId(v)).IsRequired();
+        builder.Property(b => b.CompletionTextId).HasConversion(v => v.Value, v => new LocalizedTextId(v)).IsRequired();
 
-        builder.HasMany(q => q.Rewards)
-            .WithOne(r => r.Quest)
-            .HasForeignKey(r => r.QuestId)
-            .OnDelete(DeleteBehavior.Cascade); // Adjust delete behavior as needed
+        builder.Property(b => b.GiverCreatureId)
+            .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
+            .IsRequired();
+        builder.HasOne<CreatureTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.GiverCreatureId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.EnderCreatureId)
+            .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
+            .IsRequired();
+        builder.HasOne<CreatureTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.EnderCreatureId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.RequiredQuestId)
+            .HasConversion(v => v!.Value, v => new QuestTemplateId(v))
+            .IsRequired(false);
+        builder.HasOne<QuestTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.RequiredQuestId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.ClassRequirement).IsRequired(false);
+        builder.Property(b => b.ScriptName).IsRequired(false).HasMaxLength(200);
+
+        builder.HasMany(b => b.Stages).WithOne().HasForeignKey(s => s.QuestId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(b => b.Objectives).WithOne().HasForeignKey(o => o.QuestId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(b => b.ItemRewards).WithOne().HasForeignKey(r => r.QuestId).OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<QuestStage> builder)
+    {
+        builder.ToTable("QuestStages", t => t.HasCheckConstraint("CK_QuestStages_Sequence", "\"Sequence\" >= 0"));
+        builder.HasKey(b => new { b.QuestId, b.Sequence });
+        builder.Property(b => b.QuestId).HasConversion(v => v.Value, v => new QuestTemplateId(v)).IsRequired();
+        builder.Property(b => b.DescriptionTextId)
+            .HasConversion(v => v!.Value, v => new LocalizedTextId(v))
+            .IsRequired(false);
+    }
+
+    private static void Configure(EntityTypeBuilder<QuestObjective> builder)
+    {
+        // The target per type (#433). Type is stored as its number: Kill 1, Collect 2, Talk 3, Scripted 4.
+        // Written to read the same on Postgres and on the SQLite the tests build the model on.
+        builder.ToTable("QuestObjectives", t =>
+        {
+            t.HasCheckConstraint("CK_QuestObjectives_TargetFitsType",
+                "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
+            t.HasCheckConstraint("CK_QuestObjectives_CountPositive", "\"Count\" >= 1");
+        });
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id).ValueGeneratedNever();
+        builder.Property(b => b.QuestId).HasConversion(v => v.Value, v => new QuestTemplateId(v)).IsRequired();
+        builder.Property(b => b.DescriptionTextId).HasConversion(v => v.Value, v => new LocalizedTextId(v)).IsRequired();
+
+        builder.HasOne<QuestStage>()
+            .WithMany()
+            .HasForeignKey(b => new { b.QuestId, b.StageSequence })
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(b => b.CreatureTemplateId)
+            .HasConversion(v => v!.Value, v => new CreatureTemplateId(v))
+            .IsRequired(false);
+        builder.HasOne<CreatureTemplate>().WithMany().HasForeignKey(b => b.CreatureTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.ItemTemplateId)
+            .HasConversion(v => v!.Value, v => new ItemTemplateId(v))
+            .IsRequired(false);
+        builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(b => b.Drops).WithOne().HasForeignKey(d => d.ObjectiveId).OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<QuestItemReward> builder)
+    {
+        builder.ToTable("QuestItemRewards", t => t.HasCheckConstraint("CK_QuestItemRewards_CountPositive", "\"Count\" >= 1"));
+        builder.HasKey(b => new { b.QuestId, b.ItemTemplateId });
+        builder.Property(b => b.QuestId).HasConversion(v => v.Value, v => new QuestTemplateId(v)).IsRequired();
+        builder.Property(b => b.ItemTemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void Configure(EntityTypeBuilder<QuestItemDrop> builder)
+    {
+        // A percentage. The upper bound refuses NaN on Postgres too, which sorts NaN above every number.
+        builder.ToTable("QuestItemDrops", t => t.HasCheckConstraint("CK_QuestItemDrops_Chance",
+            "\"Chance\" >= 0 AND \"Chance\" <= 100"));
+        builder.HasKey(b => new { b.ObjectiveId, b.CreatureTemplateId });
+        builder.Property(b => b.CreatureTemplateId)
+            .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
+            .IsRequired();
+        builder.HasOne<CreatureTemplate>().WithMany().HasForeignKey(b => b.CreatureTemplateId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void Configure(EntityTypeBuilder<CreatureTemplate> builder)

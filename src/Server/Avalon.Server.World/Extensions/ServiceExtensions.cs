@@ -88,8 +88,6 @@ public static class ServiceExtensions
         services.AddSingleton<IScriptHotReloader, ScriptHotReloader>();
         services.AddSingleton<IScriptDatabase, ScriptDatabase>();
 
-        //services.AddSingleton<IQuestManager, QuestManager>();
-
         // Vendor quest gates (#432). Nothing can meet a requirement until quests exist (#433).
         services.AddSingleton<IQuestProgress, NoQuestProgress>();
 
