@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Avalon.Infrastructure;
+using Avalon.World.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace Avalon.World.Reload;
@@ -13,11 +15,13 @@ namespace Avalon.World.Reload;
 public sealed class ReloadRequestHandler(
     IReferenceDataReloader reloader,
     IReplicatedCache cache,
-    ushort worldId,
+    IOptions<GameConfiguration> game,
     ILogger<ReloadRequestHandler> logger)
 {
     /// <summary>The most of a rejected message that is logged: whoever can publish on the channel chooses its text.</summary>
     private const int MaxLoggedLength = 64;
+
+    private readonly ushort _worldId = game.Value.WorldId.Value;
 
     /// <summary>The Redis callback: hands the message to the thread pool and returns at once.</summary>
     public void OnMessage(RedisChannel channel, RedisValue value)
@@ -39,11 +43,11 @@ public sealed class ReloadRequestHandler(
 
             ReloadOutcomeMessage[] outcomes = await ReloadAsync(request.Areas).ConfigureAwait(false);
             string result = ReloadMessageJson.Serialize(new ReloadResultMessage(request.RequestId, outcomes));
-            await cache.PublishAsync(CacheKeys.WorldReloadResultChannel(worldId), result).ConfigureAwait(false);
+            await cache.PublishAsync(CacheKeys.WorldReloadResultChannel(_worldId), result).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Could not answer a reload request on world {WorldId}", worldId);
+            logger.LogError(ex, "Could not answer a reload request on world {WorldId}", _worldId);
         }
     }
 
@@ -105,7 +109,7 @@ public sealed class ReloadRequestHandler(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "The reload of {Areas} on world {WorldId} threw", string.Join(",", areas.Keys), worldId);
+                logger.LogError(ex, "The reload of {Areas} on world {WorldId} threw", string.Join(",", areas.Keys), _worldId);
                 failure = $"{ex.GetType().Name}. Nothing changed.";
             }
         }

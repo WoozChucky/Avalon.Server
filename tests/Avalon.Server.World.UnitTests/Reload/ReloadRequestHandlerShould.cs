@@ -2,6 +2,8 @@ using System.Text.Json;
 using Avalon.Infrastructure;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Avalon.World.Configuration;
 using NSubstitute;
 using Xunit;
 
@@ -15,7 +17,8 @@ public class ReloadRequestHandlerShould
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly CapturingLogger _logger = new();
 
-    private ReloadRequestHandler Sut() => new(_reloader, _cache, World, _logger);
+    private ReloadRequestHandler Sut() => new(_reloader, _cache,
+        Options.Create(new GameConfiguration { WorldId = World }), _logger);
 
     private static string Request(Guid id, params string[] areas) =>
         ReloadMessageJson.Serialize(new ReloadRequestMessage(id, areas));

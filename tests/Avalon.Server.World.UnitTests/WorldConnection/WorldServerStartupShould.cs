@@ -6,6 +6,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.World;
 using Avalon.World.Configuration;
+using Avalon.World.Reload;
 using Avalon.World.Parties;
 using Avalon.World.Quests;
 using Avalon.World.Persistence;
@@ -149,6 +150,10 @@ public class WorldServerStartupShould
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
+
+            if (serviceType == typeof(ReloadRequestHandler))
+                return new ReloadRequestHandler(Substitute.For<IReferenceDataReloader>(), Substitute.For<IReplicatedCache>(),
+                    Options.Create(new GameConfiguration { WorldId = 1 }), NullLogger<ReloadRequestHandler>.Instance);
 
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);

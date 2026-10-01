@@ -34,6 +34,10 @@ public class ReferenceDataReloaderShould
         public bool CancelBaseStats;
 
         public List<ItemTemplate> Items = [];
+
+        /// <summary>When set, an items read takes its snapshot, signals ItemsReadStarted and waits for the gate.</summary>
+        public Task? ItemsGate;
+        public TaskCompletionSource ItemsReadStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<AbilityTemplate> Abilities = [];
         public List<LocalizedText> Texts = [];
         public List<CharacterLevelExperience> Levels = [];
@@ -125,6 +129,43 @@ public class ReferenceDataReloaderShould
             () => reloader.ReloadAsync([ReloadArea.Creatures], cts.Token).WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
+    [Fact]
+    public async Task Apply_The_Later_Reloads_Read_Last_When_Two_Reloads_Of_One_Area_Overlap()
+    {
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        IReferenceDataReloader reloader = Reloader(data);
+        repos.Items = [new ItemTemplate { Id = new ItemTemplateId(1), Name = "old" }];
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        repos.ItemsGate = gate.Task;
+
+        // The first reload reads "old" and stalls in the database read.
+        Task<ReloadReport> first = reloader.ReloadAsync([ReloadArea.Items]);
+        await repos.ItemsReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // The row is saved again and the second reload reads it, without a stall.
+        repos.ItemsGate = null;
+        repos.Items = [new ItemTemplate { Id = new ItemTemplateId(1), Name = "new" }];
+        Task<ReloadReport> second = reloader.ReloadAsync([ReloadArea.Items]);
+
+        // Ticks run while the first read is still stalled, then the stalled read finishes.
+        for (int tick = 0; tick < 10; tick++)
+        {
+            data.ApplyPending();
+            await Task.Delay(10);
+        }
+
+        gate.SetResult();
+        for (int tick = 0; tick < 100 && !(first.IsCompleted && second.IsCompleted); tick++)
+        {
+            data.ApplyPending();
+            await Task.Delay(10);
+        }
+
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("new", data.ItemTemplates.Single().Name);
+    }
+
     private static IReferenceDataReloader Reloader(StaticData data)
     {
         var world = Substitute.For<IWorld>();
@@ -184,7 +225,17 @@ public class ReferenceDataReloaderShould
 
         var itemTemplates = Substitute.For<IItemTemplateRepository>();
         itemTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(repos.Items.ToList()));
+            .Returns(async _ =>
+            {
+                List<ItemTemplate> snapshot = repos.Items.ToList();
+                if (repos.ItemsGate is { } gate)
+                {
+                    repos.ItemsReadStarted.TrySetResult();
+                    await gate;
+                }
+
+                return snapshot;
+            });
 
         var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())

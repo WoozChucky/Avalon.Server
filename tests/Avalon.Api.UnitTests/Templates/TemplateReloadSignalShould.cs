@@ -88,6 +88,24 @@ public class TemplateReloadSignalShould
     }
 
     [Fact]
+    public async Task Not_miss_a_result_delivered_inside_the_publish_call()
+    {
+        // The world's answer can beat PublishAsync's own completion: the request must already be pending.
+        _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(call =>
+        {
+            var request = JsonSerializer.Deserialize<ReloadRequestMessage>(call.ArgAt<string>(1), ReloadMessageJson.Options)!;
+            Answer(request.RequestId, new ReloadOutcomeMessage("Items", true, "instant"));
+            return Task.CompletedTask;
+        });
+        RedisTemplateReloadSignal sut = Sut();
+
+        TemplateReloadResult result = await sut.RequestAsync(Id, TemplateReloadArea.Items, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal((TemplateReloadResult.Applied, "instant"), (result.Status, result.Summary));
+    }
+
+    [Fact]
     public async Task Send_camel_case_json()
     {
         RedisTemplateReloadSignal sut = Sut();

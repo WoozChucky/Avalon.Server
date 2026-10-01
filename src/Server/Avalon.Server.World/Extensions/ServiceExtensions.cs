@@ -123,6 +123,7 @@ public static class ServiceExtensions
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
 
         services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();
+        services.AddSingleton<ReloadRequestHandler>();
 
         return services;
     }

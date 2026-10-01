@@ -611,18 +611,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         await _cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, DelayedDisconnect);
 
-        // The API asks this world, and only this world, to reload after a template save. Optional like the
-        // services above: a host that builds a WorldServer from a bare provider has no reloader.
-        IReferenceDataReloader? reloader = _services.GetService<IReferenceDataReloader>();
-        if (reloader is null)
-        {
-            _logger.LogWarning("No reference data reloader: this world will not answer template reload requests");
-            return;
-        }
-
-        var reloads = new ReloadRequestHandler(reloader, _cache, _world.Id.Value,
-            _services.GetService<ILogger<ReloadRequestHandler>>() ??
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<ReloadRequestHandler>.Instance);
+        // The API asks this world, and only this world, to reload after a template save. Required: a host that
+        // builds a WorldServer registers the handler, so a missing one fails startup rather than going unnoticed.
+        var reloads = _services.GetRequiredService<ReloadRequestHandler>();
         await _cache.SubscribeAsync(CacheKeys.WorldReloadChannel(_world.Id.Value), reloads.OnMessage);
     }
 
