@@ -98,6 +98,12 @@ public sealed class QuestLog(SaveStateTracker save)
     public object? MarkersCatalog { get; set; }
     public IReadOnlyList<(ulong Creature, byte Marker)>? MarkersSent { get; set; }
 
+    /// <summary>
+    /// The quest catalog generation this session's held quests were last settled against (#738): set by the select
+    /// recount, and when QuestFlusher sees a /reload quests landed. Null until then. Never saved.
+    /// </summary>
+    public object? SettledCatalog { get; set; }
+
     /// <summary>The instance the OnEnterInstance hooks last ran for. Never saved.</summary>
     public Guid? ScriptsInstance { get; set; }
 

@@ -390,19 +390,67 @@ public sealed class QuestService(
     }
 
     /// <summary>
-    /// The select-time recount (#433): RecountCollect over the log just loaded, then what it owes the client is
-    /// dropped (the save marks stay). The whole log the client gets on entering the world already shows every count
-    /// and state the recount set, so its milestone lines and updates would only repeat it as fresh progress.
+    /// The select-time recount (#433): every held quest settled against the current catalog (SettleHeld, which
+    /// recounts the Collect objectives), then what it owes the client is dropped (the save marks stay). The whole log
+    /// the client gets on entering the world already shows every count and state the recount set, so its milestone
+    /// lines and updates would only repeat it as fresh progress. It records the catalog it settled against, so the
+    /// flush settles again only once a /reload quests lands (#738).
     /// </summary>
     public void RecountAtSelect(CharacterEntity character)
     {
         try
         {
-            RecountCollect(character);
+            QuestCatalog catalog = Catalog;
+            character.Quests.SettledCatalog = catalog;
+            SettleHeld(character, catalog);
         }
         finally
         {
             character.Quests.ClearClientChanges();
+        }
+    }
+
+    /// <summary>
+    /// After a /reload quests (#738), once, on the first flush that sees the new catalog: every held quest is settled
+    /// against it (SettleHeld), so a reload that lowered a count or removed an objective completes the stage, or makes
+    /// the quest ready, at once, with the usual lines and updates. A session that has not settled yet (no select
+    /// recount) only records the catalog. The catalog is recorded first, so a settle that throws is not retried every
+    /// tick.
+    /// </summary>
+    public void SettleAfterReload(CharacterEntity character)
+    {
+        QuestCatalog catalog = Catalog;
+        QuestLog log = character.Quests;
+        if (ReferenceEquals(log.SettledCatalog, catalog))
+            return;
+
+        bool settledBefore = log.SettledCatalog is not null;
+        log.SettledCatalog = catalog;
+        if (settledBefore)
+            SettleHeld(character, catalog);
+    }
+
+    /// <summary>
+    /// Every held quest the catalog has, against it: each count above its objective's count is capped to it (a reload
+    /// lowered it), the current stage's Collect objectives are recounted from the Bag, and the stages settle. A quest
+    /// the catalog lacks is left as it is.
+    /// </summary>
+    private void SettleHeld(CharacterEntity character, QuestCatalog catalog)
+    {
+        // A copy: a stage-start hook must not see a moving collection.
+        foreach (ActiveQuest active in character.Quests.Active.ToList())
+        {
+            if (!catalog.TryGet(active.QuestId, out QuestView? quest))
+                continue;
+
+            foreach (QuestObjectiveView objective in quest.Objectives)
+            {
+                if (active.ProgressOf(objective.Id) > objective.Count)
+                    character.Quests.SetProgress(active, objective.Id, objective.Count);
+            }
+
+            Recount(character, quest, active);
+            Settle(character, quest, active);
         }
     }
 
