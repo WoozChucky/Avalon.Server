@@ -65,12 +65,12 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Shared/Avalon.Domain/World/ChunkTemplate.cs` | DB entity for chunk metadata |
 | `src/Shared/Avalon.Domain/World/MapChunkPlacement.cs` | DB entity joining MapTemplate → predefined chunk placements |
 | `src/Shared/Avalon.Domain/World/ProceduralMapConfig.cs` | DB entity for procedural map RNG config |
-| `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata, written by the Unity Chunk Exporter or, for the generated forest pieces, by `tools/Avalon.ChunkGen` |
+| `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata, written by the Unity Chunk Exporter or, for the generated forest pieces and Glimmerdell's four squares, by `tools/Avalon.ChunkGen` |
 | `src/Server/Avalon.Server.World/Maps/TownLayouts/<MapTemplateId>.json` | Town layouts, written by the Unity Town Layout Exporter |
 | `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/chunk-groups.json` | Set pieces per pool (see "Chunk groups (set pieces)"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/spawn-tables.json` + `ProceduralMaps/<mapId>.json` | Spawn tables and procedural map configs with their depth bands (see "Spawn tables and procedural map configs"), edited by hand |
-| `tools/Avalon.ChunkGen/` | Generates the forest pieces' `.obj` + `.json` (see "Generated forest chunks") |
+| `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json` (see "Generated forest chunks" and "Generated town squares") |
 | `src/Server/Avalon.Database.World/Seeding/ChunkCatalogSeeder.cs` | Seeds chunk templates, town layouts, pools, chunk groups, spawn tables and procedural map configs from `Maps/`; run by the World server on start |
 
 ### Client (`C:\dev\3D`)
@@ -353,6 +353,30 @@ of a blocker or 2 m of the chunk's edge, when a blocker stands in an exit's thro
 reached on the baked navmesh. The tool writes LF line ends, and `.gitattributes` pins every `.obj` and `.json` under
 `Maps/` to LF, so a regeneration on any machine is an empty diff. The tool does not touch `chunk-pools.json` or
 `chunk-groups.json`: add new single pieces to the pool, and new set pieces to the groups file, by hand.
+
+## Generated town squares
+
+Glimmerdell's four squares (`town_sw_01`, `town_se_01`, `town_nw_01`, `town_ne_01`, map 1) are generated too, since the
+town beautification (2026-10-01): `tools/Avalon.ChunkGen/TownPieces.cs` holds the approved layout as data, chunk-local,
+over a small shape model (`TownSquare.cs`: boxes, twelve-sided cylinders, gabled roof blocks, and today's wall boxes by
+name). Each building part and prop is its own obj object named `<Building>_<part>` with a `usemtl` line
+(`stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`; the walls `stone`, the floor untagged); the
+server's bake reads only `v` and `f` lines (`ChunkObjParserShould`), the client colours the materials. The floor
+(y -0.05 to 0.05) and the walls (0.5 m thick, 2 m high, the inner ones opened at 12-18) are the same boxes the Unity
+exporter wrote.
+
+    dotnet run --project tools/Avalon.ChunkGen -- town [--maps <Maps directory>]
+
+stages, validates (`ChunkCatalogSeeder.ReadCatalogAsync`), bakes the four squares together and writes them, as the
+forest command does; a square breaking a layout rule is refused before anything is written (`TownRules`: nothing within
+2 m of a wall, the doorway lanes and the arrival-to-portal corridor clear, 2.5 m of headroom under every roof, walkable
+risers of at most 0.3 m). `TownPiecesShould` fails when the committed files differ from a fresh run, when a piece that
+should be solid lets a walk in (Recast climbs any step of 0.8 m or less and rounds a top up to a 0.2 m voxel, so a prop
+over 1 m stops a walk and a lower one, a bench, a crate, a counter, is a bump a player walks over), or when a solid sits
+in the 1.0-1.05 m band where that rounding is a coin toss. `TownNpcPlacementShould` checks the seven NPC spots against
+the same data. The four older hand-authored `town_*` chunks are listed by the tool and never touched. A geometry change
+here needs a restart (instances bake once) and a re-export of the navmesh vectors (`tools/Avalon.Exporter -- navmesh`),
+which the client vendors.
 
 ## Chunk groups (set pieces)
 
