@@ -83,6 +83,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly GroundLootStore _groundLoot = new();
     private readonly ILootRoller? _lootRoller;
     private readonly ILootAllocator? _lootAllocator;
+    private readonly QuestService? _questService;
 
     /// <summary>Who shares a kill, and how its experience is split (2026-09-30). Null in tests built without one: solo rules.</summary>
     private readonly PartyService? _parties;
@@ -198,6 +199,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Production registers both; WorldHostGraphShould proves it.
         _lootRoller = serviceProvider.GetService<ILootRoller>();
         _lootAllocator = serviceProvider.GetService<ILootAllocator>();
+        _questService = serviceProvider.GetService<QuestService>();
 
         // Optional too: an instance built without it (tests) shares nothing, so every kill is its killer's alone.
         _parties = serviceProvider.GetService<PartyService>();
@@ -1256,10 +1258,33 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         TearDownCorpse(creature);
         _corpseRemover.ScheduleRemoval(creature);
 
+        // #433: kill credit for everyone who shares the kill, before the drops, which read the same quests.
+        CreditQuests(creature, eligible);
+
         // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
         // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
         DropLoot(creature, eligible);
         AwardExperience(creature, eligible);
+    }
+
+    /// <summary>
+    /// Quest credit for a kill (#433). Contained, as the eligibility is: a throw costs this kill's quest credit, never
+    /// the corpse teardown, the loot or the experience after it.
+    /// </summary>
+    private void CreditQuests(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    {
+        if (_questService is null || eligible.Count == 0)
+            return;
+
+        try
+        {
+            _questService.CreatureKilled(creature, eligible);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Quest credit for the kill of {CreatureGuid} in instance {InstanceId} failed; the kill still counts",
+                creature.Guid, InstanceId);
+        }
     }
 
     /// <summary>

@@ -9,6 +9,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Parties;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Instances;
@@ -179,6 +180,68 @@ public sealed class QuestService(
         return SetCount(character, quest, active, objective, (uint)Math.Min(total, objective.Count));
     }
 
+    /// <summary>
+    /// A creature died (#433): every character that shares the kill (the PartyEligibility list MapInstance took
+    /// once, at the kill) gets +1, capped, on each Kill objective for this creature in the current stage of each of
+    /// its Active quests. Dead members count, as they do for loot and experience; the list already leaves out a
+    /// killer or member in a leave countdown.
+    /// </summary>
+    public void CreatureKilled(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    {
+        ulong template = creature.Metadata.Id.Value;
+        QuestCatalog catalog = Catalog;
+        foreach (ICharacter member in eligible)
+        {
+            if (member is not CharacterEntity character)
+                continue;
+
+            // A copy: settling a quest never removes one, but a script hook (Task 9) must not see a moving collection.
+            foreach (ActiveQuest active in character.Quests.Active.ToList())
+            {
+                if (active.State != CharacterQuestState.Active || !catalog.TryGet(active.QuestId, out QuestView? quest))
+                    continue;
+
+                if (CurrentStage(quest, active) is { } stage)
+                {
+                    foreach (QuestObjectiveView objective in stage.Objectives)
+                    {
+                        if (objective.Type == Domain.World.QuestObjectiveType.Kill && objective.CreatureTemplateId?.Value == template)
+                            AddProgress(character, quest.Id, objective.Id, 1);
+                    }
+                }
+
+                OnKilled(character, quest, active, creature);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The character opened a conversation with <paramref name="npc" /> (#433): every Talk objective for its
+    /// template in the current stage of an Active quest is met. InteractHandler calls this only for an interact it
+    /// accepted (alive, in range, an NPC with dialogue).
+    /// </summary>
+    public void Interacted(CharacterEntity character, ICreature npc)
+    {
+        ulong template = npc.Metadata.Id.Value;
+        QuestCatalog catalog = Catalog;
+        foreach (ActiveQuest active in character.Quests.Active.ToList())
+        {
+            if (active.State != CharacterQuestState.Active || !catalog.TryGet(active.QuestId, out QuestView? quest))
+                continue;
+
+            if (CurrentStage(quest, active) is { } stage)
+            {
+                foreach (QuestObjectiveView objective in stage.Objectives)
+                {
+                    if (objective.Type == Domain.World.QuestObjectiveType.Talk && objective.CreatureTemplateId?.Value == template)
+                        AddProgress(character, quest.Id, objective.Id, objective.Count);
+                }
+            }
+
+            OnInteracted(character, quest, active, npc);
+        }
+    }
+
     /// <summary>Sets an objective's count (capped), says the milestone, and settles the stages.</summary>
     private bool SetCount(CharacterEntity character, QuestView quest, ActiveQuest active, QuestObjectiveView objective, uint value)
     {
@@ -278,6 +341,16 @@ public sealed class QuestService(
     private void StageStarted(CharacterEntity character, QuestView quest, ActiveQuest active)
     {
         AfterStageStarted?.Invoke(character, quest, active);
+    }
+
+    /// <summary>Task 9: the quest script's OnCreatureKilled.</summary>
+    private void OnKilled(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature creature)
+    {
+    }
+
+    /// <summary>Task 9: the quest script's OnInteract.</summary>
+    private void OnInteracted(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature npc)
+    {
     }
 
     /// <summary>Task 7: every copy of the quest's Collect items leaves the Bag and the Bank.</summary>

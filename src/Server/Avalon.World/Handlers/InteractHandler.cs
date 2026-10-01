@@ -85,6 +85,11 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world, Ques
             return;
         }
 
+        // #433: talking to the named NPC completes a Talk objective, before the node is built, so a quest that
+        // becomes ready by this very conversation already shows its turn-in.
+        if (quests is not null && character is CharacterEntity talker)
+            quests.Interacted(talker, npc);
+
         // A new conversation, even with the same NPC, starts with the bank and the shop closed. The
         // old one is ended out loud when it was with someone else, or when it had either window
         // open: the client hides those windows only on SMSG_DIALOGUE_END (#463, #432).
