@@ -1,7 +1,10 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Creatures;
 using Avalon.World.ChunkLayouts;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
@@ -165,6 +168,42 @@ public class ChunkGroupGenerationShould
 
         for (int seed = 0; seed < 50; seed++)
             Assert.Equal("arena", Generator().Generate(config, Pool(), seed, [Arena()]).BossChunk?.Group);
+    }
+
+    /// <summary>
+    /// A retried attempt is routine (many forest builds need one), so it logs at Debug; only running out of
+    /// attempts, which leaves the map unenterable for that player, is a Warning.
+    /// </summary>
+    [Fact]
+    public void Log_a_retried_attempt_at_debug_and_only_the_last_failure_as_a_warning()
+    {
+        int retried = 0;
+        for (int seed = 0; seed < 200; seed++)
+        {
+            var generator = new ProceduralLayoutGenerator(FactoryFor(out CreatureAbilitiesShould.ListLogger logs));
+            try { generator.Generate(Config(8, 12, boss: false), Pool(), seed, [Clearing()]); }
+            catch (ProceduralGenerationFailedException) { continue; }
+
+            Assert.DoesNotContain(logs.Entries, e => e.Level >= LogLevel.Warning);
+            if (logs.Entries.Any(e => e.Level == LogLevel.Debug)) retried++;
+        }
+        Assert.True(retried > 0, "no seed needed a second attempt, so nothing was checked");
+
+        var corridorOnly = new ProceduralLayoutGenerator(FactoryFor(out CreatureAbilitiesShould.ListLogger failing));
+        Assert.Throws<ProceduralGenerationFailedException>(() =>
+            corridorOnly.Generate(Config(3, 3, boss: false), [new(Chunk(1, N, "entry", PortalRole.Back), 1f)], seed: 1));
+        (LogLevel level, string message) = Assert.Single(failing.Entries, e => e.Level >= LogLevel.Warning);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains("10", message, StringComparison.Ordinal);
+        Assert.Equal(9, failing.Entries.Count(e => e.Level == LogLevel.Debug));
+    }
+
+    private static ILoggerFactory FactoryFor(out CreatureAbilitiesShould.ListLogger logs)
+    {
+        logs = new CreatureAbilitiesShould.ListLogger();
+        var factory = Substitute.For<ILoggerFactory>();
+        factory.CreateLogger(Arg.Any<string>()).Returns(logs);
+        return factory;
     }
 
     [Fact]

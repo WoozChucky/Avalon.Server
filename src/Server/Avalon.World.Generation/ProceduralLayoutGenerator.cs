@@ -34,13 +34,19 @@ public class ProceduralLayoutGenerator
         IReadOnlyList<ChunkGroupDefinition>? groups = null)
     {
         IReadOnlyList<ChunkGroupDefinition> sets = groups ?? [];
+        string? error = null;
         for (int attempt = 0; attempt < MaxRetries; attempt++)
         {
             int attemptSeed = seed + attempt;
-            if (TryGenerate(config, pool, sets, attemptSeed, out var layout, out var error))
+            if (TryGenerate(config, pool, sets, attemptSeed, out var layout, out error))
                 return layout!;
-            _logger.LogWarning("Procedural generation attempt {Attempt} failed: {Error}", attempt + 1, error);
+            // A retried attempt is routine (many forest builds need one); only the last failure is worth a warning.
+            if (attempt + 1 < MaxRetries)
+                _logger.LogDebug("Procedural generation attempt {Attempt} failed: {Error}", attempt + 1, error);
         }
+
+        _logger.LogWarning("Procedural generation of map {MapId} failed all {Attempts} attempts from seed {Seed}; the last: {Error}",
+            config.MapTemplateId.Value, MaxRetries, seed, error);
         throw new ProceduralGenerationFailedException(
             $"Failed to generate layout for map {config.MapTemplateId.Value} after {MaxRetries} attempts");
     }
