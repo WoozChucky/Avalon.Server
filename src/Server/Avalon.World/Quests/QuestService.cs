@@ -59,6 +59,12 @@ public sealed class QuestService(
     // When building each quest's log entry or update last threw and was logged, and how many were left out since.
     private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _clientBuildErrors = [];
 
+    // When re-sending an NPC's root after an accept or turn-in last threw and was logged, per quest (final review M1).
+    private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _rootResendErrors = [];
+
+    // One throttled log per QuestFlusher step (final review M2). Tick thread only.
+    private readonly Dictionary<string, ThrottledErrorLog> _flushStepErrors = new(StringComparer.Ordinal);
+
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
 
@@ -168,7 +174,7 @@ public sealed class QuestService(
         }
 
         Settle(character, quest, active);
-        AfterConversationChange(connection, character, npc);
+        AfterConversationChange(connection, character, npc, questId);
         return QuestResult.Ok;
     }
 
@@ -232,7 +238,7 @@ public sealed class QuestService(
 
         character.Quests.Complete(questId, time.GetUtcNow().UtcDateTime);
         character.Quests.Say($"Quest completed: {Title(character, quest)}.");
-        AfterConversationChange(connection, character, npc);
+        AfterConversationChange(connection, character, npc, questId);
         return QuestResult.Ok;
     }
 
@@ -927,13 +933,38 @@ public sealed class QuestService(
         return QuestMarker.None;
     }
 
-    /// <summary>After an accept or a turn-in, the NPC's root again, so its quest options are current.</summary>
-    private void AfterConversationChange(IWorldConnection connection, CharacterEntity character, ICreature npc)
+    /// <summary>
+    /// After an accept or a turn-in, the NPC's root again, so its quest options are current. Contained (final review
+    /// M1): the accept or turn-in has already happened, so a throw here is logged at Error, throttled per quest, and
+    /// the request is still answered Ok; the client keeps the node it had until it talks to the NPC again.
+    /// </summary>
+    private void AfterConversationChange(IWorldConnection connection, CharacterEntity character, ICreature npc, uint questId)
     {
-        if (NpcInteraction.RootFor(world.Data.Dialogue, npc.Metadata.Id) is not { } root)
-            return;
+        try
+        {
+            if (NpcInteraction.RootFor(world.Data.Dialogue, npc.Metadata.Id) is not { } root)
+                return;
 
-        connection.CurrentDialogue = (npc.Guid, root.Id);
-        InteractHandler.Send(connection, npc, root, character, world.Data, DialogueOptionsFor(connection, character, npc, root));
+            connection.CurrentDialogue = (npc.Guid, root.Id);
+            InteractHandler.Send(connection, npc, root, character, world.Data, DialogueOptionsFor(connection, character, npc, root));
+        }
+        catch (Exception e)
+        {
+            if (!Throttled(_rootResendErrors, questId, out int suppressed))
+                logger.LogError(e, "Re-sending NPC {Npc}'s root after quest {QuestId} changed for character {CharacterId} failed; " +
+                                   "the request still succeeded. {Suppressed} earlier failures for this quest were not logged",
+                    npc.Metadata.Id.Value, questId, character.Guid.Id, suppressed);
+        }
+    }
+
+    /// <summary>
+    /// A QuestFlusher step threw (final review M2): logged at Error at most once per step per
+    /// <see cref="ThrottledErrorLog.Interval" />, counting the throws left out; the flush goes on with its next step.
+    /// </summary>
+    internal void FlushStepFailed(string step, Exception e)
+    {
+        if (!_flushStepErrors.TryGetValue(step, out ThrottledErrorLog? log))
+            _flushStepErrors[step] = log = new ThrottledErrorLog(logger, time, step);
+        log.Failed(e);
     }
 }

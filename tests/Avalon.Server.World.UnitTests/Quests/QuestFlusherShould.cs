@@ -1,9 +1,11 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
+using Avalon.World.Public.Characters;
 using Avalon.World.Quests;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
@@ -172,5 +174,33 @@ public class QuestFlusherShould
         Tick(w, c);
 
         Assert.Equal(["Quest accepted: A Test Quest.", "Things done: 1/2"], c.Lines());
+    }
+
+    /// <summary>
+    /// Final review M2: each flush step is contained on its own. A collect recount that throws on every tick that
+    /// touches the bag (here a bag item with no template, which the recount trips on) is logged at Error, and the log
+    /// and the markers still go out on that very tick.
+    /// </summary>
+    [Fact]
+    public async Task Send_the_log_and_markers_when_the_recount_throws()
+    {
+        var log = new TestLog();
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(log: log);
+        QuestClient c = w.Join();
+        w.Place(Giver);
+        c.Character.Quests.Start(Tusks, DateTime.UnixEpoch);
+        w.Economy.InventoryOf(c.Character).TryAdd(new ItemTemplateId(Tusk), 1);   // marks a Bag slot
+        InventoryItem tusk = Assert.Single(c.Character.Container(Avalon.World.Public.Enums.InventoryType.Bag).Items);
+        c.Character.Container(Avalon.World.Public.Enums.InventoryType.Bag).Load(
+        [
+            tusk,
+            new InventoryItem(1, new ItemInstanceId(Guid.CreateVersion7()), null!, 1, 0, ItemInstanceFlags.None, 0),
+        ]);
+
+        Tick(w, c);
+
+        Assert.Single(c.Read<SQuestLogPacket>(NetworkPacketType.SMSG_QUEST_LOG));
+        Assert.Single(c.Read<SQuestMarkersPacket>(NetworkPacketType.SMSG_QUEST_MARKERS));
+        Assert.Contains(log.Errors, e => e.Message.Contains(QuestFlusher.RecountStep, StringComparison.Ordinal));
     }
 }

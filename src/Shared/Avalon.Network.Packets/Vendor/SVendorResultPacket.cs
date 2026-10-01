@@ -12,7 +12,10 @@ public enum VendorResult : byte
     /// <summary>No open vendor conversation within 6 m of the vendor (the dialogue leash).</summary>
     ShopClosed = 1,
 
-    /// <summary>An unknown or quest-gated row, an empty or out-of-range Bag slot, or an unknown buyback index.</summary>
+    /// <summary>
+    /// An unknown or quest-gated row (or one whose item is now a quest item), an empty or out-of-range Bag slot, or an
+    /// unknown buyback index.
+    /// </summary>
     NotFound = 2,
 
     /// <summary>The row has fewer left than the count asked for.</summary>

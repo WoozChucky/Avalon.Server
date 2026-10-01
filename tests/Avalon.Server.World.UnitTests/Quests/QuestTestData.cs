@@ -17,6 +17,17 @@ internal static class QuestTestData
     public const uint HuntKill = 72011, TusksCollect = 72021, HowlKill = 72031, HowlTalk = 72032, HowlScripted = 72033;
     public const int TitleText = 7300, ObjectiveText = 7301, StageText = 7302, BodyText = 7303, DoneText = 7304;
 
+    /// <summary>The quest scripts the fixtures name: SampleQuestScript, which Howl runs (its Scripted step needs one).</summary>
+    public static Type? FindScript(string name) => name == nameof(SampleQuestScript) ? typeof(SampleQuestScript) : null;
+
+    /// <summary>A script manager that knows <see cref="FindScript" />'s scripts, for a StaticData built over the fixtures.</summary>
+    public static Avalon.World.Scripts.IScriptManager ScriptManager()
+    {
+        var scripts = NSubstitute.Substitute.For<Avalon.World.Scripts.IScriptManager>();
+        NSubstitute.SubstituteExtensions.Returns(scripts.GetQuestScript(nameof(SampleQuestScript)), typeof(SampleQuestScript));
+        return scripts;
+    }
+
     public static CreatureTemplate Creature(ulong id, string name) => new() { Id = id, Name = name };
 
     public static List<CreatureTemplate> Creatures() =>
@@ -102,13 +113,14 @@ internal static class QuestTestData
 
     /// <summary>
     /// Hunt (kill 2 boars at the giver), then Tusks (collect 2 tusks from boars at 100 %, hand in to the ender,
-    /// pays 2 tonics), then Howl (kill a wolf; talk to Marta; one scripted step — given by and handed to the ender).
+    /// pays 2 tonics), then Howl (kill a wolf; talk to Marta; one scripted step, so it runs SampleQuestScript — given by
+    /// and handed to the ender). A catalog built from it needs <see cref="FindScript" /> (or ScriptManager) to load Howl.
     /// </summary>
     public static List<QuestTemplate> Chain() =>
     [
         Quest(Hunt).WithStage(0, Kill(HuntKill, Boar, 2)),
         Quest(Tusks, ender: Ender, requires: Hunt).WithStage(0, Collect(TusksCollect, Tusk, 2, (Boar, 100f))).Paying(Tonic, 2),
-        Quest(Howl, giver: Ender, ender: Ender, level: 2, requires: Tusks)
+        Quest(Howl, giver: Ender, ender: Ender, level: 2, requires: Tusks, script: nameof(SampleQuestScript))
             .WithStage(0, Kill(HowlKill, Wolf, 1))
             .WithStage(1, Talk(HowlTalk, TalkTarget))
             .WithStage(2, Scripted(HowlScripted, 1))

@@ -17,7 +17,7 @@ public class QuestCatalogShould
 
     private static QuestCatalog Build(IEnumerable<QuestTemplate> quests, List<ItemTemplate>? items = null,
         Func<string, Type?>? scripts = null) =>
-        new(quests.ToList(), QuestTestData.Creatures(), items ?? Items(), scripts ?? (_ => null), NullLoggerFactory.Instance);
+        new(quests.ToList(), QuestTestData.Creatures(), items ?? Items(), scripts ?? FindScript, NullLoggerFactory.Instance);
 
     private static void AssertRefused(QuestCatalog catalog, uint id, string reasonFragment)
     {
@@ -63,6 +63,19 @@ public class QuestCatalogShould
     [Fact] public void Refuse_a_quest_with_no_stage() => AssertRefused(Build([Quest(1)]), 1, "no stages");
     [Fact] public void Refuse_a_count_of_zero() => AssertRefused(Build([Quest(1).WithStage(0, Kill(11, Boar, 0))]), 1, "count 0");
     [Fact] public void Refuse_a_script_that_is_not_loaded() => AssertRefused(Build([Quest(1, script: "Nope").WithStage(0, Kill(11, Boar, 1))]), 1, "script");
+    /// <summary>Final review M3: only the quest's script can move a Scripted objective, so a quest without one would stick.</summary>
+    [Fact]
+    public void Refuse_a_scripted_objective_on_a_quest_without_a_script()
+    {
+        QuestCatalog catalog = Build([
+            Quest(1).WithStage(0, Scripted(11, 1)),
+            Quest(2, script: nameof(SampleQuestScript)).WithStage(0, Scripted(21, 1)),
+        ]);
+
+        AssertRefused(catalog, 1, "objective 11 is Scripted but the quest has no script");
+        Assert.True(catalog.TryGet(2, out _));
+    }
+
     [Fact] public void Refuse_quest_id_zero() => AssertRefused(Build([Quest(0).WithStage(0, Kill(11, Boar, 1))]), 0, "id");
 
     [Fact]
@@ -132,7 +145,9 @@ public class QuestCatalogShould
         };
         objective.Drops.Add(new QuestItemDrop { ObjectiveId = 11, CreatureTemplateId = Boar, Chance = 50f });
 
-        QuestCatalog catalog = Build([Quest(1).WithStage(0, objective), Quest(2).WithStage(0, Kill(21, Boar, 1))]);
+        // A Scripted objective needs its quest to have a script, or that is refused first.
+        string? script = type == QuestObjectiveType.Scripted ? nameof(SampleQuestScript) : null;
+        QuestCatalog catalog = Build([Quest(1, script: script).WithStage(0, objective), Quest(2).WithStage(0, Kill(21, Boar, 1))]);
 
         AssertRefused(catalog, 1, "objective 11 has drops but does not collect");
         Assert.Empty(catalog.DropsFrom(new CreatureTemplateId(Boar)));

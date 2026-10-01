@@ -68,6 +68,25 @@ public class VendorListBuilderShould : IAsyncLifetime
         Assert.Equal([2u, 3u, 4u], list.Entries.Select(e => e.Sequence));
     }
 
+    /// <summary>
+    /// Final review M5: a /reload items that flags a stocked item QuestItem hides its row at once, before any
+    /// /reload vendors drops it, since a quest item is never sold.
+    /// </summary>
+    [Fact]
+    public void Leave_out_a_row_whose_item_a_reload_made_a_quest_item()
+    {
+        var flagged = new ItemTemplate
+        {
+            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+        };
+        _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList()));
+
+        SVendorListPacket list = Build();
+
+        Assert.Equal([2u, 3u, 4u], list.Entries.Select(e => e.Sequence));
+    }
+
     [Fact]
     public void List_the_buyback_newest_first_with_what_each_sold_for()
     {

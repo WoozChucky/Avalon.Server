@@ -138,4 +138,26 @@ public class QuestAcceptShould
         Assert.Equal(QuestResult.Ok, w.Quests.Abandon(c.Character, 99999));
         Assert.False(c.Character.Quests.IsActive(99999));
     }
+
+    /// <summary>
+    /// Final review M1: once the quest is accepted, a throw while re-sending the giver's root is logged and the answer
+    /// stays Ok, so the client is not told Error about an accept that happened.
+    /// </summary>
+    [Fact]
+    public async Task Answer_Ok_when_resending_the_root_throws_after_the_accept()
+    {
+        var log = new TestLog();
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(log: log);
+        QuestClient c = w.Join();
+        Creature giver = w.Place(Giver);
+        w.Talk(c, giver);
+        c.Connection.When(x => x.Send(Arg.Is<NetworkPacket>(p => p.Header.Type == NetworkPacketType.SMSG_DIALOGUE_NODE)))
+            .Do(_ => throw new InvalidOperationException("root unavailable"));
+
+        QuestResult result = w.Quests.Accept(c.Connection, c.Character, Hunt, giver.Guid.RawValue);
+
+        Assert.Equal(QuestResult.Ok, result);
+        Assert.True(c.Character.Quests.IsActive(Hunt));
+        Assert.Contains(log.Errors, e => e.Exception is InvalidOperationException);
+    }
 }

@@ -506,7 +506,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _worldUpdateDuration.Record(worldUs);
 
         // Quest counts, log, updates, lines and markers (#433), before the inventory flush below clears the slot
-        // changes the collect recount reads. Contained per connection: one character's throw costs nobody else.
+        // changes the collect recount reads. Each step is contained inside the flush (a throwing recount still lets the
+        // log and markers out), and the flush per connection: one character's throw costs nobody else.
         if (_quests is not null)
         {
             for (int i = 0; i < conns.Length; i++)

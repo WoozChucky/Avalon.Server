@@ -23,6 +23,9 @@ public enum QuestResult
     /// NPC that does not take that quest back.
     /// </summary>
     NoConversation = 9,
-    /// <summary>The request threw; it was logged and changed nothing it had not already changed.</summary>
+    /// <summary>
+    /// The request threw (logged; whatever it had already changed stays changed, nothing is rolled back), or a
+    /// turn-in's reward item can no longer be paid (a data fault, logged; the turn-in changed nothing).
+    /// </summary>
     Error = 10,
 }

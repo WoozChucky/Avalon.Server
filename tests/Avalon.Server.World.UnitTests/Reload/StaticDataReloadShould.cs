@@ -306,7 +306,8 @@ public class StaticDataReloadShould
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             items: Quests.QuestTestData.Items,
             creatures: () => creatures,
-            quests: Quests.QuestRepositories.Of(() => quests)));
+            quests: Quests.QuestRepositories.Of(() => quests),
+            scripts: Quests.QuestTestData.ScriptManager()));
         Assert.Equal(3, data.Quests.All.Count);
 
         creatures.RemoveAll(c => c.Id.Value == Quests.QuestTestData.Wolf);   // Howl's kill target is gone

@@ -23,9 +23,9 @@ public class QuestTurnInShould
 
     /// <summary>Tusks accepted, both tusks in the bag (ready), and a conversation open with its ender.</summary>
     private static async Task<(QuestTestWorld W, QuestClient C, Creature Ender)> ReadyTusksAsync(
-        List<QuestTemplate>? quests = null, ulong money = 0)
+        List<QuestTemplate>? quests = null, ulong money = 0, TestLog? log = null)
     {
-        QuestTestWorld w = await QuestTestWorld.CreateAsync(quests);
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(quests, log: log);
         QuestClient c = w.Join(money: money);
         QuestTestWorld.Complete(c, Hunt);
         w.Accept(c, Tusks);
@@ -233,5 +233,25 @@ public class QuestTurnInShould
 
         Assert.True(VendorRules.IsVisible(row, c.Character, QuestProgress.Instance));
         Assert.False(VendorRules.IsVisible(activeRow, c.Character, QuestProgress.Instance));
+    }
+
+    /// <summary>
+    /// Final review M1: once the quest is completed and paid, a throw while re-sending the ender's root is logged and
+    /// the answer stays Ok, so the client is not told Error about a turn-in that happened.
+    /// </summary>
+    [Fact]
+    public async Task Answer_Ok_when_resending_the_root_throws_after_the_turn_in()
+    {
+        var log = new TestLog();
+        (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(log: log);
+        c.Connection.When(x => x.Send(Arg.Is<Avalon.Network.Packets.Abstractions.NetworkPacket>(
+                p => p.Header.Type == Avalon.Network.Packets.Abstractions.NetworkPacketType.SMSG_DIALOGUE_NODE)))
+            .Do(_ => throw new InvalidOperationException("root unavailable"));
+
+        QuestResult result = w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue);
+
+        Assert.Equal(QuestResult.Ok, result);
+        Assert.True(c.Character.Quests.IsCompleted(Tusks));
+        Assert.Contains(log.Errors, e => e.Exception is InvalidOperationException);
     }
 }

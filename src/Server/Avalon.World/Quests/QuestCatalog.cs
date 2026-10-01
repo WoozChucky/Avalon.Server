@@ -182,6 +182,10 @@ public sealed class QuestCatalog
                 return $"objective {objective.Id} has count 0";
             if (TargetProblem(objective) is { } target)
                 return target;
+            // Only the quest's own script can move a Scripted objective (IQuestContext.Advance); without one the
+            // quest would stick at that stage until abandoned.
+            if (objective.Type == QuestObjectiveType.Scripted && string.IsNullOrEmpty(quest.ScriptName))
+                return $"objective {objective.Id} is Scripted but the quest has no script";
             if (objective.Type == QuestObjectiveType.Collect
                 && !collectedBy.TryAdd(objective.ItemTemplateId!.Value, objective.Id))
                 return $"objective {objective.Id} collects item template {objective.ItemTemplateId.Value}, which objective " +

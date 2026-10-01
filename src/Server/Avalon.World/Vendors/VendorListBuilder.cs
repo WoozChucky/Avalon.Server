@@ -20,7 +20,7 @@ public static class VendorListBuilder
 {
     /// <summary>
     /// Rows in Sequence order. A row is left out when its quest gate is not met, or when its item
-    /// template is gone (a /reload items removed it).
+    /// template is gone (a /reload items removed it) or is now a quest item (a /reload items flagged it).
     /// </summary>
     public static SVendorListPacket Build(
         ObjectGuid vendor, VendorStockState stock, CharacterEntity character, StaticData data, IQuestProgress quests)
@@ -28,7 +28,8 @@ public static class VendorListBuilder
         List<VendorEntryDto> entries = new(stock.Rows.Count);
         foreach (VendorStockView row in stock.Rows)
         {
-            if (!VendorRules.IsVisible(row, character, quests) || FindTemplate(data, row.ItemTemplateId) is not { } item)
+            if (!VendorRules.IsVisible(row, character, quests) || FindTemplate(data, row.ItemTemplateId) is not { } item
+                || !VendorRules.IsStockable(item))
                 continue;
 
             entries.Add(new VendorEntryDto

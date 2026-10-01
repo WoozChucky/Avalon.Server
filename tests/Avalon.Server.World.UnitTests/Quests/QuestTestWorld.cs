@@ -136,7 +136,7 @@ internal sealed class QuestTestWorld
                 new CharacterLevelExperience { Level = 3, Experience = 1400 },
             ],
             quests: QuestRepositories.Of(() => rows),
-            scripts: scripts));
+            scripts: scripts ?? ScriptManager()));
 
         var config = new GameConfiguration();
         configure?.Invoke(config);
