@@ -201,12 +201,12 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "PartyInviteTimeoutSeconds": 60,
   "PartyLeaveGraceSeconds": 60,
   "PartyReturnRetrySeconds": 5,
-  "MaxActiveQuests": 20,
   "PartyExperienceModeCooldownSeconds": 60,
   "PartyHealthPerExtraPlayer": 0.6,
   "PartyEligibilityRange": 60,
   "PartyExperienceBonusPerExtra": 0.10,
-  "PartyExperienceLevelGap": 5
+  "PartyExperienceLevelGap": 5,
+  "MaxActiveQuests": 20
 }
 ```
 

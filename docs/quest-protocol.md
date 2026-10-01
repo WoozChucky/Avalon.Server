@@ -175,7 +175,8 @@ sent at the end of the tick in quest id order:
 
 An accept stays `Accepted` for the rest of its tick, whatever progress follows in the same tick, so the update
 carries the display. A quest accepted and abandoned in the same tick arrives as `Removed` only; a client
-ignores a `Removed` for a quest it never had.
+ignores a `Removed` for a quest it never had. A quest accepted and turned in in the same tick arrives as
+`Completed` only; a client just adds the id to the completed set.
 
 **Order within a tick.** For one connection, the end of the tick sends, in this order: the quest updates, the
 quest system lines (section 9), the markers (section 7), and only then `SMSG_INVENTORY_UPDATE`. So a turn-in's
@@ -196,9 +197,14 @@ client replaces what it held.
 | 2 | `Available` | It offers a quest the character may accept (a full log still shows `Available`). |
 | 3 | `ReadyToTurnIn` | It takes back a quest the character holds ready to turn in. Outranks `Available`. |
 
-It is sent on entering the world, on entering another instance, and whenever the list changes (an accept,
-progress, a turn-in, an abandon, a level-up, a reload of the quest data); never repeated unchanged, and
-possibly empty (an instance with no quest NPC). It covers **every** quest NPC in the instance, near or far:
+It is worked out again on entering the world, on entering another instance, and when an accept, progress, a
+turn-in, an abandon, a level-up or a reload of the quest data may have changed it, and it is **sent only when
+the list differs from the last one sent**, across instances too. So an arrival whose list equals the last one
+sends nothing: two instances in a row with no quest NPC (both empty lists), or a transfer back into the same
+town instance (where every creature is removed and added again through `SMSG_WORLD_STATE_REMOVE` and fresh
+adds, but the markers stay the same). A client therefore keeps the marker list, keyed by creature guid, until
+the next `SMSG_QUEST_MARKERS` replaces it, and never clears it on a map transition or a world-state remove. The
+list may be empty (an instance with no quest NPC). It covers **every** quest NPC in the instance, near or far:
 there is no interest radius, so a marker may name a creature the client has not been sent yet; keep it and
 apply it when the creature appears. The list is worked out from the creatures present when one of those
 inputs changes; a quest NPC spawned or removed later is not reflected until the next change (the seeded quest
