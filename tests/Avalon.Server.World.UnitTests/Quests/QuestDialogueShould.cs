@@ -145,6 +145,70 @@ public class QuestDialogueShould
         Assert.Equal([7411], node.Options.Select(o => o.OptionId));
     }
 
+    private static void Choose(QuestTestWorld w, QuestClient c, Creature npc, int nodeId, int optionId) =>
+        new DialogueChooseHandler(NullLogger<DialogueChooseHandler>.Instance, w.World, null, w.Quests)
+            .Execute(c.Connection, new CDialogueChoosePacket { TargetGuid = npc.Guid.RawValue, NodeId = nodeId, OptionId = optionId });
+
+    /// <summary>
+    /// A quest option chosen past the dialogue leash, or once the NPC is dead, is not offered: the conversation ends
+    /// out loud, as for any other choose there, and no quest work happens.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task End_the_conversation_and_offer_nothing_past_the_leash_or_after_the_npc_died(bool dead)
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        QuestClient c = w.Join();
+        Creature giver = w.Place(Giver);
+        SDialogueNodePacket root = Interact(w, c, giver);
+        Assert.Contains(root.Options, o => o.OptionId == -(int)Hunt);
+        c.Clear();
+        if (dead)
+            giver.CurrentHealth = 0;
+        else
+            c.Character.Position = new Vector3(Avalon.World.Dialogue.NpcInteraction.LeashRange + 1, 0, 0);
+
+        Choose(w, c, giver, root.NodeId, -(int)Hunt);
+
+        Assert.Empty(c.Read<SQuestOfferPacket>(NetworkPacketType.SMSG_QUEST_OFFER));
+        Assert.Single(c.Read<SDialogueEndPacket>(NetworkPacketType.SMSG_DIALOGUE_END));
+        Assert.Null(c.Connection.CurrentDialogue);
+        Assert.False(c.Character.Quests.IsActive(Hunt));
+        Assert.Empty(c.Character.Quests.ClientChanges);
+    }
+
+    /// <summary>
+    /// An authored option that leads back to the root resends it with this character's quest options, as the
+    /// interact does: the advance path asks the quest service too.
+    /// </summary>
+    [Fact]
+    public async Task Show_the_quest_options_when_an_option_leads_back_to_the_root()
+    {
+        const int Aside = 7404;
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(dialogue: (nodes, options) =>
+        {
+            nodes.Add(new DialogueNode { Id = Aside, CreatureTemplateId = Giver, IsRoot = false, TextId = BodyText });
+            options.Add(new DialogueOption { Id = 7414, NodeId = QuestTestWorld.GiverRoot, TextId = DoneText, NextNodeId = Aside, SortOrder = 1 });
+            options.Add(new DialogueOption { Id = 7415, NodeId = Aside, TextId = DoneText, NextNodeId = QuestTestWorld.GiverRoot, SortOrder = 0 });
+        });
+        QuestClient c = w.Join();
+        Creature giver = w.Place(Giver);
+        SDialogueNodePacket root = Interact(w, c, giver);
+
+        c.Clear();
+        Choose(w, c, giver, root.NodeId, 7414);
+        SDialogueNodePacket aside = Assert.Single(c.Read<SDialogueNodePacket>(NetworkPacketType.SMSG_DIALOGUE_NODE));
+        Assert.Equal([7415], aside.Options.Select(o => o.OptionId));
+
+        c.Clear();
+        Choose(w, c, giver, Aside, 7415);
+        SDialogueNodePacket back = Assert.Single(c.Read<SDialogueNodePacket>(NetworkPacketType.SMSG_DIALOGUE_NODE));
+        Assert.Equal(QuestTestWorld.GiverRoot, back.NodeId);
+        Assert.Equal([-(int)Hunt, 7411, 7414], back.Options.Select(o => o.OptionId));
+        Assert.Equal(DialogueOptionKind.QuestOffer, back.Options[0].Kind);
+    }
+
     [Fact]
     public async Task Add_no_quest_options_to_a_node_that_is_not_the_root()
     {

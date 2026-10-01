@@ -258,6 +258,52 @@ public class ExperienceAwardShould
         instance.Dispose();
     }
 
+    /// <summary>
+    /// #433, owner decision 2026-10-01: kills and quest rewards level up through the one helper,
+    /// ExperienceAward.Grant, which carries the experience across every level the award covers. A kill whose
+    /// experience covers two levels raises its killer two levels. Before #433 a kill levelled at most once and kept
+    /// the rest as experience at the new level (here: level 2 with 250).
+    /// </summary>
+    [Fact]
+    public async Task Level_Up_Twice_When_One_Kill_Covers_Two_Levels()
+    {
+        var world = Substitute.For<Avalon.World.IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate>());   // no band: the award is the creature's whole experience
+        StaticData data = await TestStaticData.LoadAsync(levels:
+        [
+            new CharacterLevelExperience { Level = 1, Experience = 100 },
+            new CharacterLevelExperience { Level = 2, Experience = 200 },
+            new CharacterLevelExperience { Level = 3, Experience = 1000 },
+        ]);
+        world.Data.Returns(data);
+
+        MapInstance instance = TestMapInstances.Build(world);
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 880_051),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 1,
+            Experience = 350,
+        };
+        instance.AddCreature(creature);
+
+        // Not stubbed with Returns: the substitute remembers what the award sets, so the level it reads back rises.
+        ICharacter killer = Substitute.For<ICharacter>();
+        killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 880_052));
+        killer.Level = 1;
+        killer.Experience = 0;
+
+        instance.ReportKill(creature, killer);
+
+        // 350 - 100 (level 1) - 200 (level 2) = 50 toward level 3's 1000.
+        Assert.Equal((ushort)3, killer.Level);
+        Assert.Equal(50ul, killer.Experience);
+        Assert.Equal(1000ul, killer.RequiredExperience);
+        instance.Dispose();
+    }
+
     [Theory]
     [InlineData(3, 1, 5, 1.0)]      // inside the band
     [InlineData(1, 1, 5, 1.0)]      // on the lower edge

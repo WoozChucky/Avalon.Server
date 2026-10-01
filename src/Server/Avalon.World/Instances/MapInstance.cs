@@ -1392,29 +1392,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Gives a character its share of a kill's experience, scaled by this map's level band, and levels it up
-    /// when that reaches its level's requirement. A level with no requirement awards nothing.
+    /// Gives a character its share of a kill's experience, scaled by this map's level band, through the one level-up
+    /// helper quests use too (#433): it levels past every requirement the award covers. A level with no requirement
+    /// awards nothing.
     /// </summary>
-    private void AwardExperience(ICharacter character, uint experience)
-    {
-        CharacterLevelExperience? expRequirement =
-            _world.Data.CharacterLevelExperiences.FirstOrDefault(exp => exp.Level == character.Level);
-        if (expRequirement is null)
-        {
-            _logger.LogWarning("Experience requirement for level {Level} not found", character.Level);
-            return;
-        }
-
-        uint creatureExperience = ScaledExperience(character, experience);
-        if (character.Experience + creatureExperience >= expRequirement.Experience)
-        {
-            LevelUp(character, creatureExperience, expRequirement);
-        }
-        else
-        {
-            character.Experience += creatureExperience;
-        }
-    }
+    private void AwardExperience(ICharacter character, uint experience) =>
+        ExperienceAward.Grant(character, ScaledExperience(character, experience), _world.Data, _parties, _logger);
 
     /// <summary>This character's share of the kill's experience, scaled by this map's level band.</summary>
     private uint ScaledExperience(ICharacter character, uint experience)
@@ -1428,34 +1411,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _world.Configuration.ExperienceBandDecay);
 
         return (uint)Math.Round(experience * bandScale, MidpointRounding.AwayFromZero);
-    }
-
-    /// <summary>
-    /// Raises the character one level, carrying over the experience past the requirement, and
-    /// recalculates its stats at the new level.
-    /// </summary>
-    private void LevelUp(ICharacter character, uint creatureExperience, CharacterLevelExperience expRequirement)
-    {
-        ulong diff = character.Experience + creatureExperience - expRequirement.Experience;
-        character.Level++;
-        character.Experience = diff;
-        character.RequiredExperience = _world.Data.CharacterLevelExperiences
-            .FirstOrDefault(exp => exp.Level == character.Level)?.Experience ?? 0;
-
-        // #434: the new level's stats. A living killer has health and power refilled to the new
-        // maximums. A kill can land after its killer has died (a projectile in flight): a dead
-        // killer gets the new maximums but keeps its share of each pool instead, so its health
-        // stays at 0 and it is not revived.
-        if (character is CharacterEntity entity
-            && !CharacterStatsRefresh.Apply(entity, _world.Data,
-                entity.IsDead ? CurrentValues.KeepShare : CurrentValues.Refill))
-        {
-            _logger.LogWarning("No class stats for {Class} level {Level}; {Name} keeps its old maximums",
-                entity.Class, entity.Level, entity.Name);
-        }
-
-        // The party roster shows levels.
-        _parties?.LevelChanged(character);
     }
 
     /// <summary>

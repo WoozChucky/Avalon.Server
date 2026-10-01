@@ -71,7 +71,9 @@ public class WorldHostGraphShould
             // #506. MapInstance reads the combat random with GetService and otherwise falls back to one
             // that never crits, dodges or blocks, so only this proves production rolls for real.
             Assert.IsType<Avalon.Combat.CombatRandom>(host.Services.GetRequiredService<Avalon.Combat.ICombatRandom>());
-            Assert.IsType<NoQuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
+            Assert.IsType<QuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
+            // #433. MapInstance and WorldServer read it with GetService, so only this proves production registers it.
+            Assert.NotNull(host.Services.GetRequiredService<QuestService>());
 
             // PvP (#164). MapInstance reads the toggle with GetService, so a missing registration would
             // silently build a second toggle over a different clock. /pvp is found through ICommand.
@@ -155,6 +157,8 @@ public class WorldHostGraphShould
     [InlineData(NetworkPacketType.CMSG_PARTY_PROMOTE, typeof(PartyPromoteHandler))]
     [InlineData(NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE, typeof(PartyExperienceModeHandler))]
     [InlineData(NetworkPacketType.CMSG_ENTER_MAP, typeof(EnterMapHandler))]
+    [InlineData(NetworkPacketType.CMSG_INTERACT, typeof(InteractHandler))]
+    [InlineData(NetworkPacketType.CMSG_DIALOGUE_CHOOSE, typeof(DialogueChooseHandler))]
     public async Task Find_And_Build_The_Handler_The_Way_WorldServer_Does(NetworkPacketType opcode, Type expected)
     {
         string workingDirectory = Directory.GetCurrentDirectory();
@@ -176,6 +180,41 @@ public class WorldHostGraphShould
             Directory.SetCurrentDirectory(workingDirectory);
         }
     }
+
+    /// <summary>
+    /// Quest options and talk credit (#433): InteractHandler and DialogueChooseHandler take the quest service, and
+    /// DialogueChooseHandler the quest progress, as optional constructor parameters, so a handler the container builds
+    /// without them would silently offer no quests and unlock no gated stock. Built the way WorldServer builds them,
+    /// each must hold the container's own.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(InteractHandler))]
+    [InlineData(typeof(DialogueChooseHandler))]
+    public async Task Hand_the_quest_service_to_the_dialogue_handlers(Type handlerType)
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services.AddWorldServices();
+            using IHost host = builder.Build();
+
+            object handler = ActivatorUtilities.CreateInstance(host.Services, handlerType);
+
+            Assert.Same(host.Services.GetRequiredService<QuestService>(), CapturedOfType<QuestService>(handler));
+            if (handlerType == typeof(DialogueChooseHandler))
+                Assert.Same(host.Services.GetRequiredService<IQuestProgress>(), CapturedOfType<IQuestProgress>(handler));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
+    /// <summary>The one field of this type a handler holds (a primary constructor's captured parameter).</summary>
+    private static T? CapturedOfType<T>(object handler) where T : class =>
+        (T?)Assert.Single(handler.GetType().GetFields(BindingFlags.Instance | BindingFlags.NonPublic),
+            f => f.FieldType == typeof(T)).GetValue(handler);
 
     /// <summary>
     /// The restock timer a sale starts and the vendor pass that restocks it read one clock (#432):

@@ -103,6 +103,18 @@ public class QuestLogShould
         Assert.Equal(QuestClientChange.Completed, c.Quests.ClientChanges[5]);
     }
 
+    /// <summary>The saved row keeps the first completion time (an insert that skips an existing row), so memory does too.</summary>
+    [Fact]
+    public void Keep_the_first_completion_time()
+    {
+        CharacterEntity c = Character();
+        c.Quests.Complete(5, Now);
+
+        c.Quests.Complete(5, Now.AddHours(1));
+
+        Assert.Equal(Now, c.Quests.CompletedAt(5));
+    }
+
     [Fact]
     public void Queue_lines_for_the_flush()
     {

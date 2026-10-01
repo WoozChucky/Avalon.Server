@@ -157,11 +157,14 @@ public sealed class QuestLog(SaveStateTracker save)
         return true;
     }
 
-    /// <summary>A turn-in: the quest leaves the active set and joins the completed one.</summary>
+    /// <summary>
+    /// A turn-in: the quest leaves the active set and joins the completed one. A quest already completed keeps its
+    /// first completion time, as the saved row does.
+    /// </summary>
     public void Complete(uint questId, DateTime now)
     {
         _active.Remove(questId);
-        _completed[questId] = now;
+        _completed.TryAdd(questId, now);
         Changed(questId, QuestClientChange.Completed);
     }
 

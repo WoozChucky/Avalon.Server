@@ -102,25 +102,30 @@ internal sealed class QuestTestWorld
         IScriptManager? scripts = null,
         IServiceProvider? services = null,
         PartyService? parties = null,
-        List<CharacterLevelExperience>? levels = null)
+        List<CharacterLevelExperience>? levels = null,
+        Action<List<DialogueNode>, List<DialogueOption>>? dialogue = null)
     {
         List<QuestTemplate> rows = quests ?? Chain();
+        List<DialogueNode> nodes =
+        [
+            new DialogueNode { Id = GiverRoot, CreatureTemplateId = Giver, IsRoot = true, TextId = BodyText },
+            new DialogueNode { Id = EnderRoot, CreatureTemplateId = Ender, IsRoot = true, TextId = BodyText },
+            new DialogueNode { Id = TalkRoot, CreatureTemplateId = TalkTarget, IsRoot = true, TextId = BodyText },
+        ];
+        List<DialogueOption> options =
+        [
+            new DialogueOption { Id = 7411, NodeId = GiverRoot, TextId = DoneText, NextNodeId = null, SortOrder = 0 },
+            new DialogueOption { Id = 7412, NodeId = EnderRoot, TextId = DoneText, NextNodeId = null, SortOrder = 0 },
+            new DialogueOption { Id = 7413, NodeId = TalkRoot, TextId = DoneText, NextNodeId = null, SortOrder = 0 },
+        ];
+        dialogue?.Invoke(nodes, options);
+
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             items: Items,
             creatures: QuestTestData.Creatures,
             texts: Texts,
-            nodes: () =>
-            [
-                new DialogueNode { Id = GiverRoot, CreatureTemplateId = Giver, IsRoot = true, TextId = BodyText },
-                new DialogueNode { Id = EnderRoot, CreatureTemplateId = Ender, IsRoot = true, TextId = BodyText },
-                new DialogueNode { Id = TalkRoot, CreatureTemplateId = TalkTarget, IsRoot = true, TextId = BodyText },
-            ],
-            options: () =>
-            [
-                new DialogueOption { Id = 7411, NodeId = GiverRoot, TextId = DoneText, NextNodeId = null, SortOrder = 0 },
-                new DialogueOption { Id = 7412, NodeId = EnderRoot, TextId = DoneText, NextNodeId = null, SortOrder = 0 },
-                new DialogueOption { Id = 7413, NodeId = TalkRoot, TextId = DoneText, NextNodeId = null, SortOrder = 0 },
-            ],
+            nodes: () => nodes,
+            options: () => options,
             levels: () => levels ??
             [
                 new CharacterLevelExperience { Level = 1, Experience = 400 },

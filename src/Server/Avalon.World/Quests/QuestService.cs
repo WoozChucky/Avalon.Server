@@ -1,7 +1,9 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.World;
+using Avalon.World.Characters;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -164,6 +166,55 @@ public sealed class QuestService(
         character.Quests.Say($"Quest abandoned: {(quest is null ? $"#{questId}" : Title(character, quest))}.");
         return QuestResult.Ok;
     }
+
+    /// <summary>
+    /// CMSG_QUEST_TURN_IN (#433), all or nothing: an open conversation with the quest's ender inside the leash, the
+    /// quest held, the bag recounted as it is now, then QuestTurnInRules. Only then do the quest items leave, and
+    /// experience (personal: no party split, no level gap, no map band), money and items are paid.
+    /// </summary>
+    public QuestResult TurnIn(IWorldConnection connection, CharacterEntity character, uint questId, ulong npcGuid)
+    {
+        QuestResult talk = Conversation(connection, character, npcGuid, out ICreature? npc);
+        if (talk != QuestResult.Ok)
+            return talk;
+
+        if (character.Quests.Get(questId) is not { } active || !Catalog.TryGet(questId, out QuestView? quest))
+            return QuestResult.NotActive;
+
+        if (quest.EnderCreatureId.Value != npc!.Metadata.Id.Value)
+            return QuestResult.NoConversation;
+
+        // The bag as it is now: an item destroyed this tick has not been through QuestFlusher yet.
+        Recount(character, quest, active);
+
+        QuestResult decision = QuestTurnInRules.Decide(character, quest, active, FindTemplate, world.Configuration.MaxMoney,
+            out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards);
+        if (decision != QuestResult.Ok)
+            return decision;
+
+        RemoveQuestItems(character, quest);
+        ExperienceAward.Grant(character, quest.RewardExperience, world.Data, parties, logger);
+
+        if (quest.RewardMoney > 0 && economy.WalletOf(character).TryAddMoney(quest.RewardMoney) != WalletResult.Ok)
+            logger.LogError("Quest {QuestId} money was refused after its checks passed for character {CharacterId}", questId, character.Guid.Id);
+
+        IInventoryService inventory = economy.InventoryOf(character);
+        foreach ((ItemTemplate template, uint count) in rewards)
+        {
+            InventoryAddResult added = inventory.TryAdd(template.Id, count);
+            if (added != InventoryAddResult.Ok)
+                logger.LogError("Quest {QuestId} reward {Item} was refused ({Result}) after its checks passed for character {CharacterId}",
+                    questId, template.Id.Value, added, character.Guid.Id);
+        }
+
+        character.Quests.Complete(questId, time.GetUtcNow().UtcDateTime);
+        character.Quests.Say($"Quest completed: {Title(character, quest)}.");
+        AfterConversationChange(connection, character, npc);
+        return QuestResult.Ok;
+    }
+
+    private ItemTemplate? FindTemplate(ItemTemplateId id) =>
+        world.Data.ItemTemplates.FirstOrDefault(t => t.Id.Value == id.Value);
 
     /// <summary>
     /// Adds to one objective of an active quest's current stage, capped at its count. False, changing nothing, for
