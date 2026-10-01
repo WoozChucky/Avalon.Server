@@ -80,7 +80,7 @@
       "damageMax1": 3,
       "damageType1": 0,
       "statType1": 12,
-      "statValue1": 13
+      "statValue1": 3
     },
     {
       "id": 5,
@@ -104,7 +104,7 @@
       "damageMax1": 14,
       "damageType1": 0,
       "statType1": 12,
-      "statValue1": 18,
+      "statValue1": 0,
       "statType2": 3,
       "statValue2": 1
     },
@@ -130,7 +130,7 @@
       "damageMax1": 11,
       "damageType1": 0,
       "statType1": 12,
-      "statValue1": 15,
+      "statValue1": 3,
       "statType2": 2,
       "statValue2": 1
     },
@@ -156,7 +156,7 @@
       "damageMax1": 11,
       "damageType1": 0,
       "statType1": 12,
-      "statValue1": 13,
+      "statValue1": 3,
       "statType2": 1,
       "statValue2": 1
     },
@@ -182,7 +182,7 @@
       "damageMax1": 11,
       "damageType1": 0,
       "statType1": 12,
-      "statValue1": 15,
+      "statValue1": 2,
       "statType2": 3,
       "statValue2": 1
     },
@@ -745,7 +745,7 @@
       "damageMax1": 7,
       "damageType1": 0,
       "statType1": 12,
-      "statValue1": 13,
+      "statValue1": 3,
       "statType2": 1,
       "statValue2": 1
     },
@@ -771,7 +771,7 @@
       "damageMax1": 7,
       "damageType1": 0,
       "statType1": 12,
-      "statValue1": 18,
+      "statValue1": 0,
       "statType2": 3,
       "statValue2": 1
     },
@@ -797,7 +797,7 @@
       "damageMax1": 7,
       "damageType1": 0,
       "statType1": 12,
-      "statValue1": 15,
+      "statValue1": 3,
       "statType2": 2,
       "statValue2": 1
     },
@@ -823,7 +823,7 @@
       "damageMax1": 7,
       "damageType1": 0,
       "statType1": 12,
-      "statValue1": 15,
+      "statValue1": 2,
       "statType2": 3,
       "statValue2": 1
     },
@@ -1325,6 +1325,51 @@
         3,
         4
       ]
+    },
+    {
+      "id": 57,
+      "name": "Boar Tusk",
+      "class": 3,
+      "subClass": 300,
+      "flags": 2304,
+      "stackable": true,
+      "maxStackSize": 20,
+      "displayId": 57,
+      "rarity": 1,
+      "buyPrice": 0,
+      "sellPrice": 0,
+      "allowedClasses": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": 58,
+      "name": "Alpha\u0027s Fang Pendant",
+      "class": 2,
+      "subClass": 206,
+      "flags": 0,
+      "stackable": false,
+      "maxStackSize": 1,
+      "displayId": 58,
+      "rarity": 2,
+      "buyPrice": 200,
+      "sellPrice": 50,
+      "slot": 1,
+      "allowedClasses": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "itemPower": 3,
+      "requiredLevel": 2,
+      "statType1": 0,
+      "statValue1": 2,
+      "statType2": 4,
+      "statValue2": 1
     }
   ]
 }

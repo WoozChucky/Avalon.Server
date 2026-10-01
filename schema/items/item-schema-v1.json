@@ -376,6 +376,10 @@
         "value": 205
       },
       {
+        "name": "Amulet",
+        "value": 206
+      },
+      {
         "name": "QuestItem",
         "value": 300
       },

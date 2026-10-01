@@ -615,6 +615,35 @@ public class WorldDbContext : DbContext
         builder.HasMany(b => b.Stages).WithOne().HasForeignKey(s => s.QuestId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(b => b.Objectives).WithOne().HasForeignKey(o => o.QuestId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(b => b.ItemRewards).WithOne().HasForeignKey(r => r.QuestId).OnDelete(DeleteBehavior.Cascade);
+
+        SeedForestStorylineQuests(builder);
+    }
+
+    /// <summary>
+    /// "Trouble in the Forest" (#433, spec §5): Uriel → Uriel, Uriel → Borin, Borin → Borin. Numbers are first drafts
+    /// for the balance tool.
+    /// </summary>
+    private static void SeedForestStorylineQuests(EntityTypeBuilder<QuestTemplate> builder)
+    {
+        builder.HasData(
+            new QuestTemplate
+            {
+                Id = 1, TitleTextId = 25, DescriptionTextId = 26, CompletionTextId = 27,
+                GiverCreatureId = 1, EnderCreatureId = 1, LevelRequirement = 1,
+                RewardExperience = 150, RewardMoney = 100,
+            },
+            new QuestTemplate
+            {
+                Id = 2, TitleTextId = 29, DescriptionTextId = 30, CompletionTextId = 31,
+                GiverCreatureId = 1, EnderCreatureId = 2, LevelRequirement = 1, RequiredQuestId = 1,
+                RewardExperience = 250, RewardMoney = 150,
+            },
+            new QuestTemplate
+            {
+                Id = 3, TitleTextId = 33, DescriptionTextId = 34, CompletionTextId = 35,
+                GiverCreatureId = 2, EnderCreatureId = 2, LevelRequirement = 2, RequiredQuestId = 2,
+                RewardExperience = 600, RewardMoney = 400,
+            });
     }
 
     private static void Configure(EntityTypeBuilder<QuestStage> builder)
@@ -625,6 +654,13 @@ public class WorldDbContext : DbContext
         builder.Property(b => b.DescriptionTextId)
             .HasConversion(v => v!.Value, v => new LocalizedTextId(v))
             .IsRequired(false);
+
+        builder.HasData(
+            new QuestStage { QuestId = 1, Sequence = 0 },
+            new QuestStage { QuestId = 2, Sequence = 0 },
+            new QuestStage { QuestId = 3, Sequence = 0, DescriptionTextId = 40 },
+            new QuestStage { QuestId = 3, Sequence = 1, DescriptionTextId = 41 },
+            new QuestStage { QuestId = 3, Sequence = 2, DescriptionTextId = 42 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestObjective> builder)
@@ -661,6 +697,15 @@ public class WorldDbContext : DbContext
         builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(b => b.Drops).WithOne().HasForeignKey(d => d.ObjectiveId).OnDelete(DeleteBehavior.Cascade);
+
+        // Creature templates: 4 Thornback Boar, 5 Grey Fen Wolf, 7 Husk of the Wold, 8 Bramblemaw Alpha, 11 Marta.
+        builder.HasData(
+            new QuestObjective { Id = 101, QuestId = 1, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 4, Count = 6, DescriptionTextId = 28 },
+            new QuestObjective { Id = 201, QuestId = 2, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 57, Count = 4, DescriptionTextId = 32 },
+            new QuestObjective { Id = 301, QuestId = 3, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 5, Count = 3, DescriptionTextId = 36 },
+            new QuestObjective { Id = 302, QuestId = 3, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 7, Count = 2, DescriptionTextId = 37 },
+            new QuestObjective { Id = 303, QuestId = 3, StageSequence = 1, Type = QuestObjectiveType.Talk, CreatureTemplateId = 11, Count = 1, DescriptionTextId = 38 },
+            new QuestObjective { Id = 304, QuestId = 3, StageSequence = 2, Type = QuestObjectiveType.Kill, CreatureTemplateId = 8, Count = 1, DescriptionTextId = 39 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemReward> builder)
@@ -670,6 +715,10 @@ public class WorldDbContext : DbContext
         builder.Property(b => b.QuestId).HasConversion(v => v.Value, v => new QuestTemplateId(v)).IsRequired();
         builder.Property(b => b.ItemTemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
         builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(
+            new QuestItemReward { QuestId = 2, ItemTemplateId = 56, Count = 2 },   // Greater Health Potions
+            new QuestItemReward { QuestId = 3, ItemTemplateId = 58, Count = 1 });  // Alpha's Fang Pendant
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemDrop> builder)
@@ -682,6 +731,8 @@ public class WorldDbContext : DbContext
             .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
             .IsRequired();
         builder.HasOne<CreatureTemplate>().WithMany().HasForeignKey(b => b.CreatureTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(new QuestItemDrop { ObjectiveId = 201, CreatureTemplateId = 4, Chance = 60f });   // Boar Tusk from Thornback Boars
     }
 
     private static void Configure(EntityTypeBuilder<CreatureTemplate> builder)
@@ -1452,6 +1503,44 @@ public class WorldDbContext : DbContext
             SellPrice = 12,
             Slot = null
         });
+
+        // The storyline's items (#433). The Boar Tusk drops only for characters collecting it (QuestItemDrops) and
+        // is never sold; the Alpha's Fang Pendant is quest 3's reward, for any class.
+        builder.HasData(
+            new ItemTemplate
+            {
+                Id = 57,
+                Name = "Boar Tusk",
+                Class = ItemClass.Quest,
+                SubClass = ItemSubClass.QuestItem,
+                Flags = ItemTemplateFlags.QuestItem | ItemTemplateFlags.NoSell,
+                MaxStackSize = 20,
+                DisplayId = 57,
+                Rarity = ItemRarity.Common,
+                BuyPrice = 0,
+                SellPrice = 0,
+                Slot = null,
+            },
+            new ItemTemplate
+            {
+                Id = 58,
+                Name = "Alpha's Fang Pendant",
+                Class = ItemClass.Armor,
+                SubClass = ItemSubClass.Amulet,
+                Flags = ItemTemplateFlags.None,
+                MaxStackSize = 1,
+                DisplayId = 58,
+                Rarity = ItemRarity.Uncommon,
+                BuyPrice = 200,
+                SellPrice = 50,
+                Slot = ItemSlotType.Neck,
+                ItemPower = 3,
+                RequiredLevel = 2,
+                StatType1 = StatType.Stamina,
+                StatValue1 = 2,
+                StatType2 = StatType.Armor,
+                StatValue2 = 1,
+            });
     }
 
     /// <summary>
@@ -1859,6 +1948,32 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 22, Text = "I buy anything that isn't nailed to you. Fair prices, mostly." },
             new LocalizedText { Id = 23, Text = "What do you deal in?" },
             new LocalizedText { Id = 24, Text = "Show me your wares." });
+
+        SeedForestStorylineTexts(builder);
+    }
+
+    /// <summary>The forest storyline (#433): three quests' titles, descriptions, completion lines, objectives and stages.</summary>
+    private static void SeedForestStorylineTexts(EntityTypeBuilder<LocalizedText> builder)
+    {
+        builder.HasData(
+            new LocalizedText { Id = 25, Text = "Thinning the Herd" },
+            new LocalizedText { Id = 26, Text = "The Thornback Boars have grown bold, {name}. They root up the paths and gore anyone who strays. Cull six of them before someone else is carried home." },
+            new LocalizedText { Id = 27, Text = "Six fewer tusks in the undergrowth. The paths will breathe easier for it." },
+            new LocalizedText { Id = 28, Text = "Thornback Boars slain" },
+            new LocalizedText { Id = 29, Text = "Tusks for Borin" },
+            new LocalizedText { Id = 30, Text = "Borin swears boar tusk takes an edge like nothing else. Bring him four tusks from the Thornback Boars; he will make it worth your while." },
+            new LocalizedText { Id = 31, Text = "Four good tusks! These will temper into something fine. Take these for the road." },
+            new LocalizedText { Id = 32, Text = "Boar Tusks gathered" },
+            new LocalizedText { Id = 33, Text = "The Alpha's Howl" },
+            new LocalizedText { Id = 34, Text = "Something leads the pack now, {name}. Thin the wolves and the husks at the forest's edge, tell Marta what you have seen, then find the Bramblemaw Alpha and end it." },
+            new LocalizedText { Id = 35, Text = "The howling has stopped. The forest is quieter than it has been in a long while. Wear this, {class}; you earned it." },
+            new LocalizedText { Id = 36, Text = "Grey Fen Wolves slain" },
+            new LocalizedText { Id = 37, Text = "Husks of the Wold destroyed" },
+            new LocalizedText { Id = 38, Text = "Speak with Marta Ledgerwell" },
+            new LocalizedText { Id = 39, Text = "Bramblemaw Alpha slain" },
+            new LocalizedText { Id = 40, Text = "Clear the forest's edge." },
+            new LocalizedText { Id = 41, Text = "Tell Marta what you have seen." },
+            new LocalizedText { Id = 42, Text = "Hunt down the Bramblemaw Alpha." });
     }
 
     private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
@@ -1908,6 +2023,35 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 22, Locale = AccountLocale.ptPT, Text = "Compro tudo o que não estiver pregado a ti. Preços justos, quase sempre." },
             new LocalizedTextLocale { TextId = 23, Locale = AccountLocale.ptPT, Text = "O que é que vendes?" },
             new LocalizedTextLocale { TextId = 24, Locale = AccountLocale.ptPT, Text = "Mostra-me a tua mercadoria." });
+
+        SeedForestStorylineTranslations(builder);
+    }
+
+    /// <summary>
+    /// The forest storyline (#433) in ptPT. Creature names stay as their nameplates spell them, since creature names
+    /// are not translated. Needs native-speaker review before deploying, like the rows above.
+    /// </summary>
+    private static void SeedForestStorylineTranslations(EntityTypeBuilder<LocalizedTextLocale> builder)
+    {
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 25, Locale = AccountLocale.ptPT, Text = "Desbastar a Manada" },
+            new LocalizedTextLocale { TextId = 26, Locale = AccountLocale.ptPT, Text = "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e escornam quem se desvia. Abate seis deles antes que mais alguém tenha de ser trazido para casa." },
+            new LocalizedTextLocale { TextId = 27, Locale = AccountLocale.ptPT, Text = "Menos seis presas no mato. Os caminhos vão respirar melhor por isso." },
+            new LocalizedTextLocale { TextId = 28, Locale = AccountLocale.ptPT, Text = "Thornback Boars abatidos" },
+            new LocalizedTextLocale { TextId = 29, Locale = AccountLocale.ptPT, Text = "Presas para o Borin" },
+            new LocalizedTextLocale { TextId = 30, Locale = AccountLocale.ptPT, Text = "O Borin jura que a presa de javali ganha gume como mais nada. Leva-lhe quatro presas dos Thornback Boars; ele há de fazer valer a pena." },
+            new LocalizedTextLocale { TextId = 31, Locale = AccountLocale.ptPT, Text = "Quatro boas presas! Depois de temperadas, vão dar coisa fina. Leva isto para a estrada." },
+            new LocalizedTextLocale { TextId = 32, Locale = AccountLocale.ptPT, Text = "Presas de javali recolhidas" },
+            new LocalizedTextLocale { TextId = 33, Locale = AccountLocale.ptPT, Text = "O Uivo do Alfa" },
+            new LocalizedTextLocale { TextId = 34, Locale = AccountLocale.ptPT, Text = "Agora há algo a liderar a alcateia, {name}. Desbasta os lobos e as carcaças na orla da floresta, conta à Marta o que viste, e depois encontra o Bramblemaw Alpha e acaba com ele." },
+            new LocalizedTextLocale { TextId = 35, Locale = AccountLocale.ptPT, Text = "Os uivos pararam. A floresta não estava tão calma há muito tempo. Usa isto, {class}; mereceste-o." },
+            new LocalizedTextLocale { TextId = 36, Locale = AccountLocale.ptPT, Text = "Grey Fen Wolves abatidos" },
+            new LocalizedTextLocale { TextId = 37, Locale = AccountLocale.ptPT, Text = "Husks of the Wold destruídos" },
+            new LocalizedTextLocale { TextId = 38, Locale = AccountLocale.ptPT, Text = "Fala com a Marta Ledgerwell" },
+            new LocalizedTextLocale { TextId = 39, Locale = AccountLocale.ptPT, Text = "Bramblemaw Alpha abatido" },
+            new LocalizedTextLocale { TextId = 40, Locale = AccountLocale.ptPT, Text = "Limpa a orla da floresta." },
+            new LocalizedTextLocale { TextId = 41, Locale = AccountLocale.ptPT, Text = "Conta à Marta o que viste." },
+            new LocalizedTextLocale { TextId = 42, Locale = AccountLocale.ptPT, Text = "Caça o Bramblemaw Alpha." });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueNode> builder)

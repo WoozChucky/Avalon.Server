@@ -10,6 +10,7 @@ using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
+using Avalon.World.Quests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -950,5 +951,109 @@ public class SeedIntegrityShould
         List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
         Assert.NotEmpty(templates);
         Assert.All(templates, t => Assert.Equal(2.25f, t.BaseAttackTime));
+    }
+
+    private static List<QuestTemplate> SeededQuests(WorldDbContext context) => context.QuestTemplates.AsNoTracking()
+        .Include(q => q.Stages).Include(q => q.Objectives).ThenInclude(o => o.Drops).Include(q => q.ItemRewards)
+        .OrderBy(q => q.Id).ToList();
+
+    /// <summary>The storyline (#433, spec §5): three chained quests at the town's own NPCs.</summary>
+    [Fact]
+    public void Seed_the_forest_storyline_as_designed()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        List<QuestTemplate> quests = SeededQuests(context);
+
+        Assert.Equal([1u, 2u, 3u], quests.Select(q => q.Id.Value));
+        Assert.Equal([(1ul, 1ul), (1ul, 2ul), (2ul, 2ul)], quests.Select(q => (q.GiverCreatureId.Value, q.EnderCreatureId.Value)));
+        Assert.Equal(new uint?[] { null, 1, 2 }, quests.Select(q => q.RequiredQuestId?.Value));
+        Assert.Equal([(ushort)1, (ushort)1, (ushort)2], quests.Select(q => q.LevelRequirement));
+        Assert.Equal([(150u, 100ul), (250u, 150ul), (600u, 400ul)], quests.Select(q => (q.RewardExperience, q.RewardMoney)));
+        Assert.All(quests, q => Assert.Null(q.ScriptName));
+        Assert.All(quests, q => Assert.Null(q.ClassRequirement));
+
+        QuestObjective boars = Assert.Single(quests[0].Objectives);
+        Assert.Equal((QuestObjectiveType.Kill, 4ul, 6u), (boars.Type, boars.CreatureTemplateId!.Value, boars.Count));
+
+        QuestObjective tusks = Assert.Single(quests[1].Objectives);
+        Assert.Equal((QuestObjectiveType.Collect, 57ul, 4u), (tusks.Type, tusks.ItemTemplateId!.Value, tusks.Count));
+        QuestItemDrop drop = Assert.Single(tusks.Drops);
+        Assert.Equal((4ul, 60f), (drop.CreatureTemplateId.Value, drop.Chance));
+        Assert.Equal((56ul, 2u), (Assert.Single(quests[1].ItemRewards).ItemTemplateId.Value, quests[1].ItemRewards[0].Count));
+
+        Assert.Equal([0, 1, 2], quests[2].Stages.OrderBy(s => s.Sequence).Select(s => s.Sequence));
+        Assert.Equal(
+            [(0, QuestObjectiveType.Kill, 5ul, 3u), (0, QuestObjectiveType.Kill, 7ul, 2u), (1, QuestObjectiveType.Talk, 11ul, 1u), (2, QuestObjectiveType.Kill, 8ul, 1u)],
+            quests[2].Objectives.OrderBy(o => o.Id).Select(o => (o.StageSequence, o.Type, o.CreatureTemplateId!.Value, o.Count)));
+        Assert.Equal((58ul, 1u), (Assert.Single(quests[2].ItemRewards).ItemTemplateId.Value, quests[2].ItemRewards[0].Count));
+    }
+
+    [Fact]
+    public void Load_every_seeded_quest_through_the_catalog_without_refusing_any()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var catalog = new QuestCatalog(SeededQuests(context), context.CreatureTemplates.AsNoTracking().ToList(),
+            context.ItemTemplates.AsNoTracking().ToList(), _ => null, NullLoggerFactory.Instance);
+
+        Assert.Empty(catalog.Refused);
+        Assert.Equal(3, catalog.All.Count);
+    }
+
+    [Fact]
+    public void Resolve_every_text_a_seeded_quest_names()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        HashSet<int> texts = context.LocalizedTexts.AsNoTracking().Select(t => t.Id).ToList().Select(t => t.Value).ToHashSet();
+
+        foreach (QuestTemplate quest in SeededQuests(context))
+        {
+            Assert.Contains(quest.TitleTextId.Value, texts);
+            Assert.Contains(quest.DescriptionTextId.Value, texts);
+            Assert.Contains(quest.CompletionTextId.Value, texts);
+            Assert.All(quest.Objectives, o => Assert.Contains(o.DescriptionTextId.Value, texts));
+            Assert.All(quest.Stages.Where(s => s.DescriptionTextId is not null), s => Assert.Contains(s.DescriptionTextId!.Value, texts));
+        }
+    }
+
+    [Fact]
+    public void Seed_the_boar_tusk_as_a_quest_item_that_drops_nowhere_else_and_is_never_sold()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate tusk = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 57);
+
+        Assert.Equal("Boar Tusk", tusk.Name);
+        Assert.Equal((ItemClass.Quest, ItemSubClass.QuestItem), (tusk.Class, tusk.SubClass));
+        Assert.True(tusk.Flags.HasFlag(ItemTemplateFlags.QuestItem));
+        Assert.True(tusk.Flags.HasFlag(ItemTemplateFlags.NoSell));
+        Assert.DoesNotContain(context.LootTableEntries.AsNoTracking().ToList(), e => e.ItemTemplateId?.Value == 57);
+        Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), s => s.ItemTemplateId.Value == 57);
+    }
+
+    [Fact]
+    public void Seed_the_alphas_fang_pendant_as_an_uncommon_neck_piece_for_every_class()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate pendant = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 58);
+
+        Assert.Equal("Alpha's Fang Pendant", pendant.Name);
+        Assert.Equal((ItemClass.Armor, ItemSubClass.Amulet, ItemSlotType.Neck, ItemRarity.Uncommon),
+            (pendant.Class, pendant.SubClass, pendant.Slot, pendant.Rarity));
+        Assert.Equal(4, pendant.AllowedClasses.Count);
+        Assert.False(pendant.Flags.HasFlag(ItemTemplateFlags.Unique));
+    }
+
+    [Fact]
+    public void Gate_no_vendor_row_behind_a_quest_yet()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Assert.All(context.VendorStocks.AsNoTracking().ToList(), s => Assert.Null(s.RequiredQuestId));
     }
 }

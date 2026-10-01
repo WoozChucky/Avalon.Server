@@ -17,6 +17,7 @@ public enum ItemSubClass
     Legs = 203,
     Boots = 204,
     Gloves = 205,
+    Amulet = 206,
     QuestItem = 300,
     CraftingMaterial = 400,
     JunkItem = 500
