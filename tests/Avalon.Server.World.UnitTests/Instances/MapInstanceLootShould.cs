@@ -41,6 +41,7 @@ public class MapInstanceLootShould
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
 
     private List<LootTable> _tables = [Table(1, Item(1, Sword))];
+    private IReadOnlyCollection<CharacterLevelExperience>? _levels;
     private StaticData? _data;
 
     private static List<SLootSpawnedPacket> Spawned(MapInstanceClient client) =>
@@ -52,7 +53,7 @@ public class MapInstanceLootShould
     private async Task<MapInstance> Build(uint? owner = 7, ILootRoller? roller = null, PartyId? ownerParty = null,
         PartyService? parties = null, ICombatRandom? random = null)
     {
-        StaticData data = await LootStaticData.LoadAsync(() => Items, () => _tables);
+        StaticData data = await LootStaticData.LoadAsync(() => Items, () => _tables, _levels);
         _data = data;
 
         IWorld world = NewWorld(data);
@@ -380,5 +381,28 @@ public class MapInstanceLootShould
         GroundLoot[] after = instance.Drops.All.Except(before).ToArray();
         Assert.Contains(after, d => d.ItemTemplateId == Staff.Id);
         Assert.DoesNotContain(after, d => d.ItemTemplateId == Sword.Id);
+    }
+
+    /// <summary>
+    /// #735: only experience stops at the cap. A killer at the last seeded level (here the only level, 1, with its
+    /// threshold already reached) still takes the kill, and the kill still drops its sword and its copper pile.
+    /// </summary>
+    [Fact]
+    public async Task Still_drop_a_kills_loot_for_a_killer_at_the_level_cap()
+    {
+        _levels = [new CharacterLevelExperience { Level = 1, Experience = 100 }];
+        using MapInstance instance = await Build();
+        MapInstanceClient killer = Join(instance, 460_901);
+        killer.Character.Level = 1;
+        killer.Character.Experience = 100;
+
+        Kill(instance, 460_902, killer.Character);
+
+        SLootSpawnedPacket spawned = Assert.Single(Spawned(killer));
+        Assert.Equal(2, spawned.Drops.Count);
+        Assert.Equal(Sword.Id.Value, spawned.Drops[0].ItemTemplateId);
+        Assert.Equal(5UL, spawned.Drops[1].Gold);
+        Assert.Equal((ushort)1, killer.Character.Level);
+        Assert.Equal(100ul, killer.Character.Experience);
     }
 }
