@@ -1369,7 +1369,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Splits the kill's experience among the eligible (2026-09-30), then awards each share through the band.
-    /// The split leaves out anyone the level gap or more above the creature, solo too.
+    /// The split leaves out anyone the level gap or more above the creature, or at the maximum level (#735), solo too.
     /// </summary>
     private void AwardExperience(ICreature creature, IReadOnlyList<ICharacter> eligible)
     {
@@ -1385,7 +1385,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // modifiers and its rarity, or the template's authored override if it had one. Not Metadata.Experience,
         // which is only that optional override.
         foreach (ExperienceShare share in PartyExperience.Split(creature.Experience, creature.Level, eligible, mode,
-                     config.PartyExperienceBonusPerExtra, config.PartyExperienceLevelGap))
+                     config.PartyExperienceBonusPerExtra, config.PartyExperienceLevelGap, ExperienceAward.MaxLevel(_world.Data)))
         {
             AwardExperience(share.Member, share.Experience);
         }
@@ -1393,8 +1393,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Gives a character its share of a kill's experience, scaled by this map's level band, through the one level-up
-    /// helper quests use too (#433): it levels past every requirement the award covers. A level with no requirement
-    /// awards nothing.
+    /// helper quests use too (#433): it levels past every requirement the award covers, up to the maximum level. A level
+    /// with no requirement awards nothing.
     /// </summary>
     private void AwardExperience(ICharacter character, uint experience) =>
         ExperienceAward.Grant(character, ScaledExperience(character, experience), _world.Data, _parties, _logger);

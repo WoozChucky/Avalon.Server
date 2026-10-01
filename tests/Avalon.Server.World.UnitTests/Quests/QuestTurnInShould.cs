@@ -23,9 +23,9 @@ public class QuestTurnInShould
 
     /// <summary>Tusks accepted, both tusks in the bag (ready), and a conversation open with its ender.</summary>
     private static async Task<(QuestTestWorld W, QuestClient C, Creature Ender)> ReadyTusksAsync(
-        List<QuestTemplate>? quests = null, ulong money = 0, TestLog? log = null)
+        List<QuestTemplate>? quests = null, ulong money = 0, TestLog? log = null, List<CharacterLevelExperience>? levels = null)
     {
-        QuestTestWorld w = await QuestTestWorld.CreateAsync(quests, log: log);
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(quests, log: log, levels: levels);
         QuestClient c = w.Join(money: money);
         QuestTestWorld.Complete(c, Hunt);
         w.Accept(c, Tusks);
@@ -67,6 +67,24 @@ public class QuestTurnInShould
         Assert.Equal((ushort)2, c.Character.Level);
         Assert.Equal(40ul, c.Character.Experience);
         Assert.Equal(900ul, c.Character.RequiredExperience);
+    }
+
+    /// <summary>#735: at the maximum level the reward pays no experience; money and items are paid in full.</summary>
+    [Fact]
+    public async Task Pay_money_and_items_but_no_experience_at_the_level_cap()
+    {
+        (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(
+            levels: [new CharacterLevelExperience { Level = 1, Experience = 400 }]);
+        c.Character.Experience = 390;   // the reward is 50, and none of it is given
+
+        QuestResult result = w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue);
+
+        Assert.Equal(QuestResult.Ok, result);
+        Assert.Equal((ushort)1, c.Character.Level);
+        Assert.Equal(390ul, c.Character.Experience);
+        Assert.Equal(30ul, c.Character.Data!.Money);
+        Assert.Equal(2, Held(c, Tonic));
+        Assert.True(c.Character.Quests.IsCompleted(Tusks));
     }
 
     /// <summary>Review Focus 1: a tusk destroyed this tick, before any flush, still stops the turn-in.</summary>

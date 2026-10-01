@@ -42,6 +42,7 @@ public class LevelUpStatsShould
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
                 new CharacterLevelExperience { Level = 2, Experience = 500 },
+                new CharacterLevelExperience { Level = 3, Experience = 900 },   // level 2 is not the maximum (#735)
             ]);
         var world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
@@ -76,13 +77,13 @@ public class LevelUpStatsShould
 
     /// <summary>
     /// #463 final review: against the seeded rows, not hand-written ones. The seed once stopped at
-    /// level 5, so a level-up to 6 found no row and left health where it was; 16 is the highest
-    /// level the seeded experience table lets a character reach. Warrior health is BaseHp + 10 per
-    /// Stamina: 400 at 5, 440 at 6, 800 at 15, 840 at 16.
+    /// level 5, so a level-up to 6 found no row and left health where it was; the highest level the
+    /// seeded experience table lets a character reach is the cap (15 today, #735). Warrior health is
+    /// BaseHp + 10 per Stamina: 400 at 5, 440 at 6, 760 at 14, 800 at 15.
     /// </summary>
     [Theory]
     [InlineData(5, 400u, 440u)]
-    [InlineData(15, 800u, 840u)]
+    [InlineData(14, 760u, 800u)]
     public async Task Raise_and_refill_health_on_a_level_up_past_level_5_with_the_seeded_rows(
         int fromLevel, uint healthBefore, uint healthAfter)
     {
@@ -223,14 +224,19 @@ public class LevelUpStatsShould
     /// <summary>
     /// Regression guard: this passes without the level-up refresh too, because before it nothing
     /// touched the maximums on a level-up. It pins that a new level with no ClassLevelStat row
-    /// leaves the old maximums alone rather than zeroing them.
+    /// leaves the old maximums alone rather than zeroing them. Level 2 has an experience row, since
+    /// a level without one is never entered (#735).
     /// </summary>
     [Fact]
     public async Task Level_up_and_keep_the_old_maximums_when_the_new_level_has_no_row()
     {
         StaticData data = await TestStaticData.LoadAsync(
             classStats: [WarriorRows[0]],
-            levels: [new CharacterLevelExperience { Level = 1, Experience = 100 }]);
+            levels:
+            [
+                new CharacterLevelExperience { Level = 1, Experience = 100 },
+                new CharacterLevelExperience { Level = 2, Experience = 500 },
+            ]);
         var world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });

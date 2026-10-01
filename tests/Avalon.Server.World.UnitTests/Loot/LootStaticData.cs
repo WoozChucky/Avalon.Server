@@ -6,7 +6,7 @@ namespace Avalon.Server.World.UnitTests.Loot;
 /// <summary>
 /// A loaded StaticData whose items and loot tables come from the test, read on every prepare so a
 /// test can change them and reload. Every other area is empty, except one creature base-stat row
-/// and one level row, which the kill path reads. Built on <see cref="TestStaticData" />.
+/// and two level rows, which the kill path reads (two, so level 1 is not the maximum level, #735). Built on <see cref="TestStaticData" />.
 /// </summary>
 internal static class LootStaticData
 {
@@ -16,7 +16,11 @@ internal static class LootStaticData
         IReadOnlyCollection<CharacterLevelExperience>? levels = null)
     {
         IReadOnlyCollection<CharacterLevelExperience> levelRows =
-            levels ?? new[] { new CharacterLevelExperience { Level = 1, Experience = 1_000_000 } };
+            levels ??
+            [
+                new CharacterLevelExperience { Level = 1, Experience = 1_000_000 },
+                new CharacterLevelExperience { Level = 2, Experience = 1_000_000 },
+            ];
 
         return TestStaticData.LoadAsync(TestStaticData.Repositories(
             items: items,
