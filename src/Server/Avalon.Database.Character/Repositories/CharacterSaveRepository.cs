@@ -198,20 +198,37 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
             .ExecuteDeleteAsync(token);
     }
 
+    /// <summary>
+    /// Each entry is inserted only while the ignored character exists, in one statement, so a character deleted since
+    /// it was ignored, or by a delete running alongside this save, skips its row instead of failing the whole save on
+    /// the foreign key. On Postgres the existence read takes <c>FOR KEY SHARE</c> on the character: a delete that
+    /// committed first is seen and the row skipped, and one that has not waits for this save and then cascades the
+    /// row. SQLite (the tests) runs one writer at a time, so the plain read is enough there.
+    /// </summary>
     private static async Task InsertIgnoresAsync(CharacterDbContext context, CharacterIgnoreWrite ignores,
         CancellationToken token)
     {
-        if (ignores.Insert.Count == 0)
-            return;
-
-        // A character deleted since it was ignored has no row to point at: its entry is left out.
-        List<CharacterId> ids = ignores.Insert.Select(i => i.IgnoredCharacterId).ToList();
-        HashSet<CharacterId> existing = (await context.Characters
-                .Where(c => ids.Contains(c.Id))
-                .Select(c => c.Id)
-                .ToListAsync(token))
-            .ToHashSet();
-        foreach (CharacterIgnore ignore in ignores.Insert.Where(i => existing.Contains(i.IgnoredCharacterId)))
-            context.TrackForInsert(ignore);
+        bool postgres = context.Database.ProviderName?.Contains("Npgsql", StringComparison.Ordinal) == true;
+        foreach (CharacterIgnore ignore in ignores.Insert)
+        {
+            long owner = ignore.CharacterId.Value;
+            long ignored = ignore.IgnoredCharacterId.Value;
+            DateTime createdAt = ignore.CreatedAt;
+            if (postgres)
+            {
+                await context.Database.ExecuteSqlAsync($"""
+                    INSERT INTO "CharacterIgnores" ("CharacterId", "IgnoredCharacterId", "CreatedAt")
+                    SELECT {owner}, c."Id", {createdAt} FROM "Characters" AS c WHERE c."Id" = {ignored}
+                    FOR KEY SHARE
+                    """, token);
+            }
+            else
+            {
+                await context.Database.ExecuteSqlAsync($"""
+                    INSERT INTO "CharacterIgnores" ("CharacterId", "IgnoredCharacterId", "CreatedAt")
+                    SELECT {owner}, c."Id", {createdAt} FROM "Characters" AS c WHERE c."Id" = {ignored}
+                    """, token);
+            }
+        }
     }
 }

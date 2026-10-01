@@ -111,10 +111,10 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<ICharacterIgnoreRepository>(),
                 CapturedOfType<ICharacterIgnoreRepository>(ActivatorUtilities.CreateInstance(host.Services,
                     typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
-            // The delete takes a deleted character off the online lists only with the one online lookup production keeps.
-            Assert.Same(host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>(),
-                CapturedOfType<Avalon.World.Characters.OnlineCharacters>(
-                    ActivatorUtilities.CreateInstance<CharacterDeletetHandler>(host.Services)));
+            // The delete takes a deleted character off the loaded lists through the world server's connections, which
+            // WorldServer hands only to a handler whose constructor names IWorldServer.
+            Assert.Contains(typeof(CharacterDeletetHandler).GetConstructors(),
+                c => c.GetParameters().Any(p => p.ParameterType == typeof(IWorldServer)));
 
             // The chat rate limit (#722): one singleton, with the shipped default from appsettings.json.
             Assert.Same(host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>(),

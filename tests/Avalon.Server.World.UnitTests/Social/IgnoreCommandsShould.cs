@@ -48,7 +48,7 @@ public class IgnoreCommandsShould
     }
 
     private IgnoreCommand Ignore(ChatRateLimiter? limiter = null) =>
-        new(_w.Parties.Online, _repository, Options.Create(_config), _w.Clock, limiter ?? Chat.ChatLimits.Off());
+        new(_w.Parties.Online, _repository, Options.Create(_config), _w.Clock, limiter ?? Chat.ChatLimits.Off(), _w.Parties);
     private UnignoreCommand Unignore() => new();
     private IgnoreListCommand List() => new(Options.Create(_config));
 
@@ -254,6 +254,62 @@ public class IgnoreCommandsShould
 
         Assert.Equal([ChatRateLimiter.TooFast(TimeSpan.FromSeconds(60))], aren.Lines());
         Assert.Empty(kaela.Sent);
+    }
+
+    [Fact]
+    public void Spend_the_chat_rate_limit_on_an_online_name_too()
+    {
+        _config.ChatMessagesPerMinute = 1;
+        var limiter = new ChatRateLimiter(Options.Create(_config), _w.Clock);
+        PartyClient aren = Online(1, "Aren");
+        Online(2, "Kaela");
+        PartyClient tom = Online(3, "Tom");
+
+        Run(Ignore(limiter), aren, "/ignore Kaela");
+        aren.Clear();
+        Run(Ignore(limiter), aren, "/ignore Tom");
+
+        Assert.Equal([ChatRateLimiter.TooFast(TimeSpan.FromSeconds(60))], aren.Lines());
+        Assert.True(aren.Character.Ignores.Contains(2));
+        Assert.False(aren.Character.Ignores.Contains(3));
+        Assert.Empty(tom.Sent);
+    }
+
+    [Fact]
+    public void End_silently_an_invite_from_the_ignored_character_already_pending()
+    {
+        PartyClient aren = Online(1, "Aren");
+        PartyClient kaela = Online(2, "Kaela");
+        Assert.Equal(Avalon.Network.Packets.Party.PartyResult.Ok, _w.Parties.Invite(kaela.Id, "Aren"));
+        aren.Clear();
+        kaela.Clear();
+
+        Run(Ignore(), aren, "/ignore Kaela");
+
+        Assert.Equal(Avalon.Network.Packets.Party.PartyResult.NoInvite, _w.Parties.Respond(aren.Id, accept: true));
+        Assert.Null(_w.Parties.PartyOf(aren.Id));
+        Assert.Empty(kaela.Sent);   // the inviter is told nothing new
+        Assert.Equal(Avalon.Network.Packets.Party.PartyResult.InvitePending, _w.Parties.Invite(kaela.Id, "Aren"));
+
+        _w.Clock.Advance(TimeSpan.FromSeconds(60));
+        _w.Parties.Tick();
+
+        var expired = Assert.Single(kaela.Results());
+        Assert.Equal((Avalon.Network.Packets.Party.PartyResult.InviteExpired, "Aren"), (expired.Result, expired.Name));
+        Assert.Empty(aren.Results());
+    }
+
+    [Fact]
+    public void Leave_an_invite_from_someone_else_pending()
+    {
+        PartyClient aren = Online(1, "Aren");
+        Online(2, "Kaela");
+        PartyClient tom = Online(3, "Tom");
+        _w.Parties.Invite(tom.Id, "Aren");
+
+        Run(Ignore(), aren, "/ignore Kaela");
+
+        Assert.Equal(Avalon.Network.Packets.Party.PartyResult.Ok, _w.Parties.Respond(aren.Id, accept: true));
     }
 
     [Fact]

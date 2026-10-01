@@ -76,7 +76,9 @@ member's name on a kick or promote, the other side on an unasked result.
 sent `SMSG_PARTY_INVITE` and cannot accept it. It stays pending for the inviter (a second invite to the same player is
 `InvitePending`) and ends with `InviteExpired` to the inviter only, when it runs out or the target goes offline. One
 from an inviter who goes offline ends silently. The refusals before it (`AlreadyInParty`, `InvitePending` for an
-invite the target already holds, `PartyFull`, ...) are checked first, exactly as for anyone.
+invite the target already holds, `PartyFull`, ...) are checked first, exactly as for anyone. An invite already
+pending when its target ignores the inviter ends the same way: the target can no longer accept it (`NoInvite`), and
+the inviter is told nothing new and sees the usual expiry.
 
 ## 3. Roster
 
@@ -149,7 +151,7 @@ whispering a character you ignore is allowed.
 `IgnoredCharacterDto`: 1 `CharacterId` (uint32), 2 `Name` (the name when the list was loaded or the entry added). The
 packet is the whole list: it arrives once while a character is selected (before it enters the world, empty too, so a
 client replaces whatever it held for an earlier character), after every `/ignore` and `/unignore` that changed the
-list, and when a character on the list is deleted while you are online. Replace the list you hold with it.
+list, and when a character on the list is deleted while you are online or selected. Replace the list you hold with it.
 
 | Command | Does |
 |---|---|

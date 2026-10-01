@@ -170,6 +170,20 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         return PartyResult.Ok;
     }
 
+    /// <summary>
+    /// The target has just ignored the inviter (#723, owner decision): an invite from it the target still holds ends
+    /// silently for the target, which can no longer accept it, and becomes a dropped invite, so the inviter is told
+    /// nothing new and sees it expire as before. Any other invite the target holds is left alone.
+    /// </summary>
+    public void HideInviteFrom(uint targetId, uint inviterId)
+    {
+        if (_invites.TryGetValue(targetId, out PartyInvite? held) && held.InviterId == inviterId)
+        {
+            _invites.Remove(targetId);
+            _droppedInvites[(inviterId, targetId)] = held;
+        }
+    }
+
     public PartyResult Respond(uint targetId, bool accept)
     {
         if (!_invites.Remove(targetId, out PartyInvite? invite))
