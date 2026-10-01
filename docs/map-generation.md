@@ -407,8 +407,11 @@ Like chunks, town layouts, pools and chunk groups, a procedural map's data is fi
   (`spawnTable`) by name, `depthBands`, and the optional `minSetPieceStep` (0 when left out). Matched by
   `mapTemplateId` (the file's name); its bands are replaced.
 
-Before writing anything the seeder refuses a map whose `MapTemplate` is missing or not `Normal`, a pool or spawn table
-the files do not name, a `creatureId` with no `CreatureTemplates` row, and a spawn table whose tags do not match the
+Before writing anything the seeder refuses, naming the file, JSON it cannot read, a map file that leaves out a required
+field (every number and flag but `forwardPortalTargetMapId` and `minSetPieceStep`), a map whose `MapTemplate` is missing
+or not `Normal`, a back or forward portal target that is no `MapTemplate`, a depth band whose `maxLevel` is above the
+highest `CreatureBaseStats` level (10 today), a pool or spawn table the files do not name, a group with a blank name,
+a `creatureId` with no `CreatureTemplates` row, and a spawn table whose tags do not match the
 slot tags its pool's chunks (set pieces included) use, checked both ways: every entry tag is a slot tag (or
 `leader_pack` beside `leader` slots), and every slot tag but `entry` and `empty` has an entry. Rows with no file are
 left alone. A change to these files takes a World server restart. Trade-offs: the balance simulator reads `HasData`

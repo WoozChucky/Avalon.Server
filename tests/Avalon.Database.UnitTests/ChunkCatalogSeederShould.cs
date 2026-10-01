@@ -563,6 +563,98 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         Assert.Contains(property, error.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>A field the file leaves out would otherwise be read as 0 or false (a back portal to map 0, say).</summary>
+    [Theory]
+    [InlineData("mapTemplateId")]
+    [InlineData("mainPathMin")]
+    [InlineData("mainPathMax")]
+    [InlineData("branchChance")]
+    [InlineData("branchMaxDepth")]
+    [InlineData("hasBoss")]
+    [InlineData("backPortalTargetMapId")]
+    public async Task Refuse_a_procedural_map_missing_a_required_field_and_name_the_file(string property)
+    {
+        string root = CopyOfCommittedMaps();
+        string path = Path.Combine(root, "ProceduralMaps", "2.json");
+        JsonObject map = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        Assert.True(map.Remove(property));
+        File.WriteAllText(path, map.ToJsonString());
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
+        Assert.Contains(property, error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("backPortalTargetMapId")]
+    [InlineData("forwardPortalTargetMapId")]
+    public async Task Refuse_a_portal_to_a_map_that_does_not_exist_and_name_the_file(string property)
+    {
+        string root = CopyOfCommittedMaps();
+        string path = Path.Combine(root, "ProceduralMaps", "2.json");
+        JsonObject map = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        map[property] = 99;
+        File.WriteAllText(path, map.ToJsonString());
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
+        Assert.Contains(property, error.Message, StringComparison.Ordinal);
+        Assert.Contains("99", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Task 8 ruling: a band above the highest CreatureBaseStats level would spawn creatures that report its level with
+    /// the highest row's stats (base stats are seeded to level 10).
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_depth_band_above_the_highest_creature_base_stats_level_and_name_the_file_and_band()
+    {
+        string root = CopyOfCommittedMaps();
+        string path = Path.Combine(root, "ProceduralMaps", "2.json");
+        JsonObject map = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        JsonNode top = map["depthBands"]!.AsArray().Single(b => (int)b!["minDepth"]! == 8)!;
+        top["maxLevel"] = 11;
+        File.WriteAllText(path, map.ToJsonString());
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
+        Assert.Contains("depth 8", error.Message, StringComparison.Ordinal);
+        Assert.Contains("11", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Accept_a_depth_band_that_tops_out_at_the_highest_creature_base_stats_level()
+    {
+        string root = CopyOfCommittedMaps();
+        string path = Path.Combine(root, "ProceduralMaps", "2.json");
+        JsonObject map = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        map["depthBands"]!.AsArray().Single(b => (int)b!["minDepth"]! == 8)!["maxLevel"] = 10;
+        File.WriteAllText(path, map.ToJsonString());
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using (WorldDbContext db = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(db, root);
+
+        await using WorldDbContext read = database.CreateDbContext();
+        ProceduralMapConfig config = await read.ProceduralMapConfigs.SingleAsync(c => c.MapTemplateId == new MapTemplateId(2));
+        Assert.Equal(10, config.DepthBands.Max(b => b.MaxLevel));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData(null)]
+    public async Task Refuse_a_group_without_a_name_and_name_the_file(string? name)
+    {
+        string root = CopyOfCommittedMaps();
+        string path = Path.Combine(root, "chunk-groups.json");
+        JsonObject groups = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        groups["forest_pool"]!.AsArray()[0]!["name"] = name;
+        File.WriteAllText(path, groups.ToJsonString());
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Name_the_spawn_tables_file_when_a_creature_does_not_exist()
     {

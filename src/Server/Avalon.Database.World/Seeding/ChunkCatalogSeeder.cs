@@ -21,7 +21,11 @@ public sealed record ChunkCatalogSeedResult(
 /// </summary>
 public static class ChunkCatalogSeeder
 {
-    private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
+    // camelCase only names the files' own properties in an error (a missing required field); reading ignores case.
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
 
     public static async Task<ChunkCatalogSeedResult> SeedAsync(WorldDbContext db, string mapsRoot,
         CancellationToken ct = default)
@@ -270,6 +274,8 @@ public static class ChunkCatalogSeeder
 
             foreach (GroupDto group in list)
             {
+                if (string.IsNullOrWhiteSpace(group.Name))
+                    throw new InvalidDataException($"{path}: pool '{pool}' has a group with no name");
                 if (group.Members is null)
                     throw new InvalidDataException($"{path}: group '{group.Name}' has no members list");
                 if (!groupNames.Add(group.Name))
@@ -438,12 +444,23 @@ public static class ChunkCatalogSeeder
     {
         Dictionary<ushort, MapType> mapTypes = (await db.MapTemplates.AsNoTracking().ToListAsync(ct))
             .ToDictionary(m => m.Id.Value, m => m.MapType);
+        // A band above the highest base-stat row would spawn creatures reporting its level with that row's stats.
+        int highestStatLevel = files.ProceduralMaps.Any(m => m.Map.DepthBands is { Count: > 0 })
+            ? await db.CreatureBaseStats.Select(s => (int?)s.Level).MaxAsync(ct) ?? 0
+            : 0;
         foreach ((string path, ProceduralMapDto map) in files.ProceduralMaps)
         {
             if (!mapTypes.TryGetValue(map.MapTemplateId, out MapType type))
                 throw new InvalidDataException($"{path}: MapTemplate {map.MapTemplateId} not found");
             if (type != MapType.Normal)
                 throw new InvalidDataException($"{path}: MapTemplate {map.MapTemplateId} is {type}, expected Normal");
+            if (!mapTypes.ContainsKey(map.BackPortalTargetMapId))
+                throw new InvalidDataException($"{path}: backPortalTargetMapId {map.BackPortalTargetMapId} names no MapTemplate");
+            if (map.ForwardPortalTargetMapId is { } forward && !mapTypes.ContainsKey(forward))
+                throw new InvalidDataException($"{path}: forwardPortalTargetMapId {forward} names no MapTemplate");
+            foreach (DepthBandDto band in (map.DepthBands ?? []).Where(b => b.MaxLevel > highestStatLevel))
+                throw new InvalidDataException(
+                    $"{path}: band from depth {band.MinDepth} has maxLevel {band.MaxLevel}, above the highest CreatureBaseStats level {highestStatLevel}");
         }
 
         if (files.SpawnTables is null) return;
@@ -558,7 +575,17 @@ public static class ChunkCatalogSeeder
         return mask;
     }
 
-    private static async Task<T> ReadAsync<T>(string path, CancellationToken ct) =>
-        JsonSerializer.Deserialize<T>(await File.ReadAllTextAsync(path, ct), Json)
-        ?? throw new InvalidDataException($"{path}: empty");
+    /// <summary>Reads one file; JSON it cannot read, a required field left out included, is refused naming the file.</summary>
+    private static async Task<T> ReadAsync<T>(string path, CancellationToken ct)
+    {
+        string text = await File.ReadAllTextAsync(path, ct);
+        try
+        {
+            return JsonSerializer.Deserialize<T>(text, Json) ?? throw new InvalidDataException($"{path}: empty");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException($"{path}: {ex.Message}", ex);
+        }
+    }
 }

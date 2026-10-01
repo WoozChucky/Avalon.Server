@@ -1,6 +1,8 @@
 // The DTO set of the files under Maps/ is kept in one file, beside the catalog record that holds them.
 #pragma warning disable MA0048
 
+using System.Text.Json.Serialization;
+
 namespace Avalon.Database.World.Seeding;
 
 /// <summary>
@@ -22,12 +24,14 @@ public sealed record SpawnTableEntryDto(string Tag, ulong CreatureId, float Weig
 public sealed record DepthBandDto(int MinDepth, int? MaxDepth, ushort MinLevel, ushort MaxLevel);
 
 /// <summary>
-/// One procedural map's config, Maps/ProceduralMaps/&lt;mapId&gt;.json; its pool and spawn table by name. MinSetPieceStep may be
-/// left out (no limit).
+/// One procedural map's config, Maps/ProceduralMaps/&lt;mapId&gt;.json; its pool and spawn table by name. Every number and
+/// flag but forwardPortalTargetMapId (null: no forward portal) and minSetPieceStep (left out: no limit) is required, so a
+/// field left out is refused rather than read as 0 or false.
 /// </summary>
 public sealed record ProceduralMapDto(
-    ushort MapTemplateId, string ChunkPool, string SpawnTable, ushort MainPathMin, ushort MainPathMax, float BranchChance,
-    byte BranchMaxDepth, bool HasBoss, ushort BackPortalTargetMapId, ushort? ForwardPortalTargetMapId,
+    [property: JsonRequired] ushort MapTemplateId, string ChunkPool, string SpawnTable, [property: JsonRequired] ushort MainPathMin,
+    [property: JsonRequired] ushort MainPathMax, [property: JsonRequired] float BranchChance, [property: JsonRequired] byte BranchMaxDepth,
+    [property: JsonRequired] bool HasBoss, [property: JsonRequired] ushort BackPortalTargetMapId, ushort? ForwardPortalTargetMapId,
     List<DepthBandDto>? DepthBands, ushort? MinSetPieceStep = null);
 
 /// <summary>One set piece in Maps/chunk-groups.json.</summary>
