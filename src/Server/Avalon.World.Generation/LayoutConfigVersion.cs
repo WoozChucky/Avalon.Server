@@ -39,6 +39,10 @@ public static class LayoutConfigVersion
           .Append(config.ForwardPortalTargetMapId?.ToString(CultureInfo.InvariantCulture) ?? "-")
           .Append(';');
 
+        // Appended only when set, so a config without it keeps its fingerprint.
+        if (config.MinSetPieceStep > 0)
+            sb.Append("minSetPieceStep:").Append(config.MinSetPieceStep.ToString(CultureInfo.InvariantCulture)).Append(';');
+
         foreach (ChunkPoolMember m in pool.OrderBy(p => p.Template.Id.Value))
         {
             sb.Append(m.Template.Id.Value.ToString(CultureInfo.InvariantCulture)).Append('|')

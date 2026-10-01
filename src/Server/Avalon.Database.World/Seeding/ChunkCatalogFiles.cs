@@ -21,11 +21,14 @@ public sealed record SpawnTableEntryDto(string Tag, ulong CreatureId, float Weig
 /// <summary>A depth band in Maps/ProceduralMaps/&lt;mapId&gt;.json (see ProceduralDepthBand).</summary>
 public sealed record DepthBandDto(int MinDepth, int? MaxDepth, ushort MinLevel, ushort MaxLevel);
 
-/// <summary>One procedural map's config, Maps/ProceduralMaps/&lt;mapId&gt;.json; its pool and spawn table by name.</summary>
+/// <summary>
+/// One procedural map's config, Maps/ProceduralMaps/&lt;mapId&gt;.json; its pool and spawn table by name. MinSetPieceStep may be
+/// left out (no limit).
+/// </summary>
 public sealed record ProceduralMapDto(
     ushort MapTemplateId, string ChunkPool, string SpawnTable, ushort MainPathMin, ushort MainPathMax, float BranchChance,
     byte BranchMaxDepth, bool HasBoss, ushort BackPortalTargetMapId, ushort? ForwardPortalTargetMapId,
-    List<DepthBandDto>? DepthBands);
+    List<DepthBandDto>? DepthBands, ushort? MinSetPieceStep = null);
 
 /// <summary>One set piece in Maps/chunk-groups.json.</summary>
 public sealed record GroupDto(string Name, List<GroupMemberDto> Members);

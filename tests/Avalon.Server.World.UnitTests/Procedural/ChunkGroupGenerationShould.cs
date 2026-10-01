@@ -131,6 +131,42 @@ public class ChunkGroupGenerationShould
         }
     }
 
+    /// <summary>
+    /// Owner decision: a set piece other than the boss's is offered only from the map's MinSetPieceStep on. Every step
+    /// before the first set piece is one chunk, so the step a set piece was placed at is its nearest member's depth.
+    /// </summary>
+    [Fact]
+    public void Place_a_set_piece_no_earlier_than_the_maps_first_set_piece_step()
+    {
+        int failed = 0, placed = 0;
+        for (int seed = 0; seed < 200; seed++)
+        {
+            ProceduralMapConfig config = Config(8, 12, boss: false);
+            config.MinSetPieceStep = 5;
+            ChunkLayout layout;
+            try { layout = Generator().Generate(config, Pool(), seed, [Clearing()]); }
+            catch (ProceduralGenerationFailedException) { failed++; continue; }
+
+            List<PlacedChunk> members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
+            if (members.Count == 0) continue;
+            placed++;
+            Assert.True(members.Min(m => m.Depth) >= 5, $"seed {seed}: the clearing starts at step {members.Min(m => m.Depth)}");
+        }
+
+        Assert.InRange(failed, 0, 4);
+        Assert.InRange(placed, 100, 200);   // measured 137 of 200
+    }
+
+    [Fact]
+    public void End_the_main_path_with_the_boss_group_whatever_the_first_set_piece_step()
+    {
+        ProceduralMapConfig config = Config(5, 7, boss: true);
+        config.MinSetPieceStep = 20;
+
+        for (int seed = 0; seed < 50; seed++)
+            Assert.Equal("arena", Generator().Generate(config, Pool(), seed, [Arena()]).BossChunk?.Group);
+    }
+
     [Fact]
     public void Count_depth_in_grid_steps_from_the_entry()
     {

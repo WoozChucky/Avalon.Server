@@ -318,6 +318,8 @@ Pools are `Maps/chunk-pools.json`, seeded by `ChunkCatalogSeeder` on every World
 - `HasBoss` — gate for boss chunk placement
 - `BackPortalTargetMapId`, `ForwardPortalTargetMapId` — destination map ids for portal slots
 - `DepthBands` — optional depth bands (rows in `ProceduralDepthBands`)
+- `MinSetPieceStep` — the first main-path step (the entry is step 0) a set piece other than the boss's may be placed at;
+  0, the default, places them from step 1 (see "Chunk groups (set pieces)")
 
 Configs are `Maps/ProceduralMaps/<mapId>.json` and spawn tables `Maps/spawn-tables.json`, seeded by `ChunkCatalogSeeder` on every World start; see "Spawn tables and procedural map configs".
 
@@ -362,7 +364,11 @@ anything else). `ProceduralLayoutGenerator` places a group as one main-path step
 that rotation, which is the same as turning the whole group about its centre, so `ChunkRotation` and the client are
 unchanged and the client sees ordinary 1x1 chunks. A group joins the layout only through an exit on one of its outer
 edges. Groups are placed on the main path only, never on a branch: a group with a `boss` slot only as the main path's
-last step, every other group at most once per layout. The forest has three: `forest_clearing_big`,
+last step, every other group at most once per layout and no earlier than the config's `MinSetPieceStep` (the boss's
+group ignores it). The forest's is 8, the step its 5-8 band begins (owner decision), so a party leaving the entry never
+meets a set piece's level 5-8 packs and Alphas in the next cells; the generator draws no number for a group it does not
+offer, so a pool without groups is unaffected. On the forest that leaves about one non-boss set piece every two runs
+(545 in 1000 seeds, against 1162 without the limit). The forest has three: `forest_clearing_big`,
 `forest_grove_ruin` and the boss arena `forest_arena`. `forest_boss_01` is no longer in the forest pool (its files stay
 in the catalog), so the arena ends every run.
 
@@ -398,7 +404,8 @@ Like chunks, town layouts, pools and chunk groups, a procedural map's data is fi
 - `Maps/spawn-tables.json`: `{ "<table name>": [ { "tag", "creatureId", "weight", "min", "max" } ] }`. A table is
   matched by name (its id is kept; a new one gets the highest id + 1) and its entries are replaced.
 - `Maps/ProceduralMaps/<mapId>.json`: every `ProceduralMapConfig` field, the pool (`chunkPool`) and spawn table
-  (`spawnTable`) by name, and `depthBands`. Matched by `mapTemplateId` (the file's name); its bands are replaced.
+  (`spawnTable`) by name, `depthBands`, and the optional `minSetPieceStep` (0 when left out). Matched by
+  `mapTemplateId` (the file's name); its bands are replaced.
 
 Before writing anything the seeder refuses a map whose `MapTemplate` is missing or not `Normal`, a pool or spawn table
 the files do not name, a `creatureId` with no `CreatureTemplates` row, and a spawn table whose tags do not match the

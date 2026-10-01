@@ -530,6 +530,7 @@ public static class ChunkCatalogSeeder
             config.HasBoss = map.HasBoss;
             config.BackPortalTargetMapId = map.BackPortalTargetMapId;
             config.ForwardPortalTargetMapId = map.ForwardPortalTargetMapId;
+            config.MinSetPieceStep = map.MinSetPieceStep ?? 0;
             config.DepthBands.AddRange((map.DepthBands ?? []).Select(b => new ProceduralDepthBand
             {
                 MinDepth = b.MinDepth, MaxDepth = b.MaxDepth, MinLevel = b.MinLevel, MaxLevel = b.MaxLevel,

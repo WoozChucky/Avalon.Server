@@ -81,6 +81,34 @@ public class CommittedForestGenerationShould
         Assert.All(rotations.Values, seen => Assert.Equal(4, seen.Count));
     }
 
+    /// <summary>
+    /// Owner decision: a set piece other than the boss arena stands no earlier than main-path step 8, where the 5-8 band
+    /// begins, so a party leaving the entry does not meet level 5-8 packs in the next cells. Every step before the first
+    /// set piece is one chunk, so the step a set piece was placed at is its nearest member's depth, and any later set
+    /// piece comes at a later step.
+    /// </summary>
+    [Fact]
+    public void Place_no_set_piece_but_the_arena_before_main_path_step_eight()
+    {
+        (ProceduralMapConfig config, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = Forest.Value;
+        Assert.Equal(8, config.MinSetPieceStep);
+        var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        int placed = 0;
+
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            ChunkLayout layout = generator.Generate(config, pool, seed * 7919, groups);
+            foreach (IGrouping<string, PlacedChunk> piece in layout.Chunks
+                         .Where(c => c.Group is not null && c.Group != "forest_arena").GroupBy(c => c.Group!))
+            {
+                placed++;
+                Assert.True(piece.Min(c => c.Depth) >= 8, $"seed {seed * 7919}: {piece.Key} starts at step {piece.Min(c => c.Depth)}");
+            }
+        }
+
+        Assert.True(placed > 400, $"only {placed} set pieces were placed in 1000 runs");   // measured 545
+    }
+
     [Fact]
     public void Reach_the_boss_arena_deeper_than_the_first_band()
     {

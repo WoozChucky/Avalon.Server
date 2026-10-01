@@ -379,6 +379,25 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         ProceduralMapConfig config = await read.ProceduralMapConfigs.SingleAsync(c => c.MapTemplateId == new MapTemplateId(2));
         ChunkPool pool = await read.ChunkPools.SingleAsync(p => p.Name == "forest_pool");
         Assert.Equal((pool.Id.Value, table.Id.Value), (config.ChunkPoolId.Value, config.SpawnTableId.Value));
+        Assert.Equal(8, config.MinSetPieceStep);
+    }
+
+    /// <summary>A map file without minSetPieceStep places set pieces from step 1, as before the limit existed.</summary>
+    [Fact]
+    public async Task Seed_no_first_set_piece_step_when_the_file_names_none()
+    {
+        string root = CopyOfCommittedMaps();
+        string path = Path.Combine(root, "ProceduralMaps", "2.json");
+        JsonObject map = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        Assert.True(map.Remove("minSetPieceStep"));
+        File.WriteAllText(path, map.ToJsonString());
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using (WorldDbContext db = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(db, root);
+
+        await using WorldDbContext read = database.CreateDbContext();
+        ProceduralMapConfig config = await read.ProceduralMapConfigs.SingleAsync(c => c.MapTemplateId == new MapTemplateId(2));
+        Assert.Equal(0, config.MinSetPieceStep);
     }
 
     /// <summary>Owner decision: the rows the old migration SQL wrote are adopted, ids kept, values replaced from the files.</summary>

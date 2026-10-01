@@ -2,6 +2,7 @@
 using Avalon.Database.World;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -10,9 +11,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    partial class WorldDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261001143646_AddMinSetPieceStep")]
+    partial class AddMinSetPieceStep
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2566,6 +2569,10 @@ namespace Avalon.Database.World.Migrations
                     b.Property<decimal>("Id")
                         .HasColumnType("numeric(20,0)");
 
+                    b.Property<string>("AIName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<float>("ArmorModifier")
                         .HasColumnType("real");
 
@@ -2644,6 +2651,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<short>("RegenHealth")
                         .HasColumnType("smallint");
 
+                    b.Property<int>("RespawnTimerSecs")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ScriptName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -2679,6 +2689,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 1m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2703,6 +2714,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -2713,6 +2725,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 2m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2737,6 +2750,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -2747,6 +2761,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 3m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2771,6 +2786,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -2781,6 +2797,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 4m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2805,6 +2822,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "ThornbackBoarScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2815,6 +2833,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 5m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2839,6 +2858,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "GreyFenWolfScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2849,6 +2869,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 6m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2873,6 +2894,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "BlightflySwarmlingScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2883,6 +2905,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 7m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2907,6 +2930,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "HuskOfTheWoldScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2917,6 +2941,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 8m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2941,6 +2966,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 1,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "BramblemawAlphaScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2951,6 +2977,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 9m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2975,6 +3002,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 2,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "OldTuskrootScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2985,6 +3013,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 10m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -3009,6 +3038,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 3,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "MotherBrambleScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -3019,6 +3049,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 11m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -3043,6 +3074,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -3053,6 +3085,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 12m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -3077,6 +3110,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -3087,6 +3121,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 13m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -3111,6 +3146,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -3121,6 +3157,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 14m,
+                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -3145,6 +3182,7 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,

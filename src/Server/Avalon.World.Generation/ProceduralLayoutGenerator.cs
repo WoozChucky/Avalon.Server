@@ -13,8 +13,9 @@ namespace Avalon.World.ChunkLayouts;
 /// <para>
 /// A main-path step places one node: a single chunk, or a whole set piece on as many free cells as it has members,
 /// turned as a whole and joined to its parent only through an exit on one of its outer edges. A set piece is placed
-/// only on the main path; a boss set piece only as its last step, every other one at most once per layout. Each chunk
-/// records its depth: the grid steps from the entry over stitched connections, a set piece's inner edges included.
+/// only on the main path; a boss set piece only as its last step, every other one at most once per layout and not
+/// before the config's <see cref="ProceduralMapConfig.MinSetPieceStep"/>. Each chunk records its depth: the grid steps
+/// from the entry over stitched connections, a set piece's inner edges included.
 /// A pool without set pieces draws exactly the random numbers it always did, so its layouts are unchanged.
 /// </para>
 /// </summary>
@@ -75,7 +76,8 @@ public class ProceduralLayoutGenerator
             bool excludeSingleExit = !requiredBoss && !requiredForward;
 
             if (!TryAttachNext(mainPath[^1], pool, groups, grid, links, usedGroups, rng,
-                    new AttachRules(requiredBoss, requiredForward, excludeSingleExit, AllowGroups: true), out var placed))
+                    new AttachRules(requiredBoss, requiredForward, excludeSingleExit, AllowGroups: true,
+                        AllowSetPieces: step >= cfg.MinSetPieceStep), out var placed))
             {
                 error = $"Could not attach at step {step}";
                 return false;
@@ -93,7 +95,8 @@ public class ProceduralLayoutGenerator
             {
                 // Branches may end in deadends, so single-exit chunks are fair game.
                 if (!TryAttachNext(tail, pool, groups, grid, links, usedGroups, rng,
-                        new AttachRules(RequiredBoss: false, RequiredForward: false, ExcludeSingleExit: false, AllowGroups: false),
+                        new AttachRules(RequiredBoss: false, RequiredForward: false, ExcludeSingleExit: false, AllowGroups: false,
+                            AllowSetPieces: false),
                         out var placed))
                     break;
                 tail = placed!;
@@ -127,7 +130,12 @@ public class ProceduralLayoutGenerator
         return true;
     }
 
-    private readonly record struct AttachRules(bool RequiredBoss, bool RequiredForward, bool ExcludeSingleExit, bool AllowGroups);
+    /// <summary>
+    /// AllowGroups: set pieces may be placed at all (the main path); AllowSetPieces: so may one other than the boss's (the map's
+    /// MinSetPieceStep is reached).
+    /// </summary>
+    private readonly record struct AttachRules(bool RequiredBoss, bool RequiredForward, bool ExcludeSingleExit, bool AllowGroups,
+        bool AllowSetPieces);
 
     /// <summary>A placement candidate: a single chunk at a rotation, or a set piece at a rotation with one member (the anchor) on the free cell.</summary>
     private readonly record struct Candidate(
@@ -217,7 +225,7 @@ public class ProceduralLayoutGenerator
         {
             // A boss set piece only ends the main path, and nothing else ends it while one is required.
             if (group.IsBoss != rules.RequiredBoss) continue;
-            if (!group.IsBoss && usedGroups.Contains(group.Name)) continue;
+            if (!group.IsBoss && (!rules.AllowSetPieces || usedGroups.Contains(group.Name))) continue;
             if (rules.RequiredForward && !group.HasForward) continue;
             if (rules.ExcludeSingleExit && group.OuterExitCount < 2) continue;
 
