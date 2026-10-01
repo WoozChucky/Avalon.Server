@@ -23,6 +23,9 @@ public static class TownPieces
     private static CylinderPiece Cyl(string building, string part, Material m, float x, float z, float r, float y0, float top) =>
         new(building, part, m, x, z, r, y0, top);
 
+    private static RingPiece Ring(string building, string part, Material m, float x, float z, float outer, float inner, float y0, float top) =>
+        new(building, part, m, x, z, outer, inner, y0, top);
+
     private static GablePiece Gable(string building, string part, Material m, float minX, float maxX, float minZ, float maxZ, float eaves, float ridge) =>
         new(building, part, m, minX, maxX, minZ, maxZ, eaves, ridge);
 
@@ -60,8 +63,8 @@ public static class TownPieces
         Cyl("Town hall", "post", Material.Wood, 11.8f, 11.75f, 0.12f, 0f, 3.2f),
         Cyl("Town hall", "post", Material.Wood, 11.8f, 18.25f, 0.12f, 0f, 3.2f),
         Box("Town hall", "porch roof", Material.Roof, 9.9f, 12.4f, 11.2f, 18.8f, 3.2f, 3.5f),
-        Cyl("Fountain", "basin", Material.Stone, 15f, 7.5f, 2.2f, 0f, 1.1f),      // owner decision 1: 1.1 m, above the navmesh step
-        Cyl("Fountain", "water", Material.Water, 15f, 7.5f, 2f, 0.9f, 1f),
+        Ring("Fountain", "basin", Material.Stone, 15f, 7.5f, 2.2f, 1.8f, 0f, 1.1f),   // a 0.4 m rim, 1.1 m up (owner decision 1): the water shows inside it
+        Cyl("Fountain", "water", Material.Water, 15f, 7.5f, 1.78f, 0.9f, 1f),         // just inside the rim, its surface 0.1 m below the rim top
         Cyl("Fountain", "column", Material.Stone, 15f, 7.5f, 0.5f, 0f, 2.2f),
         Cyl("Fountain", "upper bowl", Material.Stone, 15f, 7.5f, 0.9f, 1.6f, 1.85f),
         Box("Benches", "bench W", Material.Wood, 10f, 10.5f, 6.6f, 8.4f, 0f, 1.05f),

@@ -348,6 +348,72 @@ public class ChunkGenWritersShould
     [Fact]
     public void Wind_every_face_of_a_town_square_outward() => AssertOutward(ObjWriter.Write(SampleSquare));
 
+    private static readonly TownSquare RingSquare = SampleSquare with
+    {
+        Pieces = [new RingPiece("Fountain", "basin", Material.Stone, 15, 15, 2.2f, 1.8f, 0, 1.1f), new CylinderPiece("Fountain", "water", Material.Water, 15, 15, 1.78f, 0.9f, 1f)],
+    };
+
+    /// <summary>
+    /// A ring is not star-shaped, so the generic centroid test cannot judge it: every face must point away from its own
+    /// segment's middle, found from the geometry alone (the ring's centre is the object's centroid, the rim's middle
+    /// radius the vertices' mean distance from it).
+    /// </summary>
+    [Fact]
+    public void Wind_every_face_of_a_ring_outward()
+    {
+        string obj = ObjWriter.Write(RingSquare);
+        var vertices = new List<Vector3>();
+        var ringVertices = new List<Vector3>();
+        var faces = new List<(int A, int B, int C)>();
+        string current = "";
+        foreach (string line in obj.Split('\n'))
+        {
+            string[] p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (line.StartsWith("o ", StringComparison.Ordinal)) current = p[1];
+            else if (line.StartsWith("v ", StringComparison.Ordinal))
+            {
+                var v = new Vector3(float.Parse(p[1], CultureInfo.InvariantCulture), float.Parse(p[2], CultureInfo.InvariantCulture), float.Parse(p[3], CultureInfo.InvariantCulture));
+                vertices.Add(v);
+                if (current == "Fountain_basin") ringVertices.Add(v);
+            }
+            else if (line.StartsWith("f ", StringComparison.Ordinal) && current == "Fountain_basin")
+                faces.Add((int.Parse(p[1], CultureInfo.InvariantCulture) - 1, int.Parse(p[2], CultureInfo.InvariantCulture) - 1, int.Parse(p[3], CultureInfo.InvariantCulture) - 1));
+        }
+
+        Assert.Equal(48, ringVertices.Count);
+        Assert.Equal(96, faces.Count);
+        var centre = new Vector3(ringVertices.Average(v => v.x), ringVertices.Average(v => v.y), ringVertices.Average(v => v.z));
+        float midRadius = ringVertices.Average(v => MathF.Sqrt((v.x - centre.x) * (v.x - centre.x) + (v.z - centre.z) * (v.z - centre.z)));
+        foreach ((int a, int b, int c) in faces)
+        {
+            Vector3 fc = (vertices[a] + vertices[b] + vertices[c]) / 3f;
+            float dx = fc.x - centre.x, dz = fc.z - centre.z, d = MathF.Sqrt(dx * dx + dz * dz);
+            var inside = new Vector3(centre.x + dx / d * midRadius, centre.y, centre.z + dz / d * midRadius);
+            Vector3 u = vertices[b] - vertices[a], w = vertices[c] - vertices[a];
+            var normal = new Vector3(u.y * w.z - u.z * w.y, u.z * w.x - u.x * w.z, u.x * w.y - u.y * w.x);
+            Vector3 outward = fc - inside;
+            Assert.True(normal.x * outward.x + normal.y * outward.y + normal.z * outward.z > 0, $"a face of the ring at {fc} faces inward");
+        }
+    }
+
+    /// <summary>The rim blocks a walk, and the water inside is no ground a walk from outside reaches.</summary>
+    [Fact]
+    public void Bake_a_ring_a_walk_cannot_enter()
+    {
+        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(RingSquare), 0, 0)]);
+
+        Vector3 stop = navigator.RaycastWalkable(new Vector3(5f, 0.15f, 15f), new Vector3(15f, 0.15f, 15f));
+        Assert.True(stop.x < 12.85f, $"the walk entered the rim to x = {stop.x}");
+        List<Vector3> path = navigator.FindPath(new Vector3(5f, 1f, 15f), new Vector3(15f, 1.3f, 15f));
+        Assert.True(path.Count == 0 || MathF.Sqrt((path[^1].x - 15f) * (path[^1].x - 15f) + (path[^1].z - 15f) * (path[^1].z - 15f)) > 1.8f,
+            $"a path reached the water at {(path.Count > 0 ? path[^1] : Vector3.zero)}");
+    }
+
+    [Fact]
+    public void Refuse_a_ring_with_no_rim() =>
+        Assert.Throws<InvalidOperationException>(() =>
+            Square(new RingPiece("Well", "ring", Material.Stone, 15, 15, 1f, 1f, 0, 1.05f)).Validate());
+
     [Fact]
     public void Never_write_negative_zero_for_a_town_square()
     {

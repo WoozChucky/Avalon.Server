@@ -7,7 +7,8 @@ namespace Avalon.ChunkGen;
 /// Writes a piece or a town square as chunk-local OBJ (x/z 0-30, y up), the format ChunkLayoutNavmeshBuilder and the
 /// client bake read: "o", "v x y z" and "f a b c" lines, plus, on a town square, one "usemtl" line after each tagged
 /// object for the client's colours (the server ignores them, ChunkObjParserShould). LF line ends. Every face is wound
-/// so (b-a)x(c-a) points out of its solid, which is how Recast tells a walkable top from a wall.
+/// so (b-a)x(c-a) points out of its solid (a ring's out of its own segment), which is how Recast tells a walkable top
+/// from a wall.
 /// </summary>
 public static class ObjWriter
 {
@@ -64,6 +65,9 @@ public static class ObjWriter
                 case GablePiece gable:
                     obj.Gable(name, material, gable.MinX, gable.MaxX, gable.MinZ, gable.MaxZ, gable.Eaves, gable.Ridge, gable.RidgeAlongX);
                     break;
+                case RingPiece ring:
+                    obj.Ring(name, material, ring.X, ring.Z, ring.Radius, ring.InnerRadius, ring.Y0, ring.Top);
+                    break;
             }
         }
 
@@ -117,6 +121,38 @@ public static class ObjWriter
                 Triangle(inside, topCentre, b + n + i, b + n + j);
                 Triangle(inside, bottomCentre, b + i, b + j);
                 Quad(inside, b + i, b + j, b + n + j, b + n + i);
+            }
+        }
+
+        /// <summary>
+        /// A twelve-sided ring: outer and inner walls, an annular top and bottom. A ring is not star-shaped about its
+        /// centre, so each segment's faces are wound against that segment's own middle (mid-radius, mid-height).
+        /// </summary>
+        public void Ring(string name, string? material, float x, float z, float outer, float inner, float y0, float y1)
+        {
+            Object(name, material);
+            int b = _points.Count;
+            const int n = CylinderBlocker.Segments;
+            foreach ((float radius, float y) in new[] { (outer, y0), (outer, y1), (inner, y0), (inner, y1) })
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    double angle = 2.0 * Math.PI * i / n;
+                    Vertex(x + (float)(radius * Math.Cos(angle)), y, z + (float)(radius * Math.Sin(angle)));
+                }
+            }
+
+            // b + i outer bottom, b + n + i outer top, b + 2n + i inner bottom, b + 3n + i inner top.
+            float mid = (outer + inner) / 2f;
+            for (int i = 0; i < n; i++)
+            {
+                int j = (i + 1) % n;
+                double angle = 2.0 * Math.PI * (i + 0.5) / n;
+                var inside = (x + (float)(mid * Math.Cos(angle)), (y0 + y1) / 2f, z + (float)(mid * Math.Sin(angle)));
+                Quad(inside, b + i, b + j, b + n + j, b + n + i);                           // outer wall
+                Quad(inside, b + 2 * n + i, b + 2 * n + j, b + 3 * n + j, b + 3 * n + i);   // inner wall
+                Quad(inside, b + n + i, b + n + j, b + 3 * n + j, b + 3 * n + i);           // top
+                Quad(inside, b + i, b + j, b + 2 * n + j, b + 2 * n + i);                   // bottom
             }
         }
 
