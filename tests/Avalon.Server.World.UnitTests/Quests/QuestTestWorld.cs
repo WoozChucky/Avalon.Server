@@ -135,6 +135,17 @@ internal sealed class QuestTestWorld
         return new QuestTestWorld(data, config, services ?? Substitute.For<IServiceProvider>(), new SteadyLootRandom(0), parties);
     }
 
+    /// <summary>
+    /// A quest service over this world's economy and clock whose every call that reads the world throws, standing
+    /// in for a quest or quest script that fails: the callers must contain it.
+    /// </summary>
+    public QuestService ThrowingQuests()
+    {
+        IWorld broken = Substitute.For<IWorld>();
+        broken.Data.Returns(_ => throw new InvalidOperationException("quest data unavailable"));
+        return new QuestService(broken, Substitute.For<IServiceProvider>(), Economy, Random, Clock, NullLogger<QuestService>.Instance);
+    }
+
     /// <summary>A living NPC (or monster) of this template in the instance, at the position given.</summary>
     public Creature Place(ulong template, Vector3? position = null)
     {

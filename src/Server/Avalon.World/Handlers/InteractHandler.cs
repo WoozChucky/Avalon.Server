@@ -85,11 +85,6 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world, Ques
             return;
         }
 
-        // #433: talking to the named NPC completes a Talk objective, before the node is built, so a quest that
-        // becomes ready by this very conversation already shows its turn-in.
-        if (quests is not null && character is CharacterEntity talker)
-            quests.Interacted(talker, npc);
-
         // A new conversation, even with the same NPC, starts with the bank and the shop closed. The
         // old one is ended out loud when it was with someone else, or when it had either window
         // open: the client hides those windows only on SMSG_DIALOGUE_END (#463, #432).
@@ -139,9 +134,54 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world, Ques
             connection.CryptoSession.Encrypt));
     }
 
+    /// <summary>
+    /// Quest talk credit (#433). Contained: a quest (or its script) that throws costs this talk's credit, never the
+    /// conversation, which opens after it either way.
+    /// </summary>
+    private void CreditTalk(ICharacter character, ICreature npc)
+    {
+        if (quests is null || character is not CharacterEntity talker)
+            return;
+
+        try
+        {
+            quests.Interacted(talker, npc);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Quest talk credit for character {CharacterId} at NPC {NpcGuid} (template {TemplateId}) failed; the conversation still opens",
+                talker.Guid.Id, npc.Guid, npc.Metadata.Id.Value);
+        }
+    }
+
+    /// <summary>
+    /// Sends the opened node. #433: talking to the named NPC completes a Talk objective first, before the node's
+    /// quest options are built, so a quest that becomes ready by this very conversation already shows its turn-in.
+    /// </summary>
     private void SendNode(IWorldConnection connection, ICreature npc, DialogueNodeView node, ICharacter character)
-        => Send(connection, npc, node, character, world.Data,
-            quests is not null && character is CharacterEntity questing
-                ? quests.DialogueOptionsFor(connection, questing, npc, node)
-                : null);
+    {
+        CreditTalk(character, npc);
+        Send(connection, npc, node, character, world.Data, QuestOptions(connection, npc, node, character));
+    }
+
+    /// <summary>
+    /// The character's quest options at this node (#433), or none. Contained like the talk credit: a quest that
+    /// throws loses its options here, and the NPC still opens with its own.
+    /// </summary>
+    private List<SDialogueOptionInfo>? QuestOptions(IWorldConnection connection, ICreature npc, DialogueNodeView node, ICharacter character)
+    {
+        if (quests is null || character is not CharacterEntity questing)
+            return null;
+
+        try
+        {
+            return quests.DialogueOptionsFor(connection, questing, npc, node);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Quest options for character {CharacterId} at NPC {NpcGuid} (template {TemplateId}) failed; the NPC opens without them",
+                questing.Guid.Id, npc.Guid, npc.Metadata.Id.Value);
+            return null;
+        }
+    }
 }

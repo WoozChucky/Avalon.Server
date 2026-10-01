@@ -1,10 +1,17 @@
 using Avalon.Common;
+using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Instances;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World.Entities;
+using Avalon.World.Configuration;
 using Avalon.World.Instances;
+using Avalon.World.Loot;
+using Avalon.World.Public.Maps;
+using Microsoft.Extensions.Options;
+using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
@@ -150,5 +157,54 @@ public class QuestKillCreditShould
         instance.ReportKill(Spawn(instance, w, Boar), a.Character);
 
         Assert.Equal(1u, a.Character.Quests.Get(Hunt)!.ProgressOf(HuntKill));
+    }
+
+    /// <summary>Review fix: a member beyond PartyEligibilityRange on X/Z and outside the encounter does not share the kill.</summary>
+    [Fact]
+    public async Task Credit_no_member_out_of_range_and_outside_the_encounter()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        var p = new PartyTestWorld();
+        PartyClient a = p.Online(1, "A", level: 1);
+        PartyClient b = p.Online(2, "B", level: 1);
+        PartyClient far = p.Online(3, "Far", level: 1);
+        p.Form(a, b, far);
+        using MapInstance instance = TestMapInstances.Build(w.World, ownerPartyId: p.Parties.PartyOf(a.Id)!.Id, parties: p.Parties, quests: w.Quests);
+        MapInstanceClients.Join(instance, a.Character);
+        MapInstanceClients.Join(instance, b.Character);
+        MapInstanceClients.Join(instance, far.Character);
+        a.Character.Position = Vector3.zero;
+        b.Character.Position = Vector3.zero;
+        far.Character.Position = new Vector3(50f, 0f, 50f);   // 70.7 m on X/Z, past the 60 m range
+        Assert.True(w.Config.PartyEligibilityRange < 70f);
+        a.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
+        far.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
+
+        instance.ReportKill(Spawn(instance, w, Boar), a.Character);   // no hit was dealt: nobody is in an encounter
+
+        Assert.Equal(1u, a.Character.Quests.Get(Hunt)!.ProgressOf(HuntKill));
+        Assert.Empty(far.Character.Quests.Get(Hunt)!.Progress);
+    }
+
+    /// <summary>Ruling: a quest credit that throws costs the kill nothing, so its loot still drops and its experience is still awarded.</summary>
+    [Fact]
+    public async Task Still_drop_the_loot_and_award_the_experience_when_quest_credit_throws()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        var roller = Substitute.For<ILootRoller>();
+        roller.Roll(default!, default!, default!).ReturnsForAnyArgs([new RolledDrop(null, 0, 5)]);
+        var allocator = new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(DateTimeOffset.UnixEpoch),
+            CombatRandom.Steady);
+        using MapInstance instance = TestMapInstances.Build(w.World, navigator: Substitute.For<IMapNavigator>(),
+            quests: w.ThrowingQuests(), lootRoller: roller, lootAllocator: allocator);
+        MapInstanceClient a = MapInstanceClients.Join(instance, 1);
+        a.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
+        ulong before = a.Character.Experience;
+
+        instance.ReportKill(Spawn(instance, w, Boar), a.Character);
+
+        Assert.Equal(1, instance.Drops.Count);
+        Assert.Equal(before + 10, a.Character.Experience);
+        Assert.Empty(a.Character.Quests.Get(Hunt)!.Progress);
     }
 }
