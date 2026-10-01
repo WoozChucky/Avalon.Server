@@ -57,7 +57,9 @@ public class ChunkGroupGenerationShould
 
     /// <summary>
     /// This small pool boxes its own walk in on about one seed in a hundred, with or without the clearing (every
-    /// attempt's main path runs into occupied cells); such a seed says nothing about how a group is placed.
+    /// attempt's main path runs into occupied cells); such a seed says nothing about how a group is placed. The loops
+    /// count those seeds and allow about twice the rate measured (2 of 200, 4 of 400), and require the clearing in most
+    /// layouts (measured 180 of 200, 363 of 400), so neither can pass with nothing generated.
     /// </summary>
     private static ChunkLayout? TryGenerate(int seed)
     {
@@ -69,11 +71,13 @@ public class ChunkGroupGenerationShould
     public void Place_every_group_intact_under_every_rotation()
     {
         var rotations = new HashSet<byte>();
+        int failed = 0, placed = 0;
         for (int seed = 0; seed < 400; seed++)
         {
-            if (TryGenerate(seed) is not { } layout) continue;
+            if (TryGenerate(seed) is not { } layout) { failed++; continue; }
             List<PlacedChunk> members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
             if (members.Count == 0) continue;
+            placed++;
 
             Assert.Equal(4, members.Count);
             byte rotation = members[0].Rotation;
@@ -89,21 +93,28 @@ public class ChunkGroupGenerationShould
         }
 
         Assert.Equal([0, 1, 2, 3], rotations.Order().Select(r => (int)r));
+        Assert.InRange(failed, 0, 8);
+        Assert.InRange(placed, 300, 400);
     }
 
     [Fact]
     public void Join_a_group_to_its_parent_through_matching_outer_exits()
     {
+        int failed = 0, placed = 0;
         for (int seed = 0; seed < 200; seed++)
         {
-            if (TryGenerate(seed) is not { } layout) continue;
+            if (TryGenerate(seed) is not { } layout) { failed++; continue; }
             List<PlacedChunk> members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
             if (members.Count == 0) continue;
+            placed++;
 
             int entered = members.Min(m => m.Depth);
             PlacedChunk anchor = members.First(m => m.Depth == entered);
             Assert.Contains(layout.Chunks, other => other.Group is null && other.Depth == entered - 1 && FacingExits(other, anchor));
         }
+
+        Assert.InRange(failed, 0, 4);
+        Assert.InRange(placed, 150, 200);
     }
 
     [Fact]
@@ -143,6 +154,43 @@ public class ChunkGroupGenerationShould
 
         Assert.Equal(before.Chunks.Select(c => (c.TemplateId.Value, c.GridX, c.GridZ, c.Rotation)),
             after.Chunks.Select(c => (c.TemplateId.Value, c.GridX, c.GridZ, c.Rotation)));
+    }
+
+    /// <summary>A pool shaped like the forest's: corridors, corners, a crossroads, a T, a dead end and a boss chunk.</summary>
+    private static List<ChunkPoolMember> ForestLikePool() =>
+    [
+        new(Chunk(1, N, "entry", PortalRole.Back), 1f), new(Chunk(2, (ushort)(N | S), "pack"), 3f), new(Chunk(3, (ushort)(E | W), "pack"), 2f),
+        new(Chunk(4, (ushort)(N | E), "pack"), 2f), new(Chunk(5, (ushort)(S | E), "rare"), 1f), new(Chunk(6, (ushort)(N | E | S | W), "pack"), 1f),
+        new(Chunk(7, (ushort)(N | E | S)), 1f), new(Chunk(8, S, "pack"), 1f), new(Chunk(9, S, "boss"), 1f),
+    ];
+
+    /// <summary>
+    /// Layouts the generator produced before set pieces existed (commit d56c104c), for a pool without groups. Any change
+    /// to the order or number of random draws changes them, so an old seed would no longer give the same map.
+    /// </summary>
+    public static TheoryData<int, (string, int, int, int)[]> LayoutsBeforeSetPieces() => new()
+    {
+        { 7, [("c1", 0, 0, 0), ("c2", 0, 1, 0), ("c7", 0, 2, 1), ("c7", 1, 2, 1), ("c6", 1, 1, 0), ("c7", 1, 0, 3), ("c4", 2, 0, 2),
+              ("c7", 2, -1, 0), ("c6", 3, -1, 1), ("c6", 4, -1, 2), ("c7", 4, -2, 2), ("c9", 4, -3, 2), ("c7", -1, 2, 1),
+              ("c4", 2, -2, 0), ("c3", 3, 0, 1), ("c7", 3, -2, 3)] },
+        { 42, [("c1", 0, 0, 0), ("c6", 0, 1, 2), ("c3", 1, 1, 2), ("c5", 2, 1, 2), ("c3", 2, 2, 1), ("c2", 2, 3, 0), ("c5", 2, 4, 1),
+               ("c7", 1, 4, 0), ("c4", 1, 5, 2), ("c6", 0, 5, 1), ("c6", 0, 6, 1), ("c2", 1, 6, 1), ("c2", 2, 6, 1), ("c9", 3, 6, 1),
+               ("c1", -1, 1, 1), ("c2", -1, 5, 1), ("c2", -2, 5, 3), ("c7", -3, 5, 0)] },
+    };
+
+    [Theory]
+    [MemberData(nameof(LayoutsBeforeSetPieces))]
+    public void Generate_the_layout_a_seed_gave_before_set_pieces(int seed, (string, int, int, int)[] expected)
+    {
+        ProceduralMapConfig config = Config(10, 16, boss: true);
+        config.BranchMaxDepth = 3;
+        Dictionary<ChunkTemplateId, string> names = ForestLikePool().ToDictionary(m => m.Template.Id, m => m.Template.Name);
+
+        ChunkLayout layout = Generator().Generate(config, ForestLikePool(), seed);
+
+        Assert.Equal(seed, layout.Seed);
+        Assert.Equal(expected, layout.Chunks.Select(c => (names[c.TemplateId], (int)c.GridX, (int)c.GridZ, (int)c.Rotation)));
+        Assert.Equal("c9", names[layout.BossChunk!.TemplateId]);
     }
 
     private static bool FacingExits(PlacedChunk from, PlacedChunk to)

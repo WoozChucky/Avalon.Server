@@ -245,15 +245,18 @@ public class ProceduralLayoutGenerator
     {
         ChunkGroupDefinition group = choice.Group!;
         var records = new List<PlacedChunkRecord>(group.Cells.Count);
-        anchor = null!;
+        PlacedChunkRecord? found = null;
         foreach (ChunkGroupCell cell in group.Cells)
         {
             (int x, int z) = ChunkGroupRotation.RotateCell(cell.CellX, cell.CellZ, group.SizeX, group.SizeZ, choice.Rotation);
             var record = new PlacedChunkRecord(cell.Template, choice.OriginX + x, choice.OriginZ + z, choice.Rotation, group.Name);
             grid[(record.GridX, record.GridZ)] = record;
             records.Add(record);
-            if (ReferenceEquals(cell, choice.Anchor)) anchor = record;
+            if (ReferenceEquals(cell, choice.Anchor)) found = record;
         }
+
+        // The anchor is one of the group's own cells (AddGroupCandidates), so this only fails on a programming error.
+        anchor = found ?? throw new InvalidOperationException($"Set piece '{group.Name}' was placed without its anchor cell.");
 
         // The inner edges are open ground: they count as connections for depth.
         foreach (PlacedChunkRecord a in records)

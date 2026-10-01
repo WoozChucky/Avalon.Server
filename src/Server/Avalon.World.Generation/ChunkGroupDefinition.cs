@@ -9,33 +9,34 @@ namespace Avalon.World.ChunkLayouts;
 /// </summary>
 public sealed record ChunkGroupDefinition(string Name, IReadOnlyList<ChunkGroupCell> Cells)
 {
-    public int SizeX => Cells.Max(c => c.CellX) + 1;
-    public int SizeZ => Cells.Max(c => c.CellZ) + 1;
+    // Worked out once from the cells: the generator asks for these for every free cell it tries. A copy made with a
+    // `with` expression that replaces Cells would keep the old values, so build a new definition instead.
+    public int SizeX { get; } = Cells.Max(c => c.CellX) + 1;
+    public int SizeZ { get; } = Cells.Max(c => c.CellZ) + 1;
 
-    public bool IsBoss => Cells.Any(c => c.Template.SpawnSlots.Any(s => s.Tag.Equals("boss", StringComparison.OrdinalIgnoreCase)));
+    public bool IsBoss { get; } = Cells.Any(c => c.Template.SpawnSlots.Any(s => s.Tag.Equals("boss", StringComparison.OrdinalIgnoreCase)));
 
-    public bool HasForward => Cells.Any(c => c.Template.PortalSlots.Any(p => p.Role == PortalRole.Forward));
+    public bool HasForward { get; } = Cells.Any(c => c.Template.PortalSlots.Any(p => p.Role == PortalRole.Forward));
 
     /// <summary>Exit slots on sides that face no other member: the piece's ways in and out. The same under any rotation.</summary>
-    public int OuterExitCount
-    {
-        get
-        {
-            var cells = Cells.Select(c => (c.CellX, c.CellZ)).ToHashSet();
-            int count = 0;
-            foreach (ChunkGroupCell cell in Cells)
-            {
-                foreach (ExitSide side in Enum.GetValues<ExitSide>())
-                {
-                    (int dx, int dz) = ExitMask.GridDir(side);
-                    if (cells.Contains((cell.CellX + dx, cell.CellZ + dz))) continue;
-                    for (int slot = 0; slot < 3; slot++)
-                        if (ExitMask.Has(cell.Template.Exits, side, (ExitSlot)slot)) count++;
-                }
-            }
+    public int OuterExitCount { get; } = CountOuterExits(Cells);
 
-            return count;
+    private static int CountOuterExits(IReadOnlyList<ChunkGroupCell> members)
+    {
+        var cells = members.Select(c => (c.CellX, c.CellZ)).ToHashSet();
+        int count = 0;
+        foreach (ChunkGroupCell cell in members)
+        {
+            foreach (ExitSide side in Enum.GetValues<ExitSide>())
+            {
+                (int dx, int dz) = ExitMask.GridDir(side);
+                if (cells.Contains((cell.CellX + dx, cell.CellZ + dz))) continue;
+                for (int slot = 0; slot < 3; slot++)
+                    if (ExitMask.Has(cell.Template.Exits, side, (ExitSlot)slot)) count++;
+            }
         }
+
+        return count;
     }
 
     /// <summary>The definition of a seeded group, or null when one of its member templates is unknown.</summary>
