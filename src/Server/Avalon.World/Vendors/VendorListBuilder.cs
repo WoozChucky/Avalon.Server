@@ -72,12 +72,14 @@ public static class VendorListBuilder
         SVendorListPacket list = Build(vendor, stock, character, data, quests);
         connection.Send(SVendorListPacket.Create(list.VendorGuid, list.Entries, list.Buyback, connection.CryptoSession.Encrypt));
         character.VendorListOwed = false;
+        character.VendorListQuestVersion = character.Quests.HeldVersion;
     }
 
     /// <summary>
-    /// The vendor pass, for one connection. It sends the list when the shop is open and either the
-    /// vendor's stock changed this tick or this player's buyback did. A closed shop forgets what it
-    /// was owed. Allocation-free when nothing is owed.
+    /// The vendor pass, for one connection. It sends the list when the shop is open and the vendor's
+    /// stock changed this tick, this player's buyback did, or which quests it holds or has turned in
+    /// did since the last list (#738: an accept, an abandon or a turn-in can meet a row's quest gate).
+    /// A closed shop forgets what it was owed. Allocation-free when nothing is owed.
     /// </summary>
     public static void SendIfOwed(IWorldConnection connection, VendorStocks stocks, StaticData data, IQuestProgress quests)
     {
@@ -92,7 +94,7 @@ public static class VendorListBuilder
             return;
         }
 
-        if (stock.Changed || character.VendorListOwed)
+        if (stock.Changed || character.VendorListOwed || character.VendorListQuestVersion != character.Quests.HeldVersion)
             Send(connection, vendor, stock, character, data, quests);
     }
 

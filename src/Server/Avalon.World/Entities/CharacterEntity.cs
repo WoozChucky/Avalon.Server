@@ -304,6 +304,13 @@ public class CharacterEntity : ICharacter
     /// </summary>
     public bool VendorListOwed { get; set; }
 
+    /// <summary>
+    /// The <see cref="QuestLog.HeldVersion" /> the last SMSG_VENDOR_LIST was built at (#738). While the shop is open,
+    /// a different one means an accept, an abandon or a turn-in since, which can meet or unmeet a row's quest gate,
+    /// so the vendor pass sends the list again. Never saved.
+    /// </summary>
+    public int VendorListQuestVersion { get; set; }
+
     public ObjectGuid Guid { get; set; }
 
     // Backing fields for dirty-tracked properties

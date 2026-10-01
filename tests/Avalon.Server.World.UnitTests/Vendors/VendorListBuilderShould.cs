@@ -157,6 +157,62 @@ public class VendorListBuilderShould : IAsyncLifetime
         Assert.False(_w.Main.Character.VendorListOwed);
     }
 
+    /// <summary>
+    /// #738: a turn-in that meets a row's quest gate while the shop is open resends the list on the next vendor pass,
+    /// so the row shows at once rather than when something else changes.
+    /// </summary>
+    [Fact]
+    public void Send_the_list_when_a_turn_in_meets_a_gate_while_the_shop_is_open()
+    {
+        _w.Quests = QuestProgress.Instance;
+        _w.OpenShop();
+        _w.EndOfTick();
+        Assert.DoesNotContain(_w.Main.Lists()[^1].Entries, e => e.Sequence == GatedSequence);
+
+        QuestLog log = _w.Main.Character.Quests;
+        log.Start(GatedQuest, Now);
+        log.Complete(GatedQuest, Now);
+        _w.EndOfTick();
+        _w.EndOfTick();
+
+        Assert.Equal(2, _w.Main.Lists().Count);
+        Assert.Contains(_w.Main.Lists()[^1].Entries, e => e.Sequence == GatedSequence);
+    }
+
+    /// <summary>#738: an accept and an abandon change which quests are held, so each resends the list too.</summary>
+    [Fact]
+    public void Send_the_list_when_a_quest_is_accepted_or_abandoned_while_the_shop_is_open()
+    {
+        _w.Quests = QuestProgress.Instance;
+        _w.OpenShop();
+        _w.EndOfTick();
+
+        _w.Main.Character.Quests.Start(GatedQuest, Now);
+        _w.EndOfTick();
+        _w.Main.Character.Quests.Remove(GatedQuest);
+        _w.EndOfTick();
+        _w.EndOfTick();
+
+        Assert.Equal(3, _w.Main.Lists().Count);
+    }
+
+    /// <summary>#738: progress on a held quest changes no gate (held or turned in), so it resends nothing.</summary>
+    [Fact]
+    public void Send_nothing_when_only_a_held_quests_progress_changed()
+    {
+        _w.Quests = QuestProgress.Instance;
+        QuestLog log = _w.Main.Character.Quests;
+        ActiveQuest active = log.Start(GatedQuest, Now);
+        _w.OpenShop();
+        _w.EndOfTick();
+
+        log.SetProgress(active, 1, 3);
+        log.SetStage(active, 1);
+        _w.EndOfTick();
+
+        Assert.Single(_w.Main.Lists());
+    }
+
     [Fact]
     public void Send_nothing_to_a_shopper_whose_shop_closed_and_forget_what_it_was_owed()
     {

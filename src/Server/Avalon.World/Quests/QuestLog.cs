@@ -64,6 +64,13 @@ public sealed class QuestLog(SaveStateTracker save)
     /// <summary>Raised by every change, so the markers know when to look again.</summary>
     public int Version { get; private set; }
 
+    /// <summary>
+    /// Raised only when which quests are held or turned in changes (an accept, an abandon, a turn-in, a load), the two
+    /// things a vendor's quest gate asks (#738), so the vendor pass knows when an open shop's list may have changed.
+    /// Progress and stages leave it alone.
+    /// </summary>
+    public int HeldVersion { get; private set; }
+
     public ActiveQuest? Get(uint questId) => _active.GetValueOrDefault(questId);
 
     public bool IsActive(uint questId) => _active.ContainsKey(questId);
@@ -112,12 +119,15 @@ public sealed class QuestLog(SaveStateTracker save)
 
         foreach (CharacterCompletedQuest row in rows.Completed)
             _completed[row.QuestId] = row.CompletedAt;
+
+        HeldVersion++;
     }
 
     public ActiveQuest Start(uint questId, DateTime now)
     {
         var quest = new ActiveQuest(questId, now);
         _active[questId] = quest;
+        HeldVersion++;
         Changed(questId, QuestClientChange.Accepted);
         return quest;
     }
@@ -153,6 +163,7 @@ public sealed class QuestLog(SaveStateTracker save)
         if (!_active.Remove(questId))
             return false;
 
+        HeldVersion++;
         Changed(questId, QuestClientChange.Removed);
         return true;
     }
@@ -165,6 +176,7 @@ public sealed class QuestLog(SaveStateTracker save)
     {
         _active.Remove(questId);
         _completed.TryAdd(questId, now);
+        HeldVersion++;
         Changed(questId, QuestClientChange.Completed);
     }
 
