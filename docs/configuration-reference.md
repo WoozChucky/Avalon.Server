@@ -286,6 +286,8 @@ The API's `appsettings.json` lists no world, so the published image ships none. 
 
 **`Application:PublicWorldId`** (optional `ushort`): the world `GET /public/world` names as `defaultWorldId`. It falls back to the first world the caller may read when unset, or when that world is unavailable or not readable by the caller, so set it to the live world in a deployment.
 
+**`Application:PublicSiteUrl`** (string, default `https://avalon.nunolevezinho.xyz`): the public website's base URL. `GET /public/preview/item/{id}` and `/ability/{id}` (link previews for bots that run no JavaScript; `?world=N`, else the default world) name `<PublicSiteUrl>/item/{id}` as the page's `og:url`, adding `?world=N` only when `world` was given. A trailing slash is ignored.
+
 ---
 
 ## REST API JWT Signing Key

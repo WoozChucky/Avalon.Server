@@ -10,6 +10,8 @@ public sealed class PublicRoutesOpenApiShould(OpenApiDocumentFixture fixture) : 
     [InlineData("/public/world", "ListPublicWorlds")]
     [InlineData("/public/world/{worldId}/item/{id}", "GetPublicItem")]
     [InlineData("/public/world/{worldId}/ability/{id}", "GetPublicAbility")]
+    [InlineData("/public/preview/item/{id}", "GetItemPreview")]
+    [InlineData("/public/preview/ability/{id}", "GetAbilityPreview")]
     public void Describe_the_public_route(string path, string operationId)
     {
         JsonElement paths = fixture.Document.RootElement.GetProperty("paths");

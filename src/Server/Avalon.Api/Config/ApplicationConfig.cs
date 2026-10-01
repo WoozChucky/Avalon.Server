@@ -7,6 +7,8 @@ public class ApplicationConfig
     public string Name { get; set; } = string.Empty;
     /// <summary>The world public tooltip links read when they name none (the live world); falls back to the first readable one.</summary>
     public ushort? PublicWorldId { get; set; }
+    /// <summary>The public website's base URL, which link previews name as a page's canonical address.</summary>
+    public string PublicSiteUrl { get; set; } = "https://avalon.nunolevezinho.xyz";
     public EnvironmentConfig? Environment { get; set; }
     public AuthenticationConfig? Authentication { get; set; }
     public NotificationConfig? Notification { get; set; }

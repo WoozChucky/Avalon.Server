@@ -6,6 +6,7 @@ using Avalon.Api.Balance;
 using Avalon.Api.Config;
 using Avalon.Api.Controllers;
 using Avalon.Api.Middlewares;
+using Avalon.Api.Previews;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
 using Avalon.Api.Worlds;
@@ -45,6 +46,7 @@ public static class ServiceRegistration
     {
         services.AddAuthDatabase();
         services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
+        services.AddSingleton(new PublicSiteSettings(config.PublicSiteUrl));
         // Checked at startup (ApiStartup), naming the setting, like the auth and world servers do.
         services.ValidateDatabasesOnStart(DatabaseConnections.Auth);
         // The repositories only. Their contexts come from AddWorldDatabases: one world and characters
