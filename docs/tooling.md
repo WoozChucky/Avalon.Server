@@ -35,12 +35,13 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 | `item-schema` | `schema/items/item-schema-v1.json` | `ItemTemplate` and its eight enumerations |
 | `item-catalog` | `schema/items/item-catalog-v1.json` | the item template rows — **needs a World database** |
 | `ability-catalog` | `schema/abilities/ability-catalog-v1.json` | every ability row a client names and draws, creatures' included (#163) — **needs a World database** |
+| `quest-catalog` | `schema/quests/quest-catalog-v1.json` | every quest's enUS title, stages, objectives and rewards, for tooling (#714) — **needs a World database** |
 
-`item-catalog` and `ability-catalog` read their World connection string only from the environment
+`item-catalog`, `ability-catalog` and `quest-catalog` read their World connection string only from the environment
 (`Database__World__ConnectionString`) or from user-secrets for `src/Server/Avalon.Database.World`,
-the sources the `dotnet ef` design-time factories use (#557). Neither reads an `appsettings` file,
+the sources the `dotnet ef` design-time factories use (#557). None reads an `appsettings` file,
 so running one from a folder that holds one cannot point it at that file's database. Without a
-string, a call that names either (`all` included) stops before anything is written and says a World
+string, a call that names any of them (`all` included) stops before anything is written and says a World
 database connection is needed.
 
 Two rules the tool keeps, because both failures are silent ones:
