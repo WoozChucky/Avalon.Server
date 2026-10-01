@@ -72,6 +72,14 @@ member's name on a kick or promote, the other side on an unasked result.
 - `InviteExpired` to the inviter (with the target's name) and to the target (with the inviter's name) when an
   invite runs out unanswered, or when either of them goes offline.
 
+**An invite to a player who ignores you** (#723, section 5) is answered `Ok` like any other, but the target is never
+sent `SMSG_PARTY_INVITE` and cannot accept it. It stays pending for the inviter (a second invite to the same player is
+`InvitePending`) and ends with `InviteExpired` to the inviter only, when it runs out or the target goes offline. One
+from an inviter who goes offline ends silently. The refusals before it (`AlreadyInParty`, `InvitePending` for an
+invite the target already holds, `PartyFull`, ...) are checked first, exactly as for anyone. An invite already
+pending when its target ignores the inviter ends the same way: the target can no longer accept it (`NoInvite`), and
+the inviter is told nothing new and sees the usual expiry.
+
 ## 3. Roster
 
 `SMSG_PARTY_ROSTER` is the whole party, every time; a client replaces what it held. It goes to every online
@@ -127,6 +135,31 @@ power type, and whether it is dead.
 (no name or no message), "You can't whisper yourself.", and "No player named X is online." (X as typed; an offline and
 an unknown name get the same line, so it never reveals who exists). Names are matched ignoring case and surrounding
 spaces; the message is kept as typed, trimmed at the ends.
+
+### Ignore list (#723)
+
+A player can ignore other characters of the same world, online or offline. Everything an ignored character says is
+hidden from the player ignoring it: its whispers are not delivered, and its `Say` and `Party` lines are left out for
+that player only (everyone else hears them). Its party invites are dropped (section 2). The ignored character is never
+told: its whisper gets the usual echo, its invite looks pending until it expires. System lines are not filtered, and
+whispering a character you ignore is allowed.
+
+| Opcode | Value | Packet | Fields |
+|---|---|---|---|
+| `SMSG_IGNORE_LIST` | `0x30D0` | `SIgnoreListPacket` | 1 `Characters` (repeated `IgnoredCharacterDto`, oldest entry first) |
+
+`IgnoredCharacterDto`: 1 `CharacterId` (uint32), 2 `Name` (the name when the list was loaded or the entry added). The
+packet is the whole list: it arrives once while a character is selected (before it enters the world, empty too, so a
+client replaces whatever it held for an earlier character), after every `/ignore` and `/unignore` that changed the
+list, and when a character on the list is deleted while you are online or selected. Replace the list you hold with it.
+
+| Command | Does |
+|---|---|
+| `/ignore <name>` | Ignore a character of this world, online or offline (name matched ignoring case). Answered "You are now ignoring X.". Refused, with nothing changed: "Usage: /ignore <name>", "You can't ignore yourself.", "X is already on your ignore list.", "Your ignore list is full (50/50)." (the cap is the server's `MaxIgnoredCharacters`), "No character named X exists.". An offline name is looked up in the database, so its answer can arrive a tick or two later. Each `/ignore` that gets past those refusals spends one message of the chat rate limit, as a chat line does, and over the limit it is refused with the same "You're sending messages too fast." line. |
+| `/unignore <name>` | Take a character off the list, by the name the list shows. "You are no longer ignoring X." or "X is not on your ignore list.". |
+| `/ignorelist` | One line: "Ignoring 2/50: Borin, Kaela." or "You are not ignoring anyone.". |
+
+The list is saved with the character. A deleted character drops off every list.
 
 Commands (typed into chat; they send the same requests as the packets and get the same `SMSG_PARTY_RESULT`,
 plus a system line when refused):

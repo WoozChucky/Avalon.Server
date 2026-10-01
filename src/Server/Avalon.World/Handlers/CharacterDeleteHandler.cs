@@ -3,6 +3,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.World.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -10,7 +11,8 @@ namespace Avalon.World.Handlers;
 [PacketHandler(NetworkPacketType.CMSG_CHARACTER_DELETE)]
 public class CharacterDeletetHandler(
     ILogger<CharacterDeletetHandler> logger,
-    ICharacterRepository characterRepository) : WorldPacketHandler<CCharacterDeletePacket>
+    ICharacterRepository characterRepository,
+    IWorldServer? worldServer = null) : WorldPacketHandler<CCharacterDeletePacket>
 {
     public override void Execute(IWorldConnection connection, CCharacterDeletePacket packet)
     {
@@ -62,6 +64,35 @@ public class CharacterDeletetHandler(
     {
         logger.LogInformation("Character {CharacterId} deleted for account {AccountId}", character.Id, connection.AccountId);
         connection.Send(SCharacterDeletedPacket.Create(SCharacterDeletedResult.Success, connection.CryptoSession.Encrypt));
+        ForgetIgnored(character.Id.Value);
+    }
+
+    /// <summary>
+    /// #723: the database cascades the deleted character's ignore rows; every character that already holds a loaded
+    /// list and ignored it takes it off too (on the tick, in memory) and is sent the new list: those in the world and
+    /// those selected and waiting on their load report (the pending spawn). A select whose ignore rows were read
+    /// before the delete committed but that applies them only afterwards keeps the entry until its next select, which
+    /// corrects it; the entry is harmless meanwhile, since the character can never speak again. Contained: a throw
+    /// costs the lists, never the delete.
+    /// </summary>
+    private void ForgetIgnored(uint deletedId)
+    {
+        if (worldServer is null)
+            return;
+
+        try
+        {
+            foreach (IWorldConnection other in worldServer.Connections)
+            {
+                CharacterEntity? entity = other.Character as CharacterEntity ?? other.PendingSpawn?.Character as CharacterEntity;
+                if (entity is not null && entity.Ignores.Remove(deletedId))
+                    other.Send(entity.Ignores.ToPacket(other.CryptoSession.Encrypt));
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Taking deleted character {CharacterId} off the online ignore lists failed", deletedId);
+        }
     }
 }
 

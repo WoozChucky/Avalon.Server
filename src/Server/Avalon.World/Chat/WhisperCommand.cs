@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Social;
 using Avalon.World.Characters;
+using Avalon.World.Social;
 
 namespace Avalon.World.Chat;
 
@@ -10,6 +11,8 @@ namespace Avalon.World.Chat;
 /// to the sender only, checked in this order: no name or no message, the sender's own name, no online character with
 /// that name (offline and unknown alike, so it never reveals who exists). The chat rate limit (#722) is checked
 /// after the usage and self refusals and before the lookup, and a whisper counts against it only once delivered.
+/// A recipient that ignores the sender (#723) is not sent the line, and the sender cannot tell: it gets its echo and
+/// the whisper counts as delivered.
 /// </summary>
 public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rateLimiter) : ICommand
 {
@@ -52,8 +55,14 @@ public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rate
         }
 
         ulong accountId = ctx.Connection.AccountId is { } account ? (ulong)account.Value : 0UL;
-        target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
-            target.CryptoSession.Encrypt, ChatChannel.Whisper));
+        // A recipient ignoring the sender never gets the line (#723); the sender is not told, so the echo below and the
+        // rate limit are exactly as for a delivered whisper.
+        if (!Ignoring.Hides(target, sender.Guid.Id))
+        {
+            target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
+                target.CryptoSession.Encrypt, ChatChannel.Whisper));
+        }
+
         ctx.Connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
             ctx.Connection.CryptoSession.Encrypt, ChatChannel.Whisper, targetName: recipient.Name));
         rateLimiter.Record(sender.Guid.Id);

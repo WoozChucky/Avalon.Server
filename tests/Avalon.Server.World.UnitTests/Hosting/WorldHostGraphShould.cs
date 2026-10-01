@@ -102,6 +102,20 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>(),
                 host.Services.GetRequiredService<PartyService>().Online);
 
+            // The ignore list (#723). CharacterSelectHandler takes the repository optionally and would otherwise load
+            // every character with an empty list, so only this proves production loads it.
+            Assert.NotNull(host.Services.GetRequiredService<ICharacterIgnoreRepository>());
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is Avalon.World.Social.IgnoreCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is Avalon.World.Social.UnignoreCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is Avalon.World.Social.IgnoreListCommand);
+            Assert.Same(host.Services.GetRequiredService<ICharacterIgnoreRepository>(),
+                CapturedOfType<ICharacterIgnoreRepository>(ActivatorUtilities.CreateInstance(host.Services,
+                    typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
+            // The delete takes a deleted character off the loaded lists through the world server's connections, which
+            // WorldServer hands only to a handler whose constructor names IWorldServer.
+            Assert.Contains(typeof(CharacterDeletetHandler).GetConstructors(),
+                c => c.GetParameters().Any(p => p.ParameterType == typeof(IWorldServer)));
+
             // The chat rate limit (#722): one singleton, with the shipped default from appsettings.json.
             Assert.Same(host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>(),
                 host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>());

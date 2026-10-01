@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Chat;
+using Avalon.World.Social;
 
 namespace Avalon.World.Parties;
 
@@ -175,7 +176,8 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
         ulong accountId = ctx.Connection.AccountId is { } account ? (ulong)account.Value : 0UL;
         foreach (PartyMember member in party.Members)
         {
-            if (parties.OnlineConnection(member.Id.Value) is { } target)
+            // A member ignoring the sender does not hear it (#723); nobody is told.
+            if (parties.OnlineConnection(member.Id.Value) is { } target && !Ignoring.Hides(target, sender.Guid.Id))
             {
                 target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
                     target.CryptoSession.Encrypt, ChatChannel.Party));

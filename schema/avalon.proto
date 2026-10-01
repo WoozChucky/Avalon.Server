@@ -370,6 +370,10 @@ enum HitResult {
    HitResult_Dodged = 2;
    HitResult_Blocked = 4;
 }
+message IgnoredCharacterDto {
+   uint32 CharacterId = 1;
+   optional string Name = 2;
+}
 message InventorySlotUpdateDto {
    uint32 Container = 1;
    uint32 Slot = 2;
@@ -575,6 +579,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_QUEST_LOG = 12482;
    NetworkPacketType_SMSG_QUEST_UPDATE = 12483;
    NetworkPacketType_SMSG_QUEST_MARKERS = 12484;
+   NetworkPacketType_SMSG_IGNORE_LIST = 12496;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -908,6 +913,9 @@ message SHandshakePacket {
 }
 message SHandshakeResultPacket {
    bool Verified = 1;
+}
+message SIgnoreListPacket {
+   repeated IgnoredCharacterDto Characters = 1;
 }
 message SInstanceStateAddPacket {
    repeated ObjectState Adds = 1;

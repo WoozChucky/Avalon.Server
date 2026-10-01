@@ -232,4 +232,20 @@ public class SaveStateTrackerShould
         tracker.Acknowledge(tracker.TakeMarks());
         Assert.False(tracker.HasChanges);
     }
+
+    [Fact]
+    public void Keep_an_ignore_entry_marked_again_after_its_save_was_taken()
+    {
+        var tracker = new SaveStateTracker();
+        tracker.IgnoreChanged(7);
+        SaveMarks marks = tracker.TakeMarks();
+        Assert.True(marks.Ignores!.ContainsKey(7));
+        tracker.IgnoreChanged(7);
+
+        tracker.Acknowledge(marks);
+
+        Assert.True(tracker.HasChanges);
+        tracker.Acknowledge(tracker.TakeMarks());
+        Assert.False(tracker.HasChanges);
+    }
 }

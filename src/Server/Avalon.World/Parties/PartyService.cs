@@ -10,6 +10,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
+using Avalon.World.Social;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -32,6 +33,11 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     private readonly Dictionary<uint, Party> _parties = [];
     private readonly Dictionary<uint, Party> _partyOf = [];
     private readonly Dictionary<uint, PartyInvite> _invites = [];   // by invitee
+
+    // Invites to a character that ignores the inviter (#723), by (inviter, target): never sent to the target and never
+    // answerable, but kept until they expire so the inviter sees exactly what a sent invite shows.
+    private readonly Dictionary<(uint Inviter, uint Target), PartyInvite> _droppedInvites = [];
+    private readonly List<(uint Inviter, uint Target)> _droppedScratch = [];
     private readonly Dictionary<uint, ushort> _lastLevel = [];
     private readonly List<uint> _scratch = [];
     private readonly List<IWorldConnection> _due = [];
@@ -142,16 +148,40 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             return PartyResult.Self;
         if (_partyOf.ContainsKey(targetId))
             return PartyResult.AlreadyInParty;
-        if (_invites.ContainsKey(targetId))
+        if (_invites.ContainsKey(targetId) || _droppedInvites.ContainsKey((inviterId, targetId)))
             return PartyResult.InvitePending;
         if (party is not null && party.Members.Count >= Config.MaxPartySize)
             return PartyResult.PartyFull;
 
         TimeSpan timeout = TimeSpan.FromSeconds(Config.PartyInviteTimeoutSeconds);
-        _invites[targetId] = new PartyInvite(inviterId, inviter.Name, target.Name, party?.Id, time.GetUtcNow() + timeout);
+        var invite = new PartyInvite(inviterId, inviter.Name, target.Name, party?.Id, time.GetUtcNow() + timeout);
+
+        // A target ignoring the inviter never sees the invite (#723). Only after every refusal, so the inviter is
+        // answered exactly as for a sent invite, and later told it expired as a sent one would be.
+        if (Ignoring.Hides(targetConnection, inviterId))
+        {
+            _droppedInvites[(inviterId, targetId)] = invite;
+            return PartyResult.Ok;
+        }
+
+        _invites[targetId] = invite;
         targetConnection.Send(SPartyInvitePacket.Create(inviter.Name, (ushort)inviter.Class, inviter.Level,
             (uint)timeout.TotalMilliseconds, targetConnection.CryptoSession.Encrypt));
         return PartyResult.Ok;
+    }
+
+    /// <summary>
+    /// The target has just ignored the inviter (#723, owner decision): an invite from it the target still holds ends
+    /// silently for the target, which can no longer accept it, and becomes a dropped invite, so the inviter is told
+    /// nothing new and sees it expire as before. Any other invite the target holds is left alone.
+    /// </summary>
+    public void HideInviteFrom(uint targetId, uint inviterId)
+    {
+        if (_invites.TryGetValue(targetId, out PartyInvite? held) && held.InviterId == inviterId)
+        {
+            _invites.Remove(targetId);
+            _droppedInvites[(inviterId, targetId)] = held;
+        }
     }
 
     public PartyResult Respond(uint targetId, bool accept)
@@ -615,6 +645,20 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             Tell(invite!.InviterId, PartyResult.InviteExpired, invite.TargetName);
             Tell(targetId, PartyResult.InviteExpired, invite.InviterName);
         }
+
+        // A dropped invite expires for its inviter only: its target never saw it.
+        _droppedScratch.Clear();
+        foreach (((uint Inviter, uint Target) key, PartyInvite invite) in _droppedInvites)
+        {
+            if (invite.ExpiresAt <= now)
+                _droppedScratch.Add(key);
+        }
+
+        foreach ((uint Inviter, uint Target) key in _droppedScratch)
+        {
+            _droppedInvites.Remove(key, out PartyInvite? invite);
+            Tell(key.Inviter, PartyResult.InviteExpired, invite!.TargetName);
+        }
     }
 
     /// <summary>Every invite this character sent or holds ends; the other side is told it expired.</summary>
@@ -634,6 +678,22 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         {
             _invites.Remove(targetId, out PartyInvite? sent);
             Tell(targetId, PartyResult.InviteExpired, sent!.InviterName);
+        }
+
+        // Dropped invites (#723): one this character held ends for its inviter as a held invite does; one it sent ends
+        // silently, since its target never saw it.
+        _droppedScratch.Clear();
+        foreach ((uint Inviter, uint Target) key in _droppedInvites.Keys)
+        {
+            if (key.Inviter == characterId || key.Target == characterId)
+                _droppedScratch.Add(key);
+        }
+
+        foreach ((uint Inviter, uint Target) key in _droppedScratch)
+        {
+            _droppedInvites.Remove(key, out PartyInvite? dropped);
+            if (key.Target == characterId)
+                Tell(key.Inviter, PartyResult.InviteExpired, dropped!.TargetName);
         }
     }
 

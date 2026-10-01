@@ -68,6 +68,13 @@ Game Client              World Server                  Databases / Redis
     │  SCharacterAbilitiesPacket  Resolve AbilityMetadata     │
     │<───────────────────────│                               │
     │                        │                               │
+    │                        │ quest rows (#433), then       │
+    │                        │ CharacterIgnoreRepository.GetByCharacterIdAsync (#723)
+    │                        │──────────────────────────────>│
+    │                        │<──────────────────────────────│ ignored characters
+    │  SIgnoreListPacket (the whole list, empty too)          │
+    │<───────────────────────│                               │
+    │                        │                               │
     │  CCharacterLoadedPacket│                               │
     │───────────────────────>│  world.SpawnInInstance(conn)  │
     │                        │  (or the tick, once the       │

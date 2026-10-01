@@ -203,6 +203,10 @@ public class GameConfiguration
     [Range(1, 100)]
     public int MaxActiveQuests { get; set; } = 20;
 
+    /// <summary>How many characters one character may ignore (#723). A full list refuses /ignore with a system line.</summary>
+    [Range(1, 500)]
+    public int MaxIgnoredCharacters { get; set; } = 50;
+
     /// <summary>
     /// How many player chat messages one character may send in any 60 seconds (#722): plain chat, <c>/p</c> and
     /// <c>/w</c> share the one budget. Only a delivered message counts. 0 or below turns the limit off. The default

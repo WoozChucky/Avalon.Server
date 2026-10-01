@@ -22,6 +22,7 @@ public sealed record CharacterQuestWrite(
 /// was not Unchanged. Items and slots to upsert carry their current values; the rest are deleted.
 /// <paramref name="Stats" />, when present, is the character's derived-stats row, upserted.
 /// <paramref name="Quests" />, when present, is the quest rows to rewrite (#433).
+/// <paramref name="Ignores" />, when present, is the ignore entries to rewrite (#723).
 /// </summary>
 public sealed record CharacterSaveBatch(
     Domain.Characters.Character Row,
@@ -30,7 +31,8 @@ public sealed record CharacterSaveBatch(
     IReadOnlyList<CharacterInventory> UpsertSlots,
     IReadOnlyList<(InventoryType Container, ushort Slot)> DeleteSlots,
     CharacterStats? Stats = null,
-    CharacterQuestWrite? Quests = null);
+    CharacterQuestWrite? Quests = null,
+    CharacterIgnoreWrite? Ignores = null);
 
 public interface ICharacterSaveRepository
 {
@@ -87,6 +89,9 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
                             .ExecuteDeleteAsync(token);
                     }
                 }
+
+                if (batch.Ignores is { } ignores)
+                    await DeleteIgnoresAsync(context, owner, ignores, token);
             }
 
             // After the slots, which reference items by foreign key.
@@ -172,9 +177,58 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
                             context.TrackForInsert(completed);
                     }
                 }
+
+                if (batch.Ignores is { } ignoreWrite)
+                    await InsertIgnoresAsync(context, ignoreWrite, token);
             }
 
             // One SaveChanges: EF orders the item inserts ahead of the slot inserts that reference them.
             await context.SaveChangesAsync(token);
         }, cancellationToken);
+
+    private static async Task DeleteIgnoresAsync(CharacterDbContext context, CharacterId owner, CharacterIgnoreWrite ignores,
+        CancellationToken token)
+    {
+        if (ignores.Rewrite.Count == 0)
+            return;
+
+        List<CharacterId> rewrite = ignores.Rewrite.ToList();
+        await context.CharacterIgnores
+            .Where(i => i.CharacterId == owner && rewrite.Contains(i.IgnoredCharacterId))
+            .ExecuteDeleteAsync(token);
+    }
+
+    /// <summary>
+    /// Each entry is inserted only while the ignored character exists, in one statement, so a character deleted since
+    /// it was ignored, or by a delete running alongside this save, skips its row instead of failing the whole save on
+    /// the foreign key. On Postgres the existence read takes <c>FOR KEY SHARE</c> on the character: a delete that
+    /// committed first is seen and the row skipped, and one that has not waits for this save and then cascades the
+    /// row. SQLite (the tests) runs one writer at a time, so the plain read is enough there.
+    /// </summary>
+    private static async Task InsertIgnoresAsync(CharacterDbContext context, CharacterIgnoreWrite ignores,
+        CancellationToken token)
+    {
+        bool postgres = context.Database.ProviderName?.Contains("Npgsql", StringComparison.Ordinal) == true;
+        foreach (CharacterIgnore ignore in ignores.Insert)
+        {
+            long owner = ignore.CharacterId.Value;
+            long ignored = ignore.IgnoredCharacterId.Value;
+            DateTime createdAt = ignore.CreatedAt;
+            if (postgres)
+            {
+                await context.Database.ExecuteSqlAsync($"""
+                    INSERT INTO "CharacterIgnores" ("CharacterId", "IgnoredCharacterId", "CreatedAt")
+                    SELECT {owner}, c."Id", {createdAt} FROM "Characters" AS c WHERE c."Id" = {ignored}
+                    FOR KEY SHARE
+                    """, token);
+            }
+            else
+            {
+                await context.Database.ExecuteSqlAsync($"""
+                    INSERT INTO "CharacterIgnores" ("CharacterId", "IgnoredCharacterId", "CreatedAt")
+                    SELECT {owner}, c."Id", {createdAt} FROM "Characters" AS c WHERE c."Id" = {ignored}
+                    """, token);
+            }
+        }
+    }
 }

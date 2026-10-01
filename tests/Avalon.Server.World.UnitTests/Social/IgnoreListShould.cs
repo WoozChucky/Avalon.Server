@@ -1,0 +1,91 @@
+using Avalon.Database.Character.Repositories;
+using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World.Entities;
+using Avalon.World.Social;
+using Xunit;
+
+namespace Avalon.Server.World.UnitTests.Social;
+
+/// <summary>
+/// IgnoreList (#723) holds one character's ignore list in memory. Every change marks the save; loading does not.
+/// </summary>
+public class IgnoreListShould
+{
+    private static readonly DateTime Now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+
+    private static CharacterEntity Character() => TestCharacters.New(1);
+
+    [Fact]
+    public void Load_in_order_without_marking_the_save()
+    {
+        CharacterEntity c = Character();
+
+        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", Now), new IgnoredCharacterRow(3, "Tom", Now.AddMinutes(1))]);
+
+        Assert.Equal([7u, 3u], c.Ignores.Entries.Select(e => e.Id));
+        Assert.True(c.Ignores.Contains(7));
+        Assert.False(c.Ignores.Contains(2));
+        Assert.False(c.SaveState.HasChanges);
+    }
+
+    [Fact]
+    public void Replace_what_it_held_on_load()
+    {
+        CharacterEntity c = Character();
+        c.Ignores.Add(9, "Old", Now);
+
+        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", Now)]);
+
+        Assert.False(c.Ignores.Contains(9));
+        Assert.Equal(1, c.Ignores.Count);
+    }
+
+    [Fact]
+    public void Mark_the_save_when_a_character_is_added()
+    {
+        CharacterEntity c = Character();
+
+        Assert.True(c.Ignores.Add(7, "Kaela", Now));
+
+        Assert.True(c.Ignores.Contains(7));
+        Assert.Equal(new IgnoredCharacter(7, "Kaela", Now), Assert.Single(c.Ignores.Entries));
+        Assert.True(c.SaveState.TakeMarks().Ignores!.ContainsKey(7));
+    }
+
+    [Fact]
+    public void Add_a_character_only_once()
+    {
+        CharacterEntity c = Character();
+        c.Ignores.Add(7, "Kaela", Now);
+
+        Assert.False(c.Ignores.Add(7, "Kaela", Now));
+
+        Assert.Equal(1, c.Ignores.Count);
+    }
+
+    [Fact]
+    public void Mark_the_save_when_a_character_is_removed()
+    {
+        CharacterEntity c = Character();
+        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", Now)]);
+
+        Assert.True(c.Ignores.Remove(7));
+
+        Assert.False(c.Ignores.Contains(7));
+        Assert.True(c.SaveState.TakeMarks().Ignores!.ContainsKey(7));
+        Assert.False(c.Ignores.Remove(7));
+    }
+
+    [Theory]
+    [InlineData("Kaela")]
+    [InlineData("kAELA")]
+    [InlineData("  kaela ")]
+    public void Find_an_entry_by_name_ignoring_case_and_spaces(string name)
+    {
+        CharacterEntity c = Character();
+        c.Ignores.Add(7, "Kaela", Now);
+
+        Assert.Equal(7u, c.Ignores.FindByName(name)!.Id);
+        Assert.Null(c.Ignores.FindByName("Tom"));
+    }
+}

@@ -66,6 +66,7 @@ public class CharacterDbContext : DbContext
     public DbSet<CharacterQuest> CharacterQuests { get; set; } = null!;
     public DbSet<CharacterQuestObjective> CharacterQuestObjectives { get; set; } = null!;
     public DbSet<CharacterCompletedQuest> CharacterCompletedQuests { get; set; } = null!;
+    public DbSet<CharacterIgnore> CharacterIgnores { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -95,6 +96,7 @@ public class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterQuest>());
         Configure(modelBuilder.Entity<CharacterQuestObjective>());
         Configure(modelBuilder.Entity<CharacterCompletedQuest>());
+        Configure(modelBuilder.Entity<CharacterIgnore>());
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder)
@@ -254,5 +256,25 @@ public class CharacterDbContext : DbContext
             .WithMany()
             .HasForeignKey(b => b.CharacterId)
             .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterIgnore> builder)
+    {
+        // The pair is the key, so a character is on one list at most once.
+        builder.HasKey(b => new { b.CharacterId, b.IgnoredCharacterId });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.Property(b => b.IgnoredCharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+
+        // Characters are hard-deleted: the owner's list goes with it, and so does every entry naming it.
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.IgnoredCharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(b => b.IgnoredCharacterId);
     }
 }
