@@ -224,7 +224,9 @@ Before enabling `Crowd` on a busy map, note that DotRecast budgets roughly 25 ag
 
 ### Creature levels, stats and the experience band
 
-A creature's level is rolled from its template's `MinLevel`–`MaxLevel` at spawn. Health, damage and
+A creature's level is rolled from its template's `MinLevel`–`MaxLevel` at spawn, except on a procedural map with
+depth bands (`ProceduralDepthBands`), where it is rolled from the band of the piece it spawns in (set pieces from the
+highest band, the boss at its top); see docs/map-generation.md. Health, damage and
 experience then come from the `CreatureBaseStats` row for that level, scaled by the template's own
 modifiers and by its `CreatureRarity` (`Normal`, `Elite`, `Rare`, `Boss`) through
 `CreatureRarityModifiers`. Both tables are seeded and tuned as data, so rebalancing is a migration

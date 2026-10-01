@@ -19,6 +19,7 @@ setters. Per-creature state lives on `ICreature`.
 ### Stats are derived at spawn
 
 `CreatureSpawner.Spawn` rolls a level between the template's `MinLevel` and `MaxLevel` (at least 1),
+unless a procedural map's depth band chooses the level (`ICreatureSpawner.Spawn(CreatureInfo, ushort level)`),
 then asks `CreatureStatDeriver.Derive` for the stats that level gives:
 
 1. Look up the `CreatureBaseStats` row for the level: `Health`, `DamageMin`, `DamageMax` and

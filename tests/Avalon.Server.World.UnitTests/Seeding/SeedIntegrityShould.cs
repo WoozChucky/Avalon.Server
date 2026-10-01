@@ -25,11 +25,10 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// </summary>
 /// <remarks>
 /// <c>EnsureCreated</c> applies the model's <c>HasData</c>, which covers creature templates and both
-/// new reference tables. It does <em>not</em> cover <c>SpawnTableEntry</c>: those rows are inserted by
-/// raw SQL in a migration rather than declared on the model, so they are invisible here. The check
-/// that every spawn entry points at a real template therefore cannot be written at this level — what
-/// stands in for it is <see cref="Seed_Every_Creature_The_Forest_Spawn_Table_References" />, which
-/// pins the template ids that SQL depends on.
+/// new reference tables. It does <em>not</em> cover spawn tables or procedural map configs: those are
+/// seeded from Maps/ by ChunkCatalogSeeder at World start, whose own tests (ChunkCatalogSeederShould)
+/// refuse an unknown creature id. <see cref="Seed_Every_Creature_The_Forest_Spawn_Table_References" />
+/// still pins the template ids the forest's table names.
 /// </remarks>
 public class SeedIntegrityShould
 {
@@ -98,10 +97,10 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// The forest spawn table is inserted by migration SQL against creature ids 4 to 10, so those
-    /// templates existing is a precondition of that SQL rather than something EF enforces. A dangling
-    /// reference throws inside <c>CreatureSpawner.Spawn</c> during instance construction, which stops
-    /// every player entering the map — and the seed data is the only place it is visible beforehand.
+    /// The forest spawn table (Maps/spawn-tables.json) names creature ids 4 to 10, so those
+    /// templates existing is a precondition of that file rather than something EF enforces. The World
+    /// server's start-up seeder refuses a table naming a missing template, which stops the server; this
+    /// pins, before any start, that the seed still has every template the forest's table names.
     /// </summary>
     [Fact]
     public void Seed_Every_Creature_The_Forest_Spawn_Table_References()
@@ -109,7 +108,7 @@ public class SeedIntegrityShould
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        // The ids SeedForestRoster's INSERT names, and the rarity each is expected to carry.
+        // The ids the forest's spawn table names, and the rarity each is expected to carry.
         (uint Id, CreatureRarity Rarity)[] expected =
         [
             (4, CreatureRarity.Normal),

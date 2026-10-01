@@ -1665,9 +1665,9 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
-        // NOTE: ForestDungeon (Id=2) requires a ProceduralMapConfig row + a populated ChunkPool
-        // + a SpawnTable to be functional. These will be seeded manually via SQL once real chunks
-        // are imported. Until then, attempting to enter ForestDungeon will fail gracefully.
+        // ForestDungeon (Id=2) is procedural: its config (Maps/ProceduralMaps/2.json), spawn table
+        // (Maps/spawn-tables.json), chunk pool and set pieces are seeded from Maps/ by ChunkCatalogSeeder on every World
+        // start, not by migrations.
         builder.HasData(new MapTemplate
             {
                 Id = 1,

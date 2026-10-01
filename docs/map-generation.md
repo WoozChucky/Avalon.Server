@@ -1,6 +1,6 @@
 # Map Generation
 
-End-to-end guide: from Unity sketching → server bake → playable client.
+End-to-end guide: from authored or generated chunks → server bake → playable client.
 
 ## Concepts
 
@@ -48,7 +48,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 
 - **Server:** `C:\dev\Avalon.Server` — bake, DB, instance factory, wire packet
 - **Client:** `C:\dev\3D` — Unity authoring scenes, runtime visualizers, predictor
-- **Chunk catalog:** `src/Server/Avalon.Server.World/Maps/` — the Unity exporters write here; the World server seeds the database from it on every start
+- **Chunk catalog:** `src/Server/Avalon.Server.World/Maps/` — hand-authored chunks and town layouts come from the Unity exporters, the generated forest pieces from `tools/Avalon.ChunkGen`; the World server seeds the database from it on every start
 
 ## Where things live
 
@@ -65,10 +65,13 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Shared/Avalon.Domain/World/ChunkTemplate.cs` | DB entity for chunk metadata |
 | `src/Shared/Avalon.Domain/World/MapChunkPlacement.cs` | DB entity joining MapTemplate → predefined chunk placements |
 | `src/Shared/Avalon.Domain/World/ProceduralMapConfig.cs` | DB entity for procedural map RNG config |
-| `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata, written by the Unity Chunk Exporter |
+| `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata, written by the Unity Chunk Exporter or, for the generated forest pieces, by `tools/Avalon.ChunkGen` |
 | `src/Server/Avalon.Server.World/Maps/TownLayouts/<MapTemplateId>.json` | Town layouts, written by the Unity Town Layout Exporter |
 | `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`), edited by hand |
-| `src/Server/Avalon.Database.World/Seeding/ChunkCatalogSeeder.cs` | Seeds chunk templates, town layouts and pools from `Maps/`; run by the World server on start |
+| `src/Server/Avalon.Server.World/Maps/chunk-groups.json` | Set pieces per pool (see "Chunk groups (set pieces)"), edited by hand |
+| `src/Server/Avalon.Server.World/Maps/spawn-tables.json` + `ProceduralMaps/<mapId>.json` | Spawn tables and procedural map configs with their depth bands (see "Spawn tables and procedural map configs"), edited by hand |
+| `tools/Avalon.ChunkGen/` | Generates the forest pieces' `.obj` + `.json` (see "Generated forest chunks") |
+| `src/Server/Avalon.Database.World/Seeding/ChunkCatalogSeeder.cs` | Seeds chunk templates, town layouts, pools, chunk groups, spawn tables and procedural map configs from `Maps/`; run by the World server on start |
 
 ### Client (`C:\dev\3D`)
 
@@ -302,19 +305,21 @@ Export, sync, import as before.
 
 A `ChunkPool` is a named bag of `ChunkPoolMember`s with weights. The procedural generator picks chunks from a pool weighted-random.
 
-Currently chunk pools are seeded in EF migrations or via SQL. Convention: one pool per biome.
+Pools are `Maps/chunk-pools.json`, seeded by `ChunkCatalogSeeder` on every World start (see step 10 of "Authoring a new chunk"). Convention: one pool per biome.
 
 ### 3. Define a ProceduralMapConfig
 
 `ProceduralMapConfig` lives in the World DB. Fields:
 - `MapTemplateId` (FK to MapTemplate)
 - `ChunkPoolId` (FK to ChunkPool)
+- `SpawnTableId` (the spawn table, named in the file)
 - `MainPathMin`, `MainPathMax` — main-path length range (chunk count)
 - `BranchChance`, `BranchMaxDepth` — side-branch settings
 - `HasBoss` — gate for boss chunk placement
 - `BackPortalTargetMapId`, `ForwardPortalTargetMapId` — destination map ids for portal slots
+- `DepthBands` — optional depth bands (rows in `ProceduralDepthBands`)
 
-Configs are seeded in migrations.
+Configs are `Maps/ProceduralMaps/<mapId>.json` and spawn tables `Maps/spawn-tables.json`, seeded by `ChunkCatalogSeeder` on every World start; see "Spawn tables and procedural map configs".
 
 ### 4. Restart server, test
 
@@ -323,6 +328,87 @@ Procedural map instances are built per-player on `EnterMapHandler` traversal (or
 Each player gets their own seed (server's `ProceduralChunkLayoutSource.NextSeed()`), so layouts differ per session.
 
 ---
+
+## Generated forest chunks
+
+The forest pieces added by the forest content pass are not authored in a scene: `tools/Avalon.ChunkGen` writes
+them. Each is a flat 30 x 30 m floor (the forest slab, y -0.2 to 0) with blockers on it, boxes for rocks and ruined
+walls and twelve-sided cylinders for tree clusters and pillars, 3 m tall. Blockers cut the navmesh (the agent climbs
+0.9 m), so creatures path around them and walkable rays (movement, ground-target casts, projectiles) stop at them.
+The geometry is a placeholder until real art exists.
+
+    dotnet run --project tools/Avalon.ChunkGen -- forest
+    dotnet run --project tools/Avalon.ChunkGen -- forest --maps <Maps directory>
+
+writes every piece's `.obj` and `.json` into `Maps/Chunks/` and nothing else (`Maps/` is
+`src/Server/Avalon.Server.World/Maps/` unless `--maps` names another). Before writing, it reads every piece back
+through the World server's own catalog reader (`ChunkCatalogSeeder.ReadCatalogAsync`) and bakes each piece, and each
+set piece's four members together, with `ChunkLayoutNavmeshBuilder` in a temporary copy of `Maps/`; if anything fails
+it exits 1 and nothing is written. After writing, it lists every `forest_*` file in `Maps/Chunks/` it did not generate
+(hand-authored, or left over from a renamed piece) and deletes none of them. Edit `tools/Avalon.ChunkGen/ForestPieces.cs`
+and rerun it; `ForestPiecesShould` fails when the committed files differ from a fresh run, when a slot is within 2.5 m
+of a blocker or 2 m of the chunk's edge, when a blocker stands in an exit's throat, or when a slot or exit cannot be
+reached on the baked navmesh. The tool writes LF line ends, and `.gitattributes` pins every `.obj` and `.json` under
+`Maps/` to LF, so a regeneration on any machine is an empty diff. The tool does not touch `chunk-pools.json` or
+`chunk-groups.json`: add new single pieces to the pool, and new set pieces to the groups file, by hand.
+
+## Chunk groups (set pieces)
+
+A chunk group is several 1x1 chunks placed together: `Maps/chunk-groups.json` (`{ "<pool>": [ { "name", "members":
+[ { "chunk", "cellX", "cellZ" } ] } ] }`), seeded into `ChunkGroups`/`ChunkGroupMembers` on every start. Its members
+are in no pool on their own, fill a whole rectangle of cells, and declare exits only on outer edges (the seeder refuses
+anything else). `ProceduralLayoutGenerator` places a group as one main-path step on free cells, turned as a whole: cell
+`(x, z)` of an `sx` by `sz` group goes to `(z, sx-1-x)` for rotation 1 (`ChunkGroupRotation`), and every member gets
+that rotation, which is the same as turning the whole group about its centre, so `ChunkRotation` and the client are
+unchanged and the client sees ordinary 1x1 chunks. A group joins the layout only through an exit on one of its outer
+edges. Groups are placed on the main path only, never on a branch: a group with a `boss` slot only as the main path's
+last step, every other group at most once per layout. The forest has three: `forest_clearing_big`,
+`forest_grove_ruin` and the boss arena `forest_arena`. `forest_boss_01` is no longer in the forest pool (its files stay
+in the catalog), so the arena ends every run.
+
+A layout attempt that fails (no free cell for the next step, say) is retried with the next seed, up to 10 attempts
+(`ProceduralLayoutGenerator.MaxRetries`); `CommittedForestGenerationShould` generates the committed forest for 1000
+seeds and fails if any of them runs out of attempts.
+
+**`chunk-groups.json` is required for the forest.** Its `boss` and `leader` slots exist only in set pieces, so without
+the file the spawn table's `boss`, `leader` and `leader_pack` entries match no slot in the pool and the seeder refuses
+the whole catalog (the tag check under "Spawn tables and procedural map configs"). The same holds for any pool whose
+spawn table names a tag only its set pieces carry.
+
+## Depth and depth bands
+
+Every placed chunk records its depth: grid steps from the entry (0) over stitched connections, a group's inner edges
+included. A procedural map's `ProceduralDepthBands` (rows owned by its `ProceduralMapConfig`) set the levels its
+creatures roll at a piece of that depth, each creature rolled on its own; every set piece rolls from the highest band
+and the boss stands at that band's top. A depth no band covers (the entry at 0, or a gap between bands), and every
+creature on a map with no bands, rolls from its template's own range. Bands must not overlap, only the highest may be
+open-ended, and levels start at 1 and do not run backwards; the World server refuses the map's config otherwise when it
+loads its chunk library. The forest (map 2): depth 1-3 levels 1-3, 4-7 levels 3-6, 8 and deeper (and every set piece)
+levels 5-8, the boss at 8.
+
+A `leader` slot spawns its spawn-table `leader` entry (a Bramblemaw Alpha) and then a roll of its `leader_pack` entries
+(Grey Fen Wolves, 2-3) spread around it, all at the slot's band. No slot carries `leader_pack`: a spawn table may name
+it only when its pool has `leader` slots.
+
+## Spawn tables and procedural map configs
+
+Like chunks, town layouts, pools and chunk groups, a procedural map's data is files under `Maps/`, seeded by
+`ChunkCatalogSeeder` on every World server start, not migrations:
+
+- `Maps/spawn-tables.json`: `{ "<table name>": [ { "tag", "creatureId", "weight", "min", "max" } ] }`. A table is
+  matched by name (its id is kept; a new one gets the highest id + 1) and its entries are replaced.
+- `Maps/ProceduralMaps/<mapId>.json`: every `ProceduralMapConfig` field, the pool (`chunkPool`) and spawn table
+  (`spawnTable`) by name, and `depthBands`. Matched by `mapTemplateId` (the file's name); its bands are replaced.
+
+Before writing anything the seeder refuses a map whose `MapTemplate` is missing or not `Normal`, a pool or spawn table
+the files do not name, a `creatureId` with no `CreatureTemplates` row, and a spawn table whose tags do not match the
+slot tags its pool's chunks (set pieces included) use, checked both ways: every entry tag is a slot tag (or
+`leader_pack` beside `leader` slots), and every slot tag but `entry` and `empty` has an entry. Rows with no file are
+left alone. A change to these files takes a World server restart. Trade-offs: the balance simulator reads `HasData`
+only, so it never sees these rows; the REST API's layout preview and observability read the database, so they show the
+files as of the last World server start (a fresh database shows the old migration values until one has started); and
+`SeedIntegrityShould` cannot see them, so `ChunkCatalogSeederShould` and `CommittedForestGenerationShould` (which seed
+the committed `Maps/` into SQLite) check them instead.
 
 ## Updating existing chunks/towns
 
