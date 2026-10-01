@@ -137,6 +137,10 @@ spec:
             - name: Application__RateLimiting__ClientAuthPermitsPerMinute
               value: {{ $rateLimiting.clientAuthPermitsPerMinute | quote }}
             {{- end }}
+            {{- with .Values.publicSiteUrl }}
+            - name: Application__PublicSiteUrl
+              value: {{ . | quote }}
+            {{- end }}
             {{- if not (kindIs "invalid" .Values.publicWorldId) }}
             - name: Application__PublicWorldId
               value: {{ .Values.publicWorldId | quote }}

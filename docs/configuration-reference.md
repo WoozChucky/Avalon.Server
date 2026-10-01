@@ -286,7 +286,9 @@ The API's `appsettings.json` lists no world, so the published image ships none. 
 
 **`Application:PublicWorldId`** (optional `ushort`): the world `GET /public/world` names as `defaultWorldId`. It falls back to the first world the caller may read when unset, or when that world is unavailable or not readable by the caller, so set it to the live world in a deployment.
 
-**`Application:PublicSiteUrl`** (string, default `https://avalon.nunolevezinho.xyz`): the public website's base URL. `GET /public/preview/item/{id}` and `/ability/{id}` (link previews for bots that run no JavaScript; `?world=N`, else the default world) name `<PublicSiteUrl>/item/{id}` as the page's `og:url`, adding `?world=N` only when `world` was given. A trailing slash is ignored.
+**`Application:PublicSiteUrl`** (optional string, no default; Helm `publicSiteUrl`): the public website's base URL, e.g. `https://avalon.example`. It must be an absolute http or https URL with no query or fragment (a trailing slash is dropped); anything else stops the API at startup, naming the setting. `GET /public/preview/item/{id}` and `/ability/{id}` (link previews for bots that run no JavaScript; `?world=N`, else the default world) name `<PublicSiteUrl>/item/{id}` as the page's `og:url`, adding `?world=N` only when `world` was given. Unset, a preview leaves `og:url` out and its link is relative (`/item/{id}`).
+
+**`Application:Previews`** (defaults in the API's `appsettings.json`): `SiteName` (`og:site_name` and the not-found title; left out when empty), `AbilityColour` and `RarityColours` (an `ItemRarity` name to a `#RRGGBB` colour; the `theme-color` of an ability and of an item of that rarity). They mirror the Dashboard's `rarity.ts`. A missing or malformed colour leaves `theme-color` out; it never fails the request. Override one with e.g. `Application__Previews__RarityColours__Epic`.
 
 ---
 

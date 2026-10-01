@@ -89,6 +89,10 @@ rateLimiting:
 # caller may read.
 publicWorldId:
 
+# The public website's base URL (Application:PublicSiteUrl), e.g. https://avalon.example: the address link
+# previews name as a page's og:url. Left empty, previews leave og:url out and link relatively.
+publicSiteUrl: ""
+
 # Email (Application:Email) is not set by the chart. The only sender so far, Pickup, writes .eml files
 # to local disk and the API refuses it outside Development, so a chart deployment has no sender and
 # email change answers 501. A real provider will add its settings here.

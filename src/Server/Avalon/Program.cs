@@ -33,6 +33,8 @@ IResourceBuilder<ProjectResource> apiProject = builder
         "Server=localhost;Port=5432;Database=world;User Id=postgres;Password=123;")
     .WithEnvironment("Database__Worlds__1__Characters__ConnectionString",
         "Server=localhost;Port=5432;Database=characters;User Id=postgres;Password=123;")
+    // The public site's local dev server (Avalon.Dashboard apps/public, vite), for link previews' og:url.
+    .WithEnvironment("Application__PublicSiteUrl", "http://localhost:5173")
     .WithEnvironment("Application__Balance__SharedSecret", balanceSecret)
     .WithEnvironment("Application__Balance__Url", balanceService.GetEndpoint("http"))
     .WaitFor(redis)

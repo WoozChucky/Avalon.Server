@@ -8,6 +8,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
 using WorldId = Avalon.Domain.Auth.WorldId;
@@ -30,6 +31,7 @@ public class PublicPreviewController(
     CurrentWorld currentWorld,
     PublicWorldSettings worldSettings,
     PublicSiteSettings site,
+    IOptions<PreviewConfiguration> previews,
     IItemTemplateRepository items,
     IAbilityTemplateRepository abilities) : ControllerBase
 {
@@ -46,7 +48,7 @@ public class PublicPreviewController(
 
         PublicItemDto item = template.ToPublicDto();
         return Page(open, LinkPreviewPage.Render(item.Name, LinkPreviewText.Describe(item),
-            CanonicalUrl("item", id, world, chosen), LinkPreviewText.ColourOf(item.Rarity)));
+            PagePath("item", id, world, chosen), site.Base, previews.Value.ColourOf(item.Rarity), previews.Value.Site));
     }
 
     [HttpGet("ability/{id:long}", Name = "GetAbilityPreview")]
@@ -62,7 +64,7 @@ public class PublicPreviewController(
 
         PublicAbilityDto ability = template.ToPublicDto();
         return Page(open, LinkPreviewPage.Render(ability.Name, LinkPreviewText.Describe(ability),
-            CanonicalUrl("ability", id, world, chosen), LinkPreviewText.AbilityColour));
+            PagePath("ability", id, world, chosen), site.Base, previews.Value.AbilityTheme, previews.Value.Site));
     }
 
     /// <summary>
@@ -90,7 +92,7 @@ public class PublicPreviewController(
                 || !databases.TryGet(id, out _))
                 return (null, false, NotFoundPage());
             if (!databases.IsAvailable(id))
-                return (null, false, Html(StatusCodes.Status503ServiceUnavailable, LinkPreviewPage.Unavailable()));
+                return (null, false, Html(StatusCodes.Status503ServiceUnavailable, LinkPreviewPage.Unavailable(previews.Value.Site)));
         }
 
         if (world is null) return (null, false, NotFoundPage());
@@ -102,8 +104,9 @@ public class PublicPreviewController(
         return (world, open, null);
     }
 
-    private string CanonicalUrl(string kind, ulong id, string? named, WorldEntity world) =>
-        $"{site.Base}/{kind}/{id}" + (named is null ? "" : $"?world={world.Id.Value}");
+    /// <summary>The page's path on the public site; <c>?world=N</c> only when the request named a world.</summary>
+    private static string PagePath(string kind, ulong id, string? named, WorldEntity world) =>
+        $"/{kind}/{id}" + (named is null ? "" : $"?world={world.Id.Value}");
 
     private ContentResult Page(bool open, string html)
     {
@@ -111,7 +114,7 @@ public class PublicPreviewController(
         return Html(StatusCodes.Status200OK, html);
     }
 
-    private static ContentResult NotFoundPage() => Html(StatusCodes.Status404NotFound, LinkPreviewPage.NotFound());
+    private ContentResult NotFoundPage() => Html(StatusCodes.Status404NotFound, LinkPreviewPage.NotFound(previews.Value.Site));
 
     private static ContentResult Html(int status, string html) =>
         new() { StatusCode = status, ContentType = LinkPreviewPage.ContentType, Content = html };

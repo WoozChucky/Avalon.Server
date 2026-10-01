@@ -46,7 +46,8 @@ public static class ServiceRegistration
     {
         services.AddAuthDatabase();
         services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
-        services.AddSingleton(new PublicSiteSettings(config.PublicSiteUrl));
+        services.AddSingleton(PublicSiteSettings.Create(config.PublicSiteUrl));
+        services.AddOptions<PreviewConfiguration>().BindConfiguration("Application:Previews");
         // Checked at startup (ApiStartup), naming the setting, like the auth and world servers do.
         services.ValidateDatabasesOnStart(DatabaseConnections.Auth);
         // The repositories only. Their contexts come from AddWorldDatabases: one world and characters

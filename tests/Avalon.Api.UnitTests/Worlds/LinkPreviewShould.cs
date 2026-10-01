@@ -42,6 +42,16 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     private readonly IAbilityTemplateRepository _abilities = Substitute.For<IAbilityTemplateRepository>();
     private ApiAuthHost _host = null!;
 
+    private static PreviewConfiguration Previews() => new()
+    {
+        SiteName = "Avalon",
+        AbilityColour = "#BC8A4E",
+        RarityColours = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Epic"] = "#C084FC", ["Rare"] = "#38BDF8", ["Legendary"] = "#FBBF24",
+        },
+    };
+
     public async Task InitializeAsync()
     {
         WorldDatabases databases = new(new[] { Open, OtherOpen, Staff }
@@ -82,16 +92,21 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         _abilities.FindByIdAsync(new AbilityId(211), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate { Id = new AbilityId(211), Name = "Strike <b>&\"" });
 
-        _host = await ApiAuthHost.StartAsync(configure: services =>
+        _host = await Start("https://avalon.example/", Previews());
+    }
+
+    private Task<ApiAuthHost> Start(string? publicSite, PreviewConfiguration previews, ushort defaultWorld = Open) =>
+        ApiAuthHost.StartAsync(configure: services =>
         {
-            services.AddWorldDatabases(databases);
+            services.AddWorldDatabases(new WorldDatabases(new[] { Open, OtherOpen, Staff }
+                .Select(id => new ConfiguredWorld(new WorldId(id), $"Host=w{id}", $"Host=c{id}"))));
             services.AddSingleton(_authWorlds);
-            services.AddSingleton(new PublicWorldSettings(Open));
-            services.AddSingleton(new PublicSiteSettings("https://avalon.example/"));
+            services.AddSingleton(new PublicWorldSettings(defaultWorld));
+            services.AddSingleton(PublicSiteSettings.Create(publicSite));
+            services.AddSingleton(Microsoft.Extensions.Options.Options.Create(previews));
             services.AddScoped(PerWorldItems);
             services.AddSingleton(_abilities);
         });
-    }
 
     public async Task DisposeAsync() => await _host.DisposeAsync();
 
@@ -174,7 +189,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.Equal("Avalon", Meta(html, "og:site_name"));
         Assert.Equal("website", Meta(html, "og:type"));
         Assert.Equal("https://avalon.example/ability/210", Meta(html, "og:url"));
-        Assert.Equal(LinkPreviewText.AbilityColour, Meta(html, "theme-color"));
+        Assert.Equal("#BC8A4E", Meta(html, "theme-color"));
         Assert.Equal("summary", Meta(html, "twitter:card"));
         Assert.Equal("Warrior · 30 Mana · 2.5 sec cast · 8 sec cooldown · 10 + 50% of Attack Damage",
             Decoded(html, "og:description"));
@@ -282,20 +297,130 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     [Fact]
     public async Task Fall_back_to_the_first_readable_world_when_the_default_is_not_readable()
     {
-        await using ApiAuthHost host = await ApiAuthHost.StartAsync(configure: services =>
-        {
-            services.AddWorldDatabases(new WorldDatabases(new[] { Staff, OtherOpen }
-                .Select(id => new ConfiguredWorld(new WorldId(id), $"Host=w{id}", $"Host=c{id}"))));
-            services.AddSingleton(_authWorlds);
-            services.AddSingleton(new PublicWorldSettings(Staff));
-            services.AddSingleton(new PublicSiteSettings("https://avalon.example"));
-            services.AddScoped(PerWorldItems);
-            services.AddSingleton(_abilities);
-        });
+        await using ApiAuthHost host = await Start("https://avalon.example", Previews(), defaultWorld: Staff);
 
         string html = await host.Client.GetStringAsync("/public/preview/item/14");
 
-        Assert.Equal("Other World Helm", Meta(html, "og:title"));
+        Assert.Equal("Barkplate Helm", Meta(html, "og:title"));
+    }
+
+    [Fact]
+    public async Task Leave_og_url_out_and_link_relatively_when_no_public_site_is_configured()
+    {
+        await using ApiAuthHost host = await Start(null, Previews());
+
+        string html = await host.Client.GetStringAsync("/public/preview/item/14");
+
+        Assert.DoesNotContain("og:url", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("http", html, StringComparison.Ordinal);
+        Assert.Contains("<body><a href=\"/item/14\">Barkplate Helm</a></body>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Link_relatively_with_the_explicit_world_when_no_public_site_is_configured()
+    {
+        await using ApiAuthHost host = await Start("", Previews());
+
+        string html = await host.Client.GetStringAsync($"/public/preview/ability/210?world={OtherOpen}");
+
+        Assert.DoesNotContain("og:url", html, StringComparison.Ordinal);
+        Assert.Contains("<a href=\"/ability/210?world=2\">Cleave</a>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Name_an_absolute_og_url_when_a_public_site_is_configured()
+    {
+        await using ApiAuthHost host = await Start("https://site.example/", Previews());
+
+        string html = await host.Client.GetStringAsync("/public/preview/item/14");
+
+        Assert.Equal("https://site.example/item/14", Meta(html, "og:url"));
+    }
+
+    [Fact]
+    public async Task Use_a_configured_colour()
+    {
+        PreviewConfiguration previews = Previews();
+        previews.RarityColours["epic"] = "#112233";
+        previews.AbilityColour = "#AABBCC";
+        await using ApiAuthHost host = await Start(null, previews);
+
+        Assert.Equal("#112233", Meta(await host.Client.GetStringAsync("/public/preview/item/14"), "theme-color"));
+        Assert.Equal("#AABBCC", Meta(await host.Client.GetStringAsync("/public/preview/ability/210"), "theme-color"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("purple")]
+    [InlineData("#12345")]
+    [InlineData("#GGGGGG")]
+    [InlineData("#C084FC; x")]
+    public async Task Leave_theme_color_out_for_a_rarity_with_no_valid_colour(string? colour)
+    {
+        PreviewConfiguration previews = Previews();
+        previews.RarityColours.Remove("Epic");
+        if (colour is not null) previews.RarityColours["Epic"] = colour;
+        previews.AbilityColour = colour;
+        await using ApiAuthHost host = await Start(null, previews);
+
+        HttpResponseMessage item = await host.Client.GetAsync("/public/preview/item/14");
+        string itemHtml = await item.Content.ReadAsStringAsync();
+        string abilityHtml = await host.Client.GetStringAsync("/public/preview/ability/210");
+
+        Assert.Equal(HttpStatusCode.OK, item.StatusCode);
+        Assert.DoesNotContain("theme-color", itemHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("theme-color", abilityHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Take_the_site_name_from_configuration()
+    {
+        PreviewConfiguration previews = Previews();
+        previews.SiteName = "Realm <&>";
+        await using ApiAuthHost host = await Start(null, previews);
+
+        string html = await host.Client.GetStringAsync("/public/preview/item/14");
+        HttpResponseMessage missing = await host.Client.GetAsync("/public/preview/item/99");
+
+        Assert.Equal("Realm <&>", Decoded(html, "og:site_name"));
+        Assert.Contains("<title>Not found · Realm <&></title>", WebUtility.HtmlDecode(await missing.Content.ReadAsStringAsync()),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Leave_og_site_name_out_when_none_is_configured()
+    {
+        PreviewConfiguration previews = Previews();
+        previews.SiteName = null;
+        await using ApiAuthHost host = await Start(null, previews);
+
+        string html = await host.Client.GetStringAsync("/public/preview/item/14");
+
+        Assert.DoesNotContain("og:site_name", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("https://avalon.example/", "https://avalon.example")]
+    [InlineData("http://localhost:5173", "http://localhost:5173")]
+    [InlineData("  https://avalon.example/a/ ", "https://avalon.example/a")]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void Normalise_the_public_site_url(string? configured, string? expected) =>
+        Assert.Equal(expected, PublicSiteSettings.Create(configured).Base);
+
+    [Theory]
+    [InlineData("avalon.example")]
+    [InlineData("/item")]
+    [InlineData("ftp://avalon.example")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("https://avalon.example/?a=1")]
+    [InlineData("https://avalon.example/#x")]
+    public void Refuse_a_public_site_url_that_is_not_an_absolute_http_url(string configured)
+    {
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => PublicSiteSettings.Create(configured));
+
+        Assert.Contains("Application:PublicSiteUrl", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

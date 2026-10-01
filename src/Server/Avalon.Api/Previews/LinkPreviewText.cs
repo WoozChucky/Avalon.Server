@@ -17,27 +17,6 @@ public static partial class LinkPreviewText
 
     private const string Separator = " · ";
 
-    /// <summary>
-    /// Mirrors Avalon.Dashboard apps/public/src/components/game/rarity.ts (Tailwind colours; Junk and Common
-    /// are the site's dark-theme muted-foreground and foreground): Junk muted-foreground, Common foreground,
-    /// Uncommon emerald-400, Rare sky-400, Epic purple-400, Legendary amber-400. Change both together.
-    /// </summary>
-    private static readonly Dictionary<ItemRarity, string> RarityColours = new()
-    {
-        [ItemRarity.Junk] = "#988F81",
-        [ItemRarity.Common] = "#E9E2D8",
-        [ItemRarity.Uncommon] = "#34D399",
-        [ItemRarity.Rare] = "#38BDF8",
-        [ItemRarity.Epic] = "#C084FC",
-        [ItemRarity.Legendary] = "#FBBF24",
-    };
-
-    /// <summary>Abilities have no rarity: the site's primary accent (text-primary, the tooltip's name colour).</summary>
-    public const string AbilityColour = "#BC8A4E";
-
-    public static string ColourOf(ItemRarity rarity) =>
-        RarityColours.TryGetValue(rarity, out string? colour) ? colour : RarityColours[ItemRarity.Common];
-
     public static string Describe(PublicItemDto item)
     {
         List<string> parts = [SplitWords(item.Rarity.ToString())];
