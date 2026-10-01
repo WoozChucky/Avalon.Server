@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Hosting;
 using Avalon.Network.Packets.Abstractions;
@@ -62,6 +63,10 @@ public class WorldHostGraphShould
             // DialogueChooseHandler, MapInstance), so only this proves production supplies them.
             Assert.NotNull(host.Services.GetRequiredService<IVendorStockRepository>());
             Assert.NotNull(host.Services.GetRequiredService<ICombatDataRepository>());
+
+            // Quests (#433). CharacterSelectHandler takes the quest repository optionally and loads an empty log
+            // without it, so only this proves production loads each character's quests.
+            Assert.NotNull(host.Services.GetRequiredService<ICharacterQuestRepository>());
 
             // #506. MapInstance reads the combat random with GetService and otherwise falls back to one
             // that never crits, dodges or blocks, so only this proves production rolls for real.

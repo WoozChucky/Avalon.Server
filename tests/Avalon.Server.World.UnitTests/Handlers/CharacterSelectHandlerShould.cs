@@ -67,7 +67,8 @@ public class CharacterSelectHandlerShould
         int storedHealth = 0,
         IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null,
         int storedPower = 0,
-        GameConfiguration? game = null)
+        GameConfiguration? game = null,
+        ICharacterQuestRepository? quests = null)
     {
         var row = new Character
         {
@@ -146,6 +147,7 @@ public class CharacterSelectHandlerShould
         RunContinuationsInline<IReadOnlyCollection<CharacterInventory>>(connection);
         RunContinuationsInline<IReadOnlyList<ItemInstance>>(connection);
         RunContinuationsInline<IReadOnlyCollection<CharacterAbility>>(connection);
+        RunContinuationsInline<CharacterQuestRows>(connection);
 
         var handler = new CharacterSelectHandler(
             NullLogger<CharacterSelectHandler>.Instance,
@@ -160,7 +162,9 @@ public class CharacterSelectHandlerShould
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>());
+            Substitute.For<IWorldServer>(),
+            null,
+            quests);
 
         return new Fixture
         {
@@ -281,6 +285,22 @@ public class CharacterSelectHandlerShould
         f.World.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
         Assert.Null(f.Connection.Character);
         f.Connection.Received(1).SetPendingSpawn(Arg.Any<ICharacter>(), f.Instance, Arg.Any<long>());
+    }
+
+    [Fact]
+    public async Task Load_the_quest_log_before_the_pending_spawn()
+    {
+        var quests = Substitute.For<ICharacterQuestRepository>();
+        quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
+            [new CharacterQuest { CharacterId = TheCharacter, QuestId = 5, State = CharacterQuestState.Active, Stage = 1 }],
+            [new CharacterQuestObjective { CharacterId = TheCharacter, QuestId = 5, ObjectiveId = 51, Progress = 2 }],
+            []));
+        Fixture f = await BuildAsync(quests: quests);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        f.Connection.Received(1).SetPendingSpawn(
+            Arg.Is<ICharacter>(c => ((CharacterEntity)c).Quests.Get(5)!.ProgressOf(51) == 2), f.Instance, Arg.Any<long>());
     }
 
     /// <summary>

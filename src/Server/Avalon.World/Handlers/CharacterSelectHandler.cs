@@ -49,7 +49,8 @@ public class CharacterSelectHandler(
     IAccountRepository accountRepository,
     ICharacterSaver characterSaver,
     IWorldServer worldServer,
-    TimeProvider? time = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    TimeProvider? time = null,
+    ICharacterQuestRepository? questRepository = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -562,14 +563,14 @@ public class CharacterSelectHandler(
         connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encrypt));
 
         Step(connection, select, characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
-            spells => OnSpellsReceived(connection, entity, instance, spells));
+            spells => OnSpellsReceived(connection, select, entity, instance, spells));
         _parentActivity = activity;
     }
 
     private static IEnumerable<ItemSlotDto> ToDtos(InventoryType container, IReadOnlyCollection<InventoryItem> items)
         => items.Select(item => ItemSlotDtoMapper.ToDto(container, item));
 
-    private void OnSpellsReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
+    private void OnSpellsReceived(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance,
         IReadOnlyCollection<CharacterAbility> spells)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
@@ -635,6 +636,23 @@ public class CharacterSelectHandler(
 
         connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));
 
+        // #433: the quest log, then the pending spawn. No repository (tests that build the handler without one) is
+        // an empty log, as a character that never took a quest has.
+        if (questRepository is null)
+        {
+            Spawn(connection, entity, instance);
+            return;
+        }
+
+        Step(connection, select, questRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        {
+            entity.Quests.Load(rows);
+            Spawn(connection, entity, instance);
+        });
+    }
+
+    private void Spawn(IWorldConnection connection, CharacterEntity entity, IMapInstance instance)
+    {
         // All data loaded, but the client has not composed the map yet. The entity is held as a
         // pending spawn instead of being assigned and spawned here, so nothing on the tick sees a
         // character whose client is still loading. CharacterLoadedHandler releases it when the

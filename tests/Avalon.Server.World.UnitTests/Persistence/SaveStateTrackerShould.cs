@@ -217,4 +217,19 @@ public class SaveStateTrackerShould
         Assert.True(tracker.PvpDirty);
         Assert.True(tracker.HasChanges);
     }
+
+    [Fact]
+    public void Keep_a_quest_marked_again_after_its_save_was_taken()
+    {
+        var tracker = new SaveStateTracker();
+        tracker.QuestChanged(5);
+        SaveMarks marks = tracker.TakeMarks();
+        tracker.QuestChanged(5);
+
+        tracker.Acknowledge(marks);
+
+        Assert.True(tracker.HasChanges);
+        tracker.Acknowledge(tracker.TakeMarks());
+        Assert.False(tracker.HasChanges);
+    }
 }

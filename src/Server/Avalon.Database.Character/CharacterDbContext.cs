@@ -63,6 +63,9 @@ public class CharacterDbContext : DbContext
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
     public DbSet<CharacterAbility> CharacterAbilities { get; set; } = null!;
     public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
+    public DbSet<CharacterQuest> CharacterQuests { get; set; } = null!;
+    public DbSet<CharacterQuestObjective> CharacterQuestObjectives { get; set; } = null!;
+    public DbSet<CharacterCompletedQuest> CharacterCompletedQuests { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -89,6 +92,9 @@ public class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterInventory>());
         Configure(modelBuilder.Entity<CharacterAbility>());
         Configure(modelBuilder.Entity<ItemInstance>());
+        Configure(modelBuilder.Entity<CharacterQuest>());
+        Configure(modelBuilder.Entity<CharacterQuestObjective>());
+        Configure(modelBuilder.Entity<CharacterCompletedQuest>());
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder)
@@ -217,5 +223,36 @@ public class CharacterDbContext : DbContext
             );
 
         builder.HasIndex(b => b.CharacterId);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterQuest> builder)
+    {
+        builder.HasKey(b => new { b.CharacterId, b.QuestId });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterQuestObjective> builder)
+    {
+        builder.HasKey(b => new { b.CharacterId, b.QuestId, b.ObjectiveId });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        // Its quest row owns it: an abandon or a turn-in deletes the quest row and the objectives go with it.
+        builder.HasOne<CharacterQuest>()
+            .WithMany()
+            .HasForeignKey(b => new { b.CharacterId, b.QuestId })
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterCompletedQuest> builder)
+    {
+        builder.HasKey(b => new { b.CharacterId, b.QuestId });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
