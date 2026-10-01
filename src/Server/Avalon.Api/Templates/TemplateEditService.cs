@@ -163,7 +163,7 @@ public sealed class TemplateEditService(
         if (changes.Count > 0)
         {
             logger.LogInformation(
-                "Template saved: {Kind} {TemplateId} on world {WorldId} by account {AccountId}, changed {Changes}",
+                "Template saved: {Kind} {TemplateId} on world {WorldId} by account {AccountId}, changed {@Changes}",
                 kind.Name, id, caller.World.Value, caller.Account.Value, changes);
         }
 

@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -364,11 +365,13 @@ public sealed class TemplateEditShould : IAsyncLifetime
 
         CapturedLog entry = Assert.Single(_logs.Entries, e => e.Message.StartsWith("Template saved", StringComparison.Ordinal));
         Assert.Equal(LogLevel.Information, entry.Level);
+        // The "@" makes Serilog destructure each change into Field, Old and New; without it they are stored as text.
+        Assert.Contains("{@Changes}", (string)entry.State["{OriginalFormat}"]!, StringComparison.Ordinal);
         Assert.Equal("Item", entry.State["Kind"]);
         Assert.Equal(id, entry.State["TemplateId"]);
         Assert.Equal(Editable, entry.State["WorldId"]);
         Assert.Equal(ApiAuthHost.AccountIdValue, entry.State["AccountId"]);
-        var changes = Assert.IsAssignableFrom<IReadOnlyList<TemplateChange>>(entry.State["Changes"]);
+        var changes = Assert.IsAssignableFrom<IReadOnlyList<TemplateChange>>(entry.State["@Changes"]);
         Assert.Equal(
             [new TemplateChange("name", oldName, "Audited"),
              new TemplateChange("sellPrice", oldSell.ToString(), (oldSell + 7).ToString())],
@@ -411,14 +414,46 @@ public sealed class TemplateEditShould : IAsyncLifetime
     public async Task Map_a_check_violation_that_slipped_past_validation_to_400()
     {
         // A database that refuses every save with a Postgres check violation, as if a rule were missing from here.
+        TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(
+            new FailingSave(PostgresErrorCodes.CheckViolation, "CK_AbilityTemplates_ThreatMultiplier_NonNegative"));
+
+        Assert.Equal(TemplateEditOutcome.Invalid, result.Outcome);
+        Assert.Equal(["threatMultiplier"], result.Errors!.Keys);
+        Assert.Empty(_signal.Requests);
+    }
+
+    [Fact]
+    public async Task Map_a_serialization_failure_at_save_to_a_conflict()
+    {
+        // The losing side of two concurrent saves of one version: Postgres fails its UPDATE with 40001.
+        TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(
+            new FailingSave(PostgresErrorCodes.SerializationFailure, null));
+
+        Assert.Equal(TemplateEditOutcome.Conflict, result.Outcome);
+        Assert.Empty(_signal.Requests);
+        Assert.DoesNotContain(_logs.Entries, e => e.Message.StartsWith("Template saved", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Map_a_serialization_failure_at_commit_to_a_conflict()
+    {
+        // The same race, caught at COMMIT: a bare PostgresException, not wrapped in a DbUpdateException.
+        TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(
+            new FailingCommit(PostgresErrorCodes.SerializationFailure));
+
+        Assert.Equal(TemplateEditOutcome.Conflict, result.Outcome);
+        Assert.Empty(_signal.Requests);
+        Assert.DoesNotContain(_logs.Entries, e => e.Message.StartsWith("Template saved", StringComparison.Ordinal));
+    }
+
+    private async Task<TemplateEditResult<Avalon.Domain.World.ItemTemplate>> EditWithFailingDatabaseAsync(IInterceptor failure)
+    {
         using var connection = new SqliteConnection("DataSource=:memory:");
         connection.Open();
         DbContextOptions<WorldDbContext> options = new DbContextOptionsBuilder<WorldDbContext>().UseSqlite(connection)
-            .AddInterceptors(new FailingSave(PostgresErrorCodes.CheckViolation,
-                "CK_AbilityTemplates_ThreatMultiplier_NonNegative")).Options;
+            .AddInterceptors(failure).Options;
         using (var seed = new WorldDbContext(options)) seed.Database.EnsureCreated();
-        var service = new TemplateEditService(new FixedFactory(options), _signal,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TemplateEditService>.Instance);
+        var service = new TemplateEditService(new FixedFactory(options), _signal, new LoggerOf<TemplateEditService>(_logs.CreateLogger("test")));
 
         Avalon.Domain.World.ItemTemplate row;
         using (var read = new WorldDbContext(options)) row = read.ItemTemplates.AsNoTracking().AsEnumerable().First();
@@ -429,13 +464,9 @@ public sealed class TemplateEditShould : IAsyncLifetime
             Rarity = (Avalon.Api.Contract.ItemRarity)row.Rarity,
         };
 
-        TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await service.EditItemAsync(
+        return await service.EditItemAsync(
             new TemplateEditCaller(new WorldId(Editable), new Avalon.Common.ValueObjects.AccountId(1)),
             row.Id.Value, Tag(TemplateVersion.Of(row)), request, CancellationToken.None);
-
-        Assert.Equal(TemplateEditOutcome.Invalid, result.Outcome);
-        Assert.Equal(["threatMultiplier"], result.Errors!.Keys);
-        Assert.Empty(_signal.Requests);
     }
 
     [Fact]
@@ -466,6 +497,13 @@ public sealed class TemplateEditShould : IAsyncLifetime
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
             InterceptionResult<int> result, CancellationToken cancellationToken = default) =>
             throw new DbUpdateException("save failed", Pg(sqlState, constraint));
+    }
+
+    private sealed class FailingCommit(string sqlState) : DbTransactionInterceptor
+    {
+        public override ValueTask<InterceptionResult> TransactionCommittingAsync(DbTransaction transaction,
+            TransactionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default) =>
+            throw Pg(sqlState, null);
     }
 
     private sealed class FixedFactory(DbContextOptions<WorldDbContext> options) : IDbContextFactory<WorldDbContext>
