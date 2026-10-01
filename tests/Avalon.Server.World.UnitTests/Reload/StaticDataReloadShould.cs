@@ -298,6 +298,24 @@ public class StaticDataReloadShould
         Assert.True(data.Loot.TryGet(new LootTableId(1), out _));
     }
 
+    [Fact]
+    public async Task Reload_quests_against_the_creatures_and_items_read_with_them()
+    {
+        List<QuestTemplate> quests = Quests.QuestTestData.Chain();
+        List<CreatureTemplate> creatures = Quests.QuestTestData.Creatures();
+        StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            items: Quests.QuestTestData.Items,
+            creatures: () => creatures,
+            quests: Quests.QuestRepositories.Of(() => quests)));
+        Assert.Equal(3, data.Quests.All.Count);
+
+        creatures.RemoveAll(c => c.Id.Value == Quests.QuestTestData.Wolf);   // Howl's kill target is gone
+        data.Apply(await data.PrepareAsync(ReloadArea.Quests));
+
+        Assert.Equal(2, data.Quests.All.Count);
+        Assert.Contains(data.Quests.Refused, r => r.QuestId == Quests.QuestTestData.Howl);
+    }
+
     private static async Task<(StaticData Data, Repos Repos)> LoadedData(int creatureCount)
     {
         var repos = new Repos

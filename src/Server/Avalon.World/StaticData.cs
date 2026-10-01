@@ -9,7 +9,9 @@ using Avalon.World.Localization;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
+using Avalon.World.Quests;
 using Avalon.World.Reload;
+using Avalon.World.Scripts;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
@@ -29,7 +31,9 @@ public class StaticData(
     ILootTableRepository lootTableRepository,
     ILoggerFactory loggerFactory,
     IVendorStockRepository? vendorStockRepository = null,
-    ICombatDataRepository? combatDataRepository = null)
+    ICombatDataRepository? combatDataRepository = null,
+    IQuestRepository? questRepository = null,
+    IScriptManager? scriptManager = null)
 {
     private readonly ConcurrentQueue<(StaticDataPatch Patch, TaskCompletionSource Done)> _pending = new();
 
@@ -49,6 +53,7 @@ public class StaticData(
     private volatile LootPatch? _loot;
     private volatile VendorsPatch? _vendors;
     private volatile CombatPatch? _combat;
+    private volatile QuestsPatch? _quests;
 
     /// <summary>
     /// Reads the database and builds a whole patch for one area. Runs on the thread pool and
@@ -127,6 +132,19 @@ public class StaticData(
                 return CombatPatch.Build(formulas, factors);
             }
 
+            case ReloadArea.Quests:
+            {
+                // Validated against the creatures and items read here, never the ones applied, so the quests and
+                // what they name are one generation. No repository (tests that build StaticData without one) is empty.
+                IReadOnlyCollection<QuestTemplate> quests = questRepository is null
+                    ? Array.Empty<QuestTemplate>()
+                    : await questRepository.GetAllAsync(ct);
+                IReadOnlyCollection<CreatureTemplate> creatures = (await creatureTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
+                IReadOnlyCollection<ItemTemplate> items = (await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
+                Func<string, Type?> findScript = scriptManager is null ? static _ => null : scriptManager.GetQuestScript;
+                return new QuestsPatch(new QuestCatalog(quests, creatures, items, findScript, loggerFactory));
+            }
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(area), area, null);
         }
@@ -164,6 +182,9 @@ public class StaticData(
                 break;
             case CombatPatch p:
                 _combat = p;
+                break;
+            case QuestsPatch p:
+                _quests = p;
                 break;
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
@@ -276,4 +297,7 @@ public class StaticData(
     /// its own resolve; a stats refresh reads it once for the factors it derives with.
     /// </summary>
     public CombatPatch Combat => _combat!;
+
+    /// <summary>Quests (#433). Read on the tick; one reference, so one generation. Empty before the first load.</summary>
+    public QuestCatalog Quests => _quests?.Catalog ?? QuestCatalog.Empty;
 }

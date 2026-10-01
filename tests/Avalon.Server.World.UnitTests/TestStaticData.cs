@@ -3,6 +3,7 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Vendors;
 using Avalon.World;
+using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -26,11 +27,13 @@ internal sealed record TestStaticDataRepositories(
     IDialogueRepository Dialogue,
     ILootTableRepository Loot,
     IVendorStockRepository? Vendors = null,
-    ICombatDataRepository? Combat = null)
+    ICombatDataRepository? Combat = null,
+    IQuestRepository? Quests = null,
+    IScriptManager? Scripts = null)
 {
     public StaticData ToStaticData() =>
         new(CreateInfos, ClassStats, Items, Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
-            NullLoggerFactory.Instance, Vendors, Combat);
+            NullLoggerFactory.Instance, Vendors, Combat, Quests, Scripts);
 }
 
 /// <summary>
@@ -74,7 +77,10 @@ internal static class TestStaticData
         Func<IReadOnlyCollection<LocalizedText>>? texts = null,
         ILootTableRepository? loot = null,
         IVendorStockRepository? vendors = null,
-        ICombatDataRepository? combat = null)
+        ICombatDataRepository? combat = null,
+        Func<IReadOnlyCollection<CreatureTemplate>>? creatures = null,
+        IQuestRepository? quests = null,
+        IScriptManager? scripts = null)
     {
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
@@ -96,9 +102,9 @@ internal static class TestStaticData
         levelRepository.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(levels?.Invoke() ?? []));
 
-        var creatures = Substitute.For<ICreatureTemplateRepository>();
-        creatures.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(new List<CreatureTemplate>()));
+        var creatureRepository = Substitute.For<ICreatureTemplateRepository>();
+        creatureRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult((creatures?.Invoke() ?? []).ToList()));
 
         var baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
@@ -124,7 +130,7 @@ internal static class TestStaticData
             .Returns(_ => Task.FromResult(options?.Invoke() ?? []));
 
         return new TestStaticDataRepositories(createInfos, classStatRepository, itemRepository, abilities,
-            levelRepository, creatures, baseStats, rarities, textRepository, dialogue, loot ?? LootRepositories.Empty(),
-            vendors, combat);
+            levelRepository, creatureRepository, baseStats, rarities, textRepository, dialogue, loot ?? LootRepositories.Empty(),
+            vendors, combat, quests, scripts);
     }
 }
