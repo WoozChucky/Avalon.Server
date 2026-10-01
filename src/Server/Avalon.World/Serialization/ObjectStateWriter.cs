@@ -105,6 +105,11 @@ public static class ObjectStateWriter
         // in the world, and a client that missed it would have nothing to label it with.
         state.Name = character.Name;
 
+        // Goes out whatever is marked changed, like the name: both are fixed for the character's life, and a
+        // client that first sees it on an update needs them to pick the character's model.
+        state.Class  = (uint)character.Class;
+        state.Gender = (uint)character.Gender;
+
         // Whatever is marked changed, only as true (#164): a client reads its absence on any character
         // state as off, so a flag that turned off is told by the next state leaving it out, which the
         // PvpEnabled dirty bit guarantees is sent. World-side value, so a mod cannot fake it.

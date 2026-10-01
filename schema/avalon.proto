@@ -619,6 +619,8 @@ message ObjectState {
    optional bool CanInteract = 20;
    optional bool PvpEnabled = 21;
    optional CreatureRarity Rarity = 22;
+   optional uint32 Class = 23;
+   optional uint32 Gender = 24;
 }
 enum PartyExperienceMode {
    PartyExperienceMode_Unknown = 0;

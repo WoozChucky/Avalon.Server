@@ -118,4 +118,24 @@ public class ObjectState
     ///     It is fixed when the creature spawns, from its template.
     /// </remarks>
     [ProtoMember(22)] public CreatureRarity? Rarity { get; set; }
+
+    /// <summary>
+    ///     A character's class (1 Warrior, 2 Wizard, 3 Hunter, 4 Healer — <c>CharacterClass</c>), so a client
+    ///     can draw the right model for every character it sees, not only its own.
+    /// </summary>
+    /// <remarks>
+    ///     Carried on every character state, whatever else changed, like <see cref="Name" />, so a client that
+    ///     first sees a character on an update still learns it. Fixed for the character's life. Creatures,
+    ///     portals and spells never carry it, so absent means "not a character".
+    /// </remarks>
+    [ProtoMember(23)] public uint? Class { get; set; }
+
+    /// <summary>
+    ///     A character's gender (0 Male, 1 Female — <c>CharacterGender</c>), alongside <see cref="Class" />.
+    /// </summary>
+    /// <remarks>
+    ///     Nullable so that Male, which is 0, is still sent: absent means "not a character", never Male.
+    ///     Carried and fixed exactly like <see cref="Class" />.
+    /// </remarks>
+    [ProtoMember(24)] public uint? Gender { get; set; }
 }

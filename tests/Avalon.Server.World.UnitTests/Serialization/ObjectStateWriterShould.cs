@@ -390,6 +390,53 @@ public class ObjectStateWriterShould
             Assert.Null);
     }
 
+    [Theory]
+    [InlineData(GameEntityFields.All)]
+    [InlineData(GameEntityFields.Position)]
+    [InlineData(GameEntityFields.None)]
+    public void Send_a_characters_class_and_gender_on_every_state(GameEntityFields fields)
+    {
+        CharacterEntity character = TestCharacters.New(1);
+        character.Data!.Class = CharacterClass.Hunter;
+        character.Data!.Gender = CharacterGender.Female;
+
+        ObjectState parsed = RoundTrip(ObjectStateWriter.From(character, fields));
+
+        Assert.Equal((uint)CharacterClass.Hunter, parsed.Class);
+        Assert.Equal((uint)CharacterGender.Female, parsed.Gender);
+    }
+
+    [Fact]
+    public void Send_male_as_a_present_zero_rather_than_leaving_it_out()
+    {
+        CharacterEntity character = TestCharacters.New(1);
+        character.Data!.Gender = CharacterGender.Male;
+
+        Assert.Equal(0u, RoundTrip(ObjectStateWriter.From(character, GameEntityFields.Position)).Gender);
+    }
+
+    [Fact]
+    public void Never_send_a_class_or_gender_for_a_creature()
+    {
+        ObjectState parsed = RoundTrip(ObjectStateWriter.From(Monster(WorldRarity.Normal), GameEntityFields.All));
+
+        Assert.Null(parsed.Class);
+        Assert.Null(parsed.Gender);
+    }
+
+    /// <summary>
+    /// Pins the field numbers clients read: Class is field 23 (tag 184, varint B8 01) and Gender field 24
+    /// (tag 192, varint C0 01), each followed by its value.
+    /// </summary>
+    [Fact]
+    public void Carry_Class_as_field_23_and_Gender_as_field_24()
+    {
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, new ObjectState { Class = 2, Gender = 0 });
+
+        Assert.Equal(new byte[] { 0xB8, 0x01, 0x02, 0xC0, 0x01, 0x00 }, stream.ToArray());
+    }
+
     [Fact]
     public void Send_PvpEnabled_on_every_character_state_only_as_true()
     {
