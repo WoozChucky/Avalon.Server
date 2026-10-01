@@ -655,14 +655,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Rolls, allocates and places a dying creature's drops and tells everyone here. Tick thread:
-    /// CreatureKilled is called by this instance's combat service inside combat and ability
-    /// processing. Reads the Loot and Items areas as they are now, so a reload applies to the next kill.
-    /// Each drop is allocated on its own, among the characters that share the kill (2026-09-30).
+    /// Rolls, allocates and places a dying creature's drops and tells everyone here. Tick thread: CreatureKilled is
+    /// called by this instance's combat service inside combat and ability processing. Reads the Loot, Items and
+    /// Quests areas as they are now, so a reload applies to the next kill. Each table drop is allocated on its own,
+    /// among the characters that share the kill (2026-09-30); each quest drop (#433) belongs to the member it was
+    /// rolled for, for good. All of them are placed in one ring.
     /// </summary>
     private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible)
     {
-        if (_lootRoller is null || _lootAllocator is null || creature.Metadata is not CreatureTemplate template)
+        IReadOnlyList<(RolledDrop Drop, uint Owner)> questDrops = RollQuestDrops(creature, eligible);
+        bool rollsTable = _lootRoller is not null && _lootAllocator is not null && creature.Metadata is CreatureTemplate;
+        if (!rollsTable && questDrops.Count == 0)
         {
             return;
         }
@@ -671,15 +674,26 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // that killed the creature. One bad table costs one kill's loot, nothing more.
         try
         {
-            IReadOnlyList<RolledDrop> rolled = _lootRoller.Roll(template, _world.Data.Loot, _world.Data.ItemTemplates);
-            if (rolled.Count == 0)
+            IReadOnlyList<RolledDrop> table = rollsTable
+                ? _lootRoller!.Roll((CreatureTemplate)creature.Metadata, _world.Data.Loot, _world.Data.ItemTemplates)
+                : [];
+            if (table.Count == 0 && questDrops.Count == 0)
             {
                 return;
             }
 
-            ILootAllocator allocator = _lootAllocator;
+            var rolled = new List<RolledDrop>(table.Count + questDrops.Count);
+            rolled.AddRange(table);
+            foreach ((RolledDrop drop, uint _) in questDrops)
+                rolled.Add(drop);
+
+            ILootAllocator? allocator = _lootAllocator;
+            int tableCount = table.Count;
             IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
-                creature.Position, rolled, _ => allocator.Allocate(OwnerCharacterId, OwnerPartyId, eligible),
+                creature.Position, rolled,
+                i => i < tableCount
+                    ? allocator!.Allocate(OwnerCharacterId, OwnerPartyId, eligible)
+                    : new LootAllocation(questDrops[i - tableCount].Owner, DateTime.MaxValue),
                 GetNavigatorForPosition(creature.Position), IObject.GenerateId);
 
             foreach (GroundLoot drop in drops)
@@ -692,7 +706,27 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         catch (Exception e)
         {
             _logger.LogError(e, "Could not drop loot for creature {CreatureGuid} (template {TemplateId}); the kill still counts",
-                creature.Guid, template.Id.Value);
+                creature.Guid, creature.Metadata.Id.Value);
+        }
+    }
+
+    /// <summary>The quest drops a kill rolls (#433). Contained: a throw costs this kill's quest drops, nothing else.</summary>
+    private IReadOnlyList<(RolledDrop Drop, uint Owner)> RollQuestDrops(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    {
+        if (_questService is null || eligible.Count == 0)
+        {
+            return [];
+        }
+
+        try
+        {
+            return _questService.RollQuestDrops(creature, eligible);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Rolling quest drops for the kill of {CreatureGuid} in instance {InstanceId} failed",
+                creature.Guid, InstanceId);
+            return [];
         }
     }
 

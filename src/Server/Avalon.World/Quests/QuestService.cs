@@ -12,6 +12,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Dialogue;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
 using Microsoft.Extensions.Logging;
@@ -242,6 +243,86 @@ public sealed class QuestService(
         }
     }
 
+    /// <summary>
+    /// Quest item drops for a kill (#433): for each eligible character, each drop row of this creature whose
+    /// objective is an unmet Collect objective in the current stage of one of its Active quests is rolled once
+    /// (ILootRandom, a percentage); each success is one item, reserved to that character for good.
+    /// </summary>
+    public IReadOnlyList<(RolledDrop Drop, uint Owner)> RollQuestDrops(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    {
+        QuestCatalog catalog = Catalog;
+        IReadOnlyList<QuestDropView> drops = catalog.DropsFrom(creature.Metadata.Id);
+        if (drops.Count == 0 || eligible.Count == 0)
+            return [];
+
+        List<(RolledDrop, uint)> rolled = [];
+        foreach (ICharacter member in eligible)
+        {
+            if (member is not CharacterEntity character)
+                continue;
+
+            foreach (QuestDropView drop in drops)
+            {
+                if (character.Quests.Get(drop.QuestId) is not { State: CharacterQuestState.Active } active
+                    || !catalog.TryGet(drop.QuestId, out QuestView? quest)
+                    || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == drop.ObjectiveId) is not { } objective
+                    || active.ProgressOf(objective.Id) >= objective.Count)
+                    continue;
+
+                if (random.NextDouble() * 100.0 < drop.Chance)
+                    rolled.Add((RolledDrop.Item(drop.ItemTemplateId, 1), character.Guid.Id));
+            }
+        }
+
+        return rolled;
+    }
+
+    /// <summary>
+    /// Sets every Collect objective in the current stage of each held quest to what the Bag holds, capped (#433).
+    /// A quest that was ready and is now short goes back to Active; one that now has everything settles.
+    /// QuestFlusher calls this on a tick whose inventory changes touched the Bag.
+    /// </summary>
+    public void RecountCollect(CharacterEntity character)
+    {
+        QuestCatalog catalog = Catalog;
+        foreach (ActiveQuest active in character.Quests.Active.ToList())
+        {
+            if (catalog.TryGet(active.QuestId, out QuestView? quest))
+                Recount(character, quest, active);
+        }
+    }
+
+    public static long HeldInBag(CharacterEntity character, ItemTemplateId item) =>
+        character.Container(InventoryType.Bag).Items.Where(i => i.TemplateId.Value == item.Value).Sum(i => (long)i.Count);
+
+    private void Recount(CharacterEntity character, QuestView quest, ActiveQuest active)
+    {
+        if (CurrentStage(quest, active) is not { } stage)
+            return;
+
+        bool changed = false;
+        foreach (QuestObjectiveView objective in stage.Objectives)
+        {
+            if (objective.Type != Domain.World.QuestObjectiveType.Collect)
+                continue;
+
+            uint held = (uint)Math.Min(HeldInBag(character, objective.ItemTemplateId!), objective.Count);
+            if (!character.Quests.SetProgress(active, objective.Id, held))
+                continue;
+
+            changed = true;
+            character.Quests.Say($"{Text(character, objective.DescriptionTextId)}: {held}/{objective.Count}");
+            if (held < objective.Count && active.State == CharacterQuestState.ReadyToTurnIn)
+            {
+                character.Quests.SetState(active, CharacterQuestState.Active);
+                character.Quests.Say($"{Title(character, quest)}: no longer ready to turn in.");
+            }
+        }
+
+        if (changed)
+            Settle(character, quest, active);
+    }
+
     /// <summary>Sets an objective's count (capped), says the milestone, and settles the stages.</summary>
     private bool SetCount(CharacterEntity character, QuestView quest, ActiveQuest active, QuestObjectiveView objective, uint value)
     {
@@ -337,9 +418,13 @@ public sealed class QuestService(
     {
     }
 
-    /// <summary>Task 7: recount the new stage's Collect objectives. Task 9: the script's OnStageStarted.</summary>
+    /// <summary>
+    /// A stage started: its Collect objectives count what the Bag already holds (#433). Task 9: the script's
+    /// OnStageStarted.
+    /// </summary>
     private void StageStarted(CharacterEntity character, QuestView quest, ActiveQuest active)
     {
+        Recount(character, quest, active);
         AfterStageStarted?.Invoke(character, quest, active);
     }
 
@@ -353,9 +438,24 @@ public sealed class QuestService(
     {
     }
 
-    /// <summary>Task 7: every copy of the quest's Collect items leaves the Bag and the Bank.</summary>
+    /// <summary>Every copy of the quest's Collect items leaves the Bag and the Bank (turn-in and abandon, #433).</summary>
     private void RemoveQuestItems(CharacterEntity character, QuestView quest)
     {
+        IInventoryService inventory = economy.InventoryOf(character);
+        foreach (ulong item in quest.Objectives.Where(o => o.Type == Domain.World.QuestObjectiveType.Collect)
+                     .Select(o => o.ItemTemplateId!.Value).Distinct())
+        {
+            foreach (InventoryType container in (InventoryType[])[InventoryType.Bag, InventoryType.Bank])
+            {
+                foreach (InventoryItem stack in character.Container(container).Items.Where(i => i.TemplateId.Value == item).ToList())
+                {
+                    InventoryRemoveResult removed = inventory.TryRemove(stack.InstanceId, stack.Count);
+                    if (removed != InventoryRemoveResult.Ok)
+                        logger.LogWarning("Could not take quest item {Item} ({Result}) from character {CharacterId}",
+                            item, removed, character.Guid.Id);
+                }
+            }
+        }
     }
 
     /// <summary>After an accept or a turn-in, the NPC's root again, so its quest options are current.</summary>

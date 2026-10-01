@@ -142,6 +142,7 @@ public static class VendorRules
 
         if (findTemplate(item.TemplateId) is not { } template
             || template.Flags.HasFlag(ItemTemplateFlags.NoSell)
+            || template.Flags.HasFlag(ItemTemplateFlags.QuestItem)
             || template.SellPrice == 0)
             return new SellDecision(VendorResult.NotSellable, null);
 
