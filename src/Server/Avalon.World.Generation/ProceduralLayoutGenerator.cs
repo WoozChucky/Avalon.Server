@@ -20,7 +20,7 @@ namespace Avalon.World.ChunkLayouts;
 /// </summary>
 public class ProceduralLayoutGenerator
 {
-    private const int MaxRetries = 3;
+    private const int MaxRetries = 10;
     private readonly ILogger _logger;
 
     public ProceduralLayoutGenerator(ILoggerFactory? loggerFactory = null)
