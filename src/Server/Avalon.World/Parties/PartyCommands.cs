@@ -143,7 +143,7 @@ public sealed class PartyExperienceCommand(PartyService parties) : ICommand
 }
 
 /// <summary>/p (alias /party): to every online member of the sender's party, wherever they are, on the party channel; the sender sees it too.</summary>
-public sealed class PartyChatCommand(PartyService parties) : ICommand
+public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateLimiter) : ICommand
 {
     public string Name => "p";
     public string[] Aliases => ["party"];
@@ -157,6 +157,12 @@ public sealed class PartyChatCommand(PartyService parties) : ICommand
         if (message.Length == 0)
         {
             ctx.Reply("Usage: /p <message>");
+            return;
+        }
+
+        if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
+        {
+            ctx.Reply(ChatRateLimiter.TooFast(retryAfter));
             return;
         }
 
@@ -175,5 +181,8 @@ public sealed class PartyChatCommand(PartyService parties) : ICommand
                     target.CryptoSession.Encrypt, ChatChannel.Party));
             }
         }
+
+        // Counts once the message has gone out (the sender is a member of the party, so it always has).
+        rateLimiter.Record(sender.Guid.Id);
     }
 }

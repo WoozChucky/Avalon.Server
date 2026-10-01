@@ -473,7 +473,7 @@ public class PartyWorldWiringShould
             r.Texts,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            r.Dialogue, r.Loot,
+            r.Dialogue, r.Loot, Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(),
             parties: parties);
 
         await world.LoadAsync(CancellationToken.None);

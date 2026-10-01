@@ -11,7 +11,8 @@ namespace Avalon.World.Handlers;
 /// the sender included (spec 2026-09-30 section 5).
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_CHAT_MESSAGE)]
-public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatcher)
+public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatcher,
+    ChatRateLimiter rateLimiter)
     : WorldPacketHandler<CChatMessagePacket>
 {
     public override void Execute(IWorldConnection connection, CChatMessagePacket packet)
@@ -34,6 +35,14 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
             return;
         }
 
+        // Before anything is looked up or sent: an over-limit message is not said, and only the sender is told.
+        if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
+        {
+            connection.Send(SChatMessagePacket.System(ChatRateLimiter.TooFast(retryAfter), packet.DateTime,
+                connection.CryptoSession.Encrypt));
+            return;
+        }
+
         ulong accountId = connection.AccountId is { } account ? (ulong)account.Value : 0UL;
 
         if (world.InstanceRegistry.GetInstanceById(sender.InstanceId) is not MapInstance instance)
@@ -41,9 +50,11 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
             // Nowhere to say it: the sender still sees its own line.
             connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
                 connection.CryptoSession.Encrypt));
+            rateLimiter.Record(sender.Guid.Id);
             return;
         }
 
+        rateLimiter.Record(sender.Guid.Id);
         foreach (IWorldConnection target in instance.Connections)
         {
             target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,

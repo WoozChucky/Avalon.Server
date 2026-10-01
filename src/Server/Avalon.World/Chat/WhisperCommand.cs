@@ -8,9 +8,10 @@ namespace Avalon.World.Chat;
 /// server, on <see cref="ChatChannel.Whisper" /> with the sender's name; the sender gets the same line back with the
 /// recipient's name in <see cref="SChatMessagePacket.TargetName" />. Synchronous, on the tick. Refusals are system lines
 /// to the sender only, checked in this order: no name or no message, the sender's own name, no online character with
-/// that name (offline and unknown alike, so it never reveals who exists).
+/// that name (offline and unknown alike, so it never reveals who exists). The chat rate limit (#722) is checked
+/// after the usage and self refusals and before the lookup, and a whisper counts against it only once delivered.
 /// </summary>
-public sealed class WhisperCommand(OnlineCharacters online) : ICommand
+public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rateLimiter) : ICommand
 {
     public const string Usage = "Usage: /w <player> <message>";
     public const string Self = "You can't whisper yourself.";
@@ -38,6 +39,12 @@ public sealed class WhisperCommand(OnlineCharacters online) : ICommand
             return;
         }
 
+        if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
+        {
+            ctx.Reply(ChatRateLimiter.TooFast(retryAfter));
+            return;
+        }
+
         if (online.ByName(name) is not { Character: { } recipient } target)
         {
             ctx.Reply(NotOnline(name));
@@ -49,5 +56,6 @@ public sealed class WhisperCommand(OnlineCharacters online) : ICommand
             target.CryptoSession.Encrypt, ChatChannel.Whisper));
         ctx.Connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
             ctx.Connection.CryptoSession.Encrypt, ChatChannel.Whisper, targetName: recipient.Name));
+        rateLimiter.Record(sender.Guid.Id);
     }
 }

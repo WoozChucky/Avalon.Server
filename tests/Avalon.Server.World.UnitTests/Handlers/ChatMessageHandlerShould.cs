@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.Chat;
 using System.IO;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
@@ -29,7 +30,7 @@ public class ChatMessageHandlerShould
         _senderConnection.AccountId.Returns(new AccountId(1));
         _senderConnection.InGame.Returns(true);
 
-        _handler = new ChatMessageHandler(_world, _commandDispatcher);
+        _handler = new ChatMessageHandler(_world, _commandDispatcher, ChatLimits.Off());
     }
 
     private CChatMessagePacket MakePacket(string message) =>

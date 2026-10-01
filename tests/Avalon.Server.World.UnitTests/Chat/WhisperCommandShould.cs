@@ -16,7 +16,7 @@ public class WhisperCommandShould
     private void Run(PartyClient client, string message)
     {
         string[] parts = message.TrimStart('/').Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        new WhisperCommand(_w.Parties.Online).Execute(
+        new WhisperCommand(_w.Parties.Online, ChatLimits.Off()).Execute(
             new CommandContext(client.Connection, new CChatMessagePacket { Message = message, DateTime = DateTime.UtcNow }, e => throw e),
             parts[1..]);
     }

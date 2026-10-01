@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.Chat;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
@@ -103,7 +104,7 @@ public class PartyCommandsShould
         PartyClient stranger = _w.Online(3, "C");
         _w.Form(a, b);
 
-        Run(new PartyChatCommand(_w.Parties), a, "/p pull the big one");
+        Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, "/p pull the big one");
 
         SChatMessagePacket heard = Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
         Assert.Equal(ChatChannel.Party, heard.Channel);
@@ -120,7 +121,7 @@ public class PartyCommandsShould
         PartyClient b = _w.Online(2, "B");
         _w.Form(a, b);
 
-        Run(new PartyChatCommand(_w.Parties), a, "/party wait   for me");
+        Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, "/party wait   for me");
 
         Assert.Equal("wait   for me", Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).Message);
     }
@@ -130,7 +131,7 @@ public class PartyCommandsShould
     {
         PartyClient a = _w.Online(1, "A");
 
-        Run(new PartyChatCommand(_w.Parties), a, "/p hello");
+        Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, "/p hello");
 
         Assert.Equal(["You are not in a party."], a.Lines());
     }
@@ -146,7 +147,7 @@ public class PartyCommandsShould
         _w.Form(a, b);
         a.Clear();
 
-        Run(new PartyChatCommand(_w.Parties), a, message);
+        Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, message);
 
         Assert.Equal(["Usage: /p <message>"], a.Lines());
         Assert.DoesNotContain(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE), m => m.Channel == ChatChannel.Party);
@@ -164,7 +165,7 @@ public class PartyCommandsShould
         PartyClient b = _w.Online(2, "B");
         _w.Form(a, b);
 
-        Run(new PartyChatCommand(_w.Parties), a, message);
+        Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, message);
 
         SChatMessagePacket heard = Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE),
             m => m.Channel == ChatChannel.Party);

@@ -45,7 +45,7 @@ public class WorldVendorCatalogShould
             r.Texts,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            r.Dialogue, r.Loot, r.Vendors);
+            r.Dialogue, r.Loot, Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(), r.Vendors);
 
         await world.LoadAsync(CancellationToken.None);
 

@@ -102,6 +102,11 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>(),
                 host.Services.GetRequiredService<PartyService>().Online);
 
+            // The chat rate limit (#722): one singleton, with the shipped default from appsettings.json.
+            Assert.Same(host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>(),
+                host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>());
+            Assert.Equal(10, host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Avalon.World.Configuration.GameConfiguration>>().Value.ChatMessagesPerMinute);
+
             // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
             // every combat service reads the same values. The facing cone it once carried is gone
             // (#164), and CharacterSelectHandler no longer takes it, but must still build from here.

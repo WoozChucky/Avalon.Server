@@ -223,6 +223,10 @@ public class WorldServerStartupShould
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            // The chat handler (#722) takes the one chat limiter, a class with settings and a clock; off, as the defaults are.
+            if (serviceType == typeof(Avalon.World.Chat.ChatRateLimiter))
+                return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
+
             if (serviceType == typeof(PartyService))
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
