@@ -1,0 +1,50 @@
+using Avalon.World;
+using Avalon.World.Quests;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using Xunit;
+
+namespace Avalon.Server.World.UnitTests.Quests;
+
+/// <summary>
+/// #738: the provider quest scripts are built from hands over a logger factory, loggers and the clock, from the
+/// container, and nothing else, whatever the container holds: so a script cannot obtain a service that writes.
+/// </summary>
+public class QuestScriptServicesShould
+{
+    private static readonly ManualTimerClock Clock = new();
+
+    private static IServiceProvider Container() => new ServiceCollection()
+        .AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance)
+        .AddSingleton(typeof(ILogger<>), typeof(Logger<>))
+        .AddSingleton<TimeProvider>(Clock)
+        .AddSingleton(Substitute.For<IWorld>())
+        .AddSingleton(new object())
+        .BuildServiceProvider();
+
+    [Fact]
+    public void Hand_over_the_logger_factory_loggers_and_the_clock_from_the_container()
+    {
+        var services = new QuestScriptServices(Container());
+
+        Assert.Same(NullLoggerFactory.Instance, services.GetService(typeof(ILoggerFactory)));
+        Assert.IsAssignableFrom<ILogger<QuestScriptServicesShould>>(services.GetService(typeof(ILogger<QuestScriptServicesShould>)));
+        Assert.Same(Clock, services.GetService(typeof(TimeProvider)));
+    }
+
+    [Theory]
+    [InlineData(typeof(IWorld))]
+    [InlineData(typeof(object))]
+    [InlineData(typeof(IServiceProvider))]
+    [InlineData(typeof(IServiceScopeFactory))]
+    [InlineData(typeof(IEnumerable<ILoggerFactory>))]
+    public void Hand_over_nothing_else(Type type)
+    {
+        IServiceProvider container = Container();
+        Assert.NotNull(container.GetService(type));
+
+        Assert.Null(new QuestScriptServices(container).GetService(type));
+    }
+}

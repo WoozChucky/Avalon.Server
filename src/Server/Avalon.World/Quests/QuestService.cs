@@ -65,6 +65,9 @@ public sealed class QuestService(
     // One throttled log per QuestFlusher step (final review M2). Tick thread only.
     private readonly Dictionary<string, ThrottledErrorLog> _flushStepErrors = new(StringComparer.Ordinal);
 
+    // What quest scripts are built from (#738): a logger factory, loggers and the clock, never a service that writes.
+    private readonly QuestScriptServices _scriptServices = new(services);
+
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
 
@@ -737,7 +740,7 @@ public sealed class QuestService(
         QuestScript? built = null;
         try
         {
-            built = (QuestScript)ActivatorUtilities.CreateInstance(services, type);
+            built = (QuestScript)ActivatorUtilities.CreateInstance(_scriptServices, type);
         }
         catch (Exception e)
         {

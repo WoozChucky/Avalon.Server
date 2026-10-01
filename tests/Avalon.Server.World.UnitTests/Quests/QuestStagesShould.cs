@@ -24,7 +24,7 @@ public class QuestStagesShould
             var scripts = Substitute.For<IScriptManager>();
             scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
             w = await QuestTestWorld.CreateAsync(quests, scripts: scripts,
-                services: new ServiceCollection().AddSingleton(recorder).BuildServiceProvider());
+                services: new ServiceCollection().AddSingleton<Microsoft.Extensions.Logging.ILogger<SampleQuestScript>>(recorder).BuildServiceProvider());
         }
 
         QuestClient c = w.Join(level: 2);
