@@ -205,6 +205,18 @@ public class LayoutConfigVersionShould
     }
 
     [Fact]
+    public void Stay_the_same_when_no_groups_are_given() =>
+        Assert.Equal(LayoutConfigVersion.Compute(Config(), Pool()), LayoutConfigVersion.Compute(Config(), Pool(), []));
+
+    [Fact]
+    public void Change_when_a_group_is_added()
+    {
+        var group = new ChunkGroupDefinition("g", [new ChunkGroupCell(Template(9, "g.obj"), 0, 0), new ChunkGroupCell(Template(10, "h.obj"), 1, 0)]);
+
+        Assert.NotEqual(LayoutConfigVersion.Compute(Config(), Pool()), LayoutConfigVersion.Compute(Config(), Pool(), [group]));
+    }
+
+    [Fact]
     public void Should_be_carried_on_the_generated_layout()
     {
         var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
