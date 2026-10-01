@@ -1,4 +1,5 @@
 using Avalon.Domain.Auth;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Templates;
@@ -29,4 +30,17 @@ public sealed class TemplateEditingOptionsValidator : IValidateOptions<TemplateE
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(
                 $"{TemplateEditingOptions.Section}:ReloadTimeout must be a positive time span, e.g. 00:00:10.");
+}
+
+public static class TemplateEditingRegistration
+{
+    /// <summary>The template edit endpoints: the service, the guard in front of them, and the reload signal.</summary>
+    public static IServiceCollection AddTemplateEditing(this IServiceCollection services)
+    {
+        services.AddScoped<TemplateEditService>();
+        services.AddScoped<TemplateEditGuard>();
+        // Replaced by the Redis-backed signal; until then a save reports "pending".
+        services.TryAddSingleton<ITemplateReloadSignal, NoopTemplateReloadSignal>();
+        return services;
+    }
 }

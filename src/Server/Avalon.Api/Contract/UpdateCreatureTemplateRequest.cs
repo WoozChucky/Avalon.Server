@@ -1,0 +1,49 @@
+using System.ComponentModel;
+using Avalon.World.Public.Enums;
+namespace Avalon.Api.Contract;
+
+/// <summary>The body of a template edit: the template read shape without its id, version and computed fields.</summary>
+public sealed class UpdateCreatureTemplateRequest
+{
+    public string Name { get; set; } = "";
+    public string SubName { get; set; } = "";
+    public string IconName { get; set; } = "";
+    public short MinLevel { get; set; }
+    public short MaxLevel { get; set; }
+    public float SpeedWalk { get; set; }
+    public float SpeedRun { get; set; }
+    public float SpeedSwim { get; set; }
+    public CreatureRarity Rarity { get; set; }
+    public CreatureFamily Family { get; set; }
+    public CreatureType Type { get; set; }
+    /// <summary>The loot table this creature rolls when it dies; null when it drops no items.</summary>
+    public int? LootTableId { get; set; }
+    public int MinGold { get; set; }
+    public int MaxGold { get; set; }
+    public string AIName { get; set; } = "";
+    public short MovementType { get; set; }
+    public float DetectionRange { get; set; }
+    public int MovementId { get; set; }
+    public string ScriptName { get; set; } = "";
+    public float HealthModifier { get; set; }
+    public float ManaModifier { get; set; }
+    public float ArmorModifier { get; set; }
+    public float ExperienceModifier { get; set; }
+    public short RegenHealth { get; set; }
+    public short DmgSchool { get; set; }
+    public float DamageModifier { get; set; }
+    /// <summary>Seconds between the creature's swings, 0.5 or more (#627).</summary>
+    public float BaseAttackTime { get; set; }
+    public int RangeAttackTime { get; set; }
+    /// <summary>Null means the server derives it from the creature's level.</summary>
+    public uint? Experience { get; set; }
+
+    /// <summary>
+    /// Stored but not used: creatures do not respawn (#598). Kept so generated clients keep compiling.
+    /// </summary>
+    [Description("Stored but not used: creatures do not respawn, so the server never reads this value.")]
+    public int RespawnTimerSecs { get; set; }
+
+    /// <summary>Seconds before the creature's corpse is removed.</summary>
+    public int BodyRemoveTimerSecs { get; set; }
+}

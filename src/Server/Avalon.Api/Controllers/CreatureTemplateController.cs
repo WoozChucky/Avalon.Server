@@ -64,6 +64,40 @@ public class CreatureTemplateController : BaseController
         return Ok(dto);
     }
 
+    /// <summary>
+    /// Saves an edit. Needs an Admin, a world listed in Application:Templates:EditableWorlds, and the version that was
+    /// read as If-Match. The body is validated the way the world validates the row before it is stored.
+    /// </summary>
+    [HttpPut("{id:long}", Name = "UpdateCreatureTemplate")]
+    [Authorize(Policy = AvalonRoles.Admin)]
+    [ServiceFilter(typeof(TemplateEditGuard))]
+    [ProducesResponseType(typeof(TemplateSaveResultDto<CreatureTemplateDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> Update(
+        [FromRoute] ulong id,
+        [FromBody] UpdateCreatureTemplateRequest request,
+        [FromServices] TemplateEditService edit,
+        CancellationToken ct)
+    {
+        TemplateEditResult<CreatureTemplate> result = await edit.EditCreatureAsync(
+            new TemplateEditCaller(_world.Id!, Account!.Id), id, Request.Headers.IfMatch.ToString(), request, ct);
+        return result.Outcome switch
+        {
+            TemplateEditOutcome.NotFound => NotFound(),
+            TemplateEditOutcome.Conflict => TemplateProblems.Conflict(),
+            TemplateEditOutcome.Invalid => ValidationProblem(new ValidationProblemDetails(result.Errors!)),
+            _ => Ok(new TemplateSaveResultDto<CreatureTemplateDto>
+            {
+                Template = ToDto(result.Row!),
+                Reload = new TemplateReloadDto { Status = result.Reload!.Status, Summary = result.Reload.Summary },
+            }),
+        };
+    }
+
     private CreatureTemplateDto ToDto(CreatureTemplate t) => new()
     {
         Id = t.Id.Value,

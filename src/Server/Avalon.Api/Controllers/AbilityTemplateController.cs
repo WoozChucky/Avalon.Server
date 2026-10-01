@@ -64,6 +64,40 @@ public class AbilityTemplateController : BaseController
         return Ok(dto);
     }
 
+    /// <summary>
+    /// Saves an edit. Needs an Admin, a world listed in Application:Templates:EditableWorlds, and the version that was
+    /// read as If-Match. The body is validated the way the world validates the row before it is stored.
+    /// </summary>
+    [HttpPut("{id:long}", Name = "UpdateAbilityTemplate")]
+    [Authorize(Policy = AvalonRoles.Admin)]
+    [ServiceFilter(typeof(TemplateEditGuard))]
+    [ProducesResponseType(typeof(TemplateSaveResultDto<AbilityTemplateDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> Update(
+        [FromRoute] uint id,
+        [FromBody] UpdateAbilityTemplateRequest request,
+        [FromServices] TemplateEditService edit,
+        CancellationToken ct)
+    {
+        TemplateEditResult<AbilityTemplate> result = await edit.EditAbilityAsync(
+            new TemplateEditCaller(_world.Id!, Account!.Id), id, Request.Headers.IfMatch.ToString(), request, ct);
+        return result.Outcome switch
+        {
+            TemplateEditOutcome.NotFound => NotFound(),
+            TemplateEditOutcome.Conflict => TemplateProblems.Conflict(),
+            TemplateEditOutcome.Invalid => ValidationProblem(new ValidationProblemDetails(result.Errors!)),
+            _ => Ok(new TemplateSaveResultDto<AbilityTemplateDto>
+            {
+                Template = ToDto(result.Row!),
+                Reload = new TemplateReloadDto { Status = result.Reload!.Status, Summary = result.Reload.Summary },
+            }),
+        };
+    }
+
     private AbilityTemplateDto ToDto(AbilityTemplate t) => new()
     {
         Id = t.Id.Value,
