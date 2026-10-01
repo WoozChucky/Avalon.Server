@@ -105,6 +105,22 @@ public class CharacterController : BaseController
         return stats is null ? NotFound() : Ok(stats);
     }
 
+    /// <summary>The character's quest log as its world last saved it (#714): held quests with their progress, and turned-in ones.</summary>
+    [HttpGet("{id}/quests", Name = "GetCharacterQuests")]
+    [ProducesResponseType(typeof(CharacterQuestLogDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetQuests([FromRoute] uint id, CancellationToken ct)
+    {
+        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        if (character is null) return NotFound();
+
+        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        if (!authz.Succeeded) return NotFoundOrForbid();
+
+        return Ok(await _service.GetQuestLogAsync(new CharacterId(id), ct));
+    }
+
     [HttpPatch("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

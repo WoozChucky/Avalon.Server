@@ -71,6 +71,12 @@ internal static class Exports
             root => AbilityCatalogExport.Write(
                 Path.Combine(root, AbilityCatalogExport.DirectoryName, AbilityCatalogExport.FileName)),
             AbilityCatalogExport.Readiness),
+
+        new("quest-catalog", QuestCatalogExport.DirectoryName + "/" + QuestCatalogExport.FileName,
+            "every quest's title, stages, objectives and rewards, for tooling (needs a World database)",
+            root => QuestCatalogExport.Write(
+                Path.Combine(root, QuestCatalogExport.DirectoryName, QuestCatalogExport.FileName)),
+            QuestCatalogExport.Readiness),
     ];
 
     internal static Export? ByName(string name)

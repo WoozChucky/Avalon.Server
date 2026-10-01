@@ -1,4 +1,5 @@
 using Avalon.Api.Contract;
+using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Exceptions;
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
@@ -18,6 +19,9 @@ public interface ICharacterService
     Task<CharacterInventoryDto?> GetInventoryAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task<CharacterStatsDto?> GetStatsAsync(CharacterId id, CancellationToken cancellationToken = default);
+
+    /// <summary>The character's quest log as its world last saved it (#714); empty lists for a character with none.</summary>
+    Task<CharacterQuestLogDto> GetQuestLogAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task<PagedResult<Character>> PaginateAsync(CharacterPaginateFilters filters, CancellationToken cancellationToken = default);
 }
 
@@ -30,6 +34,7 @@ public class CharacterService : ICharacterService
     private readonly IAbilityTemplateRepository _abilityTemplateRepository;
     private readonly IItemTemplateRepository _itemTemplateRepository;
     private readonly ICharacterStatsRepository _statsRepository;
+    private readonly ICharacterQuestRepository _questRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
@@ -38,7 +43,8 @@ public class CharacterService : ICharacterService
         ICharacterAbilityRepository characterAbilityRepository,
         IAbilityTemplateRepository abilityTemplateRepository,
         IItemTemplateRepository itemTemplateRepository,
-        ICharacterStatsRepository statsRepository)
+        ICharacterStatsRepository statsRepository,
+        ICharacterQuestRepository questRepository)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
@@ -47,6 +53,7 @@ public class CharacterService : ICharacterService
         _abilityTemplateRepository = abilityTemplateRepository;
         _itemTemplateRepository = itemTemplateRepository;
         _statsRepository = statsRepository;
+        _questRepository = questRepository;
     }
 
     public Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default) =>
@@ -161,6 +168,12 @@ public class CharacterService : ICharacterService
             AttackDamage = stats.AttackDamage,
             AbilityDamage = stats.AbilityDamage,
         };
+    }
+
+    public async Task<CharacterQuestLogDto> GetQuestLogAsync(CharacterId id, CancellationToken cancellationToken = default)
+    {
+        CharacterQuestRows rows = await _questRepository.GetByCharacterIdAsync(id, cancellationToken);
+        return rows.ToQuestLogDto(id.Value);
     }
 
     public async Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default)

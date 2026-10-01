@@ -47,6 +47,7 @@ public sealed class WorldRoutesOpenApiShould(OpenApiDocumentFixture fixture) : I
         { "/world/{worldId}/character/{id}/inventory", "get" },
         { "/world/{worldId}/character/{id}/abilities", "get" },
         { "/world/{worldId}/character/{id}/stats", "get" },
+        { "/world/{worldId}/character/{id}/quests", "get" },
         { "/world/{worldId}/map-template", "get" },
         { "/world/{worldId}/map-template/{id}", "get" },
         { "/world/{worldId}/map-template/{id}/preview-layout", "get" },
@@ -57,6 +58,8 @@ public sealed class WorldRoutesOpenApiShould(OpenApiDocumentFixture fixture) : I
         { "/world/{worldId}/item-template/{id}", "get" },
         { "/world/{worldId}/creature-template", "get" },
         { "/world/{worldId}/creature-template/{id}", "get" },
+        { "/world/{worldId}/quest-template", "get" },
+        { "/world/{worldId}/quest-template/{id}", "get" },
         { "/world/{worldId}/observability/character/{id}", "get" },
     };
 
@@ -78,7 +81,7 @@ public sealed class WorldRoutesOpenApiShould(OpenApiDocumentFixture fixture) : I
     [Fact]
     public void Leave_no_world_content_route_outside_a_world()
     {
-        string[] unscoped = ["/character/", "/map-template", "/item-template", "/ability-template", "/creature-template",
+        string[] unscoped = ["/character/", "/map-template", "/item-template", "/ability-template", "/creature-template", "/quest-template",
             "/observability/character"];
 
         Assert.DoesNotContain(Paths.EnumerateObject(), p => unscoped.Any(prefix => p.Name.StartsWith(prefix, StringComparison.Ordinal)));

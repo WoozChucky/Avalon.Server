@@ -5,8 +5,10 @@
 
 This is the client contract for quests. Quests are offered and handed in through NPC dialogue, progress on
 the server, and are described to the client in full by the packets themselves: every text is already
-resolved in the character's language, so a client needs no quest catalog of its own. (A quest catalog export
-for tooling follows in #714.) The wire schema is `schema/avalon.proto` (re-exported with
+resolved in the character's language, so a client needs no quest catalog of its own. For tooling (a quest
+browser, documentation), `tools/Avalon.Exporter -- quest-catalog` writes `schema/quests/quest-catalog-v1.json`
+(#714): every quest's id, enUS title, stages, objectives (id, type, target, count) and rewards. Game masters can
+also read whole quests over REST, `GET /world/{worldId}/quest-template` and `/{id}`. The wire schema is `schema/avalon.proto` (re-exported with
 `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]` numbers in it. Server-side rules are
 described in `CLAUDE.md` under "Quests".
 

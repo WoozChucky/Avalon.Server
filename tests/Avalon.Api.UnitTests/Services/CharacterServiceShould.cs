@@ -47,7 +47,7 @@ public class CharacterServiceShould
 
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
-            Substitute.For<ICharacterStatsRepository>());
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -95,7 +95,7 @@ public class CharacterServiceShould
 
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
-            Substitute.For<ICharacterStatsRepository>());
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -136,7 +136,8 @@ public class CharacterServiceShould
         var statsRepository = Substitute.For<ICharacterStatsRepository>();
         statsRepository.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(stats);
 
-        return new CharacterService(characters, slots, instances, rows, abilities, templates, statsRepository);
+        return new CharacterService(characters, slots, instances, rows, abilities, templates, statsRepository,
+            Substitute.For<ICharacterQuestRepository>());
     }
 
     private static AbilityTemplate Cleave() => new()
@@ -218,7 +219,7 @@ public class CharacterServiceShould
 
         var service = new CharacterService(characters, Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), rows, abilities, Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>());
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>());
 
         CharacterAbilitiesDto? result = await service.GetAbilitiesAsync(id);
 
@@ -280,5 +281,66 @@ public class CharacterServiceShould
     private static CharacterService StatsService(ICharacterStatsRepository stats) =>
         new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
-            Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(), stats);
+            Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(), stats,
+            Substitute.For<ICharacterQuestRepository>());
+
+    /// <summary>#714: the saved quest rows, each held quest with its own counts, by quest and objective id.</summary>
+    [Fact]
+    public async Task Map_the_saved_quest_log()
+    {
+        var id = new CharacterId(42);
+        var accepted = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        var completed = new DateTime(2026, 9, 29, 8, 30, 0, DateTimeKind.Utc);
+        var quests = Substitute.For<ICharacterQuestRepository>();
+        quests.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
+            [
+                new CharacterQuest { CharacterId = id, QuestId = 3, State = Avalon.Domain.Characters.CharacterQuestState.Active, Stage = 1, AcceptedAt = accepted },
+                new CharacterQuest { CharacterId = id, QuestId = 2, State = Avalon.Domain.Characters.CharacterQuestState.ReadyToTurnIn, Stage = 0, AcceptedAt = accepted.AddHours(-1) },
+            ],
+            [
+                new CharacterQuestObjective { CharacterId = id, QuestId = 3, ObjectiveId = 302, Progress = 2 },
+                new CharacterQuestObjective { CharacterId = id, QuestId = 3, ObjectiveId = 301, Progress = 3 },
+                new CharacterQuestObjective { CharacterId = id, QuestId = 2, ObjectiveId = 201, Progress = 4 },
+            ],
+            [new CharacterCompletedQuest { CharacterId = id, QuestId = 1, CompletedAt = completed }]));
+
+        CharacterQuestLogDto log = await QuestService(quests).GetQuestLogAsync(id);
+
+        Assert.Equal(42u, log.CharacterId);
+        Assert.Equal([2u, 3u], log.Active.Select(q => q.QuestId));
+        CharacterActiveQuestDto ready = log.Active[0];
+        Assert.Equal((Avalon.Api.Contract.CharacterQuestState.ReadyToTurnIn, 0, accepted.AddHours(-1)), (ready.State, ready.Stage, ready.AcceptedAt));
+        Assert.Equal([(201u, 4u)], ready.Objectives.Select(o => (o.ObjectiveId, o.Progress)));
+        CharacterActiveQuestDto active = log.Active[1];
+        Assert.Equal((Avalon.Api.Contract.CharacterQuestState.Active, 1, accepted), (active.State, active.Stage, active.AcceptedAt));
+        Assert.Equal([(301u, 3u), (302u, 2u)], active.Objectives.Select(o => (o.ObjectiveId, o.Progress)));
+        CharacterCompletedQuestDto done = Assert.Single(log.Completed);
+        Assert.Equal((1u, completed), (done.QuestId, done.CompletedAt));
+    }
+
+    [Fact]
+    public async Task Return_an_empty_quest_log_for_a_character_with_no_quest_rows()
+    {
+        var quests = Substitute.For<ICharacterQuestRepository>();
+        quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(CharacterQuestRows.None);
+
+        CharacterQuestLogDto log = await QuestService(quests).GetQuestLogAsync(new CharacterId(7));
+
+        Assert.Equal(7u, log.CharacterId);
+        Assert.Empty(log.Active);
+        Assert.Empty(log.Completed);
+    }
+
+    /// <summary>The contract enum is cast from the stored one, so the two must agree name for value.</summary>
+    [Fact]
+    public void Mirror_every_quest_state_by_name_and_value() =>
+        Assert.Equal(
+            Enum.GetValues<Avalon.Domain.Characters.CharacterQuestState>().Select(s => (s.ToString(), (int)s)),
+            Enum.GetValues<Avalon.Api.Contract.CharacterQuestState>().Select(s => (s.ToString(), (int)s)));
+
+    private static CharacterService QuestService(ICharacterQuestRepository quests) =>
+        new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
+            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
+            Substitute.For<ICharacterStatsRepository>(), quests);
 }
