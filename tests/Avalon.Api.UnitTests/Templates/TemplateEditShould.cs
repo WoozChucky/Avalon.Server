@@ -14,6 +14,9 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World;
 using Avalon.Database.World.Extensions;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
+using Avalon.Infrastructure.Scripts;
+using StackExchange.Redis;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +44,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     private readonly CountingWorlds _worlds;
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
     private readonly RecordingSignal _signal = new();
+    private readonly FakeCatalog _catalog = new();
     private readonly CapturingLogs _logs = new();
     private ApiAuthHost _host = null!;
 
@@ -68,6 +72,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
                 o.ReloadTimeout = TimeSpan.FromSeconds(10);
             });
             services.AddSingleton<ITemplateReloadSignal>(_signal);
+            services.AddSingleton<IWorldScriptCatalog>(_catalog);
             services.AddTemplateEditing();
             services.AddLogging(b => b.AddProvider(_logs));
         });
@@ -334,6 +339,171 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("ability", _) => 200UL,
             _ => FirstId(kind),
         };
+    }
+
+    // A name no world has: whatever is not in the published catalog.
+    private const string Unlisted = "ScriptNotInTheCatalog";
+
+    private static string UnknownMessage(string name) => $"Unknown script '{name}' on this world";
+
+    private async Task<(JsonObject Json, string Version, ulong Id)> ReadFirstAsync(string kind)
+    {
+        ulong id = kind == "ability" ? 200UL : FirstId(kind);
+        (JsonObject json, string version) = await ReadAsync(kind, id);
+        return (json, version, id);
+    }
+
+    private static string[] ScriptErrors(JsonObject problem) =>
+        problem["errors"]!.AsObject()["scriptName"]?.AsArray().Select(n => n!.GetValue<string>()).ToArray() ?? [];
+
+    [Theory]
+    [InlineData("creature")]
+    [InlineData("ability")]
+    public async Task Refuse_a_script_the_published_catalog_does_not_list(string kind)
+    {
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync(kind);
+        string current = json["scriptName"]!.GetValue<string>();
+        _catalog.Snapshot = new ScriptCatalogSnapshot([current], [current], []);
+        json["scriptName"] = Unlisted;
+
+        HttpResponseMessage response = await PutAsync(Editable, kind, id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains(UnknownMessage(Unlisted), ScriptErrors(await BodyAsync(response)));
+        Assert.Equal(version, (await ReadAsync(kind, id)).Version);
+        Assert.Empty(_signal.Requests);
+    }
+
+    [Theory]
+    [InlineData("creature")]
+    [InlineData("ability")]
+    public async Task Accept_a_script_the_published_catalog_lists(string kind)
+    {
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync(kind);
+        string current = json["scriptName"]!.GetValue<string>();
+        _catalog.Snapshot = new ScriptCatalogSnapshot([current], [current], []);
+        json["name"] = "Renamed with a listed script";
+
+        HttpResponseMessage response = await PutAsync(Editable, kind, id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Check_a_creature_against_the_ai_names_and_an_ability_against_the_ability_names()
+    {
+        (JsonObject creature, string creatureVersion, ulong creatureId) = await ReadFirstAsync("creature");
+        (JsonObject ability, string abilityVersion, ulong abilityId) = await ReadFirstAsync("ability");
+        string creatureScript = creature["scriptName"]!.GetValue<string>();
+        string abilityScript = ability["scriptName"]!.GetValue<string>();
+        // Each script is listed, but only under the other kind, and each save moves to the other's script.
+        _catalog.Snapshot = new ScriptCatalogSnapshot([creatureScript], [abilityScript], []);
+        creature["scriptName"] = abilityScript;
+        ability["scriptName"] = creatureScript;
+
+        HttpResponseMessage creatureResponse = await PutAsync(Editable, "creature", creatureId, creature, Tag(creatureVersion));
+        HttpResponseMessage abilityResponse = await PutAsync(Editable, "ability", abilityId, ability, Tag(abilityVersion));
+
+        Assert.Equal(HttpStatusCode.BadRequest, creatureResponse.StatusCode);
+        Assert.Contains(UnknownMessage(abilityScript), ScriptErrors(await BodyAsync(creatureResponse)));
+        Assert.Equal(HttpStatusCode.BadRequest, abilityResponse.StatusCode);
+        Assert.Contains(UnknownMessage(creatureScript), ScriptErrors(await BodyAsync(abilityResponse)));
+    }
+
+    [Theory]
+    [InlineData("creature")]
+    [InlineData("ability")]
+    public async Task Let_a_row_with_an_unlisted_script_be_saved_while_its_script_name_is_unchanged(string kind)
+    {
+        // The catalog does not list the row's own script, but the save does not touch it.
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync(kind);
+        _catalog.Snapshot = new ScriptCatalogSnapshot([], [], []);
+        json["name"] = "Renamed, script untouched";
+
+        HttpResponseMessage response = await PutAsync(Editable, kind, id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Allow_a_creature_with_no_script_name_whatever_the_catalog_lists()
+    {
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync("creature");
+        _catalog.Snapshot = new ScriptCatalogSnapshot([], [], []);
+        json["scriptName"] = "";
+
+        HttpResponseMessage response = await PutAsync(Editable, "creature", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Not_call_an_empty_ability_script_name_unknown()
+    {
+        // An ability must name a script (a rule of its own), but the catalog does not add a second complaint.
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync("ability");
+        _catalog.Snapshot = new ScriptCatalogSnapshot([], [], []);
+        json["scriptName"] = "";
+
+        HttpResponseMessage response = await PutAsync(Editable, "ability", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.DoesNotContain(ScriptErrors(await BodyAsync(response)), m => m.StartsWith("Unknown script", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Skip_the_script_check_for_a_creature_while_no_catalog_is_published()
+    {
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync("creature");
+        _catalog.Snapshot = null;
+        json["scriptName"] = Unlisted;
+
+        HttpResponseMessage response = await PutAsync(Editable, "creature", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Skip_the_script_check_for_an_ability_while_no_catalog_is_published()
+    {
+        // The ability's own rules still run: the row only has to get past the catalog, so the message is the test.
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync("ability");
+        _catalog.Snapshot = null;
+        json["scriptName"] = Unlisted;
+
+        HttpResponseMessage response = await PutAsync(Editable, "ability", id, json, Tag(version));
+
+        Assert.DoesNotContain(ScriptErrors(await BodyAsync(response)), m => m.StartsWith("Unknown script", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("creature")]
+    [InlineData("ability")]
+    public async Task Save_a_changed_script_name_when_redis_cannot_be_read(string kind)
+    {
+        var cache = Substitute.For<IReplicatedCache>();
+        cache.GetAsync(Arg.Any<string>())
+            .Returns(Task.FromException<string?>(new RedisServerException("WRONGTYPE")));
+        _catalog.Real = new WorldScriptCatalog(cache, new LoggerOf<WorldScriptCatalog>(_logs.CreateLogger("test")));
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync(kind);
+        json["scriptName"] = Unlisted;
+
+        HttpResponseMessage response = await PutAsync(Editable, kind, id, json, Tag(version));
+
+        // The catalog check is skipped, so the save reaches the template's own rules: no "Unknown script" 400.
+        if (response.StatusCode != HttpStatusCode.OK)
+            Assert.DoesNotContain(ScriptErrors(await BodyAsync(response)), m => m.StartsWith("Unknown script", StringComparison.Ordinal));
+        Assert.NotEqual(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Ask_the_catalog_of_the_world_being_edited()
+    {
+        (JsonObject json, string version, ulong id) = await ReadFirstAsync("creature");
+
+        await PutAsync(Editable, "creature", id, json, Tag(version));
+
+        Assert.Equal([new WorldId(Editable)], _catalog.Asked);
     }
 
     [Fact]
@@ -628,7 +798,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         DbContextOptions<WorldDbContext> options = new DbContextOptionsBuilder<WorldDbContext>().UseSqlite(connection)
             .AddInterceptors(failure).Options;
         using (var seed = new WorldDbContext(options)) seed.Database.EnsureCreated();
-        var service = new TemplateEditService(new FixedFactory(options), _signal, new LoggerOf<TemplateEditService>(_logs.CreateLogger("test")));
+        var service = new TemplateEditService(new FixedFactory(options), _signal, _catalog, new LoggerOf<TemplateEditService>(_logs.CreateLogger("test")));
 
         Avalon.Domain.World.ItemTemplate row;
         using (var read = new WorldDbContext(options)) row = read.ItemTemplates.AsNoTracking().AsEnumerable().First();
@@ -713,6 +883,21 @@ public sealed class TemplateEditShould : IAsyncLifetime
         {
             Count(world);
             return inner.CreateCharacters(world);
+        }
+    }
+
+    private sealed class FakeCatalog : IWorldScriptCatalog
+    {
+        public ScriptCatalogSnapshot? Snapshot { get; set; }
+        public List<WorldId> Asked { get; } = [];
+
+        /// <summary>When set, answers in place of <see cref="Snapshot"/>: the real catalog over a cache that fails.</summary>
+        public IWorldScriptCatalog? Real { get; set; }
+
+        public Task<ScriptCatalogSnapshot?> GetAsync(WorldId world, CancellationToken ct)
+        {
+            Asked.Add(world);
+            return Real is { } real ? real.GetAsync(world, ct) : Task.FromResult(Snapshot);
         }
     }
 

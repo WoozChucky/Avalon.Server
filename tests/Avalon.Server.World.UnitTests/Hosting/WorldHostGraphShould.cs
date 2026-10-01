@@ -57,6 +57,9 @@ public class WorldHostGraphShould
             // WorldServer resolves this when it starts; a missing registration stops the world from starting.
             Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Reload.ReloadRequestHandler>());
 
+            // WorldServer resolves this after the scripts load; a missing registration stops the world from starting.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Scripts.ScriptCatalogPublisher>());
+
             // Loot (#460). MapInstance reads these with GetService, so a missing registration would
             // not fail anything else: it would silently make every creature drop nothing.
             Assert.NotNull(host.Services.GetRequiredService<ILootRoller>());

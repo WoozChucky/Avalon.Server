@@ -272,8 +272,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         await Task.Run(() => _scriptManager.Load(), stoppingToken);
 
+        // The names this world accepts, for the admin app. Required, as the reload handler below is: a host that
+        // builds a WorldServer registers the publisher, so a missing one fails startup rather than going unnoticed.
+        var catalog = _services.GetRequiredService<ScriptCatalogPublisher>();
+        await catalog.PublishAsync();
+
         await _world.LoadAsync(stoppingToken);
 
+        // Hot-reloaded scripts can bring names the load did not see. The event runs on the compiler's thread; the
+        // publish never throws, so nothing is lost by not awaiting it.
+        PublishCatalogOnHotReload(catalog);
         _scriptHotReloader.Start();
 
         await CacheSubscribeAsync();
@@ -604,6 +612,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private static Func<IConnection, Packet?, object> BuildContextFactory<TPacket>() where TPacket : Packet
         => static (conn, pkt) => new WorldPacketContext<TPacket>
             { Connection = (IWorldConnection)conn!, Packet = (TPacket)pkt! };
+
+    private void PublishCatalogOnHotReload(ScriptCatalogPublisher catalog) =>
+        _scriptHotReloader.ScriptsHotReloaded += types =>
+        {
+            _scriptManager.RegisterHotReloaded(types);
+            _ = Task.Run(catalog.PublishAsync, CancellationToken.None);
+        };
 
     #region Cache Subscriptions
 

@@ -34,13 +34,14 @@ public sealed class TemplateEditingOptionsValidator : IValidateOptions<TemplateE
 
 public static class TemplateEditingRegistration
 {
-    /// <summary>The template edit endpoints: the service, the guard in front of them, and the reload signal.</summary>
+    /// <summary>The template edit endpoints: the service, the guard in front of them, the reload signal and the script catalog.</summary>
     public static IServiceCollection AddTemplateEditing(this IServiceCollection services)
     {
         services.AddScoped<TemplateEditService>();
         services.AddScoped<TemplateEditGuard>();
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<ITemplateReloadSignal, RedisTemplateReloadSignal>();
+        services.TryAddSingleton<IWorldScriptCatalog, WorldScriptCatalog>();
         return services;
     }
 }

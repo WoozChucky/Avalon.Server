@@ -13,6 +13,7 @@ public interface IReplicatedCache
     IConnectionMultiplexer Connection { get; }
     Task ConnectAsync();
     Task DisconnectAsync();
+    /// <summary>Sets the key. A null <paramref name="expiry"/> keeps it until it is removed or overwritten.</summary>
     Task<bool> SetAsync(string key, string value, TimeSpan? expiry);
     /// <summary>Sets the key only if it does not already exist (atomic SETNX). Returns true if the key was set.</summary>
     Task<bool> SetNxAsync(string key, string value, TimeSpan expiry);
@@ -132,7 +133,8 @@ public class ReplicatedCache : IReplicatedCache
 
     public async Task<bool> SetAsync(string key, string value, TimeSpan? expiry)
     {
-        var expiration = new Expiration(expiry ?? TimeSpan.Zero);
+        // No expiry is the default Expiration: new Expiration(TimeSpan.Zero) is "EX 0", which Redis refuses.
+        Expiration expiration = expiry is { } lifetime ? new Expiration(lifetime) : default;
         return await _redis.GetDatabase().StringSetAsync(key, value, expiration);
     }
 
