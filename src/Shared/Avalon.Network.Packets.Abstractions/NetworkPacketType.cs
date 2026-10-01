@@ -193,4 +193,7 @@ public enum NetworkPacketType : short
     SMSG_QUEST_LOG = 0x30C2,
     SMSG_QUEST_UPDATE = 0x30C3,
     SMSG_QUEST_MARKERS = 0x30C4,
+
+    // Ignore list (#723)
+    SMSG_IGNORE_LIST = 0x30D0,
 }

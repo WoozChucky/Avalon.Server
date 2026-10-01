@@ -929,6 +929,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_IGNORE_LIST",
+      "opcode": 12496,
+      "hex": "0x30D0",
+      "message": "SIgnoreListPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_CHARACTER_DAMAGED",
       "opcode": 12544,
       "hex": "0x3100",
