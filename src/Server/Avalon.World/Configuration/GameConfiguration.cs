@@ -203,6 +203,14 @@ public class GameConfiguration
     [Range(1, 100)]
     public int MaxActiveQuests { get; set; } = 20;
 
+    /// <summary>
+    /// How many player chat messages one character may send in any 60 seconds (#722): plain chat, <c>/p</c> and
+    /// <c>/w</c> share the one budget. Only a delivered message counts. 0 or below turns the limit off. The default
+    /// is in <c>appsettings.json</c>.
+    /// </summary>
+    [Range(int.MinValue, 10_000)]
+    public int ChatMessagesPerMinute { get; set; }
+
     /// <summary>The default of <see cref="FuryFromDamageTaken" />, for whatever is built without the options.</summary>
     public const float DefaultFuryFromDamageTaken = Avalon.Combat.Fury.DefaultFromDamageTaken;
 

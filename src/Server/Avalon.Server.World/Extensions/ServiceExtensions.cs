@@ -112,6 +112,8 @@ public static class ServiceExtensions
         // read by the party invite and the whisper, so the one instance must reach both.
         services.AddSingleton<OnlineCharacters>();
         services.AddSingleton<PartyService>();
+        // One chat budget per character, shared by plain chat, /p and /w (#722); World.LeaveWorldAsync forgets it.
+        services.AddSingleton<ChatRateLimiter>();
         services.AddSingleton<ICommand, PvpCommand>();
         services.AddSingleton<ICommand, InviteCommand>();
         services.AddSingleton<ICommand, LeaveCommand>();

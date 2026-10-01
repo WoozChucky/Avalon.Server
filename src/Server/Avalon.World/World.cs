@@ -8,6 +8,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.World.Chat;
 using Avalon.World.Configuration;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
@@ -85,6 +86,7 @@ public class World : IWorld
     private readonly IWorldRepository _worldRepository;
     private readonly InstanceTicker _instanceTicker;
     private readonly PartyService? _parties;
+    private readonly ChatRateLimiter? _chatRateLimiter;
     private readonly ThrottledErrorLog _partyTickErrors;
 
     private Domain.Auth.World? _world;
@@ -112,9 +114,11 @@ public class World : IWorld
         IVendorStockRepository? vendorStockRepository = null,
         ICombatDataRepository? combatDataRepository = null,
         PartyService? parties = null,
-        IQuestRepository? questRepository = null)
+        IQuestRepository? questRepository = null,
+        ChatRateLimiter? chatRateLimiter = null)
     {
         _parties = parties;
+        _chatRateLimiter = chatRateLimiter;
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
         _configuration = configuration;
@@ -257,6 +261,9 @@ public class World : IWorld
         {
             _logger.LogError(e, "Failed to take character {CharacterId} offline in its party", character.Guid);
         }
+
+        // The character's chat window goes with it (#722). Cannot throw: a dictionary remove under a lock.
+        _chatRateLimiter?.Forget(character.Guid.Id);
 
         AsyncServiceScope? scope = null;
         Task<bool>? saved = null;
