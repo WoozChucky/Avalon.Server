@@ -9,6 +9,13 @@ public interface ICharacterRepository : IRepository<Domain.Characters.Character,
 {
     Task<Domain.Characters.Character?> FindByNameAsync(string name, CancellationToken cancellationToken = default);
     Task<Domain.Characters.Character?> FindByIdAndAccountAsync(CharacterId id, AccountId accountId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The account's characters, oldest first: by <see cref="Domain.Characters.Character.CreationDate"/>,
+    /// then by id, so two created at the same instant still come back in one fixed order (#727).
+    /// Every caller (the in-game character list, the list sent after a create, the REST API) shows
+    /// them in this order.
+    /// </summary>
     Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }
 
@@ -41,6 +48,8 @@ public class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFa
         return await context.Characters
             .AsNoTracking()
             .Where(entity => entity.AccountId == accountId)
+            .OrderBy(entity => entity.CreationDate)
+            .ThenBy(entity => entity.Id)
             .ToListAsync(cancellationToken);
     }
 }
