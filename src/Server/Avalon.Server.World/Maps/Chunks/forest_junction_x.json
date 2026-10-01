@@ -13,7 +13,8 @@
   "spawnSlots": [
     { "tag": "pack", "localX": 15, "localY": 1, "localZ": 15 },
     { "tag": "rare", "localX": 8, "localY": 1, "localZ": 22 },
-    { "tag": "rare", "localX": 22, "localY": 1, "localZ": 8 }
+    { "tag": "rare", "localX": 22, "localY": 1, "localZ": 8 },
+    { "tag": "pack", "localX": 22, "localY": 1, "localZ": 22 }
   ],
   "portalSlots": [
   ],

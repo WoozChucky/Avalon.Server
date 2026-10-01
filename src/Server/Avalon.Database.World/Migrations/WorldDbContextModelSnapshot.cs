@@ -1268,6 +1268,54 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChunkPoolId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChunkPoolId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("ChunkGroups", (string)null);
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroupMember", b =>
+                {
+                    b.Property<int>("ChunkGroupId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("CellX")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("CellZ")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("ChunkTemplateId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ChunkGroupId", "CellX", "CellZ");
+
+                    b.HasIndex("ChunkTemplateId")
+                        .IsUnique();
+
+                    b.ToTable("ChunkGroupMembers", (string)null);
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ChunkPool", b =>
                 {
                     b.Property<int>("Id")
@@ -6323,7 +6371,7 @@ namespace Avalon.Database.World.Migrations
                             LoadingScreenId = 0,
                             LogoutMapId = 1,
                             MapType = 1,
-                            MaxLevel = 5,
+                            MaxLevel = 15,
                             MaxPlayers = 6,
                             MinLevel = 1,
                             Name = "ForestDungeon",
@@ -6358,6 +6406,9 @@ namespace Avalon.Database.World.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("MainPathMin")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinSetPieceStep")
                         .HasColumnType("integer");
 
                     b.Property<int>("SpawnTableId")
@@ -7022,6 +7073,30 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ChunkPool", null)
+                        .WithMany("Groups")
+                        .HasForeignKey("ChunkPoolId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroupMember", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ChunkGroup", null)
+                        .WithMany("Members")
+                        .HasForeignKey("ChunkGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.ChunkTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("ChunkTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ChunkPoolMembership", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ChunkPool", "Pool")
@@ -7159,6 +7234,41 @@ namespace Avalon.Database.World.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Path");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ProceduralMapConfig", b =>
+                {
+                    b.OwnsMany("Avalon.Domain.World.ProceduralDepthBand", "DepthBands", b1 =>
+                        {
+                            b1.Property<int>("MapTemplateId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("MinDepth")
+                                .HasColumnType("integer");
+
+                            b1.Property<int?>("MaxDepth")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("MaxLevel")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("MinLevel")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("MapTemplateId", "MinDepth");
+
+                            b1.ToTable("ProceduralDepthBands", null, t =>
+                                {
+                                    t.HasCheckConstraint("CK_ProceduralDepthBands_Depth", "\"MinDepth\" >= 0 AND (\"MaxDepth\" IS NULL OR \"MaxDepth\" >= \"MinDepth\")");
+
+                                    t.HasCheckConstraint("CK_ProceduralDepthBands_Level", "\"MinLevel\" >= 1 AND \"MaxLevel\" >= \"MinLevel\"");
+                                });
+
+                            b1.WithOwner()
+                                .HasForeignKey("MapTemplateId");
+                        });
+
+                    b.Navigation("DepthBands");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.QuestItemDrop", b =>
@@ -7317,8 +7427,15 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>
+                {
+                    b.Navigation("Members");
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ChunkPool", b =>
                 {
+                    b.Navigation("Groups");
+
                     b.Navigation("Memberships");
                 });
 

@@ -81,6 +81,7 @@ public class WorldDbContext : DbContext
     public DbSet<AbilityTemplate> AbilityTemplates { get; set; } = null!;
     public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
     public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
+    public DbSet<ChunkGroup> ChunkGroups { get; set; } = null!;
     public DbSet<SpawnTable> SpawnTables { get; set; } = null!;
     public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
     public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
@@ -165,6 +166,30 @@ public class WorldDbContext : DbContext
                 .HasForeignKey(m => m.ChunkTemplateId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        Configure(modelBuilder.Entity<ChunkGroup>());
+        Configure(modelBuilder.Entity<ChunkGroupMember>());
+    }
+
+    private static void Configure(EntityTypeBuilder<ChunkGroup> e)
+    {
+        e.ToTable("ChunkGroups");
+        e.HasKey(g => g.Id);
+        e.Property(g => g.Id).ValueGeneratedOnAdd();
+        e.Property(g => g.Name).IsRequired().HasMaxLength(100);
+        e.HasIndex(g => g.Name).IsUnique();
+        e.Property(g => g.ChunkPoolId).HasConversion(v => v.Value, v => new ChunkPoolId(v)).IsRequired();
+        e.HasMany(g => g.Members).WithOne().HasForeignKey(m => m.ChunkGroupId).OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<ChunkGroupMember> e)
+    {
+        e.ToTable("ChunkGroupMembers");
+        e.HasKey(m => new { m.ChunkGroupId, m.CellX, m.CellZ });
+        e.Property(m => m.ChunkTemplateId).HasConversion(v => v.Value, v => new ChunkTemplateId(v)).IsRequired();
+        e.HasOne<ChunkTemplate>().WithMany().HasForeignKey(m => m.ChunkTemplateId).OnDelete(DeleteBehavior.Cascade);
+        // A chunk belongs to one group at most, so a member is never placed twice.
+        e.HasIndex(m => m.ChunkTemplateId).IsUnique();
     }
 
     /// <summary>
@@ -1640,9 +1665,9 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
-        // NOTE: ForestDungeon (Id=2) requires a ProceduralMapConfig row + a populated ChunkPool
-        // + a SpawnTable to be functional. These will be seeded manually via SQL once real chunks
-        // are imported. Until then, attempting to enter ForestDungeon will fail gracefully.
+        // ForestDungeon (Id=2) is procedural: its config (Maps/ProceduralMaps/2.json), spawn table
+        // (Maps/spawn-tables.json), chunk pool and set pieces are seeded from Maps/ by ChunkCatalogSeeder on every World
+        // start, not by migrations.
         builder.HasData(new MapTemplate
             {
                 Id = 1,
@@ -1670,8 +1695,9 @@ public class WorldDbContext : DbContext
                 MapType = MapType.Normal,
                 PvP = false,
                 MinLevel = 1,
-                // Re-banded from 10 to 5. The band scales rewards only — a level 6 creature here is legal.
-                MaxLevel = 5,
+                // The reward band runs to the level cap (15) since the forest content pass; spawns roll their levels
+                // from the map's depth bands (Maps/ProceduralMaps/2.json), so the band scales rewards only.
+                MaxLevel = 15,
                 AreaTableId = 0,
                 LoadingScreenId = 0,
                 // A whole party (Game:MaxPartySize, 6 by default) must fit: a party instance holds at most
@@ -1731,6 +1757,11 @@ public class WorldDbContext : DbContext
             .WithOne(m => m.Pool)
             .HasForeignKey(m => m.ChunkPoolId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(b => b.Groups)
+            .WithOne()
+            .HasForeignKey(g => g.ChunkPoolId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void Configure(EntityTypeBuilder<SpawnTable> builder)
@@ -1762,6 +1793,23 @@ public class WorldDbContext : DbContext
             .HasConversion(v => v.Value, v => new ChunkPoolId(v));
         builder.Property(b => b.SpawnTableId)
             .HasConversion(v => v.Value, v => new SpawnTableId(v));
+
+        // Depth bands (forest content pass). Like the config row itself, the rows are written by ChunkCatalogSeeder
+        // from Maps/ProceduralMaps/<mapId>.json on every World start, not by migrations.
+        builder.OwnsMany(b => b.DepthBands, d =>
+        {
+            d.ToTable("ProceduralDepthBands", t =>
+            {
+                t.HasCheckConstraint("CK_ProceduralDepthBands_Depth",
+                    "\"MinDepth\" >= 0 AND (\"MaxDepth\" IS NULL OR \"MaxDepth\" >= \"MinDepth\")");
+                t.HasCheckConstraint("CK_ProceduralDepthBands_Level",
+                    "\"MinLevel\" >= 1 AND \"MaxLevel\" >= \"MinLevel\"");
+            });
+            d.WithOwner().HasForeignKey("MapTemplateId");
+            d.HasKey("MapTemplateId", nameof(ProceduralDepthBand.MinDepth));
+            // Part of the key, but a value from the band file: never generated (EF would make it an identity column).
+            d.Property(x => x.MinDepth).ValueGeneratedNever();
+        });
     }
 
     private static void Configure(EntityTypeBuilder<MapChunkPlacement> builder)

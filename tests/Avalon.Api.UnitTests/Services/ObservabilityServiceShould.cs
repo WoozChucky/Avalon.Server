@@ -83,9 +83,10 @@ public class ObservabilityServiceShould
     /// <summary>
     /// Stubs the generator-input repositories with a fixed config and pool, and returns
     /// the stamp those inputs genuinely hash to. Tests then seed the snapshot with either
-    /// that value (fresh) or a different one (drifted).
+    /// that value (fresh) or a different one (drifted). With <paramref name="groups"/> the pool also
+    /// carries those set pieces, and the stamp hashes them as the world server does.
     /// </summary>
-    private string GivenGeneratorInputs()
+    private string GivenGeneratorInputs(IReadOnlyList<ChunkGroupDefinition>? groups = null)
     {
         var config = new ProceduralMapConfig
         {
@@ -127,9 +128,9 @@ public class ObservabilityServiceShould
         _inputsResolver.FindPoolAsync(Arg.Any<ChunkPoolId>(), Arg.Any<CancellationToken>())
                        .Returns(pool);
         _inputsResolver.ResolveMembersAsync(Arg.Any<ChunkPool>(), Arg.Any<CancellationToken>())
-                       .Returns(new ProceduralPoolResolution(members, byId));
+                       .Returns(new ProceduralPoolResolution(members, byId, groups));
 
-        return LayoutConfigVersion.Compute(config, members);
+        return LayoutConfigVersion.Compute(config, members, groups);
     }
 
     private void GivenWorldSnapshot(WorldPresenceSnapshot snapshot)
@@ -368,6 +369,23 @@ public class ObservabilityServiceShould
         PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
 
         Assert.True(presence!.LayoutStale);
+    }
+
+    [Fact]
+    public async Task Should_not_flag_stale_when_the_pool_has_set_pieces()
+    {
+        // The world server stamps a layout generated with set pieces with the groups appended
+        // (LayoutConfigVersion.Compute(config, pool, groups)). The staleness check must recompute
+        // with the same groups, or every such layout would read as drifted.
+        var piece = new ChunkTemplate { Id = new ChunkTemplateId(2), Name = "piece", GeometryFile = "p.obj", Exits = 0b10 };
+        List<ChunkGroupDefinition> groups = [new ChunkGroupDefinition("arena", [new ChunkGroupCell(piece, 0, 0)])];
+        string stamped = GivenGeneratorInputs(groups);   // differs from the stamp without groups (LayoutConfigVersionShould)
+        GivenCharacterIndex(4417);
+        GivenWorldSnapshot(Snapshot(stamped, Char(4417, "Nym")));
+
+        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
+
+        Assert.False(presence!.LayoutStale);
     }
 
     [Fact]

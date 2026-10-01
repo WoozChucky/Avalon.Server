@@ -14,3 +14,8 @@ tools/ci/*.sh text eol=lf
 # The balance files and the golden CSV are compared byte for byte by tests: LF on every platform.
 balance/*.json text eol=lf
 tests/Avalon.Balance.UnitTests/Golden/*.csv text eol=lf
+
+# The chunk catalog is written by tools/Avalon.ChunkGen with LF line ends and checked against a fresh run byte for
+# byte: LF on every platform, so a regeneration on any machine is an empty diff.
+src/Server/Avalon.Server.World/Maps/**/*.obj text eol=lf
+src/Server/Avalon.Server.World/Maps/**/*.json text eol=lf

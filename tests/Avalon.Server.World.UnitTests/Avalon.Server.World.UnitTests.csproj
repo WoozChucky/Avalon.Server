@@ -39,6 +39,7 @@
     <ProjectReference Include="..\..\tools\Avalon.Exporter\Avalon.Exporter.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Balance.Core\Avalon.Balance.Core.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Balance.Data\Avalon.Balance.Data.csproj"/>
+    <ProjectReference Include="..\..\tools\Avalon.ChunkGen\Avalon.ChunkGen.csproj"/>
   </ItemGroup>
 
 </Project>

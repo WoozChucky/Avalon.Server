@@ -409,6 +409,30 @@ public class CreatureSpawnerShould
             ObjectStateWriter.From(after, GameEntityFields.CreatureUpdate).Rarity);
     }
 
+    /// <summary>Forest content pass: a procedural map's depth band picks the level; the template keeps its identity and kit.</summary>
+    [Fact]
+    public void Spawn_at_the_level_it_is_given_rather_than_the_templates_range()
+    {
+        CreatureTemplate template = PlainTemplate(70, "Band Target");   // its own range is 2-2
+        CreatureSpawner spawner = SpawnerOver(template);
+
+        ICreature creature = spawner.Spawn(new Avalon.World.Public.Maps.CreatureInfo { PrototypeIndex = 70 }, level: 4);
+
+        Assert.Equal((ushort)4, creature.Level);
+        Assert.Equal(84u, creature.Health);   // the level 4 base row: 84 health, Normal, modifier 1
+        Assert.Equal(template.Id, creature.Metadata.Id);
+    }
+
+    [Fact]
+    public void Spawn_at_level_one_when_given_level_zero()
+    {
+        CreatureSpawner spawner = SpawnerOver(PlainTemplate(71, "Floor Target"));
+
+        ICreature creature = spawner.Spawn(new Avalon.World.Public.Maps.CreatureInfo { PrototypeIndex = 71 }, level: 0);
+
+        Assert.Equal((ushort)1, creature.Level);
+    }
+
     private static CreatureTemplate PlainTemplate(ulong id, string name) => new()
     {
         Id = new CreatureTemplateId(id),

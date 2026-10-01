@@ -412,6 +412,8 @@ public static class CrowdBudgetHarness
 
         public IReadOnlyList<ChunkPoolMember> GetByPool(ChunkPoolId poolId) => [];
 
+        public IReadOnlyList<ChunkGroupDefinition> GetGroupsByPool(ChunkPoolId poolId) => [];
+
         public IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids) =>
             ids.ToDictionary(id => id, GetById);
     }

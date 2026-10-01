@@ -1,0 +1,21 @@
+{
+  "name": "forest_clearing_big_se",
+  "assetKey": "chunks/forest_clearing_big_se",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": [],
+    "E": ["center"],
+    "S": [],
+    "W": []
+  },
+  "spawnSlots": [
+    { "tag": "pack", "localX": 16, "localY": 1, "localZ": 22 },
+    { "tag": "pack", "localX": 8, "localY": 1, "localZ": 14 },
+    { "tag": "leader", "localX": 10, "localY": 1, "localZ": 20 }
+  ],
+  "portalSlots": [
+  ],
+  "tags": ["forest", "setpiece", "clearing", "group"]
+}

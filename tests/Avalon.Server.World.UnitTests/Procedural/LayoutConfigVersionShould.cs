@@ -183,6 +183,7 @@ public class LayoutConfigVersionShould
         yield return ["Exits", (Action<ProceduralMapConfig, ChunkTemplate>)((_, t) => t.Exits = (ushort)~t.Exits)];
         yield return ["CellFootprintX", (Action<ProceduralMapConfig, ChunkTemplate>)((_, t) => t.CellFootprintX = 9)];
         yield return ["CellFootprintZ", (Action<ProceduralMapConfig, ChunkTemplate>)((_, t) => t.CellFootprintZ = 9)];
+        yield return ["MinSetPieceStep", (Action<ProceduralMapConfig, ChunkTemplate>)((c, _) => c.MinSetPieceStep = 8)];
     }
 
     [Theory]
@@ -202,6 +203,23 @@ public class LayoutConfigVersionShould
         string mutatedStamp = LayoutConfigVersion.Compute(mutatedConfig, mutatedPool);
 
         Assert.True(baselineStamp != mutatedStamp, $"Expected the stamp to change when {fieldName} changes, but it did not.");
+    }
+
+    /// <summary>The stamp this config had before MinSetPieceStep existed: a map that sets none keeps it.</summary>
+    [Fact]
+    public void Keep_the_stamp_of_a_config_without_a_first_set_piece_step() =>
+        Assert.Equal("7a4f752f", LayoutConfigVersion.Compute(Config(), Pool()));
+
+    [Fact]
+    public void Stay_the_same_when_no_groups_are_given() =>
+        Assert.Equal(LayoutConfigVersion.Compute(Config(), Pool()), LayoutConfigVersion.Compute(Config(), Pool(), []));
+
+    [Fact]
+    public void Change_when_a_group_is_added()
+    {
+        var group = new ChunkGroupDefinition("g", [new ChunkGroupCell(Template(9, "g.obj"), 0, 0), new ChunkGroupCell(Template(10, "h.obj"), 1, 0)]);
+
+        Assert.NotEqual(LayoutConfigVersion.Compute(Config(), Pool()), LayoutConfigVersion.Compute(Config(), Pool(), [group]));
     }
 
     [Fact]

@@ -1,0 +1,22 @@
+{
+  "name": "forest_thicket_02",
+  "assetKey": "chunks/forest_thicket_02",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": [],
+    "E": ["center"],
+    "S": ["center"],
+    "W": []
+  },
+  "spawnSlots": [
+    { "tag": "pack", "localX": 15, "localY": 1, "localZ": 15 },
+    { "tag": "pack", "localX": 22, "localY": 1, "localZ": 9 },
+    { "tag": "pack", "localX": 11, "localY": 1, "localZ": 19 },
+    { "tag": "pack", "localX": 20, "localY": 1, "localZ": 20 }
+  ],
+  "portalSlots": [
+  ],
+  "tags": ["path", "forest", "thicket"]
+}

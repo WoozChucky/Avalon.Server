@@ -38,7 +38,7 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
                 $"No ProceduralMapConfig for map {template.Id.Value}");
 
         var pool = _library.GetByPool(config.ChunkPoolId);
-        return _generator.Generate(config, pool, NextSeed());
+        return _generator.Generate(config, pool, NextSeed(), _library.GetGroupsByPool(config.ChunkPoolId));
     }
 
     private int NextSeed()

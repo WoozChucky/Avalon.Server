@@ -19,6 +19,7 @@ setters. Per-creature state lives on `ICreature`.
 ### Stats are derived at spawn
 
 `CreatureSpawner.Spawn` rolls a level between the template's `MinLevel` and `MaxLevel` (at least 1),
+unless a procedural map's depth band chooses the level (`ICreatureSpawner.Spawn(CreatureInfo, ushort level)`),
 then asks `CreatureStatDeriver.Derive` for the stats that level gives:
 
 1. Look up the `CreatureBaseStats` row for the level: `Health`, `DamageMin`, `DamageMax` and
@@ -88,7 +89,9 @@ template with an old deriver.
 For each chunk spawn slot, skipping the `empty` and `entry` tags, the service picks one
 `SpawnTableEntry` with the slot's tag, weighted by `Weight`, and spawns between `MinCount` and
 `MaxCount` of that creature. A single creature stands on the slot's centre. A pack is spread at
-random within 1.5 m of it on each axis. The random seed is the layout's seed.
+random within 1.5 m of it on each axis. The random seed is the layout's seed. On a map with depth
+bands the level comes from the piece's band, and a `leader` slot rolls its `leader_pack` around the
+leader; see "Depth and depth bands" in [map-generation.md](map-generation.md).
 
 ### Authored: `PlaceAuthoredAsync`
 
