@@ -1,4 +1,8 @@
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
+using Avalon.World.Scripts;
+using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
@@ -7,9 +11,22 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// <summary>Progress counts only in the current stage and is capped; a complete stage starts the next; the last makes the quest ready.</summary>
 public class QuestStagesShould
 {
-    private static async Task<(QuestTestWorld W, QuestClient C)> HowlAsync()
+    private static async Task<(QuestTestWorld W, QuestClient C)> HowlAsync(QuestScriptRecorder? recorder = null)
     {
-        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        QuestTestWorld w;
+        if (recorder is null)
+            w = await QuestTestWorld.CreateAsync();
+        else
+        {
+            // Howl runs the sample script, so a test can drive progress from inside its real stage-start hook.
+            List<QuestTemplate> quests = Chain();
+            quests.Single(q => q.Id.Value == Howl).ScriptName = nameof(SampleQuestScript);
+            var scripts = Substitute.For<IScriptManager>();
+            scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
+            w = await QuestTestWorld.CreateAsync(quests, scripts: scripts,
+                services: new ServiceCollection().AddSingleton(recorder).BuildServiceProvider());
+        }
+
         QuestClient c = w.Join(level: 2);
         QuestTestWorld.Complete(c, Hunt);
         QuestTestWorld.Complete(c, Tusks);
@@ -76,13 +93,14 @@ public class QuestStagesShould
     [Fact]
     public async Task Settle_another_quest_advanced_from_inside_a_stage_start()
     {
-        (QuestTestWorld w, QuestClient c) = await HowlAsync();
+        var recorder = new QuestScriptRecorder();
+        (QuestTestWorld w, QuestClient c) = await HowlAsync(recorder);
         QuestClient other = w.Join(id: 2);
         other.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
         c.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
-        w.Quests.AfterStageStarted = (character, quest, active) =>
+        recorder.OnStage = (context, stage) =>
         {
-            if (quest.Id == Howl && active.Stage == 1)
+            if (context.QuestId == Howl && stage == 1)
             {
                 w.Quests.AddProgress(c.Character, Hunt, HuntKill, 2);
                 w.Quests.AddProgress(other.Character, Hunt, HuntKill, 2);
@@ -100,11 +118,12 @@ public class QuestStagesShould
     [Fact]
     public async Task Walk_on_when_a_stage_start_meets_its_own_objectives()
     {
-        (QuestTestWorld w, QuestClient c) = await HowlAsync();
-        w.Quests.AfterStageStarted = (character, quest, active) =>
+        var recorder = new QuestScriptRecorder();
+        (QuestTestWorld w, QuestClient c) = await HowlAsync(recorder);
+        recorder.OnStage = (context, stage) =>
         {
-            if (quest.Id == Howl && active.Stage == 1)
-                w.Quests.AddProgress(character, Howl, HowlTalk, 1);
+            if (context.QuestId == Howl && stage == 1)
+                w.Quests.AddProgress(c.Character, Howl, HowlTalk, 1);
         };
 
         Assert.True(w.Quests.AddProgress(c.Character, Howl, HowlKill, 1));

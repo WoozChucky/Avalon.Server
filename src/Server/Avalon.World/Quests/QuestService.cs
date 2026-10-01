@@ -17,6 +17,8 @@ using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
+using Avalon.World.Public.Scripts;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Quests;
@@ -43,12 +45,12 @@ public sealed class QuestService(
     // Tick thread only.
     private readonly HashSet<ActiveQuest> _settling = [];
 
-    /// <summary>
-    /// Runs after a stage of an active quest starts (stage 0 at accept included), after the service's own
-    /// stage-start work. World-side, never on the modding API. Its one use today is to let tests drive progress
-    /// from inside a stage start, as the collect recount and quest scripts will.
-    /// </summary>
-    public Action<CharacterEntity, QuestView, ActiveQuest>? AfterStageStarted { get; set; }
+    // One script per quest, built on first use and shared by every character (#433), with the type it was built for. A
+    // null script could not be built: logged once, and its quest cannot be accepted. Tick thread only.
+    private readonly Dictionary<uint, (Type Type, QuestScript? Script)> _scripts = [];
+
+    // When each quest's script last had a throw logged, and how many throws were left out since (10 s apart, per quest).
+    private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _scriptErrors = [];
 
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
@@ -266,7 +268,7 @@ public sealed class QuestService(
             if (member is not CharacterEntity character)
                 continue;
 
-            // A copy: settling a quest never removes one, but a script hook (Task 9) must not see a moving collection.
+            // A copy: settling a quest never removes one, but a script hook must not see a moving collection.
             foreach (ActiveQuest active in character.Quests.Active.ToList())
             {
                 if (active.State != CharacterQuestState.Active || !catalog.TryGet(active.QuestId, out QuestView? quest))
@@ -514,34 +516,149 @@ public sealed class QuestService(
         return text.Get(id, text.ContextFor(character, character.Quests.Locale));
     }
 
-    // Seams the later tasks fill. Each is a no-op here so this task stands on its own.
+    // The quest script's hooks (#433). Each runs contained (RunHook): a throw is logged and the quest, the kill, the
+    // interact, the accept or the select that called it goes on, as does every other quest's hook.
 
-    /// <summary>Task 9: the quest script's CanAccept.</summary>
-    private bool ScriptAllows(QuestView quest, CharacterEntity character) => true;
-
-    /// <summary>Task 9: the quest script's OnAccepted.</summary>
-    private void OnAccepted(CharacterEntity character, QuestView quest, ActiveQuest active)
+    /// <summary>The quest script's CanAccept (#433): no script allows; a script that cannot be built, or whose CanAccept throws, refuses.</summary>
+    private bool ScriptAllows(QuestView quest, CharacterEntity character)
     {
+        if (quest.ScriptType is null)
+            return true;
+        if (ScriptOf(quest) is not { } script)
+            return false;
+
+        bool allows = false;
+        return Contained(quest, character, nameof(QuestScript.CanAccept),
+            () => allows = script.CanAccept(new QuestCharacterView(character))) && allows;
     }
 
+    private void OnAccepted(CharacterEntity character, QuestView quest, ActiveQuest active) =>
+        RunHook(character, quest, active, nameof(QuestScript.OnAccepted), static (script, context) => script.OnAccepted(context));
+
     /// <summary>
-    /// A stage started: its Collect objectives count what the Bag already holds (#433). Task 9: the script's
-    /// OnStageStarted.
+    /// A stage started (stage 0 at accept): its Collect objectives count what the Bag already holds, then the script
+    /// hears of it. Needs no instance, so it also runs for a character still being selected (the select recount).
     /// </summary>
     private void StageStarted(CharacterEntity character, QuestView quest, ActiveQuest active)
     {
         Recount(character, quest, active);
-        AfterStageStarted?.Invoke(character, quest, active);
+        int stage = active.Stage;
+        RunHook(character, quest, active, nameof(QuestScript.OnStageStarted), (script, context) => script.OnStageStarted(context, stage));
     }
 
-    /// <summary>Task 9: the quest script's OnCreatureKilled.</summary>
-    private void OnKilled(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature creature)
+    private void OnKilled(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature creature) =>
+        RunHook(character, quest, active, nameof(QuestScript.OnCreatureKilled),
+            (script, context) => script.OnCreatureKilled(context, QuestCreatureView.From(creature)));
+
+    private void OnInteracted(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature npc) =>
+        RunHook(character, quest, active, nameof(QuestScript.OnInteract),
+            (script, context) => script.OnInteract(context, QuestCreatureView.From(npc)));
+
+    /// <summary>
+    /// OnEnterInstance for every held quest with a script (#433), once per instance: QuestFlusher calls this every
+    /// tick, and it runs only when the character stands in a live instance other than the one it last ran for. A
+    /// character with no live instance (still being selected, or between instances) is skipped and tried again on a
+    /// later tick, so the hook always gets a real instance.
+    /// </summary>
+    public void EnteredInstanceIfChanged(CharacterEntity character)
     {
+        if (character.Quests.ScriptsInstance == character.InstanceId
+            || world.InstanceRegistry.GetInstanceById(character.InstanceId) is not { } instance)
+            return;
+
+        character.Quests.ScriptsInstance = character.InstanceId;
+        QuestCatalog catalog = Catalog;
+        QuestInstanceView? view = null;
+        foreach (ActiveQuest active in character.Quests.Active.ToList())
+        {
+            if (!catalog.TryGet(active.QuestId, out QuestView? quest) || quest.ScriptType is null)
+                continue;
+
+            QuestInstanceView entered = view ??= QuestInstanceView.From(instance);
+            RunHook(character, quest, active, nameof(QuestScript.OnEnterInstance), (script, context) => script.OnEnterInstance(context, entered));
+        }
     }
 
-    /// <summary>Task 9: the quest script's OnInteract.</summary>
-    private void OnInteracted(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature npc)
+    /// <summary>
+    /// IQuestContext.Advance (#433): +<paramref name="amount" />, capped, on one of this quest's Scripted objectives in
+    /// its current stage, while the character still holds this very copy of the quest and it is Active. Anything
+    /// else is refused and logged at Warning.
+    /// </summary>
+    internal bool ScriptAdvance(CharacterEntity character, QuestView quest, ActiveQuest active, uint objectiveId, uint amount)
     {
+        bool allowed = amount > 0
+                       && character.Quests.Get(quest.Id) == active
+                       && active.State == CharacterQuestState.Active
+                       && CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is
+                           { Type: Domain.World.QuestObjectiveType.Scripted };
+        if (!allowed)
+        {
+            logger.LogWarning("Quest {QuestId}'s script tried to advance objective {Objective} by {Amount} for character {CharacterId}; " +
+                              "only its own Scripted objectives in the current stage can be", quest.Id, objectiveId, amount, character.Guid.Id);
+            return false;
+        }
+
+        return AddProgress(character, quest.Id, objectiveId, amount);
+    }
+
+    /// <summary>The quest's script, built on first use; null for a quest with none or one that could not be built.</summary>
+    private QuestScript? ScriptOf(QuestView quest)
+    {
+        if (quest.ScriptType is not { } type)
+            return null;
+
+        // A reload can point the quest at another script; the cached one is kept only while it is still that type.
+        if (_scripts.TryGetValue(quest.Id, out (Type Type, QuestScript? Script) cached) && cached.Type == type)
+            return cached.Script;
+
+        QuestScript? built = null;
+        try
+        {
+            built = (QuestScript)ActivatorUtilities.CreateInstance(services, type);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Quest {QuestId} script {Script} could not be built; the quest cannot be accepted", quest.Id, type.Name);
+        }
+
+        _scripts[quest.Id] = (type, built);
+        return built;
+    }
+
+    private void RunHook(CharacterEntity character, QuestView quest, ActiveQuest active, string hook, Action<QuestScript, IQuestContext> call)
+    {
+        if (ScriptOf(quest) is { } script)
+            Contained(quest, character, hook, () => call(script, new QuestContext(this, character, quest, active)));
+    }
+
+    /// <summary>
+    /// Runs one hook of a quest's script, contained: a throw is logged at Error with the quest, the hook and the
+    /// character, at most once per quest per <see cref="ThrottledErrorLog.Interval" /> (counting the throws left out),
+    /// and false is returned; the caller goes on.
+    /// </summary>
+    private bool Contained(QuestView quest, CharacterEntity character, string hook, Action call)
+    {
+        try
+        {
+            call();
+            return true;
+        }
+        catch (Exception e)
+        {
+            DateTimeOffset now = time.GetUtcNow();
+            if (_scriptErrors.TryGetValue(quest.Id, out (DateTimeOffset LastLogged, int Suppressed) last)
+                && now - last.LastLogged < ThrottledErrorLog.Interval)
+            {
+                _scriptErrors[quest.Id] = (last.LastLogged, last.Suppressed + 1);
+                return false;
+            }
+
+            logger.LogError(e, "Quest {QuestId} script {Script} threw in {Hook} for character {CharacterId}; the quest went on. " +
+                               "{Suppressed} earlier throws of this quest's script were not logged",
+                quest.Id, quest.ScriptType?.Name, hook, character.Guid.Id, last.Suppressed);
+            _scriptErrors[quest.Id] = (now, 0);
+            return false;
+        }
     }
 
     /// <summary>Every copy of the quest's Collect items leaves the Bag and the Bank (turn-in and abandon, #433).</summary>

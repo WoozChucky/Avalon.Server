@@ -68,7 +68,8 @@ internal sealed class QuestTestWorld
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private uint _nextCreature = 950_000;
 
-    private QuestTestWorld(StaticData data, GameConfiguration config, IServiceProvider services, SteadyLootRandom random, PartyService? parties)
+    private QuestTestWorld(StaticData data, GameConfiguration config, IServiceProvider services, SteadyLootRandom random, PartyService? parties,
+        TestLog? log)
     {
         Data = data;
         Config = config;
@@ -84,7 +85,8 @@ internal sealed class QuestTestWorld
         World.InstanceRegistry.GetInstanceById(Arg.Any<Guid>()).Returns(ci => ci.Arg<Guid>() == Instance.InstanceId ? Instance : null);
 
         Economy = new CharacterEconomy(World, new ItemIdAllocator());
-        Quests = new QuestService(World, services, Economy, random, Clock, NullLogger<QuestService>.Instance, parties);
+        ILogger<QuestService> logger = log is null ? NullLogger<QuestService>.Instance : new Logger<QuestService>(log);
+        Quests = new QuestService(World, services, Economy, random, Clock, logger, parties);
     }
 
     public ManualTimerClock Clock { get; } = new();
@@ -103,7 +105,8 @@ internal sealed class QuestTestWorld
         IServiceProvider? services = null,
         PartyService? parties = null,
         List<CharacterLevelExperience>? levels = null,
-        Action<List<DialogueNode>, List<DialogueOption>>? dialogue = null)
+        Action<List<DialogueNode>, List<DialogueOption>>? dialogue = null,
+        TestLog? log = null)
     {
         List<QuestTemplate> rows = quests ?? Chain();
         List<DialogueNode> nodes =
@@ -137,7 +140,7 @@ internal sealed class QuestTestWorld
 
         var config = new GameConfiguration();
         configure?.Invoke(config);
-        return new QuestTestWorld(data, config, services ?? Substitute.For<IServiceProvider>(), new SteadyLootRandom(0), parties);
+        return new QuestTestWorld(data, config, services ?? Substitute.For<IServiceProvider>(), new SteadyLootRandom(0), parties, log);
     }
 
     /// <summary>

@@ -19,6 +19,9 @@ public static class QuestFlusher
         // A quest item that arrived, left or moved by any path this tick is counted again.
         if (TouchedTheBag(character.ClientChanges))
             quests.RecountCollect(character);
+
+        // The OnEnterInstance script hooks, once per instance (a login, a portal, a respawn).
+        quests.EnteredInstanceIfChanged(character);
     }
 
     private static bool TouchedTheBag(InventoryClientChanges changes)
