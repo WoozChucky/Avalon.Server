@@ -64,6 +64,37 @@ public sealed class ChunkGenCliShould : IDisposable
         Assert.Equal(before, Snapshot());
     }
 
+    /// <summary>A temporary copy that cannot be removed (a file held open in it) is reported, never thrown over the exit code.</summary>
+    [Fact]
+    public void Report_a_staging_copy_it_cannot_remove_without_throwing()
+    {
+        string staging = Path.Combine(Path.GetTempPath(), $"avalon-chunkgen-staging-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(staging);
+        try
+        {
+            using (new FileStream(Path.Combine(staging, "held.obj"), FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+                ChunkGenCli.DeleteStaging(staging, _error);
+
+            Assert.StartsWith($"could not remove the temporary copy {staging}: ", _error.ToString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Remove_a_staging_copy_and_say_nothing()
+    {
+        string staging = Path.Combine(Path.GetTempPath(), $"avalon-chunkgen-staging-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(staging, "Maps"));
+
+        ChunkGenCli.DeleteStaging(staging, _error);
+
+        Assert.False(Directory.Exists(staging));
+        Assert.Empty(_error.ToString());
+    }
+
     private Dictionary<string, string> Snapshot() =>
         Directory.EnumerateFiles(_maps, "*", SearchOption.AllDirectories)
             .ToDictionary(f => Path.GetRelativePath(_maps, f), File.ReadAllText, StringComparer.Ordinal);

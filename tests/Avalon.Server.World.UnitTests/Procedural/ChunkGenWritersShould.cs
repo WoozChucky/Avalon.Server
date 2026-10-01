@@ -150,6 +150,18 @@ public class ChunkGenWritersShould
     public void Refuse_a_blocker_across_a_groups_inner_edge() =>
         Assert.Throws<InvalidOperationException>(() =>
             new ChunkGroupPiece("bad", [(0, 0, Side.S)], [new BoxBlocker(25, 35, 5, 10)], [], ["forest"]).Members().ToList());
+
+    /// <summary>A bound that is not a number lands in no cell, so the blocker would be dropped without a word.</summary>
+    [Theory]
+    [InlineData(float.NaN, 10f)]
+    [InlineData(10f, float.PositiveInfinity)]
+    public void Refuse_a_group_blocker_whose_bounds_are_not_finite(float x, float z)
+    {
+        var refusal = Assert.Throws<InvalidOperationException>(() =>
+            new ChunkGroupPiece("bad", [(0, 0, Side.S)], [new CylinderBlocker(x, z, 2)], [], ["forest"]).Members().ToList());
+        Assert.Contains("not finite", refusal.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(30f, 10f)]
     [InlineData(10f, 30f)]
