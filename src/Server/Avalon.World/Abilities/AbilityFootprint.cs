@@ -11,7 +11,10 @@ namespace Avalon.World.Abilities;
 /// cast started. The shape scripts fire with exactly what <see cref="Resolve" /> answers, and a cast-time
 /// cast's start broadcast carries the same answer, so the telegraph a client draws is what hits.
 /// </summary>
-/// <param name="Direction">A cone's or a projectile's direction, a unit vector on X/Z; null for a circle.</param>
+/// <param name="Direction">
+/// A cone's or a projectile's direction, a unit vector on X/Z; null for a circle. A Movement cone takes the aim's
+/// facing, which for a character's cast that sent a cursor point already points toward it (#716).
+/// </param>
 /// <param name="Centre">A circle's centre; null for a cone and a projectile.</param>
 /// <param name="Reach">A cone's length, or a projectile lane's up to where the walkable ray stops; 0 for a circle.</param>
 public readonly record struct AbilityFootprint(

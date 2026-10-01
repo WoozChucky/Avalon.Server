@@ -3,7 +3,12 @@ namespace Avalon.Network.Packets.Abilities;
 /// <summary>How a skill aims (#164). Stored on AbilityTemplate and sent on AbilityInfo. Append-only.</summary>
 public enum AbilityAimMode : byte
 {
-    /// <summary>Along the caster's facing, its yaw from movement input.</summary>
+    /// <summary>
+    /// A direction from the caster, the footprint anchored on it: toward CCastAbilityPacket.GroundPos (the cursor)
+    /// when a character's cast sends a finite one away from the caster, otherwise along the caster's facing, its
+    /// yaw (#716). A creature aims along its facing toward its target. The name predates #716 and is kept: it is
+    /// stored data and in the exported ability catalog.
+    /// </summary>
     Movement = 0,
 
     /// <summary>At a ground point: CCastAbilityPacket.GroundPos.</summary>

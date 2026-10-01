@@ -12,8 +12,9 @@ using Avalon.World.Public.Units;
 namespace Avalon.World.Scripts.Abilities;
 
 /// <summary>
-/// A cone from the caster along its facing (Movement) or toward the aim point (Cursor, falling back to
-/// facing when the point is on the caster) (#164). Resolves once, when it fires. Walls do not clip it.
+/// A cone from the caster along the aim's facing (Movement: toward the cursor when the cast sent one, else the
+/// caster's yaw, resolved at cast start, #716) or toward the aim point (Cursor, falling back to facing when the
+/// point is on the caster) (#164). Resolves once, when it fires. Walls do not clip it.
 /// It resolves from where the caster stood when the cast started (#648), through
 /// <c>AbilityFootprint.Resolve</c>, the footprint the cast's start broadcast carried.
 /// </summary>

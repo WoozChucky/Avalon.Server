@@ -34,7 +34,7 @@ public class AbilityMetadata
 
     // Aim and shape (#164), copied from the template.
 
-    /// <summary>Along the caster's facing, or at the cursor's ground point.</summary>
+    /// <summary>From the caster toward the cursor, else along its facing (Movement, #716), or at the cursor's ground point (Cursor).</summary>
     public AbilityAimMode AimMode         { get; init; } = AbilityAimMode.Movement;
 
     /// <summary>Circle, cone or projectile.</summary>
