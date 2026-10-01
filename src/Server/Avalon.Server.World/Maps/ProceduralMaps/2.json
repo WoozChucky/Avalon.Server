@@ -1,0 +1,13 @@
+{
+  "mapTemplateId": 2,
+  "chunkPool": "forest_pool",
+  "spawnTable": "forest_creatures",
+  "mainPathMin": 4,
+  "mainPathMax": 7,
+  "branchChance": 0.4,
+  "branchMaxDepth": 2,
+  "hasBoss": true,
+  "backPortalTargetMapId": 1,
+  "forwardPortalTargetMapId": null,
+  "depthBands": []
+}

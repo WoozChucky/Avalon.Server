@@ -39,8 +39,9 @@ public static class WorldStartup
         ChunkCatalogSeedResult seeded = await ChunkCatalogSeeder.SeedAsync(worldDb,
             Path.Combine(AppContext.BaseDirectory, "Maps"), CancellationToken.None);
         logger.LogInformation(
-            "Chunk catalog seeded: {Added} added, {Updated} updated, {Layouts} town layouts, {Pools} pools, {Groups} groups",
-            seeded.TemplatesAdded, seeded.TemplatesUpdated, seeded.LayoutsReplaced, seeded.PoolsSynced, seeded.GroupsReplaced);
+            "Chunk catalog seeded: {Added} added, {Updated} updated, {Layouts} town layouts, {Pools} pools, {Groups} groups, {SpawnTables} spawn tables, {Maps} procedural maps",
+            seeded.TemplatesAdded, seeded.TemplatesUpdated, seeded.LayoutsReplaced, seeded.PoolsSynced, seeded.GroupsReplaced,
+            seeded.SpawnTablesSynced, seeded.ProceduralMapsSynced);
 
         IReplicatedCache cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
         await cache.ConnectAsync();

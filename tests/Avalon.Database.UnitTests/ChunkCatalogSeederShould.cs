@@ -362,6 +362,117 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         Assert.Equal(4, group.Members.Count);
     }
 
+    [Fact]
+    public async Task Seed_the_forests_spawn_table_and_config_into_an_empty_database()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using (WorldDbContext db = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(db, CommittedMapsRoot());
+
+        await using WorldDbContext read = database.CreateDbContext();
+        SpawnTable table = await read.SpawnTables.SingleAsync(t => t.Name == "forest_creatures");
+        Assert.Equal(1, table.Id.Value);
+        Assert.Equal(7, table.Entries.Count);
+        ProceduralMapConfig config = await read.ProceduralMapConfigs.SingleAsync(c => c.MapTemplateId == new MapTemplateId(2));
+        ChunkPool pool = await read.ChunkPools.SingleAsync(p => p.Name == "forest_pool");
+        Assert.Equal((pool.Id.Value, table.Id.Value), (config.ChunkPoolId.Value, config.SpawnTableId.Value));
+    }
+
+    /// <summary>Owner decision: the rows the old migration SQL wrote are adopted, ids kept, values replaced from the files.</summary>
+    [Fact]
+    public async Task Adopt_the_existing_spawn_table_and_config_keeping_their_ids()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using (WorldDbContext before = database.CreateDbContext())
+        {
+            before.SpawnTables.Add(new SpawnTable
+            {
+                Id = new SpawnTableId(1), Name = "forest_creatures",
+                Entries = [new SpawnTableEntry { Tag = "pack", CreatureId = new CreatureTemplateId(2), Weight = 1f, MinCount = 1, MaxCount = 2 }],
+            });
+            before.ProceduralMapConfigs.Add(new ProceduralMapConfig
+            {
+                MapTemplateId = new MapTemplateId(2), ChunkPoolId = new ChunkPoolId(1), SpawnTableId = new SpawnTableId(1),
+                MainPathMin = 2, MainPathMax = 3, HasBoss = true, BackPortalTargetMapId = 1,
+            });
+            await before.SaveChangesAsync();
+        }
+
+        await using (WorldDbContext first = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(first, CommittedMapsRoot());
+        await using (WorldDbContext second = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(second, CommittedMapsRoot());
+
+        await using WorldDbContext read = database.CreateDbContext();
+        SpawnTable table = Assert.Single(await read.SpawnTables.ToListAsync());
+        Assert.Equal(1, table.Id.Value);
+        Assert.Equal(7, table.Entries.Count);
+        Assert.DoesNotContain(table.Entries, e => e.CreatureId.Value == 2);
+        ProceduralMapConfig config = Assert.Single(await read.ProceduralMapConfigs.ToListAsync());
+        Assert.Equal(((ushort)4, (ushort)7), (config.MainPathMin, config.MainPathMax));
+        Assert.Equal(1, config.SpawnTableId.Value);
+    }
+
+    [Fact]
+    public async Task Write_a_maps_depth_bands_and_replace_them_on_the_next_start()
+    {
+        string root = CopyOfCommittedMaps();
+        File.WriteAllText(Path.Combine(root, "ProceduralMaps", "2.json"), """
+            { "mapTemplateId": 2, "chunkPool": "forest_pool", "spawnTable": "forest_creatures",
+              "mainPathMin": 4, "mainPathMax": 7, "branchChance": 0.4, "branchMaxDepth": 2, "hasBoss": true,
+              "backPortalTargetMapId": 1, "forwardPortalTargetMapId": null,
+              "depthBands": [ { "minDepth": 1, "maxDepth": 3, "minLevel": 1, "maxLevel": 3 },
+                              { "minDepth": 4, "maxDepth": null, "minLevel": 3, "maxLevel": 6 } ] }
+            """);
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using (WorldDbContext first = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(first, root);
+        await using (WorldDbContext second = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(second, root);
+
+        await using WorldDbContext read = database.CreateDbContext();
+        ProceduralMapConfig config = await read.ProceduralMapConfigs.SingleAsync(c => c.MapTemplateId == new MapTemplateId(2));
+        Assert.Equal([1, 4], config.DepthBands.Select(b => b.MinDepth).Order());
+    }
+
+    /// <summary>Review Focus 4: every bad edit refuses the whole catalog before anything is written.</summary>
+    [Theory]
+    [InlineData("ProceduralMaps/2.json", "\"chunkPool\": \"forest_pool\"", "\"chunkPool\": \"no_such_pool\"")]
+    [InlineData("ProceduralMaps/2.json", "\"spawnTable\": \"forest_creatures\"", "\"spawnTable\": \"no_such_table\"")]
+    [InlineData("ProceduralMaps/2.json", "\"mapTemplateId\": 2", "\"mapTemplateId\": 3")]                // the file is named 2.json
+    [InlineData("spawn-tables.json", "\"creatureId\": 10,", "\"creatureId\": 999,")]                      // no such creature
+    [InlineData("spawn-tables.json", "\"tag\": \"rare\"", "\"tag\": \"elite\"")]                           // no slot uses it, and 'rare' slots lose their entries
+    public async Task Refuse_bad_procedural_data_and_write_nothing(string file, string from, string to)
+    {
+        string root = CopyOfCommittedMaps();
+        string path = Path.Combine(root, file);
+        string text = File.ReadAllText(path);
+        Assert.Contains(from, text, StringComparison.Ordinal);
+        File.WriteAllText(path, text.Replace(from, to, StringComparison.Ordinal));
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using WorldDbContext db = database.CreateDbContext();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
+        Assert.Equal(0, await db.ChunkTemplates.CountAsync());
+        Assert.Equal(0, await db.SpawnTables.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(99)]   // no MapTemplate 99
+    [InlineData(1)]    // map 1 is the town
+    public async Task Refuse_a_procedural_map_that_is_not_a_normal_map(int mapId)
+    {
+        string root = CopyOfCommittedMaps();
+        string source = File.ReadAllText(Path.Combine(root, "ProceduralMaps", "2.json"));
+        File.WriteAllText(Path.Combine(root, "ProceduralMaps", $"{mapId}.json"),
+            source.Replace("\"mapTemplateId\": 2", $"\"mapTemplateId\": {mapId}", StringComparison.Ordinal));
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using WorldDbContext db = database.CreateDbContext();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
+        Assert.Equal(0, await db.ProceduralMapConfigs.CountAsync());
+    }
+
     private static string CommittedMapsRoot()
     {
         for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

@@ -11,7 +11,21 @@ public sealed record ChunkCatalogFiles(
     IReadOnlyList<ChunkMetaDto> Chunks,
     IReadOnlyList<(string Path, TownLayoutDto Layout)> Layouts,
     IReadOnlyDictionary<string, string[]> Pools,
-    IReadOnlyDictionary<string, GroupDto[]>? Groups);
+    IReadOnlyDictionary<string, GroupDto[]>? Groups,
+    IReadOnlyDictionary<string, SpawnTableEntryDto[]>? SpawnTables,
+    IReadOnlyList<(string Path, ProceduralMapDto Map)> ProceduralMaps);
+
+/// <summary>One entry of a spawn table in Maps/spawn-tables.json: a slot tag, a creature template, its weight and count range.</summary>
+public sealed record SpawnTableEntryDto(string Tag, ulong CreatureId, float Weight, byte Min, byte Max);
+
+/// <summary>A depth band in Maps/ProceduralMaps/&lt;mapId&gt;.json (see ProceduralDepthBand).</summary>
+public sealed record DepthBandDto(int MinDepth, int? MaxDepth, ushort MinLevel, ushort MaxLevel);
+
+/// <summary>One procedural map's config, Maps/ProceduralMaps/&lt;mapId&gt;.json; its pool and spawn table by name.</summary>
+public sealed record ProceduralMapDto(
+    ushort MapTemplateId, string ChunkPool, string SpawnTable, ushort MainPathMin, ushort MainPathMax, float BranchChance,
+    byte BranchMaxDepth, bool HasBoss, ushort BackPortalTargetMapId, ushort? ForwardPortalTargetMapId,
+    List<DepthBandDto>? DepthBands);
 
 /// <summary>One set piece in Maps/chunk-groups.json.</summary>
 public sealed record GroupDto(string Name, List<GroupMemberDto> Members);
