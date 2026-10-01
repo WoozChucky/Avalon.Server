@@ -1,6 +1,6 @@
 {
-  "name": "forest_deadend_01",
-  "assetKey": "chunks/forest_deadend_01",
+  "name": "forest_arena_sw",
+  "assetKey": "chunks/forest_arena_sw",
   "cellFootprintX": 1,
   "cellFootprintZ": 1,
   "cellSize": 30,
@@ -12,10 +12,9 @@
   },
   "spawnSlots": [
     { "tag": "pack", "localX": 15, "localY": 1, "localZ": 10 },
-    { "tag": "rare", "localX": 15, "localY": 1, "localZ": 22 },
-    { "tag": "pack", "localX": 8, "localY": 1, "localZ": 15 }
+    { "tag": "pack", "localX": 24, "localY": 1, "localZ": 22 }
   ],
   "portalSlots": [
   ],
-  "tags": ["deadend", "forest"]
+  "tags": ["forest", "setpiece", "boss", "arena", "group"]
 }

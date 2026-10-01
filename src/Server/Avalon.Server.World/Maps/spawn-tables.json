@@ -6,6 +6,8 @@
     { "tag": "pack", "creatureId": 7, "weight": 0.6, "min": 1, "max": 2 },
     { "tag": "pack", "creatureId": 8, "weight": 0.3, "min": 1, "max": 1 },
     { "tag": "rare", "creatureId": 9, "weight": 1.0, "min": 1, "max": 1 },
-    { "tag": "boss", "creatureId": 10, "weight": 1.0, "min": 1, "max": 1 }
+    { "tag": "boss", "creatureId": 10, "weight": 1.0, "min": 1, "max": 1 },
+    { "tag": "leader", "creatureId": 8, "weight": 1.0, "min": 1, "max": 1 },
+    { "tag": "leader_pack", "creatureId": 5, "weight": 1.0, "min": 2, "max": 3 }
   ]
 }

@@ -1,0 +1,31 @@
+{
+  "forest_pool": [
+    {
+      "name": "forest_clearing_big",
+      "members": [
+        { "chunk": "forest_clearing_big_sw", "cellX": 0, "cellZ": 0 },
+        { "chunk": "forest_clearing_big_se", "cellX": 1, "cellZ": 0 },
+        { "chunk": "forest_clearing_big_nw", "cellX": 0, "cellZ": 1 },
+        { "chunk": "forest_clearing_big_ne", "cellX": 1, "cellZ": 1 }
+      ]
+    },
+    {
+      "name": "forest_grove_ruin",
+      "members": [
+        { "chunk": "forest_grove_ruin_sw", "cellX": 0, "cellZ": 0 },
+        { "chunk": "forest_grove_ruin_se", "cellX": 1, "cellZ": 0 },
+        { "chunk": "forest_grove_ruin_nw", "cellX": 0, "cellZ": 1 },
+        { "chunk": "forest_grove_ruin_ne", "cellX": 1, "cellZ": 1 }
+      ]
+    },
+    {
+      "name": "forest_arena",
+      "members": [
+        { "chunk": "forest_arena_sw", "cellX": 0, "cellZ": 0 },
+        { "chunk": "forest_arena_se", "cellX": 1, "cellZ": 0 },
+        { "chunk": "forest_arena_nw", "cellX": 0, "cellZ": 1 },
+        { "chunk": "forest_arena_ne", "cellX": 1, "cellZ": 1 }
+      ]
+    }
+  ]
+}

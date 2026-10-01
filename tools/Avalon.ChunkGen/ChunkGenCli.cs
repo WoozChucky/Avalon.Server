@@ -32,8 +32,9 @@ public static class ChunkGenCli
                 ? Path.Combine(RepositoryRoot.Find(), "src", "Server", "Avalon.Server.World", "Maps")
                 : Path.GetFullPath(mapsArgument);
             IReadOnlyList<ChunkPiece> singlePieces = singles();
-            List<List<(ChunkPiece Piece, int CellX, int CellZ)>> groupMembers = groups().Select(g => g.Members().ToList()).ToList();
-            files = ChunkFiles.For([.. singlePieces, .. groupMembers.SelectMany(m => m.Select(x => x.Piece))]);
+            IReadOnlyList<ChunkGroupPiece> groupPieces = groups();
+            List<List<(ChunkPiece Piece, int CellX, int CellZ)>> groupMembers = groupPieces.Select(g => g.Members().ToList()).ToList();
+            files = ChunkFiles.For(singlePieces, groupPieces);
 
             string stagedMaps = Path.Combine(staging, "Maps");
             foreach (string file in Directory.EnumerateFiles(maps, "*", SearchOption.AllDirectories))

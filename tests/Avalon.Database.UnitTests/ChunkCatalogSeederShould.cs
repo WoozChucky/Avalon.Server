@@ -26,13 +26,14 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
         await ChunkCatalogSeeder.SeedAsync(db, CommittedMapsRoot());
 
-        Assert.Equal(18, await db.ChunkTemplates.CountAsync());
+        Assert.Equal(38, await db.ChunkTemplates.CountAsync());
         ChunkTemplate path = await db.ChunkTemplates.SingleAsync(t => t.Name == "forest_path_01");
         Assert.Equal("Chunks/forest_path_01.obj", path.GeometryFile);
         Assert.Equal(["path", "forest"], path.Tags);
 
         ChunkPool forest = await db.ChunkPools.Include(p => p.Memberships).SingleAsync(p => p.Name == "forest_pool");
-        Assert.Equal(10, forest.Memberships.Count);
+        Assert.Equal(17, forest.Memberships.Count);
+        Assert.Equal(3, await db.ChunkGroups.CountAsync());
 
         Assert.Equal(4, await db.MapChunkPlacements.CountAsync(p => p.MapTemplateId == new MapTemplateId(1)));
     }
@@ -54,7 +55,8 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
         await using WorldDbContext after = database.CreateDbContext();
         Assert.Equal(idsBefore, await after.ChunkTemplates.ToDictionaryAsync(t => t.Name, t => t.Id.Value));
-        Assert.Equal(10, await after.Set<ChunkPoolMembership>().CountAsync());
+        Assert.Equal(17, await after.Set<ChunkPoolMembership>().CountAsync());
+        Assert.Equal(12, await after.Set<ChunkGroupMember>().CountAsync());
         Assert.Equal(4, await after.MapChunkPlacements.CountAsync());
     }
 
@@ -161,7 +163,8 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     {
         ChunkCatalogFiles files = await ChunkCatalogSeeder.ReadCatalogAsync(CommittedMapsRoot());
 
-        Assert.Equal(18, files.Chunks.Count);
+        Assert.Equal(38, files.Chunks.Count);
+        Assert.Equal(3, files.Groups!["forest_pool"].Length);
         Assert.Contains("forest_pool", files.Pools.Keys);
         Assert.Single(files.Layouts);
     }
@@ -351,7 +354,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         await using (WorldDbContext first = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(first, root);
 
-        File.Delete(Path.Combine(root, "chunk-groups.json"));
+        DropTheSetPieces(root);
         ChunkCatalogSeedResult second;
         await using (WorldDbContext db = database.CreateDbContext())
             second = await ChunkCatalogSeeder.SeedAsync(db, root);
@@ -372,7 +375,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         await using WorldDbContext read = database.CreateDbContext();
         SpawnTable table = await read.SpawnTables.SingleAsync(t => t.Name == "forest_creatures");
         Assert.Equal(1, table.Id.Value);
-        Assert.Equal(7, table.Entries.Count);
+        Assert.Equal(9, table.Entries.Count);
         ProceduralMapConfig config = await read.ProceduralMapConfigs.SingleAsync(c => c.MapTemplateId == new MapTemplateId(2));
         ChunkPool pool = await read.ChunkPools.SingleAsync(p => p.Name == "forest_pool");
         Assert.Equal((pool.Id.Value, table.Id.Value), (config.ChunkPoolId.Value, config.SpawnTableId.Value));
@@ -406,10 +409,11 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         await using WorldDbContext read = database.CreateDbContext();
         SpawnTable table = Assert.Single(await read.SpawnTables.ToListAsync());
         Assert.Equal(1, table.Id.Value);
-        Assert.Equal(7, table.Entries.Count);
+        Assert.Equal(9, table.Entries.Count);
         Assert.DoesNotContain(table.Entries, e => e.CreatureId.Value == 2);
         ProceduralMapConfig config = Assert.Single(await read.ProceduralMapConfigs.ToListAsync());
-        Assert.Equal(((ushort)4, (ushort)7), (config.MainPathMin, config.MainPathMax));
+        Assert.Equal(((ushort)10, (ushort)16), (config.MainPathMin, config.MainPathMax));
+        Assert.Equal(3, config.DepthBands.Count);
         Assert.Equal(1, config.SpawnTableId.Value);
     }
 
@@ -493,6 +497,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     public async Task Refuse_a_leader_pack_entry_when_the_pool_has_no_leader_slot()
     {
         string root = CopyOfCommittedMaps();
+        DropTheSetPieces(root);
         EditSpawnTable(root, entries => entries.Add(SpawnEntry("leader_pack", 5, 2, 3)));
 
         InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
@@ -503,6 +508,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     public async Task Accept_a_leader_pack_entry_when_the_pool_has_a_leader_slot()
     {
         string root = CopyOfCommittedMaps();
+        DropTheSetPieces(root);   // the leader slot below is the pool's only one
         string chunkPath = Path.Combine(root, "Chunks", "forest_path_01.json");
         JsonObject chunk = JsonNode.Parse(File.ReadAllText(chunkPath))!.AsObject();
         chunk["spawnSlots"]!.AsArray().Add(JsonNode.Parse("""{ "tag": "leader", "localX": 15, "localY": 1, "localZ": 20 }"""));
@@ -518,7 +524,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
         await using WorldDbContext read = database.CreateDbContext();
         SpawnTable table = await read.SpawnTables.SingleAsync(t => t.Name == "forest_creatures");
-        Assert.Equal(9, table.Entries.Count);
+        Assert.Equal(8, table.Entries.Count);   // six from the table without the set pieces, plus leader and leader_pack
         Assert.Single(table.Entries, e => e.Tag == "leader_pack");
     }
 
@@ -556,6 +562,20 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         JsonObject tables = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         edit(tables["forest_creatures"]!.AsArray());
         File.WriteAllText(path, tables.ToJsonString());
+    }
+
+    /// <summary>
+    /// Removes the copy's chunk-groups.json and the spawn-table entries only the set pieces need (boss, leader and its
+    /// leader_pack), so the copy's pool is its single pieces alone and its catalog still passes the tag check.
+    /// </summary>
+    private static void DropTheSetPieces(string root)
+    {
+        File.Delete(Path.Combine(root, "chunk-groups.json"));
+        EditSpawnTable(root, entries =>
+        {
+            foreach (JsonNode? entry in entries.Where(e => (string?)e!["tag"] is "boss" or "leader" or "leader_pack").ToList())
+                entries.Remove(entry);
+        });
     }
 
     private static JsonNode SpawnEntry(string tag, int creatureId, int min, int max) =>

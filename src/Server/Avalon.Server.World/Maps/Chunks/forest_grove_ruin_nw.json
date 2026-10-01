@@ -1,0 +1,21 @@
+{
+  "name": "forest_grove_ruin_nw",
+  "assetKey": "chunks/forest_grove_ruin_nw",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": [],
+    "E": [],
+    "S": [],
+    "W": []
+  },
+  "spawnSlots": [
+    { "tag": "pack", "localX": 10, "localY": 1, "localZ": 16 },
+    { "tag": "pack", "localX": 24, "localY": 1, "localZ": 22 },
+    { "tag": "leader", "localX": 15, "localY": 1, "localZ": 10 }
+  ],
+  "portalSlots": [
+  ],
+  "tags": ["forest", "setpiece", "ruins", "group"]
+}
