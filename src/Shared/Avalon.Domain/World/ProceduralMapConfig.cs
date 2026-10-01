@@ -14,4 +14,7 @@ public class ProceduralMapConfig
     public bool HasBoss { get; set; }
     public ushort BackPortalTargetMapId { get; set; }
     public ushort? ForwardPortalTargetMapId { get; set; }
+
+    /// <summary>Creature levels by depth (forest content pass); empty keeps every template's own level range.</summary>
+    public List<ProceduralDepthBand> DepthBands { get; set; } = [];
 }

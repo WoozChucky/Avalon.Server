@@ -189,6 +189,23 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
+    /// Forest content pass: the forest's reward band runs to 15, so a character is never out of band before the cap.
+    /// Its spawns roll their levels from depth bands instead (Maps/ProceduralMaps/2.json), so the band does not
+    /// constrain spawning.
+    /// </summary>
+    [Fact]
+    public void Band_the_forests_rewards_from_level_one_to_fifteen()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        MapTemplate forest = context.MapTemplates.AsNoTracking().ToList().Single(m => m.Id.Value == 2);
+
+        Assert.Equal((ushort?)1, forest.MinLevel);
+        Assert.Equal((ushort?)15, forest.MaxLevel);
+    }
+
+    /// <summary>
     /// Map 1's whole population today is seven town NPCs: Uriel, Borin, the Innkeeper, Marta the
     /// banker (#463), and the three vendors (#432). Pinning the count and the map catches a seed
     /// edit that drops one, or quietly hangs NPCs off the wrong map.

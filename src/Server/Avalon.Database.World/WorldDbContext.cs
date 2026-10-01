@@ -1670,8 +1670,9 @@ public class WorldDbContext : DbContext
                 MapType = MapType.Normal,
                 PvP = false,
                 MinLevel = 1,
-                // Re-banded from 10 to 5. The band scales rewards only — a level 6 creature here is legal.
-                MaxLevel = 5,
+                // The reward band runs to the level cap (15) since the forest content pass; spawns roll their levels
+                // from the map's depth bands (Maps/ProceduralMaps/2.json), so the band scales rewards only.
+                MaxLevel = 15,
                 AreaTableId = 0,
                 LoadingScreenId = 0,
                 // A whole party (Game:MaxPartySize, 6 by default) must fit: a party instance holds at most
@@ -1762,6 +1763,23 @@ public class WorldDbContext : DbContext
             .HasConversion(v => v.Value, v => new ChunkPoolId(v));
         builder.Property(b => b.SpawnTableId)
             .HasConversion(v => v.Value, v => new SpawnTableId(v));
+
+        // Depth bands (forest content pass). Like the config row itself, the rows are written by ChunkCatalogSeeder
+        // from Maps/ProceduralMaps/<mapId>.json on every World start, not by migrations.
+        builder.OwnsMany(b => b.DepthBands, d =>
+        {
+            d.ToTable("ProceduralDepthBands", t =>
+            {
+                t.HasCheckConstraint("CK_ProceduralDepthBands_Depth",
+                    "\"MinDepth\" >= 0 AND (\"MaxDepth\" IS NULL OR \"MaxDepth\" >= \"MinDepth\")");
+                t.HasCheckConstraint("CK_ProceduralDepthBands_Level",
+                    "\"MinLevel\" >= 1 AND \"MaxLevel\" >= \"MinLevel\"");
+            });
+            d.WithOwner().HasForeignKey("MapTemplateId");
+            d.HasKey("MapTemplateId", nameof(ProceduralDepthBand.MinDepth));
+            // Part of the key, but a value from the band file: never generated (EF would make it an identity column).
+            d.Property(x => x.MinDepth).ValueGeneratedNever();
+        });
     }
 
     private static void Configure(EntityTypeBuilder<MapChunkPlacement> builder)
