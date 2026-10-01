@@ -150,6 +150,12 @@ public class CharacterSelectHandler(
 
                 connection.Locale = account.Locale;
 
+                // The quest lines follow the account's locale (#433). This lookup is not ordered with the select
+                // chain, so when it lands after the character was built, the character gets it here; otherwise
+                // Spawn copies it from the connection.
+                if ((connection.Character ?? connection.PendingSpawn?.Character) is CharacterEntity selected)
+                    selected.Quests.Locale = account.Locale;
+
                 if (connection is IAccessLevelAssignable assignable)
                 {
                     assignable.AssignAccessLevel(account.AccessLevel);
@@ -638,7 +644,6 @@ public class CharacterSelectHandler(
 
         // #433: the quest log, then the pending spawn. No repository (tests that build the handler without one) is
         // an empty log, as a character that never took a quest has.
-        entity.Quests.Locale = connection.Locale;
         if (questRepository is null)
         {
             Spawn(connection, entity, instance);
@@ -658,6 +663,9 @@ public class CharacterSelectHandler(
         // pending spawn instead of being assigned and spawned here, so nothing on the tick sees a
         // character whose client is still loading. CharacterLoadedHandler releases it when the
         // client reports in; WorldServer's tick releases it anyway once the barrier expires.
+        // Nothing renders quest text before the spawn, so the locale is copied as late as it can be; an account
+        // lookup landing after this sets it on the pending character itself.
+        entity.Quests.Locale = connection.Locale;
         connection.SetPendingSpawn(entity, instance, DateTime.UtcNow.Ticks);
 
         logger.LogInformation(

@@ -69,4 +69,48 @@ public class QuestStagesShould
 
         Assert.False(w.Quests.AddProgress(c.Character, Hunt, HuntKill, 0));
     }
+    /// <summary>
+    /// The settle guard is per quest: progress a stage start gives another quest (of this character or another)
+    /// settles that quest at once, rather than being skipped and left Active with every objective met.
+    /// </summary>
+    [Fact]
+    public async Task Settle_another_quest_advanced_from_inside_a_stage_start()
+    {
+        (QuestTestWorld w, QuestClient c) = await HowlAsync();
+        QuestClient other = w.Join(id: 2);
+        other.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
+        c.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
+        w.Quests.AfterStageStarted = (character, quest, active) =>
+        {
+            if (quest.Id == Howl && active.Stage == 1)
+            {
+                w.Quests.AddProgress(c.Character, Hunt, HuntKill, 2);
+                w.Quests.AddProgress(other.Character, Hunt, HuntKill, 2);
+            }
+        };
+
+        Assert.True(w.Quests.AddProgress(c.Character, Howl, HowlKill, 1));
+
+        Assert.Equal(1, c.Character.Quests.Get(Howl)!.Stage);
+        Assert.Equal(CharacterQuestState.ReadyToTurnIn, c.Character.Quests.Get(Hunt)!.State);
+        Assert.Equal(CharacterQuestState.ReadyToTurnIn, other.Character.Quests.Get(Hunt)!.State);
+    }
+
+    /// <summary>A stage start that meets its own stage's objectives: the outer loop goes on to the next stage.</summary>
+    [Fact]
+    public async Task Walk_on_when_a_stage_start_meets_its_own_objectives()
+    {
+        (QuestTestWorld w, QuestClient c) = await HowlAsync();
+        w.Quests.AfterStageStarted = (character, quest, active) =>
+        {
+            if (quest.Id == Howl && active.Stage == 1)
+                w.Quests.AddProgress(character, Howl, HowlTalk, 1);
+        };
+
+        Assert.True(w.Quests.AddProgress(c.Character, Howl, HowlKill, 1));
+
+        Assert.Equal(2, c.Character.Quests.Get(Howl)!.Stage);
+        Assert.Equal(CharacterQuestState.Active, c.Character.Quests.Get(Howl)!.State);
+        Assert.Equal(1u, c.Character.Quests.Get(Howl)!.ProgressOf(HowlTalk));
+    }
 }

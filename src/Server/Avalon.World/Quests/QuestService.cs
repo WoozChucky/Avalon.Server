@@ -30,8 +30,18 @@ public sealed class QuestService(
     ILogger<QuestService> logger,
     PartyService? parties = null)
 {
-    // Guards Settle against re-entry from a script hook that advances an objective (Task 9); tick thread only.
-    private int _settling;
+    // The quests whose Settle loop is running, so a stage-start hook that advances an objective of the same quest
+    // (Task 7's collect recount, Task 9's scripts) does not settle it from inside its own loop. Per quest, never
+    // service-wide: a hook that advances another quest, or another character's, must settle that one at once.
+    // Tick thread only.
+    private readonly HashSet<ActiveQuest> _settling = [];
+
+    /// <summary>
+    /// Runs after a stage of an active quest starts (stage 0 at accept included), after the service's own
+    /// stage-start work. World-side, never on the modding API. Its one use today is to let tests drive progress
+    /// from inside a stage start, as the collect recount and quest scripts will.
+    /// </summary>
+    public Action<CharacterEntity, QuestView, ActiveQuest>? AfterStageStarted { get; set; }
 
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
@@ -114,15 +124,14 @@ public sealed class QuestService(
 
     /// <summary>
     /// While every objective of the current stage is met: the next stage starts, or after the last the quest is
-    /// ready to turn in. Re-entry (a stage-start hook that advances a scripted objective) returns at once and this
-    /// loop sees the change on its next pass.
+    /// ready to turn in. Re-entry for the same quest (a stage-start hook that advances one of its objectives) returns
+    /// at once and this loop sees the change on its next pass; any other quest settles in full.
     /// </summary>
     private void Settle(CharacterEntity character, QuestView quest, ActiveQuest active)
     {
-        if (_settling > 0)
+        if (!_settling.Add(active))
             return;
 
-        _settling++;
         try
         {
             while (active.State == CharacterQuestState.Active
@@ -145,7 +154,7 @@ public sealed class QuestService(
         }
         finally
         {
-            _settling--;
+            _settling.Remove(active);
         }
     }
 
@@ -199,6 +208,7 @@ public sealed class QuestService(
     /// <summary>Task 7: recount the new stage's Collect objectives. Task 9: the script's OnStageStarted.</summary>
     private void StageStarted(CharacterEntity character, QuestView quest, ActiveQuest active)
     {
+        AfterStageStarted?.Invoke(character, quest, active);
     }
 
     /// <summary>Task 7: every copy of the quest's Collect items leaves the Bag and the Bank.</summary>
