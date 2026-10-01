@@ -2,9 +2,6 @@ using Avalon.Domain.World;
 
 namespace Avalon.World.ChunkLayouts;
 
-/// <summary>An inclusive range of creature levels.</summary>
-public readonly record struct LevelRange(ushort Min, ushort Max);
-
 /// <summary>
 /// Which levels a procedural piece's creatures roll from (forest content pass): the band its depth falls in, or, for a
 /// set piece, the highest band (largest MinDepth). The boss stands at the highest band's MaxLevel. Null means "no band":
@@ -35,7 +32,11 @@ public static class DepthBandLevels
     public static ushort? BossLevel(IReadOnlyList<ProceduralDepthBand> bands) =>
         bands.Count == 0 ? null : Highest(bands).MaxLevel;
 
-    /// <summary>Why a map's bands cannot be used, or null: levels from 1 and not backwards, depths not overlapping, only the highest band open-ended.</summary>
+    /// <summary>
+    /// Why a map's bands cannot be used, or null: levels from 1 and not backwards, depths not overlapping, only the highest
+    /// band open-ended. A gap between bands is allowed: a depth in it rolls from the creature template's own range, as
+    /// <see cref="For" /> answers null there.
+    /// </summary>
     public static string? Problem(IReadOnlyList<ProceduralDepthBand> bands)
     {
         List<ProceduralDepthBand> ordered = bands.OrderBy(b => b.MinDepth).ToList();
