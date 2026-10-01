@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Loot;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
+using Avalon.World.Quests;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Loot;
@@ -21,6 +22,7 @@ public static class LootPickup
     /// <param name="store">The drops in the character's own instance; null when it has none.</param>
     /// <param name="now">UTC, from the same clock the allocator stamped FreeForAllAt with.</param>
     /// <param name="logger">Hears about an add result this code does not know.</param>
+    /// <param name="quests">Decides whether a quest item is still needed (#433); none lets every item through.</param>
     public static LootPickupOutcome TryPickUp(
         CharacterEntity character,
         GroundLootStore? store,
@@ -28,7 +30,8 @@ public static class LootPickup
         float pickupRange,
         DateTime now,
         ICharacterEconomy economy,
-        ILogger logger)
+        ILogger logger,
+        QuestService? quests = null)
     {
         // 2. In the character's own instance.
         if (store is null || !store.TryGet(lootGuid, out GroundLoot? drop))
@@ -41,6 +44,11 @@ public static class LootPickup
 
         // 4. Theirs, or anyone's by now.
         if (drop.OwnerCharacterId != character.Guid.Id && now < drop.FreeForAllAt)
+            return new LootPickupOutcome(LootPickupResult.NotYours, false);
+
+        // 4b. A quest item only while the picker still needs it (#433). Answered as not theirs: it was reserved for
+        // the character who needed it, and this one no longer is. The drop stays.
+        if (drop.ItemTemplateId is { } questItem && quests is not null && !StillNeeded(character, questItem, quests, logger))
             return new LootPickupOutcome(LootPickupResult.NotYours, false);
 
         if (drop.ItemTemplateId is { } itemId)
@@ -76,5 +84,20 @@ public static class LootPickup
         // 7. Taken.
         store.Remove(lootGuid);
         return new LootPickupOutcome(LootPickupResult.Ok, true);
+    }
+
+    /// <summary>Contained: a quest throw refuses this pickup and leaves the drop, never faulting the map's tick.</summary>
+    private static bool StillNeeded(CharacterEntity character, Common.ValueObjects.ItemTemplateId item, QuestService quests, ILogger logger)
+    {
+        try
+        {
+            return quests.MayPickUp(character, item);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not tell whether character {CharacterId} still needs quest item {Item}; the drop stays",
+                character.Guid.Id, item.Value);
+            return false;
+        }
     }
 }

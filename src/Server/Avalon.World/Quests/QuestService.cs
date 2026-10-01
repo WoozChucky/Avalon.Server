@@ -292,6 +292,33 @@ public sealed class QuestService(
         }
     }
 
+    /// <summary>
+    /// Whether the character may take a drop of this item (#433). Anything but a quest item, or an item whose
+    /// template is gone (the pickup refuses that itself), may be taken. A quest item only while a Collect objective
+    /// for it in the current stage of one of its Active quests still lacks some in the Bag: a drop rolled for a
+    /// quest since abandoned, handed in or moved past that stage stays on the ground.
+    /// </summary>
+    public bool MayPickUp(CharacterEntity character, ItemTemplateId item)
+    {
+        if (world.Data.ItemTemplates.FirstOrDefault(t => t.Id == item) is not { } template
+            || !template.Flags.HasFlag(Domain.World.ItemTemplateFlags.QuestItem))
+            return true;
+
+        QuestCatalog catalog = Catalog;
+        long held = HeldInBag(character, item);
+        foreach (ActiveQuest active in character.Quests.Active)
+        {
+            if (active.State == CharacterQuestState.Active
+                && catalog.TryGet(active.QuestId, out QuestView? quest)
+                && CurrentStage(quest, active) is { } stage
+                && stage.Objectives.Any(o => o.Type == Domain.World.QuestObjectiveType.Collect
+                                             && o.ItemTemplateId?.Value == item.Value && held < o.Count))
+                return true;
+        }
+
+        return false;
+    }
+
     public static long HeldInBag(CharacterEntity character, ItemTemplateId item) =>
         character.Container(InventoryType.Bag).Items.Where(i => i.TemplateId.Value == item.Value).Sum(i => (long)i.Count);
 

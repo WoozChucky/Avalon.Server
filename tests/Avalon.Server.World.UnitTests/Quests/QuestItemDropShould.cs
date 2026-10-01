@@ -1,15 +1,23 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Loot;
 using Avalon.Server.World.UnitTests.Instances;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Parties;
+using Avalon.World;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Loot;
+using Avalon.World.Public.Enums;
+using Avalon.World.Public.Maps;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
@@ -132,6 +140,112 @@ public class QuestItemDropShould
 
             Assert.Equal(LootPickupResult.NotYours, other.Result);
             Assert.Equal(LootPickupResult.Ok, owner.Result);
+        }
+    }
+
+    /// <summary>Review fix: the instance has no loot table to roll, and the quest item still drops.</summary>
+    [Fact]
+    public async Task Drop_a_quest_item_with_no_loot_roller_configured()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        using MapInstance instance = TestMapInstances.Build(w.World, quests: w.Quests);   // no roller, no allocator
+        MapInstanceClient a = MapInstanceClients.Join(instance, 1);
+        a.Character.Quests.Start(QuestTestData.Tusks, DateTime.UnixEpoch);
+
+        instance.ReportKill(Boar(instance, w), a.Character);
+
+        Assert.Equal(a.Character.Guid.Id, Assert.Single(Tusks(instance)).OwnerCharacterId);
+    }
+
+    /// <summary>
+    /// Ruling: a quest drop roll that throws costs the kill only its quest drops; the table loot still drops and the
+    /// experience is still awarded. Kill credit reads the quests first and succeeds; only the roll after it throws.
+    /// </summary>
+    [Fact]
+    public async Task Still_drop_the_table_loot_and_award_the_experience_when_the_quest_drop_roll_throws()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        int reads = 0;
+        IWorld flaky = Substitute.For<IWorld>();
+        flaky.Data.Returns(_ => reads++ == 0 ? w.Data : throw new InvalidOperationException("quest data unavailable"));
+        var quests = new QuestService(flaky, Substitute.For<IServiceProvider>(), w.Economy, w.Random, w.Clock, NullLogger<QuestService>.Instance);
+        var roller = Substitute.For<ILootRoller>();
+        roller.Roll(default!, default!, default!).ReturnsForAnyArgs([new RolledDrop(null, 0, 5)]);
+        var allocator = new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(DateTimeOffset.UnixEpoch),
+            CombatRandom.Steady);
+        using MapInstance instance = TestMapInstances.Build(w.World, navigator: Substitute.For<IMapNavigator>(),
+            quests: quests, lootRoller: roller, lootAllocator: allocator);
+        MapInstanceClient a = MapInstanceClients.Join(instance, 1);
+        a.Character.Quests.Start(QuestTestData.Tusks, DateTime.UnixEpoch);   // no Kill objective: credit reads the data once
+        ulong before = a.Character.Experience;
+
+        instance.ReportKill(Boar(instance, w), a.Character);
+
+        Assert.Equal(2, reads);   // the credit, then the roll that threw
+        GroundLoot pile = Assert.Single(instance.Drops.All);
+        Assert.Equal(5ul, pile.Gold);
+        Assert.Equal(before + 1, a.Character.Experience);
+    }
+
+    /// <summary>Review fix: a drop rolled for a quest since abandoned is refused to its owner and stays on the ground.</summary>
+    [Fact]
+    public async Task Refuse_a_quest_item_its_owner_no_longer_needs_and_leave_it_lying()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        (MapInstance instance, PartyClient a, PartyClient _) = PartyOfTwo(w);
+        using (instance)
+        {
+            a.Character.Quests.Start(QuestTestData.Tusks, DateTime.UnixEpoch);
+            instance.ReportKill(Boar(instance, w), a.Character);
+            GroundLoot tusk = Assert.Single(Tusks(instance));
+            Assert.Equal(Avalon.Network.Packets.Quest.QuestResult.Ok, w.Quests.Abandon(a.Character, QuestTestData.Tusks));
+
+            LootPickupOutcome outcome = LootPickup.TryPickUp(a.Character, instance.Drops, tusk.Guid, 100f, DateTime.UnixEpoch,
+                w.Economy, NullLogger.Instance, w.Quests);
+
+            Assert.Equal((LootPickupResult.NotYours, false), (outcome.Result, outcome.Removed));
+            Assert.True(instance.Drops.TryGet(tusk.Guid, out _));
+            Assert.Empty(a.Character.Container(InventoryType.Bag).Items);
+        }
+    }
+
+    /// <summary>Review fix: a character whose bag already holds the count needs no more, so it takes none.</summary>
+    [Fact]
+    public async Task Refuse_a_quest_item_when_the_bag_already_holds_the_count()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        (MapInstance instance, PartyClient a, PartyClient _) = PartyOfTwo(w);
+        using (instance)
+        {
+            a.Character.Quests.Start(QuestTestData.Tusks, DateTime.UnixEpoch);
+            instance.ReportKill(Boar(instance, w), a.Character);
+            GroundLoot tusk = Assert.Single(Tusks(instance));
+            w.Economy.InventoryOf(a.Character).TryAdd(new ItemTemplateId(Tusk), 2);
+
+            LootPickupOutcome outcome = LootPickup.TryPickUp(a.Character, instance.Drops, tusk.Guid, 100f, DateTime.UnixEpoch,
+                w.Economy, NullLogger.Instance, w.Quests);
+
+            Assert.Equal(LootPickupResult.NotYours, outcome.Result);
+            Assert.True(instance.Drops.TryGet(tusk.Guid, out _));
+        }
+    }
+
+    [Fact]
+    public async Task Let_its_owner_take_a_quest_item_it_still_needs()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        (MapInstance instance, PartyClient a, PartyClient _) = PartyOfTwo(w);
+        using (instance)
+        {
+            a.Character.Quests.Start(QuestTestData.Tusks, DateTime.UnixEpoch);
+            instance.ReportKill(Boar(instance, w), a.Character);
+            GroundLoot tusk = Assert.Single(Tusks(instance));
+
+            LootPickupOutcome outcome = LootPickup.TryPickUp(a.Character, instance.Drops, tusk.Guid, 100f, DateTime.UnixEpoch,
+                w.Economy, NullLogger.Instance, w.Quests);
+
+            Assert.Equal((LootPickupResult.Ok, true), (outcome.Result, outcome.Removed));
+            Assert.Equal(1L, QuestService.HeldInBag(a.Character, new ItemTemplateId(Tusk)));
         }
     }
 }

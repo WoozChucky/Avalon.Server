@@ -28,6 +28,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Quests;
 using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -50,7 +51,8 @@ public class CharacterSelectHandler(
     ICharacterSaver characterSaver,
     IWorldServer worldServer,
     TimeProvider? time = null,
-    ICharacterQuestRepository? questRepository = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    ICharacterQuestRepository? questRepository = null,
+    QuestService? questService = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -666,10 +668,30 @@ public class CharacterSelectHandler(
         // Nothing renders quest text before the spawn, so the locale is copied as late as it can be; an account
         // lookup landing after this sets it on the pending character itself.
         entity.Quests.Locale = connection.Locale;
+        RecountCollect(entity);
         connection.SetPendingSpawn(entity, instance, DateTime.UtcNow.Ticks);
 
         logger.LogInformation(
             "Character {CharacterName} selected for account {AccountId}; awaiting the client's load report",
             entity.Data?.Name, connection.AccountId);
+    }
+
+    /// <summary>
+    /// #433: with the bag and the quest log both loaded, every Collect objective counts what the bag holds, so a
+    /// log-in never shows stale collect progress. Contained: a quest throw costs the recount, never the select.
+    /// </summary>
+    private void RecountCollect(CharacterEntity entity)
+    {
+        if (questService is null)
+            return;
+
+        try
+        {
+            questService.RecountCollect(entity);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Recounting the quest items of character {CharacterId} at select failed", entity.Guid.Id);
+        }
     }
 }

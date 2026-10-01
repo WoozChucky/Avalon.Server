@@ -23,6 +23,10 @@ public static class QuestFlusher
 
     private static bool TouchedTheBag(InventoryClientChanges changes)
     {
+        // An idle connection, most of them on most ticks: no enumerator, nothing allocated.
+        if (changes.Slots.Count == 0)
+            return false;
+
         foreach ((InventoryType container, ushort _) in changes.Slots)
         {
             if (container == InventoryType.Bag)

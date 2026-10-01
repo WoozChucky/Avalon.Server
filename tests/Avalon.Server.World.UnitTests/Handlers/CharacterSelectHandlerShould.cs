@@ -16,6 +16,7 @@ using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
@@ -28,6 +29,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Quests;
 using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -68,7 +70,8 @@ public class CharacterSelectHandlerShould
         IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null,
         int storedPower = 0,
         GameConfiguration? game = null,
-        ICharacterQuestRepository? quests = null)
+        ICharacterQuestRepository? quests = null,
+        QuestService? questService = null)
     {
         var row = new Character
         {
@@ -164,7 +167,8 @@ public class CharacterSelectHandlerShould
             Substitute.For<ICharacterSaver>(),
             Substitute.For<IWorldServer>(),
             null,
-            quests);
+            quests,
+            questService);
 
         return new Fixture
         {
@@ -301,6 +305,31 @@ public class CharacterSelectHandlerShould
 
         f.Connection.Received(1).SetPendingSpawn(
             Arg.Is<ICharacter>(c => ((CharacterEntity)c).Quests.Get(5)!.ProgressOf(51) == 2), f.Instance, Arg.Any<long>());
+    }
+
+    /// <summary>
+    /// #433 review fix: with the bag and the quest log both loaded, select counts the quest items the bag holds, so a
+    /// log-in never shows a Collect count the bag no longer matches. Here the saved count is 0 and the bag holds both.
+    /// </summary>
+    [Fact]
+    public async Task Count_the_quest_items_in_the_bag_once_the_bag_and_the_log_are_loaded()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        var quests = Substitute.For<ICharacterQuestRepository>();
+        quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
+            [new CharacterQuest { CharacterId = TheCharacter, QuestId = QuestTestData.Tusks, State = CharacterQuestState.Active, Stage = 0 }],
+            [new CharacterQuestObjective { CharacterId = TheCharacter, QuestId = QuestTestData.Tusks, ObjectiveId = QuestTestData.TusksCollect, Progress = 0 }],
+            []));
+        (List<CharacterInventory> rows, List<ItemInstance> instances) =
+            BuildInventory((InventoryType.Bag, 0, QuestTestData.Tusk, 2, 0, ItemInstanceFlags.None));
+        Fixture f = await BuildAsync(rows, instances, itemTemplates: [QuestTestData.TuskItem()], quests: quests, questService: w.Quests);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        f.Connection.Received(1).SetPendingSpawn(
+            Arg.Is<ICharacter>(c => ((CharacterEntity)c).Quests.Get(QuestTestData.Tusks)!.ProgressOf(QuestTestData.TusksCollect) == 2
+                                    && ((CharacterEntity)c).Quests.Get(QuestTestData.Tusks)!.State == CharacterQuestState.ReadyToTurnIn),
+            f.Instance, Arg.Any<long>());
     }
 
     /// <summary>

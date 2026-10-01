@@ -4,6 +4,8 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Inventory;
+using Avalon.World.Persistence;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
@@ -91,18 +93,50 @@ public class QuestCollectShould
         Assert.Equal(0u, c.Character.Quests.Get(Tusks)!.ProgressOf(TusksCollect));
     }
 
+    /// <summary>
+    /// Both stacks are loaded as select loads them (unmarked), so the removal is seen through the service's own marks:
+    /// each item is saved as removed and each slot is owed to the client.
+    /// </summary>
     [Fact]
     public async Task Take_every_copy_back_from_the_bag_and_the_bank_on_abandon()
     {
         (QuestTestWorld w, QuestClient c) = await WithTusksReadyToAcceptAsync();
         w.Accept(c, Tusks);
-        w.Economy.InventoryOf(c.Character).TryAdd(TuskId, 3);
-        c.Character.Container(InventoryType.Bank).Load([TestCharacters.Item(0, TuskItem(), 1)]);
+        InventoryItem inBag = TestCharacters.Item(4, TuskItem(), 3);
+        InventoryItem inBank = TestCharacters.Item(0, TuskItem(), 1);
+        c.Character.Container(InventoryType.Bag).Load([inBag]);
+        c.Character.Container(InventoryType.Bank).Load([inBank]);
+        c.Character.ClientChanges.Clear();
 
         w.Quests.Abandon(c.Character, Tusks);
 
         Assert.DoesNotContain(c.Character.Container(InventoryType.Bag).Items, i => i.TemplateId == TuskId);
         Assert.DoesNotContain(c.Character.Container(InventoryType.Bank).Items, i => i.TemplateId == TuskId);
+        Assert.Equal(SaveState.Removed, c.Character.SaveState.ItemState(inBag.InstanceId));
+        Assert.Equal(SaveState.Removed, c.Character.SaveState.ItemState(inBank.InstanceId));
+        Assert.Contains((InventoryType.Bag, (ushort)4), c.Character.ClientChanges.Slots);
+        Assert.Contains((InventoryType.Bank, (ushort)0), c.Character.ClientChanges.Slots);
+    }
+
+    /// <summary>Review fix: a tick whose only changes were money and the Bank leaves every Collect count alone.</summary>
+    [Fact]
+    public async Task Recount_nothing_when_only_money_or_the_bank_changed()
+    {
+        (QuestTestWorld w, QuestClient c) = await WithTusksReadyToAcceptAsync();
+        w.Accept(c, Tusks);
+        ActiveQuest quest = c.Character.Quests.Get(Tusks)!;
+        c.Character.Quests.SetProgress(quest, TusksCollect, 1);   // the bag holds none: a recount would set 0
+        c.Character.Container(InventoryType.Bank).Load([TestCharacters.Item(0, TuskItem(), 1)]);
+        c.Character.ClientChanges.Clear();
+
+        Assert.Equal(WalletResult.Ok, w.Economy.WalletOf(c.Character).TryAddMoney(5));
+        Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
+            w.Economy.InventoryOf(c.Character).TryDestroy(new SlotRef(InventoryType.Bank, 0), 1, bankAccessible: true));
+        Assert.True(c.Character.ClientChanges.MoneyChanged);
+        Assert.DoesNotContain(c.Character.ClientChanges.Slots, s => s.Container == InventoryType.Bag);
+        Flush(w, c);
+
+        Assert.Equal(1u, quest.ProgressOf(TusksCollect));
     }
 
     [Fact]
