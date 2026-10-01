@@ -5,7 +5,8 @@ namespace Avalon.Api.Contract;
 /// <summary>
 /// A quest as its world's data defines it (#714): who gives it and takes it back, its stages and objectives, what it
 /// pays and which creatures drop its quest items. Each text is the base-locale (enUS) wording beside its text id;
-/// a text id with no row reads as an empty string.
+/// a text id with no row reads as an empty string. The template's Environment, Type, Rarity, IsRepeatable and
+/// RepeatFrequency are left out: the server does not read them in v1 (repeatables are #710).
 /// </summary>
 public sealed class QuestTemplateDto
 {

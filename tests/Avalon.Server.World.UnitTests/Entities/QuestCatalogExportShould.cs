@@ -100,6 +100,20 @@ public class QuestCatalogExportShould
             q => Assert.Equal("", q.GetProperty("title").GetString()));
     }
 
+    /// <summary>
+    /// The committed file is the seed rendered: a seed change without a re-export
+    /// (<c>tools/Avalon.Exporter -- quest-catalog</c>) fails here.
+    /// </summary>
+    [Fact]
+    public void Match_the_committed_catalog()
+    {
+        (List<QuestTemplate> quests, Dictionary<int, string> texts) = Seeded();
+        string committed = File.ReadAllText(Path.Combine(RepositoryRoot(), "schema", QuestCatalogExport.DirectoryName,
+            QuestCatalogExport.FileName));
+
+        Assert.Equal(Lf(committed), Lf(QuestCatalogExport.Render(quests, texts)));
+    }
+
     [Fact]
     public void Render_an_empty_catalog_as_an_empty_array() =>
         Assert.Empty(Quests(QuestCatalogExport.Render([], new Dictionary<int, string>())));
@@ -109,4 +123,14 @@ public class QuestCatalogExportShould
             .Select(o => (o.GetProperty("id").GetInt32(), o.GetProperty("type").GetInt32(),
                 o.GetProperty("targetId").GetInt64(), o.GetProperty("count").GetInt32()))
             .ToList();
+
+    private static string Lf(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Avalon.sln")))
+            directory = directory.Parent;
+        return directory?.FullName ?? throw new InvalidOperationException("No Avalon.sln above the test output.");
+    }
 }
