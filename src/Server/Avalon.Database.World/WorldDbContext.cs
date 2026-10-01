@@ -669,6 +669,40 @@ public class WorldDbContext : DbContext
                 GiverCreatureId = 2, EnderCreatureId = 2, LevelRequirement = 2, RequiredQuestId = 2,
                 RewardExperience = 600, RewardMoney = 400,
             });
+
+        // The second chain (forest content pass): 4 → 5 → 6 → 7 → 8, beside 1 → 2 → 3. Numbers are first drafts for
+        // the balance tool.
+        builder.HasData(
+            new QuestTemplate
+            {
+                Id = 4, TitleTextId = 43, DescriptionTextId = 44, CompletionTextId = 45,
+                GiverCreatureId = 14, EnderCreatureId = 14, LevelRequirement = 2,
+                RewardExperience = 300, RewardMoney = 200,
+            },
+            new QuestTemplate
+            {
+                Id = 5, TitleTextId = 47, DescriptionTextId = 48, CompletionTextId = 49,
+                GiverCreatureId = 13, EnderCreatureId = 13, LevelRequirement = 3, RequiredQuestId = 4,
+                RewardExperience = 400, RewardMoney = 250,
+            },
+            new QuestTemplate
+            {
+                Id = 6, TitleTextId = 51, DescriptionTextId = 52, CompletionTextId = 53,
+                GiverCreatureId = 3, EnderCreatureId = 11, LevelRequirement = 4, RequiredQuestId = 5,
+                RewardExperience = 500, RewardMoney = 300,
+            },
+            new QuestTemplate
+            {
+                Id = 7, TitleTextId = 55, DescriptionTextId = 56, CompletionTextId = 57,
+                GiverCreatureId = 2, EnderCreatureId = 2, LevelRequirement = 5, RequiredQuestId = 6,
+                RewardExperience = 700, RewardMoney = 400,
+            },
+            new QuestTemplate
+            {
+                Id = 8, TitleTextId = 59, DescriptionTextId = 60, CompletionTextId = 61,
+                GiverCreatureId = 1, EnderCreatureId = 1, LevelRequirement = 7, RequiredQuestId = 7,
+                RewardExperience = 1500, RewardMoney = 1000,
+            });
     }
 
     private static void Configure(EntityTypeBuilder<QuestStage> builder)
@@ -686,6 +720,14 @@ public class WorldDbContext : DbContext
             new QuestStage { QuestId = 3, Sequence = 0, DescriptionTextId = 40 },
             new QuestStage { QuestId = 3, Sequence = 1, DescriptionTextId = 41 },
             new QuestStage { QuestId = 3, Sequence = 2, DescriptionTextId = 42 });
+
+        builder.HasData(
+            new QuestStage { QuestId = 4, Sequence = 0 },
+            new QuestStage { QuestId = 5, Sequence = 0 },
+            new QuestStage { QuestId = 6, Sequence = 0 },
+            new QuestStage { QuestId = 7, Sequence = 0 },
+            new QuestStage { QuestId = 8, Sequence = 0, DescriptionTextId = 65 },
+            new QuestStage { QuestId = 8, Sequence = 1, DescriptionTextId = 66 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestObjective> builder)
@@ -731,6 +773,20 @@ public class WorldDbContext : DbContext
             new QuestObjective { Id = 302, QuestId = 3, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 7, Count = 2, DescriptionTextId = 37 },
             new QuestObjective { Id = 303, QuestId = 3, StageSequence = 1, Type = QuestObjectiveType.Talk, CreatureTemplateId = 11, Count = 1, DescriptionTextId = 38 },
             new QuestObjective { Id = 304, QuestId = 3, StageSequence = 2, Type = QuestObjectiveType.Kill, CreatureTemplateId = 8, Count = 1, DescriptionTextId = 39 });
+
+        // The second chain. Creatures: 5 Grey Fen Wolf, 6 Blightfly Swarmling, 7 Husk of the Wold, 8 Bramblemaw Alpha,
+        // 9 Old Tuskroot, 10 Mother Bramble, 12 Garrick Emberforge. Items 59-63 are the chain's quest items.
+        builder.HasData(
+            new QuestObjective { Id = 401, QuestId = 4, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 59, Count = 6, DescriptionTextId = 46 },
+            new QuestObjective { Id = 501, QuestId = 5, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 60, Count = 8, DescriptionTextId = 50 },
+            new QuestObjective { Id = 601, QuestId = 6, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 7, Count = 8, DescriptionTextId = 37 },
+            new QuestObjective { Id = 602, QuestId = 6, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 61, Count = 3, DescriptionTextId = 54 },
+            new QuestObjective { Id = 701, QuestId = 7, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 62, Count = 1, DescriptionTextId = 58 },
+            // Quest 8 (owner decision): Garrick first, then the Alphas and the Bramble Heart in one stage, so clearing
+            // the arena counts at once.
+            new QuestObjective { Id = 801, QuestId = 8, StageSequence = 0, Type = QuestObjectiveType.Talk, CreatureTemplateId = 12, Count = 1, DescriptionTextId = 62 },
+            new QuestObjective { Id = 802, QuestId = 8, StageSequence = 1, Type = QuestObjectiveType.Kill, CreatureTemplateId = 8, Count = 2, DescriptionTextId = 63 },
+            new QuestObjective { Id = 803, QuestId = 8, StageSequence = 1, Type = QuestObjectiveType.Collect, ItemTemplateId = 63, Count = 1, DescriptionTextId = 64 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemReward> builder)
@@ -744,6 +800,12 @@ public class WorldDbContext : DbContext
         builder.HasData(
             new QuestItemReward { QuestId = 2, ItemTemplateId = 56, Count = 2 },   // Greater Health Potions
             new QuestItemReward { QuestId = 3, ItemTemplateId = 58, Count = 1 });  // Alpha's Fang Pendant
+
+        builder.HasData(
+            new QuestItemReward { QuestId = 4, ItemTemplateId = 2, Count = 3 },    // Mana Potions
+            new QuestItemReward { QuestId = 6, ItemTemplateId = 56, Count = 2 },   // Greater Health Potions
+            new QuestItemReward { QuestId = 7, ItemTemplateId = 64, Count = 1 },   // Heartwood Band
+            new QuestItemReward { QuestId = 8, ItemTemplateId = 65, Count = 1 });  // Thornheart Signet
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemDrop> builder)
@@ -758,6 +820,13 @@ public class WorldDbContext : DbContext
         builder.HasOne<CreatureTemplate>().WithMany().HasForeignKey(b => b.CreatureTemplateId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasData(new QuestItemDrop { ObjectiveId = 201, CreatureTemplateId = 4, Chance = 60f });   // Boar Tusk from Thornback Boars
+
+        builder.HasData(
+            new QuestItemDrop { ObjectiveId = 401, CreatureTemplateId = 6, Chance = 50f },    // Blightfly Wing from Blightfly Swarmlings
+            new QuestItemDrop { ObjectiveId = 501, CreatureTemplateId = 5, Chance = 50f },    // Fen Wolf Pelt from Grey Fen Wolves
+            new QuestItemDrop { ObjectiveId = 602, CreatureTemplateId = 7, Chance = 35f },    // Ledger Page from Husks of the Wold
+            new QuestItemDrop { ObjectiveId = 701, CreatureTemplateId = 9, Chance = 100f },   // Tuskroot Heartwood from Old Tuskroot
+            new QuestItemDrop { ObjectiveId = 803, CreatureTemplateId = 10, Chance = 100f }); // Bramble Heart from Mother Bramble
     }
 
     private static void Configure(EntityTypeBuilder<CreatureTemplate> builder)
@@ -1518,6 +1587,7 @@ public class WorldDbContext : DbContext
         });
 
         SeedForestStorylineItems(builder);
+        SeedForestChainItems(builder);
     }
 
     /// <summary>
@@ -1562,6 +1632,77 @@ public class WorldDbContext : DbContext
                 StatValue2 = 1,
             });
     }
+
+    /// <summary>
+    /// Quests 4-8 (forest content pass): five quest items, each dropped only for characters collecting it
+    /// (QuestItemDrops) and never sold, and the chain's two rewards, rings for any class. The rings' numbers follow the
+    /// Alpha's Fang Pendant and are first drafts for the balance tool.
+    /// </summary>
+    private static void SeedForestChainItems(EntityTypeBuilder<ItemTemplate> builder)
+    {
+        builder.HasData(
+            ChainQuestItem(59, "Blightfly Wing"),
+            ChainQuestItem(60, "Fen Wolf Pelt"),
+            ChainQuestItem(61, "Ledger Page"),
+            ChainQuestItem(62, "Tuskroot Heartwood"),
+            ChainQuestItem(63, "Bramble Heart"),
+            new ItemTemplate
+            {
+                Id = 64,
+                Name = "Heartwood Band",
+                Class = ItemClass.Armor,
+                SubClass = ItemSubClass.Ring,
+                Flags = ItemTemplateFlags.None,
+                MaxStackSize = 1,
+                DisplayId = 64,
+                Rarity = ItemRarity.Uncommon,
+                BuyPrice = 400,
+                SellPrice = 100,
+                Slot = ItemSlotType.Finger,
+                ItemPower = 5,
+                RequiredLevel = 5,
+                StatType1 = StatType.Stamina,
+                StatValue1 = 3,
+                StatType2 = StatType.Armor,
+                StatValue2 = 2,
+            },
+            new ItemTemplate
+            {
+                Id = 65,
+                Name = "Thornheart Signet",
+                Class = ItemClass.Armor,
+                SubClass = ItemSubClass.Ring,
+                Flags = ItemTemplateFlags.None,
+                MaxStackSize = 1,
+                DisplayId = 65,
+                Rarity = ItemRarity.Rare,
+                BuyPrice = 800,
+                SellPrice = 200,
+                Slot = ItemSlotType.Finger,
+                ItemPower = 7,
+                RequiredLevel = 7,
+                StatType1 = StatType.Stamina,
+                StatValue1 = 5,
+                StatType2 = StatType.Armor,
+                StatValue2 = 4,
+            });
+    }
+
+    /// <summary>A quest item as the Boar Tusk is: QuestItem and NoSell, stacks to 20, worth nothing.</summary>
+    private static ItemTemplate ChainQuestItem(ulong id, string name) => new()
+    {
+        Id = id,
+        Name = name,
+        Class = ItemClass.Quest,
+        SubClass = ItemSubClass.QuestItem,
+        Flags = ItemTemplateFlags.QuestItem | ItemTemplateFlags.NoSell,
+        MaxStackSize = 20,
+        DisplayId = (uint)id,
+        Rarity = ItemRarity.Common,
+        BuyPrice = 0,
+        SellPrice = 0,
+        Slot = null,
+    };
 
     /// <summary>
     /// One piece of forest armour: Uncommon, level 1, for one class, with up to three stats. Used by
@@ -1990,6 +2131,7 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 24, Text = "Show me your wares." });
 
         SeedForestStorylineTexts(builder);
+        SeedForestChainTexts(builder);
     }
 
     /// <summary>The forest storyline (#433): three quests' titles, descriptions, completion lines, objectives and stages.</summary>
@@ -2014,6 +2156,40 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 40, Text = "Clear the forest's edge." },
             new LocalizedText { Id = 41, Text = "Tell Marta what you have seen." },
             new LocalizedText { Id = 42, Text = "Hunt down the Bramblemaw Alpha." });
+    }
+
+    /// <summary>
+    /// Quests 4-8 (forest content pass): titles, descriptions, completion lines, objectives and quest 8's stages.
+    /// Quest 6's kill objective reuses text 37 ("Husks of the Wold destroyed"). Quest 8 asks Garrick first (stage 0), then
+    /// the Alphas and the Bramble Heart together (stage 1).
+    /// </summary>
+    private static void SeedForestChainTexts(EntityTypeBuilder<LocalizedText> builder)
+    {
+        builder.HasData(
+            new LocalizedText { Id = 43, Text = "Wings for the Still" },
+            new LocalizedText { Id = 44, Text = "The Blightfly Swarmlings drone over the wold day and night, {name}, and the dust on their wings settles a fever better than any root I sell. Bring me six wings for my still, whole if you can manage it." },
+            new LocalizedText { Id = 45, Text = "Six good wings. That dust will see a few fevers through the cold months. Take these for your trouble." },
+            new LocalizedText { Id = 46, Text = "Blightfly Wings gathered" },
+            new LocalizedText { Id = 47, Text = "Pelts Before Frost" },
+            new LocalizedText { Id = 48, Text = "Frost comes early under those trees, and the Grey Fen Wolves wear the thickest coats in the wold. Bring me eight of their pelts and I will line half the town's cloaks before the first freeze." },
+            new LocalizedText { Id = 49, Text = "Eight pelts, and barely a nick in them. The town will be warmer for it, {name}." },
+            new LocalizedText { Id = 50, Text = "Fen Wolf Pelts gathered" },
+            new LocalizedText { Id = 51, Text = "What the Husks Carry" },
+            new LocalizedText { Id = 52, Text = "Travellers swear the Husks of the Wold still clutch scraps of paper, {name}: pages from a ledger, with Marta's mark on them. Put down eight of those things and bring whatever pages you find to Marta at the bank." },
+            new LocalizedText { Id = 53, Text = "These are mine. Accounts from a caravan that never came back. I owe you more than coin for this, {name}, but coin is what I have." },
+            new LocalizedText { Id = 54, Text = "Ledger Pages recovered" },
+            new LocalizedText { Id = 55, Text = "Heartwood" },
+            new LocalizedText { Id = 56, Text = "Old Tuskroot has walked the wold longer than this town has stood, and the wood at its heart is harder than iron. Bring me that heartwood, {class}, and I will set it in something worth wearing." },
+            new LocalizedText { Id = 57, Text = "Now that is heartwood. Hold out your hand; this one was made to fit it." },
+            new LocalizedText { Id = 58, Text = "Tuskroot Heartwood taken" },
+            new LocalizedText { Id = 59, Text = "Mother of Thorns" },
+            new LocalizedText { Id = 60, Text = "The Bramblemaw Alphas answer to something deeper in the wold, {name}. Speak with Garrick first: he has forged against thorns before. Then go to the heart of the forest, bring down two of the Alphas and end Mother Bramble, the Mother of Thorns." },
+            new LocalizedText { Id = 61, Text = "The wold is breathing again. It will remember what you did, and so will we. Wear this, {class}." },
+            new LocalizedText { Id = 62, Text = "Speak with Garrick Emberforge" },
+            new LocalizedText { Id = 63, Text = "Bramblemaw Alphas slain" },
+            new LocalizedText { Id = 64, Text = "Bramble Heart taken" },
+            new LocalizedText { Id = 65, Text = "Ask Garrick how to face the thorns." },
+            new LocalizedText { Id = 66, Text = "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart." });
     }
 
     private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
@@ -2065,6 +2241,7 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 24, Locale = AccountLocale.ptPT, Text = "Mostra-me a tua mercadoria." });
 
         SeedForestStorylineTranslations(builder);
+        SeedForestChainTranslations(builder);
     }
 
     /// <summary>
@@ -2092,6 +2269,39 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 40, Locale = AccountLocale.ptPT, Text = "Limpa a orla da floresta." },
             new LocalizedTextLocale { TextId = 41, Locale = AccountLocale.ptPT, Text = "Conta à Marta o que viste." },
             new LocalizedTextLocale { TextId = 42, Locale = AccountLocale.ptPT, Text = "Caça o Bramblemaw Alpha." });
+    }
+
+    /// <summary>
+    /// Quests 4-8 (forest content pass) in ptPT. Creature names stay as their nameplates spell them. A draft: needs
+    /// native-speaker review before deploying, like the rows above.
+    /// </summary>
+    private static void SeedForestChainTranslations(EntityTypeBuilder<LocalizedTextLocale> builder)
+    {
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 43, Locale = AccountLocale.ptPT, Text = "Asas para o Alambique" },
+            new LocalizedTextLocale { TextId = 44, Locale = AccountLocale.ptPT, Text = "As Blightfly Swarmlings zumbem sobre a mata dia e noite, {name}, e o pó das asas delas acalma uma febre melhor do que qualquer raiz que eu venda. Traz-me seis asas para o meu alambique, inteiras se conseguires." },
+            new LocalizedTextLocale { TextId = 45, Locale = AccountLocale.ptPT, Text = "Seis boas asas. Esse pó vai ajudar a vencer umas quantas febres nos meses frios. Leva isto pelo teu trabalho." },
+            new LocalizedTextLocale { TextId = 46, Locale = AccountLocale.ptPT, Text = "Asas de Blightfly recolhidas" },
+            new LocalizedTextLocale { TextId = 47, Locale = AccountLocale.ptPT, Text = "Peles Antes da Geada" },
+            new LocalizedTextLocale { TextId = 48, Locale = AccountLocale.ptPT, Text = "A geada chega cedo debaixo daquelas árvores, e os Grey Fen Wolves têm os casacos mais grossos da mata. Traz-me oito das peles deles e forro metade das capas da vila antes da primeira geada." },
+            new LocalizedTextLocale { TextId = 49, Locale = AccountLocale.ptPT, Text = "Oito peles, e quase sem um rasgão. A vila vai ficar mais quente graças a isto, {name}." },
+            new LocalizedTextLocale { TextId = 50, Locale = AccountLocale.ptPT, Text = "Peles de Fen Wolf recolhidas" },
+            new LocalizedTextLocale { TextId = 51, Locale = AccountLocale.ptPT, Text = "O que as Carcaças Carregam" },
+            new LocalizedTextLocale { TextId = 52, Locale = AccountLocale.ptPT, Text = "Os viajantes juram que os Husks of the Wold ainda agarram pedaços de papel, {name}: páginas de um livro de contas, com a marca da Marta. Abate oito dessas coisas e leva as páginas que encontrares à Marta, no banco." },
+            new LocalizedTextLocale { TextId = 53, Locale = AccountLocale.ptPT, Text = "Estas são minhas. Contas de uma caravana que nunca voltou. Devo-te mais do que moedas por isto, {name}, mas moedas é o que tenho." },
+            new LocalizedTextLocale { TextId = 54, Locale = AccountLocale.ptPT, Text = "Páginas do livro de contas recuperadas" },
+            new LocalizedTextLocale { TextId = 55, Locale = AccountLocale.ptPT, Text = "Cerne" },
+            new LocalizedTextLocale { TextId = 56, Locale = AccountLocale.ptPT, Text = "O Old Tuskroot anda pela mata há mais tempo do que esta vila existe, e a madeira do seu coração é mais dura do que o ferro. Traz-me esse cerne, {class}, e engasto-o em algo que valha a pena usar." },
+            new LocalizedTextLocale { TextId = 57, Locale = AccountLocale.ptPT, Text = "Isso sim, é cerne. Estende a mão; este foi feito à tua medida." },
+            new LocalizedTextLocale { TextId = 58, Locale = AccountLocale.ptPT, Text = "Cerne de Tuskroot obtido" },
+            new LocalizedTextLocale { TextId = 59, Locale = AccountLocale.ptPT, Text = "Mãe dos Espinhos" },
+            new LocalizedTextLocale { TextId = 60, Locale = AccountLocale.ptPT, Text = "Os Bramblemaw Alphas obedecem a algo mais fundo na mata, {name}. Fala primeiro com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta, abate dois dos Bramblemaw Alphas e acaba com a Mother Bramble, a Mãe dos Espinhos." },
+            new LocalizedTextLocale { TextId = 61, Locale = AccountLocale.ptPT, Text = "A mata volta a respirar. Vai lembrar-se do que fizeste, e nós também. Usa isto, {class}." },
+            new LocalizedTextLocale { TextId = 62, Locale = AccountLocale.ptPT, Text = "Fala com o Garrick Emberforge" },
+            new LocalizedTextLocale { TextId = 63, Locale = AccountLocale.ptPT, Text = "Bramblemaw Alphas abatidos" },
+            new LocalizedTextLocale { TextId = 64, Locale = AccountLocale.ptPT, Text = "Coração de Bramble obtido" },
+            new LocalizedTextLocale { TextId = 65, Locale = AccountLocale.ptPT, Text = "Pergunta ao Garrick como enfrentar os espinhos." },
+            new LocalizedTextLocale { TextId = 66, Locale = AccountLocale.ptPT, Text = "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble." });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueNode> builder)

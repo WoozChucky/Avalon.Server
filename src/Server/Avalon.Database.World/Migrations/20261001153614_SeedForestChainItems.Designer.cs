@@ -2,6 +2,7 @@
 using Avalon.Database.World;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -10,9 +11,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    partial class WorldDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261001153614_SeedForestChainItems")]
+    partial class SeedForestChainItems
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5201,126 +5204,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 42,
                             Text = "Hunt down the Bramblemaw Alpha."
-                        },
-                        new
-                        {
-                            Id = 43,
-                            Text = "Wings for the Still"
-                        },
-                        new
-                        {
-                            Id = 44,
-                            Text = "The Blightfly Swarmlings drone over the wold day and night, {name}, and the dust on their wings settles a fever better than any root I sell. Bring me six wings for my still, whole if you can manage it."
-                        },
-                        new
-                        {
-                            Id = 45,
-                            Text = "Six good wings. That dust will see a few fevers through the cold months. Take these for your trouble."
-                        },
-                        new
-                        {
-                            Id = 46,
-                            Text = "Blightfly Wings gathered"
-                        },
-                        new
-                        {
-                            Id = 47,
-                            Text = "Pelts Before Frost"
-                        },
-                        new
-                        {
-                            Id = 48,
-                            Text = "Frost comes early under those trees, and the Grey Fen Wolves wear the thickest coats in the wold. Bring me eight of their pelts and I will line half the town's cloaks before the first freeze."
-                        },
-                        new
-                        {
-                            Id = 49,
-                            Text = "Eight pelts, and barely a nick in them. The town will be warmer for it, {name}."
-                        },
-                        new
-                        {
-                            Id = 50,
-                            Text = "Fen Wolf Pelts gathered"
-                        },
-                        new
-                        {
-                            Id = 51,
-                            Text = "What the Husks Carry"
-                        },
-                        new
-                        {
-                            Id = 52,
-                            Text = "Travellers swear the Husks of the Wold still clutch scraps of paper, {name}: pages from a ledger, with Marta's mark on them. Put down eight of those things and bring whatever pages you find to Marta at the bank."
-                        },
-                        new
-                        {
-                            Id = 53,
-                            Text = "These are mine. Accounts from a caravan that never came back. I owe you more than coin for this, {name}, but coin is what I have."
-                        },
-                        new
-                        {
-                            Id = 54,
-                            Text = "Ledger Pages recovered"
-                        },
-                        new
-                        {
-                            Id = 55,
-                            Text = "Heartwood"
-                        },
-                        new
-                        {
-                            Id = 56,
-                            Text = "Old Tuskroot has walked the wold longer than this town has stood, and the wood at its heart is harder than iron. Bring me that heartwood, {class}, and I will set it in something worth wearing."
-                        },
-                        new
-                        {
-                            Id = 57,
-                            Text = "Now that is heartwood. Hold out your hand; this one was made to fit it."
-                        },
-                        new
-                        {
-                            Id = 58,
-                            Text = "Tuskroot Heartwood taken"
-                        },
-                        new
-                        {
-                            Id = 59,
-                            Text = "Mother of Thorns"
-                        },
-                        new
-                        {
-                            Id = 60,
-                            Text = "The Bramblemaw Alphas answer to something deeper in the wold, {name}. Speak with Garrick first: he has forged against thorns before. Then go to the heart of the forest, bring down two of the Alphas and end Mother Bramble, the Mother of Thorns."
-                        },
-                        new
-                        {
-                            Id = 61,
-                            Text = "The wold is breathing again. It will remember what you did, and so will we. Wear this, {class}."
-                        },
-                        new
-                        {
-                            Id = 62,
-                            Text = "Speak with Garrick Emberforge"
-                        },
-                        new
-                        {
-                            Id = 63,
-                            Text = "Bramblemaw Alphas slain"
-                        },
-                        new
-                        {
-                            Id = 64,
-                            Text = "Bramble Heart taken"
-                        },
-                        new
-                        {
-                            Id = 65,
-                            Text = "Ask Garrick how to face the thorns."
-                        },
-                        new
-                        {
-                            Id = 66,
-                            Text = "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart."
                         });
                 });
 
@@ -5592,150 +5475,6 @@ namespace Avalon.Database.World.Migrations
                             TextId = 42,
                             Locale = "ptPT",
                             Text = "Caça o Bramblemaw Alpha."
-                        },
-                        new
-                        {
-                            TextId = 43,
-                            Locale = "ptPT",
-                            Text = "Asas para o Alambique"
-                        },
-                        new
-                        {
-                            TextId = 44,
-                            Locale = "ptPT",
-                            Text = "As Blightfly Swarmlings zumbem sobre a mata dia e noite, {name}, e o pó das asas delas acalma uma febre melhor do que qualquer raiz que eu venda. Traz-me seis asas para o meu alambique, inteiras se conseguires."
-                        },
-                        new
-                        {
-                            TextId = 45,
-                            Locale = "ptPT",
-                            Text = "Seis boas asas. Esse pó vai ajudar a vencer umas quantas febres nos meses frios. Leva isto pelo teu trabalho."
-                        },
-                        new
-                        {
-                            TextId = 46,
-                            Locale = "ptPT",
-                            Text = "Asas de Blightfly recolhidas"
-                        },
-                        new
-                        {
-                            TextId = 47,
-                            Locale = "ptPT",
-                            Text = "Peles Antes da Geada"
-                        },
-                        new
-                        {
-                            TextId = 48,
-                            Locale = "ptPT",
-                            Text = "A geada chega cedo debaixo daquelas árvores, e os Grey Fen Wolves têm os casacos mais grossos da mata. Traz-me oito das peles deles e forro metade das capas da vila antes da primeira geada."
-                        },
-                        new
-                        {
-                            TextId = 49,
-                            Locale = "ptPT",
-                            Text = "Oito peles, e quase sem um rasgão. A vila vai ficar mais quente graças a isto, {name}."
-                        },
-                        new
-                        {
-                            TextId = 50,
-                            Locale = "ptPT",
-                            Text = "Peles de Fen Wolf recolhidas"
-                        },
-                        new
-                        {
-                            TextId = 51,
-                            Locale = "ptPT",
-                            Text = "O que as Carcaças Carregam"
-                        },
-                        new
-                        {
-                            TextId = 52,
-                            Locale = "ptPT",
-                            Text = "Os viajantes juram que os Husks of the Wold ainda agarram pedaços de papel, {name}: páginas de um livro de contas, com a marca da Marta. Abate oito dessas coisas e leva as páginas que encontrares à Marta, no banco."
-                        },
-                        new
-                        {
-                            TextId = 53,
-                            Locale = "ptPT",
-                            Text = "Estas são minhas. Contas de uma caravana que nunca voltou. Devo-te mais do que moedas por isto, {name}, mas moedas é o que tenho."
-                        },
-                        new
-                        {
-                            TextId = 54,
-                            Locale = "ptPT",
-                            Text = "Páginas do livro de contas recuperadas"
-                        },
-                        new
-                        {
-                            TextId = 55,
-                            Locale = "ptPT",
-                            Text = "Cerne"
-                        },
-                        new
-                        {
-                            TextId = 56,
-                            Locale = "ptPT",
-                            Text = "O Old Tuskroot anda pela mata há mais tempo do que esta vila existe, e a madeira do seu coração é mais dura do que o ferro. Traz-me esse cerne, {class}, e engasto-o em algo que valha a pena usar."
-                        },
-                        new
-                        {
-                            TextId = 57,
-                            Locale = "ptPT",
-                            Text = "Isso sim, é cerne. Estende a mão; este foi feito à tua medida."
-                        },
-                        new
-                        {
-                            TextId = 58,
-                            Locale = "ptPT",
-                            Text = "Cerne de Tuskroot obtido"
-                        },
-                        new
-                        {
-                            TextId = 59,
-                            Locale = "ptPT",
-                            Text = "Mãe dos Espinhos"
-                        },
-                        new
-                        {
-                            TextId = 60,
-                            Locale = "ptPT",
-                            Text = "Os Bramblemaw Alphas obedecem a algo mais fundo na mata, {name}. Fala primeiro com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta, abate dois dos Bramblemaw Alphas e acaba com a Mother Bramble, a Mãe dos Espinhos."
-                        },
-                        new
-                        {
-                            TextId = 61,
-                            Locale = "ptPT",
-                            Text = "A mata volta a respirar. Vai lembrar-se do que fizeste, e nós também. Usa isto, {class}."
-                        },
-                        new
-                        {
-                            TextId = 62,
-                            Locale = "ptPT",
-                            Text = "Fala com o Garrick Emberforge"
-                        },
-                        new
-                        {
-                            TextId = 63,
-                            Locale = "ptPT",
-                            Text = "Bramblemaw Alphas abatidos"
-                        },
-                        new
-                        {
-                            TextId = 64,
-                            Locale = "ptPT",
-                            Text = "Coração de Bramble obtido"
-                        },
-                        new
-                        {
-                            TextId = 65,
-                            Locale = "ptPT",
-                            Text = "Pergunta ao Garrick como enfrentar os espinhos."
-                        },
-                        new
-                        {
-                            TextId = 66,
-                            Locale = "ptPT",
-                            Text = "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble."
                         });
                 });
 
@@ -6821,36 +6560,6 @@ namespace Avalon.Database.World.Migrations
                             ObjectiveId = 201L,
                             CreatureTemplateId = 4m,
                             Chance = 60f
-                        },
-                        new
-                        {
-                            ObjectiveId = 401L,
-                            CreatureTemplateId = 6m,
-                            Chance = 50f
-                        },
-                        new
-                        {
-                            ObjectiveId = 501L,
-                            CreatureTemplateId = 5m,
-                            Chance = 50f
-                        },
-                        new
-                        {
-                            ObjectiveId = 602L,
-                            CreatureTemplateId = 7m,
-                            Chance = 35f
-                        },
-                        new
-                        {
-                            ObjectiveId = 701L,
-                            CreatureTemplateId = 9m,
-                            Chance = 100f
-                        },
-                        new
-                        {
-                            ObjectiveId = 803L,
-                            CreatureTemplateId = 10m,
-                            Chance = 100f
                         });
                 });
 
@@ -6885,30 +6594,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             QuestId = 3L,
                             ItemTemplateId = 58m,
-                            Count = 1L
-                        },
-                        new
-                        {
-                            QuestId = 4L,
-                            ItemTemplateId = 2m,
-                            Count = 3L
-                        },
-                        new
-                        {
-                            QuestId = 6L,
-                            ItemTemplateId = 56m,
-                            Count = 2L
-                        },
-                        new
-                        {
-                            QuestId = 7L,
-                            ItemTemplateId = 64m,
-                            Count = 1L
-                        },
-                        new
-                        {
-                            QuestId = 8L,
-                            ItemTemplateId = 65m,
                             Count = 1L
                         });
                 });
@@ -7014,86 +6699,6 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 3L,
                             StageSequence = 2,
                             Type = 1
-                        },
-                        new
-                        {
-                            Id = 401L,
-                            Count = 6L,
-                            DescriptionTextId = 46,
-                            ItemTemplateId = 59m,
-                            QuestId = 4L,
-                            StageSequence = 0,
-                            Type = 2
-                        },
-                        new
-                        {
-                            Id = 501L,
-                            Count = 8L,
-                            DescriptionTextId = 50,
-                            ItemTemplateId = 60m,
-                            QuestId = 5L,
-                            StageSequence = 0,
-                            Type = 2
-                        },
-                        new
-                        {
-                            Id = 601L,
-                            Count = 8L,
-                            CreatureTemplateId = 7m,
-                            DescriptionTextId = 37,
-                            QuestId = 6L,
-                            StageSequence = 0,
-                            Type = 1
-                        },
-                        new
-                        {
-                            Id = 602L,
-                            Count = 3L,
-                            DescriptionTextId = 54,
-                            ItemTemplateId = 61m,
-                            QuestId = 6L,
-                            StageSequence = 0,
-                            Type = 2
-                        },
-                        new
-                        {
-                            Id = 701L,
-                            Count = 1L,
-                            DescriptionTextId = 58,
-                            ItemTemplateId = 62m,
-                            QuestId = 7L,
-                            StageSequence = 0,
-                            Type = 2
-                        },
-                        new
-                        {
-                            Id = 801L,
-                            Count = 1L,
-                            CreatureTemplateId = 12m,
-                            DescriptionTextId = 62,
-                            QuestId = 8L,
-                            StageSequence = 0,
-                            Type = 3
-                        },
-                        new
-                        {
-                            Id = 802L,
-                            Count = 2L,
-                            CreatureTemplateId = 8m,
-                            DescriptionTextId = 63,
-                            QuestId = 8L,
-                            StageSequence = 1,
-                            Type = 1
-                        },
-                        new
-                        {
-                            Id = 803L,
-                            Count = 1L,
-                            DescriptionTextId = 64,
-                            ItemTemplateId = 63m,
-                            QuestId = 8L,
-                            StageSequence = 1,
-                            Type = 2
                         });
                 });
 
@@ -7143,38 +6748,6 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 3L,
                             Sequence = 2,
                             DescriptionTextId = 42
-                        },
-                        new
-                        {
-                            QuestId = 4L,
-                            Sequence = 0
-                        },
-                        new
-                        {
-                            QuestId = 5L,
-                            Sequence = 0
-                        },
-                        new
-                        {
-                            QuestId = 6L,
-                            Sequence = 0
-                        },
-                        new
-                        {
-                            QuestId = 7L,
-                            Sequence = 0
-                        },
-                        new
-                        {
-                            QuestId = 8L,
-                            Sequence = 0,
-                            DescriptionTextId = 65
-                        },
-                        new
-                        {
-                            QuestId = 8L,
-                            Sequence = 1,
-                            DescriptionTextId = 66
                         });
                 });
 
@@ -7291,90 +6864,6 @@ namespace Avalon.Database.World.Migrations
                             RewardExperience = 600L,
                             RewardMoney = 400m,
                             TitleTextId = 33,
-                            Type = 0
-                        },
-                        new
-                        {
-                            Id = 4L,
-                            CompletionTextId = 45,
-                            DescriptionTextId = 44,
-                            EnderCreatureId = 14m,
-                            Environment = 0,
-                            GiverCreatureId = 14m,
-                            IsRepeatable = false,
-                            LevelRequirement = 2,
-                            Rarity = 0,
-                            RewardExperience = 300L,
-                            RewardMoney = 200m,
-                            TitleTextId = 43,
-                            Type = 0
-                        },
-                        new
-                        {
-                            Id = 5L,
-                            CompletionTextId = 49,
-                            DescriptionTextId = 48,
-                            EnderCreatureId = 13m,
-                            Environment = 0,
-                            GiverCreatureId = 13m,
-                            IsRepeatable = false,
-                            LevelRequirement = 3,
-                            Rarity = 0,
-                            RequiredQuestId = 4L,
-                            RewardExperience = 400L,
-                            RewardMoney = 250m,
-                            TitleTextId = 47,
-                            Type = 0
-                        },
-                        new
-                        {
-                            Id = 6L,
-                            CompletionTextId = 53,
-                            DescriptionTextId = 52,
-                            EnderCreatureId = 11m,
-                            Environment = 0,
-                            GiverCreatureId = 3m,
-                            IsRepeatable = false,
-                            LevelRequirement = 4,
-                            Rarity = 0,
-                            RequiredQuestId = 5L,
-                            RewardExperience = 500L,
-                            RewardMoney = 300m,
-                            TitleTextId = 51,
-                            Type = 0
-                        },
-                        new
-                        {
-                            Id = 7L,
-                            CompletionTextId = 57,
-                            DescriptionTextId = 56,
-                            EnderCreatureId = 2m,
-                            Environment = 0,
-                            GiverCreatureId = 2m,
-                            IsRepeatable = false,
-                            LevelRequirement = 5,
-                            Rarity = 0,
-                            RequiredQuestId = 6L,
-                            RewardExperience = 700L,
-                            RewardMoney = 400m,
-                            TitleTextId = 55,
-                            Type = 0
-                        },
-                        new
-                        {
-                            Id = 8L,
-                            CompletionTextId = 61,
-                            DescriptionTextId = 60,
-                            EnderCreatureId = 1m,
-                            Environment = 0,
-                            GiverCreatureId = 1m,
-                            IsRepeatable = false,
-                            LevelRequirement = 7,
-                            Rarity = 0,
-                            RequiredQuestId = 7L,
-                            RewardExperience = 1500L,
-                            RewardMoney = 1000m,
-                            TitleTextId = 59,
                             Type = 0
                         });
                 });

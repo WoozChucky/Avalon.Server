@@ -1370,6 +1370,153 @@
       "statValue1": 2,
       "statType2": 4,
       "statValue2": 1
+    },
+    {
+      "id": 59,
+      "name": "Blightfly Wing",
+      "class": 3,
+      "subClass": 300,
+      "flags": 2304,
+      "stackable": true,
+      "maxStackSize": 20,
+      "displayId": 59,
+      "rarity": 1,
+      "buyPrice": 0,
+      "sellPrice": 0,
+      "allowedClasses": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": 60,
+      "name": "Fen Wolf Pelt",
+      "class": 3,
+      "subClass": 300,
+      "flags": 2304,
+      "stackable": true,
+      "maxStackSize": 20,
+      "displayId": 60,
+      "rarity": 1,
+      "buyPrice": 0,
+      "sellPrice": 0,
+      "allowedClasses": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": 61,
+      "name": "Ledger Page",
+      "class": 3,
+      "subClass": 300,
+      "flags": 2304,
+      "stackable": true,
+      "maxStackSize": 20,
+      "displayId": 61,
+      "rarity": 1,
+      "buyPrice": 0,
+      "sellPrice": 0,
+      "allowedClasses": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": 62,
+      "name": "Tuskroot Heartwood",
+      "class": 3,
+      "subClass": 300,
+      "flags": 2304,
+      "stackable": true,
+      "maxStackSize": 20,
+      "displayId": 62,
+      "rarity": 1,
+      "buyPrice": 0,
+      "sellPrice": 0,
+      "allowedClasses": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": 63,
+      "name": "Bramble Heart",
+      "class": 3,
+      "subClass": 300,
+      "flags": 2304,
+      "stackable": true,
+      "maxStackSize": 20,
+      "displayId": 63,
+      "rarity": 1,
+      "buyPrice": 0,
+      "sellPrice": 0,
+      "allowedClasses": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": 64,
+      "name": "Heartwood Band",
+      "class": 2,
+      "subClass": 207,
+      "flags": 0,
+      "stackable": false,
+      "maxStackSize": 1,
+      "displayId": 64,
+      "rarity": 2,
+      "buyPrice": 400,
+      "sellPrice": 100,
+      "slot": 7,
+      "allowedClasses": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "itemPower": 5,
+      "requiredLevel": 5,
+      "statType1": 0,
+      "statValue1": 3,
+      "statType2": 4,
+      "statValue2": 2
+    },
+    {
+      "id": 65,
+      "name": "Thornheart Signet",
+      "class": 2,
+      "subClass": 207,
+      "flags": 0,
+      "stackable": false,
+      "maxStackSize": 1,
+      "displayId": 65,
+      "rarity": 3,
+      "buyPrice": 800,
+      "sellPrice": 200,
+      "slot": 7,
+      "allowedClasses": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "itemPower": 7,
+      "requiredLevel": 7,
+      "statType1": 0,
+      "statValue1": 5,
+      "statType2": 4,
+      "statValue2": 4
     }
   ]
 }
