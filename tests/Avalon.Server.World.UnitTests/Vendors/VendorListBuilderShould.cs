@@ -103,6 +103,29 @@ public class VendorListBuilderShould : IAsyncLifetime
         Assert.Equal((ushort)1, list.Buyback[1].Item!.Container);   // the Bag
     }
 
+    /// <summary>
+    /// #738: a sale whose item a /reload items has since flagged QuestItem is left out of the buyback list, as a stock
+    /// row of one is; every other sale keeps the index a buyback request names it by.
+    /// </summary>
+    [Fact]
+    public void Leave_out_a_buyback_whose_item_a_reload_made_a_quest_item()
+    {
+        var flagged = new ItemTemplate
+        {
+            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+        };
+        CharacterEntity character = _w.Main.Character;
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(3, Blade, durability: 42), 25));
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(4, Tonic, count: 5), 20));
+        _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList()));
+
+        SVendorListPacket list = Build();
+
+        VendorBuybackDto blade = Assert.Single(list.Buyback);
+        Assert.Equal((1u, Blade.Id.Value), (blade.Index, blade.Item!.ItemTemplateId));
+    }
+
     [Fact]
     public void Send_the_list_when_the_stock_changed_and_nothing_when_it_did_not()
     {

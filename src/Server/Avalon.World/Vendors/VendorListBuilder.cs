@@ -21,6 +21,7 @@ public static class VendorListBuilder
     /// <summary>
     /// Rows in Sequence order. A row is left out when its quest gate is not met, or when its item
     /// template is gone (a /reload items removed it) or is now a quest item (a /reload items flagged it).
+    /// The buyback newest first, each with its index, leaving out a sale whose item is now a quest item (#738).
     /// </summary>
     public static SVendorListPacket Build(
         ObjectGuid vendor, VendorStockState stock, CharacterEntity character, StaticData data, IQuestProgress quests)
@@ -44,19 +45,23 @@ public static class VendorListBuilder
             });
         }
 
+        // A sale whose item is now a quest item (#738) is left out; the others keep the index a buyback names.
         IReadOnlyList<BuybackEntry> sold = character.Buyback.Entries;
-        var buyback = new VendorBuybackDto[sold.Count];
+        List<VendorBuybackDto> buyback = new(sold.Count);
         for (int index = 0; index < sold.Count; index++)
         {
-            buyback[index] = new VendorBuybackDto
+            if (FindTemplate(data, sold[index].Item.TemplateId) is { } template && !VendorRules.IsStockable(template))
+                continue;
+
+            buyback.Add(new VendorBuybackDto
             {
                 Index = (uint)index,
                 Item = ItemSlotDtoMapper.ToDto(InventoryType.Bag, sold[index].Item),
                 Price = sold[index].Price,
-            };
+            });
         }
 
-        return new SVendorListPacket { VendorGuid = vendor.RawValue, Entries = entries.ToArray(), Buyback = buyback };
+        return new SVendorListPacket { VendorGuid = vendor.RawValue, Entries = entries.ToArray(), Buyback = buyback.ToArray() };
     }
 
     /// <summary>Sends the whole list and settles what the player was owed.</summary>
