@@ -473,6 +473,106 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         Assert.Equal(0, await db.ProceduralMapConfigs.CountAsync());
     }
 
+    /// <summary>Owner rule: every slot tag but entry and empty needs a spawn-table entry (the reverse of the tag check).</summary>
+    [Fact]
+    public async Task Refuse_a_slot_tag_the_spawn_table_has_no_entry_for()
+    {
+        string root = CopyOfCommittedMaps();
+        EditSpawnTable(root, entries =>
+        {
+            foreach (JsonNode? rare in entries.Where(e => (string?)e!["tag"] == "rare").ToList())
+                entries.Remove(rare);
+        });
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.Contains("'rare' slots", error.Message);
+    }
+
+    /// <summary>Owner rule: a leader_pack entry is rolled at a leader slot, so it is refused when the pool has none.</summary>
+    [Fact]
+    public async Task Refuse_a_leader_pack_entry_when_the_pool_has_no_leader_slot()
+    {
+        string root = CopyOfCommittedMaps();
+        EditSpawnTable(root, entries => entries.Add(SpawnEntry("leader_pack", 5, 2, 3)));
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.Contains("'leader_pack'", error.Message);
+    }
+
+    [Fact]
+    public async Task Accept_a_leader_pack_entry_when_the_pool_has_a_leader_slot()
+    {
+        string root = CopyOfCommittedMaps();
+        string chunkPath = Path.Combine(root, "Chunks", "forest_path_01.json");
+        JsonObject chunk = JsonNode.Parse(File.ReadAllText(chunkPath))!.AsObject();
+        chunk["spawnSlots"]!.AsArray().Add(JsonNode.Parse("""{ "tag": "leader", "localX": 15, "localY": 1, "localZ": 20 }"""));
+        File.WriteAllText(chunkPath, chunk.ToJsonString());
+        EditSpawnTable(root, entries =>
+        {
+            entries.Add(SpawnEntry("leader", 8, 1, 1));
+            entries.Add(SpawnEntry("leader_pack", 5, 2, 3));
+        });
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using (WorldDbContext db = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(db, root);
+
+        await using WorldDbContext read = database.CreateDbContext();
+        SpawnTable table = await read.SpawnTables.SingleAsync(t => t.Name == "forest_creatures");
+        Assert.Equal(9, table.Entries.Count);
+        Assert.Single(table.Entries, e => e.Tag == "leader_pack");
+    }
+
+    [Theory]
+    [InlineData("chunkPool")]
+    [InlineData("spawnTable")]
+    public async Task Refuse_a_procedural_map_missing_a_name_and_name_the_file(string property)
+    {
+        string root = CopyOfCommittedMaps();
+        string path = Path.Combine(root, "ProceduralMaps", "2.json");
+        JsonObject map = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        Assert.True(map.Remove(property));
+        File.WriteAllText(path, map.ToJsonString());
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.Contains(path, error.Message, StringComparison.Ordinal);
+        Assert.Contains(property, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Name_the_spawn_tables_file_when_a_creature_does_not_exist()
+    {
+        string root = CopyOfCommittedMaps();
+        EditSpawnTable(root, entries => entries.Add(SpawnEntry("pack", 999, 1, 1)));
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.StartsWith(Path.Combine(root, "spawn-tables.json") + ":", error.Message, StringComparison.Ordinal);
+        Assert.Contains("999", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Rewrites the copy's forest_creatures table through <paramref name="edit" />.</summary>
+    private static void EditSpawnTable(string root, Action<JsonArray> edit)
+    {
+        string path = Path.Combine(root, "spawn-tables.json");
+        JsonObject tables = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        edit(tables["forest_creatures"]!.AsArray());
+        File.WriteAllText(path, tables.ToJsonString());
+    }
+
+    private static JsonNode SpawnEntry(string tag, int creatureId, int min, int max) =>
+        JsonNode.Parse($$"""{ "tag": "{{tag}}", "creatureId": {{creatureId}}, "weight": 1.0, "min": {{min}}, "max": {{max}} }""")!;
+
+    private static async Task<InvalidDataException> RefuseProceduralDataAndWriteNothing(string root)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        await using WorldDbContext db = database.CreateDbContext();
+
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
+        Assert.Equal(0, await db.ChunkTemplates.CountAsync());
+        Assert.Equal(0, await db.SpawnTables.CountAsync());
+        Assert.Equal(0, await db.ProceduralMapConfigs.CountAsync());
+        return error;
+    }
+
     private static string CommittedMapsRoot()
     {
         for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

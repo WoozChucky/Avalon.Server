@@ -28,7 +28,7 @@ public static class ChunkCatalogSeeder
     {
         ChunkCatalogFiles files = await ReadCatalogAsync(mapsRoot, ct);
         HashSet<string> chunkNames = files.Chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
-        await ValidateAgainstDatabaseAsync(db, files, ct);
+        await ValidateAgainstDatabaseAsync(db, mapsRoot, files, ct);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
@@ -346,7 +346,7 @@ public static class ChunkCatalogSeeder
 
     /// <summary>
     /// Spawn-table tags no slot carries, each rolled at the slot whose tag it names: a leader's pack is rolled at its
-    /// leader's slot (CreaturePlacementService). confirmed by the owner.
+    /// leader's slot (CreaturePlacementService). Confirmed by the owner.
     /// </summary>
     private static readonly Dictionary<string, string> CompanionTags = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -398,6 +398,10 @@ public static class ChunkCatalogSeeder
         foreach (string path in Directory.EnumerateFiles(dir, "*.json").Order(StringComparer.Ordinal))
         {
             ProceduralMapDto map = await ReadAsync<ProceduralMapDto>(path, ct);
+            if (string.IsNullOrWhiteSpace(map.ChunkPool))
+                throw new InvalidDataException($"{path}: chunkPool is missing");
+            if (string.IsNullOrWhiteSpace(map.SpawnTable))
+                throw new InvalidDataException($"{path}: spawnTable is missing");
             if (!string.Equals(Path.GetFileNameWithoutExtension(path), map.MapTemplateId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
                 throw new InvalidDataException($"{path}: mapTemplateId {map.MapTemplateId} does not match the file name");
             if (!pools.TryGetValue(map.ChunkPool, out string[]? members))
@@ -429,7 +433,8 @@ public static class ChunkCatalogSeeder
     }
 
     /// <summary>The checks that need the database, made before the transaction opens, so a refusal writes nothing.</summary>
-    private static async Task ValidateAgainstDatabaseAsync(WorldDbContext db, ChunkCatalogFiles files, CancellationToken ct)
+    private static async Task ValidateAgainstDatabaseAsync(WorldDbContext db, string mapsRoot, ChunkCatalogFiles files,
+        CancellationToken ct)
     {
         Dictionary<ushort, MapType> mapTypes = (await db.MapTemplates.AsNoTracking().ToListAsync(ct))
             .ToDictionary(m => m.Id.Value, m => m.MapType);
@@ -442,11 +447,12 @@ public static class ChunkCatalogSeeder
         }
 
         if (files.SpawnTables is null) return;
+        string tablesPath = Path.Combine(mapsRoot, "spawn-tables.json");
         HashSet<ulong> creatures = (await db.CreatureTemplates.AsNoTracking().ToListAsync(ct)).Select(t => t.Id.Value).ToHashSet();
         foreach ((string name, SpawnTableEntryDto[] entries) in files.SpawnTables)
         {
             foreach (SpawnTableEntryDto entry in entries.Where(e => !creatures.Contains(e.CreatureId)))
-                throw new InvalidDataException($"spawn-tables.json: spawn table '{name}' names creature template {entry.CreatureId}, which does not exist");
+                throw new InvalidDataException($"{tablesPath}: spawn table '{name}' names creature template {entry.CreatureId}, which does not exist");
         }
     }
 
