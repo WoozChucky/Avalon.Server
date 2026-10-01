@@ -80,36 +80,26 @@ public sealed class QuestCatalog
 
         List<QuestRefusal> refused = [];
         Dictionary<uint, (QuestTemplate Row, Type? Script)> candidates = [];
-        Dictionary<ulong, uint> collectedBy = [];
 
         foreach (QuestTemplate quest in quests.OrderBy(q => q.Id.Value))
         {
             string? reason = Problem(quest, knownCreatures, knownItems, findScript, out Type? script);
-            if (reason is null)
-            {
-                foreach (QuestObjective objective in quest.Objectives.Where(o => o.Type == QuestObjectiveType.Collect))
-                {
-                    ulong item = objective.ItemTemplateId!.Value;
-                    if (collectedBy.TryGetValue(item, out uint other) && other != quest.Id.Value)
-                    {
-                        reason = $"item template {item} is already collected by quest {other}";
-                        break;
-                    }
-                }
-            }
-
             if (reason is not null)
             {
                 refused.Add(new QuestRefusal(quest.Id.Value, reason));
                 continue;
             }
 
-            foreach (QuestObjective objective in quest.Objectives.Where(o => o.Type == QuestObjectiveType.Collect))
-                collectedBy[objective.ItemTemplateId!.Value] = quest.Id.Value;
             candidates[quest.Id.Value] = (quest, script);
         }
 
         RefuseBrokenPrerequisites(candidates, refused);
+
+        // Only now, over the quests that survived, so a quest refused for its own reasons never blocks another's
+        // item with a reason naming a quest that is not loaded. A quest refused here may be another's
+        // prerequisite, so the cascade runs again.
+        if (RefuseSecondCollectors(candidates, refused))
+            RefuseBrokenPrerequisites(candidates, refused);
 
         _byId = candidates.ToDictionary(c => c.Key, c => ToView(c.Value.Row, c.Value.Script));
         _byGiver = _byId.Values.GroupBy(q => q.GiverCreatureId.Value).ToDictionary(g => g.Key,
@@ -183,12 +173,19 @@ public sealed class QuestCatalog
                 return $"stage {stage.Sequence} has more than {MaxObjectivesPerStage} objectives";
         }
 
+        Dictionary<ulong, uint> collectedBy = [];
         foreach (QuestObjective objective in quest.Objectives.OrderBy(o => o.Id))
         {
             if (!sequences.Contains(objective.StageSequence))
                 return $"objective {objective.Id} names stage {objective.StageSequence}, which it does not have";
             if (objective.Count == 0)
                 return $"objective {objective.Id} has count 0";
+            if (TargetProblem(objective) is { } target)
+                return target;
+            if (objective.Type == QuestObjectiveType.Collect
+                && !collectedBy.TryAdd(objective.ItemTemplateId!.Value, objective.Id))
+                return $"objective {objective.Id} collects item template {objective.ItemTemplateId.Value}, which objective " +
+                       $"{collectedBy[objective.ItemTemplateId.Value]} already collects";
             if (objective.CreatureTemplateId is { } creature && !creatures.Contains(creature.Value))
                 return $"objective {objective.Id} names creature template {creature.Value}, which does not exist";
             if (objective.ItemTemplateId is { } itemId)
@@ -229,6 +226,58 @@ public sealed class QuestCatalog
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The objective's target must fit its type: Kill and Talk name a creature and no item, Collect an item and no
+    /// creature, Scripted neither. A database check says the same; the catalog says it again, as LootCatalog does,
+    /// so a row that slipped past is refused by name rather than failing the whole area.
+    /// </summary>
+    private static string? TargetProblem(QuestObjective objective)
+    {
+        bool creature = objective.CreatureTemplateId is not null;
+        bool item = objective.ItemTemplateId is not null;
+        return objective.Type switch
+        {
+            QuestObjectiveType.Kill or QuestObjectiveType.Talk when !creature || item =>
+                $"objective {objective.Id} is {objective.Type} and must name a creature template and no item template",
+            QuestObjectiveType.Collect when !item || creature =>
+                $"objective {objective.Id} is Collect and must name an item template and no creature template",
+            QuestObjectiveType.Scripted when creature || item =>
+                $"objective {objective.Id} is Scripted and must name neither a creature template nor an item template",
+            QuestObjectiveType.Kill or QuestObjectiveType.Talk or QuestObjectiveType.Collect or QuestObjectiveType.Scripted => null,
+            _ => $"objective {objective.Id} has unknown type {(int)objective.Type}",
+        };
+    }
+
+    /// <summary>
+    /// One quest per collected item, so a drop or a pickup credits exactly one quest: over the surviving quests in id
+    /// order, the first to collect an item keeps it and every later one is refused. True when it refused any.
+    /// </summary>
+    private static bool RefuseSecondCollectors(Dictionary<uint, (QuestTemplate Row, Type? Script)> candidates, List<QuestRefusal> refused)
+    {
+        Dictionary<ulong, uint> collectedBy = [];
+        bool any = false;
+        foreach ((uint id, (QuestTemplate row, _)) in candidates.OrderBy(c => c.Key).ToList())
+        {
+            List<ulong> collected = row.Objectives
+                .Where(o => o.Type == QuestObjectiveType.Collect)
+                .Select(o => o.ItemTemplateId!.Value)
+                .ToList();
+            ulong? taken = collected.Where(collectedBy.ContainsKey).Select(i => (ulong?)i).FirstOrDefault();
+            if (taken is { } item)
+            {
+                refused.Add(new QuestRefusal(id, $"item template {item} is already collected by quest {collectedBy[item]}"));
+                candidates.Remove(id);
+                any = true;
+                continue;
+            }
+
+            foreach (ulong i in collected)
+                collectedBy[i] = id;
+        }
+
+        return any;
     }
 
     /// <summary>Refuses, to a fixed point, every quest whose prerequisite is missing, refused, or part of a cycle.</summary>

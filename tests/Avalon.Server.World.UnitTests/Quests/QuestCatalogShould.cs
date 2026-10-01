@@ -139,6 +139,76 @@ public class QuestCatalogShould
         Assert.True(catalog.TryGet(2, out _));
     }
 
+    public static TheoryData<QuestObjectiveType, ulong?, ulong?, string> MisfitTargets => new()
+    {
+        { QuestObjectiveType.Kill, null, null, "is Kill and must name a creature template" },
+        { QuestObjectiveType.Kill, Boar, Tusk, "is Kill and must name a creature template and no item" },
+        { QuestObjectiveType.Talk, null, null, "is Talk and must name a creature template" },
+        { QuestObjectiveType.Talk, TalkTarget, Tusk, "is Talk and must name a creature template and no item" },
+        { QuestObjectiveType.Collect, null, null, "is Collect and must name an item template" },
+        { QuestObjectiveType.Collect, Boar, Tusk, "is Collect and must name an item template and no creature" },
+        { QuestObjectiveType.Scripted, Boar, null, "is Scripted and must name neither" },
+        { QuestObjectiveType.Scripted, null, Tusk, "is Scripted and must name neither" },
+        { (QuestObjectiveType)99, null, null, "unknown type 99" },
+    };
+
+    /// <summary>
+    /// A database check pins each type's target, but the catalog checks again, so a row that slipped past (a Collect
+    /// with no item used to throw on its null and fail the whole area, at startup too) refuses only its quest.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(MisfitTargets))]
+    public void Refuse_an_objective_whose_target_does_not_fit_its_type(QuestObjectiveType type, ulong? creature,
+        ulong? item, string reasonFragment)
+    {
+        var objective = new QuestObjective
+        {
+            Id = 11, Type = type, Count = 1, DescriptionTextId = ObjectiveText,
+            CreatureTemplateId = creature is { } c ? new CreatureTemplateId(c) : null,
+            ItemTemplateId = item is { } i ? new ItemTemplateId(i) : null,
+        };
+
+        QuestCatalog catalog = Build([Quest(1).WithStage(0, objective), Quest(2).WithStage(0, Kill(21, Boar, 1))]);
+
+        AssertRefused(catalog, 1, reasonFragment);
+        Assert.StartsWith("objective 11 ", Assert.Single(catalog.Refused).Reason, StringComparison.Ordinal);
+        Assert.True(catalog.TryGet(2, out _));
+    }
+
+    [Fact]
+    public void Refuse_a_quest_that_collects_one_item_in_two_objectives() =>
+        AssertRefused(Build([Quest(1).WithStage(0, Collect(11, Tusk, 1)).WithStage(1, Collect(12, Tusk, 1))]), 1,
+            "objective 12 collects item template 7101, which objective 11 already collects");
+
+    [Fact]
+    public void Let_a_quest_collect_an_item_whose_earlier_collector_was_refused()
+    {
+        // Quest 1 is refused for its prerequisite, so it holds no item: quest 2 may collect the tusk, and no
+        // refusal names a quest that is not loaded.
+        QuestCatalog catalog = Build([
+            Quest(1, requires: 999).WithStage(0, Collect(11, Tusk, 1)),
+            Quest(2).WithStage(0, Collect(21, Tusk, 1, (Boar, 50f))),
+        ]);
+
+        AssertRefused(catalog, 1, "prerequisite");
+        Assert.True(catalog.TryGet(2, out _));
+        Assert.Equal(2u, Assert.Single(catalog.DropsFrom(new CreatureTemplateId(Boar))).QuestId);
+    }
+
+    [Fact]
+    public void Refuse_the_dependants_of_a_quest_refused_for_a_collected_item()
+    {
+        QuestCatalog catalog = Build([
+            Quest(1).WithStage(0, Collect(11, Tusk, 1)),
+            Quest(2).WithStage(0, Collect(21, Tusk, 1)),
+            Quest(3, requires: 2).WithStage(0, Kill(31, Boar, 1)),
+        ]);
+
+        Assert.True(catalog.TryGet(1, out _));
+        AssertRefused(catalog, 2, "already collected by quest 1");
+        AssertRefused(catalog, 3, "prerequisite quest 2");
+    }
+
     [Fact]
     public void Refuse_a_second_quest_that_collects_the_same_item()
     {
