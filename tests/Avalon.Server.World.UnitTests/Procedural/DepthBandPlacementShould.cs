@@ -158,6 +158,58 @@ public class DepthBandPlacementShould
         Assert.All(spawned, s => Assert.Null(s.Level));
     }
 
+    /// <summary>
+    /// What the placement before depth bands (commit 4722e94d) spawned for this layout and seed: which template, where.
+    /// Any change to the order or number of random draws on a map without bands changes it, so an old seed would no
+    /// longer place the same creatures in the same spots.
+    /// </summary>
+    [Fact]
+    public async Task Place_the_creatures_a_seed_placed_before_depth_bands_when_the_map_has_none()
+    {
+        var spawned = new List<(ulong Template, float X, float Y, float Z)>();
+        var spawner = Substitute.For<ICreatureSpawner>();
+        uint next = 1;
+        spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(ci =>
+        {
+            CreatureInfo info = ci.Arg<CreatureInfo>();
+            spawned.Add((info.PrototypeIndex, info.Position.x, info.Position.y, info.Position.z));
+            ICreature creature = Substitute.For<ICreature>();
+            creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, next++));
+            creature.ScriptName.Returns(string.Empty);
+            return creature;
+        });
+        var templates = new Dictionary<int, ChunkTemplate>
+        {
+            [1] = Slots(1, ("entry", 15, 15), ("pack", 8, 20), ("pack", 22, 9), ("rare", 15, 25)),
+            [2] = Slots(2, ("pack", 10, 12), ("boss", 20, 22)),
+        };
+        PlacedChunk[] chunks =
+        [
+            new(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero, 0, null),
+            new(new ChunkTemplateId(2), 1, 0, 1, new Vector3(30, 0, 0), 1, null),
+        ];
+        var layout = new ChunkLayout(Seed: 1, Chunks: chunks, EntryChunk: chunks[0], BossChunk: chunks[1], Portals: [],
+            EntrySpawnWorldPos: Vector3.zero, CellSize: 30f);
+        SpawnTableEntry pack = Entry(1, "pack", 4, 2, 3);
+        pack.Weight = 3f;
+
+        await Service(spawner, templates, pack, Entry(2, "pack", 5, 1, 2), Entry(3, "rare", 6, 1, 1), Entry(4, "boss", 10, 1, 1))
+            .PlaceAsync(FlatInstance(), layout, Config([]), seed: 5, CancellationToken.None);
+
+        Assert.Equal(
+        [
+            (4, 7.288888f, 1f, 20.376127f), (4, 7.8903856f, 1f, 21.285122f), (4, 22.2884f, 1f, 7.85238f),
+            (4, 23.426678f, 1f, 8.61266f), (4, 20.709743f, 1f, 7.7123647f), (6, 15f, 1f, 25f), (5, 42f, 1f, 20f),
+            (10, 52f, 1f, 10f),
+        ], spawned);
+    }
+
+    private static ChunkTemplate Slots(int id, params (string Tag, float X, float Z)[] slots) => new()
+    {
+        Id = new ChunkTemplateId(id), Name = $"p{id}",
+        SpawnSlots = slots.Select(s => new ChunkSpawnSlot { Tag = s.Tag, LocalX = s.X, LocalY = 1, LocalZ = s.Z }).ToList(),
+    };
+
     [Fact]
     public async Task Leave_a_depth_no_band_covers_to_the_template()
     {
