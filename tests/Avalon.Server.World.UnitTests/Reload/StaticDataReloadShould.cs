@@ -306,6 +306,7 @@ public class StaticDataReloadShould
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             items: Quests.QuestTestData.Items,
             creatures: () => creatures,
+            nodes: () => Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget),
             quests: Quests.QuestRepositories.Of(() => quests),
             scripts: Quests.QuestTestData.ScriptManager()));
         Assert.Equal(3, data.Quests.All.Count);
@@ -315,6 +316,86 @@ public class StaticDataReloadShould
 
         Assert.Equal(2, data.Quests.All.Count);
         Assert.Contains(data.Quests.Refused, r => r.QuestId == Quests.QuestTestData.Howl);
+    }
+
+    /// <summary>
+    /// #737: a quest reload (and the startup load) reads the dialogue roots with the quests, so a quest whose Talk
+    /// target lost its root is refused, naming it.
+    /// </summary>
+    [Fact]
+    public async Task Reload_quests_against_the_dialogue_roots_read_with_them()
+    {
+        List<DialogueNode> nodes = Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget);
+        StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            items: Quests.QuestTestData.Items,
+            creatures: Quests.QuestTestData.Creatures,
+            nodes: () => nodes,
+            quests: Quests.QuestRepositories.Of(Quests.QuestTestData.Chain),
+            scripts: Quests.QuestTestData.ScriptManager()));
+        Assert.Equal(3, data.Quests.All.Count);
+
+        nodes.RemoveAll(n => n.CreatureTemplateId.Value == Quests.QuestTestData.TalkTarget);
+        data.Apply(await data.PrepareAsync(ReloadArea.Quests));
+
+        Assert.False(data.Quests.TryGet(Quests.QuestTestData.Howl, out _));
+        Assert.Contains(data.Quests.Refused, r => r.QuestId == Quests.QuestTestData.Howl
+                                                  && r.Reason.Contains("has no dialogue root", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// #737: a /reload dialogue that takes away a loaded quest's NPC root logs an Error naming each such quest, and
+    /// refuses nothing: the quests stay loaded, and the dialogue applies.
+    /// </summary>
+    [Fact]
+    public async Task Log_each_loaded_quest_a_dialogue_reload_left_without_a_root()
+    {
+        var log = new TestLog();
+        List<DialogueNode> nodes = Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget);
+        StaticData data = TestStaticData.Repositories(
+            items: Quests.QuestTestData.Items,
+            creatures: Quests.QuestTestData.Creatures,
+            nodes: () => nodes,
+            quests: Quests.QuestRepositories.Of(Quests.QuestTestData.Chain),
+            scripts: Quests.QuestTestData.ScriptManager()).ToStaticData(log);
+        await data.LoadAsync();
+        Assert.Empty(log.Errors);
+
+        nodes.RemoveAll(n => n.CreatureTemplateId.Value == Quests.QuestTestData.TalkTarget);
+        data.Apply(await data.PrepareAsync(ReloadArea.Dialogue));
+
+        string error = Assert.Single(log.Errors).Message;
+        Assert.Contains($"quest {Quests.QuestTestData.Howl}", error, StringComparison.Ordinal);
+        Assert.Contains($"creature template {Quests.QuestTestData.TalkTarget}", error, StringComparison.Ordinal);
+        Assert.Equal(3, data.Quests.All.Count);
+        Assert.Null(data.Dialogue.GetRoot(new CreatureTemplateId(Quests.QuestTestData.TalkTarget)));
+    }
+
+    /// <summary>
+    /// Fix round 1: a quest apply is checked against the live dialogue too, since the roots its prepare read may not be
+    /// the ones applied (a /reload dialogue between the two). One Error per stranded quest; nothing refused.
+    /// </summary>
+    [Fact]
+    public async Task Log_each_quest_a_quest_reload_loads_without_a_root_in_the_live_dialogue()
+    {
+        var log = new TestLog();
+        List<DialogueNode> nodes = Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget);
+        StaticData data = TestStaticData.Repositories(
+            items: Quests.QuestTestData.Items,
+            creatures: Quests.QuestTestData.Creatures,
+            nodes: () => nodes,
+            quests: Quests.QuestRepositories.Of(Quests.QuestTestData.Chain),
+            scripts: Quests.QuestTestData.ScriptManager()).ToStaticData(log);
+        await data.LoadAsync();
+        StaticDataPatch quests = await data.PrepareAsync(ReloadArea.Quests);   // read with Marta's root
+        nodes.RemoveAll(n => n.CreatureTemplateId.Value == Quests.QuestTestData.TalkTarget);
+        data.Apply(await data.PrepareAsync(ReloadArea.Dialogue));               // the live dialogue loses it
+        log.Entries.Clear();
+
+        data.Apply(quests);
+
+        string error = Assert.Single(log.Errors).Message;
+        Assert.Contains($"quest {Quests.QuestTestData.Howl}", error, StringComparison.Ordinal);
+        Assert.True(data.Quests.TryGet(Quests.QuestTestData.Howl, out _));
     }
 
     private static async Task<(StaticData Data, Repos Repos)> LoadedData(int creatureCount)

@@ -14,6 +14,7 @@ namespace Avalon.World.Quests;
 /// </summary>
 public static class QuestFlusher
 {
+    public const string ReloadStep = "Quest flush: settle after a reload";
     public const string RecountStep = "Quest flush: collect recount";
     public const string EnterInstanceStep = "Quest flush: enter-instance hooks";
     public const string ClientStep = "Quest flush: log, updates and lines";
@@ -23,6 +24,16 @@ public static class QuestFlusher
     {
         if (connection.Character is not CharacterEntity character)
             return;
+
+        // A /reload quests since the last flush (#738): every held quest is settled once against the new catalog.
+        try
+        {
+            quests.SettleAfterReload(character);
+        }
+        catch (Exception e)
+        {
+            quests.FlushStepFailed(ReloadStep, e);
+        }
 
         // A quest item that arrived, left or moved by any path this tick is counted again.
         if (TouchedTheBag(character.ClientChanges))

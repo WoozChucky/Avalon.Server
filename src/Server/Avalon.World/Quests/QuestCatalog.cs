@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
@@ -55,7 +56,7 @@ public sealed class QuestCatalog
 {
     public const int MaxObjectivesPerStage = 4;
 
-    public static readonly QuestCatalog Empty = new([], [], [], _ => null, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
+    public static readonly QuestCatalog Empty = new([], [], [], [], _ => null, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
 
     private static readonly IReadOnlyList<QuestView> NoQuests = [];
     private static readonly IReadOnlyList<QuestDropView> NoDrops = [];
@@ -69,11 +70,14 @@ public sealed class QuestCatalog
         IReadOnlyCollection<QuestTemplate> quests,
         IReadOnlyCollection<CreatureTemplate> creatures,
         IReadOnlyCollection<ItemTemplate> items,
+        IReadOnlyCollection<DialogueNode> dialogueNodes,
         Func<string, Type?> findScript,
         ILoggerFactory loggerFactory)
     {
         ILogger<QuestCatalog> logger = loggerFactory.CreateLogger<QuestCatalog>();
         HashSet<ulong> knownCreatures = creatures.Select(c => c.Id.Value).ToHashSet();
+        // A creature template with a root node, as DialogueCatalog.GetRoot will find one (#737).
+        HashSet<ulong> dialogueRoots = dialogueNodes.Where(n => n.IsRoot).Select(n => n.CreatureTemplateId.Value).ToHashSet();
         Dictionary<ulong, ItemTemplate> knownItems = [];
         foreach (ItemTemplate item in items)
             knownItems.TryAdd(item.Id.Value, item);
@@ -83,7 +87,12 @@ public sealed class QuestCatalog
 
         foreach (QuestTemplate quest in quests.OrderBy(q => q.Id.Value))
         {
-            string? reason = Problem(quest, knownCreatures, knownItems, findScript, out Type? script);
+            string? reason = Problem(quest, knownCreatures, knownItems, findScript, out Type? script)
+                             ?? DialogueProblem(quest.GiverCreatureId.Value, quest.EnderCreatureId.Value,
+                                 quest.Objectives.OrderBy(o => o.Id)
+                                     .Where(o => o.Type == QuestObjectiveType.Talk && o.CreatureTemplateId is not null)
+                                     .Select(o => (o.Id, o.CreatureTemplateId!.Value)),
+                                 dialogueRoots.Contains).FirstOrDefault();
             if (reason is not null)
             {
                 refused.Add(new QuestRefusal(quest.Id.Value, reason));
@@ -139,6 +148,46 @@ public sealed class QuestCatalog
         _dropsByCreature.TryGetValue(creature.Value, out IReadOnlyList<QuestDropView>? list) ? list : NoDrops;
 
     public bool IsQuestNpc(CreatureTemplateId npc) => _byGiver.ContainsKey(npc.Value) || _byEnder.ContainsKey(npc.Value);
+
+    /// <summary>
+    /// Every loaded quest whose giver, ender or Talk target has no root in <paramref name="dialogue" />, one line per
+    /// quest listing all of its problems ("quest N: ...; ..."), by quest id (#737). A /reload dialogue logs them: the quests were checked against the roots
+    /// read with them, and a dialogue reload since can take a root away. It refuses nothing.
+    /// </summary>
+    public IReadOnlyList<string> NpcsWithoutDialogue(IDialogueCatalog dialogue)
+    {
+        List<string> problems = [];
+        foreach (QuestView quest in _byId.Values.OrderBy(q => q.Id))
+        {
+            List<string> found = DialogueProblem(quest.GiverCreatureId.Value, quest.EnderCreatureId.Value,
+                quest.Objectives.Where(o => o.Type == QuestObjectiveType.Talk && o.CreatureTemplateId is not null)
+                    .OrderBy(o => o.Id).Select(o => (o.Id, o.CreatureTemplateId!.Value)),
+                creature => dialogue.GetRoot(new CreatureTemplateId(creature)) is not null).ToList();
+            if (found.Count > 0)
+                problems.Add($"quest {quest.Id}: {string.Join("; ", found)}");
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// What a quest needs to be talked through (#737): InteractHandler opens a conversation only with an NPC that has a
+    /// dialogue root, so a giver, an ender or a Talk target without one would leave the quest unacceptable, unready or
+    /// unfinishable. Each problem in order: the giver, the ender, then each Talk objective by id.
+    /// </summary>
+    private static IEnumerable<string> DialogueProblem(ulong giver, ulong ender, IEnumerable<(uint Objective, ulong Creature)> talks,
+        Func<ulong, bool> hasRoot)
+    {
+        if (!hasRoot(giver))
+            yield return $"giver creature template {giver} has no dialogue root";
+        if (!hasRoot(ender))
+            yield return $"ender creature template {ender} has no dialogue root";
+        foreach ((uint objective, ulong creature) in talks)
+        {
+            if (!hasRoot(creature))
+                yield return $"objective {objective} talks to creature template {creature}, which has no dialogue root";
+        }
+    }
 
     public string Describe() => Refused.Count == 0
         ? $"{_byId.Count} quests"

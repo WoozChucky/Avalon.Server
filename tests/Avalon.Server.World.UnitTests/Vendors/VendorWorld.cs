@@ -99,15 +99,32 @@ internal sealed class VendorWorld
 
     public Shopper Main { get; }
 
-    public static async Task<VendorWorld> CreateAsync() => new(await TestStaticData.LoadAsync(
-        items: VendorTestData.Items,
-        nodes:
+    /// <summary>
+    /// With <paramref name="quests" />, the quest area holds them, and the three NPCs' creature templates are loaded so a
+    /// quest can name them as giver, ender or Talk target.
+    /// </summary>
+    public static async Task<VendorWorld> CreateAsync(List<QuestTemplate>? quests = null) => new(await TestStaticData.LoadAsync(
+        TestStaticData.Repositories(
+            items: () => VendorTestData.Items,
+            nodes: () => Nodes,
+            options: () => Options,
+            texts: () => Texts,
+            vendors: VendorRepositories.Of(VendorTestData.Rows),
+            creatures: quests is null
+                ? null
+                : () => [new CreatureTemplate { Id = VendorTestData.Smith, Name = "WeaponVendor" },
+                    new CreatureTemplate { Id = VendorTestData.Pedlar, Name = "GoodsVendor" },
+                    new CreatureTemplate { Id = InnkeeperTemplate, Name = "Talker" }],
+            quests: quests is null ? null : UnitTests.Quests.QuestRepositories.Of(() => quests))));
+
+    private static List<DialogueNode> Nodes =>
         [
             new DialogueNode { Id = SmithRoot, CreatureTemplateId = VendorTestData.Smith, IsRoot = true, TextId = 1 },
             new DialogueNode { Id = PedlarRoot, CreatureTemplateId = VendorTestData.Pedlar, IsRoot = true, TextId = 3 },
             new DialogueNode { Id = InnkeeperRoot, CreatureTemplateId = InnkeeperTemplate, IsRoot = true, TextId = 4 },
-        ],
-        options:
+        ];
+
+    private static List<DialogueOption> Options =>
         [
             new DialogueOption
             {
@@ -127,16 +144,16 @@ internal sealed class VendorWorld
                 Id = SmithWaresAndLeave, NodeId = SmithRoot, TextId = 2, NextNodeId = null, SortOrder = 2,
                 Action = DialogueOptionAction.OpenShop,
             },
-        ],
-        texts:
+        ];
+
+    private static List<LocalizedText> Texts =>
         [
             new LocalizedText { Id = 1, Text = "Steel, stave or string, {name}?" },
             new LocalizedText { Id = 2, Text = "Show me your wares." },
             new LocalizedText { Id = 3, Text = "Potions, scrolls, supplies." },
             new LocalizedText { Id = 4, Text = "Room's upstairs." },
             new LocalizedText { Id = 5, Text = "Farewell." },
-        ],
-        vendors: VendorTestData.Rows()));
+        ];
 
     private VendorWorld(StaticData data)
     {

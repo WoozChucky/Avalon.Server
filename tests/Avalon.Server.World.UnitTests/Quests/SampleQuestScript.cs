@@ -1,10 +1,24 @@
 using Avalon.World.Public.Scripts;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.World.UnitTests.Quests;
 
-/// <summary>What the sample quest script saw and what it should do; a test registers one in the container.</summary>
-public sealed class QuestScriptRecorder
+/// <summary>
+/// What the sample quest script saw and what it should do. A quest script may receive only a logger factory, a logger
+/// and the clock (#738), so a test hands the recorder over as the script's logger: it registers it in the container as
+/// <c>ILogger&lt;SampleQuestScript&gt;</c>. It logs nothing.
+/// </summary>
+public sealed class QuestScriptRecorder : ILogger<SampleQuestScript>
 {
+    IDisposable? ILogger.BeginScope<TState>(TState state) => null;
+
+    bool ILogger.IsEnabled(LogLevel logLevel) => false;
+
+    void ILogger.Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+    }
+
     public List<string> Calls { get; } = [];
     public bool AllowAccept { get; set; } = true;
     public string? ThrowIn { get; set; }
@@ -29,14 +43,15 @@ public sealed class QuestScriptRecorder
 }
 
 /// <summary>
-/// The quest script the tests use (#433). Public, and constructible from an empty container (the recorder is
+/// The quest script the tests use (#433). Public, and constructible from an empty container (the logger is
 /// optional), because the constructibility test builds it through the production container, and ScriptManager finds
-/// it too. ScriptManager keys quest scripts by short type name across every loaded assembly, so no other test script
-/// may be called SampleQuestScript.
+/// it too. Its recorder is its logger when the test registered one as such (#738), else a fresh one. ScriptManager keys
+/// quest scripts by short type name across every loaded assembly, so no other test script may be called
+/// SampleQuestScript.
 /// </summary>
-public sealed class SampleQuestScript(QuestScriptRecorder? recorder = null) : QuestScript
+public sealed class SampleQuestScript(ILogger<SampleQuestScript>? logger = null) : QuestScript
 {
-    private readonly QuestScriptRecorder _recorder = recorder ?? new QuestScriptRecorder();
+    private readonly QuestScriptRecorder _recorder = logger as QuestScriptRecorder ?? new QuestScriptRecorder();
 
     private void Hook(string name, IQuestContext? context)
     {

@@ -31,9 +31,9 @@ internal sealed record TestStaticDataRepositories(
     IQuestRepository? Quests = null,
     IScriptManager? Scripts = null)
 {
-    public StaticData ToStaticData() =>
+    public StaticData ToStaticData(Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) =>
         new(CreateInfos, ClassStats, Items, Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
-            NullLoggerFactory.Instance, Vendors, Combat, Quests, Scripts);
+            loggerFactory ?? NullLoggerFactory.Instance, Vendors, Combat, Quests, Scripts);
 }
 
 /// <summary>

@@ -49,7 +49,7 @@ public class QuestScriptShould
         List<QuestTemplate>? quests = null)
     {
         var recorder = new QuestScriptRecorder();
-        IServiceProvider services = new ServiceCollection().AddSingleton(recorder).BuildServiceProvider();
+        IServiceProvider services = new ServiceCollection().AddSingleton<ILogger<SampleQuestScript>>(recorder).BuildServiceProvider();
         var scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
         QuestTestWorld w = await QuestTestWorld.CreateAsync(quests ?? Quests(), scripts: scripts, services: services, log: log);
@@ -231,7 +231,7 @@ public class QuestScriptShould
         var scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
         QuestTestWorld w = await QuestTestWorld.CreateAsync(quests, scripts: scripts,
-            services: new ServiceCollection().AddSingleton(recorder).BuildServiceProvider());
+            services: new ServiceCollection().AddSingleton<ILogger<SampleQuestScript>>(recorder).BuildServiceProvider());
         QuestClient c = w.Join();
         w.Accept(c, Scripted);
 
@@ -265,6 +265,49 @@ public class QuestScriptShould
         Assert.Equal(QuestResult.NotAvailable, w.Quests.Availability(c.Character, quest!));
         Assert.Equal(QuestResult.NotAvailable, w.Quests.Availability(c.Character, quest!));
         Assert.Single(log.Errors);   // built once, and the failure remembered
+    }
+
+    /// <summary>
+    /// #738: a script is built from a narrowed provider, so a constructor asking for a service that writes (the world,
+    /// the quest service) cannot be built even when the container has it: logged at Error, and the quest refused.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_quest_whose_script_asks_for_a_service_that_writes()
+    {
+        var log = new TestLog();
+        var scripts = Substitute.For<IScriptManager>();
+        scripts.GetQuestScript(nameof(WorldHungryQuestScript)).Returns(typeof(WorldHungryQuestScript));
+        IServiceProvider services = new ServiceCollection().AddSingleton(Substitute.For<Avalon.World.IWorld>()).BuildServiceProvider();
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(
+            [Quest(Scripted, script: nameof(WorldHungryQuestScript)).WithStage(0, Kill(ScriptedKill, Boar, 1))],
+            scripts: scripts, services: services, log: log);
+        QuestClient c = w.Join();
+
+        Assert.True(w.Data.Quests.TryGet(Scripted, out QuestView? quest));
+        Assert.Equal(QuestResult.NotAvailable, w.Quests.Availability(c.Character, quest!));
+        Assert.Contains(nameof(WorldHungryQuestScript), Assert.Single(log.Errors).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>#738: what a script may receive (a logger factory, a logger, the clock) comes from the container.</summary>
+    [Fact]
+    public async Task Build_a_script_that_asks_for_a_logger_factory_a_logger_and_the_clock()
+    {
+        var clock = new ManualTimerClock();
+        ILoggerFactory loggers = Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+        var scripts = Substitute.For<IScriptManager>();
+        scripts.GetQuestScript(nameof(WellBehavedQuestScript)).Returns(typeof(WellBehavedQuestScript));
+        IServiceProvider services = new ServiceCollection().AddSingleton(loggers).AddSingleton(typeof(ILogger<>), typeof(Logger<>))
+            .AddSingleton<TimeProvider>(clock).BuildServiceProvider();
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(
+            [Quest(Scripted, script: nameof(WellBehavedQuestScript)).WithStage(0, Kill(ScriptedKill, Boar, 1))],
+            scripts: scripts, services: services);
+        QuestClient c = w.Join();
+
+        Assert.True(w.Data.Quests.TryGet(Scripted, out QuestView? quest));
+        Assert.Equal(QuestResult.Ok, w.Quests.Availability(c.Character, quest!));
+        Assert.Same(loggers, WellBehavedQuestScript.LastBuilt!.Loggers);
+        Assert.Same(clock, WellBehavedQuestScript.LastBuilt.Clock);
+        Assert.NotNull(WellBehavedQuestScript.LastBuilt.Logger);
     }
 
     [Fact]
@@ -418,6 +461,28 @@ public class QuestScriptShould
 
     private static IQuestContext ContextOf(QuestScriptRecorder r) =>
         r.LastContext ?? throw new InvalidOperationException("no hook ran yet");
+
+    /// <summary>Its constructor wants the world, which writes (#738); the narrowed provider never hands it over.</summary>
+    public sealed class WorldHungryQuestScript(Avalon.World.IWorld world) : QuestScript
+    {
+        public Avalon.World.IWorld World { get; } = world;
+    }
+
+    /// <summary>Asks for exactly what a quest script may receive (#738).</summary>
+    public sealed class WellBehavedQuestScript : QuestScript
+    {
+        public WellBehavedQuestScript(ILoggerFactory loggers, ILogger<WellBehavedQuestScript> logger, TimeProvider clock)
+        {
+            (Loggers, Logger, Clock) = (loggers, logger, clock);
+            LastBuilt = this;
+        }
+
+        public static WellBehavedQuestScript? LastBuilt { get; private set; }
+
+        public ILoggerFactory Loggers { get; }
+        public ILogger<WellBehavedQuestScript> Logger { get; }
+        public TimeProvider Clock { get; }
+    }
 
     /// <summary>Its constructor wants something no container has; it lives in the test assembly, which the constructibility test leaves out.</summary>
     public sealed class UnbuildableQuestScript(UnbuildableQuestScript.Missing missing) : QuestScript

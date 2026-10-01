@@ -28,6 +28,11 @@ internal static class QuestTestData
         return scripts;
     }
 
+    /// <summary>One dialogue root per creature template given, so a quest naming it as giver, ender or Talk target loads (#737).</summary>
+    public static List<DialogueNode> Roots(params ulong[] creatures) =>
+        creatures.Select((creature, i) => new DialogueNode
+            { Id = 9900 + i, CreatureTemplateId = creature, IsRoot = true, TextId = BodyText }).ToList();
+
     public static CreatureTemplate Creature(ulong id, string name) => new() { Id = id, Name = name };
 
     public static List<CreatureTemplate> Creatures() =>

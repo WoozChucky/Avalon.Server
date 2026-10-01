@@ -5,6 +5,7 @@ using Avalon.Server.World.Extensions;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World.Public.Scripts;
+using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +16,7 @@ namespace Avalon.Server.World.UnitTests.Hosting;
 
 /// <summary>
 /// Every quest script builds from DI alone through the production container, exactly as QuestService builds it
-/// (ActivatorUtilities, no runtime arguments, #433). Seed data names scripts by string, so nothing at compile time
+/// (ActivatorUtilities over the narrowed QuestScriptServices, no runtime arguments, #433, #738). Seed data names scripts by string, so nothing at compile time
 /// can catch a constructor that wants something else; QuestService would log it and refuse the quest to everyone.
 /// </summary>
 public class QuestScriptConstructibilityShould
@@ -49,13 +50,53 @@ public class QuestScriptConstructibilityShould
             foreach (Type type in shipped)
             {
                 Assert.Same(type, scripts.GetQuestScript(type.Name));
-                Assert.IsAssignableFrom<QuestScript>(ActivatorUtilities.CreateInstance(host.Services, type));
+                Assert.IsAssignableFrom<QuestScript>(ActivatorUtilities.CreateInstance(new QuestScriptServices(host.Services), type));
             }
         }
         finally
         {
             Directory.SetCurrentDirectory(workingDirectory);
         }
+    }
+
+    /// <summary>
+    /// #738: the narrowing is what refuses, not a missing registration. The production container has the quest service
+    /// and the world, so a script asking for either builds from it directly, and fails through QuestScriptServices.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(QuestServiceHungryScript))]
+    [InlineData(typeof(WorldHungryScript))]
+    [InlineData(typeof(ProviderHungryScript))]
+    public async Task Not_build_a_script_that_asks_for_a_service_that_writes(Type type)
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            using IHost host = await ProductionHostAsync();
+
+            Assert.IsAssignableFrom<QuestScript>(ActivatorUtilities.CreateInstance(host.Services, type));
+            Assert.Throws<InvalidOperationException>(() => ActivatorUtilities.CreateInstance(new QuestScriptServices(host.Services), type));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
+    public sealed class QuestServiceHungryScript(QuestService quests) : QuestScript
+    {
+        public QuestService Quests { get; } = quests;
+    }
+
+    public sealed class WorldHungryScript(Avalon.World.IWorld world) : QuestScript
+    {
+        public Avalon.World.IWorld World { get; } = world;
+    }
+
+    /// <summary>The provider itself would hand over everything.</summary>
+    public sealed class ProviderHungryScript(IServiceProvider services) : QuestScript
+    {
+        public IServiceProvider Services { get; } = services;
     }
 
     /// <summary>
@@ -81,7 +122,7 @@ public class QuestScriptConstructibilityShould
             {
                 Type? type = scripts.GetQuestScript(name);
                 Assert.NotNull(type);
-                Assert.IsAssignableFrom<QuestScript>(ActivatorUtilities.CreateInstance(host.Services, type!));
+                Assert.IsAssignableFrom<QuestScript>(ActivatorUtilities.CreateInstance(new QuestScriptServices(host.Services), type!));
             }
         }
         finally

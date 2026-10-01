@@ -62,8 +62,14 @@ public sealed class QuestService(
     // When re-sending an NPC's root after an accept or turn-in last threw and was logged, per quest (final review M1).
     private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _rootResendErrors = [];
 
+    // When a held quest whose current stage a reload removed was last logged, per quest (#738 fix round 1).
+    private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _removedStages = [];
+
     // One throttled log per QuestFlusher step (final review M2). Tick thread only.
     private readonly Dictionary<string, ThrottledErrorLog> _flushStepErrors = new(StringComparer.Ordinal);
+
+    // What quest scripts are built from (#738): a logger factory, loggers and the clock, never a service that writes.
+    private readonly QuestScriptServices _scriptServices = new(services);
 
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
@@ -82,6 +88,9 @@ public sealed class QuestService(
     /// </summary>
     public List<SDialogueOptionInfo> DialogueOptionsFor(IWorldConnection connection, CharacterEntity character, ICreature npc, DialogueNodeView node)
     {
+        // A /reload quests on this tick, before the flush: the options are judged on settled quests (#738).
+        SettleAfterReload(character);
+
         if (NpcInteraction.RootFor(world.Data.Dialogue, npc.Metadata.Id) is not { } root || root.Id.Value != node.Id.Value)
             return [];
 
@@ -204,6 +213,9 @@ public sealed class QuestService(
         QuestResult talk = Conversation(connection, character, npcGuid, out ICreature? npc);
         if (talk != QuestResult.Ok)
             return talk;
+
+        // A /reload quests on this tick, before the flush: the turn-in is judged on settled quests (#738).
+        SettleAfterReload(character);
 
         if (character.Quests.Get(questId) is not { } active || !Catalog.TryGet(questId, out QuestView? quest))
             return QuestResult.NotActive;
@@ -390,21 +402,93 @@ public sealed class QuestService(
     }
 
     /// <summary>
-    /// The select-time recount (#433): RecountCollect over the log just loaded, then what it owes the client is
-    /// dropped (the save marks stay). The whole log the client gets on entering the world already shows every count
-    /// and state the recount set, so its milestone lines and updates would only repeat it as fresh progress.
+    /// The select-time recount (#433): every held quest settled against the current catalog (SettleHeld, which
+    /// recounts the Collect objectives), then what it owes the client is dropped (the save marks stay). The whole log
+    /// the client gets on entering the world already shows every count and state the recount set, so its milestone
+    /// lines and updates would only repeat it as fresh progress. It records the catalog it settled against, so the
+    /// flush settles again only once a /reload quests lands (#738).
     /// </summary>
     public void RecountAtSelect(CharacterEntity character)
     {
         try
         {
-            RecountCollect(character);
+            QuestCatalog catalog = Catalog;
+            character.Quests.SettledCatalog = catalog;
+            SettleHeld(character, catalog);
         }
         finally
         {
             character.Quests.ClearClientChanges();
         }
     }
+
+    /// <summary>
+    /// After a /reload quests (#738), once, on the first flush that sees the new catalog: every held quest is settled
+    /// against it (SettleHeld), so a reload that lowered a count or removed an objective completes the stage, or makes
+    /// the quest ready, at once, with the usual lines and updates. A session that has not settled yet (no select
+    /// recount) only records the catalog. The catalog is recorded first, so a settle that throws is not retried every
+    /// tick.
+    /// </summary>
+    public void SettleAfterReload(CharacterEntity character)
+    {
+        QuestCatalog catalog = Catalog;
+        QuestLog log = character.Quests;
+        if (ReferenceEquals(log.SettledCatalog, catalog))
+            return;
+
+        bool settledBefore = log.SettledCatalog is not null;
+        log.SettledCatalog = catalog;
+        if (settledBefore)
+            SettleHeld(character, catalog);
+    }
+
+    /// <summary>
+    /// Every held quest the catalog has, against it: each count above its objective's count is capped to it (a reload
+    /// lowered it), the current stage's Collect objectives are recounted from the Bag, a ready quest whose stage is no
+    /// longer the last or whose last stage's Collect items are now short in the Bag goes back to Active, and the stages
+    /// settle. A quest the catalog lacks is left as it is; one whose current stage the reload removed cannot be
+    /// settled, and is left as it is and logged at Warning, at most once per quest per 10 s.
+    /// </summary>
+    private void SettleHeld(CharacterEntity character, QuestCatalog catalog)
+    {
+        // A copy: a stage-start hook must not see a moving collection.
+        foreach (ActiveQuest active in character.Quests.Active.ToList())
+        {
+            if (!catalog.TryGet(active.QuestId, out QuestView? quest))
+                continue;
+
+            if (CurrentStage(quest, active) is null)
+            {
+                if (!Throttled(_removedStages, quest.Id, out int suppressed))
+                    logger.LogWarning("Character {CharacterId} holds quest {QuestId} at stage {Stage}, which the reloaded catalog does not " +
+                                      "have; it is left as it is until abandoned. {Suppressed} earlier warnings for this quest were not logged",
+                        character.Guid.Id, quest.Id, active.Stage, suppressed);
+                continue;
+            }
+
+            foreach (QuestObjectiveView objective in quest.Objectives)
+            {
+                if (active.ProgressOf(objective.Id) > objective.Count)
+                    character.Quests.SetProgress(active, objective.Id, objective.Count);
+            }
+
+            Recount(character, quest, active);
+
+            if (active.State == CharacterQuestState.ReadyToTurnIn && character.Quests.Get(quest.Id) == active && !StillReady(character, quest, active))
+            {
+                character.Quests.SetState(active, CharacterQuestState.Active);
+                character.Quests.Say($"{Title(character, quest)}: no longer ready to turn in.");
+            }
+
+            Settle(character, quest, active);
+        }
+    }
+
+    /// <summary>A ready quest stays ready while it stands at the last stage and the Bag holds every Collect item of it.</summary>
+    private static bool StillReady(CharacterEntity character, QuestView quest, ActiveQuest active) =>
+        active.Stage == quest.Stages.Count - 1
+        && quest.LastStage.Objectives.All(o => o.Type != Domain.World.QuestObjectiveType.Collect
+                                               || HeldInBag(character, o.ItemTemplateId!) >= o.Count);
 
     /// <summary>
     /// Whether the character may take a drop of this item (#433). Anything but a quest item, or an item whose
@@ -689,7 +773,7 @@ public sealed class QuestService(
         QuestScript? built = null;
         try
         {
-            built = (QuestScript)ActivatorUtilities.CreateInstance(services, type);
+            built = (QuestScript)ActivatorUtilities.CreateInstance(_scriptServices, type);
         }
         catch (Exception e)
         {

@@ -16,8 +16,9 @@ public class QuestCatalogShould
     private sealed class SampleScript : Avalon.World.Public.Scripts.QuestScript;
 
     private static QuestCatalog Build(IEnumerable<QuestTemplate> quests, List<ItemTemplate>? items = null,
-        Func<string, Type?>? scripts = null) =>
-        new(quests.ToList(), QuestTestData.Creatures(), items ?? Items(), scripts ?? FindScript, NullLoggerFactory.Instance);
+        Func<string, Type?>? scripts = null, List<DialogueNode>? nodes = null) =>
+        new(quests.ToList(), QuestTestData.Creatures(), items ?? Items(), nodes ?? Roots(Giver, Ender, TalkTarget),
+            scripts ?? FindScript, NullLoggerFactory.Instance);
 
     private static void AssertRefused(QuestCatalog catalog, uint id, string reasonFragment)
     {
@@ -74,6 +75,64 @@ public class QuestCatalogShould
 
         AssertRefused(catalog, 1, "objective 11 is Scripted but the quest has no script");
         Assert.True(catalog.TryGet(2, out _));
+    }
+
+    /// <summary>
+    /// #737: an NPC with no dialogue root cannot be talked to (InteractHandler drops the interact), so a quest it gives,
+    /// takes back or must be spoken to for could never be accepted, handed in or finished.
+    /// </summary>
+    [Fact]
+    public void Refuse_a_giver_with_no_dialogue_root() =>
+        AssertRefused(Build([Quest(1).WithStage(0, Kill(11, Boar, 1))], nodes: Roots(Ender, TalkTarget)), 1,
+            $"giver creature template {Giver} has no dialogue root");
+
+    [Fact]
+    public void Refuse_an_ender_with_no_dialogue_root() =>
+        AssertRefused(Build([Quest(1, ender: Ender).WithStage(0, Kill(11, Boar, 1))], nodes: Roots(Giver, TalkTarget)), 1,
+            $"ender creature template {Ender} has no dialogue root");
+
+    [Fact]
+    public void Refuse_a_talk_target_with_no_dialogue_root() =>
+        AssertRefused(Build([Quest(1).WithStage(0, Talk(11, TalkTarget))], nodes: Roots(Giver, Ender)), 1,
+            $"objective 11 talks to creature template {TalkTarget}, which has no dialogue root");
+
+    /// <summary>A node that is not a root does not count: the interact opens only at a root.</summary>
+    [Fact]
+    public void Count_only_a_root_node_as_a_dialogue_root()
+    {
+        List<DialogueNode> nodes = Roots(Giver, Ender);
+        nodes.Add(new DialogueNode { Id = 9903, CreatureTemplateId = TalkTarget, IsRoot = false, TextId = BodyText });
+
+        AssertRefused(Build([Quest(1).WithStage(0, Talk(11, TalkTarget))], nodes: nodes), 1, "no dialogue root");
+    }
+
+    /// <summary>A kill target needs no dialogue: monsters are never talked to.</summary>
+    [Fact]
+    public void Load_a_quest_whose_kill_target_has_no_dialogue_root()
+    {
+        QuestCatalog catalog = Build([Quest(1).WithStage(0, Kill(11, Boar, 1))]);
+
+        Assert.True(catalog.TryGet(1, out _));
+    }
+
+    /// <summary>#737: what a /reload dialogue checks against the loaded quests; it refuses nothing.</summary>
+    [Fact]
+    public void Name_every_loaded_quest_whose_npc_has_no_root_in_a_dialogue_catalog()
+    {
+        QuestCatalog catalog = Build(Chain());
+        var dialogue = new Avalon.World.Dialogue.DialogueCatalog(Roots(Giver), [], NullLoggerFactory.Instance);
+
+        IReadOnlyList<string> problems = catalog.NpcsWithoutDialogue(dialogue);
+
+        // One line per quest, listing all of its problems (fix round 1).
+        Assert.Equal(
+        [
+            $"quest {Tusks}: ender creature template {Ender} has no dialogue root",
+            $"quest {Howl}: giver creature template {Ender} has no dialogue root; ender creature template {Ender} has no " +
+            $"dialogue root; objective {HowlTalk} talks to creature template {TalkTarget}, which has no dialogue root",
+        ], problems);
+        Assert.Empty(catalog.NpcsWithoutDialogue(new Avalon.World.Dialogue.DialogueCatalog(Roots(Giver, Ender, TalkTarget), [],
+            NullLoggerFactory.Instance)));
     }
 
     [Fact] public void Refuse_quest_id_zero() => AssertRefused(Build([Quest(0).WithStage(0, Kill(11, Boar, 1))]), 0, "id");

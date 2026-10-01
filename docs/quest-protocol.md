@@ -184,6 +184,12 @@ ignores a `Removed` for a quest it never had. A quest accepted and turned in in 
 same tick arrives as `Accepted` only, for a quest the client still holds: a client replaces that entry with the
 one the update carries (the new accept's stage and counts).
 
+**After a reload of the quest data.** When the server's quest data is reloaded with a lower count or an objective
+removed, every held quest is settled once at the end of the next tick: a count above its new target comes down to it,
+a stage now complete starts the next or makes the quest ready to turn in, and a quest that was ready goes back to `Active` when it no longer stands at the last stage or the bag no longer holds enough of its items. Each such quest arrives as an ordinary
+`Progress` update, with the usual system lines. A reload that lands while the player is offline is already reflected
+in the log at login.
+
 **Order within a tick.** For one connection, the end of the tick sends, in this order: the quest updates, the
 quest system lines (section 9), the markers (section 7), and only then `SMSG_INVENTORY_UPDATE`. So a turn-in's
 `Completed` arrives **before** the inventory update carrying the reward items and gold (and the quest items
