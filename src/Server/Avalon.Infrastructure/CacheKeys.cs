@@ -57,6 +57,18 @@ public static class CacheKeys
     /// </summary>
     public static string WorldSelectChannel(ushort worldId) => $"world:{worldId}:select";
 
+    /// <summary>
+    /// Published by the API after a template save to ask a world to reload part of its static data.
+    /// Message: a <see cref="ReloadRequestMessage"/> as camelCase JSON.
+    /// </summary>
+    public static string WorldReloadChannel(ushort worldId) => $"world:{worldId}:reload";
+
+    /// <summary>
+    /// Published by a world when it has answered a reload request on <see cref="WorldReloadChannel"/>.
+    /// Message: a <see cref="ReloadResultMessage"/> as camelCase JSON, carrying the request's id.
+    /// </summary>
+    public static string WorldReloadResultChannel(ushort worldId) => $"world:{worldId}:reload:result";
+
     // ── String Keys ───────────────────────────────────────────────────────────
 
     /// <summary>

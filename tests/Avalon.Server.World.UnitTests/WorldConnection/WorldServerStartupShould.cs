@@ -37,6 +37,8 @@ public class WorldServerStartupShould
     {
         _world.LoadAsync(Arg.Any<CancellationToken>()).Returns(_load.Task);
         _world.Configuration.Returns(new GameConfiguration());
+        // The server subscribes to its own world's reload channel, so it needs to know its id.
+        _world.Id.Returns(new Avalon.Domain.Auth.WorldId(1));
     }
 
     [Fact]

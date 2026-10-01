@@ -39,8 +39,8 @@ public static class TemplateEditingRegistration
     {
         services.AddScoped<TemplateEditService>();
         services.AddScoped<TemplateEditGuard>();
-        // Replaced by the Redis-backed signal; until then a save reports "pending".
-        services.TryAddSingleton<ITemplateReloadSignal, NoopTemplateReloadSignal>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<ITemplateReloadSignal, RedisTemplateReloadSignal>();
         return services;
     }
 }
