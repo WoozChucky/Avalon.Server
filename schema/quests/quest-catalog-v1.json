@@ -223,9 +223,9 @@
           "objectives": [
             {
               "id": 801,
-              "type": 1,
-              "targetId": 8,
-              "count": 2
+              "type": 3,
+              "targetId": 12,
+              "count": 1
             }
           ]
         },
@@ -234,15 +234,10 @@
           "objectives": [
             {
               "id": 802,
-              "type": 3,
-              "targetId": 12,
-              "count": 1
-            }
-          ]
-        },
-        {
-          "sequence": 2,
-          "objectives": [
+              "type": 1,
+              "targetId": 8,
+              "count": 2
+            },
             {
               "id": 803,
               "type": 2,

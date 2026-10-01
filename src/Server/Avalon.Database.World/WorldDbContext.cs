@@ -727,8 +727,7 @@ public class WorldDbContext : DbContext
             new QuestStage { QuestId = 6, Sequence = 0 },
             new QuestStage { QuestId = 7, Sequence = 0 },
             new QuestStage { QuestId = 8, Sequence = 0, DescriptionTextId = 65 },
-            new QuestStage { QuestId = 8, Sequence = 1, DescriptionTextId = 66 },
-            new QuestStage { QuestId = 8, Sequence = 2, DescriptionTextId = 67 });
+            new QuestStage { QuestId = 8, Sequence = 1, DescriptionTextId = 66 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestObjective> builder)
@@ -783,9 +782,11 @@ public class WorldDbContext : DbContext
             new QuestObjective { Id = 601, QuestId = 6, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 7, Count = 8, DescriptionTextId = 37 },
             new QuestObjective { Id = 602, QuestId = 6, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 61, Count = 3, DescriptionTextId = 54 },
             new QuestObjective { Id = 701, QuestId = 7, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 62, Count = 1, DescriptionTextId = 58 },
-            new QuestObjective { Id = 801, QuestId = 8, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 8, Count = 2, DescriptionTextId = 62 },
-            new QuestObjective { Id = 802, QuestId = 8, StageSequence = 1, Type = QuestObjectiveType.Talk, CreatureTemplateId = 12, Count = 1, DescriptionTextId = 63 },
-            new QuestObjective { Id = 803, QuestId = 8, StageSequence = 2, Type = QuestObjectiveType.Collect, ItemTemplateId = 63, Count = 1, DescriptionTextId = 64 });
+            // Quest 8 (owner decision): Garrick first, then the Alphas and the Bramble Heart in one stage, so clearing
+            // the arena counts at once.
+            new QuestObjective { Id = 801, QuestId = 8, StageSequence = 0, Type = QuestObjectiveType.Talk, CreatureTemplateId = 12, Count = 1, DescriptionTextId = 62 },
+            new QuestObjective { Id = 802, QuestId = 8, StageSequence = 1, Type = QuestObjectiveType.Kill, CreatureTemplateId = 8, Count = 2, DescriptionTextId = 63 },
+            new QuestObjective { Id = 803, QuestId = 8, StageSequence = 1, Type = QuestObjectiveType.Collect, ItemTemplateId = 63, Count = 1, DescriptionTextId = 64 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemReward> builder)
@@ -2159,7 +2160,8 @@ public class WorldDbContext : DbContext
 
     /// <summary>
     /// Quests 4-8 (forest content pass): titles, descriptions, completion lines, objectives and quest 8's stages.
-    /// Quest 6's kill objective reuses text 37 ("Husks of the Wold destroyed").
+    /// Quest 6's kill objective reuses text 37 ("Husks of the Wold destroyed"). Quest 8 asks Garrick first (stage 0), then
+    /// the Alphas and the Bramble Heart together (stage 1).
     /// </summary>
     private static void SeedForestChainTexts(EntityTypeBuilder<LocalizedText> builder)
     {
@@ -2181,14 +2183,13 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 57, Text = "Now that is heartwood. Hold out your hand; this one was made to fit it." },
             new LocalizedText { Id = 58, Text = "Tuskroot Heartwood taken" },
             new LocalizedText { Id = 59, Text = "Mother of Thorns" },
-            new LocalizedText { Id = 60, Text = "The Alphas answer to something deeper in the wold, {name}. Bring down two of them, then speak with Garrick: he has forged against thorns before. Then go to the heart of the forest and end the Mother of Thorns." },
+            new LocalizedText { Id = 60, Text = "The Bramblemaw Alphas answer to something deeper in the wold, {name}. Speak with Garrick first: he has forged against thorns before. Then go to the heart of the forest, bring down two of the Alphas and end Mother Bramble, the Mother of Thorns." },
             new LocalizedText { Id = 61, Text = "The wold is breathing again. It will remember what you did, and so will we. Wear this, {class}." },
-            new LocalizedText { Id = 62, Text = "Bramblemaw Alphas slain" },
-            new LocalizedText { Id = 63, Text = "Speak with Garrick Emberforge" },
+            new LocalizedText { Id = 62, Text = "Speak with Garrick Emberforge" },
+            new LocalizedText { Id = 63, Text = "Bramblemaw Alphas slain" },
             new LocalizedText { Id = 64, Text = "Bramble Heart taken" },
-            new LocalizedText { Id = 65, Text = "Break the Alphas' hold." },
-            new LocalizedText { Id = 66, Text = "Ask Garrick how to face the thorns." },
-            new LocalizedText { Id = 67, Text = "Cut out the Bramble Heart." });
+            new LocalizedText { Id = 65, Text = "Ask Garrick how to face the thorns." },
+            new LocalizedText { Id = 66, Text = "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart." });
     }
 
     private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
@@ -2294,14 +2295,13 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 57, Locale = AccountLocale.ptPT, Text = "Isso sim, é cerne. Estende a mão; este foi feito à tua medida." },
             new LocalizedTextLocale { TextId = 58, Locale = AccountLocale.ptPT, Text = "Cerne de Tuskroot obtido" },
             new LocalizedTextLocale { TextId = 59, Locale = AccountLocale.ptPT, Text = "Mãe dos Espinhos" },
-            new LocalizedTextLocale { TextId = 60, Locale = AccountLocale.ptPT, Text = "Os Alfas obedecem a algo mais fundo na mata, {name}. Abate dois deles e depois fala com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta e acaba com a Mãe dos Espinhos." },
+            new LocalizedTextLocale { TextId = 60, Locale = AccountLocale.ptPT, Text = "Os Bramblemaw Alphas obedecem a algo mais fundo na mata, {name}. Fala primeiro com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta, abate dois dos Bramblemaw Alphas e acaba com a Mother Bramble, a Mãe dos Espinhos." },
             new LocalizedTextLocale { TextId = 61, Locale = AccountLocale.ptPT, Text = "A mata volta a respirar. Vai lembrar-se do que fizeste, e nós também. Usa isto, {class}." },
-            new LocalizedTextLocale { TextId = 62, Locale = AccountLocale.ptPT, Text = "Bramblemaw Alphas abatidos" },
-            new LocalizedTextLocale { TextId = 63, Locale = AccountLocale.ptPT, Text = "Fala com o Garrick Emberforge" },
+            new LocalizedTextLocale { TextId = 62, Locale = AccountLocale.ptPT, Text = "Fala com o Garrick Emberforge" },
+            new LocalizedTextLocale { TextId = 63, Locale = AccountLocale.ptPT, Text = "Bramblemaw Alphas abatidos" },
             new LocalizedTextLocale { TextId = 64, Locale = AccountLocale.ptPT, Text = "Coração de Bramble obtido" },
-            new LocalizedTextLocale { TextId = 65, Locale = AccountLocale.ptPT, Text = "Quebra o domínio dos Alfas." },
-            new LocalizedTextLocale { TextId = 66, Locale = AccountLocale.ptPT, Text = "Pergunta ao Garrick como enfrentar os espinhos." },
-            new LocalizedTextLocale { TextId = 67, Locale = AccountLocale.ptPT, Text = "Arranca o Coração de Bramble." });
+            new LocalizedTextLocale { TextId = 65, Locale = AccountLocale.ptPT, Text = "Pergunta ao Garrick como enfrentar os espinhos." },
+            new LocalizedTextLocale { TextId = 66, Locale = AccountLocale.ptPT, Text = "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble." });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueNode> builder)

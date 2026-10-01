@@ -1027,8 +1027,8 @@ public class SeedIntegrityShould
             [(401u, 0, QuestObjectiveType.Collect, 59ul, 6u), (501u, 0, QuestObjectiveType.Collect, 60ul, 8u),
              (601u, 0, QuestObjectiveType.Kill, 7ul, 8u), (602u, 0, QuestObjectiveType.Collect, 61ul, 3u),
              (701u, 0, QuestObjectiveType.Collect, 62ul, 1u),
-             (801u, 0, QuestObjectiveType.Kill, 8ul, 2u), (802u, 1, QuestObjectiveType.Talk, 12ul, 1u),
-             (803u, 2, QuestObjectiveType.Collect, 63ul, 1u)],
+             (801u, 0, QuestObjectiveType.Talk, 12ul, 1u), (802u, 1, QuestObjectiveType.Kill, 8ul, 2u),
+             (803u, 1, QuestObjectiveType.Collect, 63ul, 1u)],
             quests.SelectMany(q => q.Objectives).OrderBy(o => o.Id)
                 .Select(o => (o.Id, o.StageSequence, o.Type, o.CreatureTemplateId?.Value ?? o.ItemTemplateId!.Value, o.Count)));
 
@@ -1040,7 +1040,8 @@ public class SeedIntegrityShould
             quests.SelectMany(q => q.ItemRewards).OrderBy(r => r.QuestId.Value)
                 .Select(r => (r.QuestId.Value, r.ItemTemplateId.Value, r.Count)));
 
-        Assert.Equal([0, 1, 2], quests.Single(q => q.Id.Value == 8).Stages.OrderBy(s => s.Sequence).Select(s => s.Sequence));
+        // Owner decision: Garrick first, then the Alphas and the Bramble Heart in one stage, so the arena counts at once.
+        Assert.Equal([0, 1], quests.Single(q => q.Id.Value == 8).Stages.OrderBy(s => s.Sequence).Select(s => s.Sequence));
         Assert.All(quests.Where(q => q.Id.Value != 8), q => Assert.Single(q.Stages));
     }
 

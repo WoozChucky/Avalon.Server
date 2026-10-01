@@ -5290,7 +5290,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 60,
-                            Text = "The Alphas answer to something deeper in the wold, {name}. Bring down two of them, then speak with Garrick: he has forged against thorns before. Then go to the heart of the forest and end the Mother of Thorns."
+                            Text = "The Bramblemaw Alphas answer to something deeper in the wold, {name}. Speak with Garrick first: he has forged against thorns before. Then go to the heart of the forest, bring down two of the Alphas and end Mother Bramble, the Mother of Thorns."
                         },
                         new
                         {
@@ -5300,12 +5300,12 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 62,
-                            Text = "Bramblemaw Alphas slain"
+                            Text = "Speak with Garrick Emberforge"
                         },
                         new
                         {
                             Id = 63,
-                            Text = "Speak with Garrick Emberforge"
+                            Text = "Bramblemaw Alphas slain"
                         },
                         new
                         {
@@ -5315,17 +5315,12 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 65,
-                            Text = "Break the Alphas' hold."
-                        },
-                        new
-                        {
-                            Id = 66,
                             Text = "Ask Garrick how to face the thorns."
                         },
                         new
                         {
-                            Id = 67,
-                            Text = "Cut out the Bramble Heart."
+                            Id = 66,
+                            Text = "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart."
                         });
                 });
 
@@ -5704,7 +5699,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 60,
                             Locale = "ptPT",
-                            Text = "Os Alfas obedecem a algo mais fundo na mata, {name}. Abate dois deles e depois fala com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta e acaba com a Mãe dos Espinhos."
+                            Text = "Os Bramblemaw Alphas obedecem a algo mais fundo na mata, {name}. Fala primeiro com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta, abate dois dos Bramblemaw Alphas e acaba com a Mother Bramble, a Mãe dos Espinhos."
                         },
                         new
                         {
@@ -5716,13 +5711,13 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 62,
                             Locale = "ptPT",
-                            Text = "Bramblemaw Alphas abatidos"
+                            Text = "Fala com o Garrick Emberforge"
                         },
                         new
                         {
                             TextId = 63,
                             Locale = "ptPT",
-                            Text = "Fala com o Garrick Emberforge"
+                            Text = "Bramblemaw Alphas abatidos"
                         },
                         new
                         {
@@ -5734,19 +5729,13 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 65,
                             Locale = "ptPT",
-                            Text = "Quebra o domínio dos Alfas."
+                            Text = "Pergunta ao Garrick como enfrentar os espinhos."
                         },
                         new
                         {
                             TextId = 66,
                             Locale = "ptPT",
-                            Text = "Pergunta ao Garrick como enfrentar os espinhos."
-                        },
-                        new
-                        {
-                            TextId = 67,
-                            Locale = "ptPT",
-                            Text = "Arranca o Coração de Bramble."
+                            Text = "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble."
                         });
                 });
 
@@ -7079,22 +7068,22 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 801L,
-                            Count = 2L,
-                            CreatureTemplateId = 8m,
+                            Count = 1L,
+                            CreatureTemplateId = 12m,
                             DescriptionTextId = 62,
                             QuestId = 8L,
                             StageSequence = 0,
-                            Type = 1
+                            Type = 3
                         },
                         new
                         {
                             Id = 802L,
-                            Count = 1L,
-                            CreatureTemplateId = 12m,
+                            Count = 2L,
+                            CreatureTemplateId = 8m,
                             DescriptionTextId = 63,
                             QuestId = 8L,
                             StageSequence = 1,
-                            Type = 3
+                            Type = 1
                         },
                         new
                         {
@@ -7103,7 +7092,7 @@ namespace Avalon.Database.World.Migrations
                             DescriptionTextId = 64,
                             ItemTemplateId = 63m,
                             QuestId = 8L,
-                            StageSequence = 2,
+                            StageSequence = 1,
                             Type = 2
                         });
                 });
@@ -7186,12 +7175,6 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 8L,
                             Sequence = 1,
                             DescriptionTextId = 66
-                        },
-                        new
-                        {
-                            QuestId = 8L,
-                            Sequence = 2,
-                            DescriptionTextId = 67
                         });
                 });
 

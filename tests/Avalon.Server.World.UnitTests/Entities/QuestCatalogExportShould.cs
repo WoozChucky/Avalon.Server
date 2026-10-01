@@ -46,16 +46,16 @@ public class QuestCatalogExportShould
             quests.Select(q => q.GetProperty("title").GetString()));
     }
 
-    /// <summary>Quest 8: a kill stage, a talk to Garrick, then the Bramble Heart.</summary>
+    /// <summary>Quest 8: a talk to Garrick, then the Alphas and the Bramble Heart in one stage.</summary>
     [Fact]
     public void Carry_the_mother_of_thorns_stages_in_order()
     {
         JsonElement mother = SeededQuests().Single(q => q.GetProperty("id").GetInt32() == 8);
 
         List<JsonElement> stages = mother.GetProperty("stages").EnumerateArray().ToList();
-        Assert.Equal([(801, 1, 8L, 2)], Objectives(stages[0]));
-        Assert.Equal([(802, 3, 12L, 1)], Objectives(stages[1]));
-        Assert.Equal([(803, 2, 63L, 1)], Objectives(stages[2]));
+        Assert.Equal(2, stages.Count);
+        Assert.Equal([(801, 3, 12L, 1)], Objectives(stages[0]));
+        Assert.Equal([(802, 1, 8L, 2), (803, 2, 63L, 1)], Objectives(stages[1]));
     }
 
     /// <summary>"The Alpha's Howl": three stages in order, each with its objectives' type, target and count.</summary>

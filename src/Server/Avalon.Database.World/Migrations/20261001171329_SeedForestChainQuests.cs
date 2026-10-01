@@ -34,14 +34,13 @@ namespace Avalon.Database.World.Migrations
                     { "ptPT", 57, "Isso sim, é cerne. Estende a mão; este foi feito à tua medida." },
                     { "ptPT", 58, "Cerne de Tuskroot obtido" },
                     { "ptPT", 59, "Mãe dos Espinhos" },
-                    { "ptPT", 60, "Os Alfas obedecem a algo mais fundo na mata, {name}. Abate dois deles e depois fala com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta e acaba com a Mãe dos Espinhos." },
+                    { "ptPT", 60, "Os Bramblemaw Alphas obedecem a algo mais fundo na mata, {name}. Fala primeiro com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta, abate dois dos Bramblemaw Alphas e acaba com a Mother Bramble, a Mãe dos Espinhos." },
                     { "ptPT", 61, "A mata volta a respirar. Vai lembrar-se do que fizeste, e nós também. Usa isto, {class}." },
-                    { "ptPT", 62, "Bramblemaw Alphas abatidos" },
-                    { "ptPT", 63, "Fala com o Garrick Emberforge" },
+                    { "ptPT", 62, "Fala com o Garrick Emberforge" },
+                    { "ptPT", 63, "Bramblemaw Alphas abatidos" },
                     { "ptPT", 64, "Coração de Bramble obtido" },
-                    { "ptPT", 65, "Quebra o domínio dos Alfas." },
-                    { "ptPT", 66, "Pergunta ao Garrick como enfrentar os espinhos." },
-                    { "ptPT", 67, "Arranca o Coração de Bramble." }
+                    { "ptPT", 65, "Pergunta ao Garrick como enfrentar os espinhos." },
+                    { "ptPT", 66, "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble." }
                 });
 
             migrationBuilder.InsertData(
@@ -66,14 +65,13 @@ namespace Avalon.Database.World.Migrations
                     { 57, "Now that is heartwood. Hold out your hand; this one was made to fit it." },
                     { 58, "Tuskroot Heartwood taken" },
                     { 59, "Mother of Thorns" },
-                    { 60, "The Alphas answer to something deeper in the wold, {name}. Bring down two of them, then speak with Garrick: he has forged against thorns before. Then go to the heart of the forest and end the Mother of Thorns." },
+                    { 60, "The Bramblemaw Alphas answer to something deeper in the wold, {name}. Speak with Garrick first: he has forged against thorns before. Then go to the heart of the forest, bring down two of the Alphas and end Mother Bramble, the Mother of Thorns." },
                     { 61, "The wold is breathing again. It will remember what you did, and so will we. Wear this, {class}." },
-                    { 62, "Bramblemaw Alphas slain" },
-                    { 63, "Speak with Garrick Emberforge" },
+                    { 62, "Speak with Garrick Emberforge" },
+                    { 63, "Bramblemaw Alphas slain" },
                     { 64, "Bramble Heart taken" },
-                    { 65, "Break the Alphas' hold." },
-                    { 66, "Ask Garrick how to face the thorns." },
-                    { 67, "Cut out the Bramble Heart." }
+                    { 65, "Ask Garrick how to face the thorns." },
+                    { 66, "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart." }
                 });
 
             migrationBuilder.InsertData(
@@ -186,8 +184,7 @@ namespace Avalon.Database.World.Migrations
                 values: new object[,]
                 {
                     { 8L, 0, 65 },
-                    { 8L, 1, 66 },
-                    { 8L, 2, 67 }
+                    { 8L, 1, 66 }
                 });
 
             migrationBuilder.InsertData(
@@ -200,9 +197,9 @@ namespace Avalon.Database.World.Migrations
                 columns: new[] { "Id", "Count", "CreatureTemplateId", "DescriptionTextId", "ItemTemplateId", "QuestId", "StageSequence", "Type" },
                 values: new object[,]
                 {
-                    { 801L, 2L, 8m, 62, null, 8L, 0, 1 },
-                    { 802L, 1L, 12m, 63, null, 8L, 1, 3 },
-                    { 803L, 1L, null, 64, 63m, 8L, 2, 2 }
+                    { 801L, 1L, 12m, 62, null, 8L, 0, 3 },
+                    { 802L, 2L, 8m, 63, null, 8L, 1, 1 },
+                    { 803L, 1L, null, 64, 63m, 8L, 1, 2 }
                 });
 
             migrationBuilder.InsertData(
@@ -335,11 +332,6 @@ namespace Avalon.Database.World.Migrations
                 keyValues: new object[] { "ptPT", 66 });
 
             migrationBuilder.DeleteData(
-                table: "LocalizedTextLocales",
-                keyColumns: new[] { "Locale", "TextId" },
-                keyValues: new object[] { "ptPT", 67 });
-
-            migrationBuilder.DeleteData(
                 table: "LocalizedTexts",
                 keyColumn: "Id",
                 keyValue: 43);
@@ -460,11 +452,6 @@ namespace Avalon.Database.World.Migrations
                 keyValue: 66);
 
             migrationBuilder.DeleteData(
-                table: "LocalizedTexts",
-                keyColumn: "Id",
-                keyValue: 67);
-
-            migrationBuilder.DeleteData(
                 table: "QuestItemDrops",
                 keyColumns: new[] { "CreatureTemplateId", "ObjectiveId" },
                 keyValues: new object[] { 6m, 401L });
@@ -557,11 +544,6 @@ namespace Avalon.Database.World.Migrations
             migrationBuilder.DeleteData(
                 table: "QuestStages",
                 keyColumns: new[] { "QuestId", "Sequence" },
-                keyValues: new object[] { 8L, 1 });
-
-            migrationBuilder.DeleteData(
-                table: "QuestStages",
-                keyColumns: new[] { "QuestId", "Sequence" },
                 keyValues: new object[] { 4L, 0 });
 
             migrationBuilder.DeleteData(
@@ -582,7 +564,7 @@ namespace Avalon.Database.World.Migrations
             migrationBuilder.DeleteData(
                 table: "QuestStages",
                 keyColumns: new[] { "QuestId", "Sequence" },
-                keyValues: new object[] { 8L, 2 });
+                keyValues: new object[] { 8L, 1 });
 
             migrationBuilder.DeleteData(
                 table: "QuestTemplates",
