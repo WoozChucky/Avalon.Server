@@ -22,6 +22,7 @@ public sealed record CharacterQuestWrite(
 /// was not Unchanged. Items and slots to upsert carry their current values; the rest are deleted.
 /// <paramref name="Stats" />, when present, is the character's derived-stats row, upserted.
 /// <paramref name="Quests" />, when present, is the quest rows to rewrite (#433).
+/// <paramref name="Ignores" />, when present, is the ignore entries to rewrite (#723).
 /// </summary>
 public sealed record CharacterSaveBatch(
     Domain.Characters.Character Row,
@@ -30,7 +31,8 @@ public sealed record CharacterSaveBatch(
     IReadOnlyList<CharacterInventory> UpsertSlots,
     IReadOnlyList<(InventoryType Container, ushort Slot)> DeleteSlots,
     CharacterStats? Stats = null,
-    CharacterQuestWrite? Quests = null);
+    CharacterQuestWrite? Quests = null,
+    CharacterIgnoreWrite? Ignores = null);
 
 public interface ICharacterSaveRepository
 {
@@ -87,6 +89,9 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
                             .ExecuteDeleteAsync(token);
                     }
                 }
+
+                if (batch.Ignores is { } ignores)
+                    await DeleteIgnoresAsync(context, owner, ignores, token);
             }
 
             // After the slots, which reference items by foreign key.
@@ -172,9 +177,41 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
                             context.TrackForInsert(completed);
                     }
                 }
+
+                if (batch.Ignores is { } ignoreWrite)
+                    await InsertIgnoresAsync(context, ignoreWrite, token);
             }
 
             // One SaveChanges: EF orders the item inserts ahead of the slot inserts that reference them.
             await context.SaveChangesAsync(token);
         }, cancellationToken);
+
+    private static async Task DeleteIgnoresAsync(CharacterDbContext context, CharacterId owner, CharacterIgnoreWrite ignores,
+        CancellationToken token)
+    {
+        if (ignores.Rewrite.Count == 0)
+            return;
+
+        List<CharacterId> rewrite = ignores.Rewrite.ToList();
+        await context.CharacterIgnores
+            .Where(i => i.CharacterId == owner && rewrite.Contains(i.IgnoredCharacterId))
+            .ExecuteDeleteAsync(token);
+    }
+
+    private static async Task InsertIgnoresAsync(CharacterDbContext context, CharacterIgnoreWrite ignores,
+        CancellationToken token)
+    {
+        if (ignores.Insert.Count == 0)
+            return;
+
+        // A character deleted since it was ignored has no row to point at: its entry is left out.
+        List<CharacterId> ids = ignores.Insert.Select(i => i.IgnoredCharacterId).ToList();
+        HashSet<CharacterId> existing = (await context.Characters
+                .Where(c => ids.Contains(c.Id))
+                .Select(c => c.Id)
+                .ToListAsync(token))
+            .ToHashSet();
+        foreach (CharacterIgnore ignore in ignores.Insert.Where(i => existing.Contains(i.IgnoredCharacterId)))
+            context.TrackForInsert(ignore);
+    }
 }

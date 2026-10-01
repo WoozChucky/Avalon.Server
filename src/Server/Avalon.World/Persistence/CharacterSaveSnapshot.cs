@@ -113,7 +113,33 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
         }
 
         return new CharacterSaveSnapshot(
-            new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats, quests),
+            new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats, quests,
+                IgnoresOf(character, row.Id, marks)),
             marks);
+    }
+
+    /// <summary>
+    /// #723: every marked ignore entry is rewritten from memory: deleted, and inserted again while still on the list.
+    /// </summary>
+    private static CharacterIgnoreWrite? IgnoresOf(CharacterEntity character, CharacterId owner, SaveMarks marks)
+    {
+        if (marks.Ignores is not { Count: > 0 } ignoreMarks)
+            return null;
+
+        List<CharacterId> rewrite = [];
+        List<CharacterIgnore> insert = [];
+        foreach (uint ignoredId in ignoreMarks.Keys.Order())
+        {
+            rewrite.Add(ignoredId);
+            if (character.Ignores.Entries.FirstOrDefault(e => e.Id == ignoredId) is { } entry)
+            {
+                insert.Add(new CharacterIgnore
+                {
+                    CharacterId = owner, IgnoredCharacterId = ignoredId, CreatedAt = entry.CreatedAt,
+                });
+            }
+        }
+
+        return new CharacterIgnoreWrite(rewrite, insert);
     }
 }

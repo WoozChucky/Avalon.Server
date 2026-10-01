@@ -28,7 +28,8 @@ public sealed record SaveMarks(
     long? MoneyVersion,
     long? StatsVersion = null,
     long? PvpVersion = null,
-    IReadOnlyDictionary<uint, SaveMark>? Quests = null);
+    IReadOnlyDictionary<uint, SaveMark>? Quests = null,
+    IReadOnlyDictionary<uint, SaveMark>? Ignores = null);
 
 /// <summary>
 /// The per-character save state of every item instance and inventory slot, and money's dirty flag.
@@ -39,6 +40,7 @@ public sealed class SaveStateTracker
     private readonly Dictionary<ItemInstanceId, SaveMark> _items = [];
     private readonly Dictionary<(InventoryType Container, ushort Slot), SaveMark> _slots = [];
     private readonly Dictionary<uint, SaveMark> _quests = [];
+    private readonly Dictionary<uint, SaveMark> _ignores = [];
     private long _version;
     private long _moneyVersion;
     private long _statsVersion;
@@ -52,7 +54,8 @@ public sealed class SaveStateTracker
     /// <summary>The PvP flag or its timer changed (#164). The row is written whole by every save; this keeps HasChanges honest.</summary>
     public bool PvpDirty { get; private set; }
 
-    public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || MoneyDirty || StatsDirty || PvpDirty || _quests.Count > 0;
+    public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || MoneyDirty || StatsDirty || PvpDirty || _quests.Count > 0
+        || _ignores.Count > 0;
 
     public SaveState ItemState(ItemInstanceId id) =>
         _items.TryGetValue(id, out SaveMark mark) ? mark.State : SaveState.Unchanged;
@@ -115,6 +118,12 @@ public sealed class SaveStateTracker
     /// <summary>A quest's row changed, was added, removed or completed (#433): the next save rewrites that quest.</summary>
     public void QuestChanged(uint questId) => _quests[questId] = new SaveMark(SaveState.Changed, ++_version);
 
+    /// <summary>
+    /// The ignore entry naming this character was added or removed (#723): the next save rewrites it from memory.
+    /// </summary>
+    public void IgnoreChanged(uint ignoredCharacterId) =>
+        _ignores[ignoredCharacterId] = new SaveMark(SaveState.Changed, ++_version);
+
     /// <summary>A copy of every non-Unchanged entry. Later changes do not reach it.</summary>
     public SaveMarks TakeMarks() => new(
         new Dictionary<ItemInstanceId, SaveMark>(_items),
@@ -122,7 +131,8 @@ public sealed class SaveStateTracker
         MoneyDirty ? _moneyVersion : null,
         StatsDirty ? _statsVersion : null,
         PvpDirty ? _pvpVersion : null,
-        new Dictionary<uint, SaveMark>(_quests));
+        new Dictionary<uint, SaveMark>(_quests),
+        new Dictionary<uint, SaveMark>(_ignores));
 
     /// <summary>
     /// Called on the tick thread once the save that took <paramref name="marks" /> has committed.
@@ -157,6 +167,15 @@ public sealed class SaveStateTracker
             {
                 if (_quests.TryGetValue(id, out SaveMark current) && current.Version == mark.Version)
                     _quests.Remove(id);
+            }
+        }
+
+        if (marks.Ignores is { } ignores)
+        {
+            foreach ((uint id, SaveMark mark) in ignores)
+            {
+                if (_ignores.TryGetValue(id, out SaveMark current) && current.Version == mark.Version)
+                    _ignores.Remove(id);
             }
         }
     }
