@@ -90,6 +90,10 @@ public class ChunkLibrary : IChunkLibrary
         if (cfg.MainPathMin < 2 || cfg.MainPathMax < cfg.MainPathMin || cfg.MainPathMax > 32)
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} path length constraints invalid ({cfg.MainPathMin}..{cfg.MainPathMax})");
+
+        if (DepthBandLevels.Problem(cfg.DepthBands) is { } bandProblem)
+            throw new InvalidProceduralConfigException(
+                $"Map {cfg.MapTemplateId.Value} depth bands are invalid: {bandProblem}");
     }
 
     private static bool HasSlotTag(ChunkTemplate t, string tag) =>

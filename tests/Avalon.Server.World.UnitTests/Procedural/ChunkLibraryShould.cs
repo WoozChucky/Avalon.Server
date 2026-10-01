@@ -179,6 +179,48 @@ public class ChunkLibraryShould
         await Assert.ThrowsAsync<InvalidProceduralConfigException>(() => lib.LoadAsync(CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Throw_when_a_maps_depth_bands_overlap()
+    {
+        var entryChunk = new ChunkTemplate
+        {
+            Id = new ChunkTemplateId(1), Name = "Entry",
+            SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
+            PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
+        };
+        var lib = BuildLibraryWith(
+            templates: new List<ChunkTemplate> { entryChunk },
+            pools: new List<ChunkPool>
+            {
+                new()
+                {
+                    Id = new ChunkPoolId(1),
+                    Memberships = new List<ChunkPoolMembership>
+                    {
+                        new() { ChunkPoolId = new ChunkPoolId(1), ChunkTemplateId = entryChunk.Id, Template = entryChunk }
+                    }
+                }
+            },
+            configs: new List<ProceduralMapConfig>
+            {
+                new()
+                {
+                    MapTemplateId = new MapTemplateId(13),
+                    ChunkPoolId = new ChunkPoolId(1),
+                    SpawnTableId = new SpawnTableId(1),
+                    MainPathMin = 2, MainPathMax = 2,
+                    BackPortalTargetMapId = 1,
+                    DepthBands =
+                    [
+                        new ProceduralDepthBand { MinDepth = 1, MaxDepth = 5, MinLevel = 1, MaxLevel = 3 },
+                        new ProceduralDepthBand { MinDepth = 3, MaxDepth = null, MinLevel = 3, MaxLevel = 6 },
+                    ],
+                }
+            });
+
+        await Assert.ThrowsAsync<InvalidProceduralConfigException>(() => lib.LoadAsync(CancellationToken.None));
+    }
+
     // Helper extracts repeated ServiceCollection + scope-factory wiring.
     private static ChunkLibrary BuildLibraryWith(
         IReadOnlyList<ChunkTemplate> templates,
