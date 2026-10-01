@@ -1,8 +1,10 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Creatures;
 using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -284,11 +286,34 @@ public class ChunkLibraryShould
         await lib.LoadAsync(CancellationToken.None);   // no InvalidProceduralConfigException
     }
 
+    /// <summary>
+    /// A group whose member template is not loaded is left out; without a warning the forest's start then failed with
+    /// "HasBoss but pool has no boss-capable chunk", which points at the wrong cause.
+    /// </summary>
+    [Fact]
+    public async Task Warn_when_a_group_is_left_out_for_a_member_it_cannot_find()
+    {
+        (_, ChunkPool pool, List<ChunkTemplate> templates) = PoolWithBossGroup();
+        templates.RemoveAll(t => t.Name == "b");
+        var logs = new CreatureAbilitiesShould.ListLogger();
+        var factory = Substitute.For<ILoggerFactory>();
+        factory.CreateLogger(Arg.Any<string>()).Returns(logs);
+        var lib = BuildLibraryWith(templates, [pool], configs: [], factory);
+
+        await lib.LoadAsync(CancellationToken.None);
+
+        Assert.Empty(lib.GetGroupsByPool(new ChunkPoolId(1)));
+        (LogLevel level, string message) = Assert.Single(logs.Entries, e => e.Level >= LogLevel.Warning);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains("'arena'", message, StringComparison.Ordinal);
+    }
+
     // Helper extracts repeated ServiceCollection + scope-factory wiring.
     private static ChunkLibrary BuildLibraryWith(
         IReadOnlyList<ChunkTemplate> templates,
         IReadOnlyList<ChunkPool> pools,
-        IReadOnlyList<ProceduralMapConfig> configs)
+        IReadOnlyList<ProceduralMapConfig> configs,
+        ILoggerFactory? loggerFactory = null)
     {
         var templateRepo = Substitute.For<IChunkTemplateRepository>();
         var poolRepo     = Substitute.For<IChunkPoolRepository>();
@@ -303,7 +328,7 @@ public class ChunkLibraryShould
             .AddScoped(_ => configRepo)
             .BuildServiceProvider();
 
-        return new ChunkLibrary(NullLoggerFactory.Instance, new DummyScopeFactory(services));
+        return new ChunkLibrary(loggerFactory ?? NullLoggerFactory.Instance, new DummyScopeFactory(services));
     }
 
     private sealed class DummyScopeFactory : IServiceScopeFactory

@@ -49,12 +49,7 @@ public class ChunkLibrary : IChunkLibrary
                 .Select(m => new ChunkPoolMember(_templates[m.ChunkTemplateId], m.Weight))
                 .ToList());
 
-        _groups = pools.ToDictionary(
-            p => p.Id,
-            p => p.Groups
-                .Select(g => ChunkGroupDefinition.From(g, _templates))
-                .OfType<ChunkGroupDefinition>()
-                .ToList());
+        _groups = pools.ToDictionary(p => p.Id, LoadGroups);
 
         var configs = await configRepo.FindAllAsync(ct);
         foreach (var cfg in configs) ValidatePool(cfg);
@@ -82,6 +77,26 @@ public class ChunkLibrary : IChunkLibrary
             result[id] = t;
         }
         return result;
+    }
+
+    /// <summary>
+    /// The pool's set pieces. One with no members or a member template that is not loaded is left out, with a warning:
+    /// otherwise a missing boss arena surfaces only as "pool has no boss-capable chunk".
+    /// </summary>
+    private List<ChunkGroupDefinition> LoadGroups(ChunkPool pool)
+    {
+        var groups = new List<ChunkGroupDefinition>(pool.Groups.Count);
+        foreach (ChunkGroup group in pool.Groups)
+        {
+            if (ChunkGroupDefinition.From(group, _templates) is { } definition)
+                groups.Add(definition);
+            else
+                _logger.LogWarning(
+                    "Set piece '{Group}' of pool {Pool} is left out: it has no members or names a chunk template that is not loaded",
+                    group.Name, pool.Id.Value);
+        }
+
+        return groups;
     }
 
     private void ValidatePool(ProceduralMapConfig cfg)
