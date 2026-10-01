@@ -49,8 +49,10 @@ public sealed class QuestService(
     // null script could not be built: logged once, and its quest cannot be accepted. Tick thread only.
     private readonly Dictionary<uint, (Type Type, QuestScript? Script)> _scripts = [];
 
-    // When each quest's script last had a throw logged, and how many throws were left out since (10 s apart, per quest).
+    // When each quest's script last had a throw (or a refused Advance) logged, and how many were left out since; 10 s
+    // apart, per quest.
     private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _scriptErrors = [];
+    private readonly Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> _refusedAdvances = [];
 
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
@@ -146,8 +148,20 @@ public sealed class QuestService(
 
         ActiveQuest active = character.Quests.Start(questId, time.GetUtcNow().UtcDateTime);
         character.Quests.Say($"Quest accepted: {Title(character, quest)}.");
-        OnAccepted(character, quest, active);
-        StageStarted(character, quest, active);
+
+        // Stage 0 starts before anything settles: progress the accept hook or the bag gives it waits for the Settle
+        // below, so each stage's hook is heard exactly once, in order, stage 0 first.
+        _settling.Add(active);
+        try
+        {
+            OnAccepted(character, quest, active);
+            StageStarted(character, quest, active);
+        }
+        finally
+        {
+            _settling.Remove(active);
+        }
+
         Settle(character, quest, active);
         AfterConversationChange(connection, character, npc);
         return QuestResult.Ok;
@@ -541,24 +555,36 @@ public sealed class QuestService(
     /// </summary>
     private void StageStarted(CharacterEntity character, QuestView quest, ActiveQuest active)
     {
-        Recount(character, quest, active);
         int stage = active.Stage;
+        Recount(character, quest, active);
         RunHook(character, quest, active, nameof(QuestScript.OnStageStarted), (script, context) => script.OnStageStarted(context, stage));
     }
 
-    private void OnKilled(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature creature) =>
-        RunHook(character, quest, active, nameof(QuestScript.OnCreatureKilled),
-            (script, context) => script.OnCreatureKilled(context, QuestCreatureView.From(creature)));
+    /// <summary>The kill hook, only while the quest is still Active: a kill that made it ready reaches no hook.</summary>
+    private void OnKilled(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature creature)
+    {
+        if (StillActive(character, quest, active))
+            RunHook(character, quest, active, nameof(QuestScript.OnCreatureKilled),
+                (script, context) => script.OnCreatureKilled(context, QuestCreatureView.From(creature)));
+    }
 
-    private void OnInteracted(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature npc) =>
-        RunHook(character, quest, active, nameof(QuestScript.OnInteract),
-            (script, context) => script.OnInteract(context, QuestCreatureView.From(npc)));
+    /// <summary>The interact hook, only while the quest is still Active: a talk that made it ready reaches no hook.</summary>
+    private void OnInteracted(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature npc)
+    {
+        if (StillActive(character, quest, active))
+            RunHook(character, quest, active, nameof(QuestScript.OnInteract),
+                (script, context) => script.OnInteract(context, QuestCreatureView.From(npc)));
+    }
+
+    private static bool StillActive(CharacterEntity character, QuestView quest, ActiveQuest active) =>
+        active.State == CharacterQuestState.Active && character.Quests.Get(quest.Id) == active;
 
     /// <summary>
-    /// OnEnterInstance for every held quest with a script (#433), once per instance: QuestFlusher calls this every
-    /// tick, and it runs only when the character stands in a live instance other than the one it last ran for. A
-    /// character with no live instance (still being selected, or between instances) is skipped and tried again on a
-    /// later tick, so the hook always gets a real instance.
+    /// OnEnterInstance for every held Active quest with a script (#433), on each arrival in an instance other than the
+    /// one it last ran for: QuestFlusher calls this every tick. The memo is never saved, so every login is an arrival.
+    /// A character with no live instance (still being selected, or between instances) is skipped and tried again on
+    /// a later tick, so the hook always gets a real instance. The view is built inside each hook's containment, and
+    /// the memo is written once the hooks ran.
     /// </summary>
     public void EnteredInstanceIfChanged(CharacterEntity character)
     {
@@ -566,39 +592,60 @@ public sealed class QuestService(
             || world.InstanceRegistry.GetInstanceById(character.InstanceId) is not { } instance)
             return;
 
-        character.Quests.ScriptsInstance = character.InstanceId;
         QuestCatalog catalog = Catalog;
         QuestInstanceView? view = null;
         foreach (ActiveQuest active in character.Quests.Active.ToList())
         {
-            if (!catalog.TryGet(active.QuestId, out QuestView? quest) || quest.ScriptType is null)
+            if (!catalog.TryGet(active.QuestId, out QuestView? quest) || quest.ScriptType is null || !StillActive(character, quest, active))
                 continue;
 
-            QuestInstanceView entered = view ??= QuestInstanceView.From(instance);
-            RunHook(character, quest, active, nameof(QuestScript.OnEnterInstance), (script, context) => script.OnEnterInstance(context, entered));
+            RunHook(character, quest, active, nameof(QuestScript.OnEnterInstance),
+                (script, context) => script.OnEnterInstance(context, view ??= QuestInstanceView.From(instance)));
         }
+
+        character.Quests.ScriptsInstance = character.InstanceId;
     }
 
     /// <summary>
     /// IQuestContext.Advance (#433): +<paramref name="amount" />, capped, on one of this quest's Scripted objectives in
-    /// its current stage, while the character still holds this very copy of the quest and it is Active. Anything
-    /// else is refused and logged at Warning.
+    /// its current stage, as the live catalog has it (a context kept across a /reload is judged by the reloaded
+    /// quest), while the character still holds this very copy of the quest and it is Active. Anything else is
+    /// refused and logged at Warning, at most once per quest per 10 s.
     /// </summary>
     internal bool ScriptAdvance(CharacterEntity character, QuestView quest, ActiveQuest active, uint objectiveId, uint amount)
     {
         bool allowed = amount > 0
-                       && character.Quests.Get(quest.Id) == active
-                       && active.State == CharacterQuestState.Active
-                       && CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is
+                       && StillActive(character, quest, active)
+                       && Catalog.TryGet(quest.Id, out QuestView? live)
+                       && CurrentStage(live, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is
                            { Type: Domain.World.QuestObjectiveType.Scripted };
-        if (!allowed)
-        {
+        if (allowed)
+            return AddProgress(character, quest.Id, objectiveId, amount);
+
+        if (!Throttled(_refusedAdvances, quest.Id, out int suppressed))
             logger.LogWarning("Quest {QuestId}'s script tried to advance objective {Objective} by {Amount} for character {CharacterId}; " +
-                              "only its own Scripted objectives in the current stage can be", quest.Id, objectiveId, amount, character.Guid.Id);
-            return false;
+                              "only its own Scripted objectives in the current stage can be. {Suppressed} earlier refusals were not logged",
+                quest.Id, objectiveId, amount, character.Guid.Id, suppressed);
+        return false;
+    }
+
+    /// <summary>
+    /// True when this quest logged within <see cref="ThrottledErrorLog.Interval" /> (and it is counted as left out);
+    /// otherwise false, with the count left out since the last log, and the clock restarted.
+    /// </summary>
+    private bool Throttled(Dictionary<uint, (DateTimeOffset LastLogged, int Suppressed)> logged, uint questId, out int suppressed)
+    {
+        DateTimeOffset now = time.GetUtcNow();
+        if (logged.TryGetValue(questId, out (DateTimeOffset LastLogged, int Suppressed) last) && now - last.LastLogged < ThrottledErrorLog.Interval)
+        {
+            logged[questId] = (last.LastLogged, last.Suppressed + 1);
+            suppressed = 0;
+            return true;
         }
 
-        return AddProgress(character, quest.Id, objectiveId, amount);
+        suppressed = last.Suppressed;
+        logged[questId] = (now, 0);
+        return false;
     }
 
     /// <summary>The quest's script, built on first use; null for a quest with none or one that could not be built.</summary>
@@ -645,18 +692,10 @@ public sealed class QuestService(
         }
         catch (Exception e)
         {
-            DateTimeOffset now = time.GetUtcNow();
-            if (_scriptErrors.TryGetValue(quest.Id, out (DateTimeOffset LastLogged, int Suppressed) last)
-                && now - last.LastLogged < ThrottledErrorLog.Interval)
-            {
-                _scriptErrors[quest.Id] = (last.LastLogged, last.Suppressed + 1);
-                return false;
-            }
-
-            logger.LogError(e, "Quest {QuestId} script {Script} threw in {Hook} for character {CharacterId}; the quest went on. " +
-                               "{Suppressed} earlier throws of this quest's script were not logged",
-                quest.Id, quest.ScriptType?.Name, hook, character.Guid.Id, last.Suppressed);
-            _scriptErrors[quest.Id] = (now, 0);
+            if (!Throttled(_scriptErrors, quest.Id, out int suppressed))
+                logger.LogError(e, "Quest {QuestId} script {Script} threw in {Hook} for character {CharacterId}; the quest went on. " +
+                                   "{Suppressed} earlier throws of this quest's script were not logged",
+                    quest.Id, quest.ScriptType?.Name, hook, character.Guid.Id, suppressed);
             return false;
         }
     }

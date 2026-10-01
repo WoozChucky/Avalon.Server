@@ -6,6 +6,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -24,6 +25,9 @@ public class QuestScriptShould
     private const uint Scripted = 7601, ScriptedStep = 76011, ScriptedKill = 76012, ScriptedWolf = 76013;
     private const uint Other = 7602, OtherKill = 76021;
     private const uint Gather = 7603, GatherTusk = 76031, GatherStep = 76032;
+    private const uint Prompt = 7604, PromptStep = 76041, PromptWolf = 76042;
+    private const uint Single = 7605, SingleWolf = 76051;
+    private const uint Chat = 7606, ChatTalk = 76061;
 
     private static List<QuestTemplate> Quests() =>
     [
@@ -34,15 +38,21 @@ public class QuestScriptShould
         Quest(Gather, script: nameof(SampleQuestScript))
             .WithStage(0, Collect(GatherTusk, Tusk, 1))
             .WithStage(1, QuestTestData.Scripted(GatherStep, 1)),
+        Quest(Prompt, script: nameof(SampleQuestScript))
+            .WithStage(0, QuestTestData.Scripted(PromptStep, 1))
+            .WithStage(1, Kill(PromptWolf, Wolf, 1)),
+        Quest(Single, script: nameof(SampleQuestScript)).WithStage(0, Kill(SingleWolf, Wolf, 1)),
+        Quest(Chat, script: nameof(SampleQuestScript)).WithStage(0, Talk(ChatTalk, TalkTarget)),
     ];
 
-    private static async Task<(QuestTestWorld W, QuestScriptRecorder R, QuestClient C)> WorldAsync(TestLog? log = null)
+    private static async Task<(QuestTestWorld W, QuestScriptRecorder R, QuestClient C)> WorldAsync(TestLog? log = null,
+        List<QuestTemplate>? quests = null)
     {
         var recorder = new QuestScriptRecorder();
         IServiceProvider services = new ServiceCollection().AddSingleton(recorder).BuildServiceProvider();
         var scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
-        QuestTestWorld w = await QuestTestWorld.CreateAsync(Quests(), scripts: scripts, services: services, log: log);
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(quests ?? Quests(), scripts: scripts, services: services, log: log);
         return (w, recorder, w.Join());
     }
 
@@ -272,13 +282,15 @@ public class QuestScriptShould
 
     /// <summary>
     /// The select-time recount runs before the character stands in any instance: a stage it settles still starts its
-    /// script (that hook needs no instance, and can advance), and OnEnterInstance waits until the character is in one.
+    /// script (that hook needs no instance, and can advance), and OnEnterInstance waits until the character is in one,
+    /// and then reaches only the quests still Active.
     /// </summary>
     [Fact]
     public async Task Start_a_stage_at_select_before_any_instance_and_enter_the_instance_later()
     {
         (QuestTestWorld w, QuestScriptRecorder r, QuestClient c) = await WorldAsync();
         c.Character.Quests.Start(Gather, DateTime.UnixEpoch);   // loaded from the log, as at select
+        c.Character.Quests.Start(Scripted, DateTime.UnixEpoch);
         c.Character.InstanceId = Guid.NewGuid();                // no live instance has this id
         Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(c.Character).TryAdd(new ItemTemplateId(Tusk), 1));
         r.OnStage = (context, stage) =>
@@ -294,9 +306,114 @@ public class QuestScriptShould
         Assert.Equal([true], r.AdvanceResults);
         Assert.Equal(CharacterQuestState.ReadyToTurnIn, c.Character.Quests.Get(Gather)!.State);
 
+        // Gather is ready now, so only the still Active quest hears of the instance.
         c.Character.InstanceId = w.Instance.InstanceId;
         QuestFlusher.Flush(c.Connection, w.Quests);
         Assert.Equal(["OnStageStarted:1", "OnEnterInstance"], r.Calls);
+        Assert.Equal((Scripted, "OnEnterInstance"), r.Seen[^1]);
+    }
+
+    /// <summary>Stage 0's items are already in the bag: stage 0 starts, then stage 1, each heard exactly once.</summary>
+    [Fact]
+    public async Task Start_each_stage_once_in_order_when_the_bag_completes_stage_0_at_accept()
+    {
+        (QuestTestWorld w, QuestScriptRecorder r, QuestClient c) = await WorldAsync();
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(c.Character).TryAdd(new ItemTemplateId(Tusk), 1));
+
+        w.Accept(c, Gather);
+
+        Assert.Equal(["OnAccepted", "OnStageStarted:0", "OnStageStarted:1"], r.Calls.Where(n => n != "CanAccept"));
+        Assert.Equal(1, c.Character.Quests.Get(Gather)!.Stage);
+    }
+
+    /// <summary>The accept hook completes stage 0 itself: stage 0 still starts first, then stage 1, each once.</summary>
+    [Fact]
+    public async Task Start_each_stage_once_in_order_when_the_accept_hook_completes_stage_0()
+    {
+        (QuestTestWorld w, QuestScriptRecorder r, QuestClient c) = await WorldAsync();
+        r.OnAccept = context => r.AdvanceResults.Add(context.Advance(PromptStep, 1));
+
+        w.Accept(c, Prompt);
+
+        Assert.Equal([true], r.AdvanceResults);
+        Assert.Equal(["OnAccepted", "OnStageStarted:0", "OnStageStarted:1"], r.Calls.Where(n => n != "CanAccept"));
+        Assert.Equal(1, c.Character.Quests.Get(Prompt)!.Stage);
+    }
+
+    /// <summary>A context kept across a /reload that made its objective a Kill objective cannot advance it.</summary>
+    [Fact]
+    public async Task Judge_an_advance_by_the_live_catalog_after_a_reload()
+    {
+        List<QuestTemplate> quests = Quests();
+        (QuestTestWorld w, QuestScriptRecorder r, QuestClient c) = await WorldAsync(quests: quests);
+        w.Accept(c, Scripted);
+        IQuestContext context = ContextOf(r);
+
+        QuestObjective step = quests.Single(q => q.Id.Value == Scripted).Objectives.Single(o => o.Id == ScriptedStep);
+        step.Type = QuestObjectiveType.Kill;
+        step.CreatureTemplateId = Wolf;
+        w.Data.Apply(await w.Data.PrepareAsync(ReloadArea.Quests));
+
+        Assert.False(context.Advance(ScriptedStep, 1));
+        Assert.Equal(0u, c.Character.Quests.Get(Scripted)!.ProgressOf(ScriptedStep));
+    }
+
+    [Fact]
+    public async Task Log_a_refused_advance_once_per_ten_seconds()
+    {
+        var log = new TestLog();
+        (QuestTestWorld w, QuestScriptRecorder r, QuestClient c) = await WorldAsync(log);
+        w.Accept(c, Scripted);
+        IQuestContext context = ContextOf(r);
+
+        context.Advance(ScriptedKill, 1);
+        context.Advance(ScriptedKill, 1);
+        Assert.Single(log.Entries, e => e.Level == LogLevel.Warning);
+
+        w.Clock.Advance(TimeSpan.FromSeconds(10));
+        context.Advance(ScriptedKill, 1);
+        Assert.Equal(2, log.Entries.Count(e => e.Level == LogLevel.Warning));
+    }
+
+    /// <summary>Hooks run only while the quest is Active: the kill that makes it ready to turn in reaches no hook.</summary>
+    [Fact]
+    public async Task Not_call_the_kill_hook_once_the_kill_made_the_quest_ready()
+    {
+        (QuestTestWorld w, QuestScriptRecorder r, QuestClient c) = await WorldAsync();
+        w.Accept(c, Single);
+        r.Seen.Clear();
+
+        w.Quests.CreatureKilled(w.Place(Wolf), [c.Character]);
+
+        Assert.Equal(CharacterQuestState.ReadyToTurnIn, c.Character.Quests.Get(Single)!.State);
+        Assert.Empty(r.Seen);
+    }
+
+    [Fact]
+    public async Task Not_call_the_interact_hook_once_the_talk_made_the_quest_ready()
+    {
+        (QuestTestWorld w, QuestScriptRecorder r, QuestClient c) = await WorldAsync();
+        w.Accept(c, Chat);
+        r.Seen.Clear();
+
+        w.Quests.Interacted(c.Character, w.Place(TalkTarget));
+
+        Assert.Equal(CharacterQuestState.ReadyToTurnIn, c.Character.Quests.Get(Chat)!.State);
+        Assert.Empty(r.Seen);
+    }
+
+    /// <summary>A hook that throws still counts the instance as entered: the memo is written once the hooks ran.</summary>
+    [Fact]
+    public async Task Run_the_enter_instance_hook_once_even_when_it_throws()
+    {
+        (QuestTestWorld w, QuestScriptRecorder r, QuestClient c) = await WorldAsync();
+        w.Accept(c, Scripted);
+        r.ThrowIn = "OnEnterInstance";
+
+        QuestFlusher.Flush(c.Connection, w.Quests);
+        QuestFlusher.Flush(c.Connection, w.Quests);
+
+        Assert.Single(r.Calls, n => n == "OnEnterInstance");
     }
 
     private static IQuestContext ContextOf(QuestScriptRecorder r) =>

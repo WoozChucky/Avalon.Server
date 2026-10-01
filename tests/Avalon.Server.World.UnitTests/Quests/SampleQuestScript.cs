@@ -23,6 +23,9 @@ public sealed class QuestScriptRecorder
 
     /// <summary>Runs inside OnStageStarted, after it is recorded: a test drives progress from inside a stage start.</summary>
     public Action<IQuestContext, int>? OnStage { get; set; }
+
+    /// <summary>Runs inside OnAccepted, after it is recorded.</summary>
+    public Action<IQuestContext>? OnAccept { get; set; }
 }
 
 /// <summary>
@@ -55,7 +58,11 @@ public sealed class SampleQuestScript(QuestScriptRecorder? recorder = null) : Qu
         return _recorder.AllowAccept;
     }
 
-    public override void OnAccepted(IQuestContext context) => Hook("OnAccepted", context);
+    public override void OnAccepted(IQuestContext context)
+    {
+        Hook("OnAccepted", context);
+        _recorder.OnAccept?.Invoke(context);
+    }
 
     public override void OnStageStarted(IQuestContext context, int stage)
     {

@@ -24,6 +24,10 @@ public abstract class QuestScript
     /// <summary>This character opened a conversation with an NPC.</summary>
     public virtual void OnInteract(IQuestContext context, QuestCreatureView creature) { }
 
-    /// <summary>This character arrived in an instance (a login, a portal, a respawn).</summary>
+    /// <summary>
+    /// This character arrived in an instance other than the one this hook last ran for: a portal, a respawn, and
+    /// every login (nothing about it is saved, so each login is a fresh arrival, even in the same town). Not once per
+    /// instance ever: leaving and coming back runs it again.
+    /// </summary>
     public virtual void OnEnterInstance(IQuestContext context, QuestInstanceView instance) { }
 }
