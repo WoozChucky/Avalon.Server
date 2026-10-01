@@ -84,9 +84,9 @@ public class VendorSeedShould
 
         (ulong Template, float X, float Z, float Facing)[] expected =
         [
-            (12, 25f, -11f, 24f),
-            (13, 35f, -11f, 336f),
-            (14, 41f, 0f, 270f),
+            (12, 24.2f, -5f, 49f),
+            (13, 41.6f, 0f, 270f),
+            (14, 36.5f, 10.7f, 211f),
         ];
 
         foreach ((ulong template, float x, float z, float facing) in expected)

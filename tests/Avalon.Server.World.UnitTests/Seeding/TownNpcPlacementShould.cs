@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Avalon.ChunkGen;
 using Avalon.Common.Mathematics;
 using Avalon.Database.World;
 using Avalon.Domain.World;
@@ -21,6 +22,8 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// north-west, the market south-east and the bank and inn north-east, with inner walls at X = 30 and Z = 30 opened at
 /// 12-18 and 42-48. The seeded NPCs are checked against the real layout and wall geometry, read from the Maps folder
 /// copied into the test output, so a geometry or seed change that puts an NPC in a wall or a doorway fails here.
+/// Since the town beautification (2026-10-01) each NPC stands in front of its own building: on a porch deck, a step,
+/// behind a counter or under the lean-to, at least 1 m from any solid and within 3 m of its building (TownPieces).
 /// </summary>
 public class TownNpcPlacementShould
 {
@@ -187,13 +190,13 @@ public class TownNpcPlacementShould
 
     /// <summary>Template, world X and Z, and the south-west corner of the square it belongs in.</summary>
     [Theory]
-    [InlineData(1ul, 15f, 19f, 0f, 0f)]      // Uriel, arrival square
-    [InlineData(2ul, 19f, 27f, 0f, 0f)]      // Borin Stoutbeard, arrival square
-    [InlineData(12ul, 40f, 4f, 30f, 0f)]     // Garrick Emberforge, market
-    [InlineData(13ul, 50f, 4f, 30f, 0f)]     // Hilde Brassbuckle, market
-    [InlineData(14ul, 56f, 15f, 30f, 0f)]    // Tobin Marrowfield, market
-    [InlineData(11ul, 40f, 56f, 30f, 30f)]   // Marta Ledgerwell, bank and inn
-    [InlineData(3ul, 50f, 56f, 30f, 30f)]    // Innkeeper, bank and inn
+    [InlineData(1ul, 11f, 15f, 0f, 0f)]        // Uriel, the town hall porch
+    [InlineData(2ul, 19.4f, 37f, 0f, 30f)]     // Borin Stoutbeard, the hunter's lodge porch
+    [InlineData(12ul, 39.2f, 10f, 30f, 0f)]    // Garrick Emberforge, under the smithy's lean-to
+    [InlineData(13ul, 56.6f, 15f, 30f, 0f)]    // Hilde Brassbuckle, behind the armourer's counter
+    [InlineData(14ul, 51.5f, 25.7f, 30f, 0f)]  // Tobin Marrowfield, behind the general-goods counter
+    [InlineData(11ul, 40f, 53f, 30f, 30f)]     // Marta Ledgerwell, the bank's lower step
+    [InlineData(3ul, 50f, 49.8f, 30f, 30f)]    // Innkeeper, the inn's porch
     public void Stand_each_npc_where_the_spec_puts_it(ulong template, float x, float z, float squareX, float squareZ)
     {
         MapCreatureSpawn spawn = SpawnOf(SeededSpawns(), template);
@@ -266,7 +269,7 @@ public class TownNpcPlacementShould
     /// <summary>Template, and the point it faces: the arrival point, the market centre or the bank and inn centre.</summary>
     [Theory]
     [InlineData(1ul, 15f, 15f)]
-    [InlineData(2ul, 15f, 15f)]
+    [InlineData(2ul, 15f, 37f)]
     [InlineData(12ul, 45f, 15f)]
     [InlineData(13ul, 45f, 15f)]
     [InlineData(14ul, 45f, 15f)]
@@ -303,5 +306,63 @@ public class TownNpcPlacementShould
             float gap = MathF.Sqrt((end.x - x) * (end.x - x) + (end.z - z) * (end.z - z));
             Assert.True(gap <= 1f, $"the path from the entry to creature {spawn.CreatureTemplateId.Value} ends {gap:0.00} m short");
         }
+    }
+
+    /// <summary>Which building each NPC belongs to (TownPieces.Building names).</summary>
+    private static readonly Dictionary<ulong, string> BuildingOf = new()
+    {
+        [1] = "Town hall", [2] = "Hunter's lodge", [12] = "Smithy", [13] = "Armourer's stall",
+        [14] = "General-goods stall", [3] = "Inn", [11] = "Bank",
+    };
+
+    /// <summary>Every solid of the town (a non-walkable piece standing below 2 m), with its distance to a world point.</summary>
+    private static IEnumerable<(TownSquare Square, TownPiece Piece, float Distance)> Solids(float x, float z) =>
+        TownPieces.Squares().SelectMany(s => s.Pieces
+            .Where(p => !p.Walkable && p.Y0 < TownRules.SolidBelow)
+            .Select(p => (s, p, p.DistanceTo(x - s.Origin.X, z - s.Origin.Z))));
+
+    [Fact]
+    public void Stand_each_npc_outside_every_building_and_within_three_metres_of_its_own()
+    {
+        foreach (MapCreatureSpawn spawn in SeededSpawns())
+        {
+            (float x, float z) = WorldOf(spawn);
+            string building = BuildingOf[spawn.CreatureTemplateId.Value];
+
+            foreach ((TownSquare square, TownPiece piece, float distance) in Solids(x, z))
+                Assert.True(distance >= TownRules.NpcClearance - 1e-4f,
+                    $"creature {spawn.CreatureTemplateId.Value} at ({x}, {z}) is {distance:0.00} m from {square.Name} {piece.Building}/{piece.Part}");
+
+            float own = Solids(x, z).Where(s => s.Piece.Building == building).Min(s => s.Distance);
+            Assert.True(own <= TownRules.NpcBuildingReach, $"creature {spawn.CreatureTemplateId.Value} is {own:0.00} m from {building}");
+        }
+    }
+
+    /// <summary>The player's own walks: each doorway crossed both ways, the gate arch passed, and the portal reached from the entry.</summary>
+    [Fact]
+    public void Walk_through_every_doorway_and_the_gate_arch()
+    {
+        var navigator = new MapNavigator(NullLoggerFactory.Instance);
+        navigator.LoadFromNavMesh(TownNavMesh.Value);
+
+        (Vector3 From, Vector3 To, string Label)[] walks =
+        [
+            (new Vector3(15f, 0.15f, 25f), new Vector3(15f, 0.15f, 35f), "the Z = 30 doorway at X = 15, north"),
+            (new Vector3(45f, 0.15f, 25f), new Vector3(45f, 0.15f, 35f), "the Z = 30 doorway at X = 45, north"),
+            (new Vector3(25f, 0.15f, 15f), new Vector3(35f, 0.15f, 15f), "the X = 30 doorway at Z = 15, east"),
+            (new Vector3(25f, 0.15f, 45f), new Vector3(35f, 0.15f, 45f), "the X = 30 doorway at Z = 45, east"),
+            (new Vector3(15f, 0.15f, 38f), new Vector3(15f, 0.15f, 45f), "under the gate arch to the portal"),
+        ];
+        foreach ((Vector3 from, Vector3 to, string label) in walks)
+        {
+            Vector3 stop = navigator.RaycastWalkable(from, to);
+            Assert.True(MathF.Abs(stop.x - to.x) < 0.5f && MathF.Abs(stop.z - to.z) < 0.5f, $"{label}: stopped at ({stop.x:0.00}, {stop.z:0.00})");
+            Vector3 back = navigator.RaycastWalkable(to, from);
+            Assert.True(MathF.Abs(back.x - from.x) < 0.5f && MathF.Abs(back.z - from.z) < 0.5f, $"{label}, back: stopped at ({back.x:0.00}, {back.z:0.00})");
+        }
+
+        List<Vector3> path = navigator.FindPath(Town.Value.Entry + new Vector3(0f, 1f, 0f), new Vector3(15f, 1f, 45f));
+        Assert.NotEmpty(path);
+        Assert.True(MathF.Abs(path[^1].x - 15f) <= 1f && MathF.Abs(path[^1].z - 45f) <= 1f, $"the path to the portal ends at {path[^1]}");
     }
 }

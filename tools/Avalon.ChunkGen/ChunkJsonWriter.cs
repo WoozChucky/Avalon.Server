@@ -6,15 +6,13 @@ namespace Avalon.ChunkGen;
 
 /// <summary>
 /// Writes a chunk's catalog entry, the seeder's own <see cref="ChunkMetaDto" />, in the exact layout of the committed
-/// catalog files. Portal slots are not written: no generated piece has one.
+/// catalog files. Portal slots are written as the town squares need them (town_nw_01 carries the forest portal); no
+/// forest piece has one.
 /// </summary>
 public static class ChunkJsonWriter
 {
     public static string Write(ChunkMetaDto meta)
     {
-        if (meta.PortalSlots.Count > 0)
-            throw new InvalidOperationException($"{meta.Name}: generated pieces carry no portal slots");
-
         var sb = new StringBuilder();
         sb.Append("{\n");
         sb.Append("  \"name\": \"").Append(meta.Name).Append("\",\n");
@@ -41,7 +39,15 @@ public static class ChunkJsonWriter
               .Append(i < meta.SpawnSlots.Count - 1 ? ",\n" : "\n");
         }
         sb.Append("  ],\n");
-        sb.Append("  \"portalSlots\": [\n  ],\n");
+        sb.Append("  \"portalSlots\": [\n");
+        for (int i = 0; i < meta.PortalSlots.Count; i++)
+        {
+            PortalSlotDto slot = meta.PortalSlots[i];
+            sb.Append("    { \"role\": \"").Append(slot.Role).Append("\", \"localX\": ").Append(F(slot.LocalX))
+              .Append(", \"localY\": ").Append(F(slot.LocalY)).Append(", \"localZ\": ").Append(F(slot.LocalZ)).Append(" }")
+              .Append(i < meta.PortalSlots.Count - 1 ? ",\n" : "\n");
+        }
+        sb.Append("  ],\n");
         sb.Append("  \"tags\": [").Append(string.Join(", ", meta.Tags.Select(t => $"\"{t}\""))).Append("]\n");
         sb.Append("}\n");
         return sb.ToString();

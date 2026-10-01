@@ -47,13 +47,18 @@
 # it differs between implementations even when the navmesh is identical.
 #
 # HEIGHT COVERAGE IS BOUNDED BY THE CHUNK LIBRARY, and that is a real gap rather than an
-# oversight. Every chunk .obj the server ships is a flat slab: a town floor's top face is at
-# local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical, so nothing above
-# a floor is walkable at all. The 'forest-floors' layout puts the two floor heights beside
-# each other -- the largest vertical variation a layout composed from real chunks can produce
-# -- and its ground rows all come back at one height, because 5 cm is a quarter of the bake's
-# 0.2 cell height and both floors quantise to the same voxel. So these vectors pin
-# SampleGroundHeight at a single height.
+# oversight. Every chunk floor the server ships is a flat slab: a town floor's top face is at
+# local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical. The town squares
+# carry buildings and props besides (solids the bake cuts around; every prop's top is over
+# 1 m, above the 0.9 m climb, so each stops a walk) and walkable risers of 0.1-0.3 m
+# (porch decks, the bank's steps), which quantise into the same 0.2 m voxel as the floor
+# beside them. The 'forest-floors' layout puts the two floor heights beside each other -- the
+# largest vertical variation two floors can produce -- and its ground rows all come back at
+# one height, because 5 cm is a quarter of the bake's 0.2 cell height and both floors quantise
+# to the same voxel. So these vectors pin SampleGroundHeight at a single height on open
+# ground, and the town's deck and step rows at whatever voxel the bake gives a riser.
+# Building interiors and roof tops bake as navmesh islands that nothing reaches (the
+# forest's blocker tops do too); a ground query over one answers the island's height.
 #
 # THAT FLATNESS HAS A SECOND CONSEQUENCE, and it is the one easier to miss: the agent values
 # written into each TILE HEADER are unpinned by anything here. Detour reads walkableHeight
@@ -112,29 +117,37 @@ chunk town_sw_01 0 0 0
 chunk town_se_01 1 0 0
 chunk town_nw_01 0 1 0
 chunk town_ne_01 1 1 0
-mesh tiles 49 polys 71 verts 262
+mesh tiles 49 polys 321 verts 772
 ray 15 0.15 15 16 0.15 15 -> reached 16 0.15 15 3.4028235E+38 # open floor, one metre
 ray 15 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # open floor, the length of a tile and then some
-ray 45 0.15 45 35 0.15 35 -> reached 35 0.15 35 3.4028235E+38 # open floor, diagonal, north-east quadrant
-ray 5 0.15 5 15 0.15 5 -> reached 15 0.15 5 3.4028235E+38 # crosses the x = 9.35 tile seam
-ray 5 0.15 5 25 0.15 5 -> reached 25 0.15 5 3.4028235E+38 # crosses the x = 9.35 and 18.95 tile seams
-ray 5 0.15 14 25 0.15 14 -> reached 25 0.15 14 3.4028235E+38 # crosses two seams a metre below the z = 14.35 one
-ray 14 0.15 5 14 0.15 25 -> reached 14 0.15 25 3.4028235E+38 # the same, on z -- a transposed tile index lands elsewhere
-ray 2 0.15 3 27 0.15 28 -> reached 27 0.15 28 3.4028235E+38 # shallow diagonal across the seams on both axes
+ray 45 0.15 45 35 0.15 35 -> clamped 45 0.15 45 0 # diagonal, north-east quadrant, starting on the well's rim
+ray 5 0.15 27 15 0.15 27 -> reached 15 0.15 27 3.4028235E+38 # crosses the x = 9.35 tile seam
+ray 5 0.15 27 25 0.15 27 -> reached 25 0.15 27 3.4028235E+38 # crosses the x = 9.35 and 18.95 tile seams
+ray 5 0.15 27.55 25 0.15 27.55 -> reached 25 0.15 27.55 3.4028235E+38 # crosses two seams a metre below the z = 28.55 one
+ray 21.5 0.15 5 21.5 0.15 25 -> reached 21.5 0.15 25 3.4028235E+38 # the same, on z -- a transposed tile index lands elsewhere
+ray 3 0.15 38 19 0.15 52 -> reached 19 0.15 52 3.4028235E+38 # shallow diagonal across the seams on both axes
 ray 25 0.15 25 35 0.15 25 -> clamped 28.85 0.15 25 0.38500008 # head-on into the x = 30 wall
-ray 20 0.15 25 40 0.15 25 -> clamped 28.85 0.15 25 0.44250003 # the same wall from twice the distance
+ray 20 0.15 25 40 0.15 25 -> clamped 22.25 0.15 25 0.1125 # the same line from twice the distance, stopped by the bench at (24, 24.75)
 ray 25 0.15 25 35 0.15 35 -> clamped 28.550001 0.15 28.550001 0.35500014 # 45 degrees, clamping on the tile corner short of the walls
-ray 25 0.15 5 25 0.15 35 -> clamped 25 0.15 28.85 0.795 # north into the z = 30 wall
+ray 25 0.15 5 25 0.15 35 -> clamped 25 0.15 5 0 # starts within the agent radius of the bench at (24, 5.25): no step
 ray 28.9 0.15 25 35 0.15 25 -> clamped 28.9 0.15 25 0 # flush against the x = 30 wall, pointing into it
-ray 25 0.15 28.9 25 0.15 5 -> reached 25 0.15 5 3.4028235E+38 # flush against the z = 30 wall, pointing away from it
+ray 25 0.15 28.9 25 0.15 5 -> clamped 25 0.15 25.641668 0.13633189 # flush against the z = 30 wall, south until the bench at (24, 24.75)
 ray 15 0.15 25 15 0.15 35 -> reached 15 0.15 35 3.4028235E+38 # through the z = 30 doorway at x = 15
 ray 25 0.15 45 35 0.15 45 -> reached 35 0.15 45 3.4028235E+38 # through the x = 30 doorway at z = 45
-ray 15 0.15 25 45 0.15 25 -> clamped 28.850002 0.15 25 0.4616667 # at the doorways' own centre line but across a wall
+ray 15 0.15 25 45 0.15 25 -> clamped 22.25 0.15 25 0.24166666 # at the doorways' centre line, east, stopped by the bench at (24, 24.75) before the wall
 ray 9000 0 9000 9001 0 9000 -> nostartpoly 9000 0 9000 0 # starts off the mesh entirely
 ray -5 0 15 15 0 15 -> nostartpoly -5 0 15 0 # starts outside the town's west edge
+ray 15 0.15 15 5 0.15 15 -> clamped 10.85 0.15 15 0.41499996 # west from the arrival point onto the town hall's porch, stopping short of its body
+ray 15 0.15 35 15 0.15 45 -> reached 15 0.15 45 3.4028235E+38 # north under the gate arch to the portal
+ray 50 0.15 45 50 0.15 50 -> reached 50 0.15 50 3.4028235E+38 # north onto the inn's porch step and deck
+ray 15 0.15 3 15 0.15 12 -> clamped 15 0.15 3 0 # starts within the agent radius of the bench south of the fountain: no step
+ray 45 0.15 20 58 0.15 15 -> clamped 54.35 0.15 16.403847 0.7192306 # east across the market toward the armourer's stall
 ground 15 3 15 -> 0.15 # open floor, south-west quadrant
-ground 45 3 45 -> 0.15 # open floor, north-east quadrant
-ground 9.35 3 9.35 -> 0.15 # on the tile corner at 9.35
+ground 45 3 45 -> 3 # on the well's rim: no polygon under the point, only beside it, so the height asked is given back
+ground 50 1 50 -> 0.3065219 # on the inn's porch deck
+ground 40 3 53 -> 0.2785462 # on the bank's lower step
+ground 11 1 15 -> 0.33000004 # on the town hall's porch deck
+ground 9.35 3 9.35 -> 6.35 # on the tile corner at 9.35, inside the town hall: the island on its roof
 ground 28 3 25 -> 0.15 # two metres from the x = 30 wall
 ground 15 3 30 -> 0.15 # in the z = 30 doorway
 ground 30 3 25 -> 3 # inside the x = 30 wall itself -- off the mesh
