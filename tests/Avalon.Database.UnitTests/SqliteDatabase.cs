@@ -19,15 +19,18 @@ public sealed class SqliteDatabase<TContext> : IDbContextFactory<TContext>, IDis
     private readonly Func<DbContextOptions<TContext>, TContext> _create;
     private readonly DbContextOptions<TContext> _options;
 
-    public SqliteDatabase(Func<DbContextOptions<TContext>, TContext> create)
+    /// <param name="create">Builds a context over the given options.</param>
+    /// <param name="configure">Anything more the contexts need (a warning made an error, say).</param>
+    public SqliteDatabase(Func<DbContextOptions<TContext>, TContext> create,
+        Action<DbContextOptionsBuilder<TContext>>? configure = null)
     {
         _create = create;
         _connection = new SqliteConnection("DataSource=:memory:");
         _connection.Open();
 
-        _options = new DbContextOptionsBuilder<TContext>()
-            .UseSqlite(_connection)
-            .Options;
+        var builder = new DbContextOptionsBuilder<TContext>().UseSqlite(_connection);
+        configure?.Invoke(builder);
+        _options = builder.Options;
 
         using TContext context = _create(_options);
         context.Database.EnsureCreated();

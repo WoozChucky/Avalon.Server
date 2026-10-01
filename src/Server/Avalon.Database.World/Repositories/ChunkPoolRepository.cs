@@ -19,6 +19,8 @@ public class ChunkPoolRepository(IDbContextFactory<WorldDbContext> contextFactor
         return await context.ChunkPools.AsNoTracking()
             .Include(p => p.Memberships)
             .Include(p => p.Groups).ThenInclude(g => g.Members)
+            // Two collections: one query per collection rather than their cartesian product (and EF's warning about it).
+            .AsSplitQuery()
             .ToListAsync(ct);
     }
 }
