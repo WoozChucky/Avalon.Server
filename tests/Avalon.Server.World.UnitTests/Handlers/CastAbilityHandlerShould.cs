@@ -363,17 +363,65 @@ public class CastAbilityHandlerShould
             Arg.Is<AbilityAim>(a => a.Point == new Vector3(3f, 9f, 4f)), ability);
     }
 
+    /// <summary>#716: a Movement skill points from the caster toward the cursor, and carries no point of its own.</summary>
     [Fact]
-    public void Aim_a_movement_skill_along_the_casters_facing_without_a_point()
+    public void Aim_a_movement_skill_toward_the_ground_point_from_the_caster()
+    {
+        var f = new Fixture();
+        f.Character.Orientation.Returns(new Vector3(0f, 90f, 0f));   // facing +X
+        f.Character.Position.Returns(new Vector3(1f, 7f, 1f));
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = 4f, Y = 0f, Z = 5f } });
+
+        Assert.Empty(f.SentPackets());
+        f.Instance.Received(1).RunInstantAbility(f.Character,
+            Arg.Is<AbilityAim>(a => a.Point == null && Math.Abs(a.Facing.x - 0.6f) < 1e-5f
+                && a.Facing.y == 0f && Math.Abs(a.Facing.z - 0.8f) < 1e-5f), ability);
+    }
+
+    /// <summary>Without a usable point a Movement skill aims along the yaw, as before #716, and is never refused.</summary>
+    [Theory]
+    [MemberData(nameof(MissingAimPoints))]
+    public void Aim_a_movement_skill_along_the_casters_facing_without_a_usable_point(Vector3Dto? point)
     {
         var f = new Fixture();
         f.Character.Orientation.Returns(new Vector3(0f, 90f, 0f));
         IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
 
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = 3f, Y = 0f, Z = 4f } });
+        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = point });
+
+        Assert.Empty(f.SentPackets());
+        f.Instance.Received(1).RunInstantAbility(f.Character,
+            Arg.Is<AbilityAim>(a => a.Point == null && Math.Abs(a.Facing.x - 1f) < 1e-4f), ability);
+    }
+
+    /// <summary>A point within a millimetre of the caster on X/Z (whatever its height) gives no direction: the yaw stands.</summary>
+    [Fact]
+    public void Aim_a_movement_skill_along_the_casters_facing_for_a_point_on_the_caster()
+    {
+        var f = new Fixture();
+        f.Character.Orientation.Returns(new Vector3(0f, 90f, 0f));
+        f.Character.Position.Returns(new Vector3(2f, 0f, 2f));
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = 2.0004f, Y = 9f, Z = 1.9997f } });
 
         f.Instance.Received(1).RunInstantAbility(f.Character,
             Arg.Is<AbilityAim>(a => a.Point == null && Math.Abs(a.Facing.x - 1f) < 1e-4f), ability);
+    }
+
+    /// <summary>A queued Movement cast carries the direction toward the cursor it started with.</summary>
+    [Fact]
+    public void Queue_a_cast_time_movement_skill_with_the_direction_it_started_with()
+    {
+        var f = new Fixture();
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 1f });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = -3f, Y = 0f, Z = 0f } });
+
+        f.Instance.Received(1).QueueAbility(f.Character,
+            Arg.Is<AbilityAim>(a => a.Point == null && Math.Abs(a.Facing.x + 1f) < 1e-5f && a.Facing.z == 0f), ability);
     }
 
     /// <summary>A queued cast is aimed once, when it starts: the aim travels with it into the queue.</summary>
