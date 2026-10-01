@@ -186,7 +186,7 @@ one the update carries (the new accept's stage and counts).
 
 **After a reload of the quest data.** When the server's quest data is reloaded with a lower count or an objective
 removed, every held quest is settled once at the end of the next tick: a count above its new target comes down to it,
-and a stage now complete starts the next or makes the quest ready to turn in. Each such quest arrives as an ordinary
+a stage now complete starts the next or makes the quest ready to turn in, and a quest that was ready goes back to `Active` when it no longer stands at the last stage or the bag no longer holds enough of its items. Each such quest arrives as an ordinary
 `Progress` update, with the usual system lines. A reload that lands while the player is offline is already reflected
 in the log at login.
 

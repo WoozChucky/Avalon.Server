@@ -370,6 +370,34 @@ public class StaticDataReloadShould
         Assert.Null(data.Dialogue.GetRoot(new CreatureTemplateId(Quests.QuestTestData.TalkTarget)));
     }
 
+    /// <summary>
+    /// Fix round 1: a quest apply is checked against the live dialogue too, since the roots its prepare read may not be
+    /// the ones applied (a /reload dialogue between the two). One Error per stranded quest; nothing refused.
+    /// </summary>
+    [Fact]
+    public async Task Log_each_quest_a_quest_reload_loads_without_a_root_in_the_live_dialogue()
+    {
+        var log = new TestLog();
+        List<DialogueNode> nodes = Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget);
+        StaticData data = TestStaticData.Repositories(
+            items: Quests.QuestTestData.Items,
+            creatures: Quests.QuestTestData.Creatures,
+            nodes: () => nodes,
+            quests: Quests.QuestRepositories.Of(Quests.QuestTestData.Chain),
+            scripts: Quests.QuestTestData.ScriptManager()).ToStaticData(log);
+        await data.LoadAsync();
+        StaticDataPatch quests = await data.PrepareAsync(ReloadArea.Quests);   // read with Marta's root
+        nodes.RemoveAll(n => n.CreatureTemplateId.Value == Quests.QuestTestData.TalkTarget);
+        data.Apply(await data.PrepareAsync(ReloadArea.Dialogue));               // the live dialogue loses it
+        log.Entries.Clear();
+
+        data.Apply(quests);
+
+        string error = Assert.Single(log.Errors).Message;
+        Assert.Contains($"quest {Quests.QuestTestData.Howl}", error, StringComparison.Ordinal);
+        Assert.True(data.Quests.TryGet(Quests.QuestTestData.Howl, out _));
+    }
+
     private static async Task<(StaticData Data, Repos Repos)> LoadedData(int creatureCount)
     {
         var repos = new Repos

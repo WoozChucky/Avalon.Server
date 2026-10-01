@@ -124,12 +124,12 @@ public class QuestCatalogShould
 
         IReadOnlyList<string> problems = catalog.NpcsWithoutDialogue(dialogue);
 
+        // One line per quest, listing all of its problems (fix round 1).
         Assert.Equal(
         [
             $"quest {Tusks}: ender creature template {Ender} has no dialogue root",
-            $"quest {Howl}: giver creature template {Ender} has no dialogue root",
-            $"quest {Howl}: ender creature template {Ender} has no dialogue root",
-            $"quest {Howl}: objective {HowlTalk} talks to creature template {TalkTarget}, which has no dialogue root",
+            $"quest {Howl}: giver creature template {Ender} has no dialogue root; ender creature template {Ender} has no " +
+            $"dialogue root; objective {HowlTalk} talks to creature template {TalkTarget}, which has no dialogue root",
         ], problems);
         Assert.Empty(catalog.NpcsWithoutDialogue(new Avalon.World.Dialogue.DialogueCatalog(Roots(Giver, Ender, TalkTarget), [],
             NullLoggerFactory.Instance)));

@@ -163,7 +163,7 @@ public class StaticData(
         {
             case DialoguePatch p:
                 _dialogue = p;
-                LogQuestsWithoutDialogue(p.Dialogue);
+                LogQuestsWithoutDialogue();
                 break;
             case CreaturesPatch p:
                 _creatures = p;
@@ -188,6 +188,7 @@ public class StaticData(
                 break;
             case QuestsPatch p:
                 _quests = p;
+                LogQuestsWithoutDialogue();
                 break;
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
@@ -195,22 +196,24 @@ public class StaticData(
     }
 
     /// <summary>
-    /// After a dialogue apply (#737): each loaded quest whose giver, ender or Talk target the new dialogue leaves without
-    /// a root is logged at Error, naming it. Nothing is refused: the quests stay loaded until a /reload quests, which
-    /// refuses them. At startup the quests are not loaded yet, and their own prepare reads the roots.
+    /// After a dialogue or a quests apply (#737): each loaded quest whose giver, ender or Talk target has no root in the
+    /// live dialogue is logged at Error, once per quest, listing its problems. Nothing is refused: a quest stays loaded
+    /// until a /reload quests whose prepare reads the roots refuses it. A quests apply is checked too, since the roots
+    /// its prepare read may not be the ones applied (a /reload dialogue in between). Either area missing (early in the
+    /// startup load) checks nothing.
     /// </summary>
-    private void LogQuestsWithoutDialogue(IDialogueCatalog dialogue)
+    private void LogQuestsWithoutDialogue()
     {
-        if (_quests is not { } quests)
+        if (_quests is not { } quests || _dialogue is not { } dialogue)
             return;
 
-        IReadOnlyList<string> problems = quests.Catalog.NpcsWithoutDialogue(dialogue);
+        IReadOnlyList<string> problems = quests.Catalog.NpcsWithoutDialogue(dialogue.Dialogue);
         if (problems.Count == 0)
             return;
 
         ILogger<StaticData> logger = loggerFactory.CreateLogger<StaticData>();
         foreach (string problem in problems)
-            logger.LogError("Dialogue reload left {Problem}; the quest cannot be talked through until the dialogue is fixed " +
+            logger.LogError("The live dialogue leaves {Problem}; the quest cannot be talked through until the dialogue is fixed " +
                             "(a /reload quests would refuse it)", problem);
     }
 

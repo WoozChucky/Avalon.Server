@@ -150,8 +150,8 @@ public sealed class QuestCatalog
     public bool IsQuestNpc(CreatureTemplateId npc) => _byGiver.ContainsKey(npc.Value) || _byEnder.ContainsKey(npc.Value);
 
     /// <summary>
-    /// Every loaded quest whose giver, ender or Talk target has no root in <paramref name="dialogue" />, one line each
-    /// ("quest N: ..."), by quest id (#737). A /reload dialogue logs them: the quests were checked against the roots
+    /// Every loaded quest whose giver, ender or Talk target has no root in <paramref name="dialogue" />, one line per
+    /// quest listing all of its problems ("quest N: ...; ..."), by quest id (#737). A /reload dialogue logs them: the quests were checked against the roots
     /// read with them, and a dialogue reload since can take a root away. It refuses nothing.
     /// </summary>
     public IReadOnlyList<string> NpcsWithoutDialogue(IDialogueCatalog dialogue)
@@ -159,11 +159,12 @@ public sealed class QuestCatalog
         List<string> problems = [];
         foreach (QuestView quest in _byId.Values.OrderBy(q => q.Id))
         {
-            foreach (string problem in DialogueProblem(quest.GiverCreatureId.Value, quest.EnderCreatureId.Value,
-                         quest.Objectives.Where(o => o.Type == QuestObjectiveType.Talk && o.CreatureTemplateId is not null)
-                             .OrderBy(o => o.Id).Select(o => (o.Id, o.CreatureTemplateId!.Value)),
-                         creature => dialogue.GetRoot(new CreatureTemplateId(creature)) is not null))
-                problems.Add($"quest {quest.Id}: {problem}");
+            List<string> found = DialogueProblem(quest.GiverCreatureId.Value, quest.EnderCreatureId.Value,
+                quest.Objectives.Where(o => o.Type == QuestObjectiveType.Talk && o.CreatureTemplateId is not null)
+                    .OrderBy(o => o.Id).Select(o => (o.Id, o.CreatureTemplateId!.Value)),
+                creature => dialogue.GetRoot(new CreatureTemplateId(creature)) is not null).ToList();
+            if (found.Count > 0)
+                problems.Add($"quest {quest.Id}: {string.Join("; ", found)}");
         }
 
         return problems;

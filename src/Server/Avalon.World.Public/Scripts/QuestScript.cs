@@ -4,9 +4,10 @@ namespace Avalon.World.Public.Scripts;
 /// Custom logic for one quest (#433), named by its template's ScriptName and found by type name. One instance per
 /// quest, shared by every character that has it, so it keeps no per-character state: everything per character is
 /// in the <see cref="IQuestContext" /> a hook is handed. Hooks run on the tick, only while the character has the quest
-/// active. A hook that throws is logged and the quest goes on. Built from DI only: its constructor may take services
-/// (an ILoggerFactory, say) and nothing else. A hook reads the world only through read-only views (QuestCreatureView,
-/// QuestInstanceView); its one write is IQuestContext.Advance.
+/// active. A hook that throws is logged and the quest goes on. Built from DI only, with no runtime arguments: its
+/// constructor may take only an ILoggerFactory, an ILogger&lt;T&gt; and a TimeProvider (#738); a script asking for anything
+/// else cannot be built, and its quest cannot be accepted. A hook reads the world only through read-only views
+/// (QuestCreatureView, QuestInstanceView); its one write is IQuestContext.Advance.
 /// </summary>
 public abstract class QuestScript
 {

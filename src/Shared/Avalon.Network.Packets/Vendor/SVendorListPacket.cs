@@ -24,7 +24,11 @@ public class SVendorListPacket : Packet
     /// <summary>In Sequence order. Absent on the wire when the vendor sells nothing, as for any empty repeated field.</summary>
     [ProtoMember(2)] public VendorEntryDto[] Entries { get; set; } = [];
 
-    /// <summary>Newest first. Absent on the wire when there is nothing to buy back.</summary>
+    /// <summary>
+    /// Newest first. Absent on the wire when there is nothing to buy back. The indexes may have gaps: a sale whose item
+    /// has since become a quest item is left out (#738), so a client names a sale by its <see cref="VendorBuybackDto.Index" />,
+    /// never by its position in this array.
+    /// </summary>
     [ProtoMember(3)] public VendorBuybackDto[] Buyback { get; set; } = [];
 
     public static NetworkPacket Create(ulong vendorGuid, VendorEntryDto[] entries, VendorBuybackDto[] buyback, EncryptFunc encrypt)
@@ -65,7 +69,7 @@ public class VendorCostDto
 [ProtoContract]
 public class VendorBuybackDto
 {
-    /// <summary>What CVendorBuybackPacket names. 0 is the most recent sale.</summary>
+    /// <summary>What CVendorBuybackPacket names. 0 is the most recent sale. Not the entry's position in the list, which may skip indexes.</summary>
     [ProtoMember(1)] public uint Index { get; set; }
 
     /// <summary>The exact item sold, in the snapshot's shape. Container is 1 (Bag) and Slot is where it was sold from.</summary>
