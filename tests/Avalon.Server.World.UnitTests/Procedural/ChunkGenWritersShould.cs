@@ -42,6 +42,20 @@ public class ChunkGenWritersShould
             """.Replace("\r\n", "\n", StringComparison.Ordinal), json);
     }
 
+    [Fact]
+    public void Write_portal_slots_in_the_catalogs_layout()
+    {
+        ChunkMetaDto meta = Sample.ToMeta() with { PortalSlots = [new PortalSlotDto("Forward", 15, 0, 15)] };
+
+        string json = ChunkJsonWriter.Write(meta);
+
+        Assert.Contains("""
+              "portalSlots": [
+                { "role": "Forward", "localX": 15, "localY": 0, "localZ": 15 }
+              ],
+            """.Replace("\r\n", "\n", StringComparison.Ordinal), json, StringComparison.Ordinal);
+    }
+
     /// <summary>Every triangle faces out of its solid, so a top is walkable and a side is a wall (Recast reads (b-a)x(c-a)).</summary>
     [Fact]
     public void Wind_every_face_outward()
