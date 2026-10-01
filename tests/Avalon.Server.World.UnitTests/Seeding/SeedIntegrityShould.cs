@@ -1012,7 +1012,8 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         var catalog = new QuestCatalog(SeededQuests(context), context.CreatureTemplates.AsNoTracking().ToList(),
-            context.ItemTemplates.AsNoTracking().ToList(), _ => null, NullLoggerFactory.Instance);
+            context.ItemTemplates.AsNoTracking().ToList(), context.DialogueNodes.AsNoTracking().ToList(), _ => null,
+            NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
         Assert.Equal(3, catalog.All.Count);

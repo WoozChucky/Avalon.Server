@@ -141,8 +141,10 @@ public class StaticData(
                     : await questRepository.GetAllAsync(ct);
                 IReadOnlyCollection<CreatureTemplate> creatures = (await creatureTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
                 IReadOnlyCollection<ItemTemplate> items = (await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
+                // The dialogue roots too (#737): a giver, ender or Talk target with none could never be talked to.
+                IReadOnlyCollection<DialogueNode> nodes = await dialogueRepository.GetAllNodesAsync(ct);
                 Func<string, Type?> findScript = scriptManager is null ? static _ => null : scriptManager.GetQuestScript;
-                return new QuestsPatch(new QuestCatalog(quests, creatures, items, findScript, loggerFactory));
+                return new QuestsPatch(new QuestCatalog(quests, creatures, items, nodes, findScript, loggerFactory));
             }
 
             default:
@@ -161,6 +163,7 @@ public class StaticData(
         {
             case DialoguePatch p:
                 _dialogue = p;
+                LogQuestsWithoutDialogue(p.Dialogue);
                 break;
             case CreaturesPatch p:
                 _creatures = p;
@@ -189,6 +192,26 @@ public class StaticData(
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
         }
+    }
+
+    /// <summary>
+    /// After a dialogue apply (#737): each loaded quest whose giver, ender or Talk target the new dialogue leaves without
+    /// a root is logged at Error, naming it. Nothing is refused: the quests stay loaded until a /reload quests, which
+    /// refuses them. At startup the quests are not loaded yet, and their own prepare reads the roots.
+    /// </summary>
+    private void LogQuestsWithoutDialogue(IDialogueCatalog dialogue)
+    {
+        if (_quests is not { } quests)
+            return;
+
+        IReadOnlyList<string> problems = quests.Catalog.NpcsWithoutDialogue(dialogue);
+        if (problems.Count == 0)
+            return;
+
+        ILogger<StaticData> logger = loggerFactory.CreateLogger<StaticData>();
+        foreach (string problem in problems)
+            logger.LogError("Dialogue reload left {Problem}; the quest cannot be talked through until the dialogue is fixed " +
+                            "(a /reload quests would refuse it)", problem);
     }
 
     /// <summary>
