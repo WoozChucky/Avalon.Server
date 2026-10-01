@@ -47,7 +47,8 @@ public class IgnoreCommandsShould
         return client;
     }
 
-    private IgnoreCommand Ignore() => new(_w.Parties.Online, _repository, Options.Create(_config), _w.Clock);
+    private IgnoreCommand Ignore(ChatRateLimiter? limiter = null) =>
+        new(_w.Parties.Online, _repository, Options.Create(_config), _w.Clock, limiter ?? Chat.ChatLimits.Off());
     private UnignoreCommand Unignore() => new();
     private IgnoreListCommand List() => new(Options.Create(_config));
 
@@ -221,6 +222,52 @@ public class IgnoreCommandsShould
 
         Assert.Empty(aren.Sent);
         Assert.Empty(aren.Character.Ignores.Entries);
+    }
+
+    [Fact]
+    public void Refuse_over_the_chat_rate_limit_before_any_lookup()
+    {
+        _config.ChatMessagesPerMinute = 1;
+        var limiter = new ChatRateLimiter(Options.Create(_config), _w.Clock);
+        PartyClient aren = Online(1, "Aren");
+        Online(2, "Kaela");
+        limiter.Record(aren.Id);
+
+        Run(Ignore(limiter), aren, "/ignore Borin");
+
+        Assert.Equal([ChatRateLimiter.TooFast(TimeSpan.FromSeconds(60))], aren.Lines());
+        Assert.Empty(aren.Character.Ignores.Entries);
+        _repository.DidNotReceiveWithAnyArgs().FindCharacterByNameAsync(default!, default);
+    }
+
+    [Fact]
+    public void Spend_the_chat_rate_limit_like_a_chat_message()
+    {
+        _config.ChatMessagesPerMinute = 1;
+        var limiter = new ChatRateLimiter(Options.Create(_config), _w.Clock);
+        PartyClient aren = Online(1, "Aren");
+        PartyClient kaela = Online(2, "Kaela");
+
+        Run(Ignore(limiter), aren, "/ignore Nobody");   // a lookup that finds nobody still spends it
+        aren.Clear();
+        Run(new WhisperCommand(_w.Parties.Online, limiter), aren, "/w Kaela hi");
+
+        Assert.Equal([ChatRateLimiter.TooFast(TimeSpan.FromSeconds(60))], aren.Lines());
+        Assert.Empty(kaela.Sent);
+    }
+
+    [Fact]
+    public void Spend_nothing_on_a_refusal_made_in_memory()
+    {
+        _config.ChatMessagesPerMinute = 1;
+        var limiter = new ChatRateLimiter(Options.Create(_config), _w.Clock);
+        PartyClient aren = Online(1, "Aren");
+        Online(2, "Kaela");
+
+        Run(Ignore(limiter), aren, "/ignore Aren");
+        Run(Ignore(limiter), aren, "/ignore Kaela");
+
+        Assert.True(aren.Character.Ignores.Contains(2));
     }
 
     [Fact]

@@ -153,7 +153,7 @@ list, and when a character on the list is deleted while you are online. Replace 
 
 | Command | Does |
 |---|---|
-| `/ignore <name>` | Ignore a character of this world, online or offline (name matched ignoring case). Answered "You are now ignoring X.". Refused, with nothing changed: "Usage: /ignore <name>", "You can't ignore yourself.", "X is already on your ignore list.", "Your ignore list is full (50/50)." (the cap is the server's `MaxIgnoredCharacters`), "No character named X exists.". An offline name is looked up in the database, so its answer can arrive a tick or two later. |
+| `/ignore <name>` | Ignore a character of this world, online or offline (name matched ignoring case). Answered "You are now ignoring X.". Refused, with nothing changed: "Usage: /ignore <name>", "You can't ignore yourself.", "X is already on your ignore list.", "Your ignore list is full (50/50)." (the cap is the server's `MaxIgnoredCharacters`), "No character named X exists.". An offline name is looked up in the database, so its answer can arrive a tick or two later. Each `/ignore` that gets past those refusals spends one message of the chat rate limit, as a chat line does, and over the limit it is refused with the same "You're sending messages too fast." line. |
 | `/unignore <name>` | Take a character off the list, by the name the list shows. "You are no longer ignoring X." or "X is not on your ignore list.". |
 | `/ignorelist` | One line: "Ignoring 2/50: Borin, Kaela." or "You are not ignoring anyone.". |
 

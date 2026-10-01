@@ -12,7 +12,7 @@ namespace Avalon.World.Social;
 /// on the tick: an online name is found in <see cref="OnlineCharacters" />, and only an offline one is looked up in the
 /// Character DB, through <see cref="CommandContext.Then{T}" />, whose callback re-checks everything on the tick. Refusals
 /// are system lines, in this order: no single name, the caller's own name, a name already on the list, a full list
-/// (<c>Game:MaxIgnoredCharacters</c>), then, once the character is found, no such character, the caller itself, a
+/// (<c>Game:MaxIgnoredCharacters</c>), the chat rate limit (#722, which every /ignore past these spends), then, once the character is found, no such character, the caller itself, a
 /// character already on the list (under another name), a full list. An accepted one answers a line and sends the whole
 /// list (SMSG_IGNORE_LIST).
 /// </summary>
@@ -20,7 +20,8 @@ public sealed class IgnoreCommand(
     OnlineCharacters online,
     ICharacterIgnoreRepository repository,
     IOptions<GameConfiguration> options,
-    TimeProvider time) : ICommand
+    TimeProvider time,
+    ChatRateLimiter rateLimiter) : ICommand
 {
     public string Name => "ignore";
     public string[] Aliases => [];
@@ -55,6 +56,17 @@ public sealed class IgnoreCommand(
             ctx.Reply(IgnoreLines.Full(max));
             return;
         }
+
+        // Owner decision: /ignore spends the chat budget (#722) like a chat message, so it cannot be used to make a
+        // database query per tick. Checked after the refusals made in memory, which spend nothing, and spent here,
+        // before the lookup, whatever the lookup finds.
+        if (!rateLimiter.Check(owner.Guid.Id, out TimeSpan retryAfter))
+        {
+            ctx.Reply(ChatRateLimiter.TooFast(retryAfter));
+            return;
+        }
+
+        rateLimiter.Record(owner.Guid.Id);
 
         if (online.ByName(name)?.Character is { } target)
         {
