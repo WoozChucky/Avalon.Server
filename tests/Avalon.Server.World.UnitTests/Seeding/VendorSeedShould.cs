@@ -76,7 +76,7 @@ public class VendorSeedShould
     }
 
     [Fact]
-    public void Place_the_vendors_around_Marta_on_map_one_facing_the_entry()
+    public void Place_the_vendors_in_the_market_on_map_one_facing_its_centre()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -84,9 +84,9 @@ public class VendorSeedShould
 
         (ulong Template, float X, float Z, float Facing)[] expected =
         [
-            (12, -9f, 4f, 114f),
-            (13, -9f, 8f, 132f),
-            (14, -6f, 10f, 149f),
+            (12, 25f, -11f, 24f),
+            (13, 35f, -11f, 336f),
+            (14, 41f, 0f, 270f),
         ];
 
         foreach ((ulong template, float x, float z, float facing) in expected)
