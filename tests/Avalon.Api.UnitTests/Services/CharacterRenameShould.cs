@@ -6,9 +6,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
-using Microsoft.EntityFrameworkCore;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Services;
@@ -81,6 +79,7 @@ public class CharacterRenameShould
 
         Assert.Equal(CharacterName.Requirement, refused.Message);
         Assert.Equal("Kaela", character.Name);
+        await _characters.DidNotReceiveWithAnyArgs().TryRenameAsync(default!, default!, default);
         await _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
@@ -92,8 +91,8 @@ public class CharacterRenameShould
 
         await Rename(cosmetic, character, "bORIN");
 
+        await _characters.Received(1).TryRenameAsync(Self, "Borin", Arg.Any<CancellationToken>());
         Assert.Equal(("Borin", "BORIN"), (character.Name, character.NameKey));
-        await _characters.Received(1).UpdateAsync(character, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -107,6 +106,7 @@ public class CharacterRenameShould
 
         Assert.Equal("Name already taken", refused.Message);
         Assert.Equal("Kaela", character.Name);
+        await _characters.DidNotReceiveWithAnyArgs().TryRenameAsync(default!, default!, default);
         await _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
@@ -119,37 +119,66 @@ public class CharacterRenameShould
 
         await Rename(cosmetic, character, "KAELA");
 
+        await _characters.Received(1).TryRenameAsync(Self, "Kaela", Arg.Any<CancellationToken>());
         Assert.Equal("Kaela", character.Name);
+    }
+
+    [Theory]
+    [MemberData(nameof(BothPaths))]
+    public async Task Write_nothing_for_a_name_that_would_not_change(bool cosmetic)
+    {
+        Character character = Holder(Self, "Kaela");
+
+        await Rename(cosmetic, character, "kaela");
+
+        await _characters.DidNotReceiveWithAnyArgs().TryRenameAsync(default!, default!, default);
+        await _characters.DidNotReceiveWithAnyArgs().FindByNameAsync(default!, default);
     }
 
     /// <summary>
     /// The taken check and the write are not atomic: another character can take the name in between, and the unique
-    /// index on NameKey refuses this write. The caller gets the check's answer, never a server error.
+    /// index on NameKey refuses the conditional rename. The caller gets the check's answer, never a server error.
     /// </summary>
     [Theory]
     [MemberData(nameof(BothPaths))]
     public async Task Answer_name_already_taken_to_a_rename_that_loses_the_race_to_the_index(bool cosmetic)
     {
         Character character = Holder(Self, "Kaela");
-        _characters.FindByNameAsync("Borin", Arg.Any<CancellationToken>())
-            .Returns((Character?)null, Holder(Other, "Borin"));
-        _characters.UpdateAsync(character, Arg.Any<CancellationToken>())
-            .ThrowsAsync(new DbUpdateException("unique violation"));
+        _characters.TryRenameAsync(Self, "Borin", Arg.Any<CancellationToken>()).Returns(CharacterRename.NameTaken);
 
         BusinessException refused = await Assert.ThrowsAsync<BusinessException>(() => Rename(cosmetic, character, "Borin"));
 
         Assert.Equal("Name already taken", refused.Message);
-        Assert.IsType<DbUpdateException>(refused.InnerException);
+        Assert.Equal("Kaela", character.Name);
+        await _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
+    /// <summary>A character in the world is renamed only once logged out (owner decision): 409, nothing written.</summary>
     [Theory]
     [MemberData(nameof(BothPaths))]
-    public async Task Rethrow_a_failed_write_when_nobody_else_holds_the_name(bool cosmetic)
+    public async Task Refuse_to_rename_a_character_that_is_online(bool cosmetic)
     {
         Character character = Holder(Self, "Kaela");
-        _characters.UpdateAsync(character, Arg.Any<CancellationToken>())
-            .ThrowsAsync(new DbUpdateException("something else"));
+        _characters.TryRenameAsync(Self, "Borin", Arg.Any<CancellationToken>()).Returns(CharacterRename.Online);
 
-        await Assert.ThrowsAsync<DbUpdateException>(() => Rename(cosmetic, character, "Borin"));
+        CharacterOnlineException refused =
+            await Assert.ThrowsAsync<CharacterOnlineException>(() => Rename(cosmetic, character, "Borin"));
+
+        Assert.Equal("Character is online; rename it while logged out.", refused.Message);
+        Assert.Equal("Kaela", character.Name);
+        await _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Patch_an_online_characters_other_fields_when_the_name_does_not_change()
+    {
+        Character character = Holder(Self, "Kaela");
+        character.Online = true;
+
+        await _service.UpdateAnyAsync(character, new CharacterPatchDto { Name = "Kaela", Level = 5 });
+
+        Assert.Equal(5, character.Level);
+        await _characters.Received(1).UpdateAsync(character, Arg.Any<CancellationToken>());
+        await _characters.DidNotReceiveWithAnyArgs().TryRenameAsync(default!, default!, default);
     }
 }

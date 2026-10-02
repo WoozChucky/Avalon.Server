@@ -18,9 +18,10 @@ namespace Avalon.Database.Character.Migrations
                 defaultValue: "");
 
             // Every existing character's key is its upper-cased name (#757), filled before the unique index is built:
-            // on the empty default every row would clash. Existing names are left as they are (owner decision: none
-            // breaks the new rule or clashes with another by case).
-            migrationBuilder.Sql("UPDATE \"Characters\" SET \"NameKey\" = upper(\"Name\");");
+            // on the empty default every row would clash. COLLATE "C" folds ASCII letters only, whatever the
+            // database's locale, as the check constraint and CharacterName.Key do. Existing names are left as they
+            // are (owner decision: none breaks the new rule or clashes with another by case).
+            migrationBuilder.Sql("UPDATE \"Characters\" SET \"NameKey\" = upper(\"Name\" COLLATE \"C\");");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Characters_NameKey",
@@ -31,7 +32,7 @@ namespace Avalon.Database.Character.Migrations
             migrationBuilder.AddCheckConstraint(
                 name: "CK_Characters_NameKey",
                 table: "Characters",
-                sql: "\"NameKey\" = upper(\"Name\")");
+                sql: "\"NameKey\" = upper(\"Name\" COLLATE \"C\")");
         }
 
         /// <inheritdoc />

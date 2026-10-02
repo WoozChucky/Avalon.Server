@@ -69,6 +69,17 @@ public class CharacterNameShould
     [InlineData("Bıll", "BıLL")] // only ASCII letters fold, so a non-ASCII name never reaches an ASCII one's key
     public void Key_a_name_by_its_ascii_upper_case(string name, string key) => Assert.Equal(key, CharacterName.Key(name));
 
+    /// <summary>
+    /// The stored key trims nothing, as the check constraint's upper("Name" COLLATE "C") does not; only a lookup of a
+    /// typed name ignores surrounding spaces.
+    /// </summary>
+    [Fact]
+    public void Trim_only_a_lookup_key()
+    {
+        Assert.Equal(" BOB ", CharacterName.Key(" Bob "));
+        Assert.Equal("BOB", CharacterName.LookupKey(" Bob "));
+    }
+
     [Theory]
     [InlineData("Bob", "bob", true)]
     [InlineData("Bob", "  BOB ", true)]

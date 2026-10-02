@@ -81,7 +81,7 @@ public class CharacterCreateHandler(
     /// <summary>
     /// Inserts the character, or answers null when the name was taken in the meantime. The duplicate check before it
     /// and this insert are not atomic: a character whose name differs only in case can be created in between, and the
-    /// unique index on NameKey (#757) refuses this one. Any other failure is rethrown.
+    /// unique index on NameKey (#757) refuses this one. Only that violation is caught; any other failure is rethrown.
     /// </summary>
     private async Task<Character?> CreateUnlessNameTakenAsync(Character character)
     {
@@ -89,11 +89,9 @@ public class CharacterCreateHandler(
         {
             return await characterRepository.CreateAsync(character, CancellationToken.None);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (CharacterNameKeyViolation.Is(ex))
         {
-            if (await characterRepository.FindByNameAsync(character.Name, CancellationToken.None) is not null)
-                return null;
-            throw;
+            return null;
         }
     }
 

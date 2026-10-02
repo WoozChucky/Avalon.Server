@@ -504,6 +504,11 @@ public class CharacterEntity : ICharacter
         }
     }
 
+    /// <summary>
+    /// The row's name. Settable here, World-side, for tests and tooling only (#757): <see cref="ICharacter.Name" /> on
+    /// the modding API is get-only, and a changed name is never saved (the column is insert-only to the change
+    /// tracker; a rename is <c>ICharacterRepository.TryRenameAsync</c>).
+    /// </summary>
     public string Name
     {
         get => Data?.Name ?? string.Empty;

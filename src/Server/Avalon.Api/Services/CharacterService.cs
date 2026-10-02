@@ -8,7 +8,6 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
-using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Api.Services;
 
@@ -65,63 +64,60 @@ public class CharacterService : ICharacterService
 
     public async Task UpdateCosmeticAsync(Character character, string? newName, CancellationToken cancellationToken = default)
     {
-        bool renamed = newName is not null && await RenameAsync(character, newName, cancellationToken);
-        await SaveAsync(character, renamed, cancellationToken);
+        if (newName is not null)
+            await RenameAsync(character, newName, cancellationToken);
     }
 
     public async Task UpdateAnyAsync(Character character, CharacterPatchDto dto, CancellationToken cancellationToken = default)
     {
-        bool renamed = dto.Name is not null && await RenameAsync(character, dto.Name, cancellationToken);
+        // The rename first: refused (rule, taken, online), the request changes nothing.
+        if (dto.Name is not null)
+            await RenameAsync(character, dto.Name, cancellationToken);
+
         if (dto.Level.HasValue)      character.Level = dto.Level.Value;
         if (dto.Experience.HasValue) character.Experience = dto.Experience.Value;
         if (dto.Health.HasValue)     character.Health = dto.Health.Value;
         if (dto.Power1.HasValue)     character.Power1 = dto.Power1.Value;
         if (dto.Power2.HasValue)     character.Power2 = dto.Power2.Value;
 
-        await SaveAsync(character, renamed, cancellationToken);
+        // A tracked update never writes the name (it is insert-only to the change tracker): the rename above did.
+        await _characterRepository.UpdateAsync(character, cancellationToken);
     }
 
     private const string NameTaken = "Name already taken";
 
     /// <summary>
     /// Renames the character under the rule a create follows (#757): 3 to 12 ASCII letters, stored first letter
-    /// upper-case and the rest lower-case, and refused as taken when another character holds the name in any case.
-    /// True when the name changed.
+    /// upper-case and the rest lower-case, refused as taken when another character holds the name in any case, and
+    /// refused with 409 while the character is online (owner decision). A name that would not change writes nothing.
+    /// The write is <see cref="ICharacterRepository.TryRenameAsync" />, one conditional statement that writes only
+    /// while the row is offline, so a login cannot land between the online check and the write; a rename that loses
+    /// the race to the unique index on NameKey is answered as taken.
     /// </summary>
-    private async Task<bool> RenameAsync(Character character, string name, CancellationToken cancellationToken)
+    private async Task RenameAsync(Character character, string name, CancellationToken cancellationToken)
     {
         if (!CharacterName.IsValid(name))
             throw new BusinessException(CharacterName.Requirement);
 
         string display = CharacterName.Display(name);
         if (string.Equals(display, character.Name, StringComparison.Ordinal))
-            return false;
+            return;
 
         var existing = await _characterRepository.FindByNameAsync(name, cancellationToken);
         if (existing is not null && existing.Id != character.Id)
             throw new BusinessException(NameTaken);
 
-        character.Name = display;
-        return true;
-    }
-
-    /// <summary>
-    /// Writes the row. The taken check before a rename and this write are not atomic: another character can take the
-    /// name in between, and the unique index on NameKey refuses this write; the caller then gets the check's answer.
-    /// Any other failure is rethrown.
-    /// </summary>
-    private async Task SaveAsync(Character character, bool renamed, CancellationToken cancellationToken)
-    {
-        try
+        switch (await _characterRepository.TryRenameAsync(character.Id, display, cancellationToken))
         {
-            await _characterRepository.UpdateAsync(character, cancellationToken);
-        }
-        catch (DbUpdateException ex) when (renamed)
-        {
-            var holder = await _characterRepository.FindByNameAsync(character.Name, cancellationToken);
-            if (holder is not null && holder.Id != character.Id)
-                throw new BusinessException(NameTaken, ex);
-            throw;
+            case CharacterRename.Renamed:
+                character.Name = display;
+                return;
+            case CharacterRename.Online:
+                throw new CharacterOnlineException();
+            case CharacterRename.NameTaken:
+                throw new BusinessException(NameTaken);
+            default:
+                throw new BusinessException("Character not found");
         }
     }
 

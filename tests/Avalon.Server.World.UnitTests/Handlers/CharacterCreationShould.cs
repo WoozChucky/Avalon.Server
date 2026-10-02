@@ -378,6 +378,34 @@ public class CharacterCreationShould : IDisposable
         Assert.False(await characterDb.CharacterStats.AnyAsync());
     }
 
+    /// <summary>Only the unique violation on NameKey is answered NameAlreadyExists; any other failure is rethrown.</summary>
+    [Fact]
+    public async Task Rethrow_an_insert_failure_that_is_not_the_name_key()
+    {
+        StaticData data = await LoadStaticDataAsync();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
+        characters.FindByAccountAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<Domain.Characters.Character>()));
+        characters.CreateAsync(Arg.Any<Domain.Characters.Character>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<Domain.Characters.Character>(new DbUpdateException("disk full")));
+        IWorldConnection connection = NewConnection();
+        CharacterCreateHandler handler = new(
+            NullLogger<CharacterCreateHandler>.Instance, characters,
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<ICharacterInventoryRepository>(), Substitute.For<IItemInstanceRepository>(),
+            new ItemIdAllocator(), NewWorld(data));
+
+        handler.Execute(connection, new CCharacterCreatePacket
+        {
+            Name = "Bob",
+            Class = (int)data.CharacterCreateInfos.First().Class,
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => PumpAsync(connection));
+        Assert.DoesNotContain(connection.ReceivedCalls(),
+            call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send));
+    }
+
     private async Task StoreCharacterAsync(string name, AccountId account)
     {
         await using CharacterDbContext db = _characters.CreateDbContext();

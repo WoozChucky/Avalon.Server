@@ -26,7 +26,7 @@ public sealed class CharacterIgnoreRepository(IDbContextFactory<CharacterDbConte
 
     public async Task<CharacterNameMatch?> FindCharacterByNameAsync(string name, CancellationToken cancellationToken = default)
     {
-        string key = CharacterName.Key(name);
+        string key = CharacterName.LookupKey(name);
         if (key.Length == 0)
             return null;
 

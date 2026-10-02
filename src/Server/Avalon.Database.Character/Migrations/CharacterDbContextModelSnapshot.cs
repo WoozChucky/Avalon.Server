@@ -137,11 +137,12 @@ namespace Avalon.Database.Character.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("NameKey")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Characters_NameKey");
 
                     b.ToTable("Characters", t =>
                         {
-                            t.HasCheckConstraint("CK_Characters_NameKey", "\"NameKey\" = upper(\"Name\")");
+                            t.HasCheckConstraint("CK_Characters_NameKey", "\"NameKey\" = upper(\"Name\" COLLATE \"C\")");
                         });
                 });
 

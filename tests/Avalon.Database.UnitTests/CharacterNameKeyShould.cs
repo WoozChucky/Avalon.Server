@@ -106,6 +106,8 @@ public class CharacterNameKeyShould
 
         await using SqliteConnection connection = new("DataSource=:memory:");
         await connection.OpenAsync();
+        // The fill folds with COLLATE "C", a Postgres collation; SQLite needs it registered to run the statement.
+        connection.CreateCollation("C", (x, y) => string.CompareOrdinal(x, y));
         await Execute(connection, """CREATE TABLE "Characters" ("Id" INTEGER PRIMARY KEY, "Name" TEXT NOT NULL, "NameKey" TEXT NOT NULL DEFAULT '')""");
         await Execute(connection, """INSERT INTO "Characters" ("Id", "Name") VALUES (1, 'Kaela'), (2, 'bob'), (3, 'ALICE')""");
 
@@ -136,6 +138,94 @@ public class CharacterNameKeyShould
 
         Assert.True(add >= 0 && fill > add && index > fill && check > fill,
             $"add {add}, fill {fill}, index {index}, check {check}");
+    }
+
+    /// <summary>
+    /// No tracked update writes the name: the world's whole-row saves, the select-time write and the API's admin patch
+    /// cannot put an older name back over a rename, nor fail on the unique index once another character took it.
+    /// </summary>
+    [Fact]
+    public async Task Leave_the_name_out_of_every_tracked_update()
+    {
+        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        await using (CharacterDbContext write = database.CreateDbContext())
+        {
+            write.Characters.Add(Row(1, "Kaela"));
+            await write.SaveChangesAsync();
+        }
+
+        CharacterRow stale = Row(1, "Oldname");
+        stale.Level = 7;
+        await new CharacterRepository(database).UpdateAsync(stale);
+
+        await using CharacterDbContext read = database.CreateDbContext();
+        CharacterRow stored = await read.Characters.AsNoTracking().SingleAsync();
+        Assert.Equal(("Kaela", "KAELA", (ushort)7), (stored.Name, stored.NameKey, stored.Level));
+    }
+
+    [Fact]
+    public async Task Rename_an_offline_character()
+    {
+        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        await StoreAsync(database, Row(1, "Kaela"));
+
+        Assert.Equal(CharacterRename.Renamed, await new CharacterRepository(database).TryRenameAsync(1u, "Borin"));
+
+        await using CharacterDbContext read = database.CreateDbContext();
+        CharacterRow stored = await read.Characters.AsNoTracking().SingleAsync();
+        Assert.Equal(("Borin", "BORIN"), (stored.Name, stored.NameKey));
+    }
+
+    [Fact]
+    public async Task Refuse_to_rename_an_online_character_and_write_nothing()
+    {
+        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        CharacterRow online = Row(1, "Kaela");
+        online.Online = true;
+        await StoreAsync(database, online);
+
+        Assert.Equal(CharacterRename.Online, await new CharacterRepository(database).TryRenameAsync(1u, "Borin"));
+
+        await using CharacterDbContext read = database.CreateDbContext();
+        Assert.Equal("Kaela", (await read.Characters.AsNoTracking().SingleAsync()).Name);
+    }
+
+    [Fact]
+    public async Task Answer_a_rename_onto_a_taken_key_as_name_taken()
+    {
+        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        await StoreAsync(database, Row(1, "Kaela"));
+        await StoreAsync(database, Row(2, "Borin"));
+
+        Assert.Equal(CharacterRename.NameTaken, await new CharacterRepository(database).TryRenameAsync(1u, "Borin"));
+    }
+
+    [Fact]
+    public async Task Answer_a_rename_of_no_character_as_not_found()
+    {
+        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        Assert.Equal(CharacterRename.NotFound, await new CharacterRepository(database).TryRenameAsync(9u, "Borin"));
+    }
+
+    [Fact]
+    public async Task Recognise_only_the_unique_violation_on_the_name_key()
+    {
+        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        await StoreAsync(database, Row(1, "Bob"));
+
+        DbUpdateException nameClash = await Assert.ThrowsAsync<DbUpdateException>(() => StoreAsync(database, Row(2, "BOB")));
+        DbUpdateException idClash = await Assert.ThrowsAsync<DbUpdateException>(() => StoreAsync(database, Row(1, "Alice")));
+
+        Assert.True(CharacterNameKeyViolation.Is(nameClash));
+        Assert.False(CharacterNameKeyViolation.Is(idClash));
+        Assert.False(CharacterNameKeyViolation.Is(new DbUpdateException("something else")));
+    }
+
+    private static async Task StoreAsync(SqliteDatabase<CharacterDbContext> database, CharacterRow row)
+    {
+        await using CharacterDbContext write = database.CreateDbContext();
+        write.Characters.Add(row);
+        await write.SaveChangesAsync();
     }
 
     private static async Task Execute(SqliteConnection connection, string sql)

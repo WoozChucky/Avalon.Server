@@ -31,6 +31,7 @@ public class ExceptionHandlerMiddlewareMappingShould
         { new AccountInactiveException(AccountStatus.Deactivated), 403, "AccountInactiveException", "Account not active", "DEACTIVATED", null },
         { new AccountLockedException(), 429, "AccountLockedException", "Too many attempts", "LOCKED", null },
         { new EmailDeliveryException(), 503, "ServiceUnavailable", "Service unavailable", "Email could not be sent", null },
+        { new CharacterOnlineException(), 409, "CharacterOnlineException", "Conflict", "Character is online; rename it while logged out.", null },
         { new BusinessException("Username already exists"), 400, "BusinessException", "Client error", "Username already exists", null },
         { new DerivedBusinessException("Nope"), 400, "DerivedBusinessException", "Client error", "Nope", null },
         {

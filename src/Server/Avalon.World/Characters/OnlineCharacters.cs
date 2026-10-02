@@ -28,7 +28,7 @@ public sealed class OnlineCharacters
 
     /// <summary>The id of the online character with this name, ignoring case and surrounding spaces.</summary>
     public bool TryIdByName(string name, out uint characterId) =>
-        _byName.TryGetValue(CharacterName.Key(name), out characterId);
+        _byName.TryGetValue(CharacterName.LookupKey(name), out characterId);
 
     /// <summary>The character the connection holds is online. A connection with no character changes nothing.</summary>
     public void Add(IWorldConnection connection)

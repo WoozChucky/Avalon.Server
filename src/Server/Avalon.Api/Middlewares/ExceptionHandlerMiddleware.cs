@@ -91,6 +91,9 @@ public class ExceptionHandlerMiddleware
             // The balance workbench's service: not configured, or not reachable. Fixed wording; the
             // exception's inner cause stays in the log.
             Balance.BalanceUnavailableException => WriteBalanceUnavailableAsync(context, exception),
+            // A rename of a character that is in the world (#757): it can be renamed once logged out.
+            CharacterOnlineException => WriteProblemAsync(context, StatusCodes.Status409Conflict,
+                exception.GetType().Name, "Conflict", exception.Message),
             BusinessException => WriteProblemAsync(context, (int)HttpStatusCode.BadRequest,
                 exception.GetType().Name, "Client error", exception.Message),
             // An Accounts check constraint refused the row (#503 follow-up): a username or an email

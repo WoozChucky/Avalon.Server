@@ -54,22 +54,22 @@ public static class CharacterName
     }
 
     /// <summary>
-    /// The key a name is looked up by: trimmed, with its ASCII letters upper-cased and everything else left as it is,
-    /// as SQL <c>upper()</c> does to the ASCII names the rule allows. A typed name with surrounding spaces finds the
-    /// same character; one with a non-ASCII letter finds none.
+    /// The key a name is stored under (<c>Characters.NameKey</c>): its ASCII letters upper-cased and everything else
+    /// left as it is, nothing trimmed, exactly what the check constraint's <c>upper("Name" COLLATE "C")</c> gives, so
+    /// the two agree on every name. A name with a non-ASCII letter keeps it, and never finds an ASCII name.
     /// </summary>
-    public static string Key(string name)
-    {
-        string trimmed = name.Trim();
-        return string.Create(trimmed.Length, trimmed, static (span, source) =>
+    public static string Key(string name) =>
+        string.Create(name.Length, name, static (span, source) =>
         {
             for (int i = 0; i < source.Length; i++)
                 span[i] = AsciiUpper(source[i]);
         });
-    }
 
-    /// <summary>Whether two names are one name: their keys are equal.</summary>
-    public static bool Same(string a, string b) => string.Equals(Key(a), Key(b), StringComparison.Ordinal);
+    /// <summary>The key a typed name is looked up by: <see cref="Key" /> of it trimmed, so surrounding spaces are ignored.</summary>
+    public static string LookupKey(string name) => Key(name.Trim());
+
+    /// <summary>Whether two names, as typed, are one name: their lookup keys are equal.</summary>
+    public static bool Same(string a, string b) => string.Equals(LookupKey(a), LookupKey(b), StringComparison.Ordinal);
 
     private static char AsciiUpper(char c) => c is >= 'a' and <= 'z' ? (char)(c - ('a' - 'A')) : c;
 
