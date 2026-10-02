@@ -30,6 +30,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Quests;
 using Avalon.World.Respawn;
+using Avalon.World.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -53,7 +54,8 @@ public class CharacterSelectHandler(
     TimeProvider? time = null,
     ICharacterQuestRepository? questRepository = null,
     QuestService? questService = null,
-    ICharacterIgnoreRepository? ignoreRepository = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    ICharacterIgnoreRepository? ignoreRepository = null,
+    TickThreadGuard? tickThread = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -340,7 +342,7 @@ public class CharacterSelectHandler(
             ?.Experience ?? 0;
 
         CharacterEntity entity = new(loggerFactory, character, regenConfig.Value, time,
-            world.Configuration.FuryDecayPerSecond)
+            world.Configuration.FuryDecayPerSecond, tickThread)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),

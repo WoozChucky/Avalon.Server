@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -652,7 +653,7 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         await world.LoadAsync(CancellationToken.None);
         if (town is not null)
-            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).WaitAsync(Limit);
+            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).Published(world).WaitAsync(Limit);
         return world;
     }
 

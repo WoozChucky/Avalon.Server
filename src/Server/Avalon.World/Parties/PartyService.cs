@@ -11,6 +11,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
 using Avalon.World.Social;
+using Avalon.World.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -22,13 +23,14 @@ namespace Avalon.World.Parties;
 /// World.Update all call it on the tick. The one exception is the shutdown despawn, which WorldServer.OnStoppingAsync
 /// runs on its own thread after joining the tick thread for at most 5 seconds: a tick still running past that bound
 /// could overlap it. Deadlines are read from the container's TimeProvider inside those calls; there are no timers.
+/// The mutators assert the tick thread in Debug builds (<see cref="TickThreadGuard" />, #639).
 /// </summary>
 public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvider time, ILogger<PartyService> logger,
-    OnlineCharacters? online = null)
+    OnlineCharacters? online = null, TickThreadGuard? tickThread = null)
 {
     // Who is online is shared with the whisper (#717): the service keeps feeding it from the world's online and
     // offline hooks. Production registers one singleton (WorldHostGraphShould pins that the service gets it).
-    private readonly OnlineCharacters _onlineCharacters = online ?? new OnlineCharacters();
+    private readonly OnlineCharacters _onlineCharacters = online ?? new OnlineCharacters(tickThread);
 
     private readonly Dictionary<uint, Party> _parties = [];
     private readonly Dictionary<uint, Party> _partyOf = [];
@@ -77,6 +79,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// <summary>The character moved to another instance (World.TransferPlayer): who shares an instance changed for its whole party.</summary>
     public void InstanceChanged(IWorldConnection connection)
     {
+        tickThread?.AssertOnTick("PartyService.InstanceChanged");
         // A return under way that moved the character is done: a failure reported after the move is not retried.
         if (connection.Character is { } moved)
             _returning.Remove(moved.Guid.Id);
@@ -91,6 +94,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// <summary>The character entered the world (World.SpawnInInstance).</summary>
     public void CharacterOnline(IWorldConnection connection)
     {
+        tickThread?.AssertOnTick("PartyService.CharacterOnline");
         if (connection.Character is not { } character)
             return;
 
@@ -112,6 +116,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// <summary>The character left the world (World.LeaveWorldAsync, before the connection lets go of it).</summary>
     public void CharacterOffline(IWorldConnection connection, ICharacter character)
     {
+        tickThread?.AssertOnTick("PartyService.CharacterOffline");
         uint id = character.Guid.Id;
         if (!_onlineCharacters.Remove(connection, character))
             return;
@@ -133,6 +138,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public PartyResult Invite(uint inviterId, string targetName)
     {
+        tickThread?.AssertOnTick("PartyService.Invite");
         if (OnlineConnection(inviterId)?.Character is not { } inviter)
             return PartyResult.NotFound;
 
@@ -177,6 +183,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// </summary>
     public void HideInviteFrom(uint targetId, uint inviterId)
     {
+        tickThread?.AssertOnTick("PartyService.HideInviteFrom");
         if (_invites.TryGetValue(targetId, out PartyInvite? held) && held.InviterId == inviterId)
         {
             _invites.Remove(targetId);
@@ -186,6 +193,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public PartyResult Respond(uint targetId, bool accept)
     {
+        tickThread?.AssertOnTick("PartyService.Respond");
         if (!_invites.Remove(targetId, out PartyInvite? invite))
             return PartyResult.NoInvite;
 
@@ -213,6 +221,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public PartyResult Leave(uint memberId)
     {
+        tickThread?.AssertOnTick("PartyService.Leave");
         if (PartyOf(memberId) is not { } party)
             return PartyResult.NotInParty;
 
@@ -222,6 +231,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public PartyResult Kick(uint leaderId, uint targetId)
     {
+        tickThread?.AssertOnTick("PartyService.Kick");
         if (PartyOf(leaderId) is not { } party)
             return PartyResult.NotInParty;
         if (!party.IsLeader(leaderId))
@@ -237,6 +247,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public PartyResult Promote(uint leaderId, uint targetId)
     {
+        tickThread?.AssertOnTick("PartyService.Promote");
         if (PartyOf(leaderId) is not { } party)
             return PartyResult.NotInParty;
         if (!party.IsLeader(leaderId))
@@ -256,6 +267,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
     public PartyResult SetExperienceMode(uint leaderId, PartyExperienceMode mode)
     {
+        tickThread?.AssertOnTick("PartyService.SetExperienceMode");
         if (PartyOf(leaderId) is not { } party)
             return PartyResult.NotInParty;
         if (!party.IsLeader(leaderId))
@@ -291,6 +303,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// </summary>
     public IReadOnlyList<IWorldConnection> Tick()
     {
+        tickThread?.AssertOnTick("PartyService.Tick");
         DateTimeOffset now = time.GetUtcNow();
         ExpireInvites(now);
 
@@ -327,6 +340,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// </summary>
     public void StartReturns(IReadOnlyList<IWorldConnection> due, TownReturn town)
     {
+        tickThread?.AssertOnTick("PartyService.StartReturns");
         for (int i = 0; i < due.Count; i++)
         {
             IWorldConnection connection = due[i];
@@ -361,6 +375,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// </summary>
     public void ReturnFailed(uint characterId, Exception failure)
     {
+        tickThread?.AssertOnTick("PartyService.ReturnFailed");
         if (!_returning.Remove(characterId, out PendingReturn? pending))
         {
             logger.LogError(failure, "Return to town of character {CharacterId} failed; not retried: it is no longer returning",
@@ -397,6 +412,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// <summary>A member levelled up: the roster shows levels.</summary>
     public void LevelChanged(ICharacter character)
     {
+        tickThread?.AssertOnTick("PartyService.LevelChanged");
         if (PartyOf(character.Guid.Id) is { } party)
             SendRoster(party);
     }
@@ -408,6 +424,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// </summary>
     public void FlushMemberStatus()
     {
+        tickThread?.AssertOnTick("PartyService.FlushMemberStatus");
         DateTimeOffset now = time.GetUtcNow();
         foreach (Party party in _parties.Values)
         {

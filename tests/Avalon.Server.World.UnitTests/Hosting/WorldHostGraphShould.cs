@@ -116,6 +116,18 @@ public class WorldHostGraphShould
             Assert.Contains(typeof(CharacterDeletetHandler).GetConstructors(),
                 c => c.GetParameters().Any(p => p.ParameterType == typeof(IWorldServer)));
 
+            // The tick-thread assertion (#639). Every holder takes it optionally and would otherwise check nothing, so only
+            // this proves production hands the one WorldServer binds to the world (and so its registry), the party
+            // service, who is online and every character's ignore list.
+            Avalon.World.Threading.TickThreadGuard tickThread =
+                host.Services.GetRequiredService<Avalon.World.Threading.TickThreadGuard>();
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(host.Services.GetRequiredService<IWorld>()));
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(host.Services.GetRequiredService<PartyService>()));
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(
+                host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>()));
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(ActivatorUtilities.CreateInstance(
+                host.Services, typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
+
             // The chat rate limit (#722): one singleton, with the shipped default from appsettings.json.
             Assert.Same(host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>(),
                 host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>());

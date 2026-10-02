@@ -19,12 +19,14 @@ using Avalon.World.Characters;
 using Avalon.World.Inventory;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
+using Avalon.World.Presence;
 using Avalon.World.Public;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Telemetry;
+using Avalon.World.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -144,6 +146,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly IWorld _world;
     private readonly ICharacterSaver _characterSaver;
+    private readonly TickThreadGuard? _tickThreadGuard;
+    private readonly PresenceCapture? _presence;
+    private readonly ThrottledErrorLog _presenceErrors;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -196,6 +201,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _questFlushErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest flush");
         _world = world;
+        // Optional, like the clock: the tests that build a WorldServer from a bare provider have none.
+        _tickThreadGuard = serviceProvider.GetService<TickThreadGuard>();
+        _presence = serviceProvider.GetService<PresenceCapture>();
+        _presenceErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The presence capture");
         
         _logger.LogInformation("R2R enabled: {R2R}",
             System.Runtime.CompilerServices.RuntimeFeature.IsSupported("IsDynamicCodeCompiled"));
@@ -399,6 +409,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     private void TickLoop()
     {
+        // From here until the loop ends, World-side state that only the tick may change refuses any other thread
+        // (Debug builds, #639). Unbound in the finally, so the shutdown despawn that runs once the tick is joined passes.
+        _tickThreadGuard?.Bind();
         long next = Stopwatch.GetTimestamp() + TicksPerFrame;
         TimeSpan prev = _gameTime.Elapsed;
 
@@ -473,6 +486,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
         finally
         {
+            _tickThreadGuard?.Unbind();
             _tickExited.TrySetResult();
         }
     }
@@ -560,6 +574,20 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         catch (Exception e)
         {
             _memberStatusErrors.Failed(e);
+        }
+
+        // The admin view's presence (#639), about once a second: taken here, in the serial phase after the world
+        // update, so the rosters are read on the tick that changes them; the Redis write stays off the tick.
+        if (_presence is not null)
+        {
+            try
+            {
+                _presence.CaptureIfDue(_world.InstanceRegistry);
+            }
+            catch (Exception e)
+            {
+                _presenceErrors.Failed(e);
+            }
         }
 
         // Time-sync ping: stagger across the 600-tick window using each connection's

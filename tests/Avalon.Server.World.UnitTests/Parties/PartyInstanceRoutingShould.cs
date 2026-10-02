@@ -53,7 +53,7 @@ public class PartyInstanceRoutingShould : IDisposable
         _factory.BuildAsync(default!, default, default, default).ReturnsForAnyArgs(call =>
         {
             _requested.Add((call.ArgAt<MapTemplate>(0), call.ArgAt<PartyId?>(3)));
-            var build = new TaskCompletionSource<MapInstance>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var build = new TaskCompletionSource<MapInstance>(); // inline, so a finished build is queued at once
             _builds.Add(build);
             return build.Task;
         });
@@ -76,6 +76,46 @@ public class PartyInstanceRoutingShould : IDisposable
         Assert.Null(got[0].OwnerCharacterId);
         Assert.True(_registry.IsPartyInstance(party, got[0].InstanceId));
         Assert.False(_registry.IsPartyInstance(new PartyId(10), got[0].InstanceId));
+    }
+
+    /// <summary>
+    /// #639: a finished party build is neither registered nor indexed until the tick publishes it, so a member asking
+    /// meanwhile joins the same build, and once published the party is routed to it.
+    /// </summary>
+    [Fact]
+    public async Task Index_the_party_instance_only_when_the_tick_publishes_it()
+    {
+        var party = new PartyId(9);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        CompleteBuilds(publish: false);
+
+        Assert.False(first.IsCompleted);
+        Assert.Empty(_registry.ActiveInstances);
+        Assert.Same(first, _registry.GetOrCreatePartyInstanceAsync(party, DungeonId));
+
+        _registry.PublishFinished();
+        IMapInstance built = await first.WaitAsync(Bound);
+
+        Assert.True(_registry.IsPartyInstance(party, built.InstanceId));
+        Assert.Same(built, await _registry.GetOrCreatePartyInstanceAsync(party, DungeonId).WaitAsync(Bound));
+        Assert.Single(_builds);
+    }
+
+    /// <summary>A disband between the build's end and its publish leaves it unindexed too.</summary>
+    [Fact]
+    public async Task Leave_unindexed_a_build_that_finished_before_the_party_was_forgotten_but_was_published_after()
+    {
+        var party = new PartyId(9);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        CompleteBuilds(publish: false);
+
+        _registry.ForgetParty(party);
+        _registry.PublishFinished();
+        IMapInstance orphan = await first.WaitAsync(Bound);
+
+        _ = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Assert.Equal(2, _builds.Count);
+        Assert.Same(orphan, _registry.GetInstanceById(orphan.InstanceId));
     }
 
     [Fact]
@@ -184,7 +224,7 @@ public class PartyInstanceRoutingShould : IDisposable
             instance.Dispose();
     }
 
-    private void CompleteBuilds()
+    private void CompleteBuilds(bool publish = true)
     {
         for (int i = 0; i < _builds.Count; i++)
         {
@@ -196,6 +236,9 @@ public class PartyInstanceRoutingShould : IDisposable
             _instances.Add(instance);
             _builds[i].SetResult(instance);
         }
+
+        if (publish)
+            _registry.PublishFinished(); // what the tick does first (#639)
     }
 }
 
@@ -401,12 +444,12 @@ public class PartyWorldWiringShould
         parties.Form(a, b);
         PartyId party = parties.Parties.PartyOf(a.Id)!.Id;
 
-        IMapInstance first = await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, DungeonId).WaitAsync(Bound);
-        Assert.Same(first, await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, DungeonId).WaitAsync(Bound));
+        IMapInstance first = await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, DungeonId).Published(world).WaitAsync(Bound);
+        Assert.Same(first, await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, DungeonId).Published(world).WaitAsync(Bound));
 
         parties.Parties.Leave(b.Id); // two members: the party disbands
 
-        IMapInstance after = await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, DungeonId).WaitAsync(Bound);
+        IMapInstance after = await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, DungeonId).Published(world).WaitAsync(Bound);
         Assert.NotSame(first, after);
         Assert.Equal(2, built.Count);
         Assert.Empty(parties.Instances.Forgotten); // the world's registry, not the fake, is what the service forgets into

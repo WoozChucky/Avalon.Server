@@ -5,11 +5,12 @@ using Avalon.Infrastructure;
 using Avalon.Infrastructure.Presence;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.Presence;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Configuration;
+using Avalon.World.Presence;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -17,32 +18,43 @@ using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Presence;
 
+/// <summary>
+/// The Redis side of presence: it writes what the tick captured (#639, <see cref="PresenceCapture" />), each snapshot
+/// once, under the keys the API reads, and never lets a Redis failure reach the world server.
+/// </summary>
 public class PresenceSnapshotServiceShould
 {
     private readonly IInstanceRegistry _registry = Substitute.For<IInstanceRegistry>();
-    private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
 
-    private PresenceSnapshotService CreateSut(ushort worldId = 1)
+    /// <summary>The registry holds these. Built by the caller first: NSubstitute's last-call slot would otherwise be
+    /// clobbered by the calls building them inside Returns(...).</summary>
+    private void Hold(params IMapInstance[] instances) => _registry.ActiveInstances.Returns(instances);
+    private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
+    private readonly FixedTimeProvider _clock = new(new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
+
+    private PresenceCapture Capture(ushort worldId = 1) =>
+        new(Options.Create(new GameConfiguration { WorldId = worldId.ToString() }),
+            NullLogger<PresenceCapture>.Instance, _clock);
+
+    private PresenceSnapshotService CreateSut(PresenceCapture capture) =>
+        new(capture, _cache, NullLogger<PresenceSnapshotService>.Instance);
+
+    /// <summary>A capture that has taken one snapshot of what the registry holds now.</summary>
+    private PresenceCapture Captured(ushort worldId = 1)
     {
-        var config = new GameConfiguration { WorldId = worldId.ToString() };
-        return new PresenceSnapshotService(
-            _registry, _cache, Options.Create(config), NullLogger<PresenceSnapshotService>.Instance);
+        PresenceCapture capture = Capture(worldId);
+        capture.CaptureIfDue(_registry);
+        return capture;
     }
 
-    private static ICharacter Character(uint id, string name, Vector3 pos)
+    private static ICharacter Character(uint id, string name)
     {
         var c = Substitute.For<ICharacter>();
         c.Guid.Returns(new ObjectGuid(ObjectType.Character, id));
         c.Name.Returns(name);
         c.Class.Returns(CharacterClass.Wizard);
-        c.Position.Returns(pos);
-        c.Orientation.Returns(new Vector3(0, 1.57f, 0));
-        c.Level.Returns((ushort)34);
-        c.CurrentHealth.Returns(812u);
-        c.Health.Returns(1200u);
+        c.Position.Returns(Vector3.zero);
         c.MoveState.Returns(MoveState.Idle);
-        c.IsInCombat.Returns(true);
-        c.IsDead.Returns(false);
         return c;
     }
 
@@ -54,65 +66,36 @@ public class PresenceSnapshotServiceShould
         i.MapType.Returns(MapType.Normal);
         i.Seed.Returns(-1044266558);
         i.ConfigVersion.Returns("a91f3c7e");
-        i.OwnerCharacterId.Returns((uint?)4417);
-        // NSubstitute tracks "the last call made" on a single thread-local slot, shared
-        // across every substitute. Building this dictionary inline as the Returns(...)
-        // argument would call c.Guid on each character substitute while i.Characters'
-        // pending call is still awaiting configuration, clobbering it. Materializing it
-        // into a local first keeps those calls out of the Returns(...) expression.
+        // Built before Returns(...): NSubstitute's last-call slot would otherwise be clobbered by c.Guid.
         Dictionary<ObjectGuid, ICharacter> charactersByGuid = characters.ToDictionary(c => c.Guid);
         i.Characters.Returns(charactersByGuid);
         return i;
     }
 
-    /// <summary>
-    /// An instance whose roster throws when read, simulating the 60 Hz simulation tick
-    /// mutating <c>MapInstance.Characters</c> (a plain, non-concurrent dictionary) while
-    /// PresenceSnapshotService's timer walks it from a thread-pool thread.
-    /// </summary>
-    private static IMapInstance InstanceWithRacingRoster(Guid id)
-    {
-        var i = Substitute.For<IMapInstance>();
-        i.InstanceId.Returns(id);
-        i.TemplateId.Returns(new MapTemplateId(12));
-        i.MapType.Returns(MapType.Normal);
-        i.Seed.Returns(0);
-        i.ConfigVersion.Returns(string.Empty);
-        i.OwnerCharacterId.Returns((uint?)null);
-        i.Characters.Returns(_ => throw new InvalidOperationException(
-            "Collection was modified; enumeration operation may not execute."));
-        return i;
-    }
-
     [Fact]
-    public async Task Should_write_nothing_when_no_instances_are_active()
+    public async Task Write_nothing_while_the_tick_has_captured_nothing()
     {
-        _registry.ActiveInstances.Returns([]);
-
-        await CreateSut().CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(Capture()).WriteLatestAsync(CancellationToken.None);
 
         await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
     }
 
     [Fact]
-    public async Task Should_write_nothing_when_instances_hold_no_players()
+    public async Task Write_nothing_when_instances_hold_no_players()
     {
-        IMapInstance instance = Instance(Guid.NewGuid());
-        _registry.ActiveInstances.Returns([instance]);
+        Hold(Instance(Guid.NewGuid()));
 
-        await CreateSut().CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(Captured()).WriteLatestAsync(CancellationToken.None);
 
         await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
     }
 
     [Fact]
-    public async Task Should_write_the_world_snapshot_with_the_presence_ttl()
+    public async Task Write_the_world_snapshot_with_the_presence_ttl()
     {
-        ICharacter nym = Character(4417, "Nym", new Vector3(412.5f, 0f, -87.25f));
-        IMapInstance instance = Instance(Guid.NewGuid(), nym);
-        _registry.ActiveInstances.Returns([instance]);
+        Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
 
-        await CreateSut(worldId: 3).CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(Captured(worldId: 3)).WriteLatestAsync(CancellationToken.None);
 
         await _cache.Received(1).SetAsync(
             "world:3:presence",
@@ -121,19 +104,30 @@ public class PresenceSnapshotServiceShould
     }
 
     [Fact]
-    public async Task Should_write_a_character_index_entry_per_player()
+    public async Task Write_a_character_index_entry_per_player()
     {
-        ICharacter nym = Character(4417, "Nym", Vector3.zero);
-        ICharacter kel = Character(9002, "Kel", Vector3.zero);
-        IMapInstance instance = Instance(Guid.NewGuid(), nym, kel);
-        _registry.ActiveInstances.Returns([instance]);
+        Hold(Instance(Guid.NewGuid(), Character(4417, "Nym"), Character(9002, "Kel")));
 
-        await CreateSut(worldId: 3).CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(Captured(worldId: 3)).WriteLatestAsync(CancellationToken.None);
 
-        await _cache.Received(1).SetAsync(
-            "presence:world:3:character:4417", Arg.Any<string>(), CacheKeys.PresenceTtl);
-        await _cache.Received(1).SetAsync(
-            "presence:world:3:character:9002", Arg.Any<string>(), CacheKeys.PresenceTtl);
+        await _cache.Received(1).SetAsync("presence:world:3:character:4417", Arg.Any<string>(), CacheKeys.PresenceTtl);
+        await _cache.Received(1).SetAsync("presence:world:3:character:9002", Arg.Any<string>(), CacheKeys.PresenceTtl);
+    }
+
+    /// <summary>
+    /// A snapshot is written once. A tick that stalls captures nothing new, so nothing more is written and the keys
+    /// expire rather than show a stale position as live.
+    /// </summary>
+    [Fact]
+    public async Task Write_each_capture_once()
+    {
+        Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
+        PresenceSnapshotService sut = CreateSut(Captured(worldId: 3));
+
+        await sut.WriteLatestAsync(CancellationToken.None);
+        await sut.WriteLatestAsync(CancellationToken.None);
+
+        await _cache.Received(1).SetAsync("world:3:presence", Arg.Any<string>(), CacheKeys.PresenceTtl);
     }
 
     /// <summary>
@@ -154,13 +148,13 @@ public class PresenceSnapshotServiceShould
         Guid instanceTwo = Guid.NewGuid();
 
         // Built before Returns(...): see the note in Instance about NSubstitute's last-call slot.
-        IMapInstance worldOne = Instance(instanceOne, Character(7, "Nym", Vector3.zero));
-        IMapInstance worldTwo = Instance(instanceTwo, Character(7, "Zed", Vector3.zero));
+        IMapInstance worldOne = Instance(instanceOne, Character(7, "Nym"));
+        IMapInstance worldTwo = Instance(instanceTwo, Character(7, "Zed"));
 
         _registry.ActiveInstances.Returns([worldOne]);
-        await CreateSut(worldId: 1).CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(Captured(worldId: 1)).WriteLatestAsync(CancellationToken.None);
         _registry.ActiveInstances.Returns([worldTwo]);
-        await CreateSut(worldId: 2).CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(Captured(worldId: 2)).WriteLatestAsync(CancellationToken.None);
 
         CharacterPresenceIndex? one = PresenceJson.Deserialize<CharacterPresenceIndex>(written[CacheKeys.CharacterPresenceIndex(1, 7)]);
         CharacterPresenceIndex? two = PresenceJson.Deserialize<CharacterPresenceIndex>(written[CacheKeys.CharacterPresenceIndex(2, 7)]);
@@ -169,18 +163,16 @@ public class PresenceSnapshotServiceShould
     }
 
     [Fact]
-    public async Task Should_carry_seed_and_config_version_into_the_snapshot()
+    public async Task Carry_seed_and_config_version_into_the_snapshot()
     {
-        ICharacter nym = Character(4417, "Nym", Vector3.zero);
-        IMapInstance instance = Instance(Guid.NewGuid(), nym);
-        _registry.ActiveInstances.Returns([instance]);
+        Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
         string? captured = null;
         await _cache.SetAsync(
             Arg.Is<string>(k => k == "world:1:presence"),
             Arg.Do<string>(v => captured = v),
             Arg.Any<TimeSpan?>());
 
-        await CreateSut().CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(Captured()).WriteLatestAsync(CancellationToken.None);
 
         WorldPresenceSnapshot? snap = PresenceJson.Deserialize<WorldPresenceSnapshot>(captured!);
         Assert.Equal(-1044266558, snap!.Instances[0].Seed);
@@ -189,110 +181,40 @@ public class PresenceSnapshotServiceShould
     }
 
     [Fact]
-    public async Task Should_not_throw_when_the_cache_write_fails()
+    public async Task Not_throw_when_the_cache_write_fails()
     {
-        ICharacter nym = Character(4417, "Nym", Vector3.zero);
-        IMapInstance instance = Instance(Guid.NewGuid(), nym);
-        _registry.ActiveInstances.Returns([instance]);
+        Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
         _cache.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>())
               .Returns<Task<bool>>(_ => throw new InvalidOperationException("redis down"));
 
-        await CreateSut().CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(Captured()).WriteLatestAsync(CancellationToken.None);
     }
 
     [Fact]
-    public async Task Should_not_throw_when_the_cache_throws_a_cancellation_unrelated_to_our_token()
+    public async Task Not_throw_when_the_cache_throws_a_cancellation_unrelated_to_our_token()
     {
         // TaskCanceledException derives from OperationCanceledException. A bare
         // `catch (OperationCanceledException) { throw; }` would let this one escape and
         // stop the world server via BackgroundService's default StopHost behavior, even
-        // though the CancellationToken this capture was given was never cancelled.
-        ICharacter nym = Character(4417, "Nym", Vector3.zero);
-        IMapInstance instance = Instance(Guid.NewGuid(), nym);
-        _registry.ActiveInstances.Returns([instance]);
+        // though the CancellationToken this write was given was never cancelled.
+        Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
         _cache.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>())
               .Returns<Task<bool>>(_ => throw new TaskCanceledException("redis reconnect"));
 
-        await CreateSut().CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(Captured()).WriteLatestAsync(CancellationToken.None);
     }
 
+    /// <summary>The writer never walks the instances: only the tick's capture reads simulation state.</summary>
     [Fact]
-    public async Task Should_write_other_instances_when_one_instance_throws_while_being_walked()
+    public async Task Read_no_simulation_state_when_it_writes()
     {
-        // The racing instance is listed first so this also proves the loop continues
-        // past it rather than aborting the whole capture.
-        IMapInstance racing = InstanceWithRacingRoster(Guid.NewGuid());
-        ICharacter nym = Character(4417, "Nym", Vector3.zero);
-        IMapInstance healthy = Instance(Guid.NewGuid(), nym);
-        _registry.ActiveInstances.Returns([racing, healthy]);
+        Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
+        PresenceCapture capture = Captured();
+        _registry.ClearReceivedCalls();
 
-        await CreateSut(worldId: 3).CaptureOnceAsync(CancellationToken.None);
+        await CreateSut(capture).WriteLatestAsync(CancellationToken.None);
 
-        await _cache.Received(1).SetAsync(
-            "world:3:presence",
-            Arg.Is<string>(json => json.Contains("\"name\":\"Nym\"")),
-            CacheKeys.PresenceTtl);
-    }
-
-    [Fact]
-    public async Task Should_write_nothing_and_log_no_warning_when_the_registry_is_not_ready_yet()
-    {
-        // Production's accessor (IWorld.InstanceRegistry) is null for several seconds at
-        // every boot, until World.LoadAsync finishes. That must read as "nothing to
-        // publish yet", not an error worth a warning-level log.
-        var logger = new CapturingLogger();
-        var sut = new PresenceSnapshotService(
-            () => (IInstanceRegistry?)null, _cache, Options.Create(new GameConfiguration { WorldId = "1" }), logger);
-
-        await sut.CaptureOnceAsync(CancellationToken.None);
-
-        await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
-        Assert.DoesNotContain(LogLevel.Warning, logger.Levels);
-    }
-
-    [Fact]
-    public async Task Should_defer_reading_the_registry_until_capture_runs()
-    {
-        // Production wiring resolves IWorld.InstanceRegistry via this accessor, and that
-        // property does not exist until World.LoadAsync runs -- well after this hosted
-        // service is constructed. The accessor must not be invoked at construction time,
-        // only when a capture actually happens.
-        var accessorCalls = 0;
-        IInstanceRegistry Accessor()
-        {
-            accessorCalls++;
-            return _registry;
-        }
-        _registry.ActiveInstances.Returns([]);
-
-        var sut = new PresenceSnapshotService(
-            Accessor, _cache, Options.Create(new GameConfiguration { WorldId = "1" }),
-            NullLogger<PresenceSnapshotService>.Instance);
-
-        Assert.Equal(0, accessorCalls);
-
-        await sut.CaptureOnceAsync(CancellationToken.None);
-
-        Assert.Equal(1, accessorCalls);
-    }
-
-    private sealed class CapturingLogger : ILogger<PresenceSnapshotService>
-    {
-        private readonly List<LogLevel> _levels = [];
-
-        public IReadOnlyList<LogLevel> Levels
-        {
-            get { lock (_levels) return [.. _levels]; }
-        }
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter)
-        {
-            lock (_levels) _levels.Add(logLevel);
-        }
+        _ = _registry.DidNotReceive().ActiveInstances;
+        await _cache.Received().SetAsync("world:1:presence", Arg.Any<string>(), CacheKeys.PresenceTtl);
     }
 }

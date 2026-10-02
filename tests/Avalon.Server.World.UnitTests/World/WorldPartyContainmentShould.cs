@@ -58,7 +58,7 @@ public class WorldPartyContainmentShould
         var factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(town);
         Avalon.World.World world = await BuildAsync(mapManager, factory);
-        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).Published(world);
         _clock.Broken = true;
 
         Exception? thrown = Record.Exception(() =>

@@ -131,17 +131,48 @@ public class WorldServerBarrierTickShould : IDisposable
         Assert.True(continued);
     }
 
+    /// <summary>
+    /// #639: presence is captured by the tick, after the world update, from the registry it ticked; the Redis writer
+    /// only takes what the tick handed over. A second tick within the second captures nothing new.
+    /// </summary>
+    [Fact]
+    public void Capture_presence_on_the_tick_once_a_second()
+    {
+        var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(
+            new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
+        var presence = new Avalon.World.Presence.PresenceCapture(Options.Create(new GameConfiguration { WorldId = "4" }),
+            NullLogger<Avalon.World.Presence.PresenceCapture>.Instance, clock);
+        (TestWorldServer server, IWorld world, _) = Build(presence: presence);
+        ICharacter nym = PendingSpawnConnection.Character();
+        nym.Position.Returns(Avalon.Common.Mathematics.Vector3.zero);
+        nym.Orientation.Returns(Avalon.Common.Mathematics.Vector3.zero);
+        var instance = Substitute.For<IMapInstance>();
+        instance.TemplateId.Returns(new Avalon.Common.ValueObjects.MapTemplateId(1));
+        Dictionary<Avalon.Common.ObjectGuid, ICharacter> roster = new() { [nym.Guid] = nym };
+        instance.Characters.Returns(roster);
+        var registry = Substitute.For<IInstanceRegistry>();
+        registry.ActiveInstances.Returns([instance]);
+        world.InstanceRegistry.Returns(registry);
+
+        server.Tick();
+        Assert.Equal((ushort)4, presence.Take()?.WorldId);
+
+        server.Tick();
+        Assert.Null(presence.Take());
+    }
+
     /// <summary>Reference data with the seeded combat formula, which the tick's sheet flush reads (#506).</summary>
     private static readonly Lazy<StaticData> SeededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
 
-    private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(PartyService? parties = null)
+    private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(PartyService? parties = null,
+        Avalon.World.Presence.PresenceCapture? presence = null)
     {
         StaticData data = SeededData.Value;   // loaded outside Returns, which it would otherwise interrupt
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CharacterLoadTimeoutSeconds = 15 });
         world.Data.Returns(data);
 
-        var server = new TestWorldServer(world, parties);
+        var server = new TestWorldServer(world, parties, presence);
         var connection = new Avalon.World.WorldConnection(
             server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
         server.Add(connection);
@@ -151,10 +182,11 @@ public class WorldServerBarrierTickShould : IDisposable
     /// <summary>Reaches one tick without the socket loop that normally drives it.</summary>
     private sealed class TestWorldServer : WorldServer
     {
-        public TestWorldServer(IWorld world, PartyService? parties = null) : base(
+        public TestWorldServer(IWorld world, PartyService? parties = null,
+            Avalon.World.Presence.PresenceCapture? presence = null) : base(
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
-            new AnyServiceProvider(),
+            new AnyServiceProvider(presence),
             Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 }),
             world,
             Substitute.For<IScriptManager>(),
@@ -173,13 +205,16 @@ public class WorldServerBarrierTickShould : IDisposable
     /// The world server reflects over every packet handler in the assembly and activates each one,
     /// so standing it up needs a container that answers for all of their dependencies.
     /// </summary>
-    private sealed class AnyServiceProvider : IServiceProvider
+    private sealed class AnyServiceProvider(Avalon.World.Presence.PresenceCapture? presence = null) : IServiceProvider
     {
         private QuestService? _quests;
 
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
+
+            // The presence capture (#639), only where a test hands one over; production registers it.
+            if (serviceType == typeof(Avalon.World.Presence.PresenceCapture)) return presence;
 
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))

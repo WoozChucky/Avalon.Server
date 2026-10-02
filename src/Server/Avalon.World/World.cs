@@ -26,6 +26,7 @@ using Avalon.World.Public.Scripts;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -88,6 +89,14 @@ public class World : IWorld
     private readonly PartyService? _parties;
     private readonly ChatRateLimiter _chatRateLimiter;
     private readonly ThrottledErrorLog _partyTickErrors;
+    private readonly ThrottledErrorLog _publishErrors;
+    private readonly TickThreadGuard? _tick;
+
+    // Every AI script type hot reloaded so far, by name (the latest of each), applied on the tick. An instance whose build
+    // was in flight during a reload is brought up to date with it when it is published (#639).
+    private readonly Dictionary<string, Type> _hotReloaded = new(StringComparer.InvariantCultureIgnoreCase);
+
+    private InstanceRegistry? _registry;
 
     private Domain.Auth.World? _world;
     private volatile List<Type>? _pendingHotReload;
@@ -115,9 +124,11 @@ public class World : IWorld
         IVendorStockRepository? vendorStockRepository = null,
         ICombatDataRepository? combatDataRepository = null,
         PartyService? parties = null,
-        IQuestRepository? questRepository = null)
+        IQuestRepository? questRepository = null,
+        TickThreadGuard? tickThread = null)
     {
         _parties = parties;
+        _tick = tickThread;
         _chatRateLimiter = chatRateLimiter;
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
@@ -138,6 +149,8 @@ public class World : IWorld
             serviceProvider.GetService<TimeProvider>());
         _partyTickErrors = new ThrottledErrorLog(_logger, serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System,
             "The party tick");
+        _publishErrors = new ThrottledErrorLog(_logger, serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System,
+            "Publishing built instances");
 
         _hotReloadTimer.SetInterval(
             (long)TimeSpan.FromSeconds(configuration.Value.ScriptHotReloadIntervalSeconds).TotalMilliseconds);
@@ -156,6 +169,8 @@ public class World : IWorld
 
     public void SpawnInInstance(IWorldConnection connection, IMapInstance instance)
     {
+        _tick?.AssertOnTick("World.SpawnInInstance");
+
         instance.AddCharacter(connection);
 
         // The party learns the character is online, and its members get the roster (2026-09-30). Contained: a throw
@@ -205,6 +220,8 @@ public class World : IWorld
 
     public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance)
     {
+        _tick?.AssertOnTick("World.TransferPlayer");
+
         // The NPC stays behind in the old instance, so an open conversation, and a bank or shop opened
         // in it (#463, #432), ends here; otherwise the bank would stay usable from the next map. The
         // client hears SMSG_DIALOGUE_END only when there was a conversation to end. The buyback list
@@ -237,7 +254,14 @@ public class World : IWorld
 
     public Task DeSpawnPlayerAsync(IWorldConnection connection) => LeaveWorldAsync(connection);
 
-    public async Task<bool> LeaveWorldAsync(IWorldConnection connection)
+    public Task<bool> LeaveWorldAsync(IWorldConnection connection)
+    {
+        // Not async itself, so the assertion throws to the caller rather than into a task a despawn may never await.
+        _tick?.AssertOnTick("World.LeaveWorldAsync");
+        return LeaveWorldCoreAsync(connection);
+    }
+
+    private async Task<bool> LeaveWorldCoreAsync(IWorldConnection connection)
     {
         // A connection that drops while its character is waiting on the readiness barrier never
         // reached an instance, but the row was already written with Online = true by the select.
@@ -455,7 +479,8 @@ public class World : IWorld
         await _chunkLibrary.LoadAsync(token);
 
         var chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
-        var registry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory);
+        var registry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory, _tick);
+        _registry = registry;
         InstanceRegistry = registry;
         PartyInstances = registry;
         // A disband forgets the party's instances in this registry, so no member is routed to them again.
@@ -465,6 +490,18 @@ public class World : IWorld
     public void Update(TimeSpan deltaTime)
     {
         Time.Update(deltaTime);
+
+        // Instances whose builds finished since the last tick join the registry first (#639), so the parties, the
+        // reloads and the instance ticks below all see them, and their requesters' continuations run this tick.
+        // Contained: a throw here must not cost the instances their tick.
+        try
+        {
+            PublishBuiltInstances();
+        }
+        catch (Exception e)
+        {
+            _publishErrors.Failed(e);
+        }
 
         // Apply any queued content reloads before the map pass and before any instance ticks.
         // Map-pass packets (movement, attack, chat) are processed on this thread too, inside the
@@ -646,40 +683,87 @@ public class World : IWorld
         row.Z = town.DefaultSpawnZ;
     }
 
+    /// <summary>
+    /// Registers every instance whose build finished since the last call (<see cref="Instances.InstanceRegistry.PublishFinished" />)
+    /// and completes its requesters' tasks. <see cref="Update" /> runs it first thing; public so a test can publish
+    /// without ticking the rest of the world. Tick thread only.
+    /// </summary>
+    /// <remarks>
+    /// A build attaches its creatures' scripts from the script manager as it stood then. A hot reload applied on the
+    /// tick while the build ran walked only the registered instances, so the instance is brought up to date here: each
+    /// living creature whose script name was hot reloaded and whose script is not of the reloaded type gets a fresh one.
+    /// </remarks>
+    public void PublishBuiltInstances()
+    {
+        if (_registry is null)
+            return;
+
+        IReadOnlyList<MapInstance> published = _registry.PublishFinished();
+        if (published.Count == 0 || _hotReloaded.Count == 0)
+            return;
+
+        IServiceProvider serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
+        foreach (MapInstance instance in published)
+        {
+            try
+            {
+                ReattachScripts(instance, _hotReloaded, serviceProvider, onlyOutdated: true);
+            }
+            catch (Exception e)
+            {
+                // Contained: the instance is registered and its requesters answered whatever happens here.
+                _logger.LogError(e, "Failed to bring the scripts of instance {InstanceId} up to date with the hot reload",
+                    instance.InstanceId);
+            }
+        }
+    }
+
     private void ApplyScriptsHotReload(List<Type> aiScriptTypes)
     {
         Dictionary<string, Type> scriptTypeDict =
             aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
+        foreach ((string name, Type type) in scriptTypeDict)
+            _hotReloaded[name] = type;
+
         IServiceProvider serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
 
         foreach (IMapInstance instance in InstanceRegistry.ActiveInstances)
+            ReattachScripts(instance, scriptTypeDict, serviceProvider, onlyOutdated: false);
+    }
+
+    /// <param name="onlyOutdated">
+    /// Only a creature whose script is not already of the named type: for an instance built while the reload was in
+    /// flight, which may have attached the new types already.
+    /// </param>
+    private static void ReattachScripts(IMapInstance instance, IReadOnlyDictionary<string, Type> scriptTypes,
+        IServiceProvider serviceProvider, bool onlyOutdated)
+    {
+        List<(ICreature creature, Type scriptType)> toUpdate = [];
+        foreach (ICreature entity in instance.Creatures.Values)
         {
-            List<(ICreature creature, Type scriptType)> toUpdate = [];
-            foreach (ICreature entity in instance.Creatures.Values)
+            // A corpse stays in the instance until its body is removed, and keeps the script
+            // its kill left it (none). A fresh script would not know it is dead and could chase
+            // and swing at a character nearby, so a creature at 0 health gets none (#607).
+            if (entity.CurrentHealth == 0)
             {
-                // A corpse stays in the instance until its body is removed, and keeps the script
-                // its kill left it (none). A fresh script would not know it is dead and could chase
-                // and swing at a character nearby, so a creature at 0 health gets none (#607).
-                if (entity.CurrentHealth == 0)
-                {
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(entity.ScriptName) &&
-                    scriptTypeDict.TryGetValue(entity.ScriptName, out Type? scriptType))
-                {
-                    toUpdate.Add((entity, scriptType));
-                }
+                continue;
             }
 
-            foreach ((ICreature entity, Type scriptType) in toUpdate)
+            if (!string.IsNullOrWhiteSpace(entity.ScriptName) &&
+                scriptTypes.TryGetValue(entity.ScriptName, out Type? scriptType) &&
+                (!onlyOutdated || entity.Script?.GetType() != scriptType))
             {
-                instance.RemoveCreature(entity);
-                AiScript? script =
-                    ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, instance) as AiScript;
-                entity.Script = script;
-                instance.AddCreature(entity);
+                toUpdate.Add((entity, scriptType));
             }
+        }
+
+        foreach ((ICreature entity, Type scriptType) in toUpdate)
+        {
+            instance.RemoveCreature(entity);
+            AiScript? script =
+                ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, instance) as AiScript;
+            entity.Script = script;
+            instance.AddCreature(entity);
         }
     }
 }

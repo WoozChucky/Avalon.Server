@@ -59,7 +59,7 @@ public class ScriptHotReloadCorpseShould
 
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
             new OneShotScriptHotReloader(typeof(AggroDefendScript)), intervalSeconds: 1, mapManager, factory);
-        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).Published(world);
         return world;
     }
 
