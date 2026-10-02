@@ -44,4 +44,9 @@ public sealed class UpdateItemTemplateRequest
     public uint? StatValue9 { get; set; }
     public StatType? StatType10 { get; set; }
     public uint? StatValue10 { get; set; }
+    public string? UseScript { get; set; }
+    public uint? UseCastTimeMs { get; set; }
+    public uint? UseCooldownMs { get; set; }
+    public string? UseCooldownGroup { get; set; }
+    public uint? UseValue { get; set; }
 }

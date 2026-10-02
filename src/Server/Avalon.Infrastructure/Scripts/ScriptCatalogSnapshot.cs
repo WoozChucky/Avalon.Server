@@ -10,12 +10,15 @@ namespace Avalon.Infrastructure.Scripts;
 /// <param name="Ai">Creature AI scripts, <c>[ChainedScript]</c> types excluded: the names a creature template may use.</param>
 /// <param name="Ability">Ability scripts: the names an ability template may use.</param>
 /// <param name="Quest">Quest scripts: the names a quest may use.</param>
+/// <param name="Item">Item scripts (item use): the names an item template's UseScript may use. Null in a value written
+/// by a world built before item use, whose item saves are then left unchecked.</param>
 public sealed record ScriptCatalogSnapshot(
     IReadOnlyList<string> Ai,
     IReadOnlyList<string> Ability,
-    IReadOnlyList<string> Quest);
+    IReadOnlyList<string> Quest,
+    IReadOnlyList<string>? Item = null);
 
-/// <summary>The JSON form of a <see cref="ScriptCatalogSnapshot"/>: <c>{ "ai": [], "ability": [], "quest": [] }</c>.</summary>
+/// <summary>The JSON form of a <see cref="ScriptCatalogSnapshot"/>: <c>{ "ai": [], "ability": [], "quest": [], "item": [] }</c>.</summary>
 public static class ScriptCatalogJson
 {
     public static readonly JsonSerializerOptions Options = new()

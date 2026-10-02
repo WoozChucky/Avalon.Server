@@ -52,13 +52,26 @@ public sealed class TemplateEditService(
     ILogger<TemplateEditService> logger)
 {
     public Task<TemplateEditResult<ItemTemplate>> EditItemAsync(
-        TemplateEditCaller caller, ulong id, string ifMatch, UpdateItemTemplateRequest request, CancellationToken ct) =>
-        RunAsync(new Kind<ItemTemplate, UpdateItemTemplateRequest>(
+        TemplateEditCaller caller, ulong id, string ifMatch, UpdateItemTemplateRequest request, CancellationToken ct)
+    {
+        string? stored = null; // the use script as the row held it, before the request is applied
+        return RunAsync(new Kind<ItemTemplate, UpdateItemTemplateRequest>(
             "Item", TemplateReloadArea.Items, TemplateFields.Item,
-            (db, ct2) => db.ItemTemplates.FindAsync([new ItemTemplateId(id)], ct2).AsTask(),
+            async (db, ct2) =>
+            {
+                ItemTemplate? found = await db.ItemTemplates.FindAsync([new ItemTemplateId(id)], ct2);
+                stored = found?.UseScript;
+                return found;
+            },
             TemplateVersion.Of, TemplateValidation.Item,
-            TemplateItemUsers.ValidateAsync),
+            async (db, row, errors, ct2) =>
+            {
+                await TemplateItemUsers.ValidateAsync(db, row, errors, ct2);
+                ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
+                TemplateValidation.ScriptKnown(errors, row.UseScript, stored, catalog, c => c.Item, "useScript");
+            }),
             caller, id, ifMatch, request, ct);
+    }
 
     public Task<TemplateEditResult<AbilityTemplate>> EditAbilityAsync(
         TemplateEditCaller caller, uint id, string ifMatch, UpdateAbilityTemplateRequest request, CancellationToken ct)

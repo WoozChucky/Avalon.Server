@@ -95,6 +95,25 @@ public class TemplateReadShould
         Assert.True(page.Items.Single().Editable);
     }
 
+    [Fact]
+    public async Task Item_get_returns_the_use_fields()
+    {
+        var repository = Substitute.For<IItemTemplateRepository>();
+        var row = new ItemTemplate
+        {
+            Id = new ItemTemplateId(3), Name = "Town Portal Scroll", UseScript = "TownPortalScroll", UseCastTimeMs = 3000,
+            UseCooldownMs = 30000, UseCooldownGroup = "scroll", UseValue = 7,
+        };
+        repository.FindByIdAsync(Arg.Any<ItemTemplateId>(), false, Arg.Any<CancellationToken>()).Returns(row);
+        var sut = new ItemTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
+            { ControllerContext = Context() };
+
+        var dto = Dto<ItemTemplateDto>(await sut.Get(3, CancellationToken.None));
+
+        Assert.Equal(("TownPortalScroll", (uint?)3000u, (uint?)30000u, "scroll", (uint?)7u),
+            (dto.UseScript, dto.UseCastTimeMs, dto.UseCooldownMs, dto.UseCooldownGroup, dto.UseValue));
+    }
+
     private static ICurrentWorld World(ushort id)
     {
         var world = Substitute.For<ICurrentWorld>();

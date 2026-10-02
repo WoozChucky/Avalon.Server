@@ -143,5 +143,10 @@ public class ItemTemplateController : BaseController
         StatValue9 = t.StatValue9,
         StatType10 = (Avalon.Api.Contract.StatType?)t.StatType10,
         StatValue10 = t.StatValue10,
+        UseScript = t.UseScript,
+        UseCastTimeMs = t.UseCastTimeMs,
+        UseCooldownMs = t.UseCooldownMs,
+        UseCooldownGroup = t.UseCooldownGroup,
+        UseValue = t.UseValue,
     };
 }

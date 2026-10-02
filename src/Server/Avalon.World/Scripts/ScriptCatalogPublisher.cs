@@ -25,12 +25,13 @@ public sealed class ScriptCatalogPublisher(
         try
         {
             ScriptCatalogSnapshot snapshot = new(
-                scripts.AiScriptNames.ToArray(), scripts.AbilityScriptNames.ToArray(), scripts.QuestScriptNames.ToArray());
+                scripts.AiScriptNames.ToArray(), scripts.AbilityScriptNames.ToArray(), scripts.QuestScriptNames.ToArray(),
+                scripts.ItemScriptNames.ToArray());
             await cache.SetAsync(CacheKeys.WorldScriptCatalog(_worldId), ScriptCatalogJson.Serialize(snapshot), null)
                 .ConfigureAwait(false);
             logger.LogInformation(
-                "Published the script catalog of world {WorldId}: {Ai} AI, {Ability} ability, {Quest} quest scripts",
-                _worldId, snapshot.Ai.Count, snapshot.Ability.Count, snapshot.Quest.Count);
+                "Published the script catalog of world {WorldId}: {Ai} AI, {Ability} ability, {Quest} quest, {Item} item scripts",
+                _worldId, snapshot.Ai.Count, snapshot.Ability.Count, snapshot.Quest.Count, snapshot.Item!.Count);
         }
         catch (Exception ex)
         {
