@@ -42,6 +42,14 @@ Two things release it, both through `CharacterReadinessBarrier.Release`:
 - **The world tick**, once the wait expires — `CharacterReadinessBarrier.ReleaseExpired`, called
   from `WorldServer.Update` after the session pass and before the world update.
 
+A report can arrive **before** the pending spawn exists. Select sends its last packet
+(`SCharacterAbilitiesPacket`) and only then loads the quest log and the ignore list, two more database
+round trips, before arming the spawn; a client that composes its map quickly, or a cold database on
+the first select after a restart, puts the report inside that gap. `CharacterLoadedHandler` then marks
+the connection (`IWorldConnection.LoadReportedEarly`) instead of dropping the report, and the next
+`ReleaseExpired` sweep releases that spawn at once, through the same entry gate, logged as an ordinary
+entry. Before this, such a report was dropped and the player waited out the whole barrier.
+
 Release assigns `connection.Character` and calls `World.SpawnInInstance`. If the spawn throws it
 puts `Character` back to null, hands the pending spawn back, and closes the connection: a character
 assigned but not in an instance would be visible to every reader of `Character` while belonging to
@@ -70,7 +78,8 @@ finishing whatever loading those imply, send `CMSG_CHARACTER_LOADED` with an emp
 
 The server answers nothing. The character entering the world is observable as the entity broadcasts
 that follow. Sending it twice, or after the barrier already expired, or without having selected a
-character, is a no-op logged at debug; it does not close the connection.
+character, is a no-op logged at debug; it does not close the connection. Sending it while the select
+is still loading is honoured as soon as the spawn is armed (see above).
 
 Until a client sends it, every login takes the timeout path and waits the full
 `CharacterLoadTimeoutSeconds` before entering the world.

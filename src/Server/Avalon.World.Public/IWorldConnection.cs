@@ -56,6 +56,18 @@ public interface IWorldConnection : IConnection
     bool LeaveInProgress { get; }
 
     /// <summary>
+    ///     True when the client reported its map loaded while its select was still in flight, before
+    ///     the pending spawn existed to receive it. The select sends its last packet several database
+    ///     round trips before it arms the spawn, so a quick client lands here; the barrier sweep then
+    ///     releases the spawn on the next tick instead of waiting out the barrier. Cleared by
+    ///     <see cref="BeginSelect" /> and by <see cref="TakePendingSpawn" />.
+    /// </summary>
+    bool LoadReportedEarly { get; }
+
+    /// <summary>Records a load report that arrived during the select; see <see cref="LoadReportedEarly" />.</summary>
+    void NoteLoadReportedEarly();
+
+    /// <summary>
     ///     Marks a select as under way. <paramref name="nowTicks" /> is
     ///     <c>DateTime.UtcNow.Ticks</c> and starts the window a stalled select is cancelled after.
     /// </summary>

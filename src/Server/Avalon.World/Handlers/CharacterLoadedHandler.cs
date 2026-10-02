@@ -28,6 +28,16 @@ public class CharacterLoadedHandler(
         // packet costs a span and a log line each, 150 times a tick.
         if (connection.PendingSpawn is not { } pending)
         {
+            // Before the spawn is armed: the select sends its last packet several database round trips
+            // ahead of arming it, so a quick client is here. Held for the barrier sweep to release.
+            if (connection.SelectInProgress)
+            {
+                connection.NoteLoadReportedEarly();
+                logger.LogDebug("Account {AccountId} reported a character loaded before its spawn was armed; held",
+                    connection.AccountId);
+                return;
+            }
+
             // A duplicate report, one that lost the race to the expiring barrier, or a client
             // that sent it without selecting. None of those is a protocol break.
             logger.LogDebug("Account {AccountId} reported a character loaded with no spawn pending",

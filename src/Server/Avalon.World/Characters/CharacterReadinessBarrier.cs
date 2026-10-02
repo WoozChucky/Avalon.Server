@@ -111,7 +111,8 @@ public static class CharacterReadinessBarrier
     /// <summary>
     ///     Spawns every connection that has been waiting on its client for longer than
     ///     <paramref name="timeout" />. A client that never reports its map loaded must not strand
-    ///     a connected player outside the world.
+    ///     a connected player outside the world. Also spawns, without waiting, one whose client
+    ///     reported in before the spawn was armed (<see cref="IWorldConnection.LoadReportedEarly" />).
     /// </summary>
     /// <param name="nowTicks"><c>DateTime.UtcNow.Ticks</c>.</param>
     public static void ReleaseExpired(IEnumerable<IWorldConnection> connections, IWorld world,
@@ -130,11 +131,24 @@ public static class CharacterReadinessBarrier
                 continue;
 
             TimeSpan waited = TimeSpan.FromTicks(nowTicks - pending.SinceTicks);
-            if (waited < timeout)
+            bool reported = connection.LoadReportedEarly;
+            if (!reported && waited < timeout)
                 continue;
 
             // Read before the release: it takes the pending spawn.
             string characterName = pending.Character.Name;
+
+            if (reported)
+            {
+                Action entered = () => logger.LogInformation(
+                    "Character {CharacterName} entered the world for account {AccountId}; its load report " +
+                    "arrived before the spawn was armed", characterName, connection.AccountId);
+                if (gate is not null)
+                    RequestRelease(connection, world, logger, gate, entered, maintenance, clock);
+                else if (Release(connection, world, logger))
+                    entered();
+                continue;
+            }
 
             if (gate is not null)
             {
