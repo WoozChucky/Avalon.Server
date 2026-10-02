@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
+using Avalon.World.Auras;
 using Avalon.World.Creatures;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -146,6 +147,12 @@ public class Creature : ICreature
     /// deliberately not on ICreature: the modding API cannot give a creature abilities or read its cast state (#622).
     /// </summary>
     public CreatureAbilities Abilities { get; } = new();
+
+    /// <summary>
+    /// The auras on this creature (auras). World-side, deliberately not on ICreature: no mod can add or end them, and
+    /// they never save.
+    /// </summary>
+    public UnitAuras Auras { get; } = new();
 
     /// <summary>What this creature defends with (#506).</summary>
     internal DefenderCombat Defence => new(Armor, DodgePct, BlockPct);

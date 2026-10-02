@@ -248,4 +248,20 @@ public class SaveStateTrackerShould
         tracker.Acknowledge(tracker.TakeMarks());
         Assert.False(tracker.HasChanges);
     }
+
+    [Fact]
+    public void Clear_the_aura_mark_only_once_the_save_that_carried_it_commits()
+    {
+        var tracker = new SaveStateTracker();
+        tracker.AurasChanged();
+        SaveMarks first = tracker.TakeMarks();
+        tracker.AurasChanged();   // changed again while the first save is in flight
+
+        tracker.Acknowledge(first);
+        Assert.True(tracker.AurasDirty);
+
+        tracker.Acknowledge(tracker.TakeMarks());
+        Assert.False(tracker.AurasDirty);
+        Assert.False(tracker.HasChanges);
+    }
 }

@@ -29,7 +29,8 @@ public sealed record SaveMarks(
     long? StatsVersion = null,
     long? PvpVersion = null,
     IReadOnlyDictionary<uint, SaveMark>? Quests = null,
-    IReadOnlyDictionary<uint, SaveMark>? Ignores = null);
+    IReadOnlyDictionary<uint, SaveMark>? Ignores = null,
+    long? AurasVersion = null);
 
 /// <summary>
 /// The per-character save state of every item instance and inventory slot, and money's dirty flag.
@@ -45,6 +46,7 @@ public sealed class SaveStateTracker
     private long _moneyVersion;
     private long _statsVersion;
     private long _pvpVersion;
+    private long _aurasVersion;
 
     public bool MoneyDirty { get; private set; }
 
@@ -54,8 +56,11 @@ public sealed class SaveStateTracker
     /// <summary>The PvP flag or its timer changed (#164). The row is written whole by every save; this keeps HasChanges honest.</summary>
     public bool PvpDirty { get; private set; }
 
+    /// <summary>An aura was applied, refreshed, stacked or removed (auras): the next save rewrites them all.</summary>
+    public bool AurasDirty { get; private set; }
+
     public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || MoneyDirty || StatsDirty || PvpDirty || _quests.Count > 0
-        || _ignores.Count > 0;
+        || _ignores.Count > 0 || AurasDirty;
 
     public SaveState ItemState(ItemInstanceId id) =>
         _items.TryGetValue(id, out SaveMark mark) ? mark.State : SaveState.Unchanged;
@@ -115,6 +120,12 @@ public sealed class SaveStateTracker
         _pvpVersion = ++_version;
     }
 
+    public void AurasChanged()
+    {
+        AurasDirty = true;
+        _aurasVersion = ++_version;
+    }
+
     /// <summary>A quest's row changed, was added, removed or completed (#433): the next save rewrites that quest.</summary>
     public void QuestChanged(uint questId) => _quests[questId] = new SaveMark(SaveState.Changed, ++_version);
 
@@ -132,7 +143,8 @@ public sealed class SaveStateTracker
         StatsDirty ? _statsVersion : null,
         PvpDirty ? _pvpVersion : null,
         new Dictionary<uint, SaveMark>(_quests),
-        new Dictionary<uint, SaveMark>(_ignores));
+        new Dictionary<uint, SaveMark>(_ignores),
+        AurasDirty ? _aurasVersion : null);
 
     /// <summary>
     /// Called on the tick thread once the save that took <paramref name="marks" /> has committed.
@@ -178,5 +190,8 @@ public sealed class SaveStateTracker
                     _ignores.Remove(id);
             }
         }
+
+        if (marks.AurasVersion is { } aurasVersion && AurasDirty && _aurasVersion == aurasVersion)
+            AurasDirty = false;
     }
 }
