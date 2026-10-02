@@ -28,6 +28,14 @@ public interface ICreaturePlacementService
     /// no rows places nothing. This is the only path that puts creatures in a town.
     /// </summary>
     Task PlaceAuthoredAsync(IMapInstance instance, ChunkLayout layout, MapTemplateId mapTemplateId, CancellationToken ct);
+
+    /// <summary>
+    /// One creature of <paramref name="template" /> on the ground at <paramref name="near" /> in
+    /// <paramref name="instance" /> (item use): snapped as a procedural spawn is (#720), its AI script attached, added
+    /// to the instance. Null, placing nothing, when no ground is near or the spawn throws (logged). Tick thread: the
+    /// instance is live.
+    /// </summary>
+    ICreature? SpawnAt(IMapInstance instance, CreatureTemplateId template, Vector3 near);
 }
 
 public class CreaturePlacementService : ICreaturePlacementService
@@ -216,6 +224,28 @@ public class CreaturePlacementService : ICreaturePlacementService
                     "Could not place authored creature {CreatureId} (spawn {SpawnId}) on map {MapId}; skipping it",
                     spawn.CreatureTemplateId, spawn.Id, mapTemplateId);
             }
+        }
+    }
+
+    public ICreature? SpawnAt(IMapInstance instance, CreatureTemplateId template, Vector3 near)
+    {
+        try
+        {
+            if (!TryPutOnGround(instance.GetNavigatorForPosition(near), near, out Vector3 position))
+            {
+                _logger.LogWarning("No ground near {Position} for creature {CreatureId}; it was not spawned", near, template.Value);
+                return null;
+            }
+
+            ICreature creature = _spawner.Spawn(new CreatureInfo { Position = position, PrototypeIndex = template.Value });
+            AttachScript(creature, instance);
+            instance.AddCreature(creature);
+            return creature;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not spawn creature {CreatureId} at {Position}", template.Value, near);
+            return null;
         }
     }
 
