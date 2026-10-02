@@ -5,12 +5,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.Infrastructure.WorldMaintenance;
 
-public interface IWorldMaintenanceControl
-{
-    Task<WorldMaintenanceState?> SetAsync(WorldId id, bool enabled, TimeSpan grace, string actor,
-        CancellationToken ct);
-}
-
 public sealed class WorldMaintenanceControl(
     IWorldMaintenanceRepository repository,
     IReplicatedCache cache,
@@ -25,6 +19,11 @@ public sealed class WorldMaintenanceControl(
             clock.GetUtcNow().UtcDateTime, ct);
         if (committed is null)
             return null;
+
+        // A repeated on (or off) commits nothing: the row keeps its revision, so there is no transition to log or
+        // announce, and the caller gets the state as it stands.
+        if (prior is not null && committed.Revision == prior.Revision)
+            return committed;
 
         logger.LogInformation(
             "World {WorldId} maintenance {PriorEnabled} -> {Enabled} by {Actor}, revision {Revision}",
