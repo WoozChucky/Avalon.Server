@@ -24,6 +24,7 @@ Hosts: **API** is `Avalon.Api`, **Auth** the auth server, **World** the world se
 | `AuthConfiguration`         | `Avalon.Server.Auth.Configuration` | `Application` | Auth | `ValidateOnStart` |
 | `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
 | `RegenConfiguration`        | `Avalon.World.Configuration`       | `Regen` | World | `ValidateOnStart` |
+| `WorldShutdownConfiguration` | `Avalon.World.Configuration`     | `World:Shutdown` | World | `ValidateOnStart` (both required; `DrainTime` 0 to 1 h, `SaveMargin` 21 s to 1 h). See [World Shutdown Drain](#world-shutdown-drain) |
 | `ApplicationConfig`         | `Avalon.Api.Config`                | `Application` | API | Not as a whole; its sections below |
 | `AuthenticationConfig`      | `Avalon.Api.Config`                | `Application:Authentication` | API | By hand in `ServiceRegistration`: the signing key (`JwtSigningKey.Create`), the login limits (`LoginLimitsValidation.Validate`), the account-creation cap and the email-change send caps |
 | `ForwardedHeadersConfig`    | `Avalon.Api.Config`                | `Application:ForwardedHeaders` | API | By hand in `ServiceRegistration` (`ForwardedHeadersSetup.BuildOptions`) |
@@ -319,6 +320,19 @@ The public `WorldStatus` is derived: an active cutoff gives `Maintenance`; befor
 At enable, the world broadcasts a System chat warning. It warns again at three minutes, one minute, thirty seconds, and every second from ten through zero that falls within the grace. At zero it sends the warning before a maintenance disconnect, stops processing authenticated non-Admin packets, then runs the normal despawn and save path. Admin sessions remain connected. Auth selection, world key exchange, character select, and final spawn enforce the deadline; if the authoritative maintenance row cannot be read, a new entry is refused.
 
 The client must understand `WorldSelectResult.Maintenance` and `DisconnectReason.Maintenance` from the shared wire schema and show a maintenance message for both.
+
+## World Shutdown Drain
+
+Section in `appsettings.json`: `"World:Shutdown"` (World server only, #768).
+
+| Key          | Type     | Shipped    | Purpose |
+|--------------|----------|------------|---------|
+| `DrainTime`  | TimeSpan | `00:00:00` | How long a stopping world warns its players and waits for them to leave. `0` closes everyone at once, as before |
+| `SaveMargin` | TimeSpan | `00:00:30` | What the close and the character saves get after the drain. At least 21 s: the shutdown's 20 s wait for saves (`WorldServer.DefaultSaveDrainLimit`) plus the drain's 1 s backstop |
+
+On a stop (SIGTERM: a rollout, a node drain, an eviction) the world stops its listener, then warns players on the maintenance schedule ("The world restarts for an update in 5 minutes.", then 3 min, 1 min, 30 s and each second from 10, then "Restarting now."). The drain ends at its deadline, or as soon as no non-Admin player is connected; the world then closes every session, Admins included, and saves. The drain is held in memory only: it never touches the persisted maintenance row, so the next start is not in maintenance, and persisted maintenance runs on beside it. During the drain the realm list shows the world `Offline`, since its ready heartbeat has stopped.
+
+The host's stop timeout is `DrainTime + SaveMargin` (30 s with the shipped values, the .NET default). The Helm chart takes `shutdown.drainSeconds` (default 0) and `shutdown.saveMarginSeconds` (default 60, at least 21), renders them into `World__Shutdown__DrainTime` and `World__Shutdown__SaveMargin`, and sets `terminationGracePeriodSeconds` to drain + margin + 15, so Kubernetes never kills the pod mid-countdown.
 
 ---
 
