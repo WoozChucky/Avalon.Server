@@ -49,3 +49,11 @@ public sealed class SampleItemScript : ItemScript
     {
     }
 }
+
+/// <summary>A cast-time use whose interruption hook throws: the use is answered InternalError, not Interrupted.</summary>
+public sealed class InterruptThrowingScript : ItemScript
+{
+    public override void OnUse(IItemUseContext ctx) => ctx.Consume();
+
+    public override void OnInterrupted(IItemUseContext ctx) => throw new InvalidOperationException("boom");
+}
