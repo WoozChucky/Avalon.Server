@@ -229,7 +229,7 @@
     {
       "name": "UseScript",
       "type": "string",
-      "nullable": false
+      "nullable": true
     },
     {
       "name": "UseCastTimeMs",
@@ -244,7 +244,7 @@
     {
       "name": "UseCooldownGroup",
       "type": "string",
-      "nullable": false
+      "nullable": true
     },
     {
       "name": "UseValue",

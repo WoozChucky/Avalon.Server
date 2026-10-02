@@ -1203,5 +1203,8 @@ public class SeedIntegrityShould
             .Where(i => i.UseScript is not null).Select(i => i.Id.Value).Order().ToArray();
 
         Assert.Equal([1ul, 2ul, 3ul, 56ul], usable);
+        Assert.All(context.ItemTemplates.AsNoTracking().ToList().Where(i => i.UseScript is null), i =>
+            Assert.Equal(((uint?)null, (uint?)null, (string?)null, (uint?)null),
+                (i.UseCastTimeMs, i.UseCooldownMs, i.UseCooldownGroup, i.UseValue)));
     }
 }
