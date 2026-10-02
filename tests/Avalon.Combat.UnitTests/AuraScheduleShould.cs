@@ -50,6 +50,27 @@ public class AuraScheduleShould
         Assert.Equal(TimeSpan.Zero, s.Remaining(T0.AddSeconds(5)));
     }
 
+    /// <summary>6 s left at 3 s: ticks at 0, 3 and 6 s, the one at the resume instant owed at once, as Due owes it.</summary>
+    [Fact]
+    public void Keep_a_tick_due_at_the_resume_instant()
+    {
+        AuraSchedule s = AuraSchedule.Resume(T0, 6000, 3000, ticksLeft: 4);
+
+        Assert.Equal(3, s.TicksLeft);
+        Assert.Equal(1, s.Due(T0));
+        Assert.Equal(3, s.Due(T0.AddSeconds(6)));
+    }
+
+    [Fact]
+    public void Keep_the_final_tick_of_an_aura_resumed_at_its_end()
+    {
+        AuraSchedule s = AuraSchedule.Resume(T0, 0, 3000, ticksLeft: 2);
+
+        Assert.Equal(1, s.TicksLeft);
+        Assert.Equal(1, s.Due(T0));
+        Assert.True(s.Expired(T0));
+    }
+
     [Fact]
     public void Owe_no_ticks_for_an_aura_that_has_none()
     {

@@ -13,11 +13,13 @@ public readonly record struct AuraSchedule(DateTimeOffset ExpiresAt, TimeSpan In
 
     /// <summary>
     /// A saved aura resumed <paramref name="remainingMs" /> before its end, its time having stood still while it was not
-    /// in the world. It is never owed more ticks than its remaining time holds.
+    /// in the world. It is never owed more ticks than its remaining time holds: those at <c>now</c> or later, so a tick
+    /// that falls on the resume instant is kept and owed at once, as <see cref="Due" /> owes it, and an aura resumed at
+    /// its very end keeps its final tick.
     /// </summary>
     public static AuraSchedule Resume(DateTimeOffset now, uint remainingMs, uint tickIntervalMs, int ticksLeft)
     {
-        int fits = tickIntervalMs == 0 ? 0 : (int)((remainingMs + (long)tickIntervalMs - 1) / tickIntervalMs);
+        int fits = tickIntervalMs == 0 ? 0 : (int)(remainingMs / tickIntervalMs) + 1;
         return new(now + TimeSpan.FromMilliseconds(remainingMs), TimeSpan.FromMilliseconds(tickIntervalMs),
             Math.Clamp(ticksLeft, 0, fits));
     }
@@ -30,7 +32,7 @@ public readonly record struct AuraSchedule(DateTimeOffset ExpiresAt, TimeSpan In
         long left = (ExpiresAt - now).Ticks;
         if (left <= 0 || Interval.Ticks <= 0) return TicksLeft;
 
-        // The ticks still to come are those with j x Interval >= left.
+        // The ticks still to come are those with j x Interval < left.
         long notYet = (left + Interval.Ticks - 1) / Interval.Ticks;
         return (int)Math.Max(0L, TicksLeft - notYet);
     }

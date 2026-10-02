@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
@@ -36,7 +37,7 @@ public class AuraRulesShould
         { "a helpful aura cannot deal damage", t => t.Kind = AuraKind.Helpful },
         { "unknown stat 0", t => t.Modifiers.Add(new AuraStatModifier { Stat = 0, Kind = AuraModifierKind.Flat, Value = 1f }) },
         { "unknown modifier kind 0 on Armor", t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Value = 1f }) },
-        { $"Armor modifier {float.PositiveInfinity} is not finite", t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = float.PositiveInfinity }) },
+        { FormattableString.Invariant($"Armor modifier {float.PositiveInfinity} is not finite"), t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = float.PositiveInfinity }) },
         { "Armor modifier -100 % would take the whole stat", t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = -100f }) },
         { "Armor is modified twice", t =>
             {
@@ -44,6 +45,28 @@ public class AuraRulesShould
                 t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 5f });
             } },
     };
+
+    [Fact]
+    public void Write_its_numbers_in_the_invariant_culture_whatever_the_current_one()
+    {
+        CultureInfo before = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("pt-PT");
+        try
+        {
+            AuraTemplate t = Bleed();
+            t.PeriodicBase = -1.5f;
+            t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = float.NaN });
+
+            Assert.Equal("PeriodicBase -1.5 is not a finite value of 0 or more", AuraRules.Problem(t));
+
+            t.PeriodicBase = 0f;
+            Assert.Equal("Armor modifier NaN is not finite", AuraRules.Problem(t));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
+    }
 
     [Theory]
     [MemberData(nameof(Refusals))]
@@ -129,6 +152,7 @@ public class AuraRulesShould
 
         AuraRules.Snapshot(noCoefficient, new AttackerCombat(1, 46, 0, 0f, 4, 7), NoRoll.Instance);
         AuraRules.Snapshot(statOnly, new AttackerCombat(1, 46, 0, 0f, 4, 7), NoRoll.Instance);
+        // The assertion is that none of these snapshots draws: NoRoll throws on any draw.
         float unarmedTick = AuraRules.Snapshot(unarmed, new AttackerCombat(1, 46, 0, 0f, 0, 0), NoRoll.Instance).PerTickPerStack;
 
         Assert.Equal(5.875f, unarmedTick);
@@ -162,6 +186,7 @@ public class AuraRulesShould
     [Theory]
     [InlineData(AuraStacking.Stack, 1u, 3u, 2u)]
     [InlineData(AuraStacking.Stack, 3u, 3u, 3u)]
+    [InlineData(AuraStacking.Stack, 1u, 0u, 1u)]   // a cap of 0 is refused by Problem, and counts as 1 here
     [InlineData(AuraStacking.Refresh, 1u, 3u, 1u)]
     [InlineData(AuraStacking.Independent, 1u, 3u, 1u)]
     public void Add_a_stack_only_to_a_stacking_aura_and_stop_at_its_cap(AuraStacking stacking, uint current, uint max,

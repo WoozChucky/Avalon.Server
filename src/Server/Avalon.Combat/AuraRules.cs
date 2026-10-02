@@ -7,7 +7,10 @@ namespace Avalon.Combat;
 /// <summary>The aura rules the world server and the balance simulator share. Pure.</summary>
 public static class AuraRules
 {
-    /// <summary>Why a row cannot load, or null when it can. A script name is checked by the world, which knows them.</summary>
+    /// <summary>
+    /// Why a row cannot load, or null when it can, its numbers written in the invariant culture. A script name is
+    /// checked by the world, which knows them.
+    /// </summary>
     public static string? Problem(AuraTemplate t)
     {
         if (!Enum.IsDefined(t.Kind)) return $"unknown kind {(int)t.Kind}";
@@ -28,7 +31,7 @@ public static class AuraRules
                  })
         {
             if (!float.IsFinite(value) || value < 0f)
-                return $"{name} {value} is not a finite value of 0 or more";
+                return FormattableString.Invariant($"{name} {value} is not a finite value of 0 or more");
         }
 
         if (t.Kind == AuraKind.Harmful && t.PeriodicKind == AuraPeriodicKind.Heal) return "a harmful aura cannot heal";
@@ -39,9 +42,9 @@ public static class AuraRules
         {
             if (!Enum.IsDefined(m.Stat)) return $"unknown stat {(int)m.Stat}";
             if (!Enum.IsDefined(m.Kind)) return $"unknown modifier kind {(int)m.Kind} on {m.Stat}";
-            if (!float.IsFinite(m.Value)) return $"{m.Stat} modifier {m.Value} is not finite";
+            if (!float.IsFinite(m.Value)) return FormattableString.Invariant($"{m.Stat} modifier {m.Value} is not finite");
             // A percentage at or below -100 would take the whole stat, or turn it negative.
-            if (m.Kind == AuraModifierKind.Percent && m.Value <= -100f) return $"{m.Stat} modifier {m.Value} % would take the whole stat";
+            if (m.Kind == AuraModifierKind.Percent && m.Value <= -100f) return FormattableString.Invariant($"{m.Stat} modifier {m.Value} % would take the whole stat");
             if (!seen.Add(m.Stat)) return $"{m.Stat} is modified twice";
         }
 
