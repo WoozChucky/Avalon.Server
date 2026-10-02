@@ -2688,6 +2688,9 @@ public class WorldDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
     {
+        // Not mapped yet: the AuraId column arrives with the aura tables.
+        builder.Ignore(a => a.AuraId);
+
         // #529. Threat values must be finite and 0 or more, or a NaN spreads into every threat total it
         // touches. Written as the BodyRadius check is: the upper bound refuses Infinity, and NaN too,
         // since Postgres sorts NaN above every number; the literal is left untyped so Postgres reads it
