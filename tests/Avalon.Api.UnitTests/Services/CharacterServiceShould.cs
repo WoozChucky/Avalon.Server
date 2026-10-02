@@ -145,6 +145,7 @@ public class CharacterServiceShould
         Id = new AbilityId(210), Name = "Cleave", ScriptName = "ConeAbilityScript",
         Affects = Avalon.Network.Packets.Abilities.AbilityAffects.Hostile, EffectValue = 10,
         ScalingStat = Avalon.World.Public.Abilities.ScalingStat.Attack, ScalingCoefficient = 0.5f, BaseDamageCoefficient = 1f,
+        Effects = Avalon.World.Public.Enums.SpellEffect.Damage,
     };
 
     /// <summary>10 + 0.5 × 40 attack + 1 × (24..28) main hand: 54..58, the world server's own example (#669).</summary>

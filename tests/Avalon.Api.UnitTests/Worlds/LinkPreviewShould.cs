@@ -87,7 +87,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             {
                 Id = new AbilityId(210), Name = "Cleave", Cost = 30, CostPowerType = PowerType.Mana, CastTime = 2500,
                 Cooldown = 8000, AllowedClasses = [CharacterClass.Warrior], ScriptName = "ConeAbilityScript",
-                EffectValue = 10, ScalingCoefficient = 0.5f,
+                EffectValue = 10, ScalingCoefficient = 0.5f, Effects = SpellEffect.Damage,
             });
         _abilities.FindByIdAsync(new AbilityId(211), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate { Id = new AbilityId(211), Name = "Strike <b>&\"" });

@@ -26,7 +26,7 @@ public static class AbilityAmounts
 {
     public static AbilityAmount For(in AttackerCombat caster, AbilityMetadata ability)
     {
-        AbilityAmountKind kind = AbilityAmountMath.KindOf(ability.ScriptName, ability.Affects);
+        AbilityAmountKind kind = AbilityAmountMath.KindOf(ability.ScriptName, ability.Affects, ability.Effects);
         if (kind == AbilityAmountKind.None) return AbilityAmount.None;
 
         (float low, float high) = HitResolver.AbilityBaseRange(caster, ability.EffectValue, ability.ScalingStat,

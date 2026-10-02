@@ -38,7 +38,7 @@ public static class PublicMapping
         CastTime = t.CastTime,
         Cooldown = t.Cooldown,
         AllowedClasses = t.AllowedClasses?.ToList() ?? [],
-        AmountKind = (AbilityAmountKind)AbilityAmountMath.KindOf(t.ScriptName, t.Affects),
+        AmountKind = (AbilityAmountKind)AbilityAmountMath.KindOf(t.ScriptName, t.Affects, t.Effects),
         EffectValue = t.EffectValue,
         ScalingStat = (AbilityScalingStat)t.ScalingStat,
         ScalingCoefficient = t.ScalingCoefficient,

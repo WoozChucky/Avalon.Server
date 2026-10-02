@@ -14,9 +14,10 @@ public static class CharacterStatsCalculator
     /// Where a class factor is fractional, the whole sum of the factored terms is truncated to a
     /// whole number once, not each product on its own: a level-1 Hunter (Strength 21, Agility 23)
     /// attacks for <c>(long)(0.5 x 21 + 1.5 x 23) = 45</c>, where truncating each product would give 44.
+    /// <paramref name="auras" />, when given, is folded in after gear: the result is what the character has now.
     /// </summary>
     public static DerivedCharacterStats Calculate(ClassLevelStat row, IEnumerable<ItemTemplate> worn,
-        ClassStatFactors factors)
+        ClassStatFactors factors, AuraStatTotals? auras = null)
     {
         GearTotals gear = GearTotals.Of(worn);
 
@@ -39,7 +40,7 @@ public static class CharacterStatsCalculator
         uint weaponMax = weapon?.DamageMax1 ?? 0;
         uint weaponMin = Math.Min(weapon?.DamageMin1 ?? 0, weaponMax);
 
-        return new DerivedCharacterStats(
+        DerivedCharacterStats derived = new(
             MaxHealth: Clamp(maxHealth),
             MaxPower: Clamp(maxPower),
             Stamina: Clamp(stamina),
@@ -56,6 +57,8 @@ public static class CharacterStatsCalculator
             WeaponMax: weaponMax,
             HastePct: gear.HastePct,
             MovementSpeedPct: gear.MovementSpeedPct);
+
+        return auras is null ? derived : AuraStats.Fold(derived, auras);
     }
 
     /// <summary>

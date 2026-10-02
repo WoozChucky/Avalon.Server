@@ -24,6 +24,9 @@ public class AbilityAmountsShould
     {
         Name = "Test", ScriptName = script, EffectValue = effect, ScalingStat = stat, ScalingCoefficient = scaling,
         BaseDamageCoefficient = weapon, Affects = affects,
+        Effects = affects == AbilityAffects.Ally
+            ? Avalon.World.Public.Enums.SpellEffect.Heal
+            : Avalon.World.Public.Enums.SpellEffect.Damage,
     };
 
     /// <summary>10 + 0.5 × 40 attack + 1 × (24..28) weapon: 54..58, and it follows the weapon and the stat.</summary>

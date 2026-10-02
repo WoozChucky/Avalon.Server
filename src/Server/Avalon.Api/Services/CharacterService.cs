@@ -247,7 +247,7 @@ public class CharacterService : ICharacterService
 
     private static CharacterAbilityAmountDto AmountFor(AbilityTemplate t, CharacterStats? stats, uint weaponMin, uint weaponMax)
     {
-        var kind = AbilityAmountMath.KindOf(t.ScriptName, t.Affects);
+        var kind = AbilityAmountMath.KindOf(t.ScriptName, t.Affects, t.Effects);
         var (min, max) = AbilityAmountMath.Range(kind, t.EffectValue, t.ScalingStat, t.ScalingCoefficient,
             t.BaseDamageCoefficient, stats?.AttackDamage ?? 0, stats?.AbilityDamage ?? 0, weaponMin, weaponMax);
         return new CharacterAbilityAmountDto { Kind = (Avalon.Api.Contract.AbilityAmountKind)kind, Min = min, Max = max };
