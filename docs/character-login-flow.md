@@ -243,6 +243,7 @@ unless the connection is closed instead.
   - a character that is in the world is not renamed: 409 "Character is online; rename it while
     logged out.". Only a name that would change is refused; an admin patch of other fields, with the
     current name or none, still applies while the character is online.
+  - a character deleted while the rename was under way is a 404, as for a missing character.
 
 ---
 

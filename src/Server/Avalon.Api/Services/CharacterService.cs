@@ -117,7 +117,7 @@ public class CharacterService : ICharacterService
             case CharacterRename.NameTaken:
                 throw new BusinessException(NameTaken);
             default:
-                throw new BusinessException("Character not found");
+                throw new CharacterNotFoundException();
         }
     }
 

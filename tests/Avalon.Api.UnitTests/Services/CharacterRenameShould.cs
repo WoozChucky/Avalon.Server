@@ -181,4 +181,16 @@ public class CharacterRenameShould
         await _characters.Received(1).UpdateAsync(character, Arg.Any<CancellationToken>());
         await _characters.DidNotReceiveWithAnyArgs().TryRenameAsync(default!, default!, default);
     }
+
+    /// <summary>A character deleted between the endpoint's lookup and the rename: 404, as for a missing character.</summary>
+    [Theory]
+    [MemberData(nameof(BothPaths))]
+    public async Task Answer_not_found_when_the_character_is_gone_by_the_write(bool cosmetic)
+    {
+        Character character = Holder(Self, "Kaela");
+        _characters.TryRenameAsync(Self, "Borin", Arg.Any<CancellationToken>()).Returns(CharacterRename.NotFound);
+
+        await Assert.ThrowsAsync<CharacterNotFoundException>(() => Rename(cosmetic, character, "Borin"));
+        await _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+    }
 }

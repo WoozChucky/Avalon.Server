@@ -125,6 +125,35 @@ public class ExceptionHandlerMiddlewareMappingShould
         Assert.Empty(logs.Entries);
     }
 
+    /// <summary>
+    /// A character deleted between a rename's lookup and its write (#757) is answered as the endpoint answers a
+    /// missing character: MVC's own 404 client-error ProblemDetails, and nothing logged.
+    /// </summary>
+    [Fact]
+    public async Task Map_a_character_gone_by_the_write_as_the_endpoints_own_not_found()
+    {
+        var logs = new CapturingLoggerFactory();
+        var middleware = new ExceptionHandlerMiddleware(_ => throw new CharacterNotFoundException(), logs);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddControllers();
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        var context = new DefaultHttpContext { RequestServices = provider, TraceIdentifier = "trace-2" };
+        context.Request.Method = "PATCH";
+        context.Request.Path = "/world/1/character/42";
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(404, context.Response.StatusCode);
+        Assert.Equal(RefreshRaceBody.ContentType, context.Response.ContentType);
+        context.Response.Body.Position = 0;
+        Assert.Equal(
+            "{\"type\":\"https://tools.ietf.org/html/rfc9110#section-15.5.5\",\"title\":\"Not Found\",\"status\":404,\"traceId\":\"trace-2\"}",
+            await new StreamReader(context.Response.Body).ReadToEndAsync());
+        Assert.Empty(logs.Entries);
+    }
+
     private static Npgsql.PostgresException AccountsCheckViolation() => new(
         "new row violates check constraint", "ERROR", "ERROR", Npgsql.PostgresErrorCodes.CheckViolation,
         tableName: "Accounts", constraintName: "CK_Accounts_Username_Normalised");

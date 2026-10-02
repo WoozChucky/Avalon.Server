@@ -72,7 +72,9 @@ public class ExceptionHandlerMiddleware
         {
             // A refresh that lost a race (#543). The refresh endpoint answers it itself; should it
             // ever get this far it is still that endpoint's 401, not a 500.
-            RefreshAlreadyRotatedException => WriteRefreshAlreadyRotatedAsync(context),
+            RefreshAlreadyRotatedException => WriteClientErrorAsync(context, (int)HttpStatusCode.Unauthorized),
+            // A character deleted between the lookup and the write (#757): the endpoint's own NotFound(), not logged.
+            CharacterNotFoundException => WriteClientErrorAsync(context, (int)HttpStatusCode.NotFound),
             AuthenticationException => WriteProblemAsync(context, (int)HttpStatusCode.Unauthorized,
                 exception.GetType().Name, "Whoops!", exception.Message),
             // Only thrown once the caller has proved they hold the account (password or MFA code).
@@ -131,13 +133,12 @@ public class ExceptionHandlerMiddleware
     }
 
     /// <summary>
-    /// The body the refresh endpoint's own <c>Unauthorized()</c> gets from MVC: the client-error
-    /// ProblemDetails for 401 from the registered factory, written with MVC's JSON options and
+    /// The body an endpoint's own <c>Unauthorized()</c> or <c>NotFound()</c> gets from MVC: the client-error
+    /// ProblemDetails for the status from the registered factory, written with MVC's JSON options and
     /// content type, so the two cannot differ. Not logged, as the endpoint does not log it.
     /// </summary>
-    private static Task WriteRefreshAlreadyRotatedAsync(HttpContext context)
+    private static Task WriteClientErrorAsync(HttpContext context, int status)
     {
-        const int status = (int)HttpStatusCode.Unauthorized;
         ProblemDetails problem = context.RequestServices.GetRequiredService<ProblemDetailsFactory>()
             .CreateProblemDetails(context, status);
         JsonSerializerOptions json = context.RequestServices.GetRequiredService<IOptions<JsonOptions>>().Value
