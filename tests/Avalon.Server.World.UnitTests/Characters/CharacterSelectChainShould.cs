@@ -19,6 +19,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
+using Avalon.World.Maintenance;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -441,6 +442,44 @@ public class CharacterSelectChainShould : IDisposable
         return false;
     }
 
+    [Fact]
+    public async Task Refuse_a_reselect_after_leave_before_BeginSelect_during_maintenance()
+    {
+        Assert.True(_connection.TryBeginLeave());
+        _connection.EndLeave();
+        var gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>()).Returns(default(WorldEntryDecision));
+        var select = BuildSelectHandler(entryGate: gate);
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        Assert.False(_connection.SelectInProgress);
+        await WaitUntilAsync(() => _connection.IsClosing || StepOnce());
+
+        Assert.Null(_connection.PendingSpawn);
+        await _characters.DidNotReceiveWithAnyArgs().FindByIdAndAccountAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task Refuse_a_pending_spawn_when_maintenance_starts_during_select()
+    {
+        var gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>())
+            .Returns(new WorldEntryDecision(true, DateTime.MaxValue), default(WorldEntryDecision));
+        var select = BuildSelectHandler(entryGate: gate);
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        await WaitUntilAsync(() => _connection.PendingSpawn is not null || StepOnce());
+
+        var releaseWorld = Substitute.For<IWorld>();
+        var loaded = new CharacterLoadedHandler(NullLogger<CharacterLoadedHandler>.Instance,
+            releaseWorld, gate);
+        loaded.Execute(_connection, new CCharacterLoadedPacket());
+        await WaitUntilAsync(() => _connection.IsClosing || StepOnce());
+
+        releaseWorld.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+        Assert.Null(_connection.Character);
+        Assert.Equal(2, gate.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IWorldEntryGate.CheckAsync)));
+    }
+
     /// <summary>
     /// Polls for work that finishes on the thread pool, not on a timer, bounded by
     /// <see cref="Patience" /> only so a broken chain fails instead of hanging.
@@ -456,7 +495,7 @@ public class CharacterSelectChainShould : IDisposable
     }
 
     private CharacterSelectHandler BuildSelectHandler(ICharacterSaver? saver = null, TimeSpan? saveWaitLimit = null,
-        IWorldServer? worldServer = null, IAccountRepository? accounts = null)
+        IWorldServer? worldServer = null, IAccountRepository? accounts = null, IWorldEntryGate? entryGate = null)
     {
         var row = new Character
         {
@@ -517,7 +556,8 @@ public class CharacterSelectChainShould : IDisposable
             accounts ?? Substitute.For<IAccountRepository>(),
             saver ?? Substitute.For<ICharacterSaver>(),
             worldServer ?? Substitute.For<IWorldServer>(),
-            _clock)
+            _clock,
+            entryGate: entryGate)
         {
             SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
         };

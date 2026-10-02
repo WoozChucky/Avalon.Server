@@ -3,6 +3,8 @@ using Avalon.Api.Services;
 using Avalon.Api.Worlds;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
+using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
@@ -39,7 +41,33 @@ public sealed class WorldListFlagsShould : IDisposable
         MinVersion = "0.0.1", Version = "0.0.1", AccessLevelRequired = required, UpdatedAt = DateTime.UtcNow,
     };
 
-    private WorldService Sut() => new(new WorldRepository(_database), _databases);
+    private WorldService Sut() => new(new WorldRepository(_database), _databases,
+        Substitute.For<IWorldReadiness>());
+
+    [Fact]
+    public async Task Metadata_update_preserves_a_concurrent_maintenance_transition()
+    {
+        var repository = new WorldRepository(_database);
+        var stale = (await repository.FindByIdAsync(new WorldId(101)))!;
+        stale.Name = "Renamed";
+        stale.UpdatedAt = DateTime.UtcNow;
+        using (var context = _database.CreateDbContext())
+        {
+            var persisted = context.Worlds.Single(w => w.Id == new WorldId(101));
+            persisted.MaintenanceEnabled = true;
+            persisted.MaintenanceRevision = 1;
+            persisted.MaintenanceDeadlineUtc = DateTime.UtcNow.AddMinutes(5);
+            context.SaveChanges();
+        }
+
+        await repository.UpdateMetadataAsync(stale, CancellationToken.None);
+
+        using var check = _database.CreateDbContext();
+        var actual = check.Worlds.Single(w => w.Id == new WorldId(101));
+        Assert.Equal("Renamed", actual.Name);
+        Assert.True(actual.MaintenanceEnabled);
+        Assert.Equal(1, actual.MaintenanceRevision);
+    }
 
     [Fact]
     public async Task Flag_each_listed_world_as_configured_and_available_or_not()
@@ -60,6 +88,26 @@ public sealed class WorldListFlagsShould : IDisposable
 
         Assert.True(world!.Configured);
         Assert.False(world.Available);
+    }
+
+    [Fact]
+    public async Task Show_a_ready_scheduled_world_as_online_before_its_deadline()
+    {
+        using (var context = _database.CreateDbContext())
+        {
+            var world = context.Worlds.Single(w => w.Id == new WorldId(101));
+            world.MaintenanceEnabled = true;
+            world.MaintenanceRevision = 1;
+            world.MaintenanceDeadlineUtc = DateTime.UtcNow.AddMinutes(10);
+            context.SaveChanges();
+        }
+        var readiness = Substitute.For<IWorldReadiness>();
+        readiness.IsReadyAsync(101, Arg.Any<CancellationToken>()).Returns(true);
+        var service = new WorldService(new WorldRepository(_database), _databases, readiness);
+
+        WorldDto? worldDto = await service.GetAsync(101, AccountAccessLevel.Player);
+
+        Assert.Equal(Avalon.Api.Contract.WorldStatus.Online, worldDto!.Status);
     }
 
     [Fact]

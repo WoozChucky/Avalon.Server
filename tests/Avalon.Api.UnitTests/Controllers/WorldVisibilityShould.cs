@@ -6,9 +6,13 @@ using Avalon.Api.UnitTests.Services;
 using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Database;
+using Avalon.Infrastructure;
+using Avalon.Infrastructure.WorldMaintenance;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;
+using NSubstitute;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
 
@@ -54,7 +58,10 @@ public sealed class WorldVisibilityShould : IDisposable
     };
 
     private WorldController MakeSut(AccountAccessLevel level) =>
-        new(new WorldService(new WorldRepository(_database), new Avalon.Api.Worlds.WorldDatabases([])))
+        new(new WorldService(new WorldRepository(_database), new Avalon.Api.Worlds.WorldDatabases([]),
+                Substitute.For<IWorldReadiness>()),
+            Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<IWorldMaintenanceControl>(),
+            Substitute.For<IWorldReadiness>())
         {
             ControllerContext = new ControllerContext
             {
@@ -152,5 +159,32 @@ public sealed class WorldVisibilityShould : IDisposable
         var result = await MakeSut(AccountAccessLevel.Admin).Get(AdminWorld, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Sort_derived_status_across_all_visible_worlds_before_paging()
+    {
+        using (var context = _database.CreateDbContext())
+        {
+            var staff = context.Worlds.Single(w => w.Id == new WorldId(AdminWorld));
+            staff.MaintenanceEnabled = true;
+            context.SaveChanges();
+        }
+
+        var readiness = Substitute.For<IWorldReadiness>();
+        readiness.IsReadyAsync(PlayerWorld, Arg.Any<CancellationToken>()).Returns(true);
+        var service = new WorldService(new WorldRepository(_database),
+            new Avalon.Api.Worlds.WorldDatabases([]), readiness);
+
+        var first = await service.ListAsync(AccountAccessLevel.Admin, 1, 1,
+            sortBy: "status", sortDirection: SortDirection.Ascending);
+        var last = await service.ListAsync(AccountAccessLevel.Admin, 3, 1,
+            sortBy: "status", sortDirection: SortDirection.Ascending);
+
+        Assert.Equal(3, first.TotalCount);
+        Assert.Equal(PtrWorld, Assert.Single(first.Items).Id); // Offline
+        Assert.Equal(AdminWorld, Assert.Single(last.Items).Id); // Maintenance
+        Assert.Equal(Avalon.Api.Contract.WorldStatus.Maintenance, last.Items[0].Status);
+        Assert.False(last.Items[0].Ready);
     }
 }

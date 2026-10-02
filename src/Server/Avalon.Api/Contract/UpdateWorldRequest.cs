@@ -9,5 +9,4 @@ public sealed class UpdateWorldRequest
     public string? Version { get; set; }
     public WorldType? Type { get; set; }
     public AccountAccessLevel? AccessLevelRequired { get; set; }
-    public WorldStatus? Status { get; set; }
 }

@@ -394,6 +394,15 @@ namespace Avalon.Database.Auth.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("MaintenanceDeadlineUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("MaintenanceEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("MaintenanceRevision")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("MinVersion")
                         .IsRequired()
                         .HasColumnType("text");
@@ -403,9 +412,6 @@ namespace Avalon.Database.Auth.Migrations
                         .HasColumnType("text");
 
                     b.Property<int>("Port")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Status")
                         .HasColumnType("integer");
 
                     b.Property<int>("Type")
@@ -429,10 +435,11 @@ namespace Avalon.Database.Auth.Migrations
                             AccessLevelRequired = 4,
                             CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Host = "127.0.0.1",
+                            MaintenanceEnabled = false,
+                            MaintenanceRevision = 0L,
                             MinVersion = "0.0.1",
                             Name = "Development",
                             Port = 21001,
-                            Status = 1,
                             Type = 0,
                             UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = "0.0.1"
@@ -443,10 +450,11 @@ namespace Avalon.Database.Auth.Migrations
                             AccessLevelRequired = 1,
                             CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Host = "asthoria.avalon.monster",
+                            MaintenanceEnabled = false,
+                            MaintenanceRevision = 0L,
                             MinVersion = "0.0.1",
                             Name = "Asthoria",
                             Port = 21001,
-                            Status = 0,
                             Type = 0,
                             UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = "0.0.1"
@@ -457,10 +465,11 @@ namespace Avalon.Database.Auth.Migrations
                             AccessLevelRequired = 32,
                             CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Host = "ptr.avalon.monster",
+                            MaintenanceEnabled = false,
+                            MaintenanceRevision = 0L,
                             MinVersion = "0.0.1",
                             Name = "Public Test Realm",
                             Port = 21001,
-                            Status = 0,
                             Type = 0,
                             UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = "0.0.1"

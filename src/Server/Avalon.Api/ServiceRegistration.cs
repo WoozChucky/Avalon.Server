@@ -118,6 +118,8 @@ public static class ServiceRegistration
         services.AddApiRateLimiting();
         services.AddSecureRandom();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
+        services.AddSingleton<IWorldReadiness, WorldReadiness>();
+        services.AddWorldMaintenanceControl();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IJwtUtils, JwtUtils>();
     }

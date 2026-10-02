@@ -206,8 +206,13 @@ public sealed class OfflineWriteRaceShould : IDisposable
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.AccountId.Returns(account.Id);
         connection.WorldSelects.Returns(new WorldSelectBudget());
+        var maintenance = Substitute.For<IWorldMaintenanceRepository>();
+        maintenance.ReadAsync(Arg.Any<WorldId>(), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(false, 0, null));
+        var readiness = Substitute.For<IWorldReadiness>();
+        readiness.IsReadyAsync(Arg.Any<ushort>(), Arg.Any<CancellationToken>()).Returns(true);
         var handler = new CWorldSelectHandler(NullLoggerFactory.Instance, cache, stale, worlds, random,
-            Options(), TimeProvider.System);
+            Options(), TimeProvider.System, maintenance, readiness);
 
         await handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
         {

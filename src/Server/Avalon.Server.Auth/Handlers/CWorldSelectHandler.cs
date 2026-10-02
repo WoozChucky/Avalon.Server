@@ -16,17 +16,22 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
     private readonly IReplicatedCache _cache;
     private readonly IAccountRepository _accountRepository;
     private readonly IWorldRepository _worldRepository;
+    private readonly IWorldMaintenanceRepository _maintenance;
+    private readonly IWorldReadiness _readiness;
     private readonly ISecureRandom _secureRandom;
     private readonly TimeProvider _time;
     private readonly int _maxSelectsPerWindow;
 
     public CWorldSelectHandler(ILoggerFactory loggerFactory, IReplicatedCache cache, IAccountRepository accountRepository,
-        IWorldRepository worldRepository, ISecureRandom secureRandom, IOptions<AuthConfiguration> options, TimeProvider time)
+        IWorldRepository worldRepository, ISecureRandom secureRandom, IOptions<AuthConfiguration> options,
+        TimeProvider time, IWorldMaintenanceRepository maintenance, IWorldReadiness readiness)
     {
         _logger = loggerFactory.CreateLogger<CWorldSelectHandler>();
         _cache = cache;
         _accountRepository = accountRepository;
         _worldRepository = worldRepository;
+        _maintenance = maintenance;
+        _readiness = readiness;
         _secureRandom = secureRandom;
         _time = time;
         _maxSelectsPerWindow = options.Value.MaxWorldSelectsPerMinute;
@@ -67,6 +72,57 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
             _logger.Log(UnavailableLevel(ctx.Connection),
                 "Account {AccountId} tried to access world {WorldId} without the required access level", account.Id, world.Id);
             SendWorldUnavailable(ctx.Connection);
+            return;
+        }
+
+        WorldMaintenanceState? state;
+        try
+        {
+            state = await _maintenance.ReadAsync(world.Id, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "Could not read maintenance state for world {WorldId}", world.Id);
+            SendWorldUnavailable(ctx.Connection);
+            return;
+        }
+
+        if (state is null)
+        {
+            SendWorldUnavailable(ctx.Connection);
+            return;
+        }
+
+        bool ready;
+        try
+        {
+            ready = await _readiness.IsReadyAsync(world.Id.Value, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "Could not read readiness for world {WorldId}", world.Id);
+            ready = false;
+        }
+
+        if (!ready)
+        {
+            SendWorldUnavailable(ctx.Connection);
+            return;
+        }
+
+        if (state.IsCutoffActive(_time.GetUtcNow().UtcDateTime) &&
+            (account.AccessLevel & AccountAccessLevel.Admin) == 0)
+        {
+            ctx.Connection.Send(SWorldSelectPacket.CreateError(WorldSelectResult.Maintenance,
+                ctx.Connection.CryptoSession.Encrypt));
             return;
         }
 

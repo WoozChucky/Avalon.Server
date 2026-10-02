@@ -1,11 +1,14 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Configuration;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.World;
 using Avalon.World.Configuration;
+using Avalon.World.Maintenance;
 using Avalon.World.Reload;
 using Avalon.World.Parties;
 using Avalon.World.Quests;
@@ -138,6 +141,59 @@ public class WorldServerStartupShould
         }
     }
 
+    /// <summary>The persisted maintenance state is loaded after the world and before the port opens, so a world
+    /// restarted past its deadline never admits anyone on a state it has not read.</summary>
+    [Fact]
+    public async Task Load_persisted_maintenance_before_opening_the_port()
+    {
+        var read = new TaskCompletionSource<WorldMaintenanceState?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>()).Returns(read.Task);
+        var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+        var server = new TestWorldServer(_world, _port, maintenance: coordinator);
+        await server.StartAsync(CancellationToken.None);
+        try
+        {
+            _load.SetResult();
+            await UntilAsync(() => Task.FromResult(repository.ReceivedCalls().Any()), "the maintenance state was not read");
+            Assert.False(await AcceptsAsync(), "a client was accepted before the maintenance state was loaded");
+
+            var state = new WorldMaintenanceState(true, 4, DateTime.UtcNow.AddMinutes(-1));
+            read.SetResult(state);
+
+            await UntilAsync(AcceptsAsync, "the port did not open once the maintenance state was loaded");
+            Assert.Equal(state, coordinator.CurrentState);
+        }
+        finally
+        {
+            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+        }
+    }
+
+    [Fact]
+    public async Task Never_open_the_port_when_the_maintenance_state_cannot_be_read()
+    {
+        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<WorldMaintenanceState?>(null));
+        var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+        var server = new TestWorldServer(_world, _port, maintenance: coordinator);
+        await server.StartAsync(CancellationToken.None);
+        try
+        {
+            _load.SetResult();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(Limit));
+            Assert.False(await AcceptsAsync(), "a client was accepted without a maintenance state");
+        }
+        finally
+        {
+            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+        }
+    }
+
     /// <summary>A stop that lands during the load leaves the port shut when the load then finishes.</summary>
     [Fact]
     public async Task Keep_the_port_shut_when_stopped_during_the_load()
@@ -187,7 +243,8 @@ public class WorldServerStartupShould
     }
 
     private sealed class TestWorldServer(IWorld world, int port, IReplicatedCache? cache = null,
-        IScriptManager? scripts = null, IScriptHotReloader? hotReloader = null) : WorldServer(
+        IScriptManager? scripts = null, IScriptHotReloader? hotReloader = null,
+        WorldMaintenanceCoordinator? maintenance = null) : WorldServer(
         Substitute.For<IPacketManager>(),
         NullLoggerFactory.Instance,
         new AnyServiceProvider(scripts ??= Substitute.For<IScriptManager>(), cache ??= Substitute.For<IReplicatedCache>()),
@@ -197,7 +254,8 @@ public class WorldServerStartupShould
         cache,
         hotReloader ?? Substitute.For<IScriptHotReloader>(),
         new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance),
-        new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance));
+        new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance),
+        maintenanceCoordinator: maintenance);
 
     /// <summary>
     /// The world server reflects over every packet handler in the assembly and activates each one,

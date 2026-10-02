@@ -10,6 +10,7 @@ using Avalon.Network.Packets.Generic;
 using Avalon.Common.Accounts;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
+using Avalon.World.Maintenance;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -18,7 +19,8 @@ using Packet = Avalon.Network.Packets.Packet;
 
 namespace Avalon.World;
 
-public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable, ICharacterLeaveControl
+public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable, ICharacterLeaveControl,
+    IMaintenanceBlockable
 {
     private readonly ConcurrentQueue<IContinuation> _continuationQueue = new();
 
@@ -30,6 +32,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     private long _lastClientTicks;
     private long _lastServerTicks;
+    private volatile bool _maintenanceBlocked;
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader)
@@ -44,7 +47,14 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
         Init(client);
     }
 
-    public AccountId? AccountId { get; set; }
+    // Identity is published after access is assigned at exchange. The volatile publication makes
+    // the preceding access write visible to the tick that observes a non-null account ID.
+    private AccountId? _accountId;
+    public AccountId? AccountId
+    {
+        get => Volatile.Read(ref _accountId);
+        set => Volatile.Write(ref _accountId, value);
+    }
 
     /// <summary>Who this connection is, for its packets' spans and log scope.</summary>
     public PacketTags TelemetryTags() =>
@@ -190,6 +200,8 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
         ProcessQueue(_mapFilterPredicate, dropStaleMapPackets: false);
     }
 
+    public void BlockForMaintenance() => _maintenanceBlocked = true;
+
     public void FlushContinuations()
     {
         ProcessContinuations();
@@ -203,6 +215,12 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
     /// </param>
     private void ProcessQueue(Func<WorldPacket, bool> predicate, bool dropStaleMapPackets)
     {
+        if (_maintenanceBlocked)
+        {
+            while (_receiveQueue.TryDequeue(out _)) { }
+            return;
+        }
+
         const uint MaxPacketsPerUpdate = 150;
         uint processedPackets = 0;
 
@@ -295,6 +313,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     protected override ValueTask OnReceive(NetworkPacketHeader header, Packet? payload)
     {
+        if (_maintenanceBlocked) return ValueTask.CompletedTask;
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
             _receiveQueue.Enqueue(new WorldPacket(header.Type, payload, DateTime.UtcNow.Ticks));

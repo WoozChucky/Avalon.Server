@@ -17,6 +17,8 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
 using Avalon.World.Inventory;
+using Avalon.World.Maintenance;
+using System.Globalization;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Presence;
@@ -146,9 +148,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly IWorld _world;
     private readonly ICharacterSaver _characterSaver;
+    private readonly IWorldEntryGate? _entryGate;
+    private readonly WorldMaintenanceCoordinator? _maintenanceCoordinator;
     private readonly TickThreadGuard? _tickThreadGuard;
     private readonly PresenceCapture? _presence;
     private readonly ThrottledErrorLog _presenceErrors;
+    private readonly ThrottledErrorLog _maintenanceErrors;
+    // The container's clock, so the maintenance cutoff and the entry checks read one time.
+    private readonly TimeProvider _time;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -160,6 +167,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     // Monotonic tick counter used solely to derive the time-sync ping phase.
     // We can't reuse _tickCount because that one resets every ~1s for the TPS calculation.
     private long _pingTickCounter;
+    private long _completedTicks;
+    private volatile bool _isListening;
+
+    public bool IsListening => _isListening;
+    public long CompletedTicks => Interlocked.Read(ref _completedTicks);
 
     private ObservableGauge<double> _tickRate;
     private Histogram<double> _tickDuration;
@@ -181,7 +193,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IReplicatedCache cache,
         IScriptHotReloader scriptHotReloader,
         ICharacterSaver characterSaver,
-        PartyService parties) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
+        PartyService parties,
+        IWorldEntryGate? entryGate = null,
+        WorldMaintenanceCoordinator? maintenanceCoordinator = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions,
         PacketDispatchTelemetry.From(DiagnosticsConfig.World.Source, DiagnosticsConfig.World.Meter,
@@ -192,6 +206,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _services = serviceProvider;
         _scriptHotReloader = scriptHotReloader;
         _characterSaver = characterSaver;
+        _entryGate = entryGate;
+        _maintenanceCoordinator = maintenanceCoordinator;
+        _maintenanceCoordinator?.SetDrainObserver(() => _pendingDisconnects.IsEmpty);
         _parties = parties;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _memberStatusErrors = new ThrottledErrorLog(_logger,
@@ -206,6 +223,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _presence = serviceProvider.GetService<PresenceCapture>();
         _presenceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The presence capture");
+        _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+        _maintenanceErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The maintenance countdown");
         
         _logger.LogInformation("R2R enabled: {R2R}",
             System.Runtime.CompilerServices.RuntimeFeature.IsSupported("IsDynamicCodeCompiled"));
@@ -289,6 +309,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         await _world.LoadAsync(stoppingToken);
 
+        if (_maintenanceCoordinator is not null)
+            await _maintenanceCoordinator.InitializeAsync(stoppingToken);
+
         // Hot-reloaded scripts can bring names the load did not see. The event runs on the compiler's thread; the
         // publish never throws, so nothing is lost by not awaiting it.
         PublishCatalogOnHotReload(catalog);
@@ -329,6 +352,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         try
         {
             StartListening();
+            _isListening = true;
         }
         catch
         {
@@ -350,6 +374,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {
+        _isListening = false;
         // The tick goes first. Closing an outbox does its own final flush, so the tick has nothing
         // left to contribute, and letting it keep flushing outboxes that are mid-teardown would
         // put a second writer on buffers the close is about to hand back to the pool.
@@ -461,6 +486,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
                     Update(deltaTime, tickStart);
 
+                    Interlocked.Increment(ref _completedTicks);
+
                     _tickCount++;
                     double elapsedSeconds =
                         (_stopwatch.ElapsedMilliseconds - _lastTpsCalculationMs) / 1000.0;
@@ -530,6 +557,17 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Cache once — both phases iterate the same set.
         ImmutableArray<IWorldConnection> conns = Connections;
 
+        // Before the session pass, so a cutoff blocks a non-Admin's queued packets on the tick it arrives. Applies a
+        // state the notification or the reconciliation offered from off the tick. Contained: the tick goes on.
+        try
+        {
+            _maintenanceCoordinator?.Advance(_time.GetUtcNow().UtcDateTime, conns);
+        }
+        catch (Exception e)
+        {
+            _maintenanceErrors.Failed(e);
+        }
+
         foreach (IWorldConnection worldConnection in conns)
             worldConnection.UpdateSession();
         long t1 = Stopwatch.GetTimestamp();
@@ -543,7 +581,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         long barrierNowTicks = DateTime.UtcNow.Ticks;
         TimeSpan barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
 
-        CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger);
+        CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger,
+            _entryGate, _maintenanceCoordinator, _time);
 
         // The other half of the same failure: a select that never reached a pending spawn at all,
         // so ReleaseExpired cannot see it. Sharing the timeout because both are "the select
@@ -679,11 +718,38 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private async Task CacheSubscribeAsync()
     {
         await _cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, DelayedDisconnect);
+        if (_maintenanceCoordinator is not null)
+            await _cache.SubscribeAsync(CacheKeys.WorldMaintenance(_world.Id.Value), MaintenanceNotice);
 
         // The API asks this world, and only this world, to reload after a template save. Required: a host that
         // builds a WorldServer registers the handler, so a missing one fails startup rather than going unnoticed.
         var reloads = _services.GetRequiredService<ReloadRequestHandler>();
         await _cache.SubscribeAsync(CacheKeys.WorldReloadChannel(_world.Id.Value), reloads.OnMessage);
+    }
+
+    /// <summary>
+    /// On Redis's thread. Reads the row off the tick and only offers it to the coordinator: the next tick applies
+    /// it (#639), so nothing here changes world or connection state.
+    /// </summary>
+    private void MaintenanceNotice(RedisChannel channel, RedisValue value)
+    {
+        if (_maintenanceCoordinator is null || !long.TryParse(value.ToString(), NumberStyles.None,
+                CultureInfo.InvariantCulture, out long revision))
+            return;
+
+        _ = ApplyMaintenanceNoticeAsync(revision);
+    }
+
+    private async Task ApplyMaintenanceNoticeAsync(long revision)
+    {
+        try
+        {
+            await _maintenanceCoordinator!.ApplyNotificationAsync(revision, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "World maintenance notification could not be applied; reconciliation will retry");
+        }
     }
 
     private void DelayedDisconnect(RedisChannel channel, RedisValue value)

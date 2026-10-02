@@ -308,6 +308,20 @@ Both Helm values render only when set.
 
 ---
 
+## World Maintenance and Readiness
+
+Maintenance is stored per world in the shared auth database (`MaintenanceEnabled`, revision, and a UTC deadline). It survives a world server restart. The world process loads it after the world and before opening the listener, subscribes to revision notifications, and rereads the database every five seconds if a notification is missed. Both reads run off the simulation tick; the next tick applies the newest revision read, then sends the warning due and, at the deadline, closes the sessions. Players may enter throughout the scheduled countdown. At the deadline only Admin accounts may enter; the listener stays open so they can verify access.
+
+Admin operators can use `POST /world/{id}/maintenance` with optional JSON `{"graceMinutes": 5}`, `DELETE /world/{id}/maintenance`, and `GET /world/{id}/maintenance`. The grace defaults to five minutes and accepts whole minutes from 1 to 60. An Admin already in that world can also use `/maintenance on [minutes]`, `/maintenance off`, and `/maintenance status`. Repeating `on` preserves the first deadline; `off` cancels the remaining warnings and advances the revision.
+
+The public `WorldStatus` is derived: an active cutoff gives `Maintenance`; before the deadline a fresh ready heartbeat gives `Online`, and no heartbeat gives `Offline`. The world refreshes a five-second Redis heartbeat each second only while its listener is open and simulation ticks complete. The API's `WorldDto.Ready` reports that heartbeat separately from `Available`, which still means the API has configured and migrated that world's databases. World create and general update requests cannot set status.
+
+At enable, the world broadcasts a System chat warning. It warns again at three minutes, one minute, thirty seconds, and every second from ten through zero that falls within the grace. At zero it sends the warning before a maintenance disconnect, stops processing authenticated non-Admin packets, then runs the normal despawn and save path. Admin sessions remain connected. Auth selection, world key exchange, character select, and final spawn enforce the deadline; if the authoritative maintenance row cannot be read, a new entry is refused.
+
+The client must understand `WorldSelectResult.Maintenance` and `DisconnectReason.Maintenance` from the shared wire schema and show a maintenance message for both.
+
+---
+
 ## REST API JWT Signing Key
 
 Section: `Application:Authentication` in `Avalon.Api` (**never committed to source control**, #482)
