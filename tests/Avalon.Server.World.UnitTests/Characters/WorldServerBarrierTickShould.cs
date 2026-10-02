@@ -176,6 +176,27 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     [Fact]
+    public void Apply_an_offered_maintenance_cutoff_on_the_tick_and_close_non_Admins_there()
+    {
+        // What the Redis notification and the reconciliation do from their own threads: offer, nothing more.
+        var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
+            Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
+            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build(coordinator: coordinator);
+        connection.AccountId = new AccountId(42);
+        var cutoff = new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddSeconds(-1));
+        coordinator.Offer(cutoff);
+
+        Assert.Null(coordinator.CurrentState);
+        Assert.False(connection.IsClosing);
+
+        server.Tick();
+
+        Assert.Equal(cutoff, coordinator.CurrentState);
+        Assert.True(connection.IsClosing);
+    }
+
+    [Fact]
     public void Refuse_a_completed_entry_decision_after_its_five_second_lifetime()
     {
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),

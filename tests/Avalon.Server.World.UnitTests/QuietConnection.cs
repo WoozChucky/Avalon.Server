@@ -71,7 +71,6 @@ internal sealed class QuietConnection(CharacterEntity character) : IWorldConnect
 
     public void UpdateSession() => throw new NotSupportedException();
     public void UpdateMap() { }
-    public void BlockForMaintenance() { }
     public void FlushContinuations() => throw new NotSupportedException();
     public void FlushOutbox() => throw new NotSupportedException();
     public void EnqueueContinuation<T>(Task<T> task, Action<T> callback) => throw new NotSupportedException();

@@ -7,6 +7,7 @@ using Avalon.Network.Packets.Social;
 using Avalon.World.Chat;
 using Avalon.World.Maintenance;
 using Avalon.World.Persistence;
+using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -92,6 +93,38 @@ public sealed class MaintenanceCommandShould
         Assert.True(await f.Dispatch(command));
         Assert.Contains("Usage", f.LastMessage());
         await f.Control.DidNotReceiveWithAnyArgs().SetAsync(default!, default, default, default!, default);
+    }
+
+    [Fact]
+    public void Write_off_the_tick_and_apply_the_committed_state_only_in_the_continuation()
+    {
+        var connection = Substitute.For<IWorldConnection>();
+        connection.AccountId.Returns(new AccountId(7));
+        connection.AccessLevel.Returns(AccountAccessLevel.Admin);
+        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
+        var queued = new List<(Task Task, Action Callback)>();
+        connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
+            .Do(ci => queued.Add((ci.Arg<Task>(), ci.Arg<Action>())));
+        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        var control = Substitute.For<IWorldMaintenanceControl>();
+        var committed = new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5));
+        control.SetAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(committed);
+        var coordinator = new WorldMaintenanceCoordinator(new WorldId(1), repository,
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+        var dispatcher = new CommandDispatcher([new MaintenanceCommand(new WorldId(1), repository, control, coordinator)],
+            NullLogger<CommandDispatcher>.Instance);
+
+        Assert.True(dispatcher.Dispatch(connection, new CChatMessagePacket { Message = "/maintenance on", DateTime = DateTime.UtcNow }));
+
+        // Dispatch returned without waiting for the write, and nothing is applied until a tick runs the callback.
+        Assert.Single(queued);
+        Assert.Null(coordinator.CurrentState);
+
+        Assert.True(queued[0].Task.Wait(TimeSpan.FromSeconds(5)));
+        queued[0].Callback();
+
+        Assert.Equal(committed, coordinator.CurrentState);
     }
 
     private sealed class Fixture

@@ -145,7 +145,7 @@ public class ExchangeWorldKeyHandlerShould
             Substitute.For<ICharacterSaver>(), TimeProvider.System,
             NullLogger<WorldMaintenanceCoordinator>.Instance);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, _clock.Now.UtcDateTime));
-        var connection = Substitute.For<IWorldConnection, IAccessLevelAssignable>();
+        var connection = Substitute.For<IWorldConnection, IAccessLevelAssignable, IMaintenanceBlockable>();
         connection.ServerCrypto.Returns(_serverCrypto);
         connection.IsConnected.Returns(true);
         connection.CloseAsync().Returns(Task.CompletedTask);
@@ -164,7 +164,7 @@ public class ExchangeWorldKeyHandlerShould
         await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize], connection));
 
         Assert.Equal(AccountAccessLevel.Admin, publishedAccess);
-        connection.DidNotReceive().BlockForMaintenance();
+        ((IMaintenanceBlockable)connection).DidNotReceive().BlockForMaintenance();
         connection.DidNotReceive().CloseAsync();
     }
 

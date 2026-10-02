@@ -10,6 +10,7 @@ using Avalon.Network.Packets.Generic;
 using Avalon.Common.Accounts;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
+using Avalon.World.Maintenance;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -18,7 +19,8 @@ using Packet = Avalon.Network.Packets.Packet;
 
 namespace Avalon.World;
 
-public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable, ICharacterLeaveControl
+public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable, ICharacterLeaveControl,
+    IMaintenanceBlockable
 {
     private readonly ConcurrentQueue<IContinuation> _continuationQueue = new();
 

@@ -78,13 +78,15 @@ public static class ServiceExtensions
         services.AddSingleton<IWorldEntryGate>(sp => new WorldEntryGate(
             sp.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId,
             sp.GetRequiredService<IWorldMaintenanceRepository>(),
-            sp.GetRequiredService<IAccountRepository>()));
+            sp.GetRequiredService<IAccountRepository>(),
+            sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton(sp => new WorldMaintenanceCoordinator(
             sp.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId,
             sp.GetRequiredService<IWorldMaintenanceRepository>(),
             sp.GetRequiredService<ICharacterSaver>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<WorldMaintenanceCoordinator>>()));
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<WorldMaintenanceCoordinator>>(),
+            sp.GetService<TickThreadGuard>()));
         services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
         services.AddSingleton<IScriptManager, ScriptManager>();
         services.AddSingleton<ICreatureSpawner, CreatureSpawner>();

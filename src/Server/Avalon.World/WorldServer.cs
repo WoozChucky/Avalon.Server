@@ -153,6 +153,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly TickThreadGuard? _tickThreadGuard;
     private readonly PresenceCapture? _presence;
     private readonly ThrottledErrorLog _presenceErrors;
+    private readonly ThrottledErrorLog _maintenanceErrors;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -220,6 +221,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _presence = serviceProvider.GetService<PresenceCapture>();
         _presenceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The presence capture");
+        _maintenanceErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The maintenance countdown");
         
         _logger.LogInformation("R2R enabled: {R2R}",
             System.Runtime.CompilerServices.RuntimeFeature.IsSupported("IsDynamicCodeCompiled"));
@@ -551,7 +554,17 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Cache once — both phases iterate the same set.
         ImmutableArray<IWorldConnection> conns = Connections;
 
-        _maintenanceCoordinator?.Advance(DateTime.UtcNow, conns);
+        // Before the session pass, so a cutoff blocks a non-Admin's queued packets on the tick it arrives. Applies a
+        // state the notification or the reconciliation offered from off the tick. Contained: the tick goes on.
+        try
+        {
+            _maintenanceCoordinator?.Advance(DateTime.UtcNow, conns);
+        }
+        catch (Exception e)
+        {
+            _maintenanceErrors.Failed(e);
+        }
+
         foreach (IWorldConnection worldConnection in conns)
             worldConnection.UpdateSession();
         long t1 = Stopwatch.GetTimestamp();
@@ -711,6 +724,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         await _cache.SubscribeAsync(CacheKeys.WorldReloadChannel(_world.Id.Value), reloads.OnMessage);
     }
 
+    /// <summary>
+    /// On Redis's thread. Reads the row off the tick and only offers it to the coordinator: the next tick applies
+    /// it (#639), so nothing here changes world or connection state.
+    /// </summary>
     private void MaintenanceNotice(RedisChannel channel, RedisValue value)
     {
         if (_maintenanceCoordinator is null || !long.TryParse(value.ToString(), NumberStyles.None,
