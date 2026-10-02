@@ -19,10 +19,12 @@ namespace Avalon.World.Instances;
 /// <para>
 /// <b>Builds run off the tick; everything else runs on it (#639).</b> A build (layout reads, the navmesh bake, the
 /// <see cref="MapInstance" /> and its creatures) runs on the thread pool and touches only the instance it is building.
-/// When it ends it only queues its outcome. <see cref="PublishFinished" />, which <c>World.Update</c> runs first thing
-/// on every tick, registers each finished instance, writes its index entry, drops the build's pending entry and only
-/// then completes the task its requesters hold, so a requester sees it at most one tick after the build ends, and
-/// every index (and the instance list hot reload walks) is written on the tick alone. A failed build is published the
+/// When it ends it only queues its outcome. <see cref="PublishFinished" />, which <c>World.Update</c> runs on every tick
+/// before the parties and the instances tick, registers each finished instance, writes its index entry, drops the
+/// build's pending entry and only then completes the task its requesters hold. A requester that polls that task
+/// (a connection continuation) runs in the same tick's flush; one that first settles it through a continuation of its
+/// own (<c>TownReturn</c>, <c>ctx.Then</c>) runs a tick later. Either way it is answered, never left waiting.
+/// Every index (and the instance list hot reload walks) is written on the tick alone. A failed build is published the
 /// same way: its requesters get the failure and the next request starts a fresh build.
 /// </para>
 /// <para>
@@ -32,7 +34,7 @@ namespace Avalon.World.Instances;
 /// <para>
 /// Tick thread only, except <see cref="ActiveInstances" />, <see cref="GetInstanceById" /> and
 /// <see cref="IsPartyInstance" />, which read the instance list, a concurrent dictionary, so telemetry may read it
-/// from its own thread. The writers assert the tick thread in Debug builds (<see cref="TickThreadGuard" />).
+/// from its own thread. The writers assert the tick thread while <see cref="TickThreadGuard" /> is enabled (#639).
 /// </para>
 /// </remarks>
 public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
@@ -266,38 +268,38 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         {
             PendingBuild pending = done.Build;
 
-            // First, so whatever follows, the next request finds the instance or starts afresh, never this entry.
-            Forget(pending);
-
-            if (!done.Outcome.IsCompletedSuccessfully)
-            {
-                if (done.Outcome.IsCanceled)
-                    pending.Done.TrySetCanceled(CancellationToken.None);
-                else
-                    pending.Done.TrySetException(done.Outcome.Exception!.InnerExceptions);
-                continue;
-            }
-
-            MapInstance instance = done.Outcome.Result;
+            // The whole step is contained: whatever throws, the build is not lost, its requesters are answered (with
+            // the failure), and the builds behind it are still published.
             try
             {
+                // First, so whatever follows, the next request finds the instance or starts afresh, never this entry.
+                Forget(pending);
+
+                if (!done.Outcome.IsCompletedSuccessfully)
+                {
+                    if (done.Outcome.IsCanceled)
+                        pending.Done.TrySetCanceled(CancellationToken.None);
+                    else
+                        pending.Done.TrySetException(done.Outcome.Exception!.InnerExceptions);
+                    continue;
+                }
+
+                MapInstance instance = done.Outcome.Result;
                 _instances[instance.InstanceId] = instance;
                 Index(pending, instance);
+
+                _logger.LogInformation("Created {MapType} instance {InstanceId} for map {TemplateId}",
+                    instance.MapType, instance.InstanceId, pending.TemplateId);
+                published.Add(instance);
+                pending.Done.TrySetResult(instance);
             }
             catch (Exception e)
             {
-                // Contained, so one bad publish cannot leave the builds behind it, or its own requesters, waiting.
-                _logger.LogError(e, "Failed to register instance {InstanceId} of map {TemplateId}",
-                    instance.InstanceId, pending.TemplateId);
+                _logger.LogError(e, "Failed to publish a build of map {TemplateId}", pending.TemplateId);
                 pending.Done.TrySetException(e);
-                continue;
             }
-
-            _logger.LogInformation("Created {MapType} instance {InstanceId} for map {TemplateId}",
-                instance.MapType, instance.InstanceId, pending.TemplateId);
-            published.Add(instance);
-            pending.Done.TrySetResult(instance);
         }
+
 
         return published;
     }

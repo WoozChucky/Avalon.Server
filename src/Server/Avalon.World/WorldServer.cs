@@ -305,6 +305,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (OperatingSystem.IsWindows())
             _waitableTimer = CreateHighResTimer();
 
+        // The tick-thread assertion (#639) checks only when turned on: Game:TickThreadGuard, for development.
+        if (_world.Configuration.TickThreadGuard)
+        {
+            TickThreadGuard.Enable();
+            _logger.LogInformation("The tick-thread assertion is on (Game:TickThreadGuard)");
+        }
+
         _tickRunning = true;
         _tickThread = new Thread(TickLoop)
         {
@@ -367,9 +374,28 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // and cutting it short would discard the save this exists to make.
         var despawning = new List<Task>();
         while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
-            despawning.Add(_world.DeSpawnPlayerAsync(disconnected));
+        {
+            // Each on its own: one that throws (the tick-thread assertion, say, when the tick outlived its join
+            // above) must not cost the other characters their despawn saves, or skip the wait for saves below.
+            try
+            {
+                despawning.Add(_world.DeSpawnPlayerAsync(disconnected));
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failed to despawn account {AccountId} at shutdown", disconnected.AccountId?.Value);
+            }
+        }
 
-        await Task.WhenAll(despawning).ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(despawning).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            // A despawn's task does not fault today; if one ever does, the wait for saves below still runs.
+            _logger.LogError(e, "A despawn at shutdown failed");
+        }
 
         // The pass above only covers despawns it started. A tick starts each despawn without
         // waiting for it, so one begun on an earlier tick can still be queued behind another save,
@@ -410,7 +436,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private void TickLoop()
     {
         // From here until the loop ends, World-side state that only the tick may change refuses any other thread
-        // (Debug builds, #639). Unbound in the finally, so the shutdown despawn that runs once the tick is joined passes.
+        // (while the guard is enabled, #639). Unbound in the finally, so the shutdown despawn that runs once the tick is joined passes.
         _tickThreadGuard?.Bind();
         long next = Stopwatch.GetTimestamp() + TicksPerFrame;
         TimeSpan prev = _gameTime.Elapsed;

@@ -66,9 +66,13 @@ public sealed class PresenceCapture
                 instances.Add(snapshot);
         }
 
-        // Nobody in the world: nothing to write, as before. What was written last expires on its TTL.
+        // Nobody in the world: nothing to write, as before, and a snapshot the writer has not taken yet is dropped, so
+        // it is never written as live after its players have gone. What was written last expires on its TTL.
         if (instances.Count == 0)
+        {
+            Volatile.Write(ref _latest, null);
             return;
+        }
 
         Volatile.Write(ref _latest,
             new WorldPresenceSnapshot(_worldId, capturedAt, instances, WorldPresenceSnapshot.CurrentVersion));

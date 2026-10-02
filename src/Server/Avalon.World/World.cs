@@ -491,18 +491,6 @@ public class World : IWorld
     {
         Time.Update(deltaTime);
 
-        // Instances whose builds finished since the last tick join the registry first (#639), so the parties, the
-        // reloads and the instance ticks below all see them, and their requesters' continuations run this tick.
-        // Contained: a throw here must not cost the instances their tick.
-        try
-        {
-            PublishBuiltInstances();
-        }
-        catch (Exception e)
-        {
-            _publishErrors.Failed(e);
-        }
-
         // Apply any queued content reloads before the map pass and before any instance ticks.
         // Map-pass packets (movement, attack, chat) are processed on this thread too, inside the
         // instance loop below, so none of them can see a half-reloaded area. Session-pass packets
@@ -517,6 +505,20 @@ public class World : IWorld
         {
             ApplyScriptsHotReload(pendingReload);
             _logger.LogInformation("Hot reloaded {Count} AI scripts", pendingReload.Count);
+        }
+
+        // Instances whose builds finished since the last tick join the registry here (#639), after the hot reload
+        // above and before the parties and the instance ticks below, so those see them and their requesters'
+        // continuations run this tick. After the reload rather than before it: a just-published instance whose build
+        // saw the old script types is brought up to date once, as it is published, instead of being rebuilt by the
+        // reload's walk and then checked again. Contained: a throw here must not cost the instances their tick.
+        try
+        {
+            PublishBuiltInstances();
+        }
+        catch (Exception e)
+        {
+            _publishErrors.Failed(e);
         }
 
         // No clamp needed around Update: IntervalTimer.Update already floors its own counter at
@@ -685,8 +687,8 @@ public class World : IWorld
 
     /// <summary>
     /// Registers every instance whose build finished since the last call (<see cref="Instances.InstanceRegistry.PublishFinished" />)
-    /// and completes its requesters' tasks. <see cref="Update" /> runs it first thing; public so a test can publish
-    /// without ticking the rest of the world. Tick thread only.
+    /// and completes its requesters' tasks. <see cref="Update" /> runs it after the hot reload and before the parties and
+    /// the instances tick; public so a test can publish without ticking the rest of the world. Tick thread only.
     /// </summary>
     /// <remarks>
     /// A build attaches its creatures' scripts from the script manager as it stood then. A hot reload applied on the

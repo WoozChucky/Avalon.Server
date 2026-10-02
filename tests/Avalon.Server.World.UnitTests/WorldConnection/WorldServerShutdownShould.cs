@@ -131,6 +131,37 @@ public class WorldServerShutdownShould : IDisposable
         Assert.True(await despawnSave.WaitAsync(limit));
     }
 
+    /// <summary>
+    /// One despawn that throws at once (the tick-thread assertion refusing it when the tick outlived its join, #639)
+    /// costs the other characters neither their despawn nor the wait for every save.
+    /// </summary>
+    [Fact]
+    public async Task Despawn_the_others_and_wait_for_saves_when_one_despawn_throws()
+    {
+        (TcpClient otherClient, TcpClient otherServer) = CreateLoopbackPair();
+        using (otherClient)
+        using (otherServer)
+        {
+            IWorld world = Substitute.For<IWorld>();
+            var saver = Substitute.For<ICharacterSaver>();
+            saver.WhenAllIdle().Returns(Task.CompletedTask);
+            var server = new TestWorldServer(world, saver);
+            Avalon.World.WorldConnection first = Connect(server);
+            var second = new Avalon.World.WorldConnection(
+                server, otherClient, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
+            server.Add(second);
+            world.DeSpawnPlayerAsync(Arg.Any<IWorldConnection>()).Returns(call =>
+                ReferenceEquals(call.Arg<IWorldConnection>(), first)
+                    ? throw new InvalidOperationException("World.LeaveWorldAsync runs on the tick thread only")
+                    : Task.CompletedTask);
+
+            await server.Stop().WaitAsync(TimeSpan.FromSeconds(5));
+
+            await world.Received(1).DeSpawnPlayerAsync(second);
+            await saver.Received(1).WhenAllIdle();
+        }
+    }
+
     /// <summary>The wait is bounded by the host: a save that never finishes must not hold the process up forever.</summary>
     [Fact]
     public async Task Stop_waiting_for_saves_once_the_host_gives_up()

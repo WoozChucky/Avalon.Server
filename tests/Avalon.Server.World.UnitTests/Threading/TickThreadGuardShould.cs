@@ -8,6 +8,17 @@ namespace Avalon.Server.World.UnitTests.Threading;
 /// </summary>
 public class TickThreadGuardShould
 {
+    /// <summary>
+    /// Compiled into every build (owner decision), so these tests run in Release as well; this assembly turns it on
+    /// (<see cref="TickThreadGuardOn" />), and production leaves it off unless <c>Game:TickThreadGuard</c> is set.
+    /// </summary>
+    [Fact]
+    public void Be_on_for_these_tests_and_off_by_default_in_production()
+    {
+        Assert.True(TickThreadGuard.Enabled);
+        Assert.False(new Avalon.World.Configuration.GameConfiguration().TickThreadGuard);
+    }
+
     [Fact]
     public void Let_any_thread_through_while_no_tick_is_bound()
     {

@@ -12,7 +12,7 @@ namespace Avalon.World.Characters;
 /// hooks, which reach it through <see cref="Parties.PartyService.CharacterOnline" /> and
 /// <see cref="Parties.PartyService.CharacterOffline" /> (World.SpawnInInstance and World.LeaveWorldAsync), so the party
 /// invite and the whisper (#717) look a name up in one place and cannot disagree about who is online.
-/// Its writers assert the tick thread in Debug builds (<see cref="TickThreadGuard" />, #639).
+/// Its writers assert the tick thread while <see cref="TickThreadGuard" /> is enabled (#639).
 /// </summary>
 public sealed class OnlineCharacters(TickThreadGuard? tickThread = null)
 {

@@ -159,6 +159,26 @@ public class PresenceCaptureShould
         Assert.Null(sut.Take());
     }
 
+    /// <summary>
+    /// The last player leaves before the writer took the snapshot that still shows them: the next capture drops it,
+    /// so it is never written as live.
+    /// </summary>
+    [Fact]
+    public void Drop_an_untaken_snapshot_once_nobody_is_in_the_world()
+    {
+        IMapInstance instance = Instance(Guid.NewGuid(), Character(1, "Nym", Vector3.zero));
+        IMapInstance emptied = Instance(Guid.NewGuid());
+        Hold(instance);
+        PresenceCapture sut = CreateSut();
+        sut.CaptureIfDue(_registry);
+
+        Hold(emptied);
+        _clock.Now += PresenceCapture.Interval;
+        sut.CaptureIfDue(_registry);
+
+        Assert.Null(sut.Take());
+    }
+
     /// <summary>One instance whose roster cannot be read costs only itself; the others are captured.</summary>
     [Fact]
     public void Capture_the_other_instances_when_one_throws()

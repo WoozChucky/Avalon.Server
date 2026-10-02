@@ -207,6 +207,26 @@ public class InstanceRegistryShould : IDisposable
         Assert.Same(instance, _registry.ActiveInstances.Single());
     }
 
+    /// <summary>
+    /// A publish step that throws (here a build that handed back no instance) loses nothing: its requesters get the
+    /// failure, the build behind it is still published, and the next request starts afresh.
+    /// </summary>
+    [Fact]
+    public async Task Answer_the_requesters_of_a_build_whose_publish_throws_and_publish_the_rest()
+    {
+        Task<IMapInstance> broken = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> town = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        _builds[0].SetResult(null!);
+        CompleteBuilds();
+
+        IReadOnlyList<MapInstance> published = _registry.PublishFinished();
+
+        await Assert.ThrowsAnyAsync<Exception>(() => broken.WaitAsync(Bound));
+        Assert.Same(Assert.Single(published), await town.WaitAsync(Bound));
+        _ = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Assert.Equal(3, _builds.Count);
+    }
+
     /// <summary>A build whose map is unknown fails the same way, through the tick, and is not cached.</summary>
     [Fact]
     public async Task Fail_A_Build_Of_An_Unknown_Map_Through_The_Tick()

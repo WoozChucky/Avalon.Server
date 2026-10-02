@@ -14,7 +14,7 @@ namespace Avalon.World.Social;
 /// read or change it. Memory is authoritative: every check runs against it, with no database query per message.
 /// Every change marks the save (<see cref="SaveStateTracker.IgnoreChanged" />); <see cref="Load" /> does not. It does
 /// not enforce the cap or refuse the owner's own id: the ignore commands decide what may be added.
-/// Its writers assert the tick thread in Debug builds (<see cref="TickThreadGuard" />, #639).
+/// Its writers assert the tick thread while <see cref="TickThreadGuard" /> is enabled (#639).
 /// </summary>
 public sealed class IgnoreList(SaveStateTracker save, TickThreadGuard? tickThread = null)
 {

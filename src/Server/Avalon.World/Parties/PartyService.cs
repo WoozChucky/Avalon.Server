@@ -21,9 +21,11 @@ namespace Avalon.World.Parties;
 /// Every party on this world server (spec 2026-09-30 section 1): in memory only, so a restart disbands them all.
 /// Tick thread only, every method: the handlers, the chat commands, World's spawn, transfer and despawn and
 /// World.Update all call it on the tick. The one exception is the shutdown despawn, which WorldServer.OnStoppingAsync
-/// runs on its own thread after joining the tick thread for at most 5 seconds: a tick still running past that bound
-/// could overlap it. Deadlines are read from the container's TimeProvider inside those calls; there are no timers.
-/// The mutators assert the tick thread in Debug builds (<see cref="TickThreadGuard" />, #639).
+/// runs on its own thread once the tick thread has ended (the tick unbinds the guard as it ends), joined for at most
+/// 5 seconds: a tick still running past that bound could overlap it, and with the guard on (#639) that despawn is
+/// refused, logged and skipped for that one character while the others still despawn. Deadlines are read from the
+/// container's TimeProvider inside those calls; there are no timers. The mutators assert the tick thread while
+/// <see cref="TickThreadGuard" /> is enabled (#639).
 /// </summary>
 public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvider time, ILogger<PartyService> logger,
     OnlineCharacters? online = null, TickThreadGuard? tickThread = null)

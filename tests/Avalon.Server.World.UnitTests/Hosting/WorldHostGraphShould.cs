@@ -132,6 +132,8 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>(),
                 host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>());
             Assert.Equal(10, host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Avalon.World.Configuration.GameConfiguration>>().Value.ChatMessagesPerMinute);
+            // The tick-thread assertion (#639) ships off: a development host turns it on with Game__TickThreadGuard.
+            Assert.False(host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Avalon.World.Configuration.GameConfiguration>>().Value.TickThreadGuard);
 
             // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
             // every combat service reads the same values. The facing cone it once carried is gone
