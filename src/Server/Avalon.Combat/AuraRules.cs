@@ -22,7 +22,7 @@ public static class AuraRules
             return "a periodic aura needs a TickIntervalMs above 0";
         if (t.TickIntervalMs > t.DurationMs)
             return $"TickIntervalMs {t.TickIntervalMs} is longer than DurationMs {t.DurationMs}";
-        if (t.Stacking == AuraStacking.Stack && t.MaxStacks < 1) return "a stacking aura needs MaxStacks of 1 or more";
+        if (t.MaxStacks < 1) return "MaxStacks must be 1 or more";
 
         foreach ((string name, float value) in new[]
                  {

@@ -79,6 +79,8 @@ public class WorldDbContext : DbContext
     public DbSet<CreatureRarityModifier> CreatureRarityModifiers { get; set; } = null!;
     public DbSet<CharacterCreateInfo> CharacterCreateInfos { get; set; } = null!;
     public DbSet<AbilityTemplate> AbilityTemplates { get; set; } = null!;
+    public DbSet<AuraTemplate> AuraTemplates { get; set; } = null!;
+    public DbSet<AuraStatModifier> AuraStatModifiers { get; set; } = null!;
     public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
     public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
     public DbSet<ChunkGroup> ChunkGroups { get; set; } = null!;
@@ -133,6 +135,8 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<CreatureBaseStat>());
         Configure(modelBuilder.Entity<CreatureRarityModifier>());
         Configure(modelBuilder.Entity<CharacterCreateInfo>());
+        Configure(modelBuilder.Entity<AuraTemplate>());
+        Configure(modelBuilder.Entity<AuraStatModifier>());
         Configure(modelBuilder.Entity<AbilityTemplate>());
         Configure(modelBuilder.Entity<ChunkTemplate>());
         Configure(modelBuilder.Entity<ChunkPool>());
@@ -2688,9 +2692,6 @@ public class WorldDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
     {
-        // Not mapped yet: the AuraId column arrives with the aura tables.
-        builder.Ignore(a => a.AuraId);
-
         // #529. Threat values must be finite and 0 or more, or a NaN spreads into every threat total it
         // touches. Written as the BodyRadius check is: the upper bound refuses Infinity, and NaN too,
         // since Postgres sorts NaN above every number; the literal is left untyped so Postgres reads it
@@ -2715,6 +2716,16 @@ public class WorldDbContext : DbContext
                 v => v.Value,
                 v => new AbilityId(v)
             ).IsRequired();
+
+        // The aura the ability applies to each unit it affects, or none. Restrict: an aura an ability names cannot be
+        // deleted from under it.
+        builder.Property(b => b.AuraId)
+            .HasConversion(v => v!.Value, v => new AuraId(v))
+            .IsRequired(false);
+        builder.HasOne<AuraTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.AuraId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // The starter kit (#164): three skills per class, one generic script per shape. The ids are new,
         // so no client that cached the retired abilities (1, 2, 100-103) confuses them. Numbers are
@@ -2855,6 +2866,63 @@ public class WorldDbContext : DbContext
         ScalingCoefficient = coefficient,
         BaseDamageCoefficient = weapon,
     };
+
+    /// <summary>
+    /// Auras: timed effects abilities, items and scripts put on units. Reference data; the world's AuraCatalog validates
+    /// it on load and on /reload auras. The checks mirror AuraRules.Problem, so a row the world would refuse never
+    /// reaches it. Kind 1 Helpful, 2 Harmful; PeriodicKind 0 None, 1 Damage, 2 Heal; Stacking 1 Refresh, 2 Stack,
+    /// 3 Independent.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<AuraTemplate> builder)
+    {
+        builder.ToTable("AuraTemplates", t =>
+        {
+            t.HasCheckConstraint("CK_AuraTemplates_Kind", "\"Kind\" IN (1, 2)");
+            t.HasCheckConstraint("CK_AuraTemplates_PeriodicKind", "\"PeriodicKind\" IN (0, 1, 2)");
+            t.HasCheckConstraint("CK_AuraTemplates_Stacking", "\"Stacking\" IN (1, 2, 3)");
+            // ScalingStat: 0 Attack, 1 Ability.
+            t.HasCheckConstraint("CK_AuraTemplates_ScalingStat", "\"ScalingStat\" IN (0, 1)");
+            t.HasCheckConstraint("CK_AuraTemplates_DurationMs", "\"DurationMs\" > 0");
+            t.HasCheckConstraint("CK_AuraTemplates_TickIntervalMs",
+                "\"TickIntervalMs\" <= \"DurationMs\" AND (\"PeriodicKind\" = 0 OR \"TickIntervalMs\" > 0)");
+            t.HasCheckConstraint("CK_AuraTemplates_MaxStacks", "\"MaxStacks\" >= 1");
+            t.HasCheckConstraint("CK_AuraTemplates_PeriodicBase", Finite("PeriodicBase"));
+            t.HasCheckConstraint("CK_AuraTemplates_ScalingCoefficient", Finite("ScalingCoefficient"));
+            t.HasCheckConstraint("CK_AuraTemplates_BaseDamageCoefficient", Finite("BaseDamageCoefficient"));
+            // A harmful aura never heals and a helpful one never deals damage.
+            t.HasCheckConstraint("CK_AuraTemplates_PeriodicFitsKind",
+                "(\"Kind\" = 2 OR \"PeriodicKind\" <> 1) AND (\"Kind\" = 1 OR \"PeriodicKind\" <> 2)");
+        });
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new AuraId(v))
+            .IsRequired()
+            .ValueGeneratedNever();
+        builder.Property(b => b.Name).IsRequired().HasMaxLength(100);
+        builder.Property(b => b.Icon).IsRequired().HasMaxLength(100);
+        builder.Property(b => b.ScriptName).IsRequired(false).HasMaxLength(200);
+        builder.HasMany(b => b.Modifiers).WithOne().HasForeignKey(m => m.AuraId).OnDelete(DeleteBehavior.Cascade);
+    }
+
+    /// <summary>
+    /// One stat an aura modifies, at most one row per stat. Stat 1-10 (AuraStat); Kind 1 Flat, 2 Percent. The value may be
+    /// negative (a debuff) but must be finite, and a percentage above -100. The lower bound is a number, not the text
+    /// '-Infinity', because SQLite (the tests) sorts every number below any text; Postgres refuses -Infinity by it too.
+    /// That bound, -1,000,000, is also a floor AuraRules.Problem does not have: a flat value at or below it passes the
+    /// rule but not the database.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<AuraStatModifier> builder)
+    {
+        builder.ToTable("AuraStatModifiers", t =>
+        {
+            t.HasCheckConstraint("CK_AuraStatModifiers_Stat", "\"Stat\" BETWEEN 1 AND 10");
+            t.HasCheckConstraint("CK_AuraStatModifiers_Kind", "\"Kind\" IN (1, 2)");
+            t.HasCheckConstraint("CK_AuraStatModifiers_Value",
+                "\"Value\" > -1000000 AND \"Value\" < 'Infinity' AND (\"Kind\" = 1 OR \"Value\" > -100)");
+        });
+        builder.HasKey(b => new { b.AuraId, b.Stat });
+        builder.Property(b => b.AuraId).HasConversion(v => v.Value, v => new AuraId(v)).IsRequired();
+    }
 
     /// <summary>
     /// The one combat formula row (#506). Every value finite, the multipliers and armour terms 0 or more,

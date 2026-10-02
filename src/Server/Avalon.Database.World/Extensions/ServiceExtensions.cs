@@ -49,6 +49,7 @@ public static class ServiceExtensions
             .AddSingleton<ICreatureBaseStatRepository, CreatureBaseStatRepository>()
             .AddSingleton<ICreatureRarityModifierRepository, CreatureRarityModifierRepository>()
             .AddSingleton<IAbilityTemplateRepository, AbilityTemplateRepository>()
+            .AddSingleton<IAuraTemplateRepository, AuraTemplateRepository>()
             .AddSingleton<IChunkTemplateRepository, ChunkTemplateRepository>()
             .AddSingleton<IChunkPoolRepository, ChunkPoolRepository>()
             .AddSingleton<ISpawnTableRepository, SpawnTableRepository>()

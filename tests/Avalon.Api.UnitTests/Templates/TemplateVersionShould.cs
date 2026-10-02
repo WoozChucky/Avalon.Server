@@ -162,6 +162,7 @@ public class TemplateVersionShould
         Name = "Cleave",
         ScriptName = "script",
         AllowedClasses = [CharacterClass.Warrior],
+        AuraId = new AuraId(1),
     };
 
     private static CreatureTemplate Creature() => new()
