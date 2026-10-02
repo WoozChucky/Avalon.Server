@@ -125,7 +125,8 @@ public class World : IWorld
         ICombatDataRepository? combatDataRepository = null,
         PartyService? parties = null,
         IQuestRepository? questRepository = null,
-        TickThreadGuard? tickThread = null)
+        TickThreadGuard? tickThread = null,
+        IAuraTemplateRepository? auraTemplateRepository = null)
     {
         _parties = parties;
         _tick = tickThread;
@@ -143,7 +144,7 @@ public class World : IWorld
             abilityTemplateRepository, characterLevelExperienceRepository, creatureTemplateRepository,
             creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
             dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository,
-            questRepository, serviceProvider.GetService<IScriptManager>());
+            questRepository, serviceProvider.GetService<IScriptManager>(), auraTemplateRepository);
 
         _instanceTicker = new InstanceTicker(_logger, DiagnosticsConfig.World.Meter,
             serviceProvider.GetService<TimeProvider>());

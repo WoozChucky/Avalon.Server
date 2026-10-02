@@ -245,4 +245,34 @@ public class AuraRulesShould
     [InlineData(AuraKind.Harmful, AbilityAffects.Ally, false)]
     public void Fit_a_harmful_aura_to_hostile_abilities_and_a_helpful_one_to_ally_abilities(AuraKind kind,
         AbilityAffects affects, bool fits) => Assert.Equal(fits, AuraRules.Fits(kind, affects));
+
+    [Fact]
+    public void Accept_an_ability_that_names_no_aura() =>
+        Assert.Null(AuraRules.LinkProblem(AbilityAffects.Hostile, null, _ => throw new InvalidOperationException("not asked")));
+
+    [Fact]
+    public void Accept_an_ability_whose_aura_fits() =>
+        Assert.Null(AuraRules.LinkProblem(AbilityAffects.Hostile, new AuraId(1), _ => Bleed()));
+
+    [Fact]
+    public void Refuse_an_ability_naming_an_aura_that_is_not_there() =>
+        Assert.Equal("names aura 999, which is missing or refused",
+            AuraRules.LinkProblem(AbilityAffects.Hostile, new AuraId(999), _ => null));
+
+    [Fact]
+    public void Refuse_a_harmful_aura_on_an_ally_ability() =>
+        Assert.Equal("its aura 1 'Bleed' is Harmful, which an Ally ability cannot apply",
+            AuraRules.LinkProblem(AbilityAffects.Ally, new AuraId(1), _ => Bleed()));
+
+    [Fact]
+    public void Refuse_a_helpful_aura_on_a_hostile_ability()
+    {
+        AuraTemplate renew = Bleed();
+        renew.Name = "Renew";
+        renew.Kind = AuraKind.Helpful;
+        renew.PeriodicKind = AuraPeriodicKind.Heal;
+
+        Assert.Equal("its aura 1 'Renew' is Helpful, which a Hostile ability cannot apply",
+            AuraRules.LinkProblem(AbilityAffects.Hostile, new AuraId(1), _ => renew));
+    }
 }

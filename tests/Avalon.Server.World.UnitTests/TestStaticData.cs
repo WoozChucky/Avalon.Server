@@ -29,11 +29,12 @@ internal sealed record TestStaticDataRepositories(
     IVendorStockRepository? Vendors = null,
     ICombatDataRepository? Combat = null,
     IQuestRepository? Quests = null,
-    IScriptManager? Scripts = null)
+    IScriptManager? Scripts = null,
+    IAuraTemplateRepository? Auras = null)
 {
     public StaticData ToStaticData(Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) =>
         new(CreateInfos, ClassStats, Items, Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
-            loggerFactory ?? NullLoggerFactory.Instance, Vendors, Combat, Quests, Scripts);
+            loggerFactory ?? NullLoggerFactory.Instance, Vendors, Combat, Quests, Scripts, Auras);
 }
 
 /// <summary>
@@ -81,7 +82,8 @@ internal static class TestStaticData
         Func<IReadOnlyCollection<CreatureTemplate>>? creatures = null,
         IQuestRepository? quests = null,
         IScriptManager? scripts = null,
-        Func<IReadOnlyCollection<AbilityTemplate>>? abilities = null)
+        Func<IReadOnlyCollection<AbilityTemplate>>? abilities = null,
+        Func<IReadOnlyCollection<AuraTemplate>>? auras = null)
     {
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
@@ -130,8 +132,12 @@ internal static class TestStaticData
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(options?.Invoke() ?? []));
 
+        var auraRepository = Substitute.For<IAuraTemplateRepository>();
+        auraRepository.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult<IReadOnlyCollection<AuraTemplate>>(auras?.Invoke() ?? []));
+
         return new TestStaticDataRepositories(createInfos, classStatRepository, itemRepository, abilityRepository,
             levelRepository, creatureRepository, baseStats, rarities, textRepository, dialogue, loot ?? LootRepositories.Empty(),
-            vendors, combat, quests, scripts);
+            vendors, combat, quests, scripts, auraRepository);
     }
 }

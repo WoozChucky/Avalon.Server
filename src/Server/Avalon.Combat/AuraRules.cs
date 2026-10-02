@@ -1,3 +1,4 @@
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
@@ -107,4 +108,22 @@ public static class AuraRules
     /// <summary>A Hostile ability applies only harmful auras, an Ally one only helpful auras.</summary>
     public static bool Fits(AuraKind kind, AbilityAffects affects) =>
         affects == AbilityAffects.Ally ? kind == AuraKind.Helpful : kind == AuraKind.Harmful;
+
+    /// <summary>
+    /// Why an ability's aura link cannot load, or null when it can: an ability naming no aura is fine; one naming an
+    /// aura that <paramref name="findAura" /> does not return (missing, or refused by its own checks) is refused, and
+    /// so is one whose aura does not <see cref="Fits" /> what the ability affects. <paramref name="findAura" /> answers
+    /// the loaded aura row for an id, or null.
+    /// </summary>
+    public static string? LinkProblem(AbilityAffects affects, AuraId? auraId, Func<AuraId, AuraTemplate?> findAura)
+    {
+        if (auraId is null) return null;
+
+        if (findAura(auraId) is not { } aura)
+            return $"names aura {auraId.Value}, which is missing or refused";
+
+        return Fits(aura.Kind, affects)
+            ? null
+            : $"its aura {auraId.Value} '{aura.Name}' is {aura.Kind}, which {(affects == AbilityAffects.Ally ? "an Ally" : "a Hostile")} ability cannot apply";
+    }
 }
