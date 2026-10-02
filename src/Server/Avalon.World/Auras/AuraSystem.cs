@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Combat;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -48,6 +49,11 @@ public sealed class AuraSystem
 
     // When each refusal was last logged, by what was refused, so one that repeats every cast cannot flood the log.
     private readonly Dictionary<(string Why, uint AuraId), DateTimeOffset> _refusalsLogged = [];
+
+    // Reused by every update: the units holding an aura, and the auras of the unit being ticked, walked as a copy so
+    // that an aura ending (a death included) never changes the list under the walk.
+    private readonly List<IUnit> _holders = [];
+    private readonly List<ActiveAura> _working = [];
 
     /// <param name="characters">The instance's characters, the dictionary itself, so a tick walks it without allocating.</param>
     /// <param name="creatures">The instance's creatures, likewise.</param>
@@ -113,7 +119,7 @@ public sealed class AuraSystem
         if (AuraHolders.Of(target) is not { } auras || IsDead(target))
             return AuraApplyResult.Refused;
 
-        if (template.Kind == AuraKind.Harmful && CombatService.IgnoresHits(target))
+        if (template.Kind == AuraKind.Harmful && (CombatService.IgnoresHits(target) || IsWalkingHome(target)))
             return AuraApplyResult.Refused;
 
         // A copy keyed by caster only for Independent rows: Renew overwrites the caster of every other kind.
@@ -162,6 +168,138 @@ public sealed class AuraSystem
 
         return result;
     }
+
+    /// <summary>
+    /// One pass, right after the instance's ability cast system: for each unit holding an aura (characters, then
+    /// creatures), a dead unit loses them all; a creature walking home loses its harmful ones; then each aura, in the
+    /// order applied, expires if its template is no longer loaded, takes every tick it is owed at the clock's now (a late
+    /// pass catches up, never more than the aura has left), ends if its script asked, and expires once its time is up,
+    /// after its last tick. A tick that kills its unit ends every aura it holds and ticks nothing more on it. Allocates
+    /// nothing while no unit holds an aura.
+    /// </summary>
+    public void Update()
+    {
+        _holders.Clear();
+        foreach (ICharacter character in _characters.Values)
+        {
+            if (character is CharacterEntity { Auras.Count: > 0 } entity)
+                _holders.Add(entity);
+        }
+
+        foreach (ICreature creature in _creatures.Values)
+        {
+            if (creature is Creature { Auras.Count: > 0 } held)
+                _holders.Add(held);
+        }
+
+        if (_holders.Count == 0)
+            return;
+
+        DateTimeOffset now = _time.GetUtcNow();
+        AuraCatalog catalog = _catalog();
+        for (int i = 0; i < _holders.Count; i++)
+            UpdateUnit(_holders[i], now, catalog);
+
+        _holders.Clear();
+    }
+
+    private void UpdateUnit(IUnit unit, DateTimeOffset now, AuraCatalog catalog)
+    {
+        UnitAuras auras = AuraHolders.Of(unit)!;
+        if (IsDead(unit))
+        {
+            RemoveAll(unit, AuraRemoveReason.Death);
+            return;
+        }
+
+        if (IsWalkingHome(unit))
+            RemoveHarmful(unit, AuraRemoveReason.Reset);
+
+        _working.Clear();
+        _working.AddRange(auras.All);
+        foreach (ActiveAura aura in _working)
+        {
+            if (!auras.Contains(aura))
+                continue;
+
+            if (!catalog.TryGet(aura.Id, out _))
+            {
+                Remove(unit, aura, AuraRemoveReason.Expired);
+                continue;
+            }
+
+            int due = aura.Schedule.Due(now);
+            for (int k = 0; k < due; k++)
+            {
+                aura.Schedule = aura.Schedule.AfterTicks(1);
+                Tick(unit, aura, lastTick: aura.Schedule.TicksLeft == 0);
+                if (IsDead(unit) || !auras.Contains(aura) || aura.ScriptEnded)
+                    break;
+            }
+
+            // A killing tick ends every aura and ticks nothing more on the unit; removing is idempotent, so a death
+            // already reported for it is no matter.
+            if (IsDead(unit))
+            {
+                RemoveAll(unit, AuraRemoveReason.Death);
+                break;
+            }
+
+            if (!auras.Contains(aura))
+                continue;
+
+            if (aura.ScriptEnded)
+                Remove(unit, aura, AuraRemoveReason.Script);
+            else if (aura.Schedule.Expired(now))
+                Remove(unit, aura, AuraRemoveReason.Expired);
+        }
+
+        _working.Clear();
+    }
+
+    /// <summary>
+    /// One tick: its damage or heal, from the caster if it is still here, otherwise from nobody, with the copy's own
+    /// fraction of a point carried in and out; its <paramref name="lastTick" /> rounds what is left.
+    /// </summary>
+    private void Tick(IUnit unit, ActiveAura aura, bool lastTick)
+    {
+        var hit = new PeriodicHit(CasterHere(aura.CasterGuid), unit, aura.Id,
+            aura.Snapshot.PerTickPerStack * aura.Stacks, aura.Snapshot, aura.Source);
+
+        double carry = aura.PeriodicCarry;
+        switch (aura.Template.PeriodicKind)
+        {
+            case AuraPeriodicKind.Damage:
+                _combat.ApplyPeriodicDamage(hit, ref carry, lastTick);
+                break;
+            case AuraPeriodicKind.Heal:
+                _combat.ApplyPeriodicHeal(hit, ref carry, lastTick);
+                break;
+        }
+
+        aura.PeriodicCarry = carry;
+    }
+
+    /// <summary>The caster, only while it is alive in this instance: an aura outlives its caster, but its credit does not.</summary>
+    internal IUnit? CasterHere(ObjectGuid guid)
+    {
+        if (guid.RawValue == 0)
+            return null;
+
+        if (_characters.TryGetValue(guid, out ICharacter? character))
+            return character.IsDead ? null : character;
+
+        if (_creatures.TryGetValue(guid, out ICreature? creature))
+            return creature.CurrentHealth == 0 ? null : creature;
+
+        return null;
+    }
+
+    /// <summary>
+    /// A creature walking home after a fight, by this system's one answer to it (the combat script's own, unless one was
+    /// given): Apply refuses it a harmful aura, and a tick ends the harmful auras it holds.
+    /// </summary>
+    private bool IsWalkingHome(IUnit unit) => unit is ICreature && _returningHome(unit);
 
     /// <summary>Ends one aura on <paramref name="unit" />, for <paramref name="reason" />. Nothing if it no longer holds it.</summary>
     public void Remove(IUnit unit, ActiveAura aura, AuraRemoveReason reason)
