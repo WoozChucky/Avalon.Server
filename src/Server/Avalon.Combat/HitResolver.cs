@@ -110,6 +110,27 @@ public static class HitResolver
     }
 
     /// <summary>
+    /// An aura's damage tick: the base, then a crit roll (the one draw), then armour; never dodged or blocked. Floored,
+    /// with a minimum of 1. <paramref name="a" /> is the caster as the aura snapshotted it.
+    /// </summary>
+    public static (uint Damage, HitResult Result) ResolvePeriodic(in AttackerCombat a, in DefenderCombat d,
+        float baseDamage, CombatFormula f, ICombatRandom rng)
+    {
+        double damage = NonNegative(baseDamage);
+        HitResult result = HitResult.None;
+
+        if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
+        {
+            damage *= NonNegative(f.CritMultiplier);
+            result |= HitResult.Crit;
+        }
+
+        damage *= 1d - ArmorReduction(d.Armor, a.Level, f);
+
+        return (Math.Max(1u, Floor(damage)), result);
+    }
+
+    /// <summary>
     /// The share of a hit armour takes, 0 with no armour, never above ArmorCap. The load refuses a formula
     /// whose armour terms are not above 0 together, so the denominator is above 0 for any armour.
     /// </summary>

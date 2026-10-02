@@ -93,4 +93,11 @@ public class AbilityTemplate : IDbEntity<AbilityId>
 
     /// <summary>Finite and 0 or more; 0 rolls no base damage.</summary>
     [Required] public float BaseDamageCoefficient { get; set; }
+
+    /// <summary>
+    /// The aura every unit this ability's shape affects receives from the caster, or null. A Hostile ability applies
+    /// only a harmful aura, an Ally one only a helpful aura; the direct amount is applied first, and only when
+    /// <see cref="Effects" /> has Damage (Hostile) or Heal (Ally).
+    /// </summary>
+    public AuraId? AuraId { get; set; }
 }
