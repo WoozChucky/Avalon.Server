@@ -310,7 +310,7 @@ Both Helm values render only when set.
 
 ## World Maintenance and Readiness
 
-Maintenance is stored per world in the shared auth database (`MaintenanceEnabled`, revision, and a UTC deadline). It survives a world server restart. The world process loads it before opening the listener, subscribes to revision notifications, and rereads the database every five seconds if a notification is missed. Players may enter throughout the scheduled countdown. At the deadline only Admin accounts may enter; the listener stays open so they can verify access.
+Maintenance is stored per world in the shared auth database (`MaintenanceEnabled`, revision, and a UTC deadline). It survives a world server restart. The world process loads it after the world and before opening the listener, subscribes to revision notifications, and rereads the database every five seconds if a notification is missed. Both reads run off the simulation tick; the next tick applies the newest revision read, then sends the warning due and, at the deadline, closes the sessions. Players may enter throughout the scheduled countdown. At the deadline only Admin accounts may enter; the listener stays open so they can verify access.
 
 Admin operators can use `POST /world/{id}/maintenance` with optional JSON `{"graceMinutes": 5}`, `DELETE /world/{id}/maintenance`, and `GET /world/{id}/maintenance`. The grace defaults to five minutes and accepts whole minutes from 1 to 60. An Admin already in that world can also use `/maintenance on [minutes]`, `/maintenance off`, and `/maintenance status`. Repeating `on` preserves the first deadline; `off` cancels the remaining warnings and advances the revision.
 
