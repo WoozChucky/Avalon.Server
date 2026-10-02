@@ -475,6 +475,7 @@ enum MapTransitionResult {
    MapTransitionResult_GenerationFailed = 5;
    MapTransitionResult_InstanceFull = 6;
    MapTransitionResult_NoWalkableGround = 7;
+   MapTransitionResult_MoveInProgress = 8;
 }
 enum MoveState {
    MoveState_Idle = 0;

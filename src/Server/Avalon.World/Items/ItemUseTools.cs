@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Items;
 
 /// <summary>
-/// The services an item use reaches through its context (item use, 2026-10-02): one DI singleton, so ItemUseService
+/// The services an item use reaches through its context (item use): one DI singleton, so ItemUseService
 /// and every ItemUseContext share them. World-side. A script never sees this class, only IItemUseContext.
 /// </summary>
 public sealed class ItemUseTools(

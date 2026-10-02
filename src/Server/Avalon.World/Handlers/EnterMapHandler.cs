@@ -40,6 +40,16 @@ public class EnterMapHandler(
 
         ICharacter character = connection.Character!;
 
+        // Another move to a map is under way (a scroll return, an item teleport, a respawn or a party return): it
+        // decides where the character goes, so a portal entry now is refused before anything is looked up or built.
+        if (connection.RespawnInFlight)
+        {
+            logger.LogDebug("EnterMap: {Name} is already moving to a map; refused", character.Name);
+            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MoveInProgress,
+                connection.CryptoSession.Encrypt));
+            return;
+        }
+
         // 2. Resolve the current instance
         IMapInstance? currentInstance = world.InstanceRegistry.GetInstanceById(character.InstanceId);
 

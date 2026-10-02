@@ -3,7 +3,7 @@ using Avalon.Common.ValueObjects;
 namespace Avalon.World.Items;
 
 /// <summary>
-/// One character's item cooldowns (item use, 2026-10-02): until when each item, and each cooldown group, is resting.
+/// One character's item cooldowns (item use): until when each item, and each cooldown group, is resting.
 /// In memory only and per session: a new CharacterEntity is built at every select, so a logout resets them. Absolute
 /// times, so nothing ticks them. Independent of the ability global cooldown. Tick thread only. Groups compare
 /// ordinally; a blank group is no group.

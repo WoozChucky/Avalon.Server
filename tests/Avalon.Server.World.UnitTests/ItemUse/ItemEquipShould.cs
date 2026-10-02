@@ -14,13 +14,13 @@ using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;
 
-/// <summary>A use equips gear (item use, 2026-10-02) through the same rules as a drag: InventoryMove and IInventoryService.</summary>
+/// <summary>A use equips gear (item use) through the same rules as a drag: InventoryMove and IInventoryService.</summary>
 public class ItemEquipShould
 {
     private readonly CharacterEntity _character = New(7);
 
     private ItemUseResult Equip(ushort bagSlot, ItemTemplate template, Func<ItemTemplateId, ItemTemplate?>? find = null) =>
-        ItemEquip.Equip(_character, InventoryFor(_character, find ?? EquipTemplates.Find), bagSlot, template,
+        ItemEquip.Equip(_character, InventoryFor(_character, find ?? EquipTemplates.Find), find ?? EquipTemplates.Find, bagSlot, template,
             NullLogger.Instance);
 
     private void Bag(params InventoryItem[] items) => _character.Container(InventoryType.Bag).Load(items);
@@ -85,7 +85,7 @@ public class ItemEquipShould
         Assert.Equal(Buckler.Id, At(_character, InventoryType.Bag, 2).TemplateId);   // the lowest free slot before the use
     }
 
-    /// <summary>Review Focus 5, owner decision 12: the clicked slot is not counted, so a full Bag refuses and nothing moves.</summary>
+    /// <summary>The clicked slot is not counted as free, so a full Bag refuses and nothing moves.</summary>
     [Fact]
     public void Refuse_a_two_hander_with_TargetFull_and_move_nothing_when_the_bag_is_full()
     {
@@ -143,7 +143,7 @@ public class ItemEquipShould
     {
         { "wrong class", ItemUseResult.WrongClass },
         { "level too low", ItemUseResult.LevelTooLow },
-        { "a stack of gear", ItemUseResult.NotUsable },   // owner decision 6
+        { "a stack of gear", ItemUseResult.NotUsable },   // no stack is ever worn
     };
 
     [Fact]

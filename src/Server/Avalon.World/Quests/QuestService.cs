@@ -177,6 +177,9 @@ public sealed class QuestService(
     /// </summary>
     public QuestResult StartFromItem(CharacterEntity character, uint questId)
     {
+        // As TurnIn: quests held across a reload are settled against the new catalog first.
+        SettleAfterReload(character);
+
         if (!Catalog.TryGet(questId, out QuestView? quest))
             return QuestResult.NotAvailable;
 
@@ -195,6 +198,8 @@ public sealed class QuestService(
     /// </summary>
     public bool AdvanceFromItem(CharacterEntity character, uint questId, uint objectiveId, uint amount)
     {
+        SettleAfterReload(character);
+
         if (character.Quests.Get(questId) is not { } active
             || !Catalog.TryGet(questId, out QuestView? quest)
             || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is not

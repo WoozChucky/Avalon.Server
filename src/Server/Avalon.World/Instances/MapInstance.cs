@@ -427,9 +427,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         NotePresenceChange(connection.Character, "entered");
     }
 
-    public void RemoveCharacter(IWorldConnection connection)
+    /// <summary>
+    /// Ends everything the character has casting here as it leaves: its ability casts, its running ability scripts and
+    /// its item cast bar. Each step is contained, so a failure cannot keep the character a member.
+    /// </summary>
+    private void EndCastsOf(ICharacter character)
     {
-        ICharacter character = connection.Character!;
         ObjectGuid guid = character.Guid;
 
         // A cast in progress ends here, while the character is still a member, so everyone here sees
@@ -470,6 +473,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _logger.LogError(e, "Interrupting the item use of {CharacterGuid} as it left instance {InstanceId} failed",
                 guid, InstanceId);
         }
+    }
+
+    public void RemoveCharacter(IWorldConnection connection)
+    {
+        ICharacter character = connection.Character!;
+        ObjectGuid guid = character.Guid;
+
+        EndCastsOf(character);
 
         // Membership next. These cannot throw, and once they are gone the tick no longer updates,
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
@@ -554,11 +565,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         foreach (ICreature creature in _summonsDone)
         {
             _summons.Remove(creature.Guid);
-            if (creature.CurrentHealth == 0 || !_creatures.ContainsKey(creature.Guid))
-                continue;
 
-            ((IHostileEncounterExit)_combatService).DropHostileFromEncounter(creature);
-            RemoveCreature(creature);
+            // Each summon on its own: one that throws costs neither the tick nor the other summons their removal.
+            try
+            {
+                if (creature.CurrentHealth == 0 || !_creatures.ContainsKey(creature.Guid))
+                    continue;
+
+                ((IHostileEncounterExit)_combatService).DropHostileFromEncounter(creature);
+                RemoveCreature(creature);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Removing the expired summon {Creature} ({Name}) from instance {InstanceId} threw",
+                    creature.Guid, creature.Name, InstanceId);
+            }
         }
     }
 

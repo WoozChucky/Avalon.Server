@@ -1,3 +1,4 @@
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Characters;
@@ -13,38 +14,21 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Items;
 
-/// <summary>A use's answer: the result, the cooldown left (OnCooldown only) and the script's line (Refused only).</summary>
-public readonly record struct ItemUseAnswer(ItemUseResult Result, uint CooldownMs = 0, string? Message = null)
-{
-    public static ItemUseAnswer Of(ItemUseResult result) => new(result);
-
-    /// <summary>Rounded up, so a sub-millisecond remainder never reads as 0 ("ready") on the wire.</summary>
-    public static ItemUseAnswer Cooldown(TimeSpan left) =>
-        new(ItemUseResult.OnCooldown, (uint)Math.Clamp(Math.Ceiling(left.TotalMilliseconds), 1d, uint.MaxValue));
-
-    public static ItemUseAnswer Refusal(string line) => new(ItemUseResult.Refused, Message: line);
-}
-
-/// <summary>Sends the one SMSG_ITEM_USE_RESULT a use is answered with, to the requester only.</summary>
-public static class ItemUseReply
-{
-    public static void Send(IWorldConnection connection, uint requestId, ItemUseAnswer answer) =>
-        connection.Send(SItemUseResultPacket.Create(requestId, answer.Result, answer.CooldownMs, answer.Message,
-            connection.CryptoSession.Encrypt));
-}
-
 /// <summary>
 /// One CMSG_ITEM_USE, on the tick, answered with exactly one SMSG_ITEM_USE_RESULT: at once, or when its cast ends.
 /// In order: dead (before anything else, so no script hook, teleport or quest start ever runs for a dead user); the
-/// slot (Bag only); the template; gear is equipped (ItemEquip, then the stats refresh a drag-to-equip runs) and
-/// nothing else is asked; otherwise a script is needed, then an ability cast refuses (AlreadyCasting), then the item's
-/// and its group's cooldown, then the script's CanUse. A use that passed all of them ends the item cast running, which
-/// is answered Interrupted, then runs OnUse at once or starts a cast bar (UseCastTimeMs) whose completion needs the
-/// same item instance still in the same Bag slot, asks CanUse again and runs OnUse. After OnUse returns: the cooldown
-/// starts and what it consumed is taken through the inventory service, so it is saved and sent like any change. Every
-/// script hook is contained: a throw is logged at Error and answered InternalError, with nothing consumed and no
-/// cooldown. Scripts are built once per type through QuestScriptServices (loggers and the clock only). Tick thread
-/// only; a DI singleton.
+/// slot (Bag only); the template; gear is equipped (ItemEquip, then the stats refresh a drag-to-equip runs; an equip
+/// that passed its checks ends the item cast running, answered Interrupted, just before it moves anything) and nothing
+/// else is asked; otherwise a script is needed, then an ability cast refuses (AlreadyCasting), then the item's and its
+/// group's cooldown, then the script found and built and the user's instance (InternalError), then the script's
+/// CanUse. A use that passed all of them ends the item cast running, which is answered Interrupted, then runs OnUse at
+/// once or starts a cast bar (UseCastTimeMs) whose completion needs the same item instance still in the same Bag slot,
+/// asks CanUse again and runs OnUse. After OnUse returns: the cooldown starts and what it consumed is taken through the
+/// inventory service, so it is saved and sent like any change. Every script hook is contained: a throw is logged at
+/// Error and answered InternalError, with nothing consumed and no cooldown. These per-request Error logs (a missing or
+/// unbuildable script type, a hook that throws) are written at most once per script and step per
+/// <see cref="ThrottledErrorLog.Interval" />, counting the ones left out. Scripts are built once per type through
+/// QuestScriptServices (loggers and the clock only). Tick thread only; a DI singleton.
 /// </summary>
 public sealed class ItemUseService(
     ItemUseTools tools,
@@ -54,6 +38,7 @@ public sealed class ItemUseService(
 {
     private readonly QuestScriptServices _scriptServices = new(services);
     private readonly Dictionary<Type, ItemScript?> _built = [];
+    private readonly Dictionary<string, (DateTimeOffset LastLogged, int Suppressed)> _errorLogs = new(StringComparer.Ordinal);
 
     public void Use(IWorldConnection connection, CharacterEntity character, uint requestId, uint container, uint slot)
     {
@@ -85,7 +70,7 @@ public sealed class ItemUseService(
             || !character.Container(InventoryType.Bag).TryGet(at.Slot, out InventoryItem item))
             return ItemUseAnswer.Of(ItemUseResult.NotFound);
 
-        if (FindTemplate(item) is not { } template)
+        if (FindTemplate(item.TemplateId) is not { } template)
             return ItemUseAnswer.Of(ItemUseResult.NotUsable);
 
         if (ItemEquip.IsWearable(template))
@@ -94,9 +79,14 @@ public sealed class ItemUseService(
         return BeginScript(connection, character, requestId, item, template);
     }
 
+    /// <summary>
+    /// An equip that passed its checks ends the item cast running (answered Interrupted) just before it moves anything;
+    /// a refused equip leaves the cast alone.
+    /// </summary>
     private ItemUseAnswer Equip(CharacterEntity character, ushort bagSlot, ItemTemplate template)
     {
-        ItemUseResult equipped = ItemEquip.Equip(character, tools.Economy.InventoryOf(character), bagSlot, template, logger);
+        ItemUseResult equipped = ItemEquip.Equip(character, tools.Economy.InventoryOf(character), FindTemplate, bagSlot,
+            template, logger, () => HostOf(character)?.ItemUses.Interrupt(character.Guid));
         if (equipped == ItemUseResult.Ok)
             CharacterStatsRefresh.AfterGearChange(character, tools.World.Data, logger);
         return ItemUseAnswer.Of(equipped);
@@ -118,7 +108,7 @@ public sealed class ItemUseService(
         if (ScriptFor(template) is not { } script)
             return ItemUseAnswer.Of(ItemUseResult.InternalError);
 
-        if (tools.World.InstanceRegistry.GetInstanceById(character.InstanceId) is not IItemUseHost host)
+        if (HostOf(character) is not { } host)
         {
             logger.LogWarning("Item use of {Character}: its instance {InstanceId} was not found", character.Name,
                 character.InstanceId);
@@ -164,9 +154,11 @@ public sealed class ItemUseService(
             },
         });
 
-        if (!RunHook(use, static (s, c) => s.OnCastStart(c), nameof(ItemScript.OnCastStart)))
+        // Answered here only when this cancel ended it: a hook that ended the cast itself (by moving the user, say) has
+        // already been answered through the cast's Interrupted callback.
+        if (!RunHook(use, static (s, c) => s.OnCastStart(c), nameof(ItemScript.OnCastStart))
+            && casts.Cancel(use.Character.Guid))
         {
-            casts.Cancel(use.Character.Guid);
             ItemUseReply.Send(use.Connection, use.RequestId, ItemUseAnswer.Of(ItemUseResult.InternalError));
         }
     }
@@ -189,7 +181,9 @@ public sealed class ItemUseService(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Completing the item use {RequestId} of {Character} threw", use.RequestId, use.Character.Name);
+            if (!Throttled("complete", out int suppressed))
+                logger.LogError(e, "Completing the item use {RequestId} of {Character} threw. {Suppressed} earlier throws were not logged",
+                    use.RequestId, use.Character.Name, suppressed);
             return ItemUseAnswer.Of(ItemUseResult.InternalError);
         }
     }
@@ -205,16 +199,8 @@ public sealed class ItemUseService(
         }
 
         ItemUseContext context = ContextOf(use);
-        try
-        {
-            use.Script.OnUse(context);
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Item script {Script} OnUse threw for {Character} using item template {Item}",
-                use.Script.GetType().Name, use.Character.Name, use.Template.Id.Value);
+        if (!RunHook(use, context, static (s, c) => s.OnUse(c), nameof(ItemScript.OnUse)))
             return ItemUseAnswer.Of(ItemUseResult.InternalError);
-        }
 
         // Only after a use that ran: a refusal or a throw starts no cooldown.
         use.Character.ItemCooldowns.Start(use.Template.Id, use.Template.UseCooldownGroup,
@@ -240,44 +226,82 @@ public sealed class ItemUseService(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Item script {Script} CanUse threw for {Character}", use.Script.GetType().Name, use.Character.Name);
+            LogHookThrow(e, use, nameof(ItemScript.CanUse));
             refusal = null;
             return false;
         }
     }
 
-    private bool RunHook(ItemUse use, Action<ItemScript, IItemUseContext> hook, string name)
+    private bool RunHook(ItemUse use, Action<ItemScript, IItemUseContext> hook, string name) =>
+        RunHook(use, ContextOf(use), hook, name);
+
+    private bool RunHook(ItemUse use, ItemUseContext context, Action<ItemScript, IItemUseContext> hook, string name)
     {
         try
         {
-            hook(use.Script, ContextOf(use));
+            hook(use.Script, context);
             return true;
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Item script {Script} {Hook} threw for {Character}", use.Script.GetType().Name, name,
-                use.Character.Name);
+            LogHookThrow(e, use, name);
             return false;
         }
+    }
+
+    private void LogHookThrow(Exception e, ItemUse use, string hook)
+    {
+        string script = use.Script.GetType().Name;
+        if (!Throttled($"{script}.{hook}", out int suppressed))
+            logger.LogError(e, "Item script {Script} {Hook} threw for {Character} using item template {Item}. " +
+                               "{Suppressed} earlier throws of it were not logged",
+                script, hook, use.Character.Name, use.Template.Id.Value, suppressed);
+    }
+
+    /// <summary>
+    /// True when this key logged within <see cref="ThrottledErrorLog.Interval" /> (and it is counted as left out);
+    /// otherwise false, with the count left out since the last log, and the clock restarted.
+    /// </summary>
+    private bool Throttled(string key, out int suppressed)
+    {
+        DateTimeOffset now = tools.Time.GetUtcNow();
+        if (_errorLogs.TryGetValue(key, out (DateTimeOffset LastLogged, int Suppressed) last)
+            && now - last.LastLogged < ThrottledErrorLog.Interval)
+        {
+            _errorLogs[key] = (last.LastLogged, last.Suppressed + 1);
+            suppressed = 0;
+            return true;
+        }
+
+        suppressed = last.Suppressed;
+        _errorLogs[key] = (now, 0);
+        return false;
     }
 
     private ItemUseContext ContextOf(ItemUse use) => new(use.Connection, use.Character, use.Host, use.Item, use.Template,
         tools);
 
-    private ItemTemplate? FindTemplate(InventoryItem item) =>
-        tools.World.Data.ItemTemplates.FirstOrDefault(t => t.Id == item.TemplateId);
+    private IItemUseHost? HostOf(CharacterEntity character) =>
+        tools.World.InstanceRegistry.GetInstanceById(character.InstanceId) as IItemUseHost;
 
-    /// <summary>Built once per type; a type that cannot be built is logged once and its items answer InternalError.</summary>
+    // StaticData keeps the item templates as a list and offers no keyed lookup, as the inventory service's search does.
+    private ItemTemplate? FindTemplate(ItemTemplateId id) =>
+        tools.World.Data.ItemTemplates.FirstOrDefault(t => t.Id == id);
+
+    /// <summary>Built once per type; a type that cannot be built answers InternalError for its items from then on.</summary>
     private ItemScript? ScriptFor(ItemTemplate template)
     {
         Type? type = scripts.GetItemScript(template.UseScript!);
         if (type is null)
         {
-            logger.LogError("Item template {Item} names item script {Script}, and no ItemScript is called that",
-                template.Id.Value, template.UseScript);
+            if (!Throttled($"missing:{template.UseScript}", out int suppressed))
+                logger.LogError("Item template {Item} names item script {Script}, and no ItemScript is called that. " +
+                                "{Suppressed} earlier uses naming it were not logged",
+                    template.Id.Value, template.UseScript, suppressed);
             return null;
         }
 
+        // A type that could not be built was logged when it failed and is not built again.
         if (_built.TryGetValue(type, out ItemScript? built))
             return built;
 
@@ -287,8 +311,10 @@ public sealed class ItemUseService(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Item script {Script} cannot be built; item template {Item} cannot be used", type.Name,
-                template.Id.Value);
+            if (!Throttled($"unbuildable:{type.Name}", out int suppressed))
+                logger.LogError(e, "Item script {Script} cannot be built; item template {Item} cannot be used. " +
+                                   "{Suppressed} earlier failures of it were not logged",
+                    type.Name, template.Id.Value, suppressed);
             built = null;
         }
 

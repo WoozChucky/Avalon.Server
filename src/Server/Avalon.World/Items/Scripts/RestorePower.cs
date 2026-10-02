@@ -4,7 +4,8 @@ namespace Avalon.World.Items.Scripts;
 
 /// <summary>
 /// The Mana Potion (item 2): restores UseValue percent of the maximum Mana or Energy, one potion a use. Fury is never
-/// restored by a potion, and a class with no pool cannot drink it; both are refused, as is a full pool.
+/// restored by a potion, and a class with no pool cannot drink it; both are refused, as is a full pool. The item data
+/// must set UseValue (the seed does): without it the potion restores nothing and is still spent.
 /// </summary>
 public sealed class RestorePower : ItemScript
 {

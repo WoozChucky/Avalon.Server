@@ -1,44 +1,11 @@
 using Avalon.Common;
-using Avalon.Common.Mathematics;
-using Avalon.Common.ValueObjects;
 using Avalon.World.Entities;
-using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Items;
 
-/// <summary>Who hears an item's cast bar (item use): MapInstance, which sends the existing cast packets naming the item.</summary>
-public interface IItemCastAudience
-{
-    void BroadcastItemCastStart(IUnit caster, ItemTemplateId item, float castTimeSeconds, uint castId);
-    void BroadcastItemCastFinish(IUnit caster, ItemTemplateId item, uint castId);
-    void BroadcastItemCastInterrupted(IUnit caster, ItemTemplateId item, uint castId);
-}
-
-/// <summary>One character's item cast in progress.</summary>
-public sealed class PendingItemUse
-{
-    public required CharacterEntity Character { get; init; }
-    public required ItemTemplateId Item { get; init; }
-
-    /// <summary>Where the character stood when it began; any other position interrupts, as for an ability.</summary>
-    public required Vector3 StartPosition { get; init; }
-
-    /// <summary>From the instance's cast ids, the ones its ability casts take, so a client keys both alike.</summary>
-    public required uint CastId { get; init; }
-
-    public required float CastTimeSeconds { get; init; }
-    public float Elapsed { get; set; }
-
-    /// <summary>Asked when the time has run: false interrupts instead (the item left its slot).</summary>
-    public required Func<bool> CanComplete { get; init; }
-
-    public required Action Completed { get; init; }
-    public required Action Interrupted { get; init; }
-}
-
 /// <summary>
-/// The item cast bars of one instance (item use, 2026-10-02), at most one per character. Ticked by MapInstance on
+/// The item cast bars of one instance (item use), at most one per character. Ticked by MapInstance on
 /// every tick, after the ability cast system. A cast ends early, out loud, when its character moves or dies (checked
 /// each tick; damage alone never ends it), leaves the instance, uses another item or starts an ability cast (those call
 /// <see cref="Interrupt" />), or, once its time has run, when the use can no longer complete. Every broadcast and

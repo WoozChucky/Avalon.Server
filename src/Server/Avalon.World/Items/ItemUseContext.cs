@@ -10,6 +10,7 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Characters;
+using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
@@ -22,7 +23,7 @@ using Avalon.World.Public.Units;
 namespace Avalon.World.Items;
 
 /// <summary>
-/// <see cref="IItemUseContext" /> over one use of one item (item use, 2026-10-02). Built per hook call by
+/// <see cref="IItemUseContext" /> over one use of one item (item use). Built per hook call by
 /// ItemUseService; the OnUse one's <see cref="Consumed" /> is what the service takes afterwards. Tick thread only.
 /// Every member acts on the user, its own instance (<paramref name="host" />) or its party members in that instance,
 /// and only through the service that owns the change.
@@ -109,7 +110,7 @@ public sealed class ItemUseContext(
     public bool Damage(ObjectGuid target, uint amount)
     {
         if (amount == 0 || character.IsDead || UnitHere(target) is not { } unit || unit.CurrentHealth == 0
-            || !Hostility.IsHostile(character, unit, host.MapType))
+            || !Hostility.IsHostile(character, unit, host.MapType) || CombatService.IgnoresHits(unit))
             return false;
 
         // A raw hit: no ability, so the amount is the hit's base, resolved by the instance's combat service.
