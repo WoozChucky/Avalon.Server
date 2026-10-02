@@ -1,10 +1,12 @@
+using Avalon.Domain.Characters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 
 namespace Avalon.World.Characters;
 
 /// <summary>
-/// Every character in the world on this server, by id and by name (ignoring case), with the connection that holds it.
+/// Every character in the world on this server, by id and by name (by its key, CharacterName.Key, so in any case,
+/// #757), with the connection that holds it.
 /// A DI singleton, World-side (never on the modding API), tick thread only. It is fed by the world's online and offline
 /// hooks, which reach it through <see cref="Parties.PartyService.CharacterOnline" /> and
 /// <see cref="Parties.PartyService.CharacterOffline" /> (World.SpawnInInstance and World.LeaveWorldAsync), so the party
@@ -13,7 +15,7 @@ namespace Avalon.World.Characters;
 public sealed class OnlineCharacters
 {
     private readonly Dictionary<uint, IWorldConnection> _byId = [];
-    private readonly Dictionary<string, uint> _byName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, uint> _byName = new(StringComparer.Ordinal); // by CharacterName.Key (#757)
 
     /// <summary>The connection holding this online character, or none.</summary>
     public IWorldConnection? ById(uint characterId) => _byId.GetValueOrDefault(characterId);
@@ -25,7 +27,8 @@ public sealed class OnlineCharacters
     public IWorldConnection? ByName(string name) => TryIdByName(name, out uint id) ? ById(id) : null;
 
     /// <summary>The id of the online character with this name, ignoring case and surrounding spaces.</summary>
-    public bool TryIdByName(string name, out uint characterId) => _byName.TryGetValue(name.Trim(), out characterId);
+    public bool TryIdByName(string name, out uint characterId) =>
+        _byName.TryGetValue(CharacterName.Key(name), out characterId);
 
     /// <summary>The character the connection holds is online. A connection with no character changes nothing.</summary>
     public void Add(IWorldConnection connection)
@@ -35,7 +38,7 @@ public sealed class OnlineCharacters
 
         uint id = character.Guid.Id;
         _byId[id] = connection;
-        _byName[character.Name] = id;
+        _byName[CharacterName.Key(character.Name)] = id;
     }
 
     /// <summary>
@@ -49,8 +52,9 @@ public sealed class OnlineCharacters
             return false;
 
         _byId.Remove(id);
-        if (_byName.TryGetValue(character.Name, out uint named) && named == id)
-            _byName.Remove(character.Name);
+        string key = CharacterName.Key(character.Name);
+        if (_byName.TryGetValue(key, out uint named) && named == id)
+            _byName.Remove(key);
         return true;
     }
 }

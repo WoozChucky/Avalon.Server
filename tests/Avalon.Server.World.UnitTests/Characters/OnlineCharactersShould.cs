@@ -32,6 +32,20 @@ public class OnlineCharactersShould
         Assert.True(_online.IsOnline(7));
     }
 
+    /// <summary>
+    /// Names fold only ASCII letters, as the stored key does (#757): a dotless i upper-cases to I in .NET, and would
+    /// otherwise find "Bill" from a name the database would never match.
+    /// </summary>
+    [Fact]
+    public void Find_no_character_by_a_name_that_matches_only_outside_ascii()
+    {
+        (IWorldConnection connection, _) = Connected(7, "Bill");
+        _online.Add(connection);
+
+        Assert.Null(_online.ByName("Bıll"));
+        Assert.Same(connection, _online.ByName("bILL"));
+    }
+
     [Fact]
     public void Forget_a_character_that_goes_offline()
     {

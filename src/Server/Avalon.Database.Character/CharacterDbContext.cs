@@ -115,7 +115,16 @@ public class CharacterDbContext : DbContext
                 v => v.Value,
                 v => new AccountId(v)
             );
+
+        // One character per name in a world, whatever the case (#757). NameKey is the upper-cased name every lookup
+        // uses; the check constraint holds every writer to it. upper() is standard SQL, so the same expression runs
+        // on Postgres and on the SQLite the tests use, and the rule allows only ASCII letters, which both fold alike.
+        builder.HasIndex(b => b.NameKey).IsUnique();
+        builder.ToTable(t => t.HasCheckConstraint(NameKeyConstraint, "\"NameKey\" = upper(\"Name\")"));
     }
+
+    /// <summary>The check constraint that holds <c>Characters.NameKey</c> to the upper-cased name (#757).</summary>
+    public const string NameKeyConstraint = "CK_Characters_NameKey";
 
     private static void Configure(EntityTypeBuilder<CharacterStats> builder)
     {

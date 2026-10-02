@@ -1,4 +1,5 @@
 using Avalon.Database.Character.Repositories;
+using Avalon.Domain.Characters;
 using Avalon.World.Characters;
 using Avalon.World.Chat;
 using Avalon.World.Configuration;
@@ -81,7 +82,7 @@ public sealed class IgnoreCommand(
     private bool RefusedInMemory(CommandContext ctx, CharacterEntity owner, string name)
     {
         int max = options.Value.MaxIgnoredCharacters;
-        if (string.Equals(name, owner.Name, StringComparison.OrdinalIgnoreCase))
+        if (CharacterName.Same(name, owner.Name))
         {
             ctx.Reply(IgnoreLines.Self);
             return true;

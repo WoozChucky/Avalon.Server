@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Party;
 
 namespace Avalon.World.Parties;
@@ -46,7 +47,7 @@ public sealed class Party
     {
         for (int i = 0; i < _members.Count; i++)
         {
-            if (string.Equals(_members[i].Name, name, StringComparison.OrdinalIgnoreCase))
+            if (CharacterName.Same(_members[i].Name, name))
                 return _members[i];
         }
 

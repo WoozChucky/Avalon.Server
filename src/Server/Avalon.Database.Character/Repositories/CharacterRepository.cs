@@ -7,6 +7,10 @@ namespace Avalon.Database.Character.Repositories;
 
 public interface ICharacterRepository : IRepository<Domain.Characters.Character, CharacterId>
 {
+    /// <summary>
+    /// The character with this name in any case, ignoring surrounding spaces, found by its key (#757), or none. Names
+    /// are unique by key, so there is at most one.
+    /// </summary>
     Task<Domain.Characters.Character?> FindByNameAsync(string name, CancellationToken cancellationToken = default);
     Task<Domain.Characters.Character?> FindByIdAndAccountAsync(CharacterId id, AccountId accountId, CancellationToken cancellationToken = default);
 
@@ -25,11 +29,12 @@ public class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFa
 {
     public async Task<Domain.Characters.Character?> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
+        string key = CharacterName.Key(name);
         await using var context = await CreateContextAsync(cancellationToken);
 
         return await context.Characters
             .AsNoTracking()
-            .FirstOrDefaultAsync(entity => entity.Name == name, cancellationToken);
+            .FirstOrDefaultAsync(entity => entity.NameKey == key, cancellationToken);
     }
 
     public async Task<Domain.Characters.Character?> FindByIdAndAccountAsync(CharacterId id, AccountId accountId, CancellationToken cancellationToken = default)
