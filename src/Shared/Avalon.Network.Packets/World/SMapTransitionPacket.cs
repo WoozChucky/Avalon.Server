@@ -14,6 +14,8 @@ public enum MapTransitionResult : byte
     GenerationFailed = 5,
     /// <summary>The party's instance already holds as many players as it may (2026-09-30).</summary>
     InstanceFull     = 6,
+    /// <summary>A teleport's position had no walkable navmesh ground within its search box (item use, 2026-10-02).</summary>
+    NoWalkableGround = 7,
 }
 
 [ProtoContract]

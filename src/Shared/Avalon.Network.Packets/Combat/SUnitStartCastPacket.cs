@@ -35,6 +35,19 @@ public class SUnitStartCastPacket : Packet
     /// </summary>
     [ProtoMember(5)] public AbilityFootprintDto? Footprint { get; set; }
 
+    /// <summary>
+    /// The item whose cast bar this is (item use, 2026-10-02), with <see cref="AbilityId" /> 0; 0 on an ability's cast.
+    /// The finish and the interrupt with this <see cref="CastId" /> carry it too.
+    /// </summary>
+    [ProtoMember(6)] public ulong ItemTemplateId { get; set; }
+
+    /// <summary>An item's cast bar: no ability, no footprint.</summary>
+    public static NetworkPacket CreateForItem(ObjectGuid caster, float castTime, ulong itemTemplateId, uint castId,
+        EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SUnitStartCastPacket { Caster = caster.RawValue, CastTime = castTime, CastId = castId, ItemTemplateId = itemTemplateId },
+            PacketType, Flags, Protocol, encryptFunc);
+
     public static NetworkPacket Create(ObjectGuid caster, float castTime, uint abilityId, uint castId,
         AbilityFootprintDto? footprint, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(

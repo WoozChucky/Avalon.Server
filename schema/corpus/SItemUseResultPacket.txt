@@ -1,0 +1,82 @@
+# SItemUseResultPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SItemUseResultPacket
+
+variant absent
+  field 1 RequestId : uint = 0
+  field 2 Result : ItemUseResult = Unknown (0)
+  field 3 CooldownMs : uint = 0
+  field 4 Message : string = null
+  bytes 0
+
+variant empty
+  field 1 RequestId : uint = 0
+  field 2 Result : ItemUseResult = Unknown (0)
+  field 3 CooldownMs : uint = 0
+  field 4 Message : string = "" (0 chars, 0 bytes utf-8)
+  bytes 2
+    22 00
+
+variant populated
+  field 1 RequestId : uint = 42
+  field 2 Result : ItemUseResult = Ok (1)
+  field 3 CooldownMs : uint = 1000000
+  field 4 Message : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
+  bytes 34
+    08 2a 10 01 18 c0 84 3d 22 18 e6 97 a5 e6 9c ac
+    e8 aa 9e e3 81 ae e3 83 86 e3 82 ad e3 82 b9 e3
+    83 88
+
+variant maxima
+  field 1 RequestId : uint = 4294967295
+  field 2 Result : ItemUseResult = InternalError (16)
+  field 3 CooldownMs : uint = 4294967295
+  field 4 Message : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 149
+    08 ff ff ff ff 0f 10 10 18 ff ff ff ff 0f 22 84
+    01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78
+
+variant minima
+  field 1 RequestId : uint = 0
+  field 2 Result : ItemUseResult = Unknown (0)
+  field 3 CooldownMs : uint = 0
+  field 4 Message : string = "\u0001" (1 chars, 1 bytes utf-8)
+  bytes 3
+    22 01 01
+
+variant varint-edges
+  field 1 RequestId : uint = 128
+  field 2 Result : ItemUseResult = <not a declared member> (17)
+  field 3 CooldownMs : uint = 127
+  field 4 Message : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  bytes 138
+    08 80 01 10 11 18 7f 22 80 01 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79

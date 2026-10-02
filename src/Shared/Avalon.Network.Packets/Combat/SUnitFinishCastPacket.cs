@@ -24,6 +24,14 @@ public class SUnitFinishCastPacket : Packet
     /// </summary>
     [ProtoMember(3)] public uint CastId { get; set; }
 
+    /// <summary>The item whose cast bar this ends (item use, 2026-10-02), with AbilityId 0; 0 for an ability's cast.</summary>
+    [ProtoMember(4)] public ulong ItemTemplateId { get; set; }
+
+    public static NetworkPacket CreateForItem(ObjectGuid caster, ulong itemTemplateId, uint castId, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SUnitFinishCastPacket { Caster = caster.RawValue, CastId = castId, ItemTemplateId = itemTemplateId },
+            PacketType, Flags, Protocol, encryptFunc);
+
     public static NetworkPacket Create(ObjectGuid caster, AbilityId ability, uint castId, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
             new SUnitFinishCastPacket { Caster = caster.RawValue, AbilityId = ability.Value, CastId = castId },
