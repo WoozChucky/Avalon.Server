@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.World;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
@@ -154,6 +155,10 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             Refuse(connection, packet, CastRejectReason.InternalError);
             return;
         }
+
+        // An accepted ability cast ends the caster's item cast bar, which is answered Interrupted.
+        if (context is IItemUseHost items)
+            items.ItemUses.Interrupt(caster.Guid);
 
         // A cast-time cast's start went out with it, from the cast system (#648).
         caster.MarkCombat();

@@ -266,6 +266,13 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     private static bool IsReturningHome(IUnit unit) =>
         unit is ICreature { Script: IReturningHome { IsReturningHome: true } };
 
+    /// <summary>
+    /// A target every hit passes over, as ApplyDamage does before rolling anything: an invulnerable creature, a corpse,
+    /// or a creature walking home.
+    /// </summary>
+    internal static bool IgnoresHits(IUnit target) =>
+        target is ICreature { Invulnerable: true } or ICreature { CurrentHealth: 0 } || IsReturningHome(target);
+
     private void NotifyDeathIfApplicable(Encounter enc, IUnit target, IUnit attacker)
     {
         bool dead = (target is ICharacter c && c.IsDead) || target.CurrentHealth == 0;
@@ -359,6 +366,28 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (!enc.Players.Contains(healer)) enc.AddPlayer(healer);
         foreach (var h in fighting)
             enc.AddThreat(h, healer, perHostile);
+    }
+
+    /// <summary>
+    /// An item's heal (item use): a fixed <paramref name="amount" />, with no stat scaling and no crit,
+    /// never raising health past the maximum nor lowering health above it (#548), and never healing the dead. It adds
+    /// no heal threat and touches no encounter. A heal that restored more than 0 is reported to this service's
+    /// instance like an ability's, with no ability id. Answers the health restored. World-side: not on ICombatService.
+    /// </summary>
+    public uint RestoreHealth(IUnit healer, IUnit target, uint amount)
+    {
+        bool dead = target is ICharacter { IsDead: true } || target.CurrentHealth == 0;
+        if (dead) return 0;
+
+        uint before = target.CurrentHealth;
+        uint after = HealRules.After(before, target.Health, amount);
+        target.CurrentHealth = after;
+
+        uint restored = after > before ? after - before : 0;
+        if (restored > 0)
+            _outcomes?.UnitHealed(healer, target, restored, abilityId: null, HitResult.None);
+
+        return restored;
     }
 
     public void ApplyTaunt(IUnit caster, IUnit target, uint durationMs)

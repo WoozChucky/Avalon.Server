@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalon.World.Items;
 using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
@@ -10,6 +11,7 @@ public interface IScriptManager
     Type? GetAiScript(string name);
     Type? GetAbilityScript(string name);
     Type? GetQuestScript(string name);
+    Type? GetItemScript(string name);
 
     /// <summary>The names an AI script can be given in a creature template, sorted. <c>[ChainedScript]</c> types are not among them.</summary>
     IReadOnlyList<string> AiScriptNames { get; }
@@ -19,6 +21,9 @@ public interface IScriptManager
 
     /// <summary>The names a quest script can be given in a quest, sorted.</summary>
     IReadOnlyList<string> QuestScriptNames { get; }
+
+    /// <summary>The names an item template's UseScript can give, sorted (item use).</summary>
+    IReadOnlyList<string> ItemScriptNames { get; }
 
     /// <summary>
     /// Registers AI scripts compiled at runtime (the hot reloader's), by name, in place of any script of that name.
@@ -35,6 +40,7 @@ public class ScriptManager : IScriptManager
     private volatile IReadOnlyDictionary<string, Type> _aiScripts = new Dictionary<string, Type>();
     private volatile IReadOnlyDictionary<string, Type> _abilityScripts = new Dictionary<string, Type>();
     private volatile IReadOnlyDictionary<string, Type> _questScripts = new Dictionary<string, Type>();
+    private volatile IReadOnlyDictionary<string, Type> _itemScripts = new Dictionary<string, Type>();
     private readonly object _registration = new();
 
     public ScriptManager(ILoggerFactory loggerFactory)
@@ -65,6 +71,12 @@ public class ScriptManager : IScriptManager
         _logger.LogInformation("Loaded {Count} quest scripts", questScripts.Count);
 
         _questScripts = questScripts.ToDictionary(t => t.Name, t => t);
+
+        var itemScripts = FindScriptTypes<ItemScript>();
+
+        _logger.LogInformation("Loaded {Count} item scripts", itemScripts.Count);
+
+        _itemScripts = itemScripts.ToDictionary(t => t.Name, t => t);
     }
 
     public IReadOnlyList<string> AiScriptNames => Sorted(_aiScripts);
@@ -72,6 +84,8 @@ public class ScriptManager : IScriptManager
     public IReadOnlyList<string> AbilityScriptNames => Sorted(_abilityScripts);
 
     public IReadOnlyList<string> QuestScriptNames => Sorted(_questScripts);
+
+    public IReadOnlyList<string> ItemScriptNames => Sorted(_itemScripts);
 
     public void RegisterHotReloaded(IEnumerable<Type> aiScriptTypes)
     {
@@ -102,6 +116,9 @@ public class ScriptManager : IScriptManager
 
     public Type? GetQuestScript(string name) =>
         _questScripts.TryGetValue(name, out Type? scriptType) ? scriptType : null;
+
+    public Type? GetItemScript(string name) =>
+        _itemScripts.TryGetValue(name, out Type? scriptType) ? scriptType : null;
 
     private List<Type> FindScriptTypes<TBaseType>()
     {

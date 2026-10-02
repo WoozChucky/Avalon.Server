@@ -12,6 +12,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
+using Avalon.World.Items;
 using Avalon.World.Loot;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
@@ -107,6 +108,11 @@ public static class ServiceExtensions
             sp.GetRequiredService<IWorld>(),
             sp.GetRequiredService<IRespawnTargetResolver>(),
             sp.GetRequiredService<IChunkLibrary>()));
+
+        // Item use: the teleport, the toolbox the item use context reaches through, and the request flow.
+        services.AddSingleton<MapTeleport>();
+        services.AddSingleton<ItemUseTools>();
+        services.AddSingleton<ItemUseService>();
 
         // Combat (Phase D): V1 uses default CombatConfig values. EncounterRegistry +
         // CombatService are constructed per MapInstance, not registered as singletons.

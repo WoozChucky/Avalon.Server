@@ -705,6 +705,7 @@ public class DuplicateCharacterSelectShould : IDisposable
     private sealed class AnyServiceProvider : IServiceProvider
     {
         private QuestService? _quests;
+        private Avalon.World.Items.ItemUseService? _itemUses;
 
         public object? GetService(Type serviceType)
         {
@@ -726,6 +727,10 @@ public class DuplicateCharacterSelectShould : IDisposable
             // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
             if (serviceType == typeof(QuestService))
                 return _quests ??= Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
+
+            // ItemUseHandler takes the one item use service, as production's singleton.
+            if (serviceType == typeof(Avalon.World.Items.ItemUseService))
+                return _itemUses ??= Avalon.Server.World.UnitTests.ItemUse.InertItemUseService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(

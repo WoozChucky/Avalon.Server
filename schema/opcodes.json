@@ -308,6 +308,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_ITEM_USE",
+      "opcode": 8322,
+      "hex": "0x2082",
+      "message": "CItemUsePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_VENDOR_BUY",
       "opcode": 8336,
       "hex": "0x2090",
@@ -825,6 +834,15 @@
       "opcode": 12432,
       "hex": "0x3090",
       "message": "SItemResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_ITEM_USE_RESULT",
+      "opcode": 12433,
+      "hex": "0x3091",
+      "message": "SItemUseResultPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

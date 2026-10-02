@@ -185,6 +185,7 @@ public class WorldHostGraphShould
     [InlineData(NetworkPacketType.CMSG_LOOT_PICKUP, typeof(LootPickupHandler))]
     [InlineData(NetworkPacketType.CMSG_ITEM_MOVE, typeof(ItemMoveHandler))]
     [InlineData(NetworkPacketType.CMSG_ITEM_DESTROY, typeof(ItemDestroyHandler))]
+    [InlineData(NetworkPacketType.CMSG_ITEM_USE, typeof(ItemUseHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUY, typeof(VendorBuyHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_SELL, typeof(VendorSellHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUYBACK, typeof(VendorBuybackHandler))]
@@ -260,6 +261,35 @@ public class WorldHostGraphShould
             if (handlerType == typeof(CharacterSelectHandler))
                 Assert.Same(host.Services.GetRequiredService<ICharacterQuestRepository>(),
                     CapturedOfType<ICharacterQuestRepository>(handler));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
+    /// <summary>
+    /// Item use: the toolbox holds the container's own quest service, party service and creature placement, and its
+    /// map teleport the party service.
+    /// </summary>
+    [Fact]
+    public async Task Hand_the_item_use_toolbox_the_containers_services()
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services.AddWorldServices();
+            using IHost host = builder.Build();
+
+            Avalon.World.Items.ItemUseTools tools = host.Services.GetRequiredService<Avalon.World.Items.ItemUseTools>();
+            Assert.Same(host.Services.GetRequiredService<QuestService>(), tools.Quests);
+            Assert.Same(host.Services.GetRequiredService<PartyService>(), tools.Parties);
+            Assert.Same(host.Services.GetRequiredService<Avalon.World.ChunkLayouts.ICreaturePlacementService>(), tools.Placement);
+
+            // MapTeleport takes the party service optionally; without it a party member's teleport would skip the
+            // party's instance and its arrival checks.
+            Assert.Same(host.Services.GetRequiredService<PartyService>(), CapturedOfType<PartyService>(tools.Teleport));
         }
         finally
         {

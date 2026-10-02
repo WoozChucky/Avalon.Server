@@ -3629,6 +3629,21 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("SubClass")
                         .HasColumnType("integer");
 
+                    b.Property<long?>("UseCastTimeMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UseCooldownGroup")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("UseCooldownMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UseScript")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("UseValue")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
 
                     b.ToTable("ItemTemplates");
@@ -3646,7 +3661,11 @@ namespace Avalon.Database.World.Migrations
                             Name = "Health Potion",
                             Rarity = 1,
                             SellPrice = 5L,
-                            SubClass = 0
+                            SubClass = 0,
+                            UseCooldownGroup = "potion",
+                            UseCooldownMs = 30000L,
+                            UseScript = "RestoreHealth",
+                            UseValue = 30L
                         },
                         new
                         {
@@ -3660,7 +3679,11 @@ namespace Avalon.Database.World.Migrations
                             Name = "Mana Potion",
                             Rarity = 1,
                             SellPrice = 6L,
-                            SubClass = 0
+                            SubClass = 0,
+                            UseCooldownGroup = "potion",
+                            UseCooldownMs = 30000L,
+                            UseScript = "RestorePower",
+                            UseValue = 30L
                         },
                         new
                         {
@@ -3674,7 +3697,10 @@ namespace Avalon.Database.World.Migrations
                             Name = "Town Portal Scroll",
                             Rarity = 1,
                             SellPrice = 50L,
-                            SubClass = 2
+                            SubClass = 2,
+                            UseCastTimeMs = 3000L,
+                            UseCooldownMs = 30000L,
+                            UseScript = "TownPortalScroll"
                         },
                         new
                         {
@@ -4824,7 +4850,11 @@ namespace Avalon.Database.World.Migrations
                             Name = "Greater Health Potion",
                             Rarity = 1,
                             SellPrice = 12L,
-                            SubClass = 0
+                            SubClass = 0,
+                            UseCooldownGroup = "potion",
+                            UseCooldownMs = 30000L,
+                            UseScript = "RestoreHealth",
+                            UseValue = 60L
                         },
                         new
                         {

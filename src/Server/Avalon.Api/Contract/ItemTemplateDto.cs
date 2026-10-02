@@ -45,6 +45,11 @@ public sealed class ItemTemplateDto
     public uint? StatValue9 { get; set; }
     public StatType? StatType10 { get; set; }
     public uint? StatValue10 { get; set; }
+    public string? UseScript { get; set; }
+    public uint? UseCastTimeMs { get; set; }
+    public uint? UseCooldownMs { get; set; }
+    public string? UseCooldownGroup { get; set; }
+    public uint? UseValue { get; set; }
 
     /// <summary>
     /// The row's version: a lowercase hex SHA-256 of its stored values, also sent as the ETag on a single read.

@@ -18,6 +18,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Loot;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
@@ -45,7 +46,7 @@ using Microsoft.Extensions.Options;
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
-    IDisposable
+    IItemUseHost, IItemCastAudience, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -61,6 +62,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly InterestRange _interest;
     private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
+    private readonly ItemUseCasts _itemUses;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
     private readonly UnitHitQuery _hits;
@@ -95,6 +97,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly VendorStocks _vendors = new();
 
     private readonly TimeProvider _time;
+
+    // Item use: each summoned creature and when it leaves if still alive, on the instance's clock. Tick thread.
+    private readonly Dictionary<ObjectGuid, (ICreature Creature, DateTimeOffset LeavesAt)> _summons = [];
+    private readonly List<ICreature> _summonsDone = [];
 
     // Creature health scaling (2026-09-30), party instances only: set when someone enters or leaves, applied once at
     // the start of the next Update, so several changes in one tick make one rescale and one message.
@@ -192,6 +198,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>(), this);
 
+        // Item cast bars, numbered with the cast system's own ids.
+        _itemUses = new ItemUseCasts(this, _abilityCastSystem.TakeCastId, loggerFactory.CreateLogger<ItemUseCasts>());
+
         // Optional so an instance built without one (tests) simply has no periodic save.
         _saveScheduler = serviceProvider.GetService<ICharacterSaveScheduler>();
 
@@ -221,6 +230,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _groundLoot.Clear();
         _lootSnapshotOwed.Clear();
         _pvpStateOwed.Clear();
+        _summons.Clear();
     }
 
     public Guid InstanceId { get; }
@@ -248,6 +258,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IEnumerable<IWorldConnection> Connections => _connections.Values;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
+
+    /// <summary>The item cast bars here. World-side, not on IMapInstance.</summary>
+    public ItemUseCasts ItemUses => _itemUses;
+
+    uint IItemUseHost.RestoreHealth(IUnit healer, IUnit target, uint amount) =>
+        _combatService.RestoreHealth(healer, target, amount);
+
+    bool IItemUseHost.CastForItem(IUnit caster, AbilityAim aim, IAbility ability, bool free) =>
+        ability.Metadata.CastTime > 0
+            ? _abilityCastSystem.QueueAbility(caster, aim, ability, free)
+            : _abilityCastSystem.RunInstant(caster, aim, ability, free);
+
+    void IItemUseHost.DespawnAfter(ICreature creature, TimeSpan lifetime) =>
+        _summons[creature.Guid] = (creature, _time.GetUtcNow() + lifetime);
+
     public IHitQuery Hits => _hits;
     public ICreatureLocomotion Locomotion => _locomotion;
     public IMeleeSlots MeleeSlots => _meleeSlots;
@@ -402,9 +427,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         NotePresenceChange(connection.Character, "entered");
     }
 
-    public void RemoveCharacter(IWorldConnection connection)
+    /// <summary>
+    /// Ends everything the character has casting here as it leaves: its ability casts, its running ability scripts and
+    /// its item cast bar. Each step is contained, so a failure cannot keep the character a member.
+    /// </summary>
+    private void EndCastsOf(ICharacter character)
     {
-        ICharacter character = connection.Character!;
         ObjectGuid guid = character.Guid;
 
         // A cast in progress ends here, while the character is still a member, so everyone here sees
@@ -433,6 +461,26 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _logger.LogError(e, "Dropping the scripts of {CharacterGuid} as it left instance {InstanceId} failed",
                 guid, InstanceId);
         }
+
+        // An item's cast bar ends here too, out loud, while the character is still a member, and its use is answered
+        // Interrupted. Contained, like the casts above.
+        try
+        {
+            _itemUses.Interrupt(guid);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Interrupting the item use of {CharacterGuid} as it left instance {InstanceId} failed",
+                guid, InstanceId);
+        }
+    }
+
+    public void RemoveCharacter(IWorldConnection connection)
+    {
+        ICharacter character = connection.Character!;
+        ObjectGuid guid = character.Guid;
+
+        EndCastsOf(character);
 
         // Membership next. These cannot throw, and once they are gone the tick no longer updates,
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
@@ -494,6 +542,45 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // A creature spawned later in a party instance starts at the health the players here make.
         if (_healthFactor != 1d && creature is Creature scaled)
             scaled.Rescale(_healthFactor);
+    }
+
+    /// <summary>
+    /// Step 1b of <see cref="Update" /> (item use): forgets a summon that is gone or dead (a dead one is the corpse
+    /// removal's), and removes a living one whose time has come, dropped from its encounter first so no threat
+    /// outlives it. Allocates nothing while there is no summon.
+    /// </summary>
+    private void DespawnExpiredSummons()
+    {
+        if (_summons.Count == 0)
+            return;
+
+        DateTimeOffset now = _time.GetUtcNow();
+        _summonsDone.Clear();
+        foreach ((ObjectGuid guid, (ICreature creature, DateTimeOffset leavesAt)) in _summons)
+        {
+            if (!_creatures.ContainsKey(guid) || creature.CurrentHealth == 0 || now >= leavesAt)
+                _summonsDone.Add(creature);
+        }
+
+        foreach (ICreature creature in _summonsDone)
+        {
+            _summons.Remove(creature.Guid);
+
+            // Each summon on its own: one that throws costs neither the tick nor the other summons their removal.
+            try
+            {
+                if (creature.CurrentHealth == 0 || !_creatures.ContainsKey(creature.Guid))
+                    continue;
+
+                ((IHostileEncounterExit)_combatService).DropHostileFromEncounter(creature);
+                RemoveCreature(creature);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Removing the expired summon {Creature} ({Name}) from instance {InstanceId} threw",
+                    creature.Guid, creature.Name, InstanceId);
+            }
+        }
     }
 
     public void RemoveCreature(ICreature creature)
@@ -805,6 +892,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Step 1: remove the corpses whose BodyRemoveTimer has run out. Creatures do not respawn.
         _corpseRemover.Update(deltaTime);
 
+        // Step 1b: summons whose lifetime has passed leave (item use).
+        DespawnExpiredSummons();
+
         // Step 2: Process character packets
         UpdateCharacters(deltaTime);
 
@@ -862,6 +952,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         // Step 3: Ability cast system update
         _abilityCastSystem.Update(deltaTime, objectAbilities);
+
+        // Step 3a: item cast bars, after this tick's movement was applied by the packets above.
+        _itemUses.Update(deltaTime);
 
         // Step 3b: Tick combat service — decays threat, ends stale encounters.
         _combatService.Update(deltaTime);
@@ -1176,6 +1269,41 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
+    void IItemCastAudience.BroadcastItemCastStart(IUnit caster, ItemTemplateId item, float castTimeSeconds, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            connection.Send(SUnitStartCastPacket.CreateForItem(caster.Guid, castTimeSeconds, item.Value, castId,
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
+    void IItemCastAudience.BroadcastItemCastFinish(IUnit caster, ItemTemplateId item, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            connection.Send(SUnitFinishCastPacket.CreateForItem(caster.Guid, item.Value, castId, connection.CryptoSession.Encrypt));
+        }
+    }
+
+    void IItemCastAudience.BroadcastItemCastInterrupted(IUnit caster, ItemTemplateId item, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            connection.Send(SCharacterInterruptedCastPacket.CreateForItem(caster.Guid, item.Value, castId,
                 connection.CryptoSession.Encrypt));
         }
     }

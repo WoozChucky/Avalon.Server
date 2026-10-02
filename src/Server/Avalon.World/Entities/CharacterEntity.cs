@@ -9,6 +9,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Inventory;
+using Avalon.World.Items;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -308,6 +309,12 @@ public class CharacterEntity : ICharacter
     /// when the character leaves the world, so a buyback lost on logout is simply a completed sale.
     /// </summary>
     public VendorBuyback Buyback { get; } = new();
+
+    /// <summary>
+    /// Item use cooldowns. World-side and never saved: a new session starts with none. Not on ICharacter,
+    /// so the modding API cannot clear them.
+    /// </summary>
+    public ItemCooldowns ItemCooldowns { get; } = new();
 
     /// <summary>
     /// A sale or a buyback changed this player's buyback list, so the instance's vendor pass owes

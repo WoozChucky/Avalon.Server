@@ -32,6 +32,7 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
     private static readonly string[] OneAi = ["AiOne", "AiTwo"];
     private static readonly string[] OneAbility = ["AbilityOne"];
     private static readonly string[] OneQuest = ["QuestOne", "QuestTwo", "QuestThree"];
+    private static readonly string[] OneItem = ["ItemOne"];
 
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
@@ -43,7 +44,7 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         Row(One);
         Row(Two);
         _cache.GetAsync(CacheKeys.WorldScriptCatalog(One))
-            .Returns(ScriptCatalogJson.Serialize(new ScriptCatalogSnapshot(OneAi, OneAbility, OneQuest)));
+            .Returns(ScriptCatalogJson.Serialize(new ScriptCatalogSnapshot(OneAi, OneAbility, OneQuest, OneItem)));
 
         _host = await ApiAuthHost.StartAsync(_cache, services =>
         {
@@ -82,6 +83,7 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         Assert.Equal(OneAi, dto.Ai);
         Assert.Equal(OneAbility, dto.Ability);
         Assert.Equal(OneQuest, dto.Quest);
+        Assert.Equal(OneItem, dto.Item);
     }
 
     [Fact]
@@ -90,7 +92,7 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         HttpResponseMessage response = await Get($"/world/{One}/scripts", AccountAccessLevel.GameMaster);
 
         JsonObject body = JsonNode.Parse(await response.Content.ReadAsStringAsync())!.AsObject();
-        Assert.Equal(["ai", "ability", "quest", "published"], body.Select(p => p.Key));
+        Assert.Equal(["ai", "ability", "quest", "item", "published"], body.Select(p => p.Key));
     }
 
     [Fact]
@@ -104,6 +106,7 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         Assert.Empty(dto.Ai);
         Assert.Empty(dto.Ability);
         Assert.Empty(dto.Quest);
+        Assert.Empty(dto.Item);
     }
 
     [Fact]

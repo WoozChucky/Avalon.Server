@@ -149,15 +149,17 @@ public static class TemplateValidation
     /// template). Not checked while no catalog is published (<paramref name="catalog"/> null: no world has reported in),
     /// and an empty name is never unknown: whether a template needs a script is its own rule. A name equal to
     /// <paramref name="stored"/> is not checked: only a change of script is, so a row that already names an unlisted
-    /// script can still have its other fields edited.
+    /// script can still have its other fields edited. <paramref name="field"/> is the request field the error is keyed by.
     /// </summary>
     public static void ScriptKnown(TemplateErrors errors, string? scriptName, string? stored, ScriptCatalogSnapshot? catalog,
-        Func<ScriptCatalogSnapshot, IReadOnlyList<string>> known)
+        Func<ScriptCatalogSnapshot, IReadOnlyList<string>?> known, string field = "scriptName")
     {
         if (catalog is null || string.IsNullOrWhiteSpace(scriptName)) return;
         if (string.Equals(scriptName, stored, StringComparison.Ordinal)) return;
-        if (!known(catalog).Contains(scriptName, StringComparer.Ordinal))
-            errors.Add("scriptName", $"Unknown script '{scriptName}' on this world");
+        // A world that publishes no list of this kind (one built before item scripts) is not checked, as with no catalog.
+        if (known(catalog) is not { } names) return;
+        if (!names.Contains(scriptName, StringComparer.Ordinal))
+            errors.Add(field, $"Unknown script '{scriptName}' on this world");
     }
 
     private static string AbilityField(string problem) => problem switch

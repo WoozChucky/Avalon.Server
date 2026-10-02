@@ -1,10 +1,12 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Units;
 using NSubstitute;
 using Xunit;
 
@@ -150,5 +152,55 @@ public class CombatServiceHealShould
         float expected = _config.InitialThreatSeed + 20 * 0.5f * ClassThreatModifier.Get(healer.Class) / 2;
         Assert.Equal(expected, encounter.GetThreatList(wolf)[healer], 3);
         Assert.Equal(expected, encounter.GetThreatList(boar)[healer], 3);
+    }
+
+    /// <summary>Item use: a fixed amount, capped, reported, adding no threat and joining no encounter.</summary>
+    [Fact]
+    public void Restore_an_items_heal_capped_and_report_what_it_restored()
+    {
+        var outcomes = Substitute.For<ICombatOutcomes>();
+        var combat = new CombatService(_config, _registry, outcomes: outcomes);
+        CharacterEntity user = Wounded(1, max: 100, current: 80);
+
+        uint restored = combat.RestoreHealth(user, user, 30);
+
+        Assert.Equal(20u, restored);
+        Assert.Equal(100u, user.CurrentHealth);
+        outcomes.Received(1).UnitHealed(user, user, 20u, null, HitResult.None);
+    }
+
+    /// <summary>
+    /// An item's heal on a player in a fight gives its healer no threat and does not bring it into the encounter, where
+    /// an ability's heal (above) would do both.
+    /// </summary>
+    [Fact]
+    public void Restore_an_items_heal_without_threat_or_joining_the_encounter()
+    {
+        CharacterEntity healer = TestCharacters.New(2);
+        CharacterEntity target = Wounded(1, max: 100, current: 40);
+        var wolf = Substitute.For<ICreature>();
+        _combat.EnterCombat(wolf, target);
+        var encounter = (Encounter)_combat.GetEncounterFor(target)!;
+
+        Assert.Equal(20u, _combat.RestoreHealth(healer, target, 20));
+
+        Assert.Equal(60u, target.CurrentHealth);
+        Assert.False(encounter.GetThreatList(wolf).ContainsKey(healer));
+        Assert.Null(_combat.GetEncounterFor(healer));
+        Assert.False(healer.IsInCombat);
+    }
+
+    [Fact]
+    public void Restore_nothing_to_a_dead_character_or_one_at_full_health()
+    {
+        var outcomes = Substitute.For<ICombatOutcomes>();
+        var combat = new CombatService(_config, _registry, outcomes: outcomes);
+        CharacterEntity dead = Wounded(1, max: 100, current: 0);
+        dead.IsDead = true;
+        CharacterEntity full = Wounded(2, max: 100, current: 100);
+
+        Assert.Equal(0u, combat.RestoreHealth(dead, dead, 30));
+        Assert.Equal(0u, combat.RestoreHealth(full, full, 30));
+        outcomes.DidNotReceiveWithAnyArgs().UnitHealed(default!, default!, default, default, default);
     }
 }

@@ -90,6 +90,24 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     public uint? StatValue10 { get; set; }
 
+    /// <summary>
+    /// The ItemScript a use runs (item use), by class name, or null for an item a use cannot run. An item
+    /// whose Slot is worn somewhere is equipped by a use instead and never runs one.
+    /// </summary>
+    public string? UseScript { get; set; }
+
+    /// <summary>Milliseconds of cast bar before the script runs; null or 0 runs it at once.</summary>
+    public uint? UseCastTimeMs { get; set; }
+
+    /// <summary>Milliseconds before this item can be used again once a use succeeded; null for none.</summary>
+    public uint? UseCooldownMs { get; set; }
+
+    /// <summary>Items naming the same group share one cooldown (the potions' "potion"); null for none.</summary>
+    public string? UseCooldownGroup { get; set; }
+
+    /// <summary>The script's own number: for RestoreHealth and RestorePower, the percentage of the maximum restored.</summary>
+    public uint? UseValue { get; set; }
+
     // For future use
     private void ValidateSubClass()
     {

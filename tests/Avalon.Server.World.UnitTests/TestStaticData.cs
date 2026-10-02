@@ -80,7 +80,8 @@ internal static class TestStaticData
         ICombatDataRepository? combat = null,
         Func<IReadOnlyCollection<CreatureTemplate>>? creatures = null,
         IQuestRepository? quests = null,
-        IScriptManager? scripts = null)
+        IScriptManager? scripts = null,
+        Func<IReadOnlyCollection<AbilityTemplate>>? abilities = null)
     {
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
@@ -94,9 +95,9 @@ internal static class TestStaticData
         itemRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult((items?.Invoke() ?? []).ToList()));
 
-        var abilities = Substitute.For<IAbilityTemplateRepository>();
-        abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(new List<AbilityTemplate>()));
+        var abilityRepository = Substitute.For<IAbilityTemplateRepository>();
+        abilityRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult((abilities?.Invoke() ?? []).ToList()));
 
         var levelRepository = Substitute.For<ICharacterLevelExperienceRepository>();
         levelRepository.GetAllAsync(Arg.Any<CancellationToken>())
@@ -129,7 +130,7 @@ internal static class TestStaticData
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(options?.Invoke() ?? []));
 
-        return new TestStaticDataRepositories(createInfos, classStatRepository, itemRepository, abilities,
+        return new TestStaticDataRepositories(createInfos, classStatRepository, itemRepository, abilityRepository,
             levelRepository, creatureRepository, baseStats, rarities, textRepository, dialogue, loot ?? LootRepositories.Empty(),
             vendors, combat, quests, scripts);
     }

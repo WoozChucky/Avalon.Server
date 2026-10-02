@@ -198,6 +198,11 @@ message CItemMovePacket {
    uint32 ToSlot = 5;
    optional uint32 Count = 6;
 }
+message CItemUsePacket {
+   uint32 RequestId = 1;
+   uint32 Container = 2;
+   uint32 Slot = 3;
+}
 message CLogoutPacket {
    uint64 AccountId = 1;
 }
@@ -403,6 +408,25 @@ message ItemSlotDto {
    uint32 Durability = 6;
    uint32 Flags = 7;
 }
+enum ItemUseResult {
+   ItemUseResult_Unknown = 0;
+   ItemUseResult_Ok = 1;
+   ItemUseResult_NotFound = 2;
+   ItemUseResult_NotUsable = 3;
+   ItemUseResult_Dead = 4;
+   ItemUseResult_OnCooldown = 5;
+   ItemUseResult_AlreadyCasting = 6;
+   ItemUseResult_InCombat = 7;
+   ItemUseResult_NotInCombat = 8;
+   ItemUseResult_WrongEquipSlot = 9;
+   ItemUseResult_LevelTooLow = 10;
+   ItemUseResult_WrongClass = 11;
+   ItemUseResult_TargetFull = 12;
+   ItemUseResult_Blocked = 13;
+   ItemUseResult_Interrupted = 14;
+   ItemUseResult_Refused = 15;
+   ItemUseResult_InternalError = 16;
+}
 enum LogoutResult {
    LogoutResult_Success = 0;
    LogoutResult_RecentlyInCombat = 1;
@@ -450,6 +474,8 @@ enum MapTransitionResult {
    MapTransitionResult_LevelTooHigh = 4;
    MapTransitionResult_GenerationFailed = 5;
    MapTransitionResult_InstanceFull = 6;
+   MapTransitionResult_NoWalkableGround = 7;
+   MapTransitionResult_MoveInProgress = 8;
 }
 enum MoveState {
    MoveState_Idle = 0;
@@ -510,6 +536,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_LOOT_PICKUP = 8304;
    NetworkPacketType_CMSG_ITEM_MOVE = 8320;
    NetworkPacketType_CMSG_ITEM_DESTROY = 8321;
+   NetworkPacketType_CMSG_ITEM_USE = 8322;
    NetworkPacketType_CMSG_VENDOR_BUY = 8336;
    NetworkPacketType_CMSG_VENDOR_SELL = 8337;
    NetworkPacketType_CMSG_VENDOR_BUYBACK = 8338;
@@ -568,6 +595,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_LOOT_DESPAWNED = 12417;
    NetworkPacketType_SMSG_LOOT_PICKUP_RESULT = 12418;
    NetworkPacketType_SMSG_ITEM_RESULT = 12432;
+   NetworkPacketType_SMSG_ITEM_USE_RESULT = 12433;
    NetworkPacketType_SMSG_VENDOR_LIST = 12448;
    NetworkPacketType_SMSG_VENDOR_RESULT = 12449;
    NetworkPacketType_SMSG_PARTY_INVITE = 12464;
@@ -839,6 +867,7 @@ message SCharacterInterruptedCastPacket {
    uint64 Caster = 1;
    uint32 AbilityId = 2;
    uint32 CastId = 3;
+   uint64 ItemTemplateId = 4;
 }
 message SCharacterLeaveResultPacket {
    CharacterLeaveResult Result = 1;
@@ -939,6 +968,12 @@ message SItemResultPacket {
    uint32 RequestId = 1;
    ItemRequestResult Result = 2;
    repeated InventorySlotUpdateDto Slots = 3;
+}
+message SItemUseResultPacket {
+   uint32 RequestId = 1;
+   ItemUseResult Result = 2;
+   uint32 CooldownMs = 3;
+   optional string Message = 4;
 }
 message SLogoutPacket {
    LogoutResult Result = 1;
@@ -1092,6 +1127,7 @@ message SUnitFinishCastPacket {
    uint64 Caster = 1;
    uint32 AbilityId = 2;
    uint32 CastId = 3;
+   uint64 ItemTemplateId = 4;
 }
 message SUnitHealedPacket {
    uint64 Healer = 1;
@@ -1112,6 +1148,7 @@ message SUnitStartCastPacket {
    uint32 AbilityId = 3;
    uint32 CastId = 4;
    AbilityFootprintDto Footprint = 5;
+   uint64 ItemTemplateId = 6;
 }
 message SVendorListPacket {
    uint64 VendorGuid = 1;

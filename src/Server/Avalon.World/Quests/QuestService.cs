@@ -166,7 +166,53 @@ public sealed class QuestService(
         if (available != QuestResult.Ok)
             return available;
 
-        ActiveQuest active = character.Quests.Start(questId, time.GetUtcNow().UtcDateTime);
+        Begin(character, quest);
+        AfterConversationChange(connection, character, npc, questId);
+        return QuestResult.Ok;
+    }
+
+    /// <summary>
+    /// Item use: starts a quest with no giver and no conversation, under the same availability rules as an accept.
+    /// NotAvailable for a quest the catalog lacks. Tick thread only.
+    /// </summary>
+    public QuestResult StartFromItem(CharacterEntity character, uint questId)
+    {
+        // As TurnIn: quests held across a reload are settled against the new catalog first.
+        SettleAfterReload(character);
+
+        if (!Catalog.TryGet(questId, out QuestView? quest))
+            return QuestResult.NotAvailable;
+
+        QuestResult available = Availability(character, quest);
+        if (available != QuestResult.Ok)
+            return available;
+
+        Begin(character, quest);
+        return QuestResult.Ok;
+    }
+
+    /// <summary>
+    /// Item use: an item may move a Kill or a Talk objective, never a Scripted one (only the quest's own script moves
+    /// those, through IQuestContext.Advance) and never a Collect one (the bag counts those). Then AddProgress's rules:
+    /// an Active quest, the current stage, capped, settled. Tick thread only.
+    /// </summary>
+    public bool AdvanceFromItem(CharacterEntity character, uint questId, uint objectiveId, uint amount)
+    {
+        SettleAfterReload(character);
+
+        if (character.Quests.Get(questId) is not { } active
+            || !Catalog.TryGet(questId, out QuestView? quest)
+            || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is not
+                { Type: Domain.World.QuestObjectiveType.Kill or Domain.World.QuestObjectiveType.Talk })
+            return false;
+
+        return AddProgress(character, questId, objectiveId, amount);
+    }
+
+    /// <summary>The start every accept shares: stage 0, every count 0, the line, the accept hook and stage 0's start, then the settle.</summary>
+    private void Begin(CharacterEntity character, QuestView quest)
+    {
+        ActiveQuest active = character.Quests.Start(quest.Id, time.GetUtcNow().UtcDateTime);
         character.Quests.Say($"Quest accepted: {Title(character, quest)}.");
 
         // Stage 0 starts before anything settles: progress the accept hook or the bag gives it waits for the Settle
@@ -183,8 +229,6 @@ public sealed class QuestService(
         }
 
         Settle(character, quest, active);
-        AfterConversationChange(connection, character, npc, questId);
-        return QuestResult.Ok;
     }
 
     /// <summary>CMSG_QUEST_ABANDON (#433), anywhere: the quest, its progress and its quest items are gone; it can be accepted again.</summary>

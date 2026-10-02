@@ -95,7 +95,7 @@ public static class Overrides
             PropertyInfo column = table.Columns().FirstOrDefault(c => string.Equals(c.Name, columnName, StringComparison.Ordinal))
                 ?? throw Refusal(table, parts[0], key, columnName);
 
-            object? value = Convert(entry.Value, column.PropertyType, key);
+            object? value = Convert(entry.Value, column, key);
             writes.Add((row, column, value, key, column.GetValue(row)));
         }
 
@@ -131,13 +131,14 @@ public static class Overrides
         return new InvalidDataException($"Override '{key}': a {(Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType).Name} column cannot be overridden");
     }
 
-    private static object? Convert(JsonElement json, Type type, string key)
+    private static object? Convert(JsonElement json, PropertyInfo column, string key)
     {
+        Type type = column.PropertyType;
         Type? underlying = Nullable.GetUnderlyingType(type);
         Type target = underlying ?? type;
 
         if (json.ValueKind == JsonValueKind.Null)
-            return underlying is not null ? null : throw new InvalidDataException($"Override '{key}': the column cannot be null");
+            return AcceptsNull(column) ? null : throw new InvalidDataException($"Override '{key}': the column cannot be null");
 
         try
         {
@@ -165,6 +166,14 @@ public static class Overrides
 
         throw new InvalidDataException($"Override '{key}': a {target.Name} column cannot be overridden");
     }
+
+    /// <summary>
+    /// A nullable value type, or a reference type declared nullable (a <c>string?</c> such as ItemTemplate.UseScript), takes
+    /// null; a non-nullable string such as a Name does not.
+    /// </summary>
+    private static bool AcceptsNull(PropertyInfo column) =>
+        Nullable.GetUnderlyingType(column.PropertyType) is not null
+        || (!column.PropertyType.IsValueType && new NullabilityInfoContext().Create(column).WriteState == NullabilityState.Nullable);
 
     /// <summary>The column types Convert can write.</summary>
     internal static bool Supports(Type type)

@@ -78,6 +78,12 @@ public class ItemSchemaShould
 
         JsonElement name = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "Name");
         Assert.Equal("string", name.GetProperty("type").GetString());
+        Assert.False(name.GetProperty("nullable").GetBoolean());
+
+        // A string declared string? (an item's use script) is optional; a plain string (Name) is not.
+        JsonElement useScript = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "UseScript");
+        Assert.Equal("string", useScript.GetProperty("type").GetString());
+        Assert.True(useScript.GetProperty("nullable").GetBoolean());
 
         JsonElement slot = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "Slot");
         Assert.True(slot.GetProperty("nullable").GetBoolean());

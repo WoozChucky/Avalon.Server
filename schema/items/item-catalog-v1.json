@@ -18,7 +18,11 @@
         2,
         3,
         4
-      ]
+      ],
+      "useScript": "RestoreHealth",
+      "useCooldownMs": 30000,
+      "useCooldownGroup": "potion",
+      "useValue": 30
     },
     {
       "id": 2,
@@ -37,7 +41,11 @@
         2,
         3,
         4
-      ]
+      ],
+      "useScript": "RestorePower",
+      "useCooldownMs": 30000,
+      "useCooldownGroup": "potion",
+      "useValue": 30
     },
     {
       "id": 3,
@@ -56,7 +64,10 @@
         2,
         3,
         4
-      ]
+      ],
+      "useScript": "TownPortalScroll",
+      "useCastTimeMs": 3000,
+      "useCooldownMs": 30000
     },
     {
       "id": 4,
@@ -1324,7 +1335,11 @@
         2,
         3,
         4
-      ]
+      ],
+      "useScript": "RestoreHealth",
+      "useCooldownMs": 30000,
+      "useCooldownGroup": "potion",
+      "useValue": 60
     },
     {
       "id": 57,

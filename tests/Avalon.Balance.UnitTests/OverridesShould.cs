@@ -55,6 +55,18 @@ public class OverridesShould
         Assert.Equal(["Ability.200.EffectValue"], report.Stale);
     }
 
+    /// <summary>A <c>string?</c> column (an item's use script) takes null; a non-nullable string (a name) still refuses it.</summary>
+    [Fact]
+    public void Clear_a_nullable_text_column_and_refuse_null_on_a_required_one()
+    {
+        (SeedTables tables, OverrideReport report) = Apply("""{ "Item.1.UseCooldownGroup": null }""");
+
+        Assert.Null(tables.ItemTemplates.Single(t => t.Id.Value == 1).UseCooldownGroup);
+        Assert.Equal(new AppliedOverride("Item.1.UseCooldownGroup", "potion", "null"), Assert.Single(report.Applied));
+        Assert.Contains("cannot be null",
+            Assert.Throws<InvalidDataException>(() => Apply("""{ "Item.1.Name": null }""")).Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("""{ "Nope.1.EffectValue": 1 }""", "unknown table 'Nope'")]
     [InlineData("""{ "Ability.999.EffectValue": 1 }""", "no Ability row '999'")]
