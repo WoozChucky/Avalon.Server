@@ -33,7 +33,8 @@ internal sealed class AuraHarness
     {
         Combat = new CombatService(new CombatConfig(), new EncounterRegistry(new CombatConfig(), Time), outcomes: Outcomes,
             time: Time, random: random ?? ScriptedCombatRandom.Plain(1000));
-        Auras = new AuraSystem(Combat, Characters, Creatures, () => _catalog, () => Data, Time, maxPerUnit,
+        Auras = new AuraSystem(Combat, Characters, Creatures, () => _catalog,
+            () => DataFails ? throw new InvalidOperationException("reference data failed") : Data, Time, maxPerUnit,
             NullLogger.Instance, scripts, connectionOf: null, returningHome);
     }
 
@@ -46,6 +47,9 @@ internal sealed class AuraHarness
 
     // Loaded over repositories that answer at once, so waiting on it blocks nothing.
     public StaticData Data { get; set; } = TestStaticData.LoadAsync().GetAwaiter().GetResult();
+
+    /// <summary>Makes every read of the reference data throw, as a character's stats refresh would.</summary>
+    public bool DataFails { get; set; }
 
     /// <summary>The aura catalog from now on; the three test scripts are its loaded scripts.</summary>
     public void Use(params AuraTemplate[] templates) =>

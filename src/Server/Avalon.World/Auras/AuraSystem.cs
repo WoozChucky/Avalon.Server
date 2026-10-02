@@ -55,8 +55,10 @@ public sealed class AuraSystem
     private readonly List<IUnit> _holders = [];
     private readonly List<ActiveAura> _working = [];
 
-    // A tick that throws, logged at most once per ThrottledErrorLog.Interval for each aura.
+    // A tick that throws, logged at most once per ThrottledErrorLog.Interval for each aura; a unit's pass that throws
+    // outside its ticks (a stats refresh while its auras end), likewise for each unit.
     private readonly Dictionary<uint, ThrottledErrorLog> _tickFailures = [];
+    private readonly Dictionary<ObjectGuid, ThrottledErrorLog> _unitFailures = [];
 
     /// <param name="characters">The instance's characters, the dictionary itself, so a tick walks it without allocating.</param>
     /// <param name="creatures">The instance's creatures, likewise.</param>
@@ -181,7 +183,8 @@ public sealed class AuraSystem
     /// stall, each aura's owed ticks are paid together, aura by aura in the order they were applied, not interleaved by
     /// their times (the balance simulator ticks every frame and never catches up, so the two agree). A tick that throws
     /// is logged (throttled per aura) and keeps the fraction it carried; the pass goes on with the next aura and the
-    /// next unit. Allocates nothing while no unit holds an aura.
+    /// next unit. Anything else in a unit's pass that throws (a stats refresh as its auras end on death or the walk home)
+    /// is logged (throttled per unit) and the pass goes on with the next unit. Allocates nothing while no unit holds an aura.
     /// </summary>
     public void Update()
     {
@@ -201,12 +204,27 @@ public sealed class AuraSystem
         if (_holders.Count == 0)
             return;
 
-        DateTimeOffset now = _time.GetUtcNow();
-        AuraCatalog catalog = _catalog();
-        for (int i = 0; i < _holders.Count; i++)
-            UpdateUnit(_holders[i], now, catalog);
-
-        _holders.Clear();
+        try
+        {
+            DateTimeOffset now = _time.GetUtcNow();
+            AuraCatalog catalog = _catalog();
+            for (int i = 0; i < _holders.Count; i++)
+            {
+                IUnit unit = _holders[i];
+                try
+                {
+                    UpdateUnit(unit, now, catalog);
+                }
+                catch (Exception e)
+                {
+                    UnitFailed(unit, e);
+                }
+            }
+        }
+        finally
+        {
+            _holders.Clear();
+        }
     }
 
     private void UpdateUnit(IUnit unit, DateTimeOffset now, AuraCatalog catalog)
@@ -281,6 +299,13 @@ public sealed class AuraSystem
         else if (aura.Schedule.Expired(now))
             Remove(unit, aura, AuraRemoveReason.Expired);
         return true;
+    }
+
+    private void UnitFailed(IUnit unit, Exception e)
+    {
+        if (!_unitFailures.TryGetValue(unit.Guid, out ThrottledErrorLog? log))
+            _unitFailures[unit.Guid] = log = new ThrottledErrorLog(_logger, _time, $"auras of {unit.Guid}");
+        log.Failed(e);
     }
 
     private void TickFailed(ActiveAura aura, Exception e)

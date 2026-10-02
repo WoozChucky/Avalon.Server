@@ -298,6 +298,30 @@ public class AuraTickShould
         Assert.Equal(994u, other.CurrentHealth);
     }
 
+    /// <summary>
+    /// A stats refresh that throws while a dead character's auras end stops neither the instance's pass nor the next one:
+    /// the units after it still tick.
+    /// </summary>
+    [Fact]
+    public void Tick_the_other_units_when_ending_a_units_auras_throws()
+    {
+        _h.Use(AuraTestData.Bleed(), AuraTestData.Fortified());
+        CharacterEntity fallen = _h.Player(910_123);
+        Creature boar = _h.Creature(910_917);
+        _h.Auras.Apply(fallen, fallen, new AuraId(905), AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_124), boar, Bleed, AuraSource.None);
+        fallen.IsDead = true;
+        _h.DataFails = true;
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+        Assert.Equal(997u, boar.CurrentHealth);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+        Assert.Equal(994u, boar.CurrentHealth);
+    }
+
     /// <summary>A heal over time on a unit at full health restores nothing and reports nothing.</summary>
     [Fact]
     public void Restore_and_report_nothing_on_a_unit_at_full_health()
