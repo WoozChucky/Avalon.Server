@@ -36,82 +36,24 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
 
     public async Task ExecuteAsync(WorldPacketContext<CExchangeWorldKeyPacket> ctx, CancellationToken token = default)
     {
-        string worldKeyBase64 = Convert.ToBase64String(ctx.Packet.WorldKey);
-        string worldKey = CacheKeys.WorldKey(_world.Id.Value, worldKeyBase64);
-
-        string? id = await _cache.GetAsync(worldKey);
-        if (id == null)
+        // One exchange per connection. A second one is dropped before anything is read or spent, so it can never
+        // overwrite the identity or the access level the first one published.
+        if (ctx.Connection.AccountId is not null)
         {
-            _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);
+            _logger.LogWarning("Client {EndPoint} sent a second world key exchange for account {AccountId}; ignored",
+                ctx.Connection.RemoteEndPoint, ctx.Connection.AccountId);
             return;
         }
 
-        // The DEL spends the key, not the GET (#450): two connections can both read it, but Redis
-        // reports the delete to exactly one DEL. Spent before any other check, so a refused exchange
-        // cannot be retried with it.
-        if (!await _cache.RemoveAsync(worldKey))
-        {
-            _logger.LogWarning("Client {EndPoint} sent a world key that was already spent", ctx.Connection.RemoteEndPoint);
+        if (await SpendKeyAsync(ctx, token) is not { } account)
             return;
-        }
-
-        if (!CacheKeys.TryParseWorldKeyValue(id, out long accountId, out int credentialsVersion))
-        {
-            _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);
-            return;
-        }
-
-        Account? account = await _accountRepository.FindByIdAsync(accountId, false, token);
-        if (account == null)
-        {
-            _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);
-            return;
-        }
-
-        // The key carries the version of the login that selected the world (#495). It lives five
-        // minutes: a password change, an MFA reset or an admin's MFA removal inside them spends it.
-        if (account.CredentialsVersion != credentialsVersion)
-        {
-            _logger.LogWarning("Account {AccountId} sent a world key issued before its credentials changed", account.Id);
-            return;
-        }
+        long accountId = account.Id.Value;
 
         if (!await MayEnterAsync(account, token))
             return;
 
-        WorldMaintenanceState? maintenance;
-        DateTime stateReadAtUtc;
-        try
-        {
-            maintenance = await _maintenance.ReadAsync(_world.Id, token);
-            stateReadAtUtc = _clock.GetUtcNow().UtcDateTime;
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            _logger.LogWarning(e, "Could not read maintenance state for world {WorldId}; refusing entry",
-                _world.Id);
-            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World temporarily unavailable",
-                DisconnectReason.Unknown, _logger);
+        if (await MaintenanceDecisionAsync(ctx, account, token) is not { } decision)
             return;
-        }
-
-        if (maintenance is null)
-        {
-            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World temporarily unavailable",
-                DisconnectReason.Unknown, _logger);
-            return;
-        }
-
-        if (maintenance.IsCutoffActive(stateReadAtUtc) && (account.AccessLevel & AccountAccessLevel.Admin) == 0)
-        {
-            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World is under maintenance",
-                DisconnectReason.Maintenance, _logger);
-            return;
-        }
 
         if (ctx.Packet.PublicKey.Length == 0)
         {
@@ -128,12 +70,9 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
         // Released only once accepted; a refused exchange leaves the mutex to expire on its TTL.
         await _cache.RemoveAsync(CacheKeys.AccountInWorld(accountId));
 
-        DateTime acceptedAtUtc = _clock.GetUtcNow().UtcDateTime;
-        if (acceptedAtUtc >= stateReadAtUtc.AddSeconds(5) ||
-            (maintenance.IsCutoffActive(acceptedAtUtc) && (account.AccessLevel & AccountAccessLevel.Admin) == 0))
+        if (RefusalAtAcceptance(account, decision.State, decision.ReadAtUtc) is { } refusal)
         {
-            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World is under maintenance",
-                DisconnectReason.Maintenance, _logger);
+            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, refusal.Message, refusal.Reason, _logger);
             return;
         }
 
@@ -151,6 +90,118 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
         );
 
         ctx.Connection.Send(result);
+    }
+
+    /// <summary>
+    /// Reads and spends the presented world key and reads its account at the key's credentials version. Null, with
+    /// the reason logged, when the key or the account does not hold.
+    /// </summary>
+    private async Task<Account?> SpendKeyAsync(WorldPacketContext<CExchangeWorldKeyPacket> ctx, CancellationToken token)
+    {
+        string worldKeyBase64 = Convert.ToBase64String(ctx.Packet.WorldKey);
+        string worldKey = CacheKeys.WorldKey(_world.Id.Value, worldKeyBase64);
+
+        string? id = await _cache.GetAsync(worldKey);
+        if (id == null)
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);
+            return null;
+        }
+
+        // The DEL spends the key, not the GET (#450): two connections can both read it, but Redis
+        // reports the delete to exactly one DEL. Spent before any other check, so a refused exchange
+        // cannot be retried with it.
+        if (!await _cache.RemoveAsync(worldKey))
+        {
+            _logger.LogWarning("Client {EndPoint} sent a world key that was already spent", ctx.Connection.RemoteEndPoint);
+            return null;
+        }
+
+        if (!CacheKeys.TryParseWorldKeyValue(id, out long accountId, out int credentialsVersion))
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);
+            return null;
+        }
+
+        Account? account = await _accountRepository.FindByIdAsync(accountId, false, token);
+        if (account == null)
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);
+            return null;
+        }
+
+        // The key carries the version of the login that selected the world (#495). It lives five
+        // minutes: a password change, an MFA reset or an admin's MFA removal inside them spends it.
+        if (account.CredentialsVersion != credentialsVersion)
+        {
+            _logger.LogWarning("Account {AccountId} sent a world key issued before its credentials changed", account.Id);
+            return null;
+        }
+
+        return account;
+    }
+
+    /// <summary>
+    /// Reads the maintenance row once for this exchange. Answers null, having closed the connection, when the row
+    /// cannot be read or the cutoff refuses a non-Admin.
+    /// </summary>
+    private async Task<(WorldMaintenanceState State, DateTime ReadAtUtc)?> MaintenanceDecisionAsync(
+        WorldPacketContext<CExchangeWorldKeyPacket> ctx, Account account, CancellationToken token)
+    {
+        WorldMaintenanceState? maintenance;
+        DateTime readAtUtc;
+        try
+        {
+            maintenance = await _maintenance.ReadAsync(_world.Id, token);
+            readAtUtc = _clock.GetUtcNow().UtcDateTime;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "Could not read maintenance state for world {WorldId}; refusing entry",
+                _world.Id);
+            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World temporarily unavailable",
+                DisconnectReason.Unknown, _logger);
+            return null;
+        }
+
+        if (maintenance is null)
+        {
+            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World temporarily unavailable",
+                DisconnectReason.Unknown, _logger);
+            return null;
+        }
+
+        if (maintenance.IsCutoffActive(readAtUtc) && (account.AccessLevel & AccountAccessLevel.Admin) == 0)
+        {
+            GracefulShutdownHelper.NotifyAndClose(ctx.Connection, "World is under maintenance",
+                DisconnectReason.Maintenance, _logger);
+            return null;
+        }
+
+        return (maintenance, readAtUtc);
+    }
+
+    /// <summary>
+    /// The last check before the exchange is accepted: the cutoff reached meanwhile is a maintenance refusal; a
+    /// decision older than five seconds is not, and the client may simply select the world again. Null accepts.
+    /// </summary>
+    private (string Message, DisconnectReason Reason)? RefusalAtAcceptance(Account account,
+        WorldMaintenanceState maintenance, DateTime readAtUtc)
+    {
+        DateTime acceptedAtUtc = _clock.GetUtcNow().UtcDateTime;
+        if (maintenance.IsCutoffActive(acceptedAtUtc) && (account.AccessLevel & AccountAccessLevel.Admin) == 0)
+            return ("World is under maintenance", DisconnectReason.Maintenance);
+
+        if (acceptedAtUtc < readAtUtc.AddSeconds(5))
+            return null;
+
+        _logger.LogWarning("Account {AccountId} world key exchange outlived its maintenance decision; refusing",
+            account.Id);
+        return ("World temporarily unavailable", DisconnectReason.Unknown);
     }
 
     /// <summary>

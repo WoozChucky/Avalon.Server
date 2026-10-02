@@ -165,7 +165,7 @@ public class ExchangeWorldKeyHandlerShould
 
         Assert.Equal(AccountAccessLevel.Admin, publishedAccess);
         ((IMaintenanceBlockable)connection).DidNotReceive().BlockForMaintenance();
-        connection.DidNotReceive().CloseAsync();
+        _ = connection.DidNotReceive().CloseAsync();
     }
 
     [Fact]
@@ -181,6 +181,75 @@ public class ExchangeWorldKeyHandlerShould
         await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize], connection));
 
         ((IAccessLevelAssignable)connection).Received(1).AssignAccessLevel(AccountAccessLevel.Admin);
+    }
+
+    [Fact]
+    public async Task Ignore_a_second_exchange_on_an_authenticated_connection_before_reading_or_spending_anything()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        var admin = MakeAccount(42);
+        admin.AccessLevel = AccountAccessLevel.Admin;
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(admin);
+        var connection = Substitute.For<IWorldConnection, IAccessLevelAssignable>();
+        connection.AccountId.Returns(new AccountId(7));
+        connection.ServerCrypto.Returns(_serverCrypto);
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize], connection));
+
+        await _cache.DidNotReceiveWithAnyArgs().GetAsync(default!);
+        await _cache.DidNotReceiveWithAnyArgs().RemoveAsync(default!);
+        await _accountRepository.DidNotReceiveWithAnyArgs().FindByIdAsync(default!, default, default);
+        connection.DidNotReceive().AccountId = Arg.Any<AccountId>();
+        ((IAccessLevelAssignable)connection).DidNotReceiveWithAnyArgs().AssignAccessLevel(default);
+        connection.DidNotReceiveWithAnyArgs().Send(default!);
+        connection.DidNotReceive().Close();
+    }
+
+    [Fact]
+    public async Task Close_a_slow_exchange_as_unavailable_when_maintenance_is_off()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
+        // The step between the maintenance read and the acceptance takes longer than the decision lasts.
+        _cache.RemoveAsync("account:42:inWorld").Returns(_ =>
+        {
+            _clock.Now += TimeSpan.FromSeconds(6);
+            return true;
+        });
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
+
+        Assert.Equal(DisconnectReason.Unknown, SentDisconnectReason());
+        _connection.Received(1).Close();
+        _connection.DidNotReceive().AccountId = Arg.Any<AccountId>();
+    }
+
+    [Fact]
+    public async Task Close_a_slow_exchange_as_maintenance_when_the_deadline_passed_meanwhile()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
+        _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(true, 1, _clock.Now.UtcDateTime.AddSeconds(3)));
+        _cache.RemoveAsync("account:42:inWorld").Returns(_ =>
+        {
+            _clock.Now += TimeSpan.FromSeconds(6);
+            return true;
+        });
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
+
+        Assert.Equal(DisconnectReason.Maintenance, SentDisconnectReason());
+        _connection.DidNotReceive().AccountId = Arg.Any<AccountId>();
+    }
+
+    private DisconnectReason SentDisconnectReason()
+    {
+        NetworkPacket packet = _connection.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IWorldConnection.Send))
+            .Select(c => c.GetArguments()[0]).OfType<NetworkPacket>()
+            .Single(p => p.Header.Type == NetworkPacketType.SMSG_DISCONNECT);
+        return Serializer.Deserialize<SDisconnectPacket>(new MemoryStream(packet.Payload)).ReasonCode;
     }
 
     [Fact]
