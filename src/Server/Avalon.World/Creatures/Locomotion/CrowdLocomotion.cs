@@ -85,7 +85,7 @@ public sealed class CrowdLocomotion : IPlayerAwareLocomotion
         // DtCrowdAgentParams has to carry some maxSpeed from the moment the agent exists, and taking
         // it from anywhere else would make registration-time speed and steady-state speed two
         // different facts.
-        _creatureAgents[creature.Guid] = _crowd.AddAgent(ToRc(creature.Position), CreatureParams(radius, creature.Speed));
+        _creatureAgents[creature.Guid] = _crowd.AddAgent(ToRc(creature.Position), CreatureParams(radius, CreatureSpeed.Of(creature)));
         _creatures[creature.Guid] = creature;
     }
 
@@ -184,7 +184,7 @@ public sealed class CrowdLocomotion : IPlayerAwareLocomotion
 
     public void Update(TimeSpan deltaTime)
     {
-        // Before the crowd steps, not after: creature.Speed is the single authority on how fast a
+        // Before the crowd steps, not after: creature.Speed, times its aura speed factor, is the single authority on how fast a
         // creature moves and the calling script may have changed it earlier in this very tick
         // (CreatureCombatScript sets SpeedRun, CreaturePatrolScript sets SpeedWalk — both after
         // Register has long since run). Reading it here rather than freezing it at registration is
@@ -194,7 +194,7 @@ public sealed class CrowdLocomotion : IPlayerAwareLocomotion
         foreach ((ObjectGuid guid, DtCrowdAgent agent) in _creatureAgents)
         {
             if (_creatures.TryGetValue(guid, out ICreature? moving))
-                agent.option.maxSpeed = moving.Speed;
+                agent.option.maxSpeed = CreatureSpeed.Of(moving);
         }
 
         _crowd.Update((float)deltaTime.TotalSeconds, null);

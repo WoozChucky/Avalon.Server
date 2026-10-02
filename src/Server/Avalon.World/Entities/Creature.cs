@@ -2,6 +2,7 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Auras;
 using Avalon.World.Creatures;
@@ -78,25 +79,6 @@ public class Creature : ICreature
     /// </summary>
     public uint BaseMaxHealth { get; init; }
 
-    /// <summary>
-    /// Sets the maximum to the base times <paramref name="factor" />, rounded, at least 1, and keeps the share of the
-    /// pool it had (<see cref="CharacterStatsCalculator.KeepShare" />), so a living creature stays alive. A creature at
-    /// 0 health is never rescaled (#672: a corpse stays dead). World-side, not on ICreature: no mod scales health.
-    /// </summary>
-    public void Rescale(double factor)
-    {
-        if (BaseMaxHealth == 0 || CurrentHealth == 0 || !double.IsFinite(factor) || factor <= 0)
-            return;
-
-        double scaled = Math.Round(BaseMaxHealth * factor, MidpointRounding.AwayFromZero);
-        uint max = scaled >= uint.MaxValue ? uint.MaxValue : Math.Max(1u, (uint)scaled);
-        if (max == Health)
-            return;
-
-        CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, Health, max);
-        Health = max;
-    }
-
     // What combat resolves this creature's hits with (#506), fixed at spawn by CreatureSpawner from
     // CreatureStatDeriver. World-side and init-only, deliberately not on ICreature: the modding API
     // cannot change a creature's defences. A /reload creatures reaches only creatures spawned after it.
@@ -126,7 +108,7 @@ public class Creature : ICreature
     public float HasteCap { get; init; } = 50f;
 
     /// <summary>
-    /// Haste in percentage points (#627), 0 until an effect sets it; nothing does yet. World-side, deliberately
+    /// Haste in percentage points (#627), 0 until an effect sets it; set by its auras. World-side, deliberately
     /// not on ICreature: the modding API cannot change how fast a creature swings (#622). A change applies from
     /// the next swing; the countdown in progress keeps running.
     /// </summary>
@@ -136,11 +118,81 @@ public class Creature : ICreature
     public float SwingInterval => Haste.Scale(BaseAttackTime, MathF.Min(HastePct, HasteCap));
 
     /// <summary>
-    /// What this creature attacks with (#506): its level, its crit, and its natural damage range in place of a
-    /// weapon (#163), which an ability's BaseDamageCoefficient rolls. No damage stats: AttackDamage and
-    /// AbilityDamage are 0.
+    /// What this creature's auras add to its stats (auras), set by the aura system whenever they change. World-side,
+    /// deliberately not on ICreature: no mod can change a creature's stats.
     /// </summary>
-    internal AttackerCombat Combat => new(Level, 0, 0, CritPct, DamageMin, DamageMax);
+    public AuraStatTotals AuraTotals { get; private set; } = AuraStatTotals.Empty;
+
+    /// <summary>The combat formula's movement floor and cap when this creature spawned, in percentage points.</summary>
+    public float MoveSpeedFloor { get; init; } = -50f;
+
+    public float MoveSpeedCap { get; init; } = 35f;
+
+    // The party scaling its maximum health was last given, which the health aura composes with.
+    private double _healthFactor = 1d;
+
+    /// <summary>
+    /// Takes the auras' totals: its haste (from none, since nothing else sets one) and its maximum health; its attack,
+    /// defence and speed read them as they go.
+    /// </summary>
+    public void ApplyAuraStats(AuraStatTotals totals)
+    {
+        AuraTotals = totals;
+        HastePct = AuraStats.Apply(0f, totals, AuraStat.HastePct);
+        RecomputeMaxHealth();
+    }
+
+    /// <summary>
+    /// What its walking speed is multiplied by: 1 + its aura movement points, bounded like a character's by the floor and
+    /// cap it spawned with. The script keeps setting Speed from its template; both locomotions read this on top.
+    /// </summary>
+    public float SpeedFactor
+    {
+        get
+        {
+            float points = AuraStats.Apply(0f, AuraTotals, AuraStat.MovementSpeed);
+            return 1f + MathF.Min(MathF.Max(points, MoveSpeedFloor), MoveSpeedCap) / 100f;
+        }
+    }
+
+    /// <summary>
+    /// Sets the maximum to the base times <paramref name="factor" />, rounded, at least 1, with its health aura on top,
+    /// and keeps the share of the pool it had (<see cref="CharacterStatsCalculator.KeepShare" />), so a living creature
+    /// stays alive. A creature at 0 health is never rescaled (#672: a corpse stays dead). World-side, not on ICreature:
+    /// no mod scales health.
+    /// </summary>
+    public void Rescale(double factor)
+    {
+        if (!double.IsFinite(factor) || factor <= 0)
+            return;
+
+        _healthFactor = factor;
+        RecomputeMaxHealth();
+    }
+
+    private void RecomputeMaxHealth()
+    {
+        if (BaseMaxHealth == 0 || CurrentHealth == 0)
+            return;
+
+        double scaled = Math.Round(BaseMaxHealth * _healthFactor, MidpointRounding.AwayFromZero);
+        uint factored = scaled >= uint.MaxValue ? uint.MaxValue : Math.Max(1u, (uint)scaled);
+        uint max = Math.Max(1u, AuraStats.Apply(factored, AuraTotals, AuraStat.MaxHealth));
+        if (max == Health)
+            return;
+
+        CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, Health, max);
+        Health = max;
+    }
+
+    /// <summary>
+    /// What this creature attacks with (#506): its level, its crit, and its natural damage range in place of a weapon
+    /// (#163), with its auras folded in.
+    /// </summary>
+    internal AttackerCombat Combat => AuraStats.Fold(new AttackerCombat(Level, 0, 0, CritPct, DamageMin, DamageMax), AuraTotals);
+
+    /// <summary>What this creature defends with (#506), its auras folded in.</summary>
+    internal DefenderCombat Defence => AuraStats.Fold(new DefenderCombat(Armor, DodgePct, BlockPct), AuraTotals);
 
     /// <summary>
     /// The abilities this creature fights with (#163), loaded by its script when it attaches. World-side,
@@ -153,9 +205,6 @@ public class Creature : ICreature
     /// they never save.
     /// </summary>
     public UnitAuras Auras { get; } = new();
-
-    /// <summary>What this creature defends with (#506).</summary>
-    internal DefenderCombat Defence => new(Armor, DodgePct, BlockPct);
 
     public AiScript? Script { get; set; }
 
