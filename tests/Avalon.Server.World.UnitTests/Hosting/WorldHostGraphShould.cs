@@ -127,6 +127,17 @@ public class WorldHostGraphShould
                 host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>()));
             Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(ActivatorUtilities.CreateInstance(
                 host.Services, typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
+            // The maintenance coordinator applies its state on the tick only, so it holds the same guard; and the
+            // entry checks reach the select and the final spawn, which would otherwise admit anyone.
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(
+                host.Services.GetRequiredService<Avalon.World.Maintenance.WorldMaintenanceCoordinator>()));
+            Assert.NotNull(CapturedOfType<Avalon.World.Maintenance.IWorldEntryGate>(ActivatorUtilities.CreateInstance(
+                host.Services, typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
+            Assert.NotNull(CapturedOfType<Avalon.World.Maintenance.IWorldEntryGate>(ActivatorUtilities.CreateInstance(
+                host.Services, typeof(Avalon.World.Handlers.CharacterLoadedHandler))));
+            Assert.Same(host.Services.GetRequiredService<Avalon.World.Maintenance.WorldMaintenanceCoordinator>(),
+                CapturedOfType<Avalon.World.Maintenance.WorldMaintenanceCoordinator>(ActivatorUtilities.CreateInstance(
+                    host.Services, typeof(Avalon.World.Handlers.CharacterLoadedHandler))));
 
             // The chat rate limit (#722): one singleton, with the shipped default from appsettings.json.
             Assert.Same(host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>(),
