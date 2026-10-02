@@ -262,6 +262,57 @@ public class AuraTickShould
         Assert.Equal(AuraApplyResult.Applied, helpful);
     }
 
+    /// <summary>
+    /// A tick whose report throws has still taken its points: the carry it left is kept, the rest of the pass still ticks,
+    /// and a throw on every pass stops none of the later ones.
+    /// </summary>
+    [Fact]
+    public void Keep_the_carry_of_a_tick_that_threw_and_tick_the_rest_of_the_pass()
+    {
+        _h.Use(AuraTestData.Bleed(), new AuraTemplate
+        {
+            Id = new AuraId(907), Name = "Graze", Icon = "graze", Kind = AuraKind.Harmful, DurationMs = 12000,
+            TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 10f,
+            Stacking = AuraStacking.Refresh, MaxStacks = 1,
+        });
+        Creature thrower = _h.Creature(910_915);
+        Creature other = _h.Creature(910_916);
+        _h.Auras.Apply(_h.Player(910_119), thrower, new AuraId(907), AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_120), other, Bleed, AuraSource.None);
+        _h.Outcomes
+            .When(o => o.PeriodicTick(Arg.Any<IUnit?>(), thrower, Arg.Any<uint>(), Arg.Any<AuraId>(), Arg.Any<HitResult>(),
+                Arg.Any<bool>()))
+            .Do(_ => throw new InvalidOperationException("report failed"));
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(998u, thrower.CurrentHealth);   // 2.5: 2 dealt before the report threw
+        Assert.Equal(0.5d, Assert.Single(thrower.Auras.All).PeriodicCarry, 6);
+        Assert.Equal(997u, other.CurrentHealth);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(995u, thrower.CurrentHealth);   // 2.5 + 0.5 carried: 3
+        Assert.Equal(994u, other.CurrentHealth);
+    }
+
+    /// <summary>A heal over time on a unit at full health restores nothing and reports nothing.</summary>
+    [Fact]
+    public void Restore_and_report_nothing_on_a_unit_at_full_health()
+    {
+        CharacterEntity healer = _h.Player(910_121);
+        CharacterEntity friend = _h.Player(910_122);
+        _h.Auras.Apply(healer, friend, Renew, AuraSource.None);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(500u, friend.CurrentHealth);
+        _h.Outcomes.DidNotReceiveWithAnyArgs().PeriodicTick(default, default!, default, default!, default, default);
+    }
+
     /// <summary>The tick path: no unit holding an aura costs nothing (#640).</summary>
     [Fact]
     public void Allocate_nothing_while_no_unit_holds_an_aura()

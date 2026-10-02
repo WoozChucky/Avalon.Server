@@ -55,6 +55,9 @@ public sealed class AuraSystem
     private readonly List<IUnit> _holders = [];
     private readonly List<ActiveAura> _working = [];
 
+    // A tick that throws, logged at most once per ThrottledErrorLog.Interval for each aura.
+    private readonly Dictionary<uint, ThrottledErrorLog> _tickFailures = [];
+
     /// <param name="characters">The instance's characters, the dictionary itself, so a tick walks it without allocating.</param>
     /// <param name="creatures">The instance's creatures, likewise.</param>
     /// <param name="catalog">The current aura catalog (StaticData.Auras), read once per update and once per application.</param>
@@ -174,8 +177,11 @@ public sealed class AuraSystem
     /// creatures), a dead unit loses them all; a creature walking home loses its harmful ones; then each aura, in the
     /// order applied, expires if its template is no longer loaded, takes every tick it is owed at the clock's now (a late
     /// pass catches up, never more than the aura has left), ends if its script asked, and expires once its time is up,
-    /// after its last tick. A tick that kills its unit ends every aura it holds and ticks nothing more on it. Allocates
-    /// nothing while no unit holds an aura.
+    /// after its last tick. A tick that kills its unit ends every aura it holds and ticks nothing more on it. After a
+    /// stall, each aura's owed ticks are paid together, aura by aura in the order they were applied, not interleaved by
+    /// their times (the balance simulator ticks every frame and never catches up, so the two agree). A tick that throws
+    /// is logged (throttled per aura) and keeps the fraction it carried; the pass goes on with the next aura and the
+    /// next unit. Allocates nothing while no unit holds an aura.
     /// </summary>
     public void Update()
     {
@@ -217,44 +223,71 @@ public sealed class AuraSystem
 
         _working.Clear();
         _working.AddRange(auras.All);
-        foreach (ActiveAura aura in _working)
+        try
         {
-            if (!auras.Contains(aura))
-                continue;
-
-            if (!catalog.TryGet(aura.Id, out _))
+            foreach (ActiveAura aura in _working)
             {
-                Remove(unit, aura, AuraRemoveReason.Expired);
-                continue;
+                if (!auras.Contains(aura))
+                    continue;
+
+                try
+                {
+                    if (!UpdateAura(unit, auras, aura, now, catalog))
+                        break;
+                }
+                catch (Exception e)
+                {
+                    TickFailed(aura, e);
+                }
             }
+        }
+        finally
+        {
+            _working.Clear();
+        }
+    }
 
-            int due = aura.Schedule.Due(now);
-            for (int k = 0; k < due; k++)
-            {
-                aura.Schedule = aura.Schedule.AfterTicks(1);
-                Tick(unit, aura, lastTick: aura.Schedule.TicksLeft == 0);
-                if (IsDead(unit) || !auras.Contains(aura) || aura.ScriptEnded)
-                    break;
-            }
-
-            // A killing tick ends every aura and ticks nothing more on the unit; removing is idempotent, so a death
-            // already reported for it is no matter.
-            if (IsDead(unit))
-            {
-                RemoveAll(unit, AuraRemoveReason.Death);
-                break;
-            }
-
-            if (!auras.Contains(aura))
-                continue;
-
-            if (aura.ScriptEnded)
-                Remove(unit, aura, AuraRemoveReason.Script);
-            else if (aura.Schedule.Expired(now))
-                Remove(unit, aura, AuraRemoveReason.Expired);
+    /// <summary>One aura's pass; false once its unit is dead, so nothing more on it ticks.</summary>
+    private bool UpdateAura(IUnit unit, UnitAuras auras, ActiveAura aura, DateTimeOffset now, AuraCatalog catalog)
+    {
+        if (!catalog.TryGet(aura.Id, out _))
+        {
+            Remove(unit, aura, AuraRemoveReason.Expired);
+            return true;
         }
 
-        _working.Clear();
+        int due = aura.Schedule.Due(now);
+        for (int k = 0; k < due; k++)
+        {
+            aura.Schedule = aura.Schedule.AfterTicks(1);
+            Tick(unit, aura, lastTick: aura.Schedule.TicksLeft == 0);
+            if (IsDead(unit) || !auras.Contains(aura) || aura.ScriptEnded)
+                break;
+        }
+
+        // A killing tick ends every aura and ticks nothing more on the unit; removing is idempotent, so a death
+        // already reported for it is no matter.
+        if (IsDead(unit))
+        {
+            RemoveAll(unit, AuraRemoveReason.Death);
+            return false;
+        }
+
+        if (!auras.Contains(aura))
+            return true;
+
+        if (aura.ScriptEnded)
+            Remove(unit, aura, AuraRemoveReason.Script);
+        else if (aura.Schedule.Expired(now))
+            Remove(unit, aura, AuraRemoveReason.Expired);
+        return true;
+    }
+
+    private void TickFailed(ActiveAura aura, Exception e)
+    {
+        if (!_tickFailures.TryGetValue(aura.Id.Value, out ThrottledErrorLog? log))
+            _tickFailures[aura.Id.Value] = log = new ThrottledErrorLog(_logger, _time, $"aura {aura.Id.Value} tick");
+        log.Failed(e);
     }
 
     /// <summary>
@@ -267,17 +300,23 @@ public sealed class AuraSystem
             aura.Snapshot.PerTickPerStack * aura.Stacks, aura.Snapshot, aura.Source);
 
         double carry = aura.PeriodicCarry;
-        switch (aura.Template.PeriodicKind)
+        try
         {
-            case AuraPeriodicKind.Damage:
-                _combat.ApplyPeriodicDamage(hit, ref carry, lastTick);
-                break;
-            case AuraPeriodicKind.Heal:
-                _combat.ApplyPeriodicHeal(hit, ref carry, lastTick);
-                break;
+            switch (aura.Template.PeriodicKind)
+            {
+                case AuraPeriodicKind.Damage:
+                    _combat.ApplyPeriodicDamage(hit, ref carry, lastTick);
+                    break;
+                case AuraPeriodicKind.Heal:
+                    _combat.ApplyPeriodicHeal(hit, ref carry, lastTick);
+                    break;
+            }
         }
-
-        aura.PeriodicCarry = carry;
+        finally
+        {
+            // Written back even when the tick threw after taking its points, so they are never dealt twice.
+            aura.PeriodicCarry = carry;
+        }
     }
 
     /// <summary>The caster, only while it is alive in this instance: an aura outlives its caster, but its credit does not.</summary>
@@ -323,11 +362,23 @@ public sealed class AuraSystem
     /// <summary>Ends every harmful aura on <paramref name="unit" />, keeping its helpful ones.</summary>
     public void RemoveHarmful(IUnit unit, AuraRemoveReason reason)
     {
-        if (AuraHolders.Of(unit) is not { Count: > 0 } auras)
+        if (AuraHolders.Of(unit) is not { Count: > 0 } auras || !HoldsHarmful(auras))
             return;
 
         foreach (ActiveAura aura in auras.All.Where(a => a.Template.Kind == AuraKind.Harmful).ToArray())
             Remove(unit, aura, reason);
+    }
+
+    private static bool HoldsHarmful(UnitAuras auras)
+    {
+        IReadOnlyList<ActiveAura> all = auras.All;
+        for (int i = 0; i < all.Count; i++)
+        {
+            if (all[i].Template.Kind == AuraKind.Harmful)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>A character is dead by its flag, anything else at 0 health: the rule combat uses.</summary>
