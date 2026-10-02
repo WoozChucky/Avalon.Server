@@ -288,6 +288,31 @@ public class CharacterSelectChainShould : IDisposable
     }
 
     /// <summary>
+    /// The select sends its last packet before its final database steps, so a quick client reports the map loaded
+    /// while no spawn exists yet. That report is held, and the sweep after the spawn is armed releases it at once
+    /// rather than leaving the player to wait out the whole barrier.
+    /// </summary>
+    [Fact]
+    public void Release_a_load_report_that_landed_mid_select_on_the_next_sweep()
+    {
+        IWorld world = Substitute.For<IWorld>();
+        var loaded = new CharacterLoadedHandler(NullLogger<CharacterLoadedHandler>.Instance, world);
+        StartSelect();
+        Step(5);
+        Assert.Null(_connection.PendingSpawn);
+
+        loaded.Execute(_connection, new CCharacterLoadedPacket());
+        Step();
+        Assert.NotNull(_connection.PendingSpawn);
+
+        CharacterReadinessBarrier.ReleaseExpired([_connection], world, _connection.PendingSpawn!.SinceTicks,
+            TimeSpan.FromSeconds(15), NullLogger.Instance);
+
+        world.Received(1).SpawnInInstance(_connection, Arg.Any<IMapInstance>());
+        Assert.NotNull(_connection.Character);
+    }
+
+    /// <summary>
     /// A relog must not read the character before the previous session's despawn save commits, or
     /// the new session loads the inventory and money as they were before that save.
     /// </summary>

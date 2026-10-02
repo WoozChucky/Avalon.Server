@@ -82,7 +82,20 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     public long SelectStartedTicks => _selectStartedTicks;
 
-    public void BeginSelect(long nowTicks) => _selectStartedTicks = nowTicks;
+    public void BeginSelect(long nowTicks)
+    {
+        _selectStartedTicks = nowTicks;
+        _loadReportedEarly = false;
+    }
+
+    // Tick thread only, like the select state above.
+    private bool _loadReportedEarly;
+
+    /// <inheritdoc />
+    public bool LoadReportedEarly => _loadReportedEarly;
+
+    /// <inheritdoc />
+    public void NoteLoadReportedEarly() => _loadReportedEarly = true;
 
     public void CancelSelect() => _selectStartedTicks = 0;
 
@@ -124,6 +137,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
     {
         PendingSpawn? pending = _pendingSpawn;
         _pendingSpawn = null;
+        _loadReportedEarly = false;
         return pending;
     }
 

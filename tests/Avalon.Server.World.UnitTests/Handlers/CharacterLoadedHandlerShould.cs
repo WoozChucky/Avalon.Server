@@ -87,5 +87,22 @@ public class CharacterLoadedHandlerShould
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
         connection.DidNotReceiveWithAnyArgs().Close(default);
         Assert.Null(connection.Character);
+        Assert.False(connection.LoadReportedEarly);
+    }
+
+    /// <summary>
+    /// A report that lands while the select is still loading, before the spawn exists: held for the
+    /// barrier sweep rather than dropped, which used to cost the player the whole barrier.
+    /// </summary>
+    [Fact]
+    public void Hold_a_report_that_arrives_while_the_select_is_still_in_flight()
+    {
+        var (handler, connection, world, _, _) = Build(pending: false);
+        connection.BeginSelect(DateTime.UtcNow.Ticks);
+
+        handler.Execute(connection, new CCharacterLoadedPacket());
+
+        world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+        Assert.True(connection.LoadReportedEarly);
     }
 }

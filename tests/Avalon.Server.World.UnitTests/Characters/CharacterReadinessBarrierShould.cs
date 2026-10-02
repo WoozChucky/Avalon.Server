@@ -45,6 +45,30 @@ public class CharacterReadinessBarrierShould
         Assert.NotNull(connection.PendingSpawn);
     }
 
+    /// <summary>
+    /// The select sends its last packet several database round trips before it arms the spawn, so a
+    /// quick client's report can land first. That report is held, and the next sweep honours it rather
+    /// than leaving the player waiting out the whole barrier.
+    /// </summary>
+    [Fact]
+    public void Spawn_at_once_a_character_whose_load_report_arrived_before_the_spawn_was_armed()
+    {
+        long now = DateTime.UtcNow.Ticks;
+        ICharacter character = PendingSpawnConnection.Character();
+        var instance = Substitute.For<IMapInstance>();
+        IWorldConnection connection = PendingSpawnConnection.Create();
+        connection.BeginSelect(now);
+        connection.NoteLoadReportedEarly();
+        connection.SetPendingSpawn(character, instance, now);
+        IWorld world = Substitute.For<IWorld>();
+
+        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, Timeout, NullLogger.Instance);
+
+        world.Received(1).SpawnInInstance(connection, instance);
+        Assert.Same(character, connection.Character);
+        Assert.False(connection.LoadReportedEarly);
+    }
+
     [Fact]
     public void Spawn_a_character_whose_barrier_has_expired()
     {

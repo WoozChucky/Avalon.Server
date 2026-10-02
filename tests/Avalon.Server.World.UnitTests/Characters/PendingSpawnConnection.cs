@@ -51,7 +51,14 @@ internal static class PendingSpawnConnection
         long selectStarted = 0;
         connection.SelectStartedTicks.Returns(_ => selectStarted);
         connection.SelectInProgress.Returns(_ => selectStarted != 0);
-        connection.When(c => c.BeginSelect(Arg.Any<long>())).Do(ci => selectStarted = ci.Arg<long>());
+        bool reportedEarly = false;
+        connection.LoadReportedEarly.Returns(_ => reportedEarly);
+        connection.When(c => c.NoteLoadReportedEarly()).Do(_ => reportedEarly = true);
+        connection.When(c => c.BeginSelect(Arg.Any<long>())).Do(ci =>
+        {
+            selectStarted = ci.Arg<long>();
+            reportedEarly = false;
+        });
         connection.When(c => c.CancelSelect()).Do(_ => selectStarted = 0);
 
         PendingSpawn? held = pending;
@@ -60,6 +67,7 @@ internal static class PendingSpawnConnection
         {
             PendingSpawn? taken = held;
             held = null;
+            reportedEarly = false;
             return taken;
         });
         connection

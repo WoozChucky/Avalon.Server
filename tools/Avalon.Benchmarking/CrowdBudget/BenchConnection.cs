@@ -51,6 +51,8 @@ internal sealed class BenchConnection(CharacterEntity character) : IWorldConnect
     public Task CloseAsync(bool expected = true) => throw new NotSupportedException();
     public Task StartAsync(CancellationToken token = default) => throw new NotSupportedException();
     public void BeginSelect(long nowTicks) => throw new NotSupportedException();
+    public bool LoadReportedEarly => throw new NotSupportedException();
+    public void NoteLoadReportedEarly() => throw new NotSupportedException();
     public void CancelSelect() => throw new NotSupportedException();
     public void SetPendingSpawn(ICharacter character, IMapInstance instance, long sinceTicks) => throw new NotSupportedException();
     public PendingSpawn? TakePendingSpawn() => throw new NotSupportedException();
