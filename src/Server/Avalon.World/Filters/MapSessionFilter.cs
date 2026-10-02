@@ -40,6 +40,7 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_LOOT_PICKUP => true,
             NetworkPacketType.CMSG_ITEM_MOVE => true,
             NetworkPacketType.CMSG_ITEM_DESTROY => true,
+            NetworkPacketType.CMSG_ITEM_USE => true,
             NetworkPacketType.CMSG_VENDOR_BUY => true,
             NetworkPacketType.CMSG_VENDOR_SELL => true,
             NetworkPacketType.CMSG_VENDOR_BUYBACK => true,

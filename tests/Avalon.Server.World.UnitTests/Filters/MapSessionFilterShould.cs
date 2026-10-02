@@ -124,6 +124,14 @@ public class MapSessionFilterShould
     }
 
     [Fact]
+    public void Accept_an_item_use_for_a_character_on_a_map_and_none_without_one()
+    {
+        Assert.True(For(CharacterOnMap()).CanProcess(NetworkPacketType.CMSG_ITEM_USE));
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_ITEM_USE));
+        Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_ITEM_USE));
+    }
+
+    [Fact]
     public void Accept_Vendor_Requests_For_A_Character_On_A_Map()
     {
         MapSessionFilter filter = For(CharacterOnMap());
