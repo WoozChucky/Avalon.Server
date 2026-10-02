@@ -168,6 +168,14 @@ public static class InventoryMove
     public static uint MaxStack(ItemTemplate template) => Math.Max(1u, template.MaxStackSize);
 
     /// <summary>
+    /// Whether a whole <paramref name="item" /> may be worn in <paramref name="slot" /> (an Equipment slot): the check a
+    /// move into Equipment makes. Item use asks it before moving an off-hand item out for a two-hander, so a refusal
+    /// moves nothing.
+    /// </summary>
+    public static ItemRequestResult CanWear(CharacterEntity character, ItemTemplate? template, InventoryItem item, SlotRef slot) =>
+        CanGo(character, template, item, slot);
+
+    /// <summary>
     /// Whether a whole <paramref name="item" /> may go to <paramref name="destination" />. Anything
     /// may go to the Bag or the Bank. Equipment takes one item of a template whose slot fits, and
     /// never an item whose template is gone.
