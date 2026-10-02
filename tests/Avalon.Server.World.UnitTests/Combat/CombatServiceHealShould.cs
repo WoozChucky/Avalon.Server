@@ -1,10 +1,12 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Units;
 using NSubstitute;
 using Xunit;
 
@@ -150,5 +152,35 @@ public class CombatServiceHealShould
         float expected = _config.InitialThreatSeed + 20 * 0.5f * ClassThreatModifier.Get(healer.Class) / 2;
         Assert.Equal(expected, encounter.GetThreatList(wolf)[healer], 3);
         Assert.Equal(expected, encounter.GetThreatList(boar)[healer], 3);
+    }
+
+    /// <summary>Item use (owner decision 8): a fixed amount, capped, reported, adding no threat and joining no encounter.</summary>
+    [Fact]
+    public void Restore_an_items_heal_capped_and_report_what_it_restored()
+    {
+        var outcomes = Substitute.For<ICombatOutcomes>();
+        var combat = new CombatService(_config, _registry, outcomes: outcomes);
+        CharacterEntity user = Wounded(1, max: 100, current: 80);
+
+        uint restored = combat.RestoreHealth(user, user, 30);
+
+        Assert.Equal(20u, restored);
+        Assert.Equal(100u, user.CurrentHealth);
+        outcomes.Received(1).UnitHealed(user, user, 20u, null, HitResult.None);
+        Assert.Null(_registry.FindEncounterContaining(user));
+    }
+
+    [Fact]
+    public void Restore_nothing_to_a_dead_character_or_one_at_full_health()
+    {
+        var outcomes = Substitute.For<ICombatOutcomes>();
+        var combat = new CombatService(_config, _registry, outcomes: outcomes);
+        CharacterEntity dead = Wounded(1, max: 100, current: 0);
+        dead.IsDead = true;
+        CharacterEntity full = Wounded(2, max: 100, current: 100);
+
+        Assert.Equal(0u, combat.RestoreHealth(dead, dead, 30));
+        Assert.Equal(0u, combat.RestoreHealth(full, full, 30));
+        outcomes.DidNotReceiveWithAnyArgs().UnitHealed(default!, default!, default, default, default);
     }
 }

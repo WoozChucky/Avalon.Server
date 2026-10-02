@@ -361,6 +361,28 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             enc.AddThreat(h, healer, perHostile);
     }
 
+    /// <summary>
+    /// An item's heal (item use, 2026-10-02): a fixed <paramref name="amount" />, with no stat scaling and no crit,
+    /// never raising health past the maximum nor lowering health above it (#548), and never healing the dead. It adds
+    /// no heal threat and touches no encounter (owner decision 8). A heal that restored more than 0 is reported to this service's
+    /// instance like an ability's, with no ability id. Answers the health restored. World-side: not on ICombatService.
+    /// </summary>
+    public uint RestoreHealth(IUnit healer, IUnit target, uint amount)
+    {
+        bool dead = target is ICharacter { IsDead: true } || target.CurrentHealth == 0;
+        if (dead) return 0;
+
+        uint before = target.CurrentHealth;
+        uint after = HealRules.After(before, target.Health, amount);
+        target.CurrentHealth = after;
+
+        uint restored = after > before ? after - before : 0;
+        if (restored > 0)
+            _outcomes?.UnitHealed(healer, target, restored, abilityId: null, HitResult.None);
+
+        return restored;
+    }
+
     public void ApplyTaunt(IUnit caster, IUnit target, uint durationMs)
     {
         if (target is not ICreature creature) return;
