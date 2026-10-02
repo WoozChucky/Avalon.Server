@@ -113,6 +113,7 @@ public class ScriptCatalogShould
         Assert.Equal(manager.AbilityScriptNames, snapshot.Ability);
         Assert.Equal(manager.QuestScriptNames, snapshot.Quest);
         Assert.Equal(manager.ItemScriptNames, snapshot.Item);
+        Assert.Equal(manager.AuraScriptNames, snapshot.Aura);
         Assert.DoesNotContain(nameof(KitCombatScript), snapshot.Ai);
     }
 

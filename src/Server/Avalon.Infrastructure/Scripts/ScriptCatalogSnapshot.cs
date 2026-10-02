@@ -12,13 +12,16 @@ namespace Avalon.Infrastructure.Scripts;
 /// <param name="Quest">Quest scripts: the names a quest may use.</param>
 /// <param name="Item">Item scripts (item use): the names an item template's UseScript may use. Null in a value written
 /// by a world built before item use, whose item saves are then left unchecked.</param>
+/// <param name="Aura">Aura scripts: the names an aura template's ScriptName may use. Null in a value written by a world
+/// built before auras, whose aura saves are then left unchecked.</param>
 public sealed record ScriptCatalogSnapshot(
     IReadOnlyList<string> Ai,
     IReadOnlyList<string> Ability,
     IReadOnlyList<string> Quest,
-    IReadOnlyList<string>? Item = null);
+    IReadOnlyList<string>? Item = null,
+    IReadOnlyList<string>? Aura = null);
 
-/// <summary>The JSON form of a <see cref="ScriptCatalogSnapshot"/>: <c>{ "ai": [], "ability": [], "quest": [], "item": [] }</c>.</summary>
+/// <summary>The JSON form of a <see cref="ScriptCatalogSnapshot"/>: <c>{ "ai": [], "ability": [], "quest": [], "item": [], "aura": [] }</c>.</summary>
 public static class ScriptCatalogJson
 {
     public static readonly JsonSerializerOptions Options = new()
