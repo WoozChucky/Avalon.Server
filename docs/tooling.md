@@ -64,9 +64,9 @@ to catch.
 ## What is not in it
 
 `Avalon.Benchmarking` is a harness that owns its own `Main`; it does not belong behind an export
-subcommand. Chunk data is not exported either: hand-authored chunks and town layouts come from the
-Unity exporters, and the generated forest pieces from `tools/Avalon.ChunkGen`, both writing straight
-into `src/Server/Avalon.Server.World/Maps/`, and the World server seeds the database from there on
+subcommand. Chunk data is not exported either: `tools/Avalon.ChunkGen` generates the forest pieces and
+the town's squares straight into `src/Server/Avalon.Server.World/Maps/`, beside the chunk files and the town
+layout kept there as they are, and the World server seeds the database from there on
 start (see [map-generation.md](map-generation.md)). `Avalon.ChunkGen` stays a tool of its own because
 it writes the server's source data, the chunk catalog the World server reads, not an artifact derived
 for clients; how to run it is under "Generated forest chunks" in map-generation.md.

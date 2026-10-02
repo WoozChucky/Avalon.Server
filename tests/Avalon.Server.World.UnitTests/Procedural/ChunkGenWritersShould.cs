@@ -319,7 +319,7 @@ public class ChunkGenWritersShould
                 Assert.StartsWith("o ", lines[i - 1], StringComparison.Ordinal);
     }
 
-    /// <summary>Today's floor and walls: the same boxes the Unity exporter wrote (ReadTown in TownNpcPlacementShould reads them by name).</summary>
+    /// <summary>The town's floor and walls, by name (ReadTown in TownNpcPlacementShould reads them by name).</summary>
     [Fact]
     public void Reproduce_the_floor_and_wall_boxes_of_a_town_square()
     {

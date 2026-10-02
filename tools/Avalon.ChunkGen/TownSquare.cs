@@ -22,12 +22,21 @@ public static class Materials
     };
 }
 
+/// <summary>The side of a building its open face is on: a porch, a counter, a lean-to, the steps.</summary>
+public enum Facing { None, NegX, PosX, NegZ, PosZ }
+
 /// <summary>
 /// One solid shape of a town square, in chunk-local metres: part of a building or a prop. A walkable piece (a porch deck,
 /// a step) is a riser the navmesh climbs; everything else blocks.
 /// </summary>
 public abstract record TownPiece(string Building, string Part, Material Material, float Y0, float Top, bool Walkable)
 {
+    /// <summary>
+    /// Set on the one piece that is a building's open face, and only there. The client's camera is fixed at yaw 45,
+    /// south-west of what it looks at, so a front on the -X or -Z side is the one a player sees.
+    /// </summary>
+    public Facing Front { get; init; } = Facing.None;
+
     /// <summary>The footprint's axis-aligned bounds on X/Z.</summary>
     public abstract (float MinX, float MaxX, float MinZ, float MaxZ) Bounds { get; }
 
@@ -124,7 +133,7 @@ public sealed record GablePiece(
     public override (float X, float Z) Centre => ((MinX + MaxX) / 2f, (MinZ + MaxZ) / 2f);
 }
 
-/// <summary>One of today's wall boxes, 0 to <see cref="Height" /> m, named as the Unity exporter named it (Wall_N_L, ...).</summary>
+/// <summary>One of the town's wall boxes, 0 to <see cref="Height" /> m, named by its side (Wall_N_L, ...).</summary>
 public sealed record WallSegment(string Name, float MinX, float MaxX, float MinZ, float MaxZ)
 {
     public const float Height = 2f;
