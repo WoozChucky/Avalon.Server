@@ -16,8 +16,9 @@ namespace Avalon.World.Threading;
 /// <para>
 /// Compiled into every build and checked only while <see cref="Enabled" /> (owner decision): <c>Game:TickThreadGuard</c>
 /// turns it on when the world server starts (development), and the test assembly turns it on for itself. Off, each
-/// check costs one read of a static volatile flag. It throws rather than calling <c>Debug.Assert</c>, which ends the
-/// whole process (a test host included) instead of failing one call.
+/// check costs one read of a static volatile flag: about 1 ns a call, on or off, with no allocation
+/// (<c>TickThreadGuardBenchmarks</c>, docs/benchmarks.md). It throws rather than calling <c>Debug.Assert</c>, which ends
+/// the whole process (a test host included) instead of failing one call.
 /// </para>
 /// <para>
 /// Unbound, nothing is refused: before the tick starts (the world load), after it ends (the shutdown despawn, which
