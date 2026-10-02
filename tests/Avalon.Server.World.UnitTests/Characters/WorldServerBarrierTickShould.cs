@@ -197,6 +197,49 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     [Fact]
+    public void Run_the_maintenance_cutoff_on_the_container_clock()
+    {
+        // The container's clock is an hour ahead of the wall clock, and the deadline lies between the two: only a
+        // tick that reads the container's clock reaches it.
+        var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(DateTimeOffset.UtcNow.AddHours(1));
+        var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
+            Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
+            clock, NullLogger<WorldMaintenanceCoordinator>.Instance);
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) =
+            Build(coordinator: coordinator, clock: clock);
+        connection.AccountId = new AccountId(42);
+        coordinator.Offer(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(30)));
+
+        server.Tick();
+
+        Assert.True(connection.IsClosing);
+    }
+
+    [Fact]
+    public async Task Judge_an_entry_decision_on_the_container_clock_without_a_coordinator()
+    {
+        // Valid by the wall clock, expired by the container's: the release must refuse it.
+        var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(DateTimeOffset.UtcNow.AddHours(1));
+        var gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(new WorldEntryDecision(true, DateTime.UtcNow.AddMinutes(30)));
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate, clock: clock);
+        connection.AccountId = new AccountId(42);
+        connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
+            DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!connection.IsClosing && DateTime.UtcNow < deadline)
+        {
+            server.Tick();
+            await Task.Delay(10);
+        }
+
+        Assert.True(connection.IsClosing);
+        world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+    }
+
+    [Fact]
     public void Refuse_a_completed_entry_decision_after_its_five_second_lifetime()
     {
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
@@ -311,14 +354,14 @@ public class WorldServerBarrierTickShould : IDisposable
 
     private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(PartyService? parties = null,
         Avalon.World.Presence.PresenceCapture? presence = null, IWorldEntryGate? gate = null,
-        WorldMaintenanceCoordinator? coordinator = null)
+        WorldMaintenanceCoordinator? coordinator = null, TimeProvider? clock = null)
     {
         StaticData data = SeededData.Value;   // loaded outside Returns, which it would otherwise interrupt
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CharacterLoadTimeoutSeconds = 15 });
         world.Data.Returns(data);
 
-        var server = new TestWorldServer(world, parties, presence, gate, coordinator);
+        var server = new TestWorldServer(world, parties, presence, gate, coordinator, clock);
         var connection = new Avalon.World.WorldConnection(
             server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
         server.Add(connection);
@@ -330,10 +373,10 @@ public class WorldServerBarrierTickShould : IDisposable
     {
         public TestWorldServer(IWorld world, PartyService? parties = null,
             Avalon.World.Presence.PresenceCapture? presence = null, IWorldEntryGate? gate = null,
-            WorldMaintenanceCoordinator? coordinator = null) : base(
+            WorldMaintenanceCoordinator? coordinator = null, TimeProvider? clock = null) : base(
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
-            new AnyServiceProvider(presence),
+            new AnyServiceProvider(presence, clock),
             Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 }),
             world,
             Substitute.For<IScriptManager>(),
@@ -353,7 +396,8 @@ public class WorldServerBarrierTickShould : IDisposable
     /// The world server reflects over every packet handler in the assembly and activates each one,
     /// so standing it up needs a container that answers for all of their dependencies.
     /// </summary>
-    private sealed class AnyServiceProvider(Avalon.World.Presence.PresenceCapture? presence = null) : IServiceProvider
+    private sealed class AnyServiceProvider(Avalon.World.Presence.PresenceCapture? presence = null,
+        TimeProvider? clock = null) : IServiceProvider
     {
         private QuestService? _quests;
         private Avalon.World.Items.ItemUseService? _itemUses;
@@ -364,6 +408,9 @@ public class WorldServerBarrierTickShould : IDisposable
 
             // The presence capture (#639), only where a test hands one over; production registers it.
             if (serviceType == typeof(Avalon.World.Presence.PresenceCapture)) return presence;
+
+            // The container's clock: the one a test hands over, else the system clock, as production has a real one.
+            if (serviceType == typeof(TimeProvider)) return clock ?? TimeProvider.System;
 
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))

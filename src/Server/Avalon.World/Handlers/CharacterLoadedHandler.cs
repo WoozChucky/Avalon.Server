@@ -18,7 +18,8 @@ public class CharacterLoadedHandler(
     ILogger<CharacterLoadedHandler> logger,
     IWorld world,
     IWorldEntryGate? entryGate = null,
-    WorldMaintenanceCoordinator? maintenance = null) : WorldPacketHandler<CCharacterLoadedPacket>
+    WorldMaintenanceCoordinator? maintenance = null,
+    TimeProvider? clock = null) : WorldPacketHandler<CCharacterLoadedPacket>
 {
     public override void Execute(IWorldConnection connection, CCharacterLoadedPacket packet)
     {
@@ -46,7 +47,7 @@ public class CharacterLoadedHandler(
             CharacterReadinessBarrier.RequestRelease(connection, world, logger, entryGate,
                 () => logger.LogInformation(
                     "Character {CharacterName} entered the world for account {AccountId} at {Position}",
-                    characterName, connection.AccountId, connection.Character!.Position), maintenance);
+                    characterName, connection.AccountId, connection.Character!.Position), maintenance, clock);
             return;
         }
 

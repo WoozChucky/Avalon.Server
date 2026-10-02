@@ -154,6 +154,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly PresenceCapture? _presence;
     private readonly ThrottledErrorLog _presenceErrors;
     private readonly ThrottledErrorLog _maintenanceErrors;
+    // The container's clock, so the maintenance cutoff and the entry checks read one time.
+    private readonly TimeProvider _time;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -221,6 +223,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _presence = serviceProvider.GetService<PresenceCapture>();
         _presenceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The presence capture");
+        _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
         _maintenanceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The maintenance countdown");
         
@@ -558,7 +561,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // state the notification or the reconciliation offered from off the tick. Contained: the tick goes on.
         try
         {
-            _maintenanceCoordinator?.Advance(DateTime.UtcNow, conns);
+            _maintenanceCoordinator?.Advance(_time.GetUtcNow().UtcDateTime, conns);
         }
         catch (Exception e)
         {
@@ -579,7 +582,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         TimeSpan barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
 
         CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger,
-            _entryGate, _maintenanceCoordinator);
+            _entryGate, _maintenanceCoordinator, _time);
 
         // The other half of the same failure: a select that never reached a pending spawn at all,
         // so ReleaseExpired cannot see it. Sharing the timeout because both are "the select
