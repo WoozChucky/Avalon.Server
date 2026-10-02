@@ -76,11 +76,13 @@ acknowledgement. A connection with no character gets no answer at all.
 2. **The slot**: a Bag slot in range that holds an item, else `NotFound`.
 3. **The template**: an item whose template is gone is `NotUsable`.
 4. **Gear** (an item whose template `slot` is one that is worn) is equipped (section 5), and nothing else below is
-   asked: no cooldown, no cast check.
+   asked: no cooldown, no cast check. An equip that passes its checks first ends a running item cast bar, which is
+   answered `Interrupted`; a refused equip leaves the bar running.
 5. **A script** (`useScript` in the item catalog): none is `NotUsable`.
 6. **An ability cast in progress**: `AlreadyCasting`.
 7. **Cooldowns**: the item's own and its group's (`OnCooldown`, with the longer of the two as `CooldownMs`).
-8. **The item's own check**: a refusal is `Refused` with its line in `Message`.
+8. **The script cannot be found or built, or the character's instance cannot be found**: `InternalError`.
+9. **The item's own check**: a refusal is `Refused` with its line in `Message`.
 
 **Cooldowns.** An item rests for `useCooldownMs` after a use succeeds; items with the same `useCooldownGroup`
 share one rest (using one starts it for all of them). A refused, interrupted or failed use starts none. Cooldowns
@@ -94,7 +96,9 @@ class, two-handed weapons against the off hand) and the same refusals. An occupi
 into the clicked Bag slot. A ring takes the empty finger, else the first finger. A two-handed weapon with an
 off-hand item worn first moves that item to the lowest free Bag slot; with none free it is `TargetFull` and nothing
 moves (the clicked slot does not count as free). Equipping refreshes the character's stats as a drag does
-(a new `SMSG_CHARACTER_STATS` when a value it shows changed).
+(a new `SMSG_CHARACTER_STATS` when a value it shows changed). An equip that passes its checks ends a running item
+cast bar first: that use is answered `Interrupted`, then the equip `Ok`. A refused equip (`LevelTooLow`,
+`WrongClass`, ...) changes nothing, the bar included.
 
 **Any other item** runs its script. An item with no script is `NotUsable`.
 
@@ -118,8 +122,8 @@ All three go to every client near the caster. Draw a plain bar with the item's n
 `CastId` as for an ability (`docs/client-combat-protocol-migration.md`).
 
 **What interrupts it:** the character moving, dying or leaving the instance; using another item (gear included);
-casting an ability the server accepts. Using another scripted item interrupts only once that use has passed its
-checks, so a click on an item on cooldown leaves the bar running. Taking damage does not interrupt it. When the
+casting an ability the server accepts. Using another item interrupts only once that use has passed its checks, so a
+click on an item on cooldown, or on gear the character cannot wear, leaves the bar running. Taking damage does not interrupt it. When the
 bar ends, the same item must still be in the same Bag slot: one moved out of it, or sold or destroyed whole,
 meanwhile ends it as `Interrupted` (a stack that only lost part of its count is still the same item). The item's own check is asked again at the end and can still refuse (`Refused`). An interrupted use
 spends nothing and starts no cooldown.
@@ -129,10 +133,14 @@ spends nothing and starts no cooldown.
 Item scripts can do more than the seeded items do. What a client sees of each:
 
 - **A teleport** arrives with the usual `SMSG_MAP_TRANSITION` and `SMSG_CHUNK_LAYOUT`, as a portal entry does. When
-  its position had no walkable ground within 2 m across and 4 m up or down, the client gets `SMSG_MAP_TRANSITION`
+  its position had no walkable ground within 2 m horizontally and 4 m up or down, the client gets `SMSG_MAP_TRANSITION`
   with `Result` `NoWalkableGround` (7) and the character stays where it was; the item is already spent. A teleport
   into a party's instance can also be answered `MapNotFound` (the character left the party meanwhile) or
-  `InstanceFull`, as a portal entry can.
+  `InstanceFull`, as a portal entry can. When the destination instance cannot be built, no `SMSG_MAP_TRANSITION`
+  is sent at all, as for a portal entry or a respawn whose build fails, and the item is still spent.
+- **A move under way** (a Town Portal Scroll's return, a teleport, a respawn or a party's return to town) refuses a
+  portal entry meanwhile: `CMSG_ENTER_MAP` is answered `SMSG_MAP_TRANSITION` with `Result` `MoveInProgress` (8),
+  and the character stays where it was until the move under way arrives.
 - **A summoned creature** is an ordinary creature (added, updated, attacked, killed and looted as any other). If it
   is not killed it leaves view after its lifetime, 5 minutes unless the item says otherwise, on the instance's next
   tick once that time has passed; an instance nobody is in leaves it there until someone is.
@@ -153,4 +161,5 @@ Item scripts can do more than the seeded items do. What a client sees of each:
 Each consumes one item. Amounts are `floor(maximum × percent / 100)`, a fixed amount with no crit and no scaling,
 never above the maximum. The three potions share the `potion` cooldown: drinking any of them rests all three. The
 Town Portal Scroll can be read in combat; its reader leaves its fight on the way, and the scroll is spent once the
-move starts. The forest scrolls (items 9-11) have no use: they answer `NotUsable`.
+move starts. A reader who dies before arriving arrives in town revived, as a respawn would. While the return is
+under way a portal entry is refused with `MoveInProgress` (section 7). The forest scrolls (items 9-11) have no use: they answer `NotUsable`.
