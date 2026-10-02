@@ -221,6 +221,9 @@ sent.
 - **One name per world, whatever its case:** a name that differs from an existing character's only
   in case is `NameAlreadyExists` (1). Every lookup by name (`/w`, `/invite`, `/kick`, `/promote`,
   `/ignore`, `/unignore`) finds the character whatever case is typed.
+- **Renames through the REST API** (`PATCH /world/{worldId}/character/{id}`, `name`) follow the same
+  rule and stored form: a name that breaks the rule is a 400 validation error, and a name another
+  character holds in any case is a 400 "Name already taken".
 - **Other results:** `Success` (0), `InvalidClass` (4, also an undefined gender),
   `MaxCharactersReached` (5), `InternalDatabaseError` (7). `SCharacterCreateResult` is append-only.
 

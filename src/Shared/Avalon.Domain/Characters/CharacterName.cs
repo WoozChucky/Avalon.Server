@@ -13,6 +13,12 @@ public static class CharacterName
     public const int MinLength = 3;
     public const int MaxLength = 12;
 
+    /// <summary>The rule as a regular expression, for the REST request contract and its OpenAPI schema.</summary>
+    public const string Pattern = "^[A-Za-z]{3,12}$";
+
+    /// <summary>The message a name that breaks the rule gets from the REST API.</summary>
+    public const string Requirement = "Character name must be 3 to 12 letters A-Z only.";
+
     /// <summary>Why <paramref name="name" />, exactly as sent, breaks the rule, or <see cref="CharacterNameProblem.None" />.</summary>
     public static CharacterNameProblem Check(string? name)
     {
