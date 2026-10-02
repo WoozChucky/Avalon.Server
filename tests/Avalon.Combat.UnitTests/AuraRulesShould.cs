@@ -183,6 +183,42 @@ public class AuraRulesShould
         }
     }
 
+    /// <summary>0.4 a tick: nothing until the carry reaches a whole point, then the point; no minimum of 1.</summary>
+    [Fact]
+    public void Give_nothing_until_the_carry_reaches_a_whole_point()
+    {
+        double carry = 0d;
+
+        Assert.Equal(0u, AuraRules.TakeTick(0.4, ref carry, lastTick: false));
+        Assert.Equal(0u, AuraRules.TakeTick(0.4, ref carry, lastTick: false));
+        Assert.Equal(1u, AuraRules.TakeTick(0.4, ref carry, lastTick: false));
+        Assert.Equal(0.2, carry, precision: 6);
+    }
+
+    [Theory]
+    [InlineData(0.5, 1u)]
+    [InlineData(0.49, 0u)]
+    [InlineData(0.0, 0u)]
+    public void Round_the_leftover_on_the_last_tick_and_carry_nothing_on(double leftover, uint expected)
+    {
+        double carry = leftover;
+
+        Assert.Equal(expected, AuraRules.TakeTick(0d, ref carry, lastTick: true));
+        Assert.Equal(0d, carry);
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(-3d)]
+    public void Count_an_unreadable_or_negative_tick_as_nothing(double amount)
+    {
+        double carry = 0.25;
+
+        Assert.Equal(0u, AuraRules.TakeTick(amount, ref carry, lastTick: false));
+        Assert.Equal(0.25, carry);
+    }
+
     [Theory]
     [InlineData(AuraStacking.Stack, 1u, 3u, 2u)]
     [InlineData(AuraStacking.Stack, 3u, 3u, 3u)]

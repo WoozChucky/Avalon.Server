@@ -77,6 +77,26 @@ public static class AuraRules
         return new AuraSnapshot(total / ticks, caster.CritPct, (ushort)Math.Min(caster.Level, ushort.MaxValue));
     }
 
+    /// <summary>
+    /// The whole points one tick deals or heals: <paramref name="amount" /> (an unfloored
+    /// <see cref="HitResolver.ResolvePeriodic" /> or <see cref="HitResolver.ResolvePeriodicHeal" />) is added to the aura's
+    /// <paramref name="carry" /> and the whole points are taken out, as regeneration takes them
+    /// (<see cref="PowerRegen.TakeWholePoints" />), the fraction left for the next tick. There is no minimum of 1: a tick
+    /// below a point gives nothing until the carry reaches one. On the <paramref name="lastTick" /> the leftover is
+    /// rounded to the nearest point, a half up, and the carry emptied, so the ticks add up to the total rounded. An
+    /// amount that is not a finite value of 0 or more counts as nothing. The carry lives with the aura that ticks.
+    /// </summary>
+    public static uint TakeTick(double amount, ref double carry, bool lastTick)
+    {
+        double earned = double.IsFinite(amount) && amount > 0d ? amount : 0d;
+        uint whole = PowerRegen.TakeWholePoints(earned, ref carry);
+        if (!lastTick) return whole;
+
+        if (carry >= 0.5d && whole < uint.MaxValue) whole++;
+        carry = 0d;
+        return whole;
+    }
+
     /// <summary>The stacks after the aura is applied again: one more for a Stack aura, up to its cap; 1 otherwise.</summary>
     public static uint NextStacks(AuraStacking stacking, uint current, uint maxStacks) =>
         stacking == AuraStacking.Stack ? Math.Min(current + 1, Math.Max(1u, maxStacks)) : 1u;
