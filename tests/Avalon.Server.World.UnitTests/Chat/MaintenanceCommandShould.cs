@@ -111,7 +111,8 @@ public sealed class MaintenanceCommandShould
         control.SetAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(committed);
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1), repository,
-            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         var dispatcher = new CommandDispatcher([new MaintenanceCommand(new WorldId(1), repository, control, coordinator)],
             NullLogger<CommandDispatcher>.Instance);
 
@@ -142,7 +143,8 @@ public sealed class MaintenanceCommandShould
             _caller.Connection.AccountId.Returns(new AccountId(7));
             Coordinator = new WorldMaintenanceCoordinator(new WorldId(1), Repository,
                 Substitute.For<ICharacterSaver>(), TimeProvider.System,
-                NullLogger<WorldMaintenanceCoordinator>.Instance);
+                NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
             _dispatcher = new CommandDispatcher(
                 [new MaintenanceCommand(new WorldId(1), Repository, Control, Coordinator)],
                 NullLogger<CommandDispatcher>.Instance);

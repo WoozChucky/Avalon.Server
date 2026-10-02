@@ -143,7 +143,8 @@ public class ExchangeWorldKeyHandlerShould
 
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1), _maintenance,
             Substitute.For<ICharacterSaver>(), TimeProvider.System,
-            NullLogger<WorldMaintenanceCoordinator>.Instance);
+            NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, _clock.Now.UtcDateTime));
         var connection = Substitute.For<IWorldConnection, IAccessLevelAssignable, IMaintenanceBlockable>();
         connection.ServerCrypto.Returns(_serverCrypto);

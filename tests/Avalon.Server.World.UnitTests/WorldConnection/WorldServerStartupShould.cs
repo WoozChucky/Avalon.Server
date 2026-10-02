@@ -150,7 +150,8 @@ public class WorldServerStartupShould
         var repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>()).Returns(read.Task);
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
-            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         var server = new TestWorldServer(_world, _port, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         try
@@ -178,7 +179,8 @@ public class WorldServerStartupShould
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<WorldMaintenanceState?>(null));
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
-            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         var server = new TestWorldServer(_world, _port, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         try
@@ -191,6 +193,94 @@ public class WorldServerStartupShould
         finally
         {
             await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+        }
+    }
+
+    /// <summary>
+    /// The restart drain (#768) runs its countdown and cutoff on the tick (#639), so a stop keeps the tick running
+    /// until the drain ends: here, once the one non-Admin player left is an Admin. Only then does the stop go on.
+    /// </summary>
+    [Fact]
+    public async Task Keep_ticking_through_a_restart_drain_until_no_non_Admin_player_is_left()
+    {
+        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(false, 1, null));
+        var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Options.Create(new WorldShutdownConfiguration
+                { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
+        var server = new TestWorldServer(_world, _port, maintenance: coordinator);
+        await server.StartAsync(CancellationToken.None);
+        _load.SetResult();
+        await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+
+        (TcpClient clientSide, TcpClient serverSide) = LoopbackPair();
+        using (clientSide)
+        using (serverSide)
+        {
+            var player = new Avalon.World.WorldConnection(server, clientSide, NullLoggerFactory.Instance,
+                Substitute.For<IPacketReader>())
+            {
+                AccountId = new Avalon.Common.ValueObjects.AccountId(42),
+            };
+            server.Add(player);
+
+            Task stopping = server.StopAsync(CancellationToken.None);
+            await Task.Delay(200); // whatever the stop had left to do, it has had time to do it
+            Assert.False(stopping.IsCompleted, "the stop did not wait for the restart drain");
+
+            // Only the tick ends the drain this early: the stop's own wait runs to the deadline, a minute away.
+            ((IAccessLevelAssignable)player).AssignAccessLevel(Avalon.Common.Accounts.AccountAccessLevel.Admin);
+
+            await stopping.WaitAsync(Limit);
+            Assert.False(player.IsConnected, "the stop after the drain did not close the Admin");
+            await _world.Received(1).DeSpawnPlayerAsync(player);
+        }
+    }
+
+    /// <summary>
+    /// A host whose stop timeout has already run out cuts the drain short, and the close, the despawn and the save
+    /// still run for every connection, Admins included.
+    /// </summary>
+    [Fact]
+    public async Task Close_and_despawn_everyone_when_the_host_cuts_the_drain_short()
+    {
+        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
+            .Returns(new WorldMaintenanceState(false, 1, null));
+        var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Options.Create(new WorldShutdownConfiguration
+                { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
+        var server = new TestWorldServer(_world, _port, maintenance: coordinator);
+        await server.StartAsync(CancellationToken.None);
+        _load.SetResult();
+        await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+
+        (TcpClient playerClient, TcpClient playerServer) = LoopbackPair();
+        (TcpClient adminClient, TcpClient adminServer) = LoopbackPair();
+        using (playerClient)
+        using (playerServer)
+        using (adminClient)
+        using (adminServer)
+        {
+            var player = new Avalon.World.WorldConnection(server, playerClient, NullLoggerFactory.Instance,
+                Substitute.For<IPacketReader>()) { AccountId = new Avalon.Common.ValueObjects.AccountId(42) };
+            var admin = new Avalon.World.WorldConnection(server, adminClient, NullLoggerFactory.Instance,
+                Substitute.For<IPacketReader>()) { AccountId = new Avalon.Common.ValueObjects.AccountId(43) };
+            ((IAccessLevelAssignable)admin).AssignAccessLevel(Avalon.Common.Accounts.AccountAccessLevel.Admin);
+            server.Add(player);
+            server.Add(admin);
+
+            using var timedOut = new CancellationTokenSource();
+            await timedOut.CancelAsync();
+            await server.StopAsync(timedOut.Token).WaitAsync(Limit);
+
+            Assert.False(player.IsConnected, "the stop did not close the player");
+            Assert.False(admin.IsConnected, "the stop did not close the Admin");
+            await _world.Received(1).DeSpawnPlayerAsync(player);
+            await _world.Received(1).DeSpawnPlayerAsync(admin);
         }
     }
 
@@ -233,6 +323,17 @@ public class WorldServerStartupShould
         }
     }
 
+    private static (TcpClient clientSide, TcpClient serverSide) LoopbackPair()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var clientSide = new TcpClient();
+        clientSide.Connect(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port);
+        TcpClient serverSide = listener.AcceptTcpClient();
+        listener.Stop();
+        return (clientSide, serverSide);
+    }
+
     private static int FreePort()
     {
         var probe = new TcpListener(IPAddress.Loopback, 0);
@@ -255,7 +356,10 @@ public class WorldServerStartupShould
         hotReloader ?? Substitute.For<IScriptHotReloader>(),
         new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance),
         new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance),
-        maintenanceCoordinator: maintenance);
+        maintenanceCoordinator: maintenance)
+    {
+        public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
+    }
 
     /// <summary>
     /// The world server reflects over every packet handler in the assembly and activates each one,

@@ -35,6 +35,7 @@ using Avalon.World.Threading;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.World.Extensions;
@@ -61,6 +62,9 @@ public static class ServiceExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        // The restart drain (#768), and the host stop timeout that covers it.
+        services.AddWorldShutdown();
+
         services
             .AddAuthDatabase() //TODO: World should not depend on Auth database
             .AddCharacterDatabase()
@@ -86,6 +90,7 @@ public static class ServiceExtensions
             sp.GetRequiredService<ICharacterSaver>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<WorldMaintenanceCoordinator>>(),
+            sp.GetRequiredService<IOptions<WorldShutdownConfiguration>>(),
             sp.GetService<TickThreadGuard>()));
         services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
         services.AddSingleton<IScriptManager, ScriptManager>();
@@ -169,6 +174,24 @@ public static class ServiceExtensions
         services.AddSingleton<ReloadRequestHandler>();
         services.AddSingleton<ScriptCatalogPublisher>();
 
+        return services;
+    }
+
+    /// <summary>World:Shutdown (#768): the restart drain's options, required and validated, and the host stop timeout.</summary>
+    public static IServiceCollection AddWorldShutdown(this IServiceCollection services)
+    {
+        services
+            .AddOptions<WorldShutdownConfiguration>()
+            .BindConfiguration(WorldShutdownConfiguration.Section)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // The world host only: the host gives every service's stop this long in all, and its 30 s default would
+        // abandon a longer drain mid-countdown, and the close and the saves after it.
+        services
+            .AddOptions<HostOptions>()
+            .Configure<IOptions<WorldShutdownConfiguration>>((host, shutdown) =>
+                host.ShutdownTimeout = shutdown.Value.DrainTime + shutdown.Value.SaveMargin);
         return services;
     }
 }
