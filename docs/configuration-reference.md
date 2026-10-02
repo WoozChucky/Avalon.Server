@@ -179,6 +179,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `PartyExperienceLevelGap`        | int    | `5`        | A character this many levels or more above a creature gets no experience from it, in a party or solo. Range `1`–`1000` |
 | `MaxActiveQuests`                | int    | `20`       | How many quests a character may hold at once; an accept past it is answered `LogFull` (#433). Range `1`–`100` |
 | `MaxIgnoredCharacters`           | int    | `50`       | How many characters one character may ignore (#723); `/ignore` past it is refused with a system line. Range `1`–`500` |
+| `MaxAurasPerUnit`                | int    | `32`       | How many auras one unit may hold at once; a new aura past it is refused and logged (auras). Range `1`–`256` |
 | `ChatMessagesPerMinute`          | int    | `10`       | How many player chat messages one character may send in any sliding 60 seconds (#722). Plain chat, `/p`, `/w` and `/ignore` (#723) share the one budget; other commands (`/invite`, `/pvp`, ...) are not counted, and a message that is refused (unknown whisper target, not in a party, usage error) does not use any of it. A message over the limit is not delivered and the sender is told how many seconds to wait. `0` or below turns the limit off. The default is in `appsettings.json`, not in code |
 | `TickThreadGuard`                | bool   | `false`    | Turns on the tick-thread assertion (#639): instance membership, the instance registry's indexes, parties, who is online and ignore lists throw `InvalidOperationException` when changed from any thread but the world tick. For development and tests (set `Game__TickThreadGuard=true` in the environment of a local World server); off, each check costs one read of a flag. Read once, when the world server starts |
 
@@ -213,6 +214,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "PartyExperienceLevelGap": 5,
   "MaxActiveQuests": 20,
   "MaxIgnoredCharacters": 50,
+  "MaxAurasPerUnit": 32,
   "ChatMessagesPerMinute": 10
 }
 ```

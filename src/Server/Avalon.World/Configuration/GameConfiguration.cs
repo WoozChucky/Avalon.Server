@@ -208,6 +208,13 @@ public class GameConfiguration
     public int MaxIgnoredCharacters { get; set; } = 50;
 
     /// <summary>
+    /// How many auras one unit may hold at once (auras). Past it a new aura is refused and logged; one the unit already
+    /// holds still refreshes or stacks.
+    /// </summary>
+    [Range(1, 256)]
+    public int MaxAurasPerUnit { get; set; } = 32;
+
+    /// <summary>
     /// How many player chat messages one character may send in any 60 seconds (#722): plain chat, <c>/p</c> and
     /// <c>/w</c> share the one budget. Only a delivered message counts. 0 or below turns the limit off. The default
     /// is in <c>appsettings.json</c>.
