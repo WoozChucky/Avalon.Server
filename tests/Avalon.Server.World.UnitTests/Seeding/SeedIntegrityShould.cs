@@ -1174,4 +1174,34 @@ public class SeedIntegrityShould
 
         Assert.All(context.VendorStocks.AsNoTracking().ToList(), s => Assert.Null(s.RequiredQuestId));
     }
+
+    /// <summary>Item use (2026-10-02): the potions and the Town Portal Scroll are the seeded usable items.</summary>
+    [Theory]
+    [InlineData(1ul, "RestoreHealth", null, 30000u, "potion", 30u)]
+    [InlineData(2ul, "RestorePower", null, 30000u, "potion", 30u)]
+    [InlineData(3ul, "TownPortalScroll", 3000u, 30000u, null, null)]
+    [InlineData(56ul, "RestoreHealth", null, 30000u, "potion", 60u)]
+    public void Give_the_usable_items_their_use_data(
+        ulong id, string script, uint? castMs, uint? cooldownMs, string? group, uint? value)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+
+        Assert.Equal((script, castMs, cooldownMs, group, value),
+            (item.UseScript, item.UseCastTimeMs, item.UseCooldownMs, item.UseCooldownGroup, item.UseValue));
+    }
+
+    /// <summary>The forest scrolls (9-11) stay inert, and so does every other item: only the four above are usable.</summary>
+    [Fact]
+    public void Leave_every_other_item_without_a_use_script()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        ulong[] usable = context.ItemTemplates.AsNoTracking().ToList()
+            .Where(i => i.UseScript is not null).Select(i => i.Id.Value).Order().ToArray();
+
+        Assert.Equal([1ul, 2ul, 3ul, 56ul], usable);
+    }
 }

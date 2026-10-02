@@ -1319,7 +1319,11 @@ public class WorldDbContext : DbContext
                 Rarity = ItemRarity.Common,
                 BuyPrice = 10,
                 SellPrice = 5,
-                Slot = null
+                Slot = null,
+                UseScript = "RestoreHealth",
+                UseCooldownMs = 30000,
+                UseCooldownGroup = "potion",
+                UseValue = 30
             },
             new ItemTemplate
             {
@@ -1333,7 +1337,11 @@ public class WorldDbContext : DbContext
                 Rarity = ItemRarity.Common,
                 BuyPrice = 13,
                 SellPrice = 6,
-                Slot = null
+                Slot = null,
+                UseScript = "RestorePower",
+                UseCooldownMs = 30000,
+                UseCooldownGroup = "potion",
+                UseValue = 30
             },
             new ItemTemplate
             {
@@ -1347,7 +1355,10 @@ public class WorldDbContext : DbContext
                 Rarity = ItemRarity.Common,
                 BuyPrice = 100,
                 SellPrice = 50,
-                Slot = null
+                Slot = null,
+                UseScript = "TownPortalScroll",
+                UseCastTimeMs = 3000,
+                UseCooldownMs = 30000
             }, new ItemTemplate
             {
                 Id = 4,
@@ -1568,9 +1579,8 @@ public class WorldDbContext : DbContext
             StarterArmourPiece(54, "Wool Handwraps", CharacterClass.Healer, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
             StarterArmourPiece(55, "Wool Sandals", CharacterClass.Healer, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
 
-        // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. Its
-        // fields are the Health Potion's. ItemTemplate carries no potion effect and nothing uses a
-        // potion yet, so there is no effect of its own to seed.
+        // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. A use restores
+        // 60 % of the maximum health (item use), sharing the potions' cooldown.
         builder.HasData(new ItemTemplate
         {
             Id = 56,
@@ -1583,7 +1593,11 @@ public class WorldDbContext : DbContext
             Rarity = ItemRarity.Common,
             BuyPrice = 25,
             SellPrice = 12,
-            Slot = null
+            Slot = null,
+            UseScript = "RestoreHealth",
+            UseCooldownMs = 30000,
+            UseCooldownGroup = "potion",
+            UseValue = 60
         });
 
         SeedForestStorylineItems(builder);

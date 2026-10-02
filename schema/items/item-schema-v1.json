@@ -225,6 +225,31 @@
       "name": "StatValue10",
       "type": "uint32",
       "nullable": true
+    },
+    {
+      "name": "UseScript",
+      "type": "string",
+      "nullable": false
+    },
+    {
+      "name": "UseCastTimeMs",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
+      "name": "UseCooldownMs",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
+      "name": "UseCooldownGroup",
+      "type": "string",
+      "nullable": false
+    },
+    {
+      "name": "UseValue",
+      "type": "uint32",
+      "nullable": true
     }
   ],
   "enums": {
