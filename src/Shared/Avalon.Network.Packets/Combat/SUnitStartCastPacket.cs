@@ -36,7 +36,7 @@ public class SUnitStartCastPacket : Packet
     [ProtoMember(5)] public AbilityFootprintDto? Footprint { get; set; }
 
     /// <summary>
-    /// The item whose cast bar this is (item use, 2026-10-02), with <see cref="AbilityId" /> 0; 0 on an ability's cast.
+    /// The item whose cast bar this is (item use), with <see cref="AbilityId" /> 0; 0 on an ability's cast.
     /// The finish and the interrupt with this <see cref="CastId" /> carry it too.
     /// </summary>
     [ProtoMember(6)] public ulong ItemTemplateId { get; set; }

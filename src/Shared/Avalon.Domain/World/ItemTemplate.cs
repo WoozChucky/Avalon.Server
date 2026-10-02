@@ -91,7 +91,7 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     public uint? StatValue10 { get; set; }
 
     /// <summary>
-    /// The ItemScript a use runs (item use, 2026-10-02), by class name, or null for an item a use cannot run. An item
+    /// The ItemScript a use runs (item use), by class name, or null for an item a use cannot run. An item
     /// whose Slot is worn somewhere is equipped by a use instead and never runs one.
     /// </summary>
     public string? UseScript { get; set; }

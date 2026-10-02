@@ -19,6 +19,9 @@ internal static class TemplateFields
     private static T? ConvN<T>(Enum? from, T? type) where T : struct, Enum =>
         from is null ? null : (T)Enum.ToObject(typeof(T), from);
 
+    // An optional name left blank is no name: stored as null, as the world reads a blank script or group anyway.
+    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
     private static TemplateField<ItemTemplate, UpdateItemTemplateRequest> I(
         string name, Func<ItemTemplate, object?> get, Action<ItemTemplate, UpdateItemTemplateRequest> set) => new(name, get, set);
 
@@ -116,10 +119,10 @@ internal static class TemplateFields
         I("statValue9", e => e.StatValue9, (e, r) => e.StatValue9 = r.StatValue9),
         I("statType10", e => e.StatType10, (e, r) => e.StatType10 = ConvN(r.StatType10, e.StatType10)),
         I("statValue10", e => e.StatValue10, (e, r) => e.StatValue10 = r.StatValue10),
-        I("useScript", e => e.UseScript, (e, r) => e.UseScript = r.UseScript),
+        I("useScript", e => e.UseScript, (e, r) => e.UseScript = NullIfBlank(r.UseScript)),
         I("useCastTimeMs", e => e.UseCastTimeMs, (e, r) => e.UseCastTimeMs = r.UseCastTimeMs),
         I("useCooldownMs", e => e.UseCooldownMs, (e, r) => e.UseCooldownMs = r.UseCooldownMs),
-        I("useCooldownGroup", e => e.UseCooldownGroup, (e, r) => e.UseCooldownGroup = r.UseCooldownGroup),
+        I("useCooldownGroup", e => e.UseCooldownGroup, (e, r) => e.UseCooldownGroup = NullIfBlank(r.UseCooldownGroup)),
         I("useValue", e => e.UseValue, (e, r) => e.UseValue = r.UseValue),
     ];
 }

@@ -164,33 +164,10 @@ public sealed class TemplateEditService(
             if (errors.Any)
                 return Invalid<TRow>(errors); // Nothing was saved; the transaction rolls back on disposal.
 
-            Dictionary<string, string?> after = Snapshot(kind.Fields, row);
-            changes = kind.Fields
-                .Where(f => !string.Equals(before[f.Name], after[f.Name], StringComparison.Ordinal))
-                .Select(f => new TemplateChange(f.Name, before[f.Name], after[f.Name]))
-                .ToList();
+            changes = Changes(kind.Fields, before, Snapshot(kind.Fields, row));
 
-            try
-            {
-                if (changes.Count > 0)
-                    await db.SaveChangesAsync(ct);
-                await transaction.CommitAsync(ct);
-            }
-            catch (Exception ex) when (TemplateDbErrors.Postgres(ex) is { } pg)
-            {
-                if (pg.SqlState == PostgresErrorCodes.CheckViolation)
-                {
-                    logger.LogWarning(ex, "A {Kind} template save {TemplateId} was refused by a check constraint",
-                        kind.Name, id);
-                    errors.Add(TemplateDbErrors.FieldOf(pg), $"The database refused this value ({pg.ConstraintName}).");
-                    return Invalid<TRow>(errors);
-                }
-
-                if (pg.SqlState == PostgresErrorCodes.SerializationFailure)
-                    return new(TemplateEditOutcome.Conflict);
-
-                throw;
-            }
+            if (await CommitAsync<TRow>(db, transaction, kind.Name, id, changes.Count > 0, errors, ct) is { } refused)
+                return refused;
         }
 
         // One line per save, only the fields that changed. A save that changed nothing wrote nothing and says nothing.
@@ -202,6 +179,47 @@ public sealed class TemplateEditService(
         }
 
         return new(TemplateEditOutcome.Saved, row, await RequestReloadAsync(kind.Name, caller.World, kind.Area, ct));
+    }
+
+    /// <summary>The fields whose stored value the request changed, as the audit line names them.</summary>
+    private static List<TemplateChange> Changes<TRow, TRequest>(
+        IReadOnlyList<TemplateField<TRow, TRequest>> fields, Dictionary<string, string?> before,
+        Dictionary<string, string?> after) =>
+        fields
+            .Where(f => !string.Equals(before[f.Name], after[f.Name], StringComparison.Ordinal))
+            .Select(f => new TemplateChange(f.Name, before[f.Name], after[f.Name]))
+            .ToList();
+
+    /// <summary>
+    /// Saves (only when something changed) and commits. Null once committed; otherwise the answer: a check constraint's
+    /// refusal as a field error, a serialization failure as a conflict. Any other failure is thrown.
+    /// </summary>
+    private async Task<TemplateEditResult<TRow>?> CommitAsync<TRow>(
+        WorldDbContext db, IDbContextTransaction transaction, string kind, ulong id, bool changed, TemplateErrors errors,
+        CancellationToken ct)
+        where TRow : class
+    {
+        try
+        {
+            if (changed)
+                await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return null;
+        }
+        catch (Exception ex) when (TemplateDbErrors.Postgres(ex) is { } pg)
+        {
+            if (pg.SqlState == PostgresErrorCodes.CheckViolation)
+            {
+                logger.LogWarning(ex, "A {Kind} template save {TemplateId} was refused by a check constraint", kind, id);
+                errors.Add(TemplateDbErrors.FieldOf(pg), $"The database refused this value ({pg.ConstraintName}).");
+                return Invalid<TRow>(errors);
+            }
+
+            if (pg.SqlState == PostgresErrorCodes.SerializationFailure)
+                return new(TemplateEditOutcome.Conflict);
+
+            throw;
+        }
     }
 
     private async Task<TemplateReloadResult> RequestReloadAsync(

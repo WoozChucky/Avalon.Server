@@ -9,7 +9,7 @@ using Xunit;
 namespace Avalon.Shared.UnitTests.Packets;
 
 /// <summary>
-/// Item use (2026-10-02). The client encodes and decodes these by field number, so each field is pinned alone with
+/// Item use. The client encodes and decodes these by field number, so each field is pinned alone with
 /// its bytes: (number &lt;&lt; 3 | wire type), then the value. Zero writes nothing, so every pinned value is non-zero.
 /// </summary>
 public class ItemUsePacketsShould
@@ -58,7 +58,7 @@ public class ItemUsePacketsShould
         Assert.Equal(16, (int)ItemUseResult.InternalError);
     }
 
-    /// <summary>owner decision 4: an item's cast bar names its item template beside the ability id, which is 0.</summary>
+    /// <summary>An item's cast bar names its item template beside the ability id, which is 0.</summary>
     [Fact]
     public void Name_the_item_on_its_cast_packets()
     {

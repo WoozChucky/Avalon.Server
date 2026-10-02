@@ -5,7 +5,7 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Character;
 
 /// <summary>
-/// Client to server (item use, 2026-10-02): use the item in one slot. Gear is equipped into the slot its type is
+/// Client to server (item use): use the item in one slot. Gear is equipped into the slot its type is
 /// worn in, swapping out what is there; any other item runs its script, at once or after a cast bar. Answered with
 /// exactly one SItemUseResultPacket, at once, or when a cast ends (the cast's SMSG_UNIT_START_CAST is the
 /// acknowledgement meanwhile). Only Bag slots can be used for now: Container 1.

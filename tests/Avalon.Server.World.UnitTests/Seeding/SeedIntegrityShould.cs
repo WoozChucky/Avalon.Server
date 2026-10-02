@@ -1175,7 +1175,7 @@ public class SeedIntegrityShould
         Assert.All(context.VendorStocks.AsNoTracking().ToList(), s => Assert.Null(s.RequiredQuestId));
     }
 
-    /// <summary>Item use (2026-10-02): the potions and the Town Portal Scroll are the seeded usable items.</summary>
+    /// <summary>Item use: the potions and the Town Portal Scroll are the seeded usable items.</summary>
     [Theory]
     [InlineData(1ul, "RestoreHealth", null, 30000u, "potion", 30u)]
     [InlineData(2ul, "RestorePower", null, 30000u, "potion", 30u)]

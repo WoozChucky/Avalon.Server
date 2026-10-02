@@ -218,6 +218,7 @@ public class MapTeleportShould
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
         Assert.False(_connection.RespawnInFlight);
     }
+
     /// <summary>A character that died while the instance built stays where it died; the item that started it stays used.</summary>
     [Fact]
     public void Not_move_a_character_that_died_before_the_instance_was_ready()

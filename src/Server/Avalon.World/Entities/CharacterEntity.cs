@@ -311,7 +311,7 @@ public class CharacterEntity : ICharacter
     public VendorBuyback Buyback { get; } = new();
 
     /// <summary>
-    /// Item use cooldowns (2026-10-02). World-side and never saved: a new session starts with none. Not on ICharacter,
+    /// Item use cooldowns. World-side and never saved: a new session starts with none. Not on ICharacter,
     /// so the modding API cannot clear them.
     /// </summary>
     public ItemCooldowns ItemCooldowns { get; } = new();
