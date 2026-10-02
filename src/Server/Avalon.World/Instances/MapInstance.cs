@@ -746,9 +746,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// called by this instance's combat service inside combat and ability processing. Reads the Loot, Items and
     /// Quests areas as they are now, so a reload applies to the next kill. Each table drop is allocated on its own,
     /// among the characters that share the kill (2026-09-30); each quest drop (#433) belongs to the member it was
-    /// rolled for, for good. All of them are placed in one ring.
+    /// rolled for, for good. All of them are placed in one ring. A kill nobody is credited with
+    /// (<paramref name="credited" /> false: an aura's tick whose caster is gone) drops every table drop free for all at
+    /// once, whatever instance this is.
     /// </summary>
-    private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible, bool credited)
     {
         IReadOnlyList<(RolledDrop Drop, uint Owner)> questDrops = RollQuestDrops(creature, eligible);
         bool rollsTable = _lootRoller is not null && _lootAllocator is not null && creature.Metadata is CreatureTemplate;
@@ -778,9 +780,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             int tableCount = table.Count;
             IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
                 creature.Position, rolled,
-                i => i < tableCount
-                    ? allocator!.Allocate(OwnerCharacterId, OwnerPartyId, eligible)
-                    : new LootAllocation(questDrops[i - tableCount].Owner, DateTime.MaxValue),
+                i => i >= tableCount
+                    ? new LootAllocation(questDrops[i - tableCount].Owner, DateTime.MaxValue)
+                    : credited
+                        ? allocator!.Allocate(OwnerCharacterId, OwnerPartyId, eligible)
+                        : allocator!.Allocate(instanceOwner: null, instanceParty: null, []),
                 GetNavigatorForPosition(creature.Position), IObject.GenerateId);
 
             foreach (GroundLoot drop in drops)
@@ -1394,7 +1398,45 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    void ICombatOutcomes.CreatureKilled(ICreature creature, IUnit killer)
+    /// <summary>
+    /// An aura's tick (auras), to everyone who hears it (#532), as a hit or a heal is, naming its aura: a character hurt
+    /// is sent its own damage packet first. Nobody applied it, or its caster is gone: the packets name raw 0. Only for a
+    /// target in this instance, as a hit is.
+    /// </summary>
+    void ICombatOutcomes.PeriodicTick(IUnit? caster, IUnit target, uint amount, AuraId aura, HitResult result, bool heal)
+    {
+        if (!_characters.ContainsKey(target.Guid) && !_creatures.ContainsKey(target.Guid))
+        {
+            return;
+        }
+
+        ObjectGuid from = caster?.Guid ?? new ObjectGuid();
+        if (!heal && target is CharacterEntity character && _connections.TryGetValue(character.Guid, out IWorldConnection? own))
+        {
+            own.Send(SCharacterDamagePacket.Create(from.RawValue, character.Guid.RawValue, character.CurrentHealth, amount,
+                null, own.CryptoSession.Encrypt, result, aura.Value));
+        }
+
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, target.Guid, caster?.Guid, target.Position, null))
+            {
+                continue;
+            }
+
+            connection.Send(heal
+                ? SUnitHealedPacket.Create(from.RawValue, target.Guid.RawValue, amount, target.CurrentHealth, null, result,
+                    connection.CryptoSession.Encrypt, aura.Value)
+                : SUnitDamagePacket.Create(from, target.Guid.RawValue, target.CurrentHealth, amount,
+                    connection.CryptoSession.Encrypt, result, aura.Value));
+        }
+    }
+
+    void ICombatOutcomes.UnitDied(IUnit unit)
+    {
+    }
+
+    void ICombatOutcomes.CreatureKilled(ICreature creature, IUnit? killer)
     {
         if (!_creatures.ContainsKey(creature.Guid))
         {
@@ -1425,7 +1467,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
         // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
-        DropLoot(creature, eligible);
+        // A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all.
+        DropLoot(creature, eligible, credited: killer is not null);
         AwardExperience(creature, eligible);
     }
 
@@ -1451,9 +1494,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// The characters that share this kill: the killer alone outside a party, or every present, eligible member of
-    /// its party. Empty when the killer is not a character or is in a leave countdown.
+    /// its party. Empty when there is no killer, or it is not a character or is in a leave countdown.
     /// </summary>
-    private IReadOnlyList<ICharacter> EligibleFor(ICreature creature, IUnit killer)
+    private IReadOnlyList<ICharacter> EligibleFor(ICreature creature, IUnit? killer)
     {
         ICharacter? character = killer as ICharacter;
         Party? party = character is null ? null : _parties?.PartyOf(character.Guid.Id);

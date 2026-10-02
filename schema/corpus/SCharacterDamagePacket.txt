@@ -22,6 +22,7 @@ variant absent
   field 4 Damage : uint = 0
   field 5 AbilityId : uint? = null
   field 6 Result : HitResult = None (0)
+  field 7 AuraId : uint? = null
   bytes 0
 
 variant empty
@@ -31,8 +32,9 @@ variant empty
   field 4 Damage : uint = 0
   field 5 AbilityId : uint? = 0
   field 6 Result : HitResult = None (0)
-  bytes 2
-    28 00
+  field 7 AuraId : uint? = 0
+  bytes 4
+    28 00 38 00
 
 variant populated
   field 1 Attacker : ulong = 300
@@ -41,9 +43,10 @@ variant populated
   field 4 Damage : uint = 4000000000
   field 5 AbilityId : uint? = 4000000000
   field 6 Result : HitResult = Crit (1)
-  bytes 23
+  field 7 AuraId : uint? = 1000000
+  bytes 27
     08 ac 02 10 ff ff 03 18 07 20 80 d0 ac f3 0e 28
-    80 d0 ac f3 0e 30 01
+    80 d0 ac f3 0e 30 01 38 c0 84 3d
 
 variant maxima
   field 1 Attacker : ulong = 18446744073709551615
@@ -52,10 +55,11 @@ variant maxima
   field 4 Damage : uint = 4294967295
   field 5 AbilityId : uint? = 4294967295
   field 6 Result : HitResult = Blocked (4)
-  bytes 42
+  field 7 AuraId : uint? = 4294967295
+  bytes 48
     08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
     ff ff ff ff ff 01 18 ff ff ff ff 0f 20 ff ff ff
-    ff 0f 28 ff ff ff ff 0f 30 04
+    ff 0f 28 ff ff ff ff 0f 30 04 38 ff ff ff ff 0f
 
 variant minima
   field 1 Attacker : ulong = 0
@@ -64,8 +68,9 @@ variant minima
   field 4 Damage : uint = 0
   field 5 AbilityId : uint? = 0
   field 6 Result : HitResult = None (0)
-  bytes 2
-    28 00
+  field 7 AuraId : uint? = 0
+  bytes 4
+    28 00 38 00
 
 variant varint-edges
   field 1 Attacker : ulong = 128
@@ -74,6 +79,7 @@ variant varint-edges
   field 4 Damage : uint = 2097152
   field 5 AbilityId : uint? = 268435456
   field 6 Result : HitResult = Crit, Blocked (5)
-  bytes 28
+  field 7 AuraId : uint? = 2097151
+  bytes 32
     08 80 01 10 80 80 80 80 01 18 80 80 80 80 01 20
-    80 80 80 01 28 80 80 80 80 01 30 05
+    80 80 80 01 28 80 80 80 80 01 30 05 38 ff ff 7f

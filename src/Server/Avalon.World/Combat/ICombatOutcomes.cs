@@ -42,8 +42,20 @@ public interface ICombatOutcomes
     HitResult HitInFlight { set; }
 
     /// <summary>
-    /// The hit brought a living creature to 0 health: the corpse, its loot and the killer's experience.
-    /// Reported before the encounter hears of the death and before the death broadcast.
+    /// The hit brought a living creature to 0 health: the corpse, its loot and the killer's experience. Reported before
+    /// the encounter hears of the death and before the death broadcast. <paramref name="killer" /> is null for an
+    /// aura's tick whose caster is gone (auras): nobody is credited, and every drop is free for all at once.
     /// </summary>
-    void CreatureKilled(ICreature creature, IUnit killer);
+    void CreatureKilled(ICreature creature, IUnit? killer);
+
+    /// <summary>
+    /// An aura's tick dealt or restored <paramref name="amount" /> (auras): a character hurt is sent its own damage
+    /// packet, and everyone who hears it the hit or the heal, each naming <paramref name="aura" />. A tick worth less
+    /// than a whole point is not reported, and a heal only when it restored more than 0. <paramref name="caster" /> is
+    /// null when nobody applied it, or its caster is gone.
+    /// </summary>
+    void PeriodicTick(IUnit? caster, IUnit target, uint amount, AuraId aura, HitResult result, bool heal);
+
+    /// <summary>A unit died (auras): every death passes through the combat service, and death ends every aura.</summary>
+    void UnitDied(IUnit unit);
 }

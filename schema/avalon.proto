@@ -853,6 +853,7 @@ message SCharacterDamagePacket {
    uint32 Damage = 4;
    optional uint32 AbilityId = 5;
    HitResult Result = 6;
+   optional uint32 AuraId = 7;
 }
 message SCharacterDeletedPacket {
    SCharacterDeletedResult Result = 1;
@@ -1120,6 +1121,7 @@ message SUnitDamagePacket {
    uint32 CurrentHealth = 3;
    uint32 Damage = 4;
    HitResult Result = 5;
+   optional uint32 AuraId = 6;
 }
 message SUnitDeathPacket {
    uint64 UnitGuid = 1;
@@ -1138,6 +1140,7 @@ message SUnitHealedPacket {
    uint32 CurrentHealth = 4;
    optional uint32 AbilityId = 5;
    HitResult Result = 6;
+   optional uint32 AuraId = 7;
 }
 message SUnitRevivePacket {
    uint64 UnitGuid = 1;

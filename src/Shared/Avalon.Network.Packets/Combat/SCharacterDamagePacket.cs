@@ -20,13 +20,16 @@ public class SCharacterDamagePacket : Packet
     /// <summary>How the hit went (#506): a crit, a block, both, or a dodge, which deals 0. Absent is None.</summary>
     [ProtoMember(6)] public HitResult Result { get; set; }
 
+    /// <summary>The aura whose tick this was (auras); absent for every other hit.</summary>
+    [ProtoMember(7)] public uint? AuraId { get; set; }
+
     public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? abilityId,
-        EncryptFunc encryptFunc, HitResult result = HitResult.None)
+        EncryptFunc encryptFunc, HitResult result = HitResult.None, uint? auraId = null)
         => PacketSerializationHelper.Serialize(
             new SCharacterDamagePacket
             {
                 Attacker = attacker, Target = target, CurrentHealth = currentHealth, Damage = damage, AbilityId = abilityId,
-                Result = result,
+                Result = result, AuraId = auraId,
             },
             PacketType, Flags, Protocol, encryptFunc);
 }

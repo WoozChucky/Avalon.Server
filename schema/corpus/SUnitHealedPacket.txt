@@ -22,6 +22,7 @@ variant absent
   field 4 CurrentHealth : uint = 0
   field 5 AbilityId : uint? = null
   field 6 Result : HitResult = None (0)
+  field 7 AuraId : uint? = null
   bytes 0
 
 variant empty
@@ -31,8 +32,9 @@ variant empty
   field 4 CurrentHealth : uint = 0
   field 5 AbilityId : uint? = 0
   field 6 Result : HitResult = None (0)
-  bytes 2
-    28 00
+  field 7 AuraId : uint? = 0
+  bytes 4
+    28 00 38 00
 
 variant populated
   field 1 Healer : ulong = 1000000
@@ -41,9 +43,10 @@ variant populated
   field 4 CurrentHealth : uint = 1000000
   field 5 AbilityId : uint? = 300
   field 6 Result : HitResult = Blocked (4)
-  bytes 20
+  field 7 AuraId : uint? = 42
+  bytes 22
     08 c0 84 3d 10 ac 02 18 ff ff 03 20 c0 84 3d 28
-    ac 02 30 04
+    ac 02 30 04 38 2a
 
 variant maxima
   field 1 Healer : ulong = 18446744073709551615
@@ -52,10 +55,11 @@ variant maxima
   field 4 CurrentHealth : uint = 4294967295
   field 5 AbilityId : uint? = 4294967295
   field 6 Result : HitResult = Blocked (4)
-  bytes 42
+  field 7 AuraId : uint? = 4294967295
+  bytes 48
     08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
     ff ff ff ff ff 01 18 ff ff ff ff 0f 20 ff ff ff
-    ff 0f 28 ff ff ff ff 0f 30 04
+    ff 0f 28 ff ff ff ff 0f 30 04 38 ff ff ff ff 0f
 
 variant minima
   field 1 Healer : ulong = 0
@@ -64,8 +68,9 @@ variant minima
   field 4 CurrentHealth : uint = 0
   field 5 AbilityId : uint? = 0
   field 6 Result : HitResult = None (0)
-  bytes 2
-    28 00
+  field 7 AuraId : uint? = 0
+  bytes 4
+    28 00 38 00
 
 variant varint-edges
   field 1 Healer : ulong = 127
@@ -74,5 +79,7 @@ variant varint-edges
   field 4 CurrentHealth : uint = 16383
   field 5 AbilityId : uint? = 16383
   field 6 Result : HitResult = Crit, Blocked (5)
-  bytes 16
+  field 7 AuraId : uint? = 16384
+  bytes 20
     08 7f 10 ff 7f 18 80 01 20 ff 7f 28 ff 7f 30 05
+    38 80 80 01

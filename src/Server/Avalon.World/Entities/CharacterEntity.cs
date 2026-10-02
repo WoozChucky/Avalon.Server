@@ -471,6 +471,23 @@ public class CharacterEntity : ICharacter
 
         _logger.LogInformation("{Name} has been hit by unit {Attacker} for {Damage} damage", Name, attacker.Guid,
             damage);
+        TakeDamage(damage);
+    }
+
+    /// <summary>
+    /// Takes an aura's damage tick (auras), as <see cref="OnHit(IUnit, uint, AbilityId?)" /> takes a hit, with no attacker
+    /// to name. World-side, not on ICharacter.
+    /// </summary>
+    public void OnPeriodicHit(uint damage)
+    {
+        if (IsDead) return;
+
+        TakeDamage(damage);
+    }
+
+    /// <summary>A hit or a tick on a living character: tagged in combat, then hurt, and dead at 0 health.</summary>
+    private void TakeDamage(uint damage)
+    {
         MarkCombat();
 
         if (damage >= CurrentHealth)

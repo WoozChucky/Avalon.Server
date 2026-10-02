@@ -58,7 +58,7 @@ internal static class TestMapInstances
     /// Reports <paramref name="creature" /> killed by <paramref name="killer" />, exactly as the
     /// instance's combat service does once a hit brings the creature to 0 health (#546).
     /// </summary>
-    public static void ReportKill(this MapInstance instance, ICreature creature, IUnit killer) =>
+    public static void ReportKill(this MapInstance instance, ICreature creature, IUnit? killer) =>
         ((ICombatOutcomes)instance).CreatureKilled(creature, killer);
 
     /// <param name="scripts">The script manager the instance builds ability scripts from; a substitute that finds none when omitted.</param>
