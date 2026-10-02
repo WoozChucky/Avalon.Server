@@ -1,21 +1,26 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
+using Avalon.World.Abilities;
+using Avalon.World.Characters;
 using Avalon.World.Configuration;
+using Avalon.World.Inventory;
+using Avalon.World.Items;
+using Avalon.World.Parties;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
-using Avalon.World.Abilities;
-using Avalon.World.Characters;
-using Avalon.World.Combat;
-using Avalon.World.Inventory;
-using Avalon.World.Persistence;
+using Avalon.World.Quests;
+using Avalon.World.Social;
+using Avalon.World.Threading;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
@@ -48,8 +53,18 @@ public class CharacterEntity : ICharacter
     private double _furyDecayRemainder;
     private const double FuryDecayTolerance = 1e-3;
 
+    // Mana and Energy regeneration (PowerRegen): the fraction of a point earned but not yet given, carried between
+    // ticks so the per-second rate holds at any tick rate; dropped whenever the pool cannot regenerate, full included.
+    private double _powerRegenCarry;
+
+    // Out-of-combat health regeneration: the same carry, dropped whenever health cannot regenerate (in combat,
+    // dead, full, or no Stamina), so a full pool banks nothing and a fight starts the fraction over.
+    private double _healthRegenCarry;
+
     public CharacterEntity()
     {
+        Quests = new QuestLog(SaveState);
+        Ignores = new IgnoreList(SaveState);
         _logger = null!;
         _equipment = null!;
         _bag = null!;
@@ -60,10 +75,13 @@ public class CharacterEntity : ICharacter
 
     /// <param name="time">The container's clock, the one the instance and combat time by (#614).</param>
     /// <param name="furyDecayPerSecond">Game:FuryDecayPerSecond (#526); the setting's default when omitted.</param>
+    /// <param name="tickThread">The tick-thread assertion its ignore list makes (#639); none when omitted.</param>
     public CharacterEntity(ILoggerFactory loggerFactory, Character character,
         RegenConfiguration regenConfig, TimeProvider? time = null,
-        float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond)
+        float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond, TickThreadGuard? tickThread = null)
     {
+        Quests = new QuestLog(SaveState);
+        Ignores = new IgnoreList(SaveState, tickThread);
         _time = time ?? TimeProvider.System;
         _furyDecayPerSecond = furyDecayPerSecond;
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
@@ -152,15 +170,10 @@ public class CharacterEntity : ICharacter
         }
 
         Stamina = stats.Stamina;
-        RegenStat = Class switch
-        {
-            CharacterClass.Wizard or CharacterClass.Healer => stats.Intellect,
-            CharacterClass.Hunter => stats.Agility,
-            _ => 0,
-        };
+        RegenStat = PowerRegen.StatOf(Class, stats);
 
         // #627: both bounded by the formula this refresh read, so a combat reload reaches them at the next refresh.
-        EffectiveHastePct = Math.Clamp(stats.HastePct, 0f, Math.Max(0f, formula.HasteCap));
+        EffectiveHastePct = stats.EffectiveHastePct(formula);
         MovementSpeed = CharacterMovement.SpeedFor(stats.MovementSpeedPct, formula);
 
         Stats = stats;
@@ -173,7 +186,7 @@ public class CharacterEntity : ICharacter
     /// on ICharacter: the modding API cannot change what a hit deals (#622).
     /// </summary>
     internal AttackerCombat Combat => Stats is { } s
-        ? new AttackerCombat(Level, s.AttackDamage, s.AbilityDamage, s.CritPct, s.WeaponMin, s.WeaponMax)
+        ? s.AttackerAt(Level)
         : new AttackerCombat(Level, 0, 0, 0f, 0, 0);
 
     /// <summary>
@@ -192,9 +205,7 @@ public class CharacterEntity : ICharacter
     internal AttackerCombat? AbilityAmountsSentFor { get; set; }
 
     /// <summary>What this character defends with (#506): armour, dodge and block, from the last stats refresh.</summary>
-    internal DefenderCombat Defence => Stats is { } s
-        ? new DefenderCombat(s.Armor, s.DodgePct, s.BlockPct)
-        : default;
+    internal DefenderCombat Defence => Stats is { } s ? s.Defence : default;
 
     public bool IsInCombat =>
         _lastCombatTime != DateTime.MinValue &&
@@ -228,6 +239,18 @@ public class CharacterEntity : ICharacter
     /// <summary>What the next save must write. Marked by the inventory service and the wallet.</summary>
     public SaveStateTracker SaveState { get; } = new();
 
+    /// <summary>
+    /// The character's quests (#433). World-side, never on ICharacter: the modding API reaches quests only through
+    /// a QuestScript's IQuestContext. Loaded at select; every change marks <see cref="SaveState" />.
+    /// </summary>
+    public QuestLog Quests { get; }
+
+    /// <summary>
+    /// The characters this one ignores (#723). World-side, never on ICharacter, so no mod can read or change it.
+    /// Loaded at select; every change marks <see cref="SaveState" />.
+    /// </summary>
+    public IgnoreList Ignores { get; }
+
     /// <summary>World-side only, not on ICharacter: the modding API cannot read or set PvP (#164).</summary>
     public bool PvpEnabled => Data?.PvpEnabled ?? false;
 
@@ -238,6 +261,12 @@ public class CharacterEntity : ICharacter
     /// only by PvpToggle.Send; never saved, so every session starts untold. World-side only.
     /// </summary>
     public DateTime? PvpOffAtTold { get; internal set; }
+
+    /// <summary>
+    /// The party this character is in, or null (2026-09-30). Set only by PartyService, on the tick; World-side,
+    /// never on ICharacter, so no mod can put two players on the same side. Hostility reads it.
+    /// </summary>
+    public PartyId? PartyId { get; internal set; }
 
     /// <summary>Called by PvpToggle after it writes the row: replicates the flag and marks the save.</summary>
     public void MarkPvpChanged()
@@ -282,10 +311,23 @@ public class CharacterEntity : ICharacter
     public VendorBuyback Buyback { get; } = new();
 
     /// <summary>
+    /// Item use cooldowns. World-side and never saved: a new session starts with none. Not on ICharacter,
+    /// so the modding API cannot clear them.
+    /// </summary>
+    public ItemCooldowns ItemCooldowns { get; } = new();
+
+    /// <summary>
     /// A sale or a buyback changed this player's buyback list, so the instance's vendor pass owes
     /// this connection a new SMSG_VENDOR_LIST if its shop is still open (spec #432).
     /// </summary>
     public bool VendorListOwed { get; set; }
+
+    /// <summary>
+    /// The <see cref="QuestLog.HeldVersion" /> the last SMSG_VENDOR_LIST was built at (#738). While the shop is open,
+    /// a different one means an accept, an abandon or a turn-in since, which can meet or unmeet a row's quest gate,
+    /// so the vendor pass sends the list again. Never saved.
+    /// </summary>
+    public int VendorListQuestVersion { get; set; }
 
     public ObjectGuid Guid { get; set; }
 
@@ -388,14 +430,9 @@ public class CharacterEntity : ICharacter
     /// </summary>
     internal void GainPower(uint amount)
     {
-        if (amount == 0 || IsDead) return;
-        if (PowerType is not (PowerType.Mana or PowerType.Energy or PowerType.Fury)) return;
-
-        uint max = Power ?? 0;
         uint current = CurrentPower ?? 0;
-        if (current >= max) return;
-
-        CurrentPower = (uint)Math.Min(max, (ulong)current + amount);
+        uint next = PowerPool.Gain(PowerType, IsDead, current, Power ?? 0, amount);
+        if (next != current) CurrentPower = next;
     }
 
     /// <summary>
@@ -405,7 +442,7 @@ public class CharacterEntity : ICharacter
     internal void ResetFury()
     {
         _furyDecayRemainder = 0d;
-        if (PowerType == PowerType.Fury && CurrentPower != 0)
+        if (PowerPool.EmptiesOnReset(PowerType) && CurrentPower != 0)
             CurrentPower = 0;
     }
 
@@ -476,6 +513,11 @@ public class CharacterEntity : ICharacter
         }
     }
 
+    /// <summary>
+    /// The row's name. Settable here, World-side, for tests and tooling only (#757): <see cref="ICharacter.Name" /> on
+    /// the modding API is get-only, and a changed name is never saved (the column is insert-only to the change
+    /// tracker; a rename is <c>ICharacterRepository.TryRenameAsync</c>).
+    /// </summary>
     public string Name
     {
         get => Data?.Name ?? string.Empty;
@@ -582,13 +624,21 @@ public class CharacterEntity : ICharacter
             _lastCastTime = _time.GetUtcNow().UtcDateTime;
         }
 
-        float dt = (float)deltaTime.TotalSeconds;
-
-        // Health regeneration (skipped if dead or in combat)
+        // Health regeneration (skipped if dead or in combat). The fraction of a point is carried between ticks,
+        // as power's is, and dropped whenever health cannot regenerate.
         if (!IsInCombat && !IsDead && CurrentHealth > 0 && CurrentHealth < Health && Stamina > 0)
         {
-            uint regen = (uint)Math.Max(1f, Stamina * _regenConfig.HealthRegenOutOfCombatPerStamina * dt);
-            CurrentHealth = Math.Min(Health, CurrentHealth + regen);
+            uint regen = PowerRegen.TakeWholePoints(
+                Stamina * (double)_regenConfig.HealthRegenOutOfCombatPerStamina * deltaTime.TotalSeconds,
+                ref _healthRegenCarry);
+            if (regen > 0)
+            {
+                CurrentHealth = Math.Min(Health, CurrentHealth + regen);
+            }
+        }
+        else
+        {
+            _healthRegenCarry = 0d;
         }
 
         // Fury (#526) never regenerates. Out of combat it drains, carrying the fraction of a point owed
@@ -618,7 +668,8 @@ public class CharacterEntity : ICharacter
             }
         }
 
-        // Power regeneration (Mana / Energy only)
+        // Power regeneration (Mana / Energy only). The fraction of a point is carried between ticks
+        // (PowerRegen.Amount), and dropped whenever the pool cannot regenerate, so a full pool banks nothing.
         if (!IsDead && CurrentPower.HasValue && Power.HasValue &&
             CurrentPower.Value < Power.Value &&
             RegenStat > 0 &&
@@ -628,15 +679,16 @@ public class CharacterEntity : ICharacter
                 _lastCastTime != DateTime.MinValue &&
                 (_time.GetUtcNow().UtcDateTime - _lastCastTime).TotalSeconds < _regenConfig.PowerRegenCastSuppressSeconds;
 
-            if (!castSuppressed)
+            uint regen = PowerRegen.Amount(_regenConfig, RegenStat, IsInCombat, castSuppressed,
+                deltaTime.TotalSeconds, ref _powerRegenCarry);
+            if (regen > 0)
             {
-                float coeff = IsInCombat
-                    ? _regenConfig.PowerRegenInCombatPerStat
-                    : _regenConfig.PowerRegenOutOfCombatPerStat;
-
-                uint regen = (uint)Math.Max(1f, RegenStat * coeff * dt);
                 CurrentPower = Math.Min(Power.Value, CurrentPower.Value + regen);
             }
+        }
+        else
+        {
+            _powerRegenCarry = 0d;
         }
     }
 

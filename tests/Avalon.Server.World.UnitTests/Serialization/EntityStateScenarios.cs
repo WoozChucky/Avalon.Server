@@ -358,8 +358,7 @@ internal static class EntityStateScenarios
             Power = 100u,
             Level = 12,
 
-            // A creature has no such state. The field selection asks for it anyway and a
-            // value goes out, because the selection is shared with the character layout.
+            // A creature is dead at 0 health (#672); this one has 175 left.
             IsDead = false,
         },
     };

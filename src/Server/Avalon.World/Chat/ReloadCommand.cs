@@ -1,5 +1,4 @@
 using Avalon.Common.Accounts;
-using Avalon.Network.Packets.Social;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 
@@ -11,7 +10,7 @@ namespace Avalon.World.Chat;
 /// </summary>
 public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<ReloadCommand> logger) : ICommand
 {
-    private const string Usage = "Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|combat|all>";
+    private const string Usage = "Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|combat|quests|all>";
 
     private const string MapsRefusal =
         "Maps and chunk layouts cannot be reloaded: live instances have already baked a navmesh " +
@@ -21,14 +20,13 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
     public string[] Aliases => [];
     public AccountAccessLevel RequiredAccess => AccessLevels.GameMaster;
 
-    public async Task ExecuteAsync(WorldPacketContext<CChatMessagePacket> ctx, string[] args,
-        CancellationToken token = default)
+    public void Execute(CommandContext ctx, string[] args)
     {
         string requested = args.Length == 0 ? string.Empty : args[0].ToLowerInvariant();
 
         if (requested is "maps" or "chunks")
         {
-            Reply(ctx, MapsRefusal);
+            ctx.Reply(MapsRefusal);
             return;
         }
 
@@ -41,20 +39,22 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
 
         if (areas is null)
         {
-            Reply(ctx, Usage);
+            ctx.Reply(Usage);
             return;
         }
 
-        ReloadReport report = await reloader.ReloadAsync(areas, token);
-
-        logger.LogInformation("Account {AccountId} reloaded {Areas}: {Outcomes}",
-            ctx.Connection.AccountId, string.Join(",", areas),
-            string.Join(", ", report.Outcomes.Select(o => $"{o.Area}={(o.Succeeded ? "ok" : "failed")}")));
-
-        foreach (ReloadOutcome outcome in report.Outcomes)
+        // The reload reads the database off the tick; its report is answered on a later tick.
+        ctx.Then(reloader.ReloadAsync(areas, CancellationToken.None), report =>
         {
-            Reply(ctx, Describe(outcome));
-        }
+            logger.LogInformation("Account {AccountId} reloaded {Areas}: {Outcomes}",
+                ctx.Connection.AccountId, string.Join(",", areas),
+                string.Join(", ", report.Outcomes.Select(o => $"{o.Area}={(o.Succeeded ? "ok" : "failed")}")));
+
+            foreach (ReloadOutcome outcome in report.Outcomes)
+            {
+                ctx.Reply(Describe(outcome));
+            }
+        });
     }
 
     private static string Describe(ReloadOutcome outcome)
@@ -77,14 +77,8 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
             ReloadArea.Loot => line + " Affects the next kill; drops already on the ground keep what they rolled.",
             ReloadArea.Vendors => line + " Open shops get the new list on the next tick; live stock counts carry over by row.",
             ReloadArea.Combat => line + " Affects the next hit; a character's stats change at its next select, gear change or level-up.",
+            ReloadArea.Quests => line + " Affects what is offered and credited from the next tick; characters keep the quests they hold.",
             _ => line
         };
-    }
-
-    private static void Reply(WorldPacketContext<CChatMessagePacket> ctx, string message)
-    {
-        // Safe off the tick thread: both outboxes are created with SingleWriter = false.
-        ctx.Connection.Send(SChatMessagePacket.Create(
-            0UL, 0UL, "System", message, ctx.Packet.DateTime, ctx.Connection.CryptoSession.Encrypt));
     }
 }

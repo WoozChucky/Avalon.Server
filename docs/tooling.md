@@ -35,12 +35,13 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 | `item-schema` | `schema/items/item-schema-v1.json` | `ItemTemplate` and its eight enumerations |
 | `item-catalog` | `schema/items/item-catalog-v1.json` | the item template rows — **needs a World database** |
 | `ability-catalog` | `schema/abilities/ability-catalog-v1.json` | every ability row a client names and draws, creatures' included (#163) — **needs a World database** |
+| `quest-catalog` | `schema/quests/quest-catalog-v1.json` | every quest's enUS title, stages, objectives and rewards, for tooling (#714) — **needs a World database** |
 
-`item-catalog` and `ability-catalog` read their World connection string only from the environment
+`item-catalog`, `ability-catalog` and `quest-catalog` read their World connection string only from the environment
 (`Database__World__ConnectionString`) or from user-secrets for `src/Server/Avalon.Database.World`,
-the sources the `dotnet ef` design-time factories use (#557). Neither reads an `appsettings` file,
+the sources the `dotnet ef` design-time factories use (#557). None reads an `appsettings` file,
 so running one from a folder that holds one cannot point it at that file's database. Without a
-string, a call that names either (`all` included) stops before anything is written and says a World
+string, a call that names any of them (`all` included) stops before anything is written and says a World
 database connection is needed.
 
 Two rules the tool keeps, because both failures are silent ones:
@@ -63,6 +64,9 @@ to catch.
 ## What is not in it
 
 `Avalon.Benchmarking` is a harness that owns its own `Main`; it does not belong behind an export
-subcommand. Chunk data has no tool at all: the Unity exporters write it straight into
-`src/Server/Avalon.Server.World/Maps/`, and the World server seeds the database from there on start
-(see [map-generation.md](map-generation.md)).
+subcommand. Chunk data is not exported either: `tools/Avalon.ChunkGen` generates the forest pieces and
+the town's squares straight into `src/Server/Avalon.Server.World/Maps/`, beside the chunk files and the town
+layout kept there as they are, and the World server seeds the database from there on
+start (see [map-generation.md](map-generation.md)). `Avalon.ChunkGen` stays a tool of its own because
+it writes the server's source data, the chunk catalog the World server reads, not an artifact derived
+for clients; how to run it is under "Generated forest chunks" in map-generation.md.

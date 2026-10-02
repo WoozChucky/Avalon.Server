@@ -13,7 +13,11 @@ public interface ICharacter : IUnit
     /// <summary>The live instance this character is currently in.</summary>
     Guid InstanceId { get; set; }
 
-    string Name { get; set; }
+    /// <summary>
+    /// The character's name, as stored (#757). Read-only here: World.Public is the modding API, and a name must follow
+    /// the name rule and be unique in its world, which only the server enforces.
+    /// </summary>
+    string Name { get; }
 
     /// <summary>The character's class — used by the combat system to apply per-class threat baseline
     /// (see <c>ClassThreatModifier</c>).</summary>

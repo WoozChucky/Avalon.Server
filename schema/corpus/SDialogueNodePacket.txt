@@ -42,18 +42,20 @@ variant populated
       field 1 OptionId : int = 11
       field 2 Text : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
       field 3 Kind : DialogueOptionKind = OpenShop (2)
+      field 4 QuestId : uint? = 1000000
     element 1
       field 1 OptionId : int = 1000
       field 2 Text : string = "alpha" (5 chars, 5 bytes utf-8)
-      field 3 Kind : DialogueOptionKind = OpenBank (1)
-  bytes 101
+      field 3 Kind : DialogueOptionKind = QuestOffer (3)
+      field 4 QuestId : uint? = 4000000000
+  bytes 111
     08 07 12 0e 6c 69 6e 65 0a 62 72 65 61 6b 09 74
     61 62 18 fd ff ff ff ff ff ff ff ff 01 22 18 e6
     97 a5 e6 9c ac e8 aa 9e e3 81 ae e3 83 86 e3 82
-    ad e3 82 b9 e3 83 88 2a 1e 08 0b 12 18 e6 97 a5
+    ad e3 82 b9 e3 83 88 2a 22 08 0b 12 18 e6 97 a5
     e6 9c ac e8 aa 9e e3 81 ae e3 83 86 e3 82 ad e3
-    82 b9 e3 83 88 18 02 2a 0c 08 e8 07 12 05 61 6c
-    70 68 61 18 01
+    82 b9 e3 83 88 18 02 20 c0 84 3d 2a 12 08 e8 07
+    12 05 61 6c 70 68 61 18 03 20 80 d0 ac f3 0e
 
 variant maxima
   field 1 SpeakerGuid : ulong = 18446744073709551615
@@ -64,16 +66,19 @@ variant maxima
     element 0
       field 1 OptionId : int = 2147483647
       field 2 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-      field 3 Kind : DialogueOptionKind = OpenShop (2)
+      field 3 Kind : DialogueOptionKind = QuestTurnIn (4)
+      field 4 QuestId : uint? = 4294967295
     element 1
       field 1 OptionId : int = 2147483647
       field 2 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-      field 3 Kind : DialogueOptionKind = OpenShop (2)
+      field 3 Kind : DialogueOptionKind = QuestTurnIn (4)
+      field 4 QuestId : uint? = 4294967295
     element 2
       field 1 OptionId : int = 2147483647
       field 2 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-      field 3 Kind : DialogueOptionKind = OpenShop (2)
-  bytes 725
+      field 3 Kind : DialogueOptionKind = QuestTurnIn (4)
+      field 4 QuestId : uint? = 4294967295
+  bytes 743
     08 ff ff ff ff ff ff ff ff ff 01 12 84 01 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -92,7 +97,7 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 2a
-    8f 01 08 ff ff ff ff 07 12 84 01 ce a9 78 ce a9
+    95 01 08 ff ff ff ff 07 12 84 01 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
@@ -101,8 +106,8 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 18
-    02 2a 8f 01 08 ff ff ff ff 07 12 84 01 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    04 20 ff ff ff ff 0f 2a 95 01 08 ff ff ff ff 07
+    12 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -110,8 +115,8 @@ variant maxima
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 18 02 2a 8f 01 08 ff ff ff ff 07 12 84 01 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 18 04 20 ff ff ff ff 0f 2a
+    95 01 08 ff ff ff ff 07 12 84 01 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
@@ -119,7 +124,8 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 18 02
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 18
+    04 20 ff ff ff ff 0f
 
 variant minima
   field 1 SpeakerGuid : ulong = 0
@@ -131,10 +137,11 @@ variant minima
       field 1 OptionId : int = -2147483648
       field 2 Text : string = "\u0001" (1 chars, 1 bytes utf-8)
       field 3 Kind : DialogueOptionKind = Conversation (0)
-  bytes 33
+      field 4 QuestId : uint? = 0
+  bytes 35
     12 01 00 18 80 80 80 80 f8 ff ff ff ff 01 22 01
-    20 2a 0e 08 80 80 80 80 f8 ff ff ff ff 01 12 01
-    01
+    20 2a 10 08 80 80 80 80 f8 ff ff ff ff 01 12 01
+    01 20 00
 
 variant varint-edges
   field 1 SpeakerGuid : ulong = 16383
@@ -145,12 +152,14 @@ variant varint-edges
     element 0
       field 1 OptionId : int = 128
       field 2 Text : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
-      field 3 Kind : DialogueOptionKind = <not a declared member> (3)
+      field 3 Kind : DialogueOptionKind = <not a declared member> (5)
+      field 4 QuestId : uint? = 127
     element 1
       field 1 OptionId : int = 16383
       field 2 Text : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
-      field 3 Kind : DialogueOptionKind = <not a declared member> (3)
-  bytes 543
+      field 3 Kind : DialogueOptionKind = <not a declared member> (5)
+      field 4 QuestId : uint? = 16384
+  bytes 549
     08 ff 7f 12 7f 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -167,7 +176,7 @@ variant varint-edges
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 2a 88 01 08 80
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 2a 8a 01 08 80
     01 12 80 01 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -176,7 +185,7 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 18 03 2a 86 01 08 ff 7f 12 7f 78 78
+    79 79 79 79 18 05 20 7f 2a 8a 01 08 ff 7f 12 7f
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -184,4 +193,5 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 18 03
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 18
+    05 20 80 80 01

@@ -92,33 +92,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_CHAT_OPEN",
-      "opcode": 8200,
-      "hex": "0x2008",
-      "message": "COpenChatPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "CMSG_CHAT_CLOSE",
-      "opcode": 8201,
-      "hex": "0x2009",
-      "message": "CCloseChatPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "CMSG_GROUP_INVITE_RESULT",
-      "opcode": 8202,
-      "hex": "0x200A",
-      "message": "CGroupInviteResultPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
       "name": "CMSG_MFA_VERIFY",
       "opcode": 8203,
       "hex": "0x200B",
@@ -290,24 +263,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_QUEST_STATUS",
-      "opcode": 8256,
-      "hex": "0x2040",
-      "message": "CQuestStatusPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "CMSG_QUEST_LIST",
-      "opcode": 8257,
-      "hex": "0x2041",
-      "message": "CQuestListPacket",
-      "direction": "ClientToServer",
-      "flags": null,
-      "flagNames": null
-    },
-    {
       "name": "CMSG_AUDIO_RECORD",
       "opcode": 8272,
       "hex": "0x2050",
@@ -353,6 +308,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_ITEM_USE",
+      "opcode": 8322,
+      "hex": "0x2082",
+      "message": "CItemUsePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_VENDOR_BUY",
       "opcode": 8336,
       "hex": "0x2090",
@@ -375,6 +339,87 @@
       "opcode": 8338,
       "hex": "0x2092",
       "message": "CVendorBuybackPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_INVITE",
+      "opcode": 8368,
+      "hex": "0x20B0",
+      "message": "CPartyInvitePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_INVITE_RESPONSE",
+      "opcode": 8369,
+      "hex": "0x20B1",
+      "message": "CPartyInviteResponsePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_LEAVE",
+      "opcode": 8370,
+      "hex": "0x20B2",
+      "message": "CPartyLeavePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_KICK",
+      "opcode": 8371,
+      "hex": "0x20B3",
+      "message": "CPartyKickPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_PROMOTE",
+      "opcode": 8372,
+      "hex": "0x20B4",
+      "message": "CPartyPromotePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_PARTY_EXPERIENCE_MODE",
+      "opcode": 8373,
+      "hex": "0x20B5",
+      "message": "CPartyExperienceModePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_QUEST_ACCEPT",
+      "opcode": 8384,
+      "hex": "0x20C0",
+      "message": "CQuestAcceptPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_QUEST_TURN_IN",
+      "opcode": 8385,
+      "hex": "0x20C1",
+      "message": "CQuestTurnInPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_QUEST_ABANDON",
+      "opcode": 8386,
+      "hex": "0x20C2",
+      "message": "CQuestAbandonPacket",
       "direction": "ClientToServer",
       "flags": 4,
       "flagNames": "Encrypted"
@@ -465,42 +510,6 @@
       "opcode": 12297,
       "hex": "0x3009",
       "message": "SChatMessagePacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_CHAT_OPEN",
-      "opcode": 12298,
-      "hex": "0x300A",
-      "message": "SOpenChatPacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_CHAT_CLOSE",
-      "opcode": 12299,
-      "hex": "0x300B",
-      "message": "SCloseChatPacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_GROUP_INVITE",
-      "opcode": 12301,
-      "hex": "0x300D",
-      "message": "SGroupInvitePacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_GROUP_INVITE_RESULT",
-      "opcode": 12302,
-      "hex": "0x300E",
-      "message": "SGroupResultPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"
@@ -830,6 +839,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_ITEM_USE_RESULT",
+      "opcode": 12433,
+      "hex": "0x3091",
+      "message": "SItemUseResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_VENDOR_LIST",
       "opcode": 12448,
       "hex": "0x30A0",
@@ -843,6 +861,96 @@
       "opcode": 12449,
       "hex": "0x30A1",
       "message": "SVendorResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_INVITE",
+      "opcode": 12464,
+      "hex": "0x30B0",
+      "message": "SPartyInvitePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_RESULT",
+      "opcode": 12465,
+      "hex": "0x30B1",
+      "message": "SPartyResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_ROSTER",
+      "opcode": 12466,
+      "hex": "0x30B2",
+      "message": "SPartyRosterPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PARTY_MEMBER_STATUS",
+      "opcode": 12467,
+      "hex": "0x30B3",
+      "message": "SPartyMemberStatusPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_OFFER",
+      "opcode": 12480,
+      "hex": "0x30C0",
+      "message": "SQuestOfferPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_RESULT",
+      "opcode": 12481,
+      "hex": "0x30C1",
+      "message": "SQuestResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_LOG",
+      "opcode": 12482,
+      "hex": "0x30C2",
+      "message": "SQuestLogPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_UPDATE",
+      "opcode": 12483,
+      "hex": "0x30C3",
+      "message": "SQuestUpdatePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_QUEST_MARKERS",
+      "opcode": 12484,
+      "hex": "0x30C4",
+      "message": "SQuestMarkersPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_IGNORE_LIST",
+      "opcode": 12496,
+      "hex": "0x30D0",
+      "message": "SIgnoreListPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

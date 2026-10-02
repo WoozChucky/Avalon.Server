@@ -40,7 +40,7 @@ public class BankerSeedShould
             .Single(s => s.CreatureTemplateId == Marta);
 
         Assert.Equal(1u, spawn.MapTemplateId.Value);
-        Assert.Equal((-6f, 0f, 6f, 135f), (spawn.OffsetX, spawn.OffsetY, spawn.OffsetZ, spawn.Facing));
+        Assert.Equal((21.8f, 0f, 34.4f, 118f), (spawn.OffsetX, spawn.OffsetY, spawn.OffsetZ, spawn.Facing));
     }
 
     [Fact]

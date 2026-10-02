@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Abilities;

@@ -13,6 +13,8 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.Entities;
+using Avalon.World.Parties;
+using Avalon.World.Quests;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
@@ -129,6 +131,37 @@ public class WorldServerShutdownShould : IDisposable
         Assert.True(await despawnSave.WaitAsync(limit));
     }
 
+    /// <summary>
+    /// One despawn that throws at once (the tick-thread assertion refusing it when the tick outlived its join, #639)
+    /// costs the other characters neither their despawn nor the wait for every save.
+    /// </summary>
+    [Fact]
+    public async Task Despawn_the_others_and_wait_for_saves_when_one_despawn_throws()
+    {
+        (TcpClient otherClient, TcpClient otherServer) = CreateLoopbackPair();
+        using (otherClient)
+        using (otherServer)
+        {
+            IWorld world = Substitute.For<IWorld>();
+            var saver = Substitute.For<ICharacterSaver>();
+            saver.WhenAllIdle().Returns(Task.CompletedTask);
+            var server = new TestWorldServer(world, saver);
+            Avalon.World.WorldConnection first = Connect(server);
+            var second = new Avalon.World.WorldConnection(
+                server, otherClient, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
+            server.Add(second);
+            world.DeSpawnPlayerAsync(Arg.Any<IWorldConnection>()).Returns(call =>
+                ReferenceEquals(call.Arg<IWorldConnection>(), first)
+                    ? throw new InvalidOperationException("World.LeaveWorldAsync runs on the tick thread only")
+                    : Task.CompletedTask);
+
+            await server.Stop().WaitAsync(TimeSpan.FromSeconds(5));
+
+            await world.Received(1).DeSpawnPlayerAsync(second);
+            await saver.Received(1).WhenAllIdle();
+        }
+    }
+
     /// <summary>The wait is bounded by the host: a save that never finishes must not hold the process up forever.</summary>
     [Fact]
     public async Task Stop_waiting_for_saves_once_the_host_gives_up()
@@ -175,7 +208,8 @@ public class WorldServerShutdownShould : IDisposable
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
-            saver ?? new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance))
+            saver ?? new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance),
+            new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance))
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
@@ -190,6 +224,9 @@ public class WorldServerShutdownShould : IDisposable
     /// </summary>
     private sealed class AnyServiceProvider : IServiceProvider
     {
+        private QuestService? _quests;
+        private Avalon.World.Items.ItemUseService? _itemUses;
+
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
@@ -197,6 +234,23 @@ public class WorldServerShutdownShould : IDisposable
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            // The chat handler (#722) takes the one chat limiter, a class with settings and a clock; off, as the defaults are.
+            if (serviceType == typeof(Avalon.World.Chat.ChatRateLimiter))
+                return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            if (serviceType == typeof(PartyService))
+                return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
+                    NullLogger<PartyService>.Instance);
+
+            // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
+            if (serviceType == typeof(QuestService))
+                return _quests ??= Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
+
+            // ItemUseHandler takes the one item use service, as production's singleton.
+            if (serviceType == typeof(Avalon.World.Items.ItemUseService))
+                return _itemUses ??= Avalon.Server.World.UnitTests.ItemUse.InertItemUseService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(serviceType.GenericTypeArguments[0]));

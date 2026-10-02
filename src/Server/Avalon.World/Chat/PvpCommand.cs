@@ -1,4 +1,3 @@
-using Avalon.Network.Packets.Social;
 using Avalon.World.Pvp;
 
 namespace Avalon.World.Chat;
@@ -12,9 +11,5 @@ public sealed class PvpCommand(PvpToggle toggle) : ICommand
     public string Name => "pvp";
     public string[] Aliases => [];
 
-    public Task ExecuteAsync(WorldPacketContext<CChatMessagePacket> ctx, string[] args, CancellationToken token = default)
-    {
-        toggle.Toggle(ctx.Connection);
-        return Task.CompletedTask;
-    }
+    public void Execute(CommandContext ctx, string[] args) => toggle.Toggle(ctx.Connection);
 }

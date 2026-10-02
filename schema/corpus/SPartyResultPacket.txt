@@ -1,0 +1,68 @@
+# SPartyResultPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SPartyResultPacket
+
+variant absent
+  field 1 Result : PartyResult = Unknown (0)
+  field 2 Name : string = null
+  bytes 0
+
+variant empty
+  field 1 Result : PartyResult = Unknown (0)
+  field 2 Name : string = "" (0 chars, 0 bytes utf-8)
+  bytes 2
+    12 00
+
+variant populated
+  field 1 Result : PartyResult = NotInParty (11)
+  field 2 Name : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
+  bytes 25
+    08 0b 12 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f
+    9a 80 20 61 73 74 72 61 6c
+
+variant maxima
+  field 1 Result : PartyResult = Error (15)
+  field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 137
+    08 0f 12 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78
+
+variant minima
+  field 1 Result : PartyResult = Unknown (0)
+  field 2 Name : string = "\u0001" (1 chars, 1 bytes utf-8)
+  bytes 3
+    12 01 01
+
+variant varint-edges
+  field 1 Result : PartyResult = <not a declared member> (16)
+  field 2 Name : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  bytes 133
+    08 10 12 80 01 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79

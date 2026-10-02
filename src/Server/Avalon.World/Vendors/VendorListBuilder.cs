@@ -20,7 +20,8 @@ public static class VendorListBuilder
 {
     /// <summary>
     /// Rows in Sequence order. A row is left out when its quest gate is not met, or when its item
-    /// template is gone (a /reload items removed it).
+    /// template is gone (a /reload items removed it) or is now a quest item (a /reload items flagged it).
+    /// The buyback newest first, each with its index, leaving out a sale whose item is now a quest item (#738).
     /// </summary>
     public static SVendorListPacket Build(
         ObjectGuid vendor, VendorStockState stock, CharacterEntity character, StaticData data, IQuestProgress quests)
@@ -28,7 +29,8 @@ public static class VendorListBuilder
         List<VendorEntryDto> entries = new(stock.Rows.Count);
         foreach (VendorStockView row in stock.Rows)
         {
-            if (!VendorRules.IsVisible(row, character, quests) || FindTemplate(data, row.ItemTemplateId) is not { } item)
+            if (!VendorRules.IsVisible(row, character, quests) || FindTemplate(data, row.ItemTemplateId) is not { } item
+                || !VendorRules.IsStockable(item))
                 continue;
 
             entries.Add(new VendorEntryDto
@@ -43,19 +45,23 @@ public static class VendorListBuilder
             });
         }
 
+        // A sale whose item is now a quest item (#738) is left out; the others keep the index a buyback names.
         IReadOnlyList<BuybackEntry> sold = character.Buyback.Entries;
-        var buyback = new VendorBuybackDto[sold.Count];
+        List<VendorBuybackDto> buyback = new(sold.Count);
         for (int index = 0; index < sold.Count; index++)
         {
-            buyback[index] = new VendorBuybackDto
+            if (FindTemplate(data, sold[index].Item.TemplateId) is { } template && !VendorRules.IsStockable(template))
+                continue;
+
+            buyback.Add(new VendorBuybackDto
             {
                 Index = (uint)index,
                 Item = ItemSlotDtoMapper.ToDto(InventoryType.Bag, sold[index].Item),
                 Price = sold[index].Price,
-            };
+            });
         }
 
-        return new SVendorListPacket { VendorGuid = vendor.RawValue, Entries = entries.ToArray(), Buyback = buyback };
+        return new SVendorListPacket { VendorGuid = vendor.RawValue, Entries = entries.ToArray(), Buyback = buyback.ToArray() };
     }
 
     /// <summary>Sends the whole list and settles what the player was owed.</summary>
@@ -66,12 +72,14 @@ public static class VendorListBuilder
         SVendorListPacket list = Build(vendor, stock, character, data, quests);
         connection.Send(SVendorListPacket.Create(list.VendorGuid, list.Entries, list.Buyback, connection.CryptoSession.Encrypt));
         character.VendorListOwed = false;
+        character.VendorListQuestVersion = character.Quests.HeldVersion;
     }
 
     /// <summary>
-    /// The vendor pass, for one connection. It sends the list when the shop is open and either the
-    /// vendor's stock changed this tick or this player's buyback did. A closed shop forgets what it
-    /// was owed. Allocation-free when nothing is owed.
+    /// The vendor pass, for one connection. It sends the list when the shop is open and the vendor's
+    /// stock changed this tick, this player's buyback did, or which quests it holds or has turned in
+    /// did since the last list (#738: an accept, an abandon or a turn-in can meet a row's quest gate).
+    /// A closed shop forgets what it was owed. Allocation-free when nothing is owed.
     /// </summary>
     public static void SendIfOwed(IWorldConnection connection, VendorStocks stocks, StaticData data, IQuestProgress quests)
     {
@@ -86,7 +94,7 @@ public static class VendorListBuilder
             return;
         }
 
-        if (stock.Changed || character.VendorListOwed)
+        if (stock.Changed || character.VendorListOwed || character.VendorListQuestVersion != character.Quests.HeldVersion)
             Send(connection, vendor, stock, character, data, quests);
     }
 

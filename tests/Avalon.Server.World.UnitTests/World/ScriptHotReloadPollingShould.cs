@@ -73,11 +73,14 @@ public class ScriptHotReloadPollingShould
     /// <summary>
     /// A loaded world polling <paramref name="reloader" />. Its instances come from
     /// <paramref name="chunkLayoutFactory" /> for the templates <paramref name="mapManager" /> lists
-    /// (none when omitted), and scripts a reload builds get a null logger factory.
+    /// (none when omitted), and scripts a reload builds get a null logger factory. The world logs to
+    /// <paramref name="loggerFactory" /> and holds <paramref name="parties" /> when given.
     /// </summary>
     internal static async Task<Avalon.World.World> BuildWorldAsync(
         IScriptHotReloader reloader, int intervalSeconds,
-        IAvalonMapManager? mapManager = null, IChunkLayoutInstanceFactory? chunkLayoutFactory = null)
+        IAvalonMapManager? mapManager = null, IChunkLayoutInstanceFactory? chunkLayoutFactory = null,
+        Avalon.World.Parties.PartyService? parties = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null,
+        Avalon.World.Threading.TickThreadGuard? tickThread = null)
     {
         var worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -138,7 +141,7 @@ public class ScriptHotReloadPollingShould
         scopeFactory.CreateScope().Returns(scope);
 
         var world = new Avalon.World.World(
-            NullLoggerFactory.Instance,
+            loggerFactory ?? NullLoggerFactory.Instance,
             Options.Create(new GameConfiguration
             {
                 WorldId = new Avalon.Domain.Auth.WorldId(1),
@@ -159,7 +162,7 @@ public class ScriptHotReloadPollingShould
             localizedText,
             reloader,
             Substitute.For<IChunkLibrary>(),
-            dialogue, LootRepositories.Empty());
+            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(), parties: parties, tickThread: tickThread);
 
         await world.LoadAsync(CancellationToken.None);
         return world;

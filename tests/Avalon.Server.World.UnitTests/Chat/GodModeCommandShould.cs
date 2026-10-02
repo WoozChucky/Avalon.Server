@@ -1,11 +1,11 @@
 using System.IO;
+using Avalon.Combat;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.World;
 using Avalon.World.Chat;
-using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -20,16 +20,16 @@ public class GodModeCommandShould
     [Theory]
     [InlineData(AccountAccessLevel.GameMaster)]
     [InlineData(AccountAccessLevel.Admin)]
-    public async Task Enable_and_disable_the_invoking_staff_character(AccountAccessLevel level)
+    public void Enable_and_disable_the_invoking_staff_character(AccountAccessLevel level)
     {
         var fixture = new Fixture(level);
 
         Assert.False(fixture.Character.GodMode);
-        Assert.True(await fixture.Dispatch("/god on"));
+        Assert.True(fixture.Dispatch("/god on"));
         Assert.True(fixture.Character.GodMode);
         Assert.Equal("God mode enabled.", fixture.LastMessage());
 
-        Assert.True(await fixture.Dispatch("/god off"));
+        Assert.True(fixture.Dispatch("/god off"));
         Assert.False(fixture.Character.GodMode);
         Assert.Equal("God mode disabled.", fixture.LastMessage());
     }
@@ -39,11 +39,11 @@ public class GodModeCommandShould
     [InlineData(AccountAccessLevel.Tournament)]
     [InlineData(AccountAccessLevel.PTR)]
     [InlineData(AccountAccessLevel.Player | AccountAccessLevel.PTR)]
-    public async Task Hide_the_command_from_non_staff(AccountAccessLevel level)
+    public void Hide_the_command_from_non_staff(AccountAccessLevel level)
     {
         var fixture = new Fixture(level);
 
-        Assert.False(await fixture.Dispatch("/god on"));
+        Assert.False(fixture.Dispatch("/god on"));
         Assert.False(fixture.Character.GodMode);
         Assert.Empty(fixture.Messages());
     }
@@ -52,44 +52,44 @@ public class GodModeCommandShould
     [InlineData("/god")]
     [InlineData("/god on extra")]
     [InlineData("/god maybe")]
-    public async Task Reject_invalid_arguments_without_changing_state(string command)
+    public void Reject_invalid_arguments_without_changing_state(string command)
     {
         var fixture = new Fixture(AccountAccessLevel.GameMaster);
 
-        Assert.True(await fixture.Dispatch(command));
+        Assert.True(fixture.Dispatch(command));
         Assert.False(fixture.Character.GodMode);
         Assert.Equal("Usage: /god <on|off>", fixture.LastMessage());
     }
 
     [Fact]
-    public async Task Report_repeated_state_without_changing_it()
+    public void Report_repeated_state_without_changing_it()
     {
         var fixture = new Fixture(AccountAccessLevel.GameMaster);
 
-        await fixture.Dispatch("/god off");
+        fixture.Dispatch("/god off");
         Assert.Equal("God mode is already disabled.", fixture.LastMessage());
-        await fixture.Dispatch("/god ON");
-        await fixture.Dispatch("/god on");
+        fixture.Dispatch("/god ON");
+        fixture.Dispatch("/god on");
         Assert.True(fixture.Character.GodMode);
         Assert.Equal("God mode is already enabled.", fixture.LastMessage());
     }
 
     [Fact]
-    public async Task Refuse_to_enable_a_dead_character()
+    public void Refuse_to_enable_a_dead_character()
     {
         var fixture = new Fixture(AccountAccessLevel.GameMaster);
         fixture.Character.IsDead = true;
 
-        Assert.True(await fixture.Dispatch("/god on"));
+        Assert.True(fixture.Dispatch("/god on"));
         Assert.False(fixture.Character.GodMode);
         Assert.Equal("Cannot enable god mode while dead.", fixture.LastMessage());
     }
 
     [Fact]
-    public async Task Leave_a_new_character_out_of_god_mode()
+    public void Leave_a_new_character_out_of_god_mode()
     {
         var fixture = new Fixture(AccountAccessLevel.GameMaster);
-        await fixture.Dispatch("/god on");
+        fixture.Dispatch("/god on");
 
         var other = new CharacterEntity(NullLoggerFactory.Instance,
             new Character { Id = 2u, Health = 100 }, new RegenConfiguration());
@@ -119,11 +119,8 @@ public class GodModeCommandShould
 
         public CharacterEntity Character { get; }
 
-        public Task<bool> Dispatch(string message) => _dispatcher.DispatchAsync(new WorldPacketContext<CChatMessagePacket>
-        {
-            Packet = new CChatMessagePacket { Message = message, DateTime = DateTime.UtcNow },
-            Connection = _connection
-        });
+        public bool Dispatch(string message) => _dispatcher.Dispatch(_connection,
+            new CChatMessagePacket { Message = message, DateTime = DateTime.UtcNow });
 
         public string LastMessage() => Assert.Single(Messages().TakeLast(1));
 

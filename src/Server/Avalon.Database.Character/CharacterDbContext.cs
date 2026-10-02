@@ -4,6 +4,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -63,6 +64,10 @@ public class CharacterDbContext : DbContext
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
     public DbSet<CharacterAbility> CharacterAbilities { get; set; } = null!;
     public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
+    public DbSet<CharacterQuest> CharacterQuests { get; set; } = null!;
+    public DbSet<CharacterQuestObjective> CharacterQuestObjectives { get; set; } = null!;
+    public DbSet<CharacterCompletedQuest> CharacterCompletedQuests { get; set; } = null!;
+    public DbSet<CharacterIgnore> CharacterIgnores { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -84,14 +89,20 @@ public class CharacterDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        Configure(modelBuilder.Entity<Domain.Characters.Character>());
+        // Postgres folds with upper("Name" COLLATE "C"), locale-independent; SQLite (the tests) has no "C" collation,
+        // and its upper() folds ASCII only already. The model is cached per provider, so each gets its own.
+        Configure(modelBuilder.Entity<Domain.Characters.Character>(), Database.IsNpgsql());
         Configure(modelBuilder.Entity<CharacterStats>());
         Configure(modelBuilder.Entity<CharacterInventory>());
         Configure(modelBuilder.Entity<CharacterAbility>());
         Configure(modelBuilder.Entity<ItemInstance>());
+        Configure(modelBuilder.Entity<CharacterQuest>());
+        Configure(modelBuilder.Entity<CharacterQuestObjective>());
+        Configure(modelBuilder.Entity<CharacterCompletedQuest>());
+        Configure(modelBuilder.Entity<CharacterIgnore>());
     }
 
-    private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder)
+    private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder, bool postgres)
     {
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id)
@@ -107,7 +118,31 @@ public class CharacterDbContext : DbContext
                 v => v.Value,
                 v => new AccountId(v)
             );
+
+        // One character per name in a world, whatever the case (#757). NameKey is the upper-cased name every lookup
+        // uses; the check constraint holds every writer to it. On Postgres the fold is upper(... COLLATE "C"), which
+        // upper-cases ASCII letters only whatever the database's locale, exactly as CharacterName.Key does; SQLite's
+        // upper() already folds ASCII only.
+        builder.HasIndex(b => b.NameKey).IsUnique().HasDatabaseName(NameKeyIndex);
+        builder.ToTable(t => t.HasCheckConstraint(NameKeyConstraint,
+            postgres ? NameKeyCheckSqlPostgres : "\"NameKey\" = upper(\"Name\")"));
+
+        // A name is written on insert and by a rename only (CharacterRepository.TryRenameAsync, a conditional UPDATE
+        // while the character is offline). Every tracked update (the world's saves, the select-time write, the API's
+        // admin patch) leaves both columns out, so a world holding an older name in memory can never write it back
+        // over a rename, nor fail its saves on the unique index once another character has taken that older name.
+        builder.Property(b => b.Name).Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+        builder.Property(b => b.NameKey).Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
     }
+
+    /// <summary>The unique index on <c>Characters.NameKey</c> (#757).</summary>
+    public const string NameKeyIndex = "IX_Characters_NameKey";
+
+    /// <summary>The check constraint that holds <c>Characters.NameKey</c> to the upper-cased name (#757).</summary>
+    public const string NameKeyConstraint = "CK_Characters_NameKey";
+
+    /// <summary>The check constraint's expression on Postgres, and the migration's fill.</summary>
+    public const string NameKeyCheckSqlPostgres = "\"NameKey\" = upper(\"Name\" COLLATE \"C\")";
 
     private static void Configure(EntityTypeBuilder<CharacterStats> builder)
     {
@@ -217,5 +252,56 @@ public class CharacterDbContext : DbContext
             );
 
         builder.HasIndex(b => b.CharacterId);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterQuest> builder)
+    {
+        builder.HasKey(b => new { b.CharacterId, b.QuestId });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterQuestObjective> builder)
+    {
+        builder.HasKey(b => new { b.CharacterId, b.QuestId, b.ObjectiveId });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        // Its quest row owns it: an abandon or a turn-in deletes the quest row and the objectives go with it.
+        builder.HasOne<CharacterQuest>()
+            .WithMany()
+            .HasForeignKey(b => new { b.CharacterId, b.QuestId })
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterCompletedQuest> builder)
+    {
+        builder.HasKey(b => new { b.CharacterId, b.QuestId });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterIgnore> builder)
+    {
+        // The pair is the key, so a character is on one list at most once.
+        builder.HasKey(b => new { b.CharacterId, b.IgnoredCharacterId });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.Property(b => b.IgnoredCharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+
+        // Characters are hard-deleted: the owner's list goes with it, and so does every entry naming it.
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.IgnoredCharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(b => b.IgnoredCharacterId);
     }
 }

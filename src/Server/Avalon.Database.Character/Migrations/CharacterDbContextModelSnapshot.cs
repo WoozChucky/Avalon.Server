@@ -85,6 +85,10 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<bool>("Online")
                         .HasColumnType("boolean");
 
@@ -132,7 +136,14 @@ namespace Avalon.Database.Character.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Characters");
+                    b.HasIndex("NameKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Characters_NameKey");
+
+                    b.ToTable("Characters", t =>
+                        {
+                            t.HasCheckConstraint("CK_Characters_NameKey", "\"NameKey\" = upper(\"Name\" COLLATE \"C\")");
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterAbility", b =>
@@ -151,6 +162,40 @@ namespace Avalon.Database.Character.Migrations
                     b.HasIndex("CharacterId");
 
                     b.ToTable("CharacterAbilities");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterCompletedQuest", b =>
+                {
+                    b.Property<long>("CharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("QuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("CharacterId", "QuestId");
+
+                    b.ToTable("CharacterCompletedQuests");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterIgnore", b =>
+                {
+                    b.Property<long>("CharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("IgnoredCharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("CharacterId", "IgnoredCharacterId");
+
+                    b.HasIndex("IgnoredCharacterId");
+
+                    b.ToTable("CharacterIgnores");
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterInventory", b =>
@@ -174,6 +219,47 @@ namespace Avalon.Database.Character.Migrations
                     b.HasIndex("ItemId");
 
                     b.ToTable("CharacterInventory");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterQuest", b =>
+                {
+                    b.Property<long>("CharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("QuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Stage")
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("State")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("CharacterId", "QuestId");
+
+                    b.ToTable("CharacterQuests");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterQuestObjective", b =>
+                {
+                    b.Property<long>("CharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("QuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ObjectiveId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Progress")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("CharacterId", "QuestId", "ObjectiveId");
+
+                    b.ToTable("CharacterQuestObjectives");
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterStats", b =>
@@ -271,6 +357,30 @@ namespace Avalon.Database.Character.Migrations
                     b.Navigation("Character");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterCompletedQuest", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterIgnore", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("IgnoredCharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterInventory", b =>
                 {
                     b.HasOne("Avalon.Domain.Characters.Character", "Character")
@@ -286,6 +396,24 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired();
 
                     b.Navigation("Character");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterQuest", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterQuestObjective", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.CharacterQuest", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId", "QuestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterStats", b =>

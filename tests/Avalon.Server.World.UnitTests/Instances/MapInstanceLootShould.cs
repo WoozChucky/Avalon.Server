@@ -1,16 +1,20 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Loot;
+using Avalon.Server.World.UnitTests.Combat;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Loot;
+using Avalon.World.Parties;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Maps;
@@ -37,6 +41,7 @@ public class MapInstanceLootShould
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
 
     private List<LootTable> _tables = [Table(1, Item(1, Sword))];
+    private IReadOnlyCollection<CharacterLevelExperience>? _levels;
     private StaticData? _data;
 
     private static List<SLootSpawnedPacket> Spawned(MapInstanceClient client) =>
@@ -45,9 +50,10 @@ public class MapInstanceLootShould
     private static List<SLootDespawnedPacket> Despawned(MapInstanceClient client) =>
         client.Read<SLootDespawnedPacket>(NetworkPacketType.SMSG_LOOT_DESPAWNED);
 
-    private async Task<MapInstance> Build(uint? owner = 7, ILootRoller? roller = null)
+    private async Task<MapInstance> Build(uint? owner = 7, ILootRoller? roller = null, PartyId? ownerParty = null,
+        PartyService? parties = null, ICombatRandom? random = null)
     {
-        StaticData data = await LootStaticData.LoadAsync(() => Items, () => _tables);
+        StaticData data = await LootStaticData.LoadAsync(() => Items, () => _tables, _levels);
         _data = data;
 
         IWorld world = NewWorld(data);
@@ -58,7 +64,12 @@ public class MapInstanceLootShould
         serviceProvider.GetService(typeof(ILootRoller))
             .Returns(roller ?? new LootRoller(new LootRandom(new Random(460)), NullLogger<LootRoller>.Instance));
         serviceProvider.GetService(typeof(ILootAllocator))
-            .Returns(new InstanceOwnerLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(Now)));
+            .Returns(new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(Now),
+                random ?? CombatRandom.Steady));
+        if (parties is not null)
+        {
+            serviceProvider.GetService(typeof(PartyService)).Returns(parties);
+        }
 
         // Open, flat ground: every ring point is reachable and the height search returns its centre.
         var navigator = Substitute.For<IMapNavigator>();
@@ -71,7 +82,7 @@ public class MapInstanceLootShould
             Portals: [], EntrySpawnWorldPos: Vector3.zero, CellSize: 30f, Config: null);
 
         return new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(2),
-            owner, layout, navigator, seed: 0);
+            owner, layout, navigator, seed: 0, ownerPartyId: ownerParty);
     }
 
     private static Creature Kill(MapInstance instance, uint id, IUnit? killer = null, CreatureTemplate? template = null)
@@ -194,6 +205,30 @@ public class MapInstanceLootShould
             Assert.Equal(7u, drop.OwnerCharacterId);
             Assert.Equal(Now.UtcDateTime + TimeSpan.FromSeconds(30), drop.FreeForAllAt);
         });
+    }
+
+    /// <summary>2026-09-30: in a party instance each drop is reserved for its own member, drawn among those sharing the kill.</summary>
+    [Fact]
+    public async Task Reserve_Each_Drop_Of_A_Party_Kill_For_A_Member_Drawn_Among_The_Eligible()
+    {
+        var party = new PartyTestWorld();
+        PartyClient a = party.Online(1, "A");
+        PartyClient b = party.Online(2, "B");
+        party.Form(a, b);
+        var random = new ScriptedCombatRandom().Longs(1, 0);
+        using MapInstance instance = await Build(owner: null, ownerParty: party.Parties.PartyOf(a.Id)!.Id,
+            parties: party.Parties, random: random);
+        Join(instance, a.Character);
+        Join(instance, b.Character);
+
+        Kill(instance, 460_001, killer: a.Character);
+
+        // The sword to the second eligible member, then the pile to the first; each reserved for the grace period.
+        Assert.Equal(2, instance.Drops.Count);
+        Assert.Equal(2u, instance.Drops.All.Single(d => d.ItemTemplateId == Sword.Id).OwnerCharacterId);
+        Assert.Equal(1u, instance.Drops.All.Single(d => d.Gold > 0).OwnerCharacterId);
+        Assert.All(instance.Drops.All, drop => Assert.Equal(Now.UtcDateTime + TimeSpan.FromSeconds(30), drop.FreeForAllAt));
+        Assert.Equal([(0L, 1L), (0L, 1L)], random.WeaponRolls);
     }
 
     [Fact]
@@ -346,5 +381,28 @@ public class MapInstanceLootShould
         GroundLoot[] after = instance.Drops.All.Except(before).ToArray();
         Assert.Contains(after, d => d.ItemTemplateId == Staff.Id);
         Assert.DoesNotContain(after, d => d.ItemTemplateId == Sword.Id);
+    }
+
+    /// <summary>
+    /// #735: a killer at the maximum level (here the only level with a row, 1) gains no experience from the kill, but
+    /// the kill still takes effect and drops its sword and its copper pile.
+    /// </summary>
+    [Fact]
+    public async Task Still_drop_a_kills_loot_for_a_killer_at_the_level_cap()
+    {
+        _levels = [new CharacterLevelExperience { Level = 1, Experience = 100 }];
+        using MapInstance instance = await Build();
+        MapInstanceClient killer = Join(instance, 460_901);
+        killer.Character.Level = 1;
+        killer.Character.Experience = 40;
+
+        Kill(instance, 460_902, killer.Character);
+
+        SLootSpawnedPacket spawned = Assert.Single(Spawned(killer));
+        Assert.Equal(2, spawned.Drops.Count);
+        Assert.Equal(Sword.Id.Value, spawned.Drops[0].ItemTemplateId);
+        Assert.Equal(5UL, spawned.Drops[1].Gold);
+        Assert.Equal((ushort)1, killer.Character.Level);
+        Assert.Equal(40ul, killer.Character.Experience);
     }
 }

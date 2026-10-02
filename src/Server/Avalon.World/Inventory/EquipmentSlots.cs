@@ -46,4 +46,26 @@ public static class EquipmentSlots
     /// <summary>True when an item whose template Slot is <paramref name="itemSlot" /> may be worn in <paramref name="slot" />.</summary>
     public static bool Accepts(ushort slot, ItemSlotType? itemSlot) =>
         itemSlot is { } type && TypeOf(slot) == type;
+
+    private static readonly ushort[] NoSlots = [];
+    private static readonly ushort[] Fingers = [Finger1, Finger2];
+
+    /// <summary>
+    /// The slots an item whose template Slot is <paramref name="type" /> is worn in, in the order a use fills them
+    /// (item use): both fingers for a ring, none for a gem or an item with no slot. The one mapping a use reads.
+    /// </summary>
+    public static IReadOnlyList<ushort> SlotsFor(ItemSlotType? type) => type switch
+    {
+        ItemSlotType.Head => [Head],
+        ItemSlotType.Neck => [Neck],
+        ItemSlotType.Shoulder => [Shoulder],
+        ItemSlotType.Chest => [Chest],
+        ItemSlotType.Hands => [Hands],
+        ItemSlotType.Legs => [Legs],
+        ItemSlotType.Feet => [Feet],
+        ItemSlotType.Finger => Fingers,
+        ItemSlotType.MainHand => [MainHand],
+        ItemSlotType.OffHand => [OffHand],
+        _ => NoSlots,
+    };
 }

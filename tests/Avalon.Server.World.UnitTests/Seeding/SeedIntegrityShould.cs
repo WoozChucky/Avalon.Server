@@ -1,19 +1,21 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
-using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Abilities;
-using Avalon.World.Characters;
 using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
+using Avalon.World.Quests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
+using CreatureRarity = Avalon.World.Public.Enums.CreatureRarity;
 
 namespace Avalon.Server.World.UnitTests.Seeding;
 
@@ -23,11 +25,10 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// </summary>
 /// <remarks>
 /// <c>EnsureCreated</c> applies the model's <c>HasData</c>, which covers creature templates and both
-/// new reference tables. It does <em>not</em> cover <c>SpawnTableEntry</c>: those rows are inserted by
-/// raw SQL in a migration rather than declared on the model, so they are invisible here. The check
-/// that every spawn entry points at a real template therefore cannot be written at this level — what
-/// stands in for it is <see cref="Seed_Every_Creature_The_Forest_Spawn_Table_References" />, which
-/// pins the template ids that SQL depends on.
+/// new reference tables. It does <em>not</em> cover spawn tables or procedural map configs: those are
+/// seeded from Maps/ by ChunkCatalogSeeder at World start, whose own tests (ChunkCatalogSeederShould)
+/// refuse an unknown creature id. <see cref="Seed_Every_Creature_The_Forest_Spawn_Table_References" />
+/// still pins the template ids the forest's table names.
 /// </remarks>
 public class SeedIntegrityShould
 {
@@ -96,10 +97,10 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// The forest spawn table is inserted by migration SQL against creature ids 4 to 10, so those
-    /// templates existing is a precondition of that SQL rather than something EF enforces. A dangling
-    /// reference throws inside <c>CreatureSpawner.Spawn</c> during instance construction, which stops
-    /// every player entering the map — and the seed data is the only place it is visible beforehand.
+    /// The forest spawn table (Maps/spawn-tables.json) names creature ids 4 to 10, so those
+    /// templates existing is a precondition of that file rather than something EF enforces. The World
+    /// server's start-up seeder refuses a table naming a missing template, which stops the server; this
+    /// pins, before any start, that the seed still has every template the forest's table names.
     /// </summary>
     [Fact]
     public void Seed_Every_Creature_The_Forest_Spawn_Table_References()
@@ -107,7 +108,7 @@ public class SeedIntegrityShould
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        // The ids SeedForestRoster's INSERT names, and the rarity each is expected to carry.
+        // The ids the forest's spawn table names, and the rarity each is expected to carry.
         (uint Id, CreatureRarity Rarity)[] expected =
         [
             (4, CreatureRarity.Normal),
@@ -163,6 +164,44 @@ public class SeedIntegrityShould
 
             Assert.Equal("TownNpcScript", template.ScriptName);
         }
+    }
+
+    /// <summary>
+    /// A party instance holds at most <c>min(Game:MaxPartySize, map.MaxPlayers)</c>, so a procedural map seeded
+    /// below the default party size turns away a whole party's later members with <c>InstanceFull</c> (#707: the
+    /// forest was seeded at 1). Solo instances are keyed per character, so the cap never lets strangers share one.
+    /// </summary>
+    [Fact]
+    public void Seat_A_Whole_Default_Party_On_Every_Seeded_Procedural_Map()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        int partySize = new Avalon.World.Configuration.GameConfiguration().MaxPartySize;
+        List<MapTemplate> normals = context.MapTemplates.AsNoTracking().ToList()
+            .Where(map => map.MapType == MapType.Normal)
+            .ToList();
+
+        Assert.Contains(normals, map => map.Id.Value == 2); // the forest
+        Assert.All(normals, map => Assert.True(map.MaxPlayers is null || map.MaxPlayers >= partySize,
+            $"{map.Name} seats {map.MaxPlayers}, below the default party size {partySize}"));
+    }
+
+    /// <summary>
+    /// Forest content pass: the forest's reward band runs to 15, so a character is never out of band before the cap.
+    /// Its spawns roll their levels from depth bands instead (Maps/ProceduralMaps/2.json), so the band does not
+    /// constrain spawning.
+    /// </summary>
+    [Fact]
+    public void Band_the_forests_rewards_from_level_one_to_fifteen()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        MapTemplate forest = context.MapTemplates.AsNoTracking().ToList().Single(m => m.Id.Value == 2);
+
+        Assert.Equal((ushort?)1, forest.MinLevel);
+        Assert.Equal((ushort?)15, forest.MaxLevel);
     }
 
     /// <summary>
@@ -768,7 +807,7 @@ public class SeedIntegrityShould
     [InlineData(201u, ScalingStat.Attack, 0.6f, 1.5f)]
     [InlineData(202u, ScalingStat.Attack, 0.5f, 1.0f)]
     [InlineData(210u, ScalingStat.Ability, 0.25f, 0f)]
-    [InlineData(211u, ScalingStat.Ability, 0.8f, 0f)]
+    [InlineData(211u, ScalingStat.Ability, 0.4f, 0f)]
     [InlineData(212u, ScalingStat.Ability, 0.5f, 0f)]
     [InlineData(220u, ScalingStat.Attack, 0.3f, 1.0f)]
     [InlineData(221u, ScalingStat.Attack, 0.6f, 1.2f)]
@@ -783,6 +822,17 @@ public class SeedIntegrityShould
 
         AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == id);
         Assert.Equal((stat, scaling, weapon), (ability.ScalingStat, ability.ScalingCoefficient, ability.BaseDamageCoefficient));
+    }
+
+    /// <summary>#732: Flame Burst halved from 35 + 0.8 x ability damage to 18 + 0.4 x ability damage.</summary>
+    [Fact]
+    public void Seed_flame_burst_at_half_its_first_damage()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        AbilityTemplate burst = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == 211);
+        Assert.Equal((18u, 0.4f, 25u, 3f), (burst.EffectValue, burst.ScalingCoefficient, burst.Cost, burst.Radius));
     }
 
     /// <summary>#506: the starter weapons roll 4-7, the forest weapons 7-11, and the two-handed Thornwood Staff 9-14.</summary>
@@ -917,5 +967,244 @@ public class SeedIntegrityShould
         List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
         Assert.NotEmpty(templates);
         Assert.All(templates, t => Assert.Equal(2.25f, t.BaseAttackTime));
+    }
+
+    private static List<QuestTemplate> SeededQuests(WorldDbContext context) => context.QuestTemplates.AsNoTracking()
+        .Include(q => q.Stages).Include(q => q.Objectives).ThenInclude(o => o.Drops).Include(q => q.ItemRewards)
+        .OrderBy(q => q.Id).ToList();
+
+    /// <summary>The storyline (#433, spec §5): three chained quests at the town's own NPCs.</summary>
+    [Fact]
+    public void Seed_the_forest_storyline_as_designed()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        List<QuestTemplate> quests = SeededQuests(context).Where(q => q.Id.Value <= 3).ToList();
+
+        Assert.Equal([1u, 2u, 3u], quests.Select(q => q.Id.Value));
+        Assert.Equal([(1ul, 1ul), (1ul, 2ul), (2ul, 2ul)], quests.Select(q => (q.GiverCreatureId.Value, q.EnderCreatureId.Value)));
+        Assert.Equal(new uint?[] { null, 1, 2 }, quests.Select(q => q.RequiredQuestId?.Value));
+        Assert.Equal([(ushort)1, (ushort)1, (ushort)2], quests.Select(q => q.LevelRequirement));
+        Assert.Equal([(150u, 100ul), (250u, 150ul), (600u, 400ul)], quests.Select(q => (q.RewardExperience, q.RewardMoney)));
+        Assert.All(quests, q => Assert.Null(q.ScriptName));
+        Assert.All(quests, q => Assert.Null(q.ClassRequirement));
+
+        QuestObjective boars = Assert.Single(quests[0].Objectives);
+        Assert.Equal((QuestObjectiveType.Kill, 4ul, 6u), (boars.Type, boars.CreatureTemplateId!.Value, boars.Count));
+
+        QuestObjective tusks = Assert.Single(quests[1].Objectives);
+        Assert.Equal((QuestObjectiveType.Collect, 57ul, 4u), (tusks.Type, tusks.ItemTemplateId!.Value, tusks.Count));
+        QuestItemDrop drop = Assert.Single(tusks.Drops);
+        Assert.Equal((4ul, 60f), (drop.CreatureTemplateId.Value, drop.Chance));
+        Assert.Equal((56ul, 2u), (Assert.Single(quests[1].ItemRewards).ItemTemplateId.Value, quests[1].ItemRewards[0].Count));
+
+        Assert.Equal([0, 1, 2], quests[2].Stages.OrderBy(s => s.Sequence).Select(s => s.Sequence));
+        Assert.Equal(
+            [(0, QuestObjectiveType.Kill, 5ul, 3u), (0, QuestObjectiveType.Kill, 7ul, 2u), (1, QuestObjectiveType.Talk, 11ul, 1u), (2, QuestObjectiveType.Kill, 8ul, 1u)],
+            quests[2].Objectives.OrderBy(o => o.Id).Select(o => (o.StageSequence, o.Type, o.CreatureTemplateId!.Value, o.Count)));
+        Assert.Equal((58ul, 1u), (Assert.Single(quests[2].ItemRewards).ItemTemplateId.Value, quests[2].ItemRewards[0].Count));
+    }
+
+    /// <summary>Forest content pass: the second chain, 4 → 5 → 6 → 7 → 8, as the spec's table gives it.</summary>
+    [Fact]
+    public void Seed_the_forest_chain_as_designed()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        List<QuestTemplate> quests = SeededQuests(context).Where(q => q.Id.Value >= 4).ToList();
+
+        Assert.Equal([4u, 5u, 6u, 7u, 8u], quests.Select(q => q.Id.Value));
+        Assert.Equal([(14ul, 14ul), (13ul, 13ul), (3ul, 11ul), (2ul, 2ul), (1ul, 1ul)],
+            quests.Select(q => (q.GiverCreatureId.Value, q.EnderCreatureId.Value)));
+        Assert.Equal(new uint?[] { null, 4, 5, 6, 7 }, quests.Select(q => q.RequiredQuestId?.Value));
+        Assert.Equal([(ushort)2, (ushort)3, (ushort)4, (ushort)5, (ushort)7], quests.Select(q => q.LevelRequirement));
+        Assert.Equal([(300u, 200ul), (400u, 250ul), (500u, 300ul), (700u, 400ul), (1500u, 1000ul)],
+            quests.Select(q => (q.RewardExperience, q.RewardMoney)));
+        Assert.All(quests, q => Assert.Null(q.ScriptName));
+        Assert.All(quests, q => Assert.Null(q.ClassRequirement));
+
+        Assert.Equal(
+            [(401u, 0, QuestObjectiveType.Collect, 59ul, 6u), (501u, 0, QuestObjectiveType.Collect, 60ul, 8u),
+             (601u, 0, QuestObjectiveType.Kill, 7ul, 8u), (602u, 0, QuestObjectiveType.Collect, 61ul, 3u),
+             (701u, 0, QuestObjectiveType.Collect, 62ul, 1u),
+             (801u, 0, QuestObjectiveType.Talk, 12ul, 1u), (802u, 1, QuestObjectiveType.Kill, 8ul, 2u),
+             (803u, 1, QuestObjectiveType.Collect, 63ul, 1u)],
+            quests.SelectMany(q => q.Objectives).OrderBy(o => o.Id)
+                .Select(o => (o.Id, o.StageSequence, o.Type, o.CreatureTemplateId?.Value ?? o.ItemTemplateId!.Value, o.Count)));
+
+        Assert.Equal([(401u, 6ul, 50f), (501u, 5ul, 50f), (602u, 7ul, 35f), (701u, 9ul, 100f), (803u, 10ul, 100f)],
+            quests.SelectMany(q => q.Objectives).SelectMany(o => o.Drops).OrderBy(d => d.ObjectiveId)
+                .Select(d => (d.ObjectiveId, d.CreatureTemplateId.Value, d.Chance)));
+
+        Assert.Equal([(4u, 2ul, 3u), (6u, 56ul, 2u), (7u, 64ul, 1u), (8u, 65ul, 1u)],
+            quests.SelectMany(q => q.ItemRewards).OrderBy(r => r.QuestId.Value)
+                .Select(r => (r.QuestId.Value, r.ItemTemplateId.Value, r.Count)));
+
+        // Owner decision: Garrick first, then the Alphas and the Bramble Heart in one stage, so the arena counts at once.
+        Assert.Equal([0, 1], quests.Single(q => q.Id.Value == 8).Stages.OrderBy(s => s.Sequence).Select(s => s.Sequence));
+        Assert.All(quests.Where(q => q.Id.Value != 8), q => Assert.Single(q.Stages));
+    }
+
+    /// <summary>Quest options are offered only on an NPC's root node, so every giver and ender, and every talk target, must have one.</summary>
+    [Fact]
+    public void Give_every_quest_giver_ender_and_talk_target_a_dialogue_root()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        HashSet<ulong> rooted = context.DialogueNodes.AsNoTracking().ToList().Where(n => n.IsRoot)
+            .Select(n => n.CreatureTemplateId.Value).ToHashSet();
+
+        foreach (QuestTemplate quest in SeededQuests(context))
+        {
+            Assert.Contains(quest.GiverCreatureId.Value, rooted);
+            Assert.Contains(quest.EnderCreatureId.Value, rooted);
+            Assert.All(quest.Objectives.Where(o => o.Type == QuestObjectiveType.Talk),
+                o => Assert.Contains(o.CreatureTemplateId!.Value, rooted));
+        }
+    }
+
+    [Fact]
+    public void Load_every_seeded_quest_through_the_catalog_without_refusing_any()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var catalog = new QuestCatalog(SeededQuests(context), context.CreatureTemplates.AsNoTracking().ToList(),
+            context.ItemTemplates.AsNoTracking().ToList(), context.DialogueNodes.AsNoTracking().ToList(), _ => null,
+            NullLoggerFactory.Instance);
+
+        Assert.Empty(catalog.Refused);
+        Assert.Equal(8, catalog.All.Count);
+    }
+
+    [Fact]
+    public void Resolve_every_text_a_seeded_quest_names()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        HashSet<int> texts = context.LocalizedTexts.AsNoTracking().Select(t => t.Id).ToList().Select(t => t.Value).ToHashSet();
+
+        foreach (QuestTemplate quest in SeededQuests(context))
+        {
+            Assert.Contains(quest.TitleTextId.Value, texts);
+            Assert.Contains(quest.DescriptionTextId.Value, texts);
+            Assert.Contains(quest.CompletionTextId.Value, texts);
+            Assert.All(quest.Objectives, o => Assert.Contains(o.DescriptionTextId.Value, texts));
+            Assert.All(quest.Stages.Where(s => s.DescriptionTextId is not null), s => Assert.Contains(s.DescriptionTextId!.Value, texts));
+        }
+    }
+
+    [Fact]
+    public void Seed_the_boar_tusk_as_a_quest_item_that_drops_nowhere_else_and_is_never_sold()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate tusk = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 57);
+
+        Assert.Equal("Boar Tusk", tusk.Name);
+        Assert.Equal((ItemClass.Quest, ItemSubClass.QuestItem), (tusk.Class, tusk.SubClass));
+        Assert.True(tusk.Flags.HasFlag(ItemTemplateFlags.QuestItem));
+        Assert.True(tusk.Flags.HasFlag(ItemTemplateFlags.NoSell));
+        Assert.DoesNotContain(context.LootTableEntries.AsNoTracking().ToList(), e => e.ItemTemplateId?.Value == 57);
+        Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), s => s.ItemTemplateId.Value == 57);
+    }
+
+    [Fact]
+    public void Seed_the_alphas_fang_pendant_as_an_uncommon_neck_piece_for_every_class()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate pendant = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 58);
+
+        Assert.Equal("Alpha's Fang Pendant", pendant.Name);
+        Assert.Equal((ItemClass.Armor, ItemSubClass.Amulet, ItemSlotType.Neck, ItemRarity.Uncommon),
+            (pendant.Class, pendant.SubClass, pendant.Slot, pendant.Rarity));
+        Assert.Equal(4, pendant.AllowedClasses.Count);
+        Assert.False(pendant.Flags.HasFlag(ItemTemplateFlags.Unique));
+    }
+
+    /// <summary>Forest content pass, quests 4-8: five quest items that drop only for characters collecting them and are never sold.</summary>
+    [Theory]
+    [InlineData(59ul, "Blightfly Wing")]
+    [InlineData(60ul, "Fen Wolf Pelt")]
+    [InlineData(61ul, "Ledger Page")]
+    [InlineData(62ul, "Tuskroot Heartwood")]
+    [InlineData(63ul, "Bramble Heart")]
+    public void Seed_the_chains_quest_items_as_never_sold_and_never_looted(ulong id, string name)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+
+        Assert.Equal(name, item.Name);
+        Assert.Equal((ItemClass.Quest, ItemSubClass.QuestItem), (item.Class, item.SubClass));
+        Assert.True(item.Flags.HasFlag(ItemTemplateFlags.QuestItem));
+        Assert.True(item.Flags.HasFlag(ItemTemplateFlags.NoSell));
+        Assert.Equal(20u, item.MaxStackSize);
+        Assert.Equal((0u, 0u), (item.BuyPrice, item.SellPrice));
+        Assert.DoesNotContain(context.LootTableEntries.AsNoTracking().ToList(), e => e.ItemTemplateId?.Value == id);
+        Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), s => s.ItemTemplateId.Value == id);
+    }
+
+    /// <summary>The chain's two rewards: rings for every class, in a finger slot, never Unique (a reward must always fit).</summary>
+    [Theory]
+    [InlineData(64ul, "Heartwood Band", ItemRarity.Uncommon, (ushort)5, 3u, 2u)]
+    [InlineData(65ul, "Thornheart Signet", ItemRarity.Rare, (ushort)7, 5u, 4u)]
+    public void Seed_the_chains_rings_for_every_class(ulong id, string name, ItemRarity rarity, ushort level, uint stamina, uint armor)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate ring = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+
+        Assert.Equal(name, ring.Name);
+        Assert.Equal((ItemClass.Armor, ItemSubClass.Ring, ItemSlotType.Finger, rarity), (ring.Class, ring.SubClass, ring.Slot, ring.Rarity));
+        Assert.Equal(level, ring.RequiredLevel);
+        Assert.Equal(4, ring.AllowedClasses.Count);
+        Assert.Equal((StatType.Stamina, stamina), (ring.StatType1, ring.StatValue1));
+        Assert.Equal((StatType.Armor, armor), (ring.StatType2, ring.StatValue2));
+        Assert.False(ring.Flags.HasFlag(ItemTemplateFlags.Unique));
+        Assert.Equal(1u, ring.MaxStackSize);
+    }
+
+    [Fact]
+    public void Gate_no_vendor_row_behind_a_quest_yet()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Assert.All(context.VendorStocks.AsNoTracking().ToList(), s => Assert.Null(s.RequiredQuestId));
+    }
+
+    /// <summary>Item use: the potions and the Town Portal Scroll are the seeded usable items.</summary>
+    [Theory]
+    [InlineData(1ul, "RestoreHealth", null, 30000u, "potion", 30u)]
+    [InlineData(2ul, "RestorePower", null, 30000u, "potion", 30u)]
+    [InlineData(3ul, "TownPortalScroll", 3000u, 30000u, null, null)]
+    [InlineData(56ul, "RestoreHealth", null, 30000u, "potion", 60u)]
+    public void Give_the_usable_items_their_use_data(
+        ulong id, string script, uint? castMs, uint? cooldownMs, string? group, uint? value)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+
+        Assert.Equal((script, castMs, cooldownMs, group, value),
+            (item.UseScript, item.UseCastTimeMs, item.UseCooldownMs, item.UseCooldownGroup, item.UseValue));
+    }
+
+    /// <summary>The forest scrolls (9-11) stay inert, and so does every other item: only the four above are usable.</summary>
+    [Fact]
+    public void Leave_every_other_item_without_a_use_script()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        ulong[] usable = context.ItemTemplates.AsNoTracking().ToList()
+            .Where(i => i.UseScript is not null).Select(i => i.Id.Value).Order().ToArray();
+
+        Assert.Equal([1ul, 2ul, 3ul, 56ul], usable);
+        Assert.All(context.ItemTemplates.AsNoTracking().ToList().Where(i => i.UseScript is null), i =>
+            Assert.Equal(((uint?)null, (uint?)null, (string?)null, (uint?)null),
+                (i.UseCastTimeMs, i.UseCooldownMs, i.UseCooldownGroup, i.UseValue)));
     }
 }

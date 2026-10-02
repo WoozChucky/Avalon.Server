@@ -68,6 +68,25 @@ public class VendorListBuilderShould : IAsyncLifetime
         Assert.Equal([2u, 3u, 4u], list.Entries.Select(e => e.Sequence));
     }
 
+    /// <summary>
+    /// Final review M5: a /reload items that flags a stocked item QuestItem hides its row at once, before any
+    /// /reload vendors drops it, since a quest item is never sold.
+    /// </summary>
+    [Fact]
+    public void Leave_out_a_row_whose_item_a_reload_made_a_quest_item()
+    {
+        var flagged = new ItemTemplate
+        {
+            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+        };
+        _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList()));
+
+        SVendorListPacket list = Build();
+
+        Assert.Equal([2u, 3u, 4u], list.Entries.Select(e => e.Sequence));
+    }
+
     [Fact]
     public void List_the_buyback_newest_first_with_what_each_sold_for()
     {
@@ -82,6 +101,29 @@ public class VendorListBuilderShould : IAsyncLifetime
             (list.Buyback[0].Item!.ItemTemplateId, list.Buyback[0].Item!.Slot, list.Buyback[0].Item!.Durability, list.Buyback[0].Price));
         Assert.Equal((5u, 20UL), (list.Buyback[1].Item!.Count, list.Buyback[1].Price));
         Assert.Equal((ushort)1, list.Buyback[1].Item!.Container);   // the Bag
+    }
+
+    /// <summary>
+    /// #738: a sale whose item a /reload items has since flagged QuestItem is left out of the buyback list, as a stock
+    /// row of one is; every other sale keeps the index a buyback request names it by.
+    /// </summary>
+    [Fact]
+    public void Leave_out_a_buyback_whose_item_a_reload_made_a_quest_item()
+    {
+        var flagged = new ItemTemplate
+        {
+            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+        };
+        CharacterEntity character = _w.Main.Character;
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(3, Blade, durability: 42), 25));
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(4, Tonic, count: 5), 20));
+        _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList()));
+
+        SVendorListPacket list = Build();
+
+        VendorBuybackDto blade = Assert.Single(list.Buyback);
+        Assert.Equal((1u, Blade.Id.Value), (blade.Index, blade.Item!.ItemTemplateId));
     }
 
     [Fact]
@@ -113,6 +155,62 @@ public class VendorListBuilderShould : IAsyncLifetime
         Assert.Equal(2, _w.Main.Lists().Count);
         Assert.Single(_w.Main.Lists()[^1].Buyback);
         Assert.False(_w.Main.Character.VendorListOwed);
+    }
+
+    /// <summary>
+    /// #738: a turn-in that meets a row's quest gate while the shop is open resends the list on the next vendor pass,
+    /// so the row shows at once rather than when something else changes.
+    /// </summary>
+    [Fact]
+    public void Send_the_list_when_a_turn_in_meets_a_gate_while_the_shop_is_open()
+    {
+        _w.Quests = QuestProgress.Instance;
+        _w.OpenShop();
+        _w.EndOfTick();
+        Assert.DoesNotContain(_w.Main.Lists()[^1].Entries, e => e.Sequence == GatedSequence);
+
+        QuestLog log = _w.Main.Character.Quests;
+        log.Start(GatedQuest, Now);
+        log.Complete(GatedQuest, Now);
+        _w.EndOfTick();
+        _w.EndOfTick();
+
+        Assert.Equal(2, _w.Main.Lists().Count);
+        Assert.Contains(_w.Main.Lists()[^1].Entries, e => e.Sequence == GatedSequence);
+    }
+
+    /// <summary>#738: an accept and an abandon change which quests are held, so each resends the list too.</summary>
+    [Fact]
+    public void Send_the_list_when_a_quest_is_accepted_or_abandoned_while_the_shop_is_open()
+    {
+        _w.Quests = QuestProgress.Instance;
+        _w.OpenShop();
+        _w.EndOfTick();
+
+        _w.Main.Character.Quests.Start(GatedQuest, Now);
+        _w.EndOfTick();
+        _w.Main.Character.Quests.Remove(GatedQuest);
+        _w.EndOfTick();
+        _w.EndOfTick();
+
+        Assert.Equal(3, _w.Main.Lists().Count);
+    }
+
+    /// <summary>#738: progress on a held quest changes no gate (held or turned in), so it resends nothing.</summary>
+    [Fact]
+    public void Send_nothing_when_only_a_held_quests_progress_changed()
+    {
+        _w.Quests = QuestProgress.Instance;
+        QuestLog log = _w.Main.Character.Quests;
+        ActiveQuest active = log.Start(GatedQuest, Now);
+        _w.OpenShop();
+        _w.EndOfTick();
+
+        log.SetProgress(active, 1, 3);
+        log.SetStage(active, 1);
+        _w.EndOfTick();
+
+        Assert.Single(_w.Main.Lists());
     }
 
     [Fact]

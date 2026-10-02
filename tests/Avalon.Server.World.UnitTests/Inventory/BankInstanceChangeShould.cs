@@ -155,7 +155,7 @@ public class BankInstanceChangeShould
             r.Texts,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            r.Dialogue, r.Loot);
+            r.Dialogue, r.Loot, Avalon.Server.World.UnitTests.Chat.ChatLimits.Off());
 
         await world.LoadAsync(CancellationToken.None);
         return world;

@@ -124,6 +124,14 @@ public class MapSessionFilterShould
     }
 
     [Fact]
+    public void Accept_an_item_use_for_a_character_on_a_map_and_none_without_one()
+    {
+        Assert.True(For(CharacterOnMap()).CanProcess(NetworkPacketType.CMSG_ITEM_USE));
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_ITEM_USE));
+        Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_ITEM_USE));
+    }
+
+    [Fact]
     public void Accept_Vendor_Requests_For_A_Character_On_A_Map()
     {
         MapSessionFilter filter = For(CharacterOnMap());
@@ -147,5 +155,28 @@ public class MapSessionFilterShould
         Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_VENDOR_BUY));
         Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_VENDOR_SELL));
         Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_VENDOR_BUYBACK));
+    }
+
+    [Theory]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_LEAVE)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_KICK)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_PROMOTE)]
+    [InlineData(NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE)]
+    public void Accept_every_party_request_for_a_character_on_a_map_and_none_without_one(NetworkPacketType type)
+    {
+        Assert.True(For(CharacterOnMap()).CanProcess(type));
+        Assert.False(For(null).CanProcess(type));
+    }
+
+    [Theory]
+    [InlineData(NetworkPacketType.CMSG_QUEST_ACCEPT)]
+    [InlineData(NetworkPacketType.CMSG_QUEST_TURN_IN)]
+    [InlineData(NetworkPacketType.CMSG_QUEST_ABANDON)]
+    public void Accept_every_quest_request_for_a_character_on_a_map_and_none_without_one(NetworkPacketType type)
+    {
+        Assert.True(For(CharacterOnMap()).CanProcess(type));
+        Assert.False(For(null).CanProcess(type));
     }
 }

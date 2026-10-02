@@ -14,6 +14,8 @@ using Avalon.World.Serialization;
 using NSubstitute;
 using ProtoBuf;
 using Xunit;
+using WireRarity = Avalon.Network.Packets.State.CreatureRarity;
+using WorldRarity = Avalon.World.Public.Enums.CreatureRarity;
 
 namespace Avalon.Server.World.UnitTests.Serialization;
 
@@ -94,6 +96,9 @@ public class ObjectStateWriterShould
             // No scenario entity can be interacted with: characters and projectiles never
             // carry the flag, and the scenario creature is a plain one.
             Assert.Null(parsed.CanInteract);
+
+            // Characters and projectiles never carry a rarity, and the scenario creature is Normal (#709).
+            Assert.Null(parsed.Rarity);
         }
     }
 
@@ -163,6 +168,161 @@ public class ObjectStateWriterShould
         Assert.Equal(new byte[] { 0xA0, 0x01, 0x01 }, stream.ToArray());
     }
 
+    /// <summary>
+    /// #672: a creature is dead at 0 health, the rule every server check on a creature uses, and its
+    /// state says so when asked.
+    /// </summary>
+    [Theory]
+    [InlineData(0u, true)]
+    [InlineData(1u, false)]
+    [InlineData(100u, false)]
+    public void Report_a_creature_dead_exactly_at_0_health(uint currentHealth, bool dead)
+    {
+        Creature creature = (Creature)Npc(canInteract: false);
+        creature.Health = 100;
+        creature.CurrentHealth = currentHealth;
+
+        Assert.Equal(dead, RoundTrip(ObjectStateWriter.From((ICreature)creature, GameEntityFields.All)).IsDead);
+        Assert.Equal(dead, RoundTrip(ObjectStateWriter.From((ICreature)creature, GameEntityFields.IsDead)).IsDead);
+    }
+
+    /// <summary>Any ICreature, not only the World-side one: health is all the rule reads.</summary>
+    [Fact]
+    public void Report_any_creature_at_0_health_as_dead()
+    {
+        var creature = Substitute.For<ICreature>();
+        creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 6));
+        creature.Metadata.Returns(new Avalon.Domain.World.CreatureTemplate { Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3) });
+        creature.CurrentHealth.Returns(0u);
+
+        Assert.True(ObjectStateWriter.From(creature, GameEntityFields.All).IsDead);
+    }
+
+    /// <summary>
+    /// The routine creature update does not ask for the death state, so a living creature's updates pay
+    /// nothing for it; a death is sent because the creature marks it as a change.
+    /// </summary>
+    [Fact]
+    public void Leave_the_death_state_out_of_the_routine_creature_update()
+    {
+        Assert.False(GameEntityFields.CreatureUpdate.HasFlag(GameEntityFields.IsDead));
+        Assert.Null(ObjectStateWriter.From(Npc(canInteract: false), GameEntityFields.CreatureUpdate).IsDead);
+    }
+
+    [Fact]
+    public void Mark_a_creatures_death_state_changed_when_its_health_reaches_0()
+    {
+        Creature creature = (Creature)Npc(canInteract: false);
+        creature.CurrentHealth = 100;
+        creature.ConsumeDirtyFields();
+
+        creature.CurrentHealth = 40;
+        Assert.False(creature.ConsumeDirtyFields().HasFlag(GameEntityFields.IsDead));
+
+        creature.CurrentHealth = 0;
+        GameEntityFields dirty = creature.ConsumeDirtyFields();
+        Assert.True(dirty.HasFlag(GameEntityFields.IsDead));
+        Assert.True(dirty.HasFlag(GameEntityFields.CurrentHealth));
+
+        creature.CurrentHealth = 0;
+        Assert.False(creature.ConsumeDirtyFields().HasFlag(GameEntityFields.IsDead));
+    }
+
+    /// <summary>
+    /// #709: a creature that is not Normal carries its rarity on every state, the add and the routine
+    /// update alike, whatever is marked changed, so a client that first sees it on an update still colours
+    /// its nameplate.
+    /// </summary>
+    [Theory]
+    [InlineData(WorldRarity.Elite, WireRarity.Elite, GameEntityFields.All)]
+    [InlineData(WorldRarity.Rare, WireRarity.Rare, GameEntityFields.All)]
+    [InlineData(WorldRarity.Boss, WireRarity.Boss, GameEntityFields.All)]
+    [InlineData(WorldRarity.Elite, WireRarity.Elite, GameEntityFields.CreatureUpdate)]
+    [InlineData(WorldRarity.Rare, WireRarity.Rare, GameEntityFields.CreatureUpdate)]
+    [InlineData(WorldRarity.Boss, WireRarity.Boss, GameEntityFields.CreatureUpdate)]
+    [InlineData(WorldRarity.Boss, WireRarity.Boss, GameEntityFields.None)]
+    public void Send_a_creatures_rarity_on_every_state(WorldRarity rarity, WireRarity expected, GameEntityFields fields)
+    {
+        ObjectState state = RoundTrip(ObjectStateWriter.From(Monster(rarity), fields));
+
+        Assert.Equal(expected, state.Rarity);
+    }
+
+    /// <summary>Most creatures are Normal and pay nothing: absent means Normal.</summary>
+    [Theory]
+    [InlineData(GameEntityFields.All)]
+    [InlineData(GameEntityFields.CreatureUpdate)]
+    public void Leave_the_rarity_out_for_a_normal_creature(GameEntityFields fields)
+    {
+        ObjectState state = ObjectStateWriter.From(Monster(WorldRarity.Normal), fields);
+
+        Assert.Null(state.Rarity);
+        Assert.Null(RoundTrip(state).Rarity);
+    }
+
+    /// <summary>
+    /// Only the World-side Creature carries the value, so any other ICreature (a mod's, in principle) is sent
+    /// as Normal, whatever its metadata says: no mod can change the rarity a creature advertises.
+    /// </summary>
+    [Fact]
+    public void Never_send_a_rarity_for_a_creature_that_is_not_the_world_side_Creature()
+    {
+        var creature = Substitute.For<ICreature>();
+        creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 6));
+        creature.Metadata.Returns(new Avalon.Domain.World.CreatureTemplate
+        {
+            Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3), Rarity = WorldRarity.Boss,
+        });
+
+        Assert.Null(ObjectStateWriter.From(creature, GameEntityFields.All).Rarity);
+    }
+
+    [Fact]
+    public void Never_send_a_rarity_on_a_character_state()
+    {
+        Assert.Null(ObjectStateWriter.From(TestCharacters.New(1), GameEntityFields.All).Rarity);
+    }
+
+    /// <summary>
+    /// The wire copy mirrors the server's rarity value by value, and the writer maps every server value, so
+    /// a value added on either side without the other fails here.
+    /// </summary>
+    [Fact]
+    public void Map_every_server_rarity_onto_the_wire_rarity_of_the_same_name_and_number()
+    {
+        Assert.Equal(Enum.GetNames<WorldRarity>(), Enum.GetNames<WireRarity>());
+
+        foreach (WorldRarity rarity in Enum.GetValues<WorldRarity>())
+        {
+            WireRarity? wire = ObjectStateWriter.ToWire(rarity);
+
+            Assert.NotNull(wire);
+            Assert.Equal(rarity.ToString(), wire.Value.ToString());
+            Assert.Equal((int)rarity, (int)wire.Value);
+        }
+    }
+
+    /// <summary>
+    /// Pins the field number clients read. Field 22, varint wire type: tag (22 &lt;&lt; 3) | 0 = 176, which is
+    /// the two-byte varint B0 01, followed by the value (Boss, 3).
+    /// </summary>
+    [Fact]
+    public void Carry_Rarity_as_field_22()
+    {
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, new ObjectState { Rarity = WireRarity.Boss });
+
+        Assert.Equal(new byte[] { 0xB0, 0x01, 0x03 }, stream.ToArray());
+    }
+
+    private static ICreature Monster(WorldRarity rarity) => new Creature
+    {
+        Guid = new ObjectGuid(ObjectType.Creature, 7),
+        Name = "Bramblemaw Alpha",
+        Metadata = new Avalon.Domain.World.CreatureTemplate { Id = new Avalon.Common.ValueObjects.CreatureTemplateId(8) },
+        Rarity = rarity,
+    };
+
     private static ICreature Npc(bool canInteract) => new Creature
     {
         Guid = new ObjectGuid(ObjectType.Creature, 5),
@@ -225,9 +385,56 @@ public class ObjectStateWriterShould
                 projectile.Power, projectile.CurrentPower, projectile.Level, projectile.IsDead,
                 projectile.Experience, projectile.RequiredExperience, projectile.CreatureMetadataId,
                 projectile.Name, projectile.PortalRadius, projectile.PortalTargetMapId, projectile.PortalRole,
-                projectile.CanInteract,
+                projectile.CanInteract, projectile.Rarity,
             },
             Assert.Null);
+    }
+
+    [Theory]
+    [InlineData(GameEntityFields.All)]
+    [InlineData(GameEntityFields.Position)]
+    [InlineData(GameEntityFields.None)]
+    public void Send_a_characters_class_and_gender_on_every_state(GameEntityFields fields)
+    {
+        CharacterEntity character = TestCharacters.New(1);
+        character.Data!.Class = CharacterClass.Hunter;
+        character.Data!.Gender = CharacterGender.Female;
+
+        ObjectState parsed = RoundTrip(ObjectStateWriter.From(character, fields));
+
+        Assert.Equal((uint)CharacterClass.Hunter, parsed.Class);
+        Assert.Equal((uint)CharacterGender.Female, parsed.Gender);
+    }
+
+    [Fact]
+    public void Send_male_as_a_present_zero_rather_than_leaving_it_out()
+    {
+        CharacterEntity character = TestCharacters.New(1);
+        character.Data!.Gender = CharacterGender.Male;
+
+        Assert.Equal(0u, RoundTrip(ObjectStateWriter.From(character, GameEntityFields.Position)).Gender);
+    }
+
+    [Fact]
+    public void Never_send_a_class_or_gender_for_a_creature()
+    {
+        ObjectState parsed = RoundTrip(ObjectStateWriter.From(Monster(WorldRarity.Normal), GameEntityFields.All));
+
+        Assert.Null(parsed.Class);
+        Assert.Null(parsed.Gender);
+    }
+
+    /// <summary>
+    /// Pins the field numbers clients read: Class is field 23 (tag 184, varint B8 01) and Gender field 24
+    /// (tag 192, varint C0 01), each followed by its value.
+    /// </summary>
+    [Fact]
+    public void Carry_Class_as_field_23_and_Gender_as_field_24()
+    {
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, new ObjectState { Class = 2, Gender = 0 });
+
+        Assert.Equal(new byte[] { 0xB8, 0x01, 0x02, 0xC0, 0x01, 0x00 }, stream.ToArray());
     }
 
     [Fact]

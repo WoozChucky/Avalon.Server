@@ -7,9 +7,22 @@ using Microsoft.EntityFrameworkCore;
 namespace Avalon.Database.Character.Repositories;
 
 /// <summary>
+/// A character's quest rows to write (#433). Every quest in <paramref name="Rewrite" /> has its active row and
+/// objective rows deleted, and then <paramref name="Active" /> and <paramref name="Objectives" /> are inserted
+/// (only quests still active are there); <paramref name="Completed" /> rows are inserted when missing. Idempotent.
+/// </summary>
+public sealed record CharacterQuestWrite(
+    IReadOnlyList<uint> Rewrite,
+    IReadOnlyList<CharacterQuest> Active,
+    IReadOnlyList<CharacterQuestObjective> Objectives,
+    IReadOnlyList<CharacterCompletedQuest> Completed);
+
+/// <summary>
 /// What one character's save writes: its whole row, and only the items and slots whose save state
 /// was not Unchanged. Items and slots to upsert carry their current values; the rest are deleted.
 /// <paramref name="Stats" />, when present, is the character's derived-stats row, upserted.
+/// <paramref name="Quests" />, when present, is the quest rows to rewrite (#433).
+/// <paramref name="Ignores" />, when present, is the ignore entries to rewrite (#723).
 /// </summary>
 public sealed record CharacterSaveBatch(
     Domain.Characters.Character Row,
@@ -17,7 +30,9 @@ public sealed record CharacterSaveBatch(
     IReadOnlyList<ItemInstanceId> DeleteItems,
     IReadOnlyList<CharacterInventory> UpsertSlots,
     IReadOnlyList<(InventoryType Container, ushort Slot)> DeleteSlots,
-    CharacterStats? Stats = null);
+    CharacterStats? Stats = null,
+    CharacterQuestWrite? Quests = null,
+    CharacterIgnoreWrite? Ignores = null);
 
 public interface ICharacterSaveRepository
 {
@@ -61,6 +76,22 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
                         .Where(r => r.CharacterId == owner && r.Container == container && r.Slot == slot)
                         .ExecuteDeleteAsync(token);
                 }
+
+                if (batch.Quests is { } quests)
+                {
+                    foreach (uint questId in quests.Rewrite)
+                    {
+                        await context.CharacterQuestObjectives
+                            .Where(o => o.CharacterId == owner && o.QuestId == questId)
+                            .ExecuteDeleteAsync(token);
+                        await context.CharacterQuests
+                            .Where(q => q.CharacterId == owner && q.QuestId == questId)
+                            .ExecuteDeleteAsync(token);
+                    }
+                }
+
+                if (batch.Ignores is { } ignores)
+                    await DeleteIgnoresAsync(context, owner, ignores, token);
             }
 
             // After the slots, which reference items by foreign key.
@@ -125,9 +156,79 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
                     else
                         context.TrackForInsert(stats);
                 }
+
+                if (batch.Quests is { } write)
+                {
+                    foreach (CharacterQuest quest in write.Active)
+                        context.TrackForInsert(quest);
+                    foreach (CharacterQuestObjective objective in write.Objectives)
+                        context.TrackForInsert(objective);
+
+                    if (write.Completed.Count > 0)
+                    {
+                        CharacterId who = batch.Row.Id;
+                        List<uint> ids = write.Completed.Select(c => c.QuestId).ToList();
+                        HashSet<uint> stored = (await context.CharacterCompletedQuests
+                                .Where(c => c.CharacterId == who && ids.Contains(c.QuestId))
+                                .Select(c => c.QuestId)
+                                .ToListAsync(token))
+                            .ToHashSet();
+                        foreach (CharacterCompletedQuest completed in write.Completed.Where(c => !stored.Contains(c.QuestId)))
+                            context.TrackForInsert(completed);
+                    }
+                }
+
+                if (batch.Ignores is { } ignoreWrite)
+                    await InsertIgnoresAsync(context, ignoreWrite, token);
             }
 
             // One SaveChanges: EF orders the item inserts ahead of the slot inserts that reference them.
             await context.SaveChangesAsync(token);
         }, cancellationToken);
+
+    private static async Task DeleteIgnoresAsync(CharacterDbContext context, CharacterId owner, CharacterIgnoreWrite ignores,
+        CancellationToken token)
+    {
+        if (ignores.Rewrite.Count == 0)
+            return;
+
+        List<CharacterId> rewrite = ignores.Rewrite.ToList();
+        await context.CharacterIgnores
+            .Where(i => i.CharacterId == owner && rewrite.Contains(i.IgnoredCharacterId))
+            .ExecuteDeleteAsync(token);
+    }
+
+    /// <summary>
+    /// Each entry is inserted only while the ignored character exists, in one statement, so a character deleted since
+    /// it was ignored, or by a delete running alongside this save, skips its row instead of failing the whole save on
+    /// the foreign key. On Postgres the existence read takes <c>FOR KEY SHARE</c> on the character: a delete that
+    /// committed first is seen and the row skipped, and one that has not waits for this save and then cascades the
+    /// row. SQLite (the tests) runs one writer at a time, so the plain read is enough there.
+    /// </summary>
+    private static async Task InsertIgnoresAsync(CharacterDbContext context, CharacterIgnoreWrite ignores,
+        CancellationToken token)
+    {
+        bool postgres = context.Database.ProviderName?.Contains("Npgsql", StringComparison.Ordinal) == true;
+        foreach (CharacterIgnore ignore in ignores.Insert)
+        {
+            long owner = ignore.CharacterId.Value;
+            long ignored = ignore.IgnoredCharacterId.Value;
+            DateTime createdAt = ignore.CreatedAt;
+            if (postgres)
+            {
+                await context.Database.ExecuteSqlAsync($"""
+                    INSERT INTO "CharacterIgnores" ("CharacterId", "IgnoredCharacterId", "CreatedAt")
+                    SELECT {owner}, c."Id", {createdAt} FROM "Characters" AS c WHERE c."Id" = {ignored}
+                    FOR KEY SHARE
+                    """, token);
+            }
+            else
+            {
+                await context.Database.ExecuteSqlAsync($"""
+                    INSERT INTO "CharacterIgnores" ("CharacterId", "IgnoredCharacterId", "CreatedAt")
+                    SELECT {owner}, c."Id", {createdAt} FROM "Characters" AS c WHERE c."Id" = {ignored}
+                    """, token);
+            }
+        }
+    }
 }

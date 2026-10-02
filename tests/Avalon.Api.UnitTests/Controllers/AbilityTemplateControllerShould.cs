@@ -19,7 +19,8 @@ public class AbilityTemplateControllerShould
     private readonly IAbilityTemplateRepository _repository = Substitute.For<IAbilityTemplateRepository>();
 
     private AbilityTemplateController MakeSut(ClaimsPrincipal user) =>
-        new(_repository)
+        new(_repository, Substitute.For<Avalon.Api.Worlds.ICurrentWorld>(),
+            Microsoft.Extensions.Options.Options.Create(new Avalon.Api.Templates.TemplateEditingOptions()))
         {
             ControllerContext = new ControllerContext
             {

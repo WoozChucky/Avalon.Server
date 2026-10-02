@@ -2,11 +2,14 @@ using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.WorldMaintenance;
-using Avalon.Network.Packets.Social;
 using Avalon.World.Maintenance;
 
 namespace Avalon.World.Chat;
 
+/// <summary>
+/// /maintenance on [minutes] | off | status. Runs on the tick and never awaits: the database read and the
+/// transition run off the tick, and their result is answered, and a committed one applied, on a later tick.
+/// </summary>
 public sealed class MaintenanceCommand(
     WorldId worldId,
     IWorldMaintenanceRepository repository,
@@ -14,18 +17,20 @@ public sealed class MaintenanceCommand(
     WorldMaintenanceCoordinator coordinator) : ICommand
 {
     private const string Usage = "Usage: /maintenance <on [minutes]|off|status> (minutes: 1-60)";
+    private const string Unavailable = "World maintenance state is unavailable.";
 
     public string Name => "maintenance";
     public string[] Aliases => [];
+
+    // The Admin flag itself, not AccessLevels.Admin, which also admits Console.
     public AccountAccessLevel RequiredAccess => AccountAccessLevel.Admin;
 
-    public async Task ExecuteAsync(WorldPacketContext<CChatMessagePacket> ctx, string[] args,
-        CancellationToken token = default)
+    public void Execute(CommandContext ctx, string[] args)
     {
         if (args.Length == 1 && string.Equals(args[0], "status", StringComparison.OrdinalIgnoreCase))
         {
-            WorldMaintenanceState? persisted = await repository.ReadAsync(worldId, token);
-            Reply(ctx, persisted is null ? "World maintenance state is unavailable." : Describe(persisted));
+            ctx.Then(Task.Run(() => repository.ReadAsync(worldId, CancellationToken.None)),
+                persisted => ctx.Reply(persisted is null ? Unavailable : Describe(persisted)));
             return;
         }
 
@@ -36,7 +41,7 @@ public sealed class MaintenanceCommand(
             enabled = true;
             if (args.Length == 2 && (!int.TryParse(args[1], out minutes) || minutes is < 1 or > 60))
             {
-                Reply(ctx, Usage);
+                ctx.Reply(Usage);
                 return;
             }
         }
@@ -46,20 +51,26 @@ public sealed class MaintenanceCommand(
         }
         else
         {
-            Reply(ctx, Usage);
+            ctx.Reply(Usage);
             return;
         }
 
-        WorldMaintenanceState? committed = await control.SetAsync(worldId, enabled,
-            TimeSpan.FromMinutes(minutes), $"account:{ctx.Connection.AccountId?.Value}", token);
-        if (committed is null)
-        {
-            Reply(ctx, "World maintenance state is unavailable.");
-            return;
-        }
+        string actor = $"account:{ctx.Connection.AccountId?.Value}";
+        TimeSpan grace = TimeSpan.FromMinutes(minutes);
+        ctx.Then(Task.Run(() => control.SetAsync(worldId, enabled, grace, actor, CancellationToken.None)),
+            committed =>
+            {
+                if (committed is null)
+                {
+                    ctx.Reply(Unavailable);
+                    return;
+                }
 
-        coordinator.ApplyCommitted(committed);
-        Reply(ctx, Describe(committed));
+                // On the tick: this world applies its own committed transition at once, without waiting for the
+                // notification or the reconciliation.
+                coordinator.ApplyCommitted(committed);
+                ctx.Reply(Describe(committed));
+            });
     }
 
     private static string Describe(WorldMaintenanceState state)
@@ -67,8 +78,4 @@ public sealed class MaintenanceCommand(
            (state.DeadlineUtc is { } deadline
                ? $"deadline {deadline.ToUniversalTime():yyyy-MM-dd HH:mm:ss} UTC."
                : "no deadline.");
-
-    private static void Reply(WorldPacketContext<CChatMessagePacket> ctx, string message)
-        => ctx.Connection.Send(SChatMessagePacket.Create(0, 0, "System", message, ctx.Packet.DateTime,
-            ctx.Connection.CryptoSession.Encrypt));
 }

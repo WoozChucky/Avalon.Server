@@ -20,6 +20,7 @@ public class SCharacterCreatedPacket : Packet
             PacketType, Flags, Protocol, encrypt);
 }
 
+/// <summary>The answer to a character create. Append-only: the values cross the wire.</summary>
 public enum SCharacterCreateResult
 {
     Success,
@@ -29,5 +30,8 @@ public enum SCharacterCreateResult
     InvalidClass,
     MaxCharactersReached,
     AlreadyInGame,
-    InternalDatabaseError
+    InternalDatabaseError,
+
+    /// <summary>The name is not 3 to 12 ASCII letters (#757); too short and too long keep their own answers.</summary>
+    NameInvalid
 }

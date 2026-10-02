@@ -1,9 +1,10 @@
+using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Server.World.UnitTests.Combat;
-using Avalon.World.Abilities;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Scripts.Abilities;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
@@ -111,6 +112,33 @@ public class AbilityAmountsShould
             (uint healed, _) = HitResolver.ResolveHeal(caster, b, formula, new ScriptedCombatRandom().Doubles(0.99));
             Assert.Equal(HitResolver.NormalHeal(b), healed);
         }
+    }
 
+    [Fact]
+    public void Share_the_direct_script_names_with_the_api() =>
+        Assert.Equal(
+            new[] { nameof(CircleAbilityScript), nameof(ConeAbilityScript), nameof(ProjectileAbilityScript) }.Order(),
+            AbilityAmountMath.DirectScripts.Order());
+
+    /// <summary>The world server and the api must print the same numbers for the same inputs.</summary>
+    [Theory]
+    [InlineData(0u, 0.35f, 0.7f, AbilityAffects.Hostile, 37u, 10u, 10u)]
+    [InlineData(5u, 0.35f, 0.7f, AbilityAffects.Ally, 41u, 3u, 17u)]
+    [InlineData(10u, 0.5f, 1f, AbilityAffects.Hostile, 40u, 24u, 28u)]
+    [InlineData(7u, 0.35f, 0f, AbilityAffects.Ally, 13u, 0u, 0u)]
+    [InlineData(0u, 0f, 0.7f, AbilityAffects.Hostile, 0u, 9u, 5u)]
+    public void Match_the_shared_api_arithmetic(uint effect, float scaling, float weapon, AbilityAffects affects,
+        uint attack, uint weaponMin, uint weaponMax)
+    {
+        AbilityMetadata ability = Ability(effect: effect, scaling: scaling, weapon: weapon, affects: affects,
+            script: "ProjectileAbilityScript");
+        AbilityAmount amount = AbilityAmounts.For(Caster(attack: attack, weaponMin: weaponMin, weaponMax: weaponMax),
+            ability);
+
+        AbilityAmountKind kind = AbilityAmountMath.KindOf(ability.ScriptName, affects);
+        (uint min, uint max) = AbilityAmountMath.Range(kind, effect, ScalingStat.Attack, scaling, weapon, attack, 0,
+            weaponMin, weaponMax);
+
+        Assert.Equal(new AbilityAmount(kind, min, max), amount);
     }
 }

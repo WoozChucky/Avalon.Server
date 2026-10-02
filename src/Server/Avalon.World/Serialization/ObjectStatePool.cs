@@ -96,5 +96,8 @@ public sealed class ObjectStatePool
         state.PortalRole = null;
         state.CanInteract = null;
         state.PvpEnabled = null;
+        state.Rarity = null;
+        state.Class = null;
+        state.Gender = null;
     }
 }

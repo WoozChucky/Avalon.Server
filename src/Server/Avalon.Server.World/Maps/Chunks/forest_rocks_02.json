@@ -1,0 +1,22 @@
+{
+  "name": "forest_rocks_02",
+  "assetKey": "chunks/forest_rocks_02",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": ["center"],
+    "E": ["center"],
+    "S": ["center"],
+    "W": []
+  },
+  "spawnSlots": [
+    { "tag": "pack", "localX": 15, "localY": 1, "localZ": 15 },
+    { "tag": "pack", "localX": 21, "localY": 1, "localZ": 9 },
+    { "tag": "pack", "localX": 14, "localY": 1, "localZ": 22 },
+    { "tag": "pack", "localX": 21, "localY": 1, "localZ": 18 }
+  ],
+  "portalSlots": [
+  ],
+  "tags": ["junction", "forest", "rocks"]
+}

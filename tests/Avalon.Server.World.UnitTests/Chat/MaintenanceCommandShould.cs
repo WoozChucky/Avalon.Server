@@ -3,16 +3,12 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.WorldMaintenance;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Chat;
 using Avalon.World.Maintenance;
 using Avalon.World.Persistence;
-using Avalon.World.Public;
-using Avalon.World;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.Chat;
 
@@ -100,8 +96,7 @@ public sealed class MaintenanceCommandShould
 
     private sealed class Fixture
     {
-        private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
-        private readonly List<NetworkPacket> _sent = [];
+        private readonly CommandConnection _caller;
         private readonly CommandDispatcher _dispatcher;
 
         public readonly IWorldMaintenanceRepository Repository = Substitute.For<IWorldMaintenanceRepository>();
@@ -110,11 +105,8 @@ public sealed class MaintenanceCommandShould
 
         public Fixture(AccountAccessLevel access)
         {
-            _connection.AccountId.Returns(new AccountId(7));
-            _connection.AccessLevel.Returns(access);
-            _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-            _connection.When(c => c.Send(Arg.Any<NetworkPacket>()))
-                .Do(call => _sent.Add(call.Arg<NetworkPacket>()));
+            _caller = new CommandConnection(access);
+            _caller.Connection.AccountId.Returns(new AccountId(7));
             Coordinator = new WorldMaintenanceCoordinator(new WorldId(1), Repository,
                 Substitute.For<ICharacterSaver>(), TimeProvider.System,
                 NullLogger<WorldMaintenanceCoordinator>.Instance);
@@ -123,16 +115,11 @@ public sealed class MaintenanceCommandShould
                 NullLogger<CommandDispatcher>.Instance);
         }
 
-        public Task<bool> Dispatch(string message) => _dispatcher.DispatchAsync(new WorldPacketContext<CChatMessagePacket>
-        {
-            Packet = new CChatMessagePacket { Message = message, DateTime = DateTime.UtcNow },
-            Connection = _connection,
-        });
+        // The connection runs each continuation inline, as the tick would a tick later.
+        public Task<bool> Dispatch(string message) => Task.FromResult(_dispatcher.Dispatch(_caller.Connection,
+            new CChatMessagePacket { Message = message, DateTime = DateTime.UtcNow }));
 
-        public List<string> Messages() => _sent
-            .Where(packet => packet.Header.Type == NetworkPacketType.SMSG_CHAT_MESSAGE)
-            .Select(packet => Serializer.Deserialize<SChatMessagePacket>(new MemoryStream(packet.Payload)).Message)
-            .ToList();
+        public List<string> Messages() => _caller.Messages();
 
         public string LastMessage() => Messages().Last();
     }

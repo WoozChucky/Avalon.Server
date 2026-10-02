@@ -1,0 +1,492 @@
+# SQuestOfferPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SQuestOfferPacket
+
+variant absent
+  field 1 QuestId : uint = 0
+  field 2 NpcGuid : ulong = 0
+  field 3 Mode : QuestOfferMode = Unknown (0)
+  field 4 Quest : QuestDisplayDto = null
+  bytes 0
+
+variant empty
+  field 1 QuestId : uint = 0
+  field 2 NpcGuid : ulong = 0
+  field 3 Mode : QuestOfferMode = Unknown (0)
+  field 4 Quest : QuestDisplayDto
+    field 1 Title : string = null
+    field 2 Text : string = null
+    field 3 Stages : List<QuestStageDto> = null
+    field 4 Rewards : QuestRewardsDto = null
+  bytes 2
+    22 00
+
+variant populated
+  field 1 QuestId : uint = 7
+  field 2 NpcGuid : ulong = 300
+  field 3 Mode : QuestOfferMode = TurnIn (2)
+  field 4 Quest : QuestDisplayDto
+    field 1 Title : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
+    field 2 Text : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+    field 3 Stages : List<QuestStageDto> = 2 elements
+      element 0
+        field 1 Sequence : int = 19
+        field 2 Text : string = "\"quoted\" and \\backslash\\" (24 chars, 24 bytes utf-8)
+        field 3 Objectives : List<QuestObjectiveDto> = 2 elements
+          element 0
+            field 1 ObjectiveId : uint = 4000000000
+            field 2 Kind : QuestObjectiveKind = Collect (2)
+            field 3 TargetId : ulong = 19
+            field 4 Count : uint = 65535
+            field 5 Text : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
+          element 1
+            field 1 ObjectiveId : uint = 1000000
+            field 2 Kind : QuestObjectiveKind = Talk (3)
+            field 3 TargetId : ulong = 42
+            field 4 Count : uint = 7
+            field 5 Text : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
+      element 1
+        field 1 Sequence : int = -3
+        field 2 Text : string = "alpha" (5 chars, 5 bytes utf-8)
+        field 3 Objectives : List<QuestObjectiveDto> = 2 elements
+          element 0
+            field 1 ObjectiveId : uint = 4000000000
+            field 2 Kind : QuestObjectiveKind = Collect (2)
+            field 3 TargetId : ulong = 19
+            field 4 Count : uint = 65535
+            field 5 Text : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
+          element 1
+            field 1 ObjectiveId : uint = 1000000
+            field 2 Kind : QuestObjectiveKind = Talk (3)
+            field 3 TargetId : ulong = 42
+            field 4 Count : uint = 7
+            field 5 Text : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
+    field 4 Rewards : QuestRewardsDto
+      field 1 Experience : uint = 300
+      field 2 Money : ulong = 65535
+      field 3 Items : List<QuestRewardItemDto> = 2 elements
+        element 0
+          field 1 ItemTemplateId : ulong = 65535
+          field 2 Count : uint = 1000000
+        element 1
+          field 1 ItemTemplateId : ulong = 7
+          field 2 Count : uint = 7
+  bytes 277
+    08 07 10 ac 02 18 02 22 8b 02 0a 15 65 6d 6f 6a
+    69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73 74 72 61
+    6c 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64
+    1a 69 08 13 12 18 22 71 75 6f 74 65 64 22 20 61
+    6e 64 20 5c 62 61 63 6b 73 6c 61 73 68 5c 1a 25
+    08 80 d0 ac f3 0e 10 02 18 13 20 ff ff 03 2a 15
+    65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61
+    73 74 72 61 6c 1a 24 08 c0 84 3d 10 03 18 2a 20
+    07 2a 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae e3
+    83 86 e3 82 ad e3 82 b9 e3 83 88 1a 5f 08 fd ff
+    ff ff ff ff ff ff ff 01 12 05 61 6c 70 68 61 1a
+    25 08 80 d0 ac f3 0e 10 02 18 13 20 ff ff 03 2a
+    15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20
+    61 73 74 72 61 6c 1a 24 08 c0 84 3d 10 03 18 2a
+    20 07 2a 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae
+    e3 83 86 e3 82 ad e3 82 b9 e3 83 88 22 17 08 ac
+    02 10 ff ff 03 1a 08 08 ff ff 03 10 c0 84 3d 1a
+    04 08 07 10 07
+
+variant maxima
+  field 1 QuestId : uint = 4294967295
+  field 2 NpcGuid : ulong = 18446744073709551615
+  field 3 Mode : QuestOfferMode = TurnIn (2)
+  field 4 Quest : QuestDisplayDto
+    field 1 Title : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+    field 2 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+    field 3 Stages : List<QuestStageDto> = 3 elements
+      element 0
+        field 1 Sequence : int = 2147483647
+        field 2 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+        field 3 Objectives : List<QuestObjectiveDto> = 3 elements
+          element 0
+            field 1 ObjectiveId : uint = 4294967295
+            field 2 Kind : QuestObjectiveKind = Scripted (4)
+            field 3 TargetId : ulong = 18446744073709551615
+            field 4 Count : uint = 4294967295
+            field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+          element 1
+            field 1 ObjectiveId : uint = 4294967295
+            field 2 Kind : QuestObjectiveKind = Scripted (4)
+            field 3 TargetId : ulong = 18446744073709551615
+            field 4 Count : uint = 4294967295
+            field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+          element 2
+            field 1 ObjectiveId : uint = 4294967295
+            field 2 Kind : QuestObjectiveKind = Scripted (4)
+            field 3 TargetId : ulong = 18446744073709551615
+            field 4 Count : uint = 4294967295
+            field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+      element 1
+        field 1 Sequence : int = 2147483647
+        field 2 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+        field 3 Objectives : List<QuestObjectiveDto> = 3 elements
+          element 0
+            field 1 ObjectiveId : uint = 4294967295
+            field 2 Kind : QuestObjectiveKind = Scripted (4)
+            field 3 TargetId : ulong = 18446744073709551615
+            field 4 Count : uint = 4294967295
+            field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+          element 1
+            field 1 ObjectiveId : uint = 4294967295
+            field 2 Kind : QuestObjectiveKind = Scripted (4)
+            field 3 TargetId : ulong = 18446744073709551615
+            field 4 Count : uint = 4294967295
+            field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+          element 2
+            field 1 ObjectiveId : uint = 4294967295
+            field 2 Kind : QuestObjectiveKind = Scripted (4)
+            field 3 TargetId : ulong = 18446744073709551615
+            field 4 Count : uint = 4294967295
+            field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+      element 2
+        field 1 Sequence : int = 2147483647
+        field 2 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+        field 3 Objectives : List<QuestObjectiveDto> = 3 elements
+          element 0
+            field 1 ObjectiveId : uint = 4294967295
+            field 2 Kind : QuestObjectiveKind = Scripted (4)
+            field 3 TargetId : ulong = 18446744073709551615
+            field 4 Count : uint = 4294967295
+            field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+          element 1
+            field 1 ObjectiveId : uint = 4294967295
+            field 2 Kind : QuestObjectiveKind = Scripted (4)
+            field 3 TargetId : ulong = 18446744073709551615
+            field 4 Count : uint = 4294967295
+            field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+          element 2
+            field 1 ObjectiveId : uint = 4294967295
+            field 2 Kind : QuestObjectiveKind = Scripted (4)
+            field 3 TargetId : ulong = 18446744073709551615
+            field 4 Count : uint = 4294967295
+            field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+    field 4 Rewards : QuestRewardsDto
+      field 1 Experience : uint = 4294967295
+      field 2 Money : ulong = 18446744073709551615
+      field 3 Items : List<QuestRewardItemDto> = 3 elements
+        element 0
+          field 1 ItemTemplateId : ulong = 18446744073709551615
+          field 2 Count : uint = 4294967295
+        element 1
+          field 1 ItemTemplateId : ulong = 18446744073709551615
+          field 2 Count : uint = 4294967295
+        element 2
+          field 1 ItemTemplateId : ulong = 18446744073709551615
+          field 2 Count : uint = 4294967295
+  bytes 2267
+    08 ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff ff
+    01 18 02 22 c5 11 0a 84 01 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 12 84 01
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 1a f6 04 08 ff ff ff ff 07 12 84 01
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 1a a0 01 08 ff ff ff ff 0f 10 04 18
+    ff ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f
+    2a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 1a a0 01 08 ff ff ff ff 0f
+    10 04 18 ff ff ff ff ff ff ff ff ff 01 20 ff ff
+    ff ff 0f 2a 84 01 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 1a a0 01 08 ff ff
+    ff ff 0f 10 04 18 ff ff ff ff ff ff ff ff ff 01
+    20 ff ff ff ff 0f 2a 84 01 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 1a f6 04
+    08 ff ff ff ff 07 12 84 01 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 1a a0 01
+    08 ff ff ff ff 0f 10 04 18 ff ff ff ff ff ff ff
+    ff ff 01 20 ff ff ff ff 0f 2a 84 01 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    1a a0 01 08 ff ff ff ff 0f 10 04 18 ff ff ff ff
+    ff ff ff ff ff 01 20 ff ff ff ff 0f 2a 84 01 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 1a a0 01 08 ff ff ff ff 0f 10 04 18 ff
+    ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f 2a
+    84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 1a f6 04 08 ff ff ff ff 07 12
+    84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 1a a0 01 08 ff ff ff ff 0f 10
+    04 18 ff ff ff ff ff ff ff ff ff 01 20 ff ff ff
+    ff 0f 2a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 1a a0 01 08 ff ff ff
+    ff 0f 10 04 18 ff ff ff ff ff ff ff ff ff 01 20
+    ff ff ff ff 0f 2a 84 01 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 1a a0 01 08
+    ff ff ff ff 0f 10 04 18 ff ff ff ff ff ff ff ff
+    ff 01 20 ff ff ff ff 0f 2a 84 01 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 22
+    4a 08 ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff
+    ff 01 1a 11 08 ff ff ff ff ff ff ff ff ff 01 10
+    ff ff ff ff 0f 1a 11 08 ff ff ff ff ff ff ff ff
+    ff 01 10 ff ff ff ff 0f 1a 11 08 ff ff ff ff ff
+    ff ff ff ff 01 10 ff ff ff ff 0f
+
+variant minima
+  field 1 QuestId : uint = 0
+  field 2 NpcGuid : ulong = 0
+  field 3 Mode : QuestOfferMode = Unknown (0)
+  field 4 Quest : QuestDisplayDto
+    field 1 Title : string = " " (1 chars, 1 bytes utf-8)
+    field 2 Text : string = "\u0001" (1 chars, 1 bytes utf-8)
+    field 3 Stages : List<QuestStageDto> = 1 element
+      element 0
+        field 1 Sequence : int = -2147483648
+        field 2 Text : string = " " (1 chars, 1 bytes utf-8)
+        field 3 Objectives : List<QuestObjectiveDto> = 1 element
+          element 0
+            field 1 ObjectiveId : uint = 0
+            field 2 Kind : QuestObjectiveKind = Unknown (0)
+            field 3 TargetId : ulong = 0
+            field 4 Count : uint = 0
+            field 5 Text : string = "\0" (1 chars, 1 bytes utf-8)
+    field 4 Rewards : QuestRewardsDto
+      field 1 Experience : uint = 0
+      field 2 Money : ulong = 0
+      field 3 Items : List<QuestRewardItemDto> = 1 element
+        element 0
+          field 1 ItemTemplateId : ulong = 0
+          field 2 Count : uint = 0
+  bytes 33
+    22 1f 0a 01 20 12 01 01 1a 13 08 80 80 80 80 f8
+    ff ff ff ff 01 12 01 20 1a 03 2a 01 00 22 02 1a
+    00
+
+variant varint-edges
+  field 1 QuestId : uint = 128
+  field 2 NpcGuid : ulong = 268435455
+  field 3 Mode : QuestOfferMode = <not a declared member> (3)
+  field 4 Quest : QuestDisplayDto
+    field 1 Title : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+    field 2 Text : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+    field 3 Stages : List<QuestStageDto> = 2 elements
+      element 0
+        field 1 Sequence : int = 268435455
+        field 2 Text : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+        field 3 Objectives : List<QuestObjectiveDto> = 2 elements
+          element 0
+            field 1 ObjectiveId : uint = 16384
+            field 2 Kind : QuestObjectiveKind = <not a declared member> (5)
+            field 3 TargetId : ulong = 268435456
+            field 4 Count : uint = 127
+            field 5 Text : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+          element 1
+            field 1 ObjectiveId : uint = 127
+            field 2 Kind : QuestObjectiveKind = <not a declared member> (5)
+            field 3 TargetId : ulong = 34359738367
+            field 4 Count : uint = 16384
+            field 5 Text : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+      element 1
+        field 1 Sequence : int = 268435456
+        field 2 Text : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+        field 3 Objectives : List<QuestObjectiveDto> = 2 elements
+          element 0
+            field 1 ObjectiveId : uint = 16384
+            field 2 Kind : QuestObjectiveKind = <not a declared member> (5)
+            field 3 TargetId : ulong = 268435456
+            field 4 Count : uint = 127
+            field 5 Text : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+          element 1
+            field 1 ObjectiveId : uint = 127
+            field 2 Kind : QuestObjectiveKind = <not a declared member> (5)
+            field 3 TargetId : ulong = 34359738367
+            field 4 Count : uint = 16384
+            field 5 Text : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+    field 4 Rewards : QuestRewardsDto
+      field 1 Experience : uint = 16383
+      field 2 Money : ulong = 2097151
+      field 3 Items : List<QuestRewardItemDto> = 2 elements
+        element 0
+          field 1 ItemTemplateId : ulong = 2097151
+          field 2 Count : uint = 128
+        element 1
+          field 1 ItemTemplateId : ulong = 16384
+          field 2 Count : uint = 268435455
+  bytes 1173
+    08 80 01 10 ff ff ff 7f 18 03 22 88 09 0a 81 01
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 12 80 01 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 1a b0 03 08 ff ff ff 7f 12 81 01 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    1a 8f 01 08 80 80 01 10 05 18 80 80 80 80 01 20
+    7f 2a 7f 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 1a 92 01 08 7f 10 05 18 ff ff ff ff 7f 20
+    80 80 01 2a 81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 1a ae 03 08 80 80 80 80 01
+    12 7f 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 1a 8f 01 08 80 80 01 10 05 18 80 80 80 80 01
+    20 7f 2a 7f 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 1a 92 01 08 7f 10 05 18 ff ff ff ff 7f
+    20 80 80 01 2a 81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 22 1b 08 ff 7f 10 ff ff
+    7f 1a 07 08 ff ff 7f 10 80 01 1a 09 08 80 80 01
+    10 ff ff ff 7f

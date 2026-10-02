@@ -1,18 +1,20 @@
-using Avalon.Server.World.UnitTests.Loot;
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Server.World.UnitTests.Instances;
+using Avalon.Combat;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
-using Avalon.Hosting.Networking;
-using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
+using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -20,6 +22,8 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
+using Avalon.World.Parties;
+using Avalon.World.Quests;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -27,6 +31,7 @@ using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
+using Avalon.World.Pvp;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -36,7 +41,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
-using Avalon.World.Pvp;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 
@@ -56,7 +60,13 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// </remarks>
 public class DuplicateCharacterSelectShould : IDisposable
 {
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// How long a test waits for work that finishes on the thread pool (a save, a read, a close)
+    /// before it fails. It decides no outcome: the select's save wait runs on a clock that never
+    /// moves here, so a slow runner only makes a test slower, and this bound only stops a broken
+    /// one from hanging. Generous, because a loaded runner can hold pool work back for seconds.
+    /// </summary>
+    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(30);
     private static readonly CharacterId TheCharacter = new(7);
     private static readonly CharacterId AnotherCharacter = new(8);
     private static readonly CharacterId ThirdCharacter = new(9);
@@ -544,7 +554,10 @@ public class DuplicateCharacterSelectShould : IDisposable
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             _saver,
-            server);
+            server,
+            // Never advanced: the select's save wait ends only when the saves it waits on do, so a
+            // slow runner cannot time it out while a test is still holding a save.
+            new ManualTimerClock());
 
         return (server, select);
     }
@@ -636,11 +649,11 @@ public class DuplicateCharacterSelectShould : IDisposable
             localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            dialogue, LootRepositories.Empty());
+            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off());
 
         await world.LoadAsync(CancellationToken.None);
         if (town is not null)
-            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).WaitAsync(Limit);
+            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).Published(world).WaitAsync(Limit);
         return world;
     }
 
@@ -676,7 +689,8 @@ public class DuplicateCharacterSelectShould : IDisposable
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
-            saver)
+            saver,
+            new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance))
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
@@ -690,6 +704,9 @@ public class DuplicateCharacterSelectShould : IDisposable
     /// </summary>
     private sealed class AnyServiceProvider : IServiceProvider
     {
+        private QuestService? _quests;
+        private Avalon.World.Items.ItemUseService? _itemUses;
+
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
@@ -697,6 +714,23 @@ public class DuplicateCharacterSelectShould : IDisposable
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            // The chat handler (#722) takes the one chat limiter, a class with settings and a clock; off, as the defaults are.
+            if (serviceType == typeof(Avalon.World.Chat.ChatRateLimiter))
+                return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            if (serviceType == typeof(PartyService))
+                return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
+                    NullLogger<PartyService>.Instance);
+
+            // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
+            if (serviceType == typeof(QuestService))
+                return _quests ??= Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
+
+            // ItemUseHandler takes the one item use service, as production's singleton.
+            if (serviceType == typeof(Avalon.World.Items.ItemUseService))
+                return _itemUses ??= Avalon.Server.World.UnitTests.ItemUse.InertItemUseService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(

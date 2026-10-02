@@ -1,14 +1,9 @@
-using System.IO;
 using Avalon.Common.Accounts;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
-using Avalon.World;
 using Avalon.World.Chat;
-using Avalon.World.Public;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using ProtoBuf;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Chat;
@@ -16,30 +11,30 @@ namespace Avalon.Server.World.UnitTests.Chat;
 public class ReloadCommandShould
 {
     [Fact]
-    public async Task Reply_With_The_Summary_When_Dialogue_Reloads_Successfully()
+    public void Reply_With_The_Summary_When_Dialogue_Reloads_Successfully()
     {
         Fixture fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Dialogue, true, "14 texts, 6 nodes, 9 options", TimeSpan.FromMilliseconds(38), null));
 
-        await fixture.Execute("dialogue");
+        fixture.Execute("dialogue");
 
         Assert.Equal(
             ["Reloaded dialogue: 14 texts, 6 nodes, 9 options (38 ms)."],
             fixture.CaptureSentMessages());
-        await fixture.Reloader.Received(1).ReloadAsync(
+        _ = fixture.Reloader.Received(1).ReloadAsync(
             Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(new[] { ReloadArea.Dialogue })),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Reply_With_A_Next_Kill_Caveat_When_Loot_Reloads_Successfully()
+    public void Reply_With_A_Next_Kill_Caveat_When_Loot_Reloads_Successfully()
     {
         Fixture fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Loot, true, "8 tables, 40 entries", TimeSpan.FromMilliseconds(12), null));
 
-        await fixture.Execute("loot");
+        fixture.Execute("loot");
 
         Assert.Equal(
             ["Reloaded loot: 8 tables, 40 entries (12 ms). Affects the next kill; drops already on the ground keep what they rolled."],
@@ -47,13 +42,13 @@ public class ReloadCommandShould
     }
 
     [Fact]
-    public async Task Reply_With_A_Stock_Caveat_When_Vendors_Reload_Successfully()
+    public void Reply_With_A_Stock_Caveat_When_Vendors_Reload_Successfully()
     {
         Fixture fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Vendors, true, "3 vendors, 31 rows", TimeSpan.FromMilliseconds(9), null));
 
-        await fixture.Execute("vendors");
+        fixture.Execute("vendors");
 
         Assert.Equal(
             ["Reloaded vendors: 3 vendors, 31 rows (9 ms). Open shops get the new list on the next tick; live stock counts carry over by row."],
@@ -61,48 +56,48 @@ public class ReloadCommandShould
     }
 
     [Fact]
-    public async Task Reach_the_combat_area_and_say_it_is_forward_only()
+    public void Reach_the_combat_area_and_say_it_is_forward_only()
     {
         Fixture fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Combat, true, "1 formula, 4 class stat factors", TimeSpan.FromMilliseconds(3), null));
 
-        await fixture.Execute("combat");
+        fixture.Execute("combat");
 
         Assert.Equal(
             ["Reloaded combat: 1 formula, 4 class stat factors (3 ms). Affects the next hit; a character's stats change at its next select, gear change or level-up."],
             fixture.CaptureSentMessages());
-        await fixture.Reloader.Received(1).ReloadAsync(
+        _ = fixture.Reloader.Received(1).ReloadAsync(
             Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(new[] { ReloadArea.Combat })),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Reply_With_A_Spawn_Caveat_When_Creatures_Reload_Successfully()
+    public void Reply_With_A_Spawn_Caveat_When_Creatures_Reload_Successfully()
     {
         Fixture fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Creatures, true, "10 templates, 10 base stats, 4 rarities", TimeSpan.FromMilliseconds(21), null));
 
-        await fixture.Execute("creatures");
+        fixture.Execute("creatures");
 
         Assert.Equal(
             ["Reloaded creatures: 10 templates, 10 base stats, 4 rarities (21 ms). Affects new spawns only."],
             fixture.CaptureSentMessages());
-        await fixture.Reloader.Received(1).ReloadAsync(
+        _ = fixture.Reloader.Received(1).ReloadAsync(
             Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(new[] { ReloadArea.Creatures })),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Reply_With_The_Exception_Type_When_A_Reload_Fails()
+    public void Reply_With_The_Exception_Type_When_A_Reload_Fails()
     {
         Fixture fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Creatures, false, string.Empty, TimeSpan.FromMilliseconds(5),
             new InvalidOperationException("boom")));
 
-        await fixture.Execute("creatures");
+        fixture.Execute("creatures");
 
         Assert.Equal(
             ["Reload of creatures failed: InvalidOperationException. Nothing changed."],
@@ -110,7 +105,7 @@ public class ReloadCommandShould
     }
 
     [Fact]
-    public async Task Reply_Sensibly_When_A_Failure_Has_No_Exception()
+    public void Reply_Sensibly_When_A_Failure_Has_No_Exception()
     {
         // Defends against outcome.Error?.GetType().Name throwing, or producing garbage, when a
         // failed outcome carries no exception at all.
@@ -118,14 +113,14 @@ public class ReloadCommandShould
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Creatures, false, string.Empty, TimeSpan.Zero, null));
 
-        await fixture.Execute("creatures");
+        fixture.Execute("creatures");
 
         string message = Assert.Single(fixture.CaptureSentMessages());
         Assert.Equal("Reload of creatures failed: . Nothing changed.", message);
     }
 
     [Fact]
-    public async Task Reply_With_One_Line_Per_Area_In_Order_For_All()
+    public void Reply_With_One_Line_Per_Area_In_Order_For_All()
     {
         Fixture fixture = Fixture.Build();
         fixture.Returns(
@@ -137,7 +132,7 @@ public class ReloadCommandShould
             new ReloadOutcome(ReloadArea.Progression, true, "1 levels, 1 class stats, 1 create infos",
                 TimeSpan.FromMilliseconds(5), null));
 
-        await fixture.Execute("all");
+        fixture.Execute("all");
 
         Assert.Equal(
             [
@@ -148,7 +143,7 @@ public class ReloadCommandShould
                 "Reloaded progression: 1 levels, 1 class stats, 1 create infos (5 ms)."
             ],
             fixture.CaptureSentMessages());
-        await fixture.Reloader.Received(1).ReloadAsync(
+        _ = fixture.Reloader.Received(1).ReloadAsync(
             Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(Enum.GetValues<ReloadArea>())),
             Arg.Any<CancellationToken>());
     }
@@ -156,45 +151,45 @@ public class ReloadCommandShould
     [Theory]
     [InlineData("maps")]
     [InlineData("chunks")]
-    public async Task Refuse_To_Reload_Maps_Or_Chunks(string area)
+    public void Refuse_To_Reload_Maps_Or_Chunks(string area)
     {
         Fixture fixture = Fixture.Build();
 
-        await fixture.Execute(area);
+        fixture.Execute(area);
 
         Assert.Equal(
             ["Maps and chunk layouts cannot be reloaded: live instances have already baked a navmesh " +
              "from them. Restart the world server."],
             fixture.CaptureSentMessages());
-        await fixture.Reloader.DidNotReceiveWithAnyArgs().ReloadAsync(default!, default);
+        _ = fixture.Reloader.DidNotReceiveWithAnyArgs().ReloadAsync(default!, default);
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("nonsense")]
     [InlineData("99")]
-    public async Task Reply_With_Usage_For_An_Unrecognized_Area(string area)
+    public void Reply_With_Usage_For_An_Unrecognized_Area(string area)
     {
         Fixture fixture = Fixture.Build();
 
-        await fixture.Execute(area);
+        fixture.Execute(area);
 
         Assert.Equal(
-            ["Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|combat|all>"],
+            ["Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|combat|quests|all>"],
             fixture.CaptureSentMessages());
-        await fixture.Reloader.DidNotReceiveWithAnyArgs().ReloadAsync(default!, default);
+        _ = fixture.Reloader.DidNotReceiveWithAnyArgs().ReloadAsync(default!, default);
     }
 
     [Fact]
-    public async Task Accept_Area_Names_Case_Insensitively()
+    public void Accept_Area_Names_Case_Insensitively()
     {
         Fixture fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Dialogue, true, "1 texts, 1 nodes, 1 options", TimeSpan.FromMilliseconds(1), null));
 
-        await fixture.Execute("DIALOGUE");
+        fixture.Execute("DIALOGUE");
 
-        await fixture.Reloader.Received(1).ReloadAsync(
+        _ = fixture.Reloader.Received(1).ReloadAsync(
             Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(new[] { ReloadArea.Dialogue })),
             Arg.Any<CancellationToken>());
     }
@@ -207,29 +202,34 @@ public class ReloadCommandShould
         Assert.Equal(AccessLevels.GameMaster, fixture.Command.RequiredAccess);
     }
 
+    [Fact]
+    public void Hand_a_failed_reload_task_to_the_failure_path()
+    {
+        Fixture fixture = Fixture.Build();
+        fixture.Reloader.ReloadAsync(Arg.Any<IReadOnlyList<ReloadArea>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<ReloadReport>(new InvalidOperationException("db down")));
+
+        fixture.Execute("dialogue");
+
+        Assert.IsType<InvalidOperationException>(Assert.Single(fixture.Failures));
+        Assert.Empty(fixture.CaptureSentMessages());
+    }
+
     private sealed class Fixture
     {
         public IReferenceDataReloader Reloader { get; private init; } = null!;
         public ReloadCommand Command { get; private init; } = null!;
-        private IWorldConnection Connection { get; init; } = null!;
-        private List<NetworkPacket> SentPackets { get; init; } = null!;
+        private CommandConnection Connection { get; init; } = null!;
+        public List<Exception> Failures { get; } = [];
 
         public static Fixture Build()
         {
             IReferenceDataReloader reloader = Substitute.For<IReferenceDataReloader>();
 
-            IWorldConnection connection = Substitute.For<IWorldConnection>();
-            connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-
-            var sentPackets = new List<NetworkPacket>();
-            connection.When(c => c.Send(Arg.Any<NetworkPacket>()))
-                .Do(ci => sentPackets.Add(ci.Arg<NetworkPacket>()));
-
             return new Fixture
             {
                 Reloader = reloader,
-                Connection = connection,
-                SentPackets = sentPackets,
+                Connection = new CommandConnection(AccountAccessLevel.GameMaster),
                 Command = new ReloadCommand(reloader, NullLogger<ReloadCommand>.Instance)
             };
         }
@@ -241,32 +241,15 @@ public class ReloadCommandShould
                 .Returns(Task.FromResult(new ReloadReport(outcomes)));
         }
 
-        public Task Execute(string area)
+        public void Execute(string area)
         {
             string[] args = string.IsNullOrEmpty(area) ? [] : [area];
-            var ctx = new WorldPacketContext<CChatMessagePacket>
-            {
-                Packet = new CChatMessagePacket { Message = $"/reload {area}", DateTime = DateTime.UtcNow },
-                Connection = Connection
-            };
-            return Command.ExecuteAsync(ctx, args).WaitAsync(TimeSpan.FromSeconds(5));
+            var ctx = new CommandContext(Connection.Connection,
+                new CChatMessagePacket { Message = $"/reload {area}", DateTime = DateTime.UtcNow }, Failures.Add);
+            Command.Execute(ctx, args);
         }
 
-        /// <summary>
-        /// Payload bytes are unencrypted: FakeAvalonCryptoSession.Encrypt is a pass-through, so what
-        /// SChatMessagePacket.Create wrote is exactly what protobuf-net reads back here. Mirrors
-        /// InteractHandlerShould.CaptureSentNode.
-        /// </summary>
-        public List<string> CaptureSentMessages()
-        {
-            return SentPackets
-                .Where(p => p.Header.Type == NetworkPacketType.SMSG_CHAT_MESSAGE)
-                .Select(p =>
-                {
-                    using var stream = new MemoryStream(p.Payload);
-                    return Serializer.Deserialize<SChatMessagePacket>(stream).Message;
-                })
-                .ToList();
-        }
+        /// <summary>Every chat line sent; the crypto session is a pass-through (see CommandConnection).</summary>
+        public List<string> CaptureSentMessages() => Connection.Messages();
     }
 }

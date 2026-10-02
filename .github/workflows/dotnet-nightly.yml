@@ -36,7 +36,7 @@ jobs:
         if: steps.pick.outputs.promote == 'true'
         run: |
           set -euo pipefail
-          for c in world auth api; do
+          for c in world auth api balance; do
             crane tag "ghcr.io/woozchucky/avalon-server/$c:${{ steps.pick.outputs.dev }}" "${{ steps.pick.outputs.nightly }}"
           done
       # Charts are pushed after all images, with avalon-world last. Its tag is the skip and Flux marker.
@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p work out
-          for chart in avalon-api avalon-auth avalon-world; do
+          for chart in avalon-api avalon-auth avalon-balance avalon-world; do
             helm pull "oci://ghcr.io/woozchucky/charts/$chart" --version "$DEV" --untar -d "work/$chart"
             helm package "work/$chart/$chart" --version "$NIGHTLY" --app-version "$NIGHTLY" -d out
             helm push "out/$chart-$NIGHTLY.tgz" oci://ghcr.io/woozchucky/charts
@@ -68,7 +68,7 @@ jobs:
           DIST_S3_SECRET_KEY: ${{ secrets.DIST_S3_SECRET_KEY }}
         run: |
           set -euo pipefail
-          python -m pip install -q "avalon-release-notes[s3] @ git+https://github.com/WoozChucky/avalon-release-notes@v0.3.0"
+          python -m pip install -q "avalon-release-notes[s3] @ git+https://github.com/WoozChucky/avalon-release-notes@v0.4.0"
           python -m avalon_release_notes publish --repo "$GITHUB_REPOSITORY" --product server --channel ptr \
             --version "${{ needs.promote.outputs.version }}" --commit "${{ needs.promote.outputs.commit }}" \
             --published-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --public

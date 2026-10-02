@@ -206,6 +206,91 @@ public class WorldStartupValidationShould
         Assert.Equal(60f, old.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRadius);
     }
 
+    [Theory]
+    [InlineData("MaxPartySize", "1")]
+    [InlineData("MaxPartySize", "41")]
+    [InlineData("PartyInviteTimeoutSeconds", "0")]
+    [InlineData("PartyLeaveGraceSeconds", "0")]
+    [InlineData("PartyReturnRetrySeconds", "0")]
+    [InlineData("PartyReturnRetrySeconds", "3601")]
+    [InlineData("PartyExperienceModeCooldownSeconds", "-1")]
+    [InlineData("PartyHealthPerExtraPlayer", "-0.1")]
+    [InlineData("PartyHealthPerExtraPlayer", "NaN")]
+    [InlineData("PartyEligibilityRange", "0.5")]
+    [InlineData("PartyEligibilityRange", "Infinity")]
+    [InlineData("PartyExperienceBonusPerExtra", "-1")]
+    [InlineData("PartyExperienceBonusPerExtra", "10.5")]
+    [InlineData("PartyExperienceBonusPerExtra", "Infinity")]
+    [InlineData("PartyExperienceLevelGap", "0")]
+    public async Task Refuse_to_start_with_a_party_setting_out_of_range(string setting, string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+            ["Game:" + setting] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+
+        Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("MaxActiveQuests", "0")]
+    [InlineData("MaxActiveQuests", "101")]
+    public async Task Refuse_to_start_with_a_quest_setting_out_of_range(string setting, string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+            ["Game:" + setting] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+
+        Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("501")]
+    public async Task Refuse_to_start_with_an_ignore_list_cap_out_of_range(string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+            ["Game:MaxIgnoredCharacters"] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+
+        Assert.Contains("MaxIgnoredCharacters", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Default_the_party_settings_to_the_spec()
+    {
+        var config = new GameConfiguration();
+
+        Assert.Equal(6, config.MaxPartySize);
+        Assert.Equal(60, config.PartyInviteTimeoutSeconds);
+        Assert.Equal(60, config.PartyLeaveGraceSeconds);
+        Assert.Equal(5, config.PartyReturnRetrySeconds);
+        Assert.Equal(60, config.PartyExperienceModeCooldownSeconds);
+        Assert.Equal(0.6f, config.PartyHealthPerExtraPlayer);
+        Assert.Equal(60f, config.PartyEligibilityRange);
+        Assert.Equal(0.10f, config.PartyExperienceBonusPerExtra);
+        Assert.Equal(5, config.PartyExperienceLevelGap);
+        Assert.Equal(20, config.MaxActiveQuests);
+        Assert.Equal(50, config.MaxIgnoredCharacters);
+    }
+
     private static async Task<IHost> BuildAsync(Dictionary<string, string?> overrides)
     {
         string workingDirectory = Directory.GetCurrentDirectory();

@@ -7,6 +7,9 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 
+using WireRarity = Avalon.Network.Packets.State.CreatureRarity;
+using WorldRarity = Avalon.World.Public.Enums.CreatureRarity;
+
 namespace Avalon.World.Serialization;
 
 /// <summary>
@@ -72,6 +75,15 @@ public static class ObjectStateWriter
             state.CanInteract = true;
         }
 
+        // Whatever is marked changed too, and only when not Normal (#709): the rarity is fixed at spawn, a
+        // client that first sees the creature on an update still needs it for the nameplate, and a Normal
+        // creature, most of them, pays nothing, since absent means Normal. World-side value, like CanInteract,
+        // so no mod can change what a creature advertises, and any other ICreature is sent as Normal.
+        if (creature is Creature { Rarity: not WorldRarity.Normal } spawned)
+        {
+            state.Rarity = ToWire(spawned.Rarity);
+        }
+
         return state;
     }
 
@@ -92,6 +104,11 @@ public static class ObjectStateWriter
         // Goes out whatever is marked changed: a character's name does not change while it is
         // in the world, and a client that missed it would have nothing to label it with.
         state.Name = character.Name;
+
+        // Goes out whatever is marked changed, like the name: both are fixed for the character's life, and a
+        // client that first sees it on an update needs them to pick the character's model.
+        state.Class  = (uint)character.Class;
+        state.Gender = (uint)character.Gender;
 
         // Whatever is marked changed, only as true (#164): a client reads its absence on any character
         // state as off, so a flag that turned off is told by the next state leaving it out, which the
@@ -153,9 +170,11 @@ public static class ObjectStateWriter
 
         if (Has(fields, GameEntityFields.IsDead))
         {
-            // Only a character has a death state. A creature reports alive, because the
-            // selections that ask for this are shared between the two kinds.
-            state.IsDead = (unit as ICharacter)?.IsDead ?? false;
+            // A character keeps its own flag, since it is revived and dies again. A creature is dead
+            // at 0 health, the rule every server check on a creature already uses (the hit query, the
+            // heal, the kill, the death broadcast), so its state cannot disagree with them (#672). It
+            // reads only health, so no ICreature, a mod's included, can report a death it has not had.
+            state.IsDead = unit is ICharacter character ? character.IsDead : unit.CurrentHealth == 0;
         }
 
         return state;
@@ -180,6 +199,19 @@ public static class ObjectStateWriter
             state.Orientation = worldObject.Orientation.y;
         }
     }
+
+    /// <summary>
+    /// The server's rarity as the wire's (#709), value by value, so a renumber on either side cannot reach a
+    /// client unnoticed. A value the wire does not know is left out, which a client reads as Normal.
+    /// </summary>
+    public static WireRarity? ToWire(WorldRarity rarity) => rarity switch
+    {
+        WorldRarity.Normal => WireRarity.Normal,
+        WorldRarity.Elite => WireRarity.Elite,
+        WorldRarity.Rare => WireRarity.Rare,
+        WorldRarity.Boss => WireRarity.Boss,
+        _ => null,
+    };
 
     /// <summary>
     /// <see cref="Enum.HasFlag" />, without the boxing it costs in code the JIT has not optimised yet,

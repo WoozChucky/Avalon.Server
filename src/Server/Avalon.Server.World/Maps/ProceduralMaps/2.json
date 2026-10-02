@@ -1,0 +1,18 @@
+{
+  "mapTemplateId": 2,
+  "chunkPool": "forest_pool",
+  "spawnTable": "forest_creatures",
+  "mainPathMin": 12,
+  "mainPathMax": 16,
+  "branchChance": 0.5,
+  "branchMaxDepth": 3,
+  "hasBoss": true,
+  "backPortalTargetMapId": 1,
+  "forwardPortalTargetMapId": null,
+  "minSetPieceStep": 8,
+  "depthBands": [
+    { "minDepth": 1, "maxDepth": 3, "minLevel": 1, "maxLevel": 3 },
+    { "minDepth": 4, "maxDepth": 7, "minLevel": 3, "maxLevel": 6 },
+    { "minDepth": 8, "maxDepth": null, "minLevel": 5, "maxLevel": 8 }
+  ]
+}

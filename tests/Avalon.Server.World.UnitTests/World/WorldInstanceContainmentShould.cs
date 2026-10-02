@@ -56,8 +56,8 @@ public class WorldInstanceContainmentShould
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(town, dungeon);
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
             new SilentReloader(), intervalSeconds: 60, mapManager, factory);
-        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
-        await world.InstanceRegistry.GetOrCreateNormalInstanceAsync(639_102, DungeonId);
+        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).Published(world);
+        await world.InstanceRegistry.GetOrCreateNormalInstanceAsync(639_102, DungeonId).Published(world);
         Assert.Equal(2, world.InstanceRegistry.ActiveInstances.Count);
 
         Exception? thrown = Record.Exception(() => world.Update(TimeSpan.FromSeconds(1d / 60d)));

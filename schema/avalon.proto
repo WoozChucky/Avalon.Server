@@ -166,10 +166,6 @@ message CChatMessagePacket {
 message CClientInfoPacket {
    optional bytes PublicKey = 1;
 }
-message CCloseChatPacket {
-   uint64 AccountId = 1;
-   uint64 CharacterId = 2;
-}
 message CDialogueChoosePacket {
    uint64 TargetGuid = 1;
    int32 NodeId = 2;
@@ -181,13 +177,6 @@ message CEnterMapPacket {
 message CExchangeWorldKeyPacket {
    optional bytes WorldKey = 1;
    optional bytes PublicKey = 2;
-}
-message CGroupInviteResultPacket {
-   uint64 AccountId = 1;
-   uint64 CharacterId = 2;
-   uint64 InviterAccountId = 3;
-   uint64 InviterCharacterId = 4;
-   bool Accepted = 5;
 }
 message CHandshakePacket {
    optional bytes HandshakeData = 1;
@@ -209,6 +198,11 @@ message CItemMovePacket {
    uint32 ToSlot = 5;
    optional uint32 Count = 6;
 }
+message CItemUsePacket {
+   uint32 RequestId = 1;
+   uint32 Container = 2;
+   uint32 Slot = 3;
+}
 message CLogoutPacket {
    uint64 AccountId = 1;
 }
@@ -229,9 +223,22 @@ message CMFAVerifyPacket {
    optional string MfaHash = 1;
    optional string Code = 2;
 }
-message COpenChatPacket {
-   uint64 AccountId = 1;
-   uint64 CharacterId = 2;
+message CPartyExperienceModePacket {
+   PartyExperienceMode Mode = 1;
+}
+message CPartyInvitePacket {
+   optional string TargetName = 1;
+}
+message CPartyInviteResponsePacket {
+   bool Accept = 1;
+}
+message CPartyKickPacket {
+   uint32 CharacterId = 1;
+}
+message CPartyLeavePacket {
+}
+message CPartyPromotePacket {
+   uint32 CharacterId = 1;
 }
 message CPingPacket {
    int64 SequenceNumber = 1;
@@ -251,15 +258,16 @@ message CPongPacket {
 }
 message CPvpTogglePacket {
 }
-message CQuestListPacket {
-   int32 AccountId = 1;
-   int32 CharacterId = 2;
-   int32 MapId = 3;
+message CQuestAbandonPacket {
+   uint32 QuestId = 1;
 }
-message CQuestStatusPacket {
-   int32 AccountId = 1;
-   int32 CharacterId = 2;
-   int32 QuestId = 3;
+message CQuestAcceptPacket {
+   uint32 QuestId = 1;
+   uint64 NpcGuid = 2;
+}
+message CQuestTurnInPacket {
+   uint32 QuestId = 1;
+   uint64 NpcGuid = 2;
 }
 message CRegisterPacket {
    optional string Username = 1;
@@ -333,10 +341,24 @@ enum CharacterLeaveResult {
    CharacterLeaveResult_Selecting = 3;
    CharacterLeaveResult_AlreadyLeaving = 4;
 }
+enum ChatChannel {
+   ChatChannel_Say = 0;
+   ChatChannel_Party = 1;
+   ChatChannel_System = 2;
+   ChatChannel_Whisper = 3;
+}
+enum CreatureRarity {
+   CreatureRarity_Normal = 0;
+   CreatureRarity_Elite = 1;
+   CreatureRarity_Rare = 2;
+   CreatureRarity_Boss = 3;
+}
 enum DialogueOptionKind {
    DialogueOptionKind_Conversation = 0;
    DialogueOptionKind_OpenBank = 1;
    DialogueOptionKind_OpenShop = 2;
+   DialogueOptionKind_QuestOffer = 3;
+   DialogueOptionKind_QuestTurnIn = 4;
 }
 enum DisconnectReason {
    DisconnectReason_Unknown = 0;
@@ -353,6 +375,10 @@ enum HitResult {
    HitResult_Crit = 1;
    HitResult_Dodged = 2;
    HitResult_Blocked = 4;
+}
+message IgnoredCharacterDto {
+   uint32 CharacterId = 1;
+   optional string Name = 2;
 }
 message InventorySlotUpdateDto {
    uint32 Container = 1;
@@ -382,6 +408,25 @@ message ItemSlotDto {
    uint32 Count = 5;
    uint32 Durability = 6;
    uint32 Flags = 7;
+}
+enum ItemUseResult {
+   ItemUseResult_Unknown = 0;
+   ItemUseResult_Ok = 1;
+   ItemUseResult_NotFound = 2;
+   ItemUseResult_NotUsable = 3;
+   ItemUseResult_Dead = 4;
+   ItemUseResult_OnCooldown = 5;
+   ItemUseResult_AlreadyCasting = 6;
+   ItemUseResult_InCombat = 7;
+   ItemUseResult_NotInCombat = 8;
+   ItemUseResult_WrongEquipSlot = 9;
+   ItemUseResult_LevelTooLow = 10;
+   ItemUseResult_WrongClass = 11;
+   ItemUseResult_TargetFull = 12;
+   ItemUseResult_Blocked = 13;
+   ItemUseResult_Interrupted = 14;
+   ItemUseResult_Refused = 15;
+   ItemUseResult_InternalError = 16;
 }
 enum LogoutResult {
    LogoutResult_Success = 0;
@@ -429,6 +474,9 @@ enum MapTransitionResult {
    MapTransitionResult_LevelTooLow = 3;
    MapTransitionResult_LevelTooHigh = 4;
    MapTransitionResult_GenerationFailed = 5;
+   MapTransitionResult_InstanceFull = 6;
+   MapTransitionResult_NoWalkableGround = 7;
+   MapTransitionResult_MoveInProgress = 8;
 }
 enum MoveState {
    MoveState_Idle = 0;
@@ -465,9 +513,6 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_PING = 8197;
    NetworkPacketType_CMSG_PONG = 8198;
    NetworkPacketType_CMSG_CHAT_MESSAGE = 8199;
-   NetworkPacketType_CMSG_CHAT_OPEN = 8200;
-   NetworkPacketType_CMSG_CHAT_CLOSE = 8201;
-   NetworkPacketType_CMSG_GROUP_INVITE_RESULT = 8202;
    NetworkPacketType_CMSG_MFA_VERIFY = 8203;
    NetworkPacketType_CMSG_MFA_SETUP = 8204;
    NetworkPacketType_CMSG_MFA_CONFIRM = 8205;
@@ -487,17 +532,24 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_RESPAWN_AT_TOWN = 8226;
    NetworkPacketType_CMSG_INTERACT = 8240;
    NetworkPacketType_CMSG_DIALOGUE_CHOOSE = 8241;
-   NetworkPacketType_CMSG_QUEST_STATUS = 8256;
-   NetworkPacketType_CMSG_QUEST_LIST = 8257;
-   NetworkPacketType_CMSG_QUEST_QUERY_AVAILABLE = 8258;
    NetworkPacketType_CMSG_AUDIO_RECORD = 8272;
    NetworkPacketType_CMSG_PLAYER_INPUT = 8288;
    NetworkPacketType_CMSG_LOOT_PICKUP = 8304;
    NetworkPacketType_CMSG_ITEM_MOVE = 8320;
    NetworkPacketType_CMSG_ITEM_DESTROY = 8321;
+   NetworkPacketType_CMSG_ITEM_USE = 8322;
    NetworkPacketType_CMSG_VENDOR_BUY = 8336;
    NetworkPacketType_CMSG_VENDOR_SELL = 8337;
    NetworkPacketType_CMSG_VENDOR_BUYBACK = 8338;
+   NetworkPacketType_CMSG_PARTY_INVITE = 8368;
+   NetworkPacketType_CMSG_PARTY_INVITE_RESPONSE = 8369;
+   NetworkPacketType_CMSG_PARTY_LEAVE = 8370;
+   NetworkPacketType_CMSG_PARTY_KICK = 8371;
+   NetworkPacketType_CMSG_PARTY_PROMOTE = 8372;
+   NetworkPacketType_CMSG_PARTY_EXPERIENCE_MODE = 8373;
+   NetworkPacketType_CMSG_QUEST_ACCEPT = 8384;
+   NetworkPacketType_CMSG_QUEST_TURN_IN = 8385;
+   NetworkPacketType_CMSG_QUEST_ABANDON = 8386;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_CMSG_PVP_TOGGLE = 8451;
@@ -508,10 +560,6 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_PING = 12295;
    NetworkPacketType_SMSG_DISCONNECT = 12296;
    NetworkPacketType_SMSG_CHAT_MESSAGE = 12297;
-   NetworkPacketType_SMSG_CHAT_OPEN = 12298;
-   NetworkPacketType_SMSG_CHAT_CLOSE = 12299;
-   NetworkPacketType_SMSG_GROUP_INVITE = 12301;
-   NetworkPacketType_SMSG_GROUP_INVITE_RESULT = 12302;
    NetworkPacketType_SMSG_MFA_SETUP = 12303;
    NetworkPacketType_SMSG_AUTH_RESULT = 12304;
    NetworkPacketType_SMSG_LOGOUT = 12305;
@@ -548,8 +596,19 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_LOOT_DESPAWNED = 12417;
    NetworkPacketType_SMSG_LOOT_PICKUP_RESULT = 12418;
    NetworkPacketType_SMSG_ITEM_RESULT = 12432;
+   NetworkPacketType_SMSG_ITEM_USE_RESULT = 12433;
    NetworkPacketType_SMSG_VENDOR_LIST = 12448;
    NetworkPacketType_SMSG_VENDOR_RESULT = 12449;
+   NetworkPacketType_SMSG_PARTY_INVITE = 12464;
+   NetworkPacketType_SMSG_PARTY_RESULT = 12465;
+   NetworkPacketType_SMSG_PARTY_ROSTER = 12466;
+   NetworkPacketType_SMSG_PARTY_MEMBER_STATUS = 12467;
+   NetworkPacketType_SMSG_QUEST_OFFER = 12480;
+   NetworkPacketType_SMSG_QUEST_RESULT = 12481;
+   NetworkPacketType_SMSG_QUEST_LOG = 12482;
+   NetworkPacketType_SMSG_QUEST_UPDATE = 12483;
+   NetworkPacketType_SMSG_QUEST_MARKERS = 12484;
+   NetworkPacketType_SMSG_IGNORE_LIST = 12496;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -593,6 +652,41 @@ message ObjectState {
    optional uint32 PortalRole = 19;
    optional bool CanInteract = 20;
    optional bool PvpEnabled = 21;
+   optional CreatureRarity Rarity = 22;
+   optional uint32 Class = 23;
+   optional uint32 Gender = 24;
+}
+enum PartyExperienceMode {
+   PartyExperienceMode_Unknown = 0;
+   PartyExperienceMode_Even = 1;
+   PartyExperienceMode_LevelWeighted = 2;
+}
+message PartyMemberDto {
+   uint32 CharacterId = 1;
+   optional string Name = 2;
+   uint32 Class = 3;
+   uint32 Level = 4;
+   bool IsLeader = 5;
+   bool Online = 6;
+   bool SameInstance = 7;
+}
+enum PartyResult {
+   PartyResult_Unknown = 0;
+   PartyResult_Ok = 1;
+   PartyResult_NotLeader = 2;
+   PartyResult_NotFound = 3;
+   PartyResult_AlreadyInParty = 4;
+   PartyResult_PartyFull = 5;
+   PartyResult_InvitePending = 6;
+   PartyResult_NoInvite = 7;
+   PartyResult_InCombat = 8;
+   PartyResult_OnCooldown = 9;
+   PartyResult_Self = 10;
+   PartyResult_NotInParty = 11;
+   PartyResult_InviteExpired = 12;
+   PartyResult_InviteDeclined = 13;
+   PartyResult_Invalid = 14;
+   PartyResult_Error = 15;
 }
 message PlacedChunkDto {
    int32 ChunkTemplateId = 1;
@@ -612,6 +706,91 @@ enum PowerType {
    PowerType_Mana = 1;
    PowerType_Fury = 2;
    PowerType_Energy = 3;
+}
+message QuestDisplayDto {
+   optional string Title = 1;
+   optional string Text = 2;
+   repeated QuestStageDto Stages = 3;
+   QuestRewardsDto Rewards = 4;
+}
+message QuestLogEntryDto {
+   uint32 QuestId = 1;
+   QuestStateKind State = 2;
+   int32 Stage = 3;
+   QuestDisplayDto Display = 4;
+   repeated QuestProgressDto Progress = 5;
+}
+enum QuestMarker {
+   QuestMarker_Unknown = 0;
+   QuestMarker_None = 1;
+   QuestMarker_Available = 2;
+   QuestMarker_ReadyToTurnIn = 3;
+}
+message QuestMarkerDto {
+   uint64 CreatureGuid = 1;
+   QuestMarker Marker = 2;
+}
+message QuestObjectiveDto {
+   uint32 ObjectiveId = 1;
+   QuestObjectiveKind Kind = 2;
+   uint64 TargetId = 3;
+   uint32 Count = 4;
+   optional string Text = 5;
+}
+enum QuestObjectiveKind {
+   QuestObjectiveKind_Unknown = 0;
+   QuestObjectiveKind_Kill = 1;
+   QuestObjectiveKind_Collect = 2;
+   QuestObjectiveKind_Talk = 3;
+   QuestObjectiveKind_Scripted = 4;
+}
+enum QuestOfferMode {
+   QuestOfferMode_Unknown = 0;
+   QuestOfferMode_Offer = 1;
+   QuestOfferMode_TurnIn = 2;
+}
+message QuestProgressDto {
+   uint32 ObjectiveId = 1;
+   uint32 Progress = 2;
+}
+enum QuestResult {
+   QuestResult_Unknown = 0;
+   QuestResult_Ok = 1;
+   QuestResult_NotAvailable = 2;
+   QuestResult_NotActive = 3;
+   QuestResult_NotReady = 4;
+   QuestResult_LogFull = 5;
+   QuestResult_BagFull = 6;
+   QuestResult_MoneyCap = 7;
+   QuestResult_TooFar = 8;
+   QuestResult_NoConversation = 9;
+   QuestResult_Error = 10;
+}
+message QuestRewardItemDto {
+   uint64 ItemTemplateId = 1;
+   uint32 Count = 2;
+}
+message QuestRewardsDto {
+   uint32 Experience = 1;
+   uint64 Money = 2;
+   repeated QuestRewardItemDto Items = 3;
+}
+message QuestStageDto {
+   int32 Sequence = 1;
+   optional string Text = 2;
+   repeated QuestObjectiveDto Objectives = 3;
+}
+enum QuestStateKind {
+   QuestStateKind_Unknown = 0;
+   QuestStateKind_Active = 1;
+   QuestStateKind_ReadyToTurnIn = 2;
+}
+enum QuestUpdateKind {
+   QuestUpdateKind_Unknown = 0;
+   QuestUpdateKind_Accepted = 1;
+   QuestUpdateKind_Progress = 2;
+   QuestUpdateKind_Removed = 3;
+   QuestUpdateKind_Completed = 4;
 }
 enum RegisterResult {
    RegisterResult_UnknownError = 0;
@@ -662,6 +841,7 @@ enum SCharacterCreateResult {
    SCharacterCreateResult_MaxCharactersReached = 5;
    SCharacterCreateResult_AlreadyInGame = 6;
    SCharacterCreateResult_InternalDatabaseError = 7;
+   SCharacterCreateResult_NameInvalid = 8;
 }
 message SCharacterCreatedPacket {
    SCharacterCreateResult Result = 1;
@@ -688,6 +868,7 @@ message SCharacterInterruptedCastPacket {
    uint64 Caster = 1;
    uint32 AbilityId = 2;
    uint32 CastId = 3;
+   uint64 ItemTemplateId = 4;
 }
 message SCharacterLeaveResultPacket {
    CharacterLeaveResult Result = 1;
@@ -723,6 +904,9 @@ message SChatMessagePacket {
    optional string CharacterName = 3;
    optional string Message = 4;
    .bcl.DateTime DateTime = 5;
+   ChatChannel Channel = 6;
+   optional string TargetName = 7;
+   uint32 CharacterClass = 8;
 }
 message SChunkLayoutPacket {
    int32 Seed = 1;
@@ -732,9 +916,6 @@ message SChunkLayoutPacket {
    Vector3Dto EntrySpawn = 5;
    repeated PortalPlacementDto Portals = 6;
    uint32 MapId = 7;
-}
-message SCloseChatPacket {
-   optional string ClientId = 1;
 }
 message SDialogueEndPacket {
    uint64 SpeakerGuid = 1;
@@ -750,6 +931,7 @@ message SDialogueOptionInfo {
    int32 OptionId = 1;
    optional string Text = 2;
    DialogueOptionKind Kind = 3;
+   optional uint32 QuestId = 4;
 }
 message SDisconnectPacket {
    optional string Reason = 1;
@@ -758,24 +940,14 @@ message SDisconnectPacket {
 message SExchangeWorldKeyPacket {
    optional bytes PublicKey = 1;
 }
-message SGroupInvitePacket {
-   int32 AccountId = 1;
-   int32 InviterAccountId = 2;
-   int32 InviterCharacterId = 3;
-   optional string InviterName = 4;
-}
-message SGroupResultPacket {
-   int32 AccountId = 1;
-   int32 CharacterId = 2;
-   int32 InviterAccountId = 3;
-   int32 InviterCharacterId = 4;
-   bool Accepted = 5;
-}
 message SHandshakePacket {
    optional bytes HandshakeData = 1;
 }
 message SHandshakeResultPacket {
    bool Verified = 1;
+}
+message SIgnoreListPacket {
+   repeated IgnoredCharacterDto Characters = 1;
 }
 message SInstanceStateAddPacket {
    repeated ObjectState Adds = 1;
@@ -798,6 +970,12 @@ message SItemResultPacket {
    uint32 RequestId = 1;
    ItemRequestResult Result = 2;
    repeated InventorySlotUpdateDto Slots = 3;
+}
+message SItemUseResultPacket {
+   uint32 RequestId = 1;
+   ItemUseResult Result = 2;
+   uint32 CooldownMs = 3;
+   optional string Message = 4;
 }
 message SLogoutPacket {
    LogoutResult Result = 1;
@@ -838,8 +1016,30 @@ message SMapTransitionPacket {
    optional string MapName = 7;
    optional string MapDescription = 8;
 }
-message SOpenChatPacket {
-   optional string ClientId = 1;
+message SPartyInvitePacket {
+   optional string InviterName = 1;
+   uint32 InviterClass = 2;
+   uint32 InviterLevel = 3;
+   uint32 ExpiresInMs = 4;
+}
+message SPartyMemberStatusPacket {
+   uint32 CharacterId = 1;
+   uint32 Health = 2;
+   uint32 MaxHealth = 3;
+   uint32 Power = 4;
+   uint32 MaxPower = 5;
+   PowerType PowerType = 6;
+   bool IsDead = 7;
+}
+message SPartyResultPacket {
+   PartyResult Result = 1;
+   optional string Name = 2;
+}
+message SPartyRosterPacket {
+   uint32 PartyId = 1;
+   PartyExperienceMode ExperienceMode = 2;
+   uint32 ModeLockedForMs = 3;
+   repeated PartyMemberDto Members = 4;
 }
 message SPingPacket {
    int64 ServerTimestamp = 1;
@@ -873,6 +1073,31 @@ message SPvpStatePacket {
    bool Enabled = 1;
    uint32 OffInMs = 2;
 }
+message SQuestLogPacket {
+   repeated QuestLogEntryDto Quests = 1;
+   repeated uint32 CompletedQuestIds = 2 [packed = false];
+}
+message SQuestMarkersPacket {
+   repeated QuestMarkerDto Markers = 1;
+}
+message SQuestOfferPacket {
+   uint32 QuestId = 1;
+   uint64 NpcGuid = 2;
+   QuestOfferMode Mode = 3;
+   QuestDisplayDto Quest = 4;
+}
+message SQuestResultPacket {
+   QuestResult Result = 1;
+   uint32 QuestId = 2;
+}
+message SQuestUpdatePacket {
+   uint32 QuestId = 1;
+   QuestUpdateKind Kind = 2;
+   QuestStateKind State = 3;
+   int32 Stage = 4;
+   QuestDisplayDto Display = 5;
+   repeated QuestProgressDto Progress = 6;
+}
 message SRegisterResultPacket {
    RegisterResult Result = 1;
 }
@@ -904,6 +1129,7 @@ message SUnitFinishCastPacket {
    uint64 Caster = 1;
    uint32 AbilityId = 2;
    uint32 CastId = 3;
+   uint64 ItemTemplateId = 4;
 }
 message SUnitHealedPacket {
    uint64 Healer = 1;
@@ -924,6 +1150,7 @@ message SUnitStartCastPacket {
    uint32 AbilityId = 3;
    uint32 CastId = 4;
    AbilityFootprintDto Footprint = 5;
+   uint64 ItemTemplateId = 6;
 }
 message SVendorListPacket {
    uint64 VendorGuid = 1;

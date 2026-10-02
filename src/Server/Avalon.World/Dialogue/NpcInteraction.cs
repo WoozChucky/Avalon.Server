@@ -32,10 +32,11 @@ public static class NpcInteraction
 
     /// <summary>
     /// Metres. How far a player may drift from the NPC while a conversation with it stays open.
-    /// Deliberately three times <c>InteractHandler</c>'s 5 m interact range: opening a conversation
-    /// needs you standing next to the NPC, keeping it open only needs you to still be with them.
+    /// Deliberately just past <c>InteractHandler</c>'s 5 m interact range (#678): opening a
+    /// conversation needs the player standing next to the NPC, and a step or two back keeps it open,
+    /// but walking off ends it.
     /// </summary>
-    public const float LeashRange = 15f;
+    public const float LeashRange = 6f;
 
     /// <summary>
     /// The dialogue leash: true while the character is close enough to the NPC for an open

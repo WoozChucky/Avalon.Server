@@ -402,6 +402,17 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
         while (processed++ < count && _continuationQueue.TryDequeue(out IContinuation? item))
         {
+            // Readiness first, and only once it holds is the outcome read (#704). The task finishes on
+            // the thread pool while this runs on the tick, so the other order, success then readiness,
+            // could see it unfinished and then finished: a task that succeeded between the two reads was
+            // taken for a faulted one and its callback dropped for good. A finished task never changes
+            // outcome, so success read after readiness is final.
+            if (!item.IsReady)
+            {
+                _continuationQueue.Enqueue(item); // counts against budget — deferred to next tick
+                continue;
+            }
+
             if (item.IsSuccess)
             {
                 // Contained per callback, as ProcessQueue contains each packet handler: one that
@@ -416,8 +427,6 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
                     _logger.LogError(e, "Continuation callback threw");
                 }
             }
-            else if (!item.IsReady)
-                _continuationQueue.Enqueue(item); // counts against budget — deferred to next tick
             else
                 _logger.LogError(item.Error, "Continuation faulted");
         }

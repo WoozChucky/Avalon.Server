@@ -24,20 +24,20 @@ variant empty
   bytes 0
 
 variant populated
-  field 1 Result : SCharacterCreateResult = NameTooLong (3)
-  bytes 2
-    08 03
-
-variant maxima
   field 1 Result : SCharacterCreateResult = InternalDatabaseError (7)
   bytes 2
     08 07
+
+variant maxima
+  field 1 Result : SCharacterCreateResult = NameInvalid (8)
+  bytes 2
+    08 08
 
 variant minima
   field 1 Result : SCharacterCreateResult = Success (0)
   bytes 0
 
 variant varint-edges
-  field 1 Result : SCharacterCreateResult = <not a declared member> (8)
+  field 1 Result : SCharacterCreateResult = <not a declared member> (9)
   bytes 2
-    08 08
+    08 09

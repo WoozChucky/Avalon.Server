@@ -70,6 +70,16 @@ spec:
                   name: {{ include "avalon-api.secretName" . }}
                   key: notification-private-key
                   optional: true
+            - name: Application__Balance__SharedSecret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" . }}
+                  key: balance-shared-secret
+                  optional: true
+            {{- with .Values.balance.url }}
+            - name: Application__Balance__Url
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.distribution.endpoint }}
             - name: Application__Distribution__Endpoint
               value: {{ . | quote }}
@@ -126,6 +136,22 @@ spec:
             {{- if not (kindIs "invalid" $rateLimiting.clientAuthPermitsPerMinute) }}
             - name: Application__RateLimiting__ClientAuthPermitsPerMinute
               value: {{ $rateLimiting.clientAuthPermitsPerMinute | quote }}
+            {{- end }}
+            {{- range $i, $id := .Values.templates.editableWorlds }}
+            - name: {{ printf "Application__Templates__EditableWorlds__%d" $i }}
+              value: {{ $id | toString | quote }}
+            {{- end }}
+            {{- with .Values.templates.reloadTimeout }}
+            - name: Application__Templates__ReloadTimeout
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.publicSiteUrl }}
+            - name: Application__PublicSiteUrl
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if not (kindIs "invalid" .Values.publicWorldId) }}
+            - name: Application__PublicWorldId
+              value: {{ .Values.publicWorldId | quote }}
             {{- end }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"

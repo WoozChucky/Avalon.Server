@@ -273,7 +273,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 5000L,
                             Cost = 25L,
                             CostPowerType = 1,
-                            EffectValue = 35L,
+                            EffectValue = 18L,
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
@@ -284,7 +284,7 @@ namespace Avalon.Database.World.Migrations
                             Radius = 3f,
                             Range = 20,
                             Reach = 18f,
-                            ScalingCoefficient = 0.8f,
+                            ScalingCoefficient = 0.4f,
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
@@ -1266,6 +1266,54 @@ namespace Avalon.Database.World.Migrations
                             Level = 15,
                             Experience = 13600m
                         });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChunkPoolId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChunkPoolId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("ChunkGroups", (string)null);
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroupMember", b =>
+                {
+                    b.Property<int>("ChunkGroupId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("CellX")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("CellZ")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("ChunkTemplateId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ChunkGroupId", "CellX", "CellZ");
+
+                    b.HasIndex("ChunkTemplateId")
+                        .IsUnique();
+
+                    b.ToTable("ChunkGroupMembers", (string)null);
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ChunkPool", b =>
@@ -2518,10 +2566,6 @@ namespace Avalon.Database.World.Migrations
                     b.Property<decimal>("Id")
                         .HasColumnType("numeric(20,0)");
 
-                    b.Property<string>("AIName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<float>("ArmorModifier")
                         .HasColumnType("real");
 
@@ -2600,9 +2644,6 @@ namespace Avalon.Database.World.Migrations
                     b.Property<short>("RegenHealth")
                         .HasColumnType("smallint");
 
-                    b.Property<int>("RespawnTimerSecs")
-                        .HasColumnType("integer");
-
                     b.Property<string>("ScriptName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -2638,7 +2679,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 1m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2663,7 +2703,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -2674,7 +2713,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 2m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2699,7 +2737,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -2710,7 +2747,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 3m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2735,7 +2771,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -2746,7 +2781,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 4m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2771,7 +2805,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "ThornbackBoarScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2782,7 +2815,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 5m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2807,7 +2839,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "GreyFenWolfScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2818,7 +2849,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 6m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2843,7 +2873,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "BlightflySwarmlingScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2854,7 +2883,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 7m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2879,7 +2907,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "HuskOfTheWoldScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2890,7 +2917,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 8m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2915,7 +2941,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 1,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "BramblemawAlphaScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2926,7 +2951,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 9m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2951,7 +2975,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 2,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "OldTuskrootScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2962,7 +2985,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 10m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -2987,7 +3009,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 3,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "MotherBrambleScript",
                             SpeedRun = 4f,
                             SpeedSwim = 1.6f,
@@ -2998,7 +3019,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 11m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -3023,7 +3043,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -3034,7 +3053,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 12m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -3059,7 +3077,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -3070,7 +3087,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 13m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -3095,7 +3111,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -3106,7 +3121,6 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 14m,
-                            AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
                             BodyRadius = 0.5f,
@@ -3131,7 +3145,6 @@ namespace Avalon.Database.World.Migrations
                             RangeAttackTime = 0,
                             Rarity = 0,
                             RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
                             ScriptName = "TownNpcScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
@@ -3616,6 +3629,21 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("SubClass")
                         .HasColumnType("integer");
 
+                    b.Property<long?>("UseCastTimeMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UseCooldownGroup")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("UseCooldownMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UseScript")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("UseValue")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
 
                     b.ToTable("ItemTemplates");
@@ -3633,7 +3661,11 @@ namespace Avalon.Database.World.Migrations
                             Name = "Health Potion",
                             Rarity = 1,
                             SellPrice = 5L,
-                            SubClass = 0
+                            SubClass = 0,
+                            UseCooldownGroup = "potion",
+                            UseCooldownMs = 30000L,
+                            UseScript = "RestoreHealth",
+                            UseValue = 30L
                         },
                         new
                         {
@@ -3647,7 +3679,11 @@ namespace Avalon.Database.World.Migrations
                             Name = "Mana Potion",
                             Rarity = 1,
                             SellPrice = 6L,
-                            SubClass = 0
+                            SubClass = 0,
+                            UseCooldownGroup = "potion",
+                            UseCooldownMs = 30000L,
+                            UseScript = "RestorePower",
+                            UseValue = 30L
                         },
                         new
                         {
@@ -3661,7 +3697,10 @@ namespace Avalon.Database.World.Migrations
                             Name = "Town Portal Scroll",
                             Rarity = 1,
                             SellPrice = 50L,
-                            SubClass = 2
+                            SubClass = 2,
+                            UseCastTimeMs = 3000L,
+                            UseCooldownMs = 30000L,
+                            UseScript = "TownPortalScroll"
                         },
                         new
                         {
@@ -4811,7 +4850,158 @@ namespace Avalon.Database.World.Migrations
                             Name = "Greater Health Potion",
                             Rarity = 1,
                             SellPrice = 12L,
-                            SubClass = 0
+                            SubClass = 0,
+                            UseCooldownGroup = "potion",
+                            UseCooldownMs = 30000L,
+                            UseScript = "RestoreHealth",
+                            UseValue = 60L
+                        },
+                        new
+                        {
+                            Id = 57m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 0L,
+                            Class = 3,
+                            DisplayId = 57L,
+                            Flags = 2304,
+                            MaxStackSize = 20L,
+                            Name = "Boar Tusk",
+                            Rarity = 1,
+                            SellPrice = 0L,
+                            SubClass = 300
+                        },
+                        new
+                        {
+                            Id = 58m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 58L,
+                            Flags = 0,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Alpha's Fang Pendant",
+                            Rarity = 2,
+                            RequiredLevel = 2,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            StatType1 = 0,
+                            StatType2 = 4,
+                            StatValue1 = 2L,
+                            StatValue2 = 1L,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 59m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 0L,
+                            Class = 3,
+                            DisplayId = 59L,
+                            Flags = 2304,
+                            MaxStackSize = 20L,
+                            Name = "Blightfly Wing",
+                            Rarity = 1,
+                            SellPrice = 0L,
+                            SubClass = 300
+                        },
+                        new
+                        {
+                            Id = 60m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 0L,
+                            Class = 3,
+                            DisplayId = 60L,
+                            Flags = 2304,
+                            MaxStackSize = 20L,
+                            Name = "Fen Wolf Pelt",
+                            Rarity = 1,
+                            SellPrice = 0L,
+                            SubClass = 300
+                        },
+                        new
+                        {
+                            Id = 61m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 0L,
+                            Class = 3,
+                            DisplayId = 61L,
+                            Flags = 2304,
+                            MaxStackSize = 20L,
+                            Name = "Ledger Page",
+                            Rarity = 1,
+                            SellPrice = 0L,
+                            SubClass = 300
+                        },
+                        new
+                        {
+                            Id = 62m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 0L,
+                            Class = 3,
+                            DisplayId = 62L,
+                            Flags = 2304,
+                            MaxStackSize = 20L,
+                            Name = "Tuskroot Heartwood",
+                            Rarity = 1,
+                            SellPrice = 0L,
+                            SubClass = 300
+                        },
+                        new
+                        {
+                            Id = 63m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 0L,
+                            Class = 3,
+                            DisplayId = 63L,
+                            Flags = 2304,
+                            MaxStackSize = 20L,
+                            Name = "Bramble Heart",
+                            Rarity = 1,
+                            SellPrice = 0L,
+                            SubClass = 300
+                        },
+                        new
+                        {
+                            Id = 64m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 64L,
+                            Flags = 0,
+                            ItemPower = 5,
+                            MaxStackSize = 1L,
+                            Name = "Heartwood Band",
+                            Rarity = 2,
+                            RequiredLevel = 5,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            StatType1 = 0,
+                            StatType2 = 4,
+                            StatValue1 = 3L,
+                            StatValue2 = 2L,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 65m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 65L,
+                            Flags = 0,
+                            ItemPower = 7,
+                            MaxStackSize = 1L,
+                            Name = "Thornheart Signet",
+                            Rarity = 3,
+                            RequiredLevel = 7,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            StatType1 = 0,
+                            StatType2 = 4,
+                            StatValue1 = 5L,
+                            StatValue2 = 4L,
+                            SubClass = 207
                         });
                 });
 
@@ -4951,6 +5141,216 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 24,
                             Text = "Show me your wares."
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Text = "Thinning the Herd"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Text = "The Thornback Boars have grown bold, {name}. They root up the paths and gore anyone who strays. Cull six of them before someone else is carried home."
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Text = "Six fewer tusks in the undergrowth. The paths will breathe easier for it."
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Text = "Thornback Boars slain"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Text = "Tusks for Borin"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Text = "Borin swears boar tusk takes an edge like nothing else. Bring him four tusks from the Thornback Boars; he will make it worth your while."
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Text = "Four good tusks! These will temper into something fine. Take these for the road."
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Text = "Boar Tusks gathered"
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Text = "The Alpha's Howl"
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Text = "Something leads the pack now, {name}. Thin the wolves and the husks at the forest's edge, tell Marta what you have seen, then find the Bramblemaw Alpha and end it."
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Text = "The howling has stopped. The forest is quieter than it has been in a long while. Wear this, {class}; you earned it."
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Text = "Grey Fen Wolves slain"
+                        },
+                        new
+                        {
+                            Id = 37,
+                            Text = "Husks of the Wold destroyed"
+                        },
+                        new
+                        {
+                            Id = 38,
+                            Text = "Speak with Marta Ledgerwell"
+                        },
+                        new
+                        {
+                            Id = 39,
+                            Text = "Bramblemaw Alpha slain"
+                        },
+                        new
+                        {
+                            Id = 40,
+                            Text = "Clear the forest's edge."
+                        },
+                        new
+                        {
+                            Id = 41,
+                            Text = "Tell Marta what you have seen."
+                        },
+                        new
+                        {
+                            Id = 42,
+                            Text = "Hunt down the Bramblemaw Alpha."
+                        },
+                        new
+                        {
+                            Id = 43,
+                            Text = "Wings for the Still"
+                        },
+                        new
+                        {
+                            Id = 44,
+                            Text = "The Blightfly Swarmlings drone over the wold day and night, {name}, and the dust on their wings settles a fever better than any root I sell. Bring me six wings for my still, whole if you can manage it."
+                        },
+                        new
+                        {
+                            Id = 45,
+                            Text = "Six good wings. That dust will see a few fevers through the cold months. Take these for your trouble."
+                        },
+                        new
+                        {
+                            Id = 46,
+                            Text = "Blightfly Wings gathered"
+                        },
+                        new
+                        {
+                            Id = 47,
+                            Text = "Pelts Before Frost"
+                        },
+                        new
+                        {
+                            Id = 48,
+                            Text = "Frost comes early under those trees, and the Grey Fen Wolves wear the thickest coats in the wold. Bring me eight of their pelts and I will line half the town's cloaks before the first freeze."
+                        },
+                        new
+                        {
+                            Id = 49,
+                            Text = "Eight pelts, and barely a nick in them. The town will be warmer for it, {name}."
+                        },
+                        new
+                        {
+                            Id = 50,
+                            Text = "Fen Wolf Pelts gathered"
+                        },
+                        new
+                        {
+                            Id = 51,
+                            Text = "What the Husks Carry"
+                        },
+                        new
+                        {
+                            Id = 52,
+                            Text = "Travellers swear the Husks of the Wold still clutch scraps of paper, {name}: pages from a ledger, with Marta's mark on them. Put down eight of those things and bring whatever pages you find to Marta at the bank."
+                        },
+                        new
+                        {
+                            Id = 53,
+                            Text = "These are mine. Accounts from a caravan that never came back. I owe you more than coin for this, {name}, but coin is what I have."
+                        },
+                        new
+                        {
+                            Id = 54,
+                            Text = "Ledger Pages recovered"
+                        },
+                        new
+                        {
+                            Id = 55,
+                            Text = "Heartwood"
+                        },
+                        new
+                        {
+                            Id = 56,
+                            Text = "Old Tuskroot has walked the wold longer than this town has stood, and the wood at its heart is harder than iron. Bring me that heartwood, {class}, and I will set it in something worth wearing."
+                        },
+                        new
+                        {
+                            Id = 57,
+                            Text = "Now that is heartwood. Hold out your hand; this one was made to fit it."
+                        },
+                        new
+                        {
+                            Id = 58,
+                            Text = "Tuskroot Heartwood taken"
+                        },
+                        new
+                        {
+                            Id = 59,
+                            Text = "Mother of Thorns"
+                        },
+                        new
+                        {
+                            Id = 60,
+                            Text = "The Bramblemaw Alphas answer to something deeper in the wold, {name}. Speak with Garrick first: he has forged against thorns before. Then go to the heart of the forest, bring down two of the Alphas and end Mother Bramble, the Mother of Thorns."
+                        },
+                        new
+                        {
+                            Id = 61,
+                            Text = "The wold is breathing again. It will remember what you did, and so will we. Wear this, {class}."
+                        },
+                        new
+                        {
+                            Id = 62,
+                            Text = "Speak with Garrick Emberforge"
+                        },
+                        new
+                        {
+                            Id = 63,
+                            Text = "Bramblemaw Alphas slain"
+                        },
+                        new
+                        {
+                            Id = 64,
+                            Text = "Bramble Heart taken"
+                        },
+                        new
+                        {
+                            Id = 65,
+                            Text = "Ask Garrick how to face the thorns."
+                        },
+                        new
+                        {
+                            Id = 66,
+                            Text = "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart."
                         });
                 });
 
@@ -5114,6 +5514,258 @@ namespace Avalon.Database.World.Migrations
                             TextId = 24,
                             Locale = "ptPT",
                             Text = "Mostra-me a tua mercadoria."
+                        },
+                        new
+                        {
+                            TextId = 25,
+                            Locale = "ptPT",
+                            Text = "Desbastar a Manada"
+                        },
+                        new
+                        {
+                            TextId = 26,
+                            Locale = "ptPT",
+                            Text = "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e atacam com as presas quem se aproxima. Abate seis deles antes que mais alguém tenha de ser trazido para casa."
+                        },
+                        new
+                        {
+                            TextId = 27,
+                            Locale = "ptPT",
+                            Text = "Menos seis presas no mato. Os caminhos vão respirar melhor por isso."
+                        },
+                        new
+                        {
+                            TextId = 28,
+                            Locale = "ptPT",
+                            Text = "Thornback Boars abatidos"
+                        },
+                        new
+                        {
+                            TextId = 29,
+                            Locale = "ptPT",
+                            Text = "Presas para o Borin"
+                        },
+                        new
+                        {
+                            TextId = 30,
+                            Locale = "ptPT",
+                            Text = "O Borin jura que a presa de javali ganha gume como mais nada. Leva-lhe quatro presas dos Thornback Boars; ele há de fazer valer a pena."
+                        },
+                        new
+                        {
+                            TextId = 31,
+                            Locale = "ptPT",
+                            Text = "Quatro boas presas! Depois de temperadas, vão dar coisa fina. Leva isto para a estrada."
+                        },
+                        new
+                        {
+                            TextId = 32,
+                            Locale = "ptPT",
+                            Text = "Presas de javali recolhidas"
+                        },
+                        new
+                        {
+                            TextId = 33,
+                            Locale = "ptPT",
+                            Text = "O Uivo do Alfa"
+                        },
+                        new
+                        {
+                            TextId = 34,
+                            Locale = "ptPT",
+                            Text = "Agora há algo a liderar a alcateia, {name}. Desbasta os lobos e as carcaças na orla da floresta, conta à Marta o que viste, e depois encontra o Bramblemaw Alpha e acaba com ele."
+                        },
+                        new
+                        {
+                            TextId = 35,
+                            Locale = "ptPT",
+                            Text = "Os uivos pararam. A floresta não estava tão calma há muito tempo. Usa isto, {class}; mereceste-o."
+                        },
+                        new
+                        {
+                            TextId = 36,
+                            Locale = "ptPT",
+                            Text = "Grey Fen Wolves abatidos"
+                        },
+                        new
+                        {
+                            TextId = 37,
+                            Locale = "ptPT",
+                            Text = "Husks of the Wold destruídos"
+                        },
+                        new
+                        {
+                            TextId = 38,
+                            Locale = "ptPT",
+                            Text = "Fala com a Marta Ledgerwell"
+                        },
+                        new
+                        {
+                            TextId = 39,
+                            Locale = "ptPT",
+                            Text = "Bramblemaw Alpha abatido"
+                        },
+                        new
+                        {
+                            TextId = 40,
+                            Locale = "ptPT",
+                            Text = "Limpa a orla da floresta."
+                        },
+                        new
+                        {
+                            TextId = 41,
+                            Locale = "ptPT",
+                            Text = "Conta à Marta o que viste."
+                        },
+                        new
+                        {
+                            TextId = 42,
+                            Locale = "ptPT",
+                            Text = "Caça o Bramblemaw Alpha."
+                        },
+                        new
+                        {
+                            TextId = 43,
+                            Locale = "ptPT",
+                            Text = "Asas para o Alambique"
+                        },
+                        new
+                        {
+                            TextId = 44,
+                            Locale = "ptPT",
+                            Text = "As Blightfly Swarmlings zumbem sobre a mata dia e noite, {name}, e o pó das asas delas acalma uma febre melhor do que qualquer raiz que eu venda. Traz-me seis asas para o meu alambique, inteiras se conseguires."
+                        },
+                        new
+                        {
+                            TextId = 45,
+                            Locale = "ptPT",
+                            Text = "Seis boas asas. Esse pó vai ajudar a vencer umas quantas febres nos meses frios. Leva isto pelo teu trabalho."
+                        },
+                        new
+                        {
+                            TextId = 46,
+                            Locale = "ptPT",
+                            Text = "Asas de Blightfly recolhidas"
+                        },
+                        new
+                        {
+                            TextId = 47,
+                            Locale = "ptPT",
+                            Text = "Peles Antes da Geada"
+                        },
+                        new
+                        {
+                            TextId = 48,
+                            Locale = "ptPT",
+                            Text = "A geada chega cedo debaixo daquelas árvores, e os Grey Fen Wolves têm os casacos mais grossos da mata. Traz-me oito das peles deles e forro metade das capas da vila antes da primeira geada."
+                        },
+                        new
+                        {
+                            TextId = 49,
+                            Locale = "ptPT",
+                            Text = "Oito peles, e quase sem um rasgão. A vila vai ficar mais quente graças a isto, {name}."
+                        },
+                        new
+                        {
+                            TextId = 50,
+                            Locale = "ptPT",
+                            Text = "Peles de Fen Wolf recolhidas"
+                        },
+                        new
+                        {
+                            TextId = 51,
+                            Locale = "ptPT",
+                            Text = "O que as Carcaças Carregam"
+                        },
+                        new
+                        {
+                            TextId = 52,
+                            Locale = "ptPT",
+                            Text = "Os viajantes juram que os Husks of the Wold ainda agarram pedaços de papel, {name}: páginas de um livro de contas, com a marca da Marta. Abate oito dessas coisas e leva as páginas que encontrares à Marta, no banco."
+                        },
+                        new
+                        {
+                            TextId = 53,
+                            Locale = "ptPT",
+                            Text = "Estas são minhas. Contas de uma caravana que nunca voltou. Devo-te mais do que moedas por isto, {name}, mas moedas é o que tenho."
+                        },
+                        new
+                        {
+                            TextId = 54,
+                            Locale = "ptPT",
+                            Text = "Páginas do livro de contas recuperadas"
+                        },
+                        new
+                        {
+                            TextId = 55,
+                            Locale = "ptPT",
+                            Text = "Cerne"
+                        },
+                        new
+                        {
+                            TextId = 56,
+                            Locale = "ptPT",
+                            Text = "O Old Tuskroot anda pela mata há mais tempo do que esta vila existe, e a madeira do seu coração é mais dura do que o ferro. Traz-me esse cerne, {class}, e engasto-o em algo que valha a pena usar."
+                        },
+                        new
+                        {
+                            TextId = 57,
+                            Locale = "ptPT",
+                            Text = "Isso sim, é cerne. Estende a mão; este foi feito à tua medida."
+                        },
+                        new
+                        {
+                            TextId = 58,
+                            Locale = "ptPT",
+                            Text = "Cerne de Tuskroot obtido"
+                        },
+                        new
+                        {
+                            TextId = 59,
+                            Locale = "ptPT",
+                            Text = "Mãe dos Espinhos"
+                        },
+                        new
+                        {
+                            TextId = 60,
+                            Locale = "ptPT",
+                            Text = "Os Bramblemaw Alphas obedecem a algo mais fundo na mata, {name}. Fala primeiro com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta, abate dois dos Bramblemaw Alphas e acaba com a Mother Bramble, a Mãe dos Espinhos."
+                        },
+                        new
+                        {
+                            TextId = 61,
+                            Locale = "ptPT",
+                            Text = "A mata volta a respirar. Vai lembrar-se do que fizeste, e nós também. Usa isto, {class}."
+                        },
+                        new
+                        {
+                            TextId = 62,
+                            Locale = "ptPT",
+                            Text = "Fala com o Garrick Emberforge"
+                        },
+                        new
+                        {
+                            TextId = 63,
+                            Locale = "ptPT",
+                            Text = "Bramblemaw Alphas abatidos"
+                        },
+                        new
+                        {
+                            TextId = 64,
+                            Locale = "ptPT",
+                            Text = "Coração de Bramble obtido"
+                        },
+                        new
+                        {
+                            TextId = 65,
+                            Locale = "ptPT",
+                            Text = "Pergunta ao Garrick como enfrentar os espinhos."
+                        },
+                        new
+                        {
+                            TextId = 66,
+                            Locale = "ptPT",
+                            Text = "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble."
                         });
                 });
 
@@ -5968,71 +6620,71 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 1,
                             CreatureTemplateId = 1m,
-                            Facing = 143f,
+                            Facing = 191f,
                             MapTemplateId = 1,
-                            OffsetX = -3f,
-                            OffsetY = 0f,
-                            OffsetZ = 4f
-                        },
-                        new
-                        {
-                            Id = 2,
-                            CreatureTemplateId = 2m,
-                            Facing = 217f,
-                            MapTemplateId = 1,
-                            OffsetX = 3f,
-                            OffsetY = 0f,
-                            OffsetZ = 4f
-                        },
-                        new
-                        {
-                            Id = 3,
-                            CreatureTemplateId = 3m,
-                            Facing = 180f,
-                            MapTemplateId = 1,
-                            OffsetX = 0f,
-                            OffsetY = 0f,
-                            OffsetZ = 7f
-                        },
-                        new
-                        {
-                            Id = 4,
-                            CreatureTemplateId = 11m,
-                            Facing = 135f,
-                            MapTemplateId = 1,
-                            OffsetX = -6f,
-                            OffsetY = 0f,
-                            OffsetZ = 6f
-                        },
-                        new
-                        {
-                            Id = 5,
-                            CreatureTemplateId = 12m,
-                            Facing = 114f,
-                            MapTemplateId = 1,
-                            OffsetX = -9f,
-                            OffsetY = 0f,
-                            OffsetZ = 4f
-                        },
-                        new
-                        {
-                            Id = 6,
-                            CreatureTemplateId = 13m,
-                            Facing = 132f,
-                            MapTemplateId = 1,
-                            OffsetX = -9f,
+                            OffsetX = 1.6f,
                             OffsetY = 0f,
                             OffsetZ = 8f
                         },
                         new
                         {
+                            Id = 2,
+                            CreatureTemplateId = 2m,
+                            Facing = 270f,
+                            MapTemplateId = 1,
+                            OffsetX = 1.9f,
+                            OffsetY = 0f,
+                            OffsetZ = 22f
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatureTemplateId = 3m,
+                            Facing = 246f,
+                            MapTemplateId = 1,
+                            OffsetX = 35f,
+                            OffsetY = 0f,
+                            OffsetZ = 32.2f
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatureTemplateId = 11m,
+                            Facing = 118f,
+                            MapTemplateId = 1,
+                            OffsetX = 21.8f,
+                            OffsetY = 0f,
+                            OffsetZ = 34.4f
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatureTemplateId = 12m,
+                            Facing = 118f,
+                            MapTemplateId = 1,
+                            OffsetX = 24f,
+                            OffsetY = 0f,
+                            OffsetZ = 3.2f
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatureTemplateId = 13m,
+                            Facing = 270f,
+                            MapTemplateId = 1,
+                            OffsetX = 38.9f,
+                            OffsetY = 0f,
+                            OffsetZ = 0f
+                        },
+                        new
+                        {
                             Id = 7,
                             CreatureTemplateId = 14m,
-                            Facing = 149f,
+                            Facing = 222f,
                             MapTemplateId = 1,
-                            OffsetX = -6f,
+                            OffsetX = 36.5f,
                             OffsetY = 0f,
-                            OffsetZ = 10f
+                            OffsetZ = 7.2f
                         });
                 });
 
@@ -6125,8 +6777,8 @@ namespace Avalon.Database.World.Migrations
                             LoadingScreenId = 0,
                             LogoutMapId = 1,
                             MapType = 1,
-                            MaxLevel = 5,
-                            MaxPlayers = 1,
+                            MaxLevel = 15,
+                            MaxPlayers = 6,
                             MinLevel = 1,
                             Name = "ForestDungeon",
                             PvP = false
@@ -6162,6 +6814,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("MainPathMin")
                         .HasColumnType("integer");
 
+                    b.Property<int>("MinSetPieceStep")
+                        .HasColumnType("integer");
+
                     b.Property<int>("SpawnTableId")
                         .HasColumnType("integer");
 
@@ -6170,73 +6825,411 @@ namespace Avalon.Database.World.Migrations
                     b.ToTable("ProceduralMapConfigs");
                 });
 
-            modelBuilder.Entity("Avalon.Domain.World.QuestReward", b =>
+            modelBuilder.Entity("Avalon.Domain.World.QuestItemDrop", b =>
+                {
+                    b.Property<long>("ObjectiveId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("CreatureTemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<float>("Chance")
+                        .HasColumnType("real");
+
+                    b.HasKey("ObjectiveId", "CreatureTemplateId");
+
+                    b.HasIndex("CreatureTemplateId");
+
+                    b.ToTable("QuestItemDrops", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_QuestItemDrops_Chance", "\"Chance\" >= 0 AND \"Chance\" <= 100");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            ObjectiveId = 201L,
+                            CreatureTemplateId = 4m,
+                            Chance = 60f
+                        },
+                        new
+                        {
+                            ObjectiveId = 401L,
+                            CreatureTemplateId = 6m,
+                            Chance = 50f
+                        },
+                        new
+                        {
+                            ObjectiveId = 501L,
+                            CreatureTemplateId = 5m,
+                            Chance = 50f
+                        },
+                        new
+                        {
+                            ObjectiveId = 602L,
+                            CreatureTemplateId = 7m,
+                            Chance = 35f
+                        },
+                        new
+                        {
+                            ObjectiveId = 701L,
+                            CreatureTemplateId = 9m,
+                            Chance = 100f
+                        },
+                        new
+                        {
+                            ObjectiveId = 803L,
+                            CreatureTemplateId = 10m,
+                            Chance = 100f
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.QuestItemReward", b =>
                 {
                     b.Property<long>("QuestId")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("RewardId")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("QuestId", "RewardId");
-
-                    b.HasIndex("RewardId");
-
-                    b.ToTable("QuestRewards");
-                });
-
-            modelBuilder.Entity("Avalon.Domain.World.QuestRewardTemplate", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<decimal>("ItemTemplateId")
+                        .HasColumnType("numeric(20,0)");
 
                     b.Property<long>("Count")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.HasKey("QuestId", "ItemTemplateId");
+
+                    b.HasIndex("ItemTemplateId");
+
+                    b.ToTable("QuestItemRewards", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_QuestItemRewards_CountPositive", "\"Count\" >= 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            QuestId = 2L,
+                            ItemTemplateId = 56m,
+                            Count = 2L
+                        },
+                        new
+                        {
+                            QuestId = 3L,
+                            ItemTemplateId = 58m,
+                            Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 4L,
+                            ItemTemplateId = 2m,
+                            Count = 3L
+                        },
+                        new
+                        {
+                            QuestId = 6L,
+                            ItemTemplateId = 56m,
+                            Count = 2L
+                        },
+                        new
+                        {
+                            QuestId = 7L,
+                            ItemTemplateId = 64m,
+                            Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 8L,
+                            ItemTemplateId = 65m,
+                            Count = 1L
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.QuestObjective", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("CreatureTemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<int>("DescriptionTextId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("ItemTemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<long>("QuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("StageSequence")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Type")
                         .HasColumnType("integer");
 
-                    b.Property<long>("Value")
-                        .HasColumnType("bigint");
-
                     b.HasKey("Id");
 
-                    b.ToTable("QuestRewardTemplates");
+                    b.HasIndex("CreatureTemplateId");
+
+                    b.HasIndex("ItemTemplateId");
+
+                    b.HasIndex("QuestId", "StageSequence");
+
+                    b.ToTable("QuestObjectives", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_QuestObjectives_CountPositive", "\"Count\" >= 1");
+
+                            t.HasCheckConstraint("CK_QuestObjectives_TargetFitsType", "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL) OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL) OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL) OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 101L,
+                            Count = 6L,
+                            CreatureTemplateId = 4m,
+                            DescriptionTextId = 28,
+                            QuestId = 1L,
+                            StageSequence = 0,
+                            Type = 1
+                        },
+                        new
+                        {
+                            Id = 201L,
+                            Count = 4L,
+                            DescriptionTextId = 32,
+                            ItemTemplateId = 57m,
+                            QuestId = 2L,
+                            StageSequence = 0,
+                            Type = 2
+                        },
+                        new
+                        {
+                            Id = 301L,
+                            Count = 3L,
+                            CreatureTemplateId = 5m,
+                            DescriptionTextId = 36,
+                            QuestId = 3L,
+                            StageSequence = 0,
+                            Type = 1
+                        },
+                        new
+                        {
+                            Id = 302L,
+                            Count = 2L,
+                            CreatureTemplateId = 7m,
+                            DescriptionTextId = 37,
+                            QuestId = 3L,
+                            StageSequence = 0,
+                            Type = 1
+                        },
+                        new
+                        {
+                            Id = 303L,
+                            Count = 1L,
+                            CreatureTemplateId = 11m,
+                            DescriptionTextId = 38,
+                            QuestId = 3L,
+                            StageSequence = 1,
+                            Type = 3
+                        },
+                        new
+                        {
+                            Id = 304L,
+                            Count = 1L,
+                            CreatureTemplateId = 8m,
+                            DescriptionTextId = 39,
+                            QuestId = 3L,
+                            StageSequence = 2,
+                            Type = 1
+                        },
+                        new
+                        {
+                            Id = 401L,
+                            Count = 6L,
+                            DescriptionTextId = 46,
+                            ItemTemplateId = 59m,
+                            QuestId = 4L,
+                            StageSequence = 0,
+                            Type = 2
+                        },
+                        new
+                        {
+                            Id = 501L,
+                            Count = 8L,
+                            DescriptionTextId = 50,
+                            ItemTemplateId = 60m,
+                            QuestId = 5L,
+                            StageSequence = 0,
+                            Type = 2
+                        },
+                        new
+                        {
+                            Id = 601L,
+                            Count = 8L,
+                            CreatureTemplateId = 7m,
+                            DescriptionTextId = 37,
+                            QuestId = 6L,
+                            StageSequence = 0,
+                            Type = 1
+                        },
+                        new
+                        {
+                            Id = 602L,
+                            Count = 3L,
+                            DescriptionTextId = 54,
+                            ItemTemplateId = 61m,
+                            QuestId = 6L,
+                            StageSequence = 0,
+                            Type = 2
+                        },
+                        new
+                        {
+                            Id = 701L,
+                            Count = 1L,
+                            DescriptionTextId = 58,
+                            ItemTemplateId = 62m,
+                            QuestId = 7L,
+                            StageSequence = 0,
+                            Type = 2
+                        },
+                        new
+                        {
+                            Id = 801L,
+                            Count = 1L,
+                            CreatureTemplateId = 12m,
+                            DescriptionTextId = 62,
+                            QuestId = 8L,
+                            StageSequence = 0,
+                            Type = 3
+                        },
+                        new
+                        {
+                            Id = 802L,
+                            Count = 2L,
+                            CreatureTemplateId = 8m,
+                            DescriptionTextId = 63,
+                            QuestId = 8L,
+                            StageSequence = 1,
+                            Type = 1
+                        },
+                        new
+                        {
+                            Id = 803L,
+                            Count = 1L,
+                            DescriptionTextId = 64,
+                            ItemTemplateId = 63m,
+                            QuestId = 8L,
+                            StageSequence = 1,
+                            Type = 2
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.QuestStage", b =>
+                {
+                    b.Property<long>("QuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DescriptionTextId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("QuestId", "Sequence");
+
+                    b.ToTable("QuestStages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_QuestStages_Sequence", "\"Sequence\" >= 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            QuestId = 1L,
+                            Sequence = 0
+                        },
+                        new
+                        {
+                            QuestId = 2L,
+                            Sequence = 0
+                        },
+                        new
+                        {
+                            QuestId = 3L,
+                            Sequence = 0,
+                            DescriptionTextId = 40
+                        },
+                        new
+                        {
+                            QuestId = 3L,
+                            Sequence = 1,
+                            DescriptionTextId = 41
+                        },
+                        new
+                        {
+                            QuestId = 3L,
+                            Sequence = 2,
+                            DescriptionTextId = 42
+                        },
+                        new
+                        {
+                            QuestId = 4L,
+                            Sequence = 0
+                        },
+                        new
+                        {
+                            QuestId = 5L,
+                            Sequence = 0
+                        },
+                        new
+                        {
+                            QuestId = 6L,
+                            Sequence = 0
+                        },
+                        new
+                        {
+                            QuestId = 7L,
+                            Sequence = 0
+                        },
+                        new
+                        {
+                            QuestId = 8L,
+                            Sequence = 0,
+                            DescriptionTextId = 65
+                        },
+                        new
+                        {
+                            QuestId = 8L,
+                            Sequence = 1,
+                            DescriptionTextId = 66
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.QuestTemplate", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("bigint");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<int>("ClassRequirement")
+                    b.Property<int?>("ClassRequirement")
                         .HasColumnType("integer");
 
-                    b.Property<int>("CompletionCriteriaId")
+                    b.Property<int>("CompletionTextId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("EnderCreatureId")
+                    b.Property<int>("DescriptionTextId")
                         .HasColumnType("integer");
+
+                    b.Property<decimal>("EnderCreatureId")
+                        .HasColumnType("numeric(20,0)");
 
                     b.Property<int>("Environment")
                         .HasColumnType("integer");
 
-                    b.Property<int>("GiverCreatureId")
-                        .HasColumnType("integer");
+                    b.Property<decimal>("GiverCreatureId")
+                        .HasColumnType("numeric(20,0)");
 
                     b.Property<bool>("IsRepeatable")
                         .HasColumnType("boolean");
@@ -6250,19 +7243,170 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int?>("RepeatFrequency")
                         .HasColumnType("integer");
 
-                    b.Property<int>("RequiredQuestId")
-                        .HasColumnType("integer");
+                    b.Property<long?>("RequiredQuestId")
+                        .HasColumnType("bigint");
 
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<long>("RewardExperience")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("RewardMoney")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<string>("ScriptName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("TitleTextId")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Type")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
-                    b.ToTable("QuestTemplates");
+                    b.HasIndex("EnderCreatureId");
+
+                    b.HasIndex("GiverCreatureId");
+
+                    b.HasIndex("RequiredQuestId");
+
+                    b.ToTable("QuestTemplates", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1L,
+                            CompletionTextId = 27,
+                            DescriptionTextId = 26,
+                            EnderCreatureId = 1m,
+                            Environment = 0,
+                            GiverCreatureId = 1m,
+                            IsRepeatable = false,
+                            LevelRequirement = 1,
+                            Rarity = 0,
+                            RewardExperience = 150L,
+                            RewardMoney = 100m,
+                            TitleTextId = 25,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 2L,
+                            CompletionTextId = 31,
+                            DescriptionTextId = 30,
+                            EnderCreatureId = 2m,
+                            Environment = 0,
+                            GiverCreatureId = 1m,
+                            IsRepeatable = false,
+                            LevelRequirement = 1,
+                            Rarity = 0,
+                            RequiredQuestId = 1L,
+                            RewardExperience = 250L,
+                            RewardMoney = 150m,
+                            TitleTextId = 29,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 3L,
+                            CompletionTextId = 35,
+                            DescriptionTextId = 34,
+                            EnderCreatureId = 2m,
+                            Environment = 0,
+                            GiverCreatureId = 2m,
+                            IsRepeatable = false,
+                            LevelRequirement = 2,
+                            Rarity = 0,
+                            RequiredQuestId = 2L,
+                            RewardExperience = 600L,
+                            RewardMoney = 400m,
+                            TitleTextId = 33,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 4L,
+                            CompletionTextId = 45,
+                            DescriptionTextId = 44,
+                            EnderCreatureId = 14m,
+                            Environment = 0,
+                            GiverCreatureId = 14m,
+                            IsRepeatable = false,
+                            LevelRequirement = 2,
+                            Rarity = 0,
+                            RewardExperience = 300L,
+                            RewardMoney = 200m,
+                            TitleTextId = 43,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 5L,
+                            CompletionTextId = 49,
+                            DescriptionTextId = 48,
+                            EnderCreatureId = 13m,
+                            Environment = 0,
+                            GiverCreatureId = 13m,
+                            IsRepeatable = false,
+                            LevelRequirement = 3,
+                            Rarity = 0,
+                            RequiredQuestId = 4L,
+                            RewardExperience = 400L,
+                            RewardMoney = 250m,
+                            TitleTextId = 47,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 6L,
+                            CompletionTextId = 53,
+                            DescriptionTextId = 52,
+                            EnderCreatureId = 11m,
+                            Environment = 0,
+                            GiverCreatureId = 3m,
+                            IsRepeatable = false,
+                            LevelRequirement = 4,
+                            Rarity = 0,
+                            RequiredQuestId = 5L,
+                            RewardExperience = 500L,
+                            RewardMoney = 300m,
+                            TitleTextId = 51,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 7L,
+                            CompletionTextId = 57,
+                            DescriptionTextId = 56,
+                            EnderCreatureId = 2m,
+                            Environment = 0,
+                            GiverCreatureId = 2m,
+                            IsRepeatable = false,
+                            LevelRequirement = 5,
+                            Rarity = 0,
+                            RequiredQuestId = 6L,
+                            RewardExperience = 700L,
+                            RewardMoney = 400m,
+                            TitleTextId = 55,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 8L,
+                            CompletionTextId = 61,
+                            DescriptionTextId = 60,
+                            EnderCreatureId = 1m,
+                            Environment = 0,
+                            GiverCreatureId = 1m,
+                            IsRepeatable = false,
+                            LevelRequirement = 7,
+                            Rarity = 0,
+                            RequiredQuestId = 7L,
+                            RewardExperience = 1500L,
+                            RewardMoney = 1000m,
+                            TitleTextId = 59,
+                            Type = 0
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.SpawnTable", b =>
@@ -6585,6 +7729,30 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ChunkPool", null)
+                        .WithMany("Groups")
+                        .HasForeignKey("ChunkPoolId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroupMember", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ChunkGroup", null)
+                        .WithMany("Members")
+                        .HasForeignKey("ChunkGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.ChunkTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("ChunkTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ChunkPoolMembership", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ChunkPool", "Pool")
@@ -6724,23 +7892,123 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("Path");
                 });
 
-            modelBuilder.Entity("Avalon.Domain.World.QuestReward", b =>
+            modelBuilder.Entity("Avalon.Domain.World.ProceduralMapConfig", b =>
                 {
-                    b.HasOne("Avalon.Domain.World.QuestTemplate", "Quest")
-                        .WithMany("Rewards")
+                    b.OwnsMany("Avalon.Domain.World.ProceduralDepthBand", "DepthBands", b1 =>
+                        {
+                            b1.Property<int>("MapTemplateId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("MinDepth")
+                                .HasColumnType("integer");
+
+                            b1.Property<int?>("MaxDepth")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("MaxLevel")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("MinLevel")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("MapTemplateId", "MinDepth");
+
+                            b1.ToTable("ProceduralDepthBands", null, t =>
+                                {
+                                    t.HasCheckConstraint("CK_ProceduralDepthBands_Depth", "\"MinDepth\" >= 0 AND (\"MaxDepth\" IS NULL OR \"MaxDepth\" >= \"MinDepth\")");
+
+                                    t.HasCheckConstraint("CK_ProceduralDepthBands_Level", "\"MinLevel\" >= 1 AND \"MaxLevel\" >= \"MinLevel\"");
+                                });
+
+                            b1.WithOwner()
+                                .HasForeignKey("MapTemplateId");
+                        });
+
+                    b.Navigation("DepthBands");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.QuestItemDrop", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.CreatureTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("CreatureTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.QuestObjective", null)
+                        .WithMany("Drops")
+                        .HasForeignKey("ObjectiveId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.QuestItemReward", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("ItemTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.QuestTemplate", null)
+                        .WithMany("ItemRewards")
+                        .HasForeignKey("QuestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.QuestObjective", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.CreatureTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("CreatureTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("ItemTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Avalon.Domain.World.QuestTemplate", null)
+                        .WithMany("Objectives")
                         .HasForeignKey("QuestId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Avalon.Domain.World.QuestRewardTemplate", "Reward")
+                    b.HasOne("Avalon.Domain.World.QuestStage", null)
                         .WithMany()
-                        .HasForeignKey("RewardId")
+                        .HasForeignKey("QuestId", "StageSequence")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
 
-                    b.Navigation("Quest");
+            modelBuilder.Entity("Avalon.Domain.World.QuestStage", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.QuestTemplate", null)
+                        .WithMany("Stages")
+                        .HasForeignKey("QuestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
 
-                    b.Navigation("Reward");
+            modelBuilder.Entity("Avalon.Domain.World.QuestTemplate", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.CreatureTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("EnderCreatureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.CreatureTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("GiverCreatureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.QuestTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("RequiredQuestId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.SpawnTable", b =>
@@ -6815,8 +8083,15 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>
+                {
+                    b.Navigation("Members");
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ChunkPool", b =>
                 {
+                    b.Navigation("Groups");
+
                     b.Navigation("Memberships");
                 });
 
@@ -6830,9 +8105,18 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("Entries");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.QuestObjective", b =>
+                {
+                    b.Navigation("Drops");
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.QuestTemplate", b =>
                 {
-                    b.Navigation("Rewards");
+                    b.Navigation("ItemRewards");
+
+                    b.Navigation("Objectives");
+
+                    b.Navigation("Stages");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.VendorStock", b =>

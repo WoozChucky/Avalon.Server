@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Hosting;
 using Avalon.Network.Packets.Abstractions;
@@ -12,12 +13,14 @@ using Avalon.World.Chat;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Loot;
+using Avalon.World.Parties;
 using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NSubstitute;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Hosting;
@@ -51,10 +54,16 @@ public class WorldHostGraphShould
             // depend back on ICreatureSpawner, so resolving this must not throw for a cycle.
             Assert.NotNull(host.Services.GetRequiredService<ICreatureSpawner>());
 
+            // WorldServer resolves this when it starts; a missing registration stops the world from starting.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Reload.ReloadRequestHandler>());
+
+            // WorldServer resolves this after the scripts load; a missing registration stops the world from starting.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Scripts.ScriptCatalogPublisher>());
+
             // Loot (#460). MapInstance reads these with GetService, so a missing registration would
             // not fail anything else: it would silently make every creature drop nothing.
             Assert.NotNull(host.Services.GetRequiredService<ILootRoller>());
-            Assert.NotNull(host.Services.GetRequiredService<ILootAllocator>());
+            Assert.IsType<PartyLootAllocator>(host.Services.GetRequiredService<ILootAllocator>());
             Assert.NotNull(host.Services.GetRequiredService<TimeProvider>());
 
             // Vendors (#432). Both are optional where they are consumed (World, StaticData,
@@ -62,16 +71,69 @@ public class WorldHostGraphShould
             Assert.NotNull(host.Services.GetRequiredService<IVendorStockRepository>());
             Assert.NotNull(host.Services.GetRequiredService<ICombatDataRepository>());
 
+            // Quests (#433). Production registers the quest repository; that CharacterSelectHandler is handed it (it
+            // takes it optionally and loads an empty log without it) is Hand_the_quest_service_to_the_handlers.
+            Assert.NotNull(host.Services.GetRequiredService<ICharacterQuestRepository>());
+
             // #506. MapInstance reads the combat random with GetService and otherwise falls back to one
             // that never crits, dodges or blocks, so only this proves production rolls for real.
-            Assert.IsType<Avalon.World.Combat.CombatRandom>(host.Services.GetRequiredService<Avalon.World.Combat.ICombatRandom>());
-            Assert.IsType<NoQuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
+            Assert.IsType<Avalon.Combat.CombatRandom>(host.Services.GetRequiredService<Avalon.Combat.ICombatRandom>());
+            Assert.IsType<QuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
+            // #433. MapInstance and WorldServer read it with GetService, so only this proves production registers it.
+            Assert.NotNull(host.Services.GetRequiredService<QuestService>());
 
             // PvP (#164). MapInstance reads the toggle with GetService, so a missing registration would
             // silently build a second toggle over a different clock. /pvp is found through ICommand.
             Assert.NotNull(host.Services.GetRequiredService<PvpToggle>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PvpCommand);
+
+            // Parties (2026-09-30). World, MapInstance and EnterMapHandler take it optionally (WorldServer requires it,
+            // pinned below), so only this proves production supplies one.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Parties.PartyService>());
+            // World resolves the town return lazily (it depends on World) when a party leave countdown runs out, so only
+            // this proves production registers it.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Respawn.TownReturn>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is GodModeCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PartyChatCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is InviteCommand);
+            // Whispers (#717). PartyService takes the online lookup optionally and would otherwise keep a private one the
+            // whisper never sees, so only this proves both read the one production registers.
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is WhisperCommand);
+            Assert.Same(host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>(),
+                host.Services.GetRequiredService<PartyService>().Online);
+
+            // The ignore list (#723). CharacterSelectHandler takes the repository optionally and would otherwise load
+            // every character with an empty list, so only this proves production loads it.
+            Assert.NotNull(host.Services.GetRequiredService<ICharacterIgnoreRepository>());
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is Avalon.World.Social.IgnoreCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is Avalon.World.Social.UnignoreCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is Avalon.World.Social.IgnoreListCommand);
+            Assert.Same(host.Services.GetRequiredService<ICharacterIgnoreRepository>(),
+                CapturedOfType<ICharacterIgnoreRepository>(ActivatorUtilities.CreateInstance(host.Services,
+                    typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
+            // The delete takes a deleted character off the loaded lists through the world server's connections, which
+            // WorldServer hands only to a handler whose constructor names IWorldServer.
+            Assert.Contains(typeof(CharacterDeletetHandler).GetConstructors(),
+                c => c.GetParameters().Any(p => p.ParameterType == typeof(IWorldServer)));
+
+            // The tick-thread assertion (#639). Every holder takes it optionally and would otherwise check nothing, so only
+            // this proves production hands the one WorldServer binds to the world (and so its registry), the party
+            // service, who is online and every character's ignore list.
+            Avalon.World.Threading.TickThreadGuard tickThread =
+                host.Services.GetRequiredService<Avalon.World.Threading.TickThreadGuard>();
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(host.Services.GetRequiredService<IWorld>()));
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(host.Services.GetRequiredService<PartyService>()));
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(
+                host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>()));
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(ActivatorUtilities.CreateInstance(
+                host.Services, typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
+
+            // The chat rate limit (#722): one singleton, with the shipped default from appsettings.json.
+            Assert.Same(host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>(),
+                host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>());
+            Assert.Equal(10, host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Avalon.World.Configuration.GameConfiguration>>().Value.ChatMessagesPerMinute);
+            // The tick-thread assertion (#639) ships off: a development host turns it on with Game__TickThreadGuard.
+            Assert.False(host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Avalon.World.Configuration.GameConfiguration>>().Value.TickThreadGuard);
 
             // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
             // every combat service reads the same values. The facing cone it once carried is gone
@@ -87,16 +149,60 @@ public class WorldHostGraphShould
         }
     }
 
+    /// <summary>
+    /// The member status flush runs from WorldServer.Update (2026-09-30), so the world server must get the same
+    /// party service the handlers do: one singleton, and a constructor parameter with no default to fall back on.
+    /// </summary>
+    [Fact]
+    public async Task Give_the_world_server_the_one_party_service()
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services.AddWorldServices();
+
+            ServiceDescriptor parties = Assert.Single(builder.Services, d => d.ServiceType == typeof(PartyService));
+            Assert.Equal(ServiceLifetime.Singleton, parties.Lifetime);
+
+            ParameterInfo parameter = Assert.Single(Assert.Single(typeof(WorldServer).GetConstructors()).GetParameters(),
+                p => p.ParameterType == typeof(PartyService));
+            Assert.False(parameter.HasDefaultValue);
+            Assert.False(new NullabilityInfoContext().Create(parameter).WriteState is NullabilityState.Nullable);
+
+            using IHost host = builder.Build();
+            Assert.Same(host.Services.GetRequiredService<PartyService>(), host.Services.GetRequiredService<PartyService>());
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
     /// <summary>One row per in-map handler that takes more than an IWorld: each is built from the container.</summary>
     [Theory]
     [InlineData(NetworkPacketType.CMSG_CAST_ABILITY, typeof(CastAbilityHandler))]
     [InlineData(NetworkPacketType.CMSG_LOOT_PICKUP, typeof(LootPickupHandler))]
     [InlineData(NetworkPacketType.CMSG_ITEM_MOVE, typeof(ItemMoveHandler))]
     [InlineData(NetworkPacketType.CMSG_ITEM_DESTROY, typeof(ItemDestroyHandler))]
+    [InlineData(NetworkPacketType.CMSG_ITEM_USE, typeof(ItemUseHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUY, typeof(VendorBuyHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_SELL, typeof(VendorSellHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUYBACK, typeof(VendorBuybackHandler))]
     [InlineData(NetworkPacketType.CMSG_PVP_TOGGLE, typeof(PvpToggleHandler))]
+    [InlineData(NetworkPacketType.CMSG_CHAT_MESSAGE, typeof(ChatMessageHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE, typeof(PartyInviteHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE, typeof(PartyInviteResponseHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_LEAVE, typeof(PartyLeaveHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_KICK, typeof(PartyKickHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_PROMOTE, typeof(PartyPromoteHandler))]
+    [InlineData(NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE, typeof(PartyExperienceModeHandler))]
+    [InlineData(NetworkPacketType.CMSG_QUEST_ACCEPT, typeof(QuestAcceptHandler))]
+    [InlineData(NetworkPacketType.CMSG_QUEST_TURN_IN, typeof(QuestTurnInHandler))]
+    [InlineData(NetworkPacketType.CMSG_QUEST_ABANDON, typeof(QuestAbandonHandler))]
+    [InlineData(NetworkPacketType.CMSG_ENTER_MAP, typeof(EnterMapHandler))]
+    [InlineData(NetworkPacketType.CMSG_INTERACT, typeof(InteractHandler))]
+    [InlineData(NetworkPacketType.CMSG_DIALOGUE_CHOOSE, typeof(DialogueChooseHandler))]
     public async Task Find_And_Build_The_Handler_The_Way_WorldServer_Does(NetworkPacketType opcode, Type expected)
     {
         string workingDirectory = Directory.GetCurrentDirectory();
@@ -118,6 +224,83 @@ public class WorldHostGraphShould
             Directory.SetCurrentDirectory(workingDirectory);
         }
     }
+
+    /// <summary>
+    /// Quests (#433): these handlers take the quest service, and some the quest repository or the quest progress, as
+    /// optional constructor parameters, so a handler the container builds without them would silently go without.
+    /// Without the repository CharacterSelectHandler spawns every character with an empty log, its completed quests
+    /// included, so each could turn the storyline in again for its rewards every session; without the service no log
+    /// is loaded, InteractHandler and DialogueChooseHandler offer no quests and credit no talk, and LootPickupHandler
+    /// lets anyone pick up a quest item; without the progress DialogueChooseHandler unlocks no gated stock. Built the
+    /// way WorldServer builds them (handing a handler that needs it the IWorldServer), each must hold the container's
+    /// own.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(InteractHandler))]
+    [InlineData(typeof(DialogueChooseHandler))]
+    [InlineData(typeof(CharacterSelectHandler))]
+    [InlineData(typeof(LootPickupHandler))]
+    public async Task Hand_the_quest_service_to_the_handlers(Type handlerType)
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services.AddWorldServices();
+            using IHost host = builder.Build();
+
+            bool needsWorldServer = handlerType.GetConstructors()
+                .Any(c => c.GetParameters().Any(p => p.ParameterType == typeof(IWorldServer)));
+            object handler = needsWorldServer
+                ? ActivatorUtilities.CreateInstance(host.Services, handlerType, Substitute.For<IWorldServer>())
+                : ActivatorUtilities.CreateInstance(host.Services, handlerType);
+
+            Assert.Same(host.Services.GetRequiredService<QuestService>(), CapturedOfType<QuestService>(handler));
+            if (handlerType == typeof(DialogueChooseHandler))
+                Assert.Same(host.Services.GetRequiredService<IQuestProgress>(), CapturedOfType<IQuestProgress>(handler));
+            if (handlerType == typeof(CharacterSelectHandler))
+                Assert.Same(host.Services.GetRequiredService<ICharacterQuestRepository>(),
+                    CapturedOfType<ICharacterQuestRepository>(handler));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
+    /// <summary>
+    /// Item use: the toolbox holds the container's own quest service, party service and creature placement, and its
+    /// map teleport the party service.
+    /// </summary>
+    [Fact]
+    public async Task Hand_the_item_use_toolbox_the_containers_services()
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services.AddWorldServices();
+            using IHost host = builder.Build();
+
+            Avalon.World.Items.ItemUseTools tools = host.Services.GetRequiredService<Avalon.World.Items.ItemUseTools>();
+            Assert.Same(host.Services.GetRequiredService<QuestService>(), tools.Quests);
+            Assert.Same(host.Services.GetRequiredService<PartyService>(), tools.Parties);
+            Assert.Same(host.Services.GetRequiredService<Avalon.World.ChunkLayouts.ICreaturePlacementService>(), tools.Placement);
+
+            // MapTeleport takes the party service optionally; without it a party member's teleport would skip the
+            // party's instance and its arrival checks.
+            Assert.Same(host.Services.GetRequiredService<PartyService>(), CapturedOfType<PartyService>(tools.Teleport));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
+    /// <summary>The one field of this type a handler holds (a primary constructor's captured parameter).</summary>
+    private static T? CapturedOfType<T>(object handler) where T : class =>
+        (T?)Assert.Single(handler.GetType().GetFields(BindingFlags.Instance | BindingFlags.NonPublic),
+            f => f.FieldType == typeof(T)).GetValue(handler);
 
     /// <summary>
     /// The restock timer a sale starts and the vendor pass that restocks it read one clock (#432):

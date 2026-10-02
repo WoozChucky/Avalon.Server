@@ -1,6 +1,6 @@
-using Avalon.World.Public;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
@@ -10,9 +10,13 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
+using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -20,17 +24,15 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
+using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Quests;
 using Avalon.World.Respawn;
-using Avalon.World.Abilities;
-using Avalon.World.Combat;
+using Avalon.World.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Avalon.Network.Packets.State;
-using Avalon.Hosting.Networking;
-using Avalon.Network.Packets.Generic;
 using Avalon.World.Maintenance;
 
 namespace Avalon.World.Handlers;
@@ -51,6 +53,10 @@ public class CharacterSelectHandler(
     ICharacterSaver characterSaver,
     IWorldServer worldServer,
     TimeProvider? time = null,
+    ICharacterQuestRepository? questRepository = null,
+    QuestService? questService = null,
+    ICharacterIgnoreRepository? ignoreRepository = null,
+    TickThreadGuard? tickThread = null,
     IWorldEntryGate? entryGate = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
@@ -66,7 +72,8 @@ public class CharacterSelectHandler(
     /// How long a select waits for the character's previous saves before giving up. Past it the
     /// select fails without reading, and the client can select again. Well inside
     /// <see cref="GameConfiguration.CharacterLoadTimeoutSeconds" />, which cancels the whole select,
-    /// so a slow save leaves the rest of the load time to the reads.
+    /// so a slow save leaves the rest of the load time to the reads. Measured on the handler's
+    /// <see cref="TimeProvider" /> (the system clock unless the container supplies another).
     /// </summary>
     public TimeSpan SaveWaitLimit { get; init; } = TimeSpan.FromSeconds(5);
 
@@ -194,6 +201,12 @@ public class CharacterSelectHandler(
                 }
 
                 connection.Locale = account.Locale;
+
+                // The quest lines follow the account's locale (#433). This lookup is not ordered with the select
+                // chain, so when it lands after the character was built, the character gets it here; otherwise
+                // Spawn copies it from the connection.
+                if ((connection.Character ?? connection.PendingSpawn?.Character) is CharacterEntity selected)
+                    selected.Quests.Locale = account.Locale;
 
                 if (connection is IAccessLevelAssignable assignable)
                 {
@@ -332,7 +345,9 @@ public class CharacterSelectHandler(
 
         if (!idle.IsCompleted)
         {
-            await idle.WaitAsync(SaveWaitLimit, CancellationToken.None)
+            // Timed on the container's clock (the system clock in production), so a test can end the
+            // wait by moving its clock rather than racing a real timer.
+            await idle.WaitAsync(SaveWaitLimit, time ?? TimeProvider.System, CancellationToken.None)
                 .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
             if (!idle.IsCompleted)
@@ -374,7 +389,7 @@ public class CharacterSelectHandler(
             ?.Experience ?? 0;
 
         CharacterEntity entity = new(loggerFactory, character, regenConfig.Value, time,
-            world.Configuration.FuryDecayPerSecond)
+            world.Configuration.FuryDecayPerSecond, tickThread)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
@@ -606,14 +621,14 @@ public class CharacterSelectHandler(
         connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encrypt));
 
         Step(connection, select, characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
-            spells => OnSpellsReceived(connection, entity, instance, spells));
+            spells => OnSpellsReceived(connection, select, entity, instance, spells));
         _parentActivity = activity;
     }
 
     private static IEnumerable<ItemSlotDto> ToDtos(InventoryType container, IReadOnlyCollection<InventoryItem> items)
         => items.Select(item => ItemSlotDtoMapper.ToDto(container, item));
 
-    private void OnSpellsReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
+    private void OnSpellsReceived(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance,
         IReadOnlyCollection<CharacterAbility> spells)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
@@ -679,14 +694,76 @@ public class CharacterSelectHandler(
 
         connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));
 
+        // #433: the quest log, then the pending spawn. No repository (tests that build the handler without one) is
+        // an empty log, as a character that never took a quest has.
+        if (questRepository is null)
+        {
+            LoadIgnores(connection, select, entity, instance);
+            return;
+        }
+
+        Step(connection, select, questRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        {
+            entity.Quests.Load(rows);
+            LoadIgnores(connection, select, entity, instance);
+        });
+    }
+
+    /// <summary>
+    /// #723: the ignore list, before the pending spawn, so every chat check from the character's first tick in the world
+    /// runs against it; the whole list is sent with the rest of select, empty too, so a client replaces whatever it held
+    /// for an earlier character. No repository (tests that build the handler without one) is an empty list.
+    /// </summary>
+    private void LoadIgnores(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance)
+    {
+        if (ignoreRepository is null)
+        {
+            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
+            Spawn(connection, entity, instance);
+            return;
+        }
+
+        Step(connection, select, ignoreRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        {
+            entity.Ignores.Load(rows);
+            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
+            Spawn(connection, entity, instance);
+        });
+    }
+
+    private void Spawn(IWorldConnection connection, CharacterEntity entity, IMapInstance instance)
+    {
         // All data loaded, but the client has not composed the map yet. The entity is held as a
         // pending spawn instead of being assigned and spawned here, so nothing on the tick sees a
         // character whose client is still loading. CharacterLoadedHandler releases it when the
         // client reports in; WorldServer's tick releases it anyway once the barrier expires.
+        // Nothing renders quest text before the spawn, so the locale is copied as late as it can be; an account
+        // lookup landing after this sets it on the pending character itself.
+        entity.Quests.Locale = connection.Locale;
+        RecountCollect(entity);
         connection.SetPendingSpawn(entity, instance, DateTime.UtcNow.Ticks);
 
         logger.LogInformation(
             "Character {CharacterName} selected for account {AccountId}; awaiting the client's load report",
             entity.Data?.Name, connection.AccountId);
+    }
+
+    /// <summary>
+    /// #433: with the bag and the quest log both loaded, every Collect objective counts what the bag holds, so a
+    /// log-in never shows stale collect progress. Contained: a quest throw costs the recount, never the select.
+    /// </summary>
+    private void RecountCollect(CharacterEntity entity)
+    {
+        if (questService is null)
+            return;
+
+        try
+        {
+            questService.RecountAtSelect(entity);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Recounting the quest items of character {CharacterId} at select failed", entity.Guid.Id);
+        }
     }
 }

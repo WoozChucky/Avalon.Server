@@ -32,14 +32,32 @@ public sealed class WorldScopedEndpointsShould
     private static bool IsWorldScoped(Endpoint endpoint) =>
         endpoint.Metadata.GetMetadata<WorldScopedAttribute>() is not null;
 
+    private static bool IsPublicWorldScoped(Endpoint endpoint) =>
+        endpoint.Metadata.GetMetadata<PublicWorldScopedAttribute>() is not null;
+
     [Fact]
     public async Task Mark_every_endpoint_whose_route_names_a_world_and_no_other()
     {
         List<RouteEndpoint> endpoints = await ApiEndpoints();
 
         Assert.Contains(endpoints, IsWorldScoped);
-        Assert.All(endpoints, e => Assert.True(NamesAWorld(e) == IsWorldScoped(e),
-            $"{e.RoutePattern.RawText} ({e.DisplayName}): route names a world = {NamesAWorld(e)}, [WorldScoped] = {IsWorldScoped(e)}"));
+        Assert.All(endpoints, e => Assert.True(NamesAWorld(e) == (IsWorldScoped(e) || IsPublicWorldScoped(e)),
+            $"{e.RoutePattern.RawText} ({e.DisplayName}): route names a world = {NamesAWorld(e)}, [WorldScoped] = {IsWorldScoped(e)}, [PublicWorldScoped] = {IsPublicWorldScoped(e)}"));
+    }
+
+    [Fact]
+    public async Task Keep_public_world_endpoints_apart_from_player_world_endpoints()
+    {
+        List<RouteEndpoint> endpoints = await ApiEndpoints();
+
+        Assert.Contains(endpoints, IsPublicWorldScoped);
+        Assert.All(endpoints.Where(IsPublicWorldScoped), e =>
+        {
+            Assert.False(IsWorldScoped(e), $"{e.RoutePattern.RawText} is both [WorldScoped] and [PublicWorldScoped]");
+            Assert.StartsWith("public/world/", e.RoutePattern.RawText, StringComparison.Ordinal);
+            Assert.Contains("GET", e.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods);
+            Assert.Single(e.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods);
+        });
     }
 
     [Fact]

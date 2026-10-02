@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -410,6 +411,8 @@ public static class CrowdBudgetHarness
             new() { Id = id, Name = Names[id.Value], CellSize = 30f };
 
         public IReadOnlyList<ChunkPoolMember> GetByPool(ChunkPoolId poolId) => [];
+
+        public IReadOnlyList<ChunkGroupDefinition> GetGroupsByPool(ChunkPoolId poolId) => [];
 
         public IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids) =>
             ids.ToDictionary(id => id, GetById);

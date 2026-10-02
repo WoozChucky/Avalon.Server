@@ -84,7 +84,7 @@ public class MapService : IMapService
 
         try
         {
-            var layout = generator.Generate(config, resolution.Members, effectiveSeed);
+            var layout = generator.Generate(config, resolution.Members, effectiveSeed, resolution.Groups);
             return layout.ToDto(resolution.TemplatesById);
         }
         catch (ProceduralGenerationFailedException ex)

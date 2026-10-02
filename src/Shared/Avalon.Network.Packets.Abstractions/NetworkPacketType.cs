@@ -43,11 +43,6 @@ public enum NetworkPacketType : short
     CMSG_ENTER_MAP    = 0x2021,
     CMSG_RESPAWN_AT_TOWN = 0x2022,
 
-    // Quest
-    CMSG_QUEST_STATUS = 0x2040,
-    CMSG_QUEST_LIST = 0x2041,
-    CMSG_QUEST_QUERY_AVAILABLE = 0x2042,
-
     // World
     CMSG_INTERACT = 0x2030,
     CMSG_DIALOGUE_CHOOSE = 0x2031,
@@ -58,6 +53,7 @@ public enum NetworkPacketType : short
     // Inventory requests (#463)
     CMSG_ITEM_MOVE = 0x2080,
     CMSG_ITEM_DESTROY = 0x2081,
+    CMSG_ITEM_USE = 0x2082,
 
     // Vendors (#432)
     CMSG_VENDOR_BUY = 0x2090,
@@ -67,9 +63,6 @@ public enum NetworkPacketType : short
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
     CMSG_CHAT_MESSAGE = 0x2007,
-    CMSG_CHAT_OPEN = 0x2008,
-    CMSG_CHAT_CLOSE = 0x2009,
-    CMSG_GROUP_INVITE_RESULT = 0x200A,
     CMSG_PLAYER_INPUT = 0x2060,
 
     // MFA
@@ -84,6 +77,19 @@ public enum NetworkPacketType : short
     CMSG_CAST_ABILITY = 0x2101,
     CMSG_TARGET_UNIT  = 0x2102,
     CMSG_PVP_TOGGLE   = 0x2103,
+
+    // Parties (2026-09-30)
+    CMSG_PARTY_INVITE = 0x20B0,
+    CMSG_PARTY_INVITE_RESPONSE = 0x20B1,
+    CMSG_PARTY_LEAVE = 0x20B2,
+    CMSG_PARTY_KICK = 0x20B3,
+    CMSG_PARTY_PROMOTE = 0x20B4,
+    CMSG_PARTY_EXPERIENCE_MODE = 0x20B5,
+
+    // Quests (#433)
+    CMSG_QUEST_ACCEPT = 0x20C0,
+    CMSG_QUEST_TURN_IN = 0x20C1,
+    CMSG_QUEST_ABANDON = 0x20C2,
 
     /**************************************************************************
      * Server Packets
@@ -154,11 +160,6 @@ public enum NetworkPacketType : short
     SMSG_DISCONNECT = 0x3008,
 
     SMSG_CHAT_MESSAGE = 0x3009,
-    SMSG_CHAT_OPEN = 0x300A,
-    SMSG_CHAT_CLOSE = 0x300B,
-
-    SMSG_GROUP_INVITE = 0x300D,
-    SMSG_GROUP_INVITE_RESULT = 0x300E,
 
     // MFA
     SMSG_MFA_SETUP = 0x300F,
@@ -176,8 +177,25 @@ public enum NetworkPacketType : short
 
     // Inventory requests (#463)
     SMSG_ITEM_RESULT = 0x3090,
+    SMSG_ITEM_USE_RESULT = 0x3091,
 
     // Vendors (#432)
     SMSG_VENDOR_LIST = 0x30A0,
     SMSG_VENDOR_RESULT = 0x30A1,
+
+    // Parties (2026-09-30)
+    SMSG_PARTY_INVITE = 0x30B0,
+    SMSG_PARTY_RESULT = 0x30B1,
+    SMSG_PARTY_ROSTER = 0x30B2,
+    SMSG_PARTY_MEMBER_STATUS = 0x30B3,
+
+    // Quests (#433)
+    SMSG_QUEST_OFFER = 0x30C0,
+    SMSG_QUEST_RESULT = 0x30C1,
+    SMSG_QUEST_LOG = 0x30C2,
+    SMSG_QUEST_UPDATE = 0x30C3,
+    SMSG_QUEST_MARKERS = 0x30C4,
+
+    // Ignore list (#723)
+    SMSG_IGNORE_LIST = 0x30D0,
 }

@@ -1,10 +1,11 @@
+using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.World;
-using Avalon.World.Abilities;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
@@ -15,7 +16,8 @@ namespace Avalon.World.Handlers;
 
 /// <summary>
 /// A cast aims at a direction or a ground point, never at a unit (#164): the ability's shape decides
-/// who it affects. <c>TargetGuid</c> is ignored, and there is no range or facing check. Every refusal
+/// who it affects. <c>TargetGuid</c> is ignored, and there is no range or facing check. A Movement skill
+/// aims toward <c>GroundPos</c> when the cast sends one, and along the caster's yaw otherwise (#716). Every refusal
 /// is answered with exactly one SAbilityNotReadyPacket naming its reason (#512); the only silent path
 /// is a connection with no character.
 /// </summary>
@@ -88,7 +90,19 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         // Captured now, at cast start, for both paths: a queued cast fires with the aim it started with.
         Vector3 facing = AbilityAim.FacingFromYaw(caster.Orientation.y);
         Vector3? point = null;
-        if (meta.AimMode == AbilityAimMode.Cursor)
+        if (meta.AimMode == AbilityAimMode.Movement)
+        {
+            // #716: a Movement skill points toward the cursor when the cast sent one, so a player walking
+            // backwards does not swing behind themselves. Resolved here, once, into the aim's facing, from the
+            // position the cast system stamps as the cast's origin in this same call: the footprint, the start
+            // broadcast and the shape script all read that one direction. No point, a non-finite one, or one on
+            // the caster keeps the yaw, as before; a Movement skill is never refused for its point.
+            if (TryReadAimPoint(packet.GroundPos, out Vector3 cursor))
+            {
+                facing = AbilityAim.Toward(caster.Position, cursor, facing);
+            }
+        }
+        else if (meta.AimMode == AbilityAimMode.Cursor)
         {
             if (!TryReadAimPoint(packet.GroundPos, out Vector3 groundPoint))
             {
@@ -141,6 +155,10 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             Refuse(connection, packet, CastRejectReason.InternalError);
             return;
         }
+
+        // An accepted ability cast ends the caster's item cast bar, which is answered Interrupted.
+        if (context is IItemUseHost items)
+            items.ItemUses.Interrupt(caster.Guid);
 
         // A cast-time cast's start went out with it, from the cast system (#648).
         caster.MarkCombat();

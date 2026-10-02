@@ -12,6 +12,9 @@ public interface IChunkLibrary
     ChunkTemplate GetById(ChunkTemplateId id);
     IReadOnlyList<ChunkPoolMember> GetByPool(ChunkPoolId poolId);
     IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids);
+
+    /// <summary>The pool's set pieces (forest content pass); empty for a pool without any.</summary>
+    IReadOnlyList<ChunkGroupDefinition> GetGroupsByPool(ChunkPoolId poolId);
 }
 
 public class ChunkLibrary : IChunkLibrary
@@ -20,6 +23,7 @@ public class ChunkLibrary : IChunkLibrary
     private readonly IServiceScopeFactory _scopeFactory;
     private Dictionary<ChunkTemplateId, ChunkTemplate> _templates = new();
     private Dictionary<ChunkPoolId, List<ChunkPoolMember>> _pools = new();
+    private Dictionary<ChunkPoolId, List<ChunkGroupDefinition>> _groups = new();
 
     public ChunkLibrary(ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory)
     {
@@ -45,6 +49,8 @@ public class ChunkLibrary : IChunkLibrary
                 .Select(m => new ChunkPoolMember(_templates[m.ChunkTemplateId], m.Weight))
                 .ToList());
 
+        _groups = pools.ToDictionary(p => p.Id, LoadGroups);
+
         var configs = await configRepo.FindAllAsync(ct);
         foreach (var cfg in configs) ValidatePool(cfg);
 
@@ -58,6 +64,9 @@ public class ChunkLibrary : IChunkLibrary
     public IReadOnlyList<ChunkPoolMember> GetByPool(ChunkPoolId poolId) =>
         _pools.TryGetValue(poolId, out var list) ? list : Array.Empty<ChunkPoolMember>();
 
+    public IReadOnlyList<ChunkGroupDefinition> GetGroupsByPool(ChunkPoolId poolId) =>
+        _groups.TryGetValue(poolId, out var list) ? list : Array.Empty<ChunkGroupDefinition>();
+
     public IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids)
     {
         var result = new Dictionary<ChunkTemplateId, ChunkTemplate>();
@@ -70,6 +79,26 @@ public class ChunkLibrary : IChunkLibrary
         return result;
     }
 
+    /// <summary>
+    /// The pool's set pieces. One with no members or a member template that is not loaded is left out, with a warning:
+    /// otherwise a missing boss arena surfaces only as "pool has no boss-capable chunk".
+    /// </summary>
+    private List<ChunkGroupDefinition> LoadGroups(ChunkPool pool)
+    {
+        var groups = new List<ChunkGroupDefinition>(pool.Groups.Count);
+        foreach (ChunkGroup group in pool.Groups)
+        {
+            if (ChunkGroupDefinition.From(group, _templates) is { } definition)
+                groups.Add(definition);
+            else
+                _logger.LogWarning(
+                    "Set piece '{Group}' of pool {Pool} is left out: it has no members or names a chunk template that is not loaded",
+                    group.Name, pool.Id.Value);
+        }
+
+        return groups;
+    }
+
     private void ValidatePool(ProceduralMapConfig cfg)
     {
         if (!_pools.TryGetValue(cfg.ChunkPoolId, out var members) || members.Count == 0)
@@ -79,17 +108,24 @@ public class ChunkLibrary : IChunkLibrary
             throw new InvalidProceduralConfigException(
                 $"Pool {cfg.ChunkPoolId.Value} contains no entry chunk (needs Spawn_Entry + Portal_Back) for map {cfg.MapTemplateId.Value}");
 
-        if (cfg.HasBoss && !members.Any(m => HasSlotTag(m.Template, "boss")))
+        IReadOnlyList<ChunkGroupDefinition> groups = GetGroupsByPool(cfg.ChunkPoolId);
+
+        if (cfg.HasBoss && !members.Any(m => HasSlotTag(m.Template, "boss")) && !groups.Any(g => g.IsBoss))
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} HasBoss but pool has no boss-capable chunk");
 
-        if (cfg.ForwardPortalTargetMapId is not null && !members.Any(m => HasPortalRole(m.Template, PortalRole.Forward)))
+        if (cfg.ForwardPortalTargetMapId is not null && !members.Any(m => HasPortalRole(m.Template, PortalRole.Forward))
+            && !groups.Any(g => g.HasForward))
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} ForwardPortalTargetMapId set but no chunk has Portal_Forward slot");
 
         if (cfg.MainPathMin < 2 || cfg.MainPathMax < cfg.MainPathMin || cfg.MainPathMax > 32)
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} path length constraints invalid ({cfg.MainPathMin}..{cfg.MainPathMax})");
+
+        if (DepthBandLevels.Problem(cfg.DepthBands) is { } bandProblem)
+            throw new InvalidProceduralConfigException(
+                $"Map {cfg.MapTemplateId.Value} depth bands are invalid: {bandProblem}");
     }
 
     private static bool HasSlotTag(ChunkTemplate t, string tag) =>

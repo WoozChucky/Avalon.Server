@@ -1,12 +1,12 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
+using Avalon.World.Dialogue;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Creatures;
-using Avalon.World.Dialogue;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
@@ -18,18 +18,27 @@ namespace Avalon.World.Entities;
 public interface ICreatureSpawner
 {
     ICreature Spawn(CreatureInfo virtualCreature);
+
+    /// <summary>
+    /// As <see cref="Spawn(CreatureInfo)" />, at <paramref name="level" /> (at least 1) instead of a roll from the
+    /// template's MinLevel..MaxLevel: a procedural map's depth band (forest content pass). The creature keeps its
+    /// template, so its identity, abilities, loot and quest credit are unchanged; its stats are derived at the level.
+    /// </summary>
+    ICreature Spawn(CreatureInfo virtualCreature, ushort level);
 }
 
 public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICreatureSpawner
 {
     private readonly ILogger<CreatureSpawner> _logger = loggerFactory.CreateLogger<CreatureSpawner>();
 
-    public ICreature Spawn(CreatureInfo virtualCreature)
+    public ICreature Spawn(CreatureInfo virtualCreature) => Place(Spawn(virtualCreature.PrototypeIndex, level: null), virtualCreature);
+
+    public ICreature Spawn(CreatureInfo virtualCreature, ushort level) =>
+        Place(Spawn(virtualCreature.PrototypeIndex, Math.Max((ushort)1, level)), virtualCreature);
+
+    private static ICreature Place(ICreature creature, CreatureInfo virtualCreature)
     {
-        ICreature creature = Spawn(virtualCreature.PrototypeIndex);
-
         creature.Position = virtualCreature.Position;
-
         return creature;
     }
 
@@ -61,7 +70,9 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
         return UnitBody.DefaultCreatureRadius;
     }
 
-    public ICreature Spawn(CreatureTemplateId templateId)
+    public ICreature Spawn(CreatureTemplateId templateId) => Spawn(templateId, level: null);
+
+    private ICreature Spawn(CreatureTemplateId templateId, ushort? level)
     {
         // Instance construction — the caller of Spawn — awaits a database read before reaching here,
         // so this runs on a thread-pool thread, not the tick thread. Read the creatures area once
@@ -87,8 +98,8 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             throw new Exception($"Could not find creature template {templateId}");
         }
 
-        ushort level = RollLevel(template);
-        DerivedCreatureStats stats = creatures.Stats.Derive(template, level);
+        ushort rolled = level ?? RollLevel(template);
+        DerivedCreatureStats stats = creatures.Stats.Derive(template, rolled);
 
         Creature creature = new Creature
         {
@@ -102,10 +113,12 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             ScriptName = template.ScriptName,
             Invulnerable = template.Invulnerable,
             CanInteract = NpcInteraction.CanInteract(dialogue, template.Id),
+            Rarity = template.Rarity,
             BodyRadius = UsableBodyRadius(template),
             MoveState = MoveState.Idle,
             Level = stats.Level,
             Health = stats.Health,
+            BaseMaxHealth = stats.Health,
             CurrentHealth = stats.Health,
             DamageMin = stats.DamageMin,
             DamageMax = stats.DamageMax,

@@ -1,6 +1,6 @@
+using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
-using Avalon.World.Combat;
 
 namespace Avalon.World.Characters;
 

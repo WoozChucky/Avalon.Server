@@ -68,9 +68,11 @@ public class WorldDbContext : DbContext
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
     public DbSet<MapTemplate> MapTemplates { get; set; } = null!;
-    public DbSet<QuestReward> QuestRewards { get; set; } = null!;
-    public DbSet<QuestRewardTemplate> QuestRewardTemplates { get; set; } = null!;
     public DbSet<QuestTemplate> QuestTemplates { get; set; } = null!;
+    public DbSet<QuestStage> QuestStages { get; set; } = null!;
+    public DbSet<QuestObjective> QuestObjectives { get; set; } = null!;
+    public DbSet<QuestItemReward> QuestItemRewards { get; set; } = null!;
+    public DbSet<QuestItemDrop> QuestItemDrops { get; set; } = null!;
     public DbSet<ClassLevelStat> ClassLevelStats { get; set; } = null!;
     public DbSet<CharacterLevelExperience> CharacterLevelExperiences { get; set; } = null!;
     public DbSet<CreatureBaseStat> CreatureBaseStats { get; set; } = null!;
@@ -79,6 +81,7 @@ public class WorldDbContext : DbContext
     public DbSet<AbilityTemplate> AbilityTemplates { get; set; } = null!;
     public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
     public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
+    public DbSet<ChunkGroup> ChunkGroups { get; set; } = null!;
     public DbSet<SpawnTable> SpawnTables { get; set; } = null!;
     public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
     public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
@@ -120,9 +123,11 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<CreatureTemplate>());
         Configure(modelBuilder.Entity<ItemTemplate>());
         Configure(modelBuilder.Entity<MapTemplate>());
-        Configure(modelBuilder.Entity<QuestReward>());
-        Configure(modelBuilder.Entity<QuestRewardTemplate>());
         Configure(modelBuilder.Entity<QuestTemplate>());
+        Configure(modelBuilder.Entity<QuestStage>());
+        Configure(modelBuilder.Entity<QuestObjective>());
+        Configure(modelBuilder.Entity<QuestItemReward>());
+        Configure(modelBuilder.Entity<QuestItemDrop>());
         Configure(modelBuilder.Entity<ClassLevelStat>());
         Configure(modelBuilder.Entity<CharacterLevelExperience>());
         Configure(modelBuilder.Entity<CreatureBaseStat>());
@@ -161,6 +166,30 @@ public class WorldDbContext : DbContext
                 .HasForeignKey(m => m.ChunkTemplateId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        Configure(modelBuilder.Entity<ChunkGroup>());
+        Configure(modelBuilder.Entity<ChunkGroupMember>());
+    }
+
+    private static void Configure(EntityTypeBuilder<ChunkGroup> e)
+    {
+        e.ToTable("ChunkGroups");
+        e.HasKey(g => g.Id);
+        e.Property(g => g.Id).ValueGeneratedOnAdd();
+        e.Property(g => g.Name).IsRequired().HasMaxLength(100);
+        e.HasIndex(g => g.Name).IsUnique();
+        e.Property(g => g.ChunkPoolId).HasConversion(v => v.Value, v => new ChunkPoolId(v)).IsRequired();
+        e.HasMany(g => g.Members).WithOne().HasForeignKey(m => m.ChunkGroupId).OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<ChunkGroupMember> e)
+    {
+        e.ToTable("ChunkGroupMembers");
+        e.HasKey(m => new { m.ChunkGroupId, m.CellX, m.CellZ });
+        e.Property(m => m.ChunkTemplateId).HasConversion(v => v.Value, v => new ChunkTemplateId(v)).IsRequired();
+        e.HasOne<ChunkTemplate>().WithMany().HasForeignKey(m => m.ChunkTemplateId).OnDelete(DeleteBehavior.Cascade);
+        // A chunk belongs to one group at most, so a member is never placed twice.
+        e.HasIndex(m => m.ChunkTemplateId).IsUnique();
     }
 
     /// <summary>
@@ -303,21 +332,6 @@ public class WorldDbContext : DbContext
             StartingItems = [1, 2],
             StartingSpells = [230, 231, 232]
         });
-    }
-
-    private static void Configure(EntityTypeBuilder<QuestReward> builder)
-    {
-        builder.HasKey(b => new {b.QuestId, b.RewardId});
-
-        builder.HasOne(b => b.Quest)
-            .WithMany(q => q.Rewards)
-            .HasForeignKey(b => b.QuestId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(b => b.Reward)
-            .WithMany()
-            .HasForeignKey(b => b.RewardId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void Configure(EntityTypeBuilder<ClassLevelStat> builder)
@@ -583,19 +597,236 @@ public class WorldDbContext : DbContext
             new ClassLevelStat { Class = CharacterClass.Healer,  Level = 16, BaseHp = 288, BaseMana = 320, Stamina = 35, Strength = 20, Agility = 36, Intellect = 53 });
     }
 
-    // ReSharper disable once UnusedParameter.Local
-    private static void Configure(EntityTypeBuilder<QuestRewardTemplate> builder)
-    {
-    }
-
+    /// <summary>Quests (#433). Reference data; QuestCatalog validates it on load and on /reload quests.</summary>
     private static void Configure(EntityTypeBuilder<QuestTemplate> builder)
     {
+        builder.ToTable("QuestTemplates");
         builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new QuestTemplateId(v))
+            .IsRequired()
+            .ValueGeneratedNever();
+        builder.Property(b => b.TitleTextId).HasConversion(v => v.Value, v => new LocalizedTextId(v)).IsRequired();
+        builder.Property(b => b.DescriptionTextId).HasConversion(v => v.Value, v => new LocalizedTextId(v)).IsRequired();
+        builder.Property(b => b.CompletionTextId).HasConversion(v => v.Value, v => new LocalizedTextId(v)).IsRequired();
 
-        builder.HasMany(q => q.Rewards)
-            .WithOne(r => r.Quest)
-            .HasForeignKey(r => r.QuestId)
-            .OnDelete(DeleteBehavior.Cascade); // Adjust delete behavior as needed
+        builder.Property(b => b.GiverCreatureId)
+            .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
+            .IsRequired();
+        builder.HasOne<CreatureTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.GiverCreatureId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.EnderCreatureId)
+            .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
+            .IsRequired();
+        builder.HasOne<CreatureTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.EnderCreatureId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.RequiredQuestId)
+            .HasConversion(v => v!.Value, v => new QuestTemplateId(v))
+            .IsRequired(false);
+        builder.HasOne<QuestTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.RequiredQuestId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.ClassRequirement).IsRequired(false);
+        builder.Property(b => b.ScriptName).IsRequired(false).HasMaxLength(200);
+
+        builder.HasMany(b => b.Stages).WithOne().HasForeignKey(s => s.QuestId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(b => b.Objectives).WithOne().HasForeignKey(o => o.QuestId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(b => b.ItemRewards).WithOne().HasForeignKey(r => r.QuestId).OnDelete(DeleteBehavior.Cascade);
+
+        SeedForestStorylineQuests(builder);
+    }
+
+    /// <summary>
+    /// "Trouble in the Forest" (#433, spec §5): Uriel → Uriel, Uriel → Borin, Borin → Borin. Numbers are first drafts
+    /// for the balance tool.
+    /// </summary>
+    private static void SeedForestStorylineQuests(EntityTypeBuilder<QuestTemplate> builder)
+    {
+        builder.HasData(
+            new QuestTemplate
+            {
+                Id = 1, TitleTextId = 25, DescriptionTextId = 26, CompletionTextId = 27,
+                GiverCreatureId = 1, EnderCreatureId = 1, LevelRequirement = 1,
+                RewardExperience = 150, RewardMoney = 100,
+            },
+            new QuestTemplate
+            {
+                Id = 2, TitleTextId = 29, DescriptionTextId = 30, CompletionTextId = 31,
+                GiverCreatureId = 1, EnderCreatureId = 2, LevelRequirement = 1, RequiredQuestId = 1,
+                RewardExperience = 250, RewardMoney = 150,
+            },
+            new QuestTemplate
+            {
+                Id = 3, TitleTextId = 33, DescriptionTextId = 34, CompletionTextId = 35,
+                GiverCreatureId = 2, EnderCreatureId = 2, LevelRequirement = 2, RequiredQuestId = 2,
+                RewardExperience = 600, RewardMoney = 400,
+            });
+
+        // The second chain (forest content pass): 4 → 5 → 6 → 7 → 8, beside 1 → 2 → 3. Numbers are first drafts for
+        // the balance tool.
+        builder.HasData(
+            new QuestTemplate
+            {
+                Id = 4, TitleTextId = 43, DescriptionTextId = 44, CompletionTextId = 45,
+                GiverCreatureId = 14, EnderCreatureId = 14, LevelRequirement = 2,
+                RewardExperience = 300, RewardMoney = 200,
+            },
+            new QuestTemplate
+            {
+                Id = 5, TitleTextId = 47, DescriptionTextId = 48, CompletionTextId = 49,
+                GiverCreatureId = 13, EnderCreatureId = 13, LevelRequirement = 3, RequiredQuestId = 4,
+                RewardExperience = 400, RewardMoney = 250,
+            },
+            new QuestTemplate
+            {
+                Id = 6, TitleTextId = 51, DescriptionTextId = 52, CompletionTextId = 53,
+                GiverCreatureId = 3, EnderCreatureId = 11, LevelRequirement = 4, RequiredQuestId = 5,
+                RewardExperience = 500, RewardMoney = 300,
+            },
+            new QuestTemplate
+            {
+                Id = 7, TitleTextId = 55, DescriptionTextId = 56, CompletionTextId = 57,
+                GiverCreatureId = 2, EnderCreatureId = 2, LevelRequirement = 5, RequiredQuestId = 6,
+                RewardExperience = 700, RewardMoney = 400,
+            },
+            new QuestTemplate
+            {
+                Id = 8, TitleTextId = 59, DescriptionTextId = 60, CompletionTextId = 61,
+                GiverCreatureId = 1, EnderCreatureId = 1, LevelRequirement = 7, RequiredQuestId = 7,
+                RewardExperience = 1500, RewardMoney = 1000,
+            });
+    }
+
+    private static void Configure(EntityTypeBuilder<QuestStage> builder)
+    {
+        builder.ToTable("QuestStages", t => t.HasCheckConstraint("CK_QuestStages_Sequence", "\"Sequence\" >= 0"));
+        builder.HasKey(b => new { b.QuestId, b.Sequence });
+        builder.Property(b => b.QuestId).HasConversion(v => v.Value, v => new QuestTemplateId(v)).IsRequired();
+        builder.Property(b => b.DescriptionTextId)
+            .HasConversion(v => v!.Value, v => new LocalizedTextId(v))
+            .IsRequired(false);
+
+        builder.HasData(
+            new QuestStage { QuestId = 1, Sequence = 0 },
+            new QuestStage { QuestId = 2, Sequence = 0 },
+            new QuestStage { QuestId = 3, Sequence = 0, DescriptionTextId = 40 },
+            new QuestStage { QuestId = 3, Sequence = 1, DescriptionTextId = 41 },
+            new QuestStage { QuestId = 3, Sequence = 2, DescriptionTextId = 42 });
+
+        builder.HasData(
+            new QuestStage { QuestId = 4, Sequence = 0 },
+            new QuestStage { QuestId = 5, Sequence = 0 },
+            new QuestStage { QuestId = 6, Sequence = 0 },
+            new QuestStage { QuestId = 7, Sequence = 0 },
+            new QuestStage { QuestId = 8, Sequence = 0, DescriptionTextId = 65 },
+            new QuestStage { QuestId = 8, Sequence = 1, DescriptionTextId = 66 });
+    }
+
+    private static void Configure(EntityTypeBuilder<QuestObjective> builder)
+    {
+        // The target per type (#433). Type is stored as its number: Kill 1, Collect 2, Talk 3, Scripted 4.
+        // Written to read the same on Postgres and on the SQLite the tests build the model on.
+        builder.ToTable("QuestObjectives", t =>
+        {
+            t.HasCheckConstraint("CK_QuestObjectives_TargetFitsType",
+                "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
+            t.HasCheckConstraint("CK_QuestObjectives_CountPositive", "\"Count\" >= 1");
+        });
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id).ValueGeneratedNever();
+        builder.Property(b => b.QuestId).HasConversion(v => v.Value, v => new QuestTemplateId(v)).IsRequired();
+        builder.Property(b => b.DescriptionTextId).HasConversion(v => v.Value, v => new LocalizedTextId(v)).IsRequired();
+
+        builder.HasOne<QuestStage>()
+            .WithMany()
+            .HasForeignKey(b => new { b.QuestId, b.StageSequence })
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(b => b.CreatureTemplateId)
+            .HasConversion(v => v!.Value, v => new CreatureTemplateId(v))
+            .IsRequired(false);
+        builder.HasOne<CreatureTemplate>().WithMany().HasForeignKey(b => b.CreatureTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.ItemTemplateId)
+            .HasConversion(v => v!.Value, v => new ItemTemplateId(v))
+            .IsRequired(false);
+        builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(b => b.Drops).WithOne().HasForeignKey(d => d.ObjectiveId).OnDelete(DeleteBehavior.Cascade);
+
+        // Creature templates: 4 Thornback Boar, 5 Grey Fen Wolf, 7 Husk of the Wold, 8 Bramblemaw Alpha, 11 Marta.
+        builder.HasData(
+            new QuestObjective { Id = 101, QuestId = 1, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 4, Count = 6, DescriptionTextId = 28 },
+            new QuestObjective { Id = 201, QuestId = 2, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 57, Count = 4, DescriptionTextId = 32 },
+            new QuestObjective { Id = 301, QuestId = 3, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 5, Count = 3, DescriptionTextId = 36 },
+            new QuestObjective { Id = 302, QuestId = 3, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 7, Count = 2, DescriptionTextId = 37 },
+            new QuestObjective { Id = 303, QuestId = 3, StageSequence = 1, Type = QuestObjectiveType.Talk, CreatureTemplateId = 11, Count = 1, DescriptionTextId = 38 },
+            new QuestObjective { Id = 304, QuestId = 3, StageSequence = 2, Type = QuestObjectiveType.Kill, CreatureTemplateId = 8, Count = 1, DescriptionTextId = 39 });
+
+        // The second chain. Creatures: 5 Grey Fen Wolf, 6 Blightfly Swarmling, 7 Husk of the Wold, 8 Bramblemaw Alpha,
+        // 9 Old Tuskroot, 10 Mother Bramble, 12 Garrick Emberforge. Items 59-63 are the chain's quest items.
+        builder.HasData(
+            new QuestObjective { Id = 401, QuestId = 4, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 59, Count = 6, DescriptionTextId = 46 },
+            new QuestObjective { Id = 501, QuestId = 5, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 60, Count = 8, DescriptionTextId = 50 },
+            new QuestObjective { Id = 601, QuestId = 6, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 7, Count = 8, DescriptionTextId = 37 },
+            new QuestObjective { Id = 602, QuestId = 6, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 61, Count = 3, DescriptionTextId = 54 },
+            new QuestObjective { Id = 701, QuestId = 7, StageSequence = 0, Type = QuestObjectiveType.Collect, ItemTemplateId = 62, Count = 1, DescriptionTextId = 58 },
+            // Quest 8 (owner decision): Garrick first, then the Alphas and the Bramble Heart in one stage, so clearing
+            // the arena counts at once.
+            new QuestObjective { Id = 801, QuestId = 8, StageSequence = 0, Type = QuestObjectiveType.Talk, CreatureTemplateId = 12, Count = 1, DescriptionTextId = 62 },
+            new QuestObjective { Id = 802, QuestId = 8, StageSequence = 1, Type = QuestObjectiveType.Kill, CreatureTemplateId = 8, Count = 2, DescriptionTextId = 63 },
+            new QuestObjective { Id = 803, QuestId = 8, StageSequence = 1, Type = QuestObjectiveType.Collect, ItemTemplateId = 63, Count = 1, DescriptionTextId = 64 });
+    }
+
+    private static void Configure(EntityTypeBuilder<QuestItemReward> builder)
+    {
+        builder.ToTable("QuestItemRewards", t => t.HasCheckConstraint("CK_QuestItemRewards_CountPositive", "\"Count\" >= 1"));
+        builder.HasKey(b => new { b.QuestId, b.ItemTemplateId });
+        builder.Property(b => b.QuestId).HasConversion(v => v.Value, v => new QuestTemplateId(v)).IsRequired();
+        builder.Property(b => b.ItemTemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(
+            new QuestItemReward { QuestId = 2, ItemTemplateId = 56, Count = 2 },   // Greater Health Potions
+            new QuestItemReward { QuestId = 3, ItemTemplateId = 58, Count = 1 });  // Alpha's Fang Pendant
+
+        builder.HasData(
+            new QuestItemReward { QuestId = 4, ItemTemplateId = 2, Count = 3 },    // Mana Potions
+            new QuestItemReward { QuestId = 6, ItemTemplateId = 56, Count = 2 },   // Greater Health Potions
+            new QuestItemReward { QuestId = 7, ItemTemplateId = 64, Count = 1 },   // Heartwood Band
+            new QuestItemReward { QuestId = 8, ItemTemplateId = 65, Count = 1 });  // Thornheart Signet
+    }
+
+    private static void Configure(EntityTypeBuilder<QuestItemDrop> builder)
+    {
+        // A percentage. The upper bound refuses NaN on Postgres too, which sorts NaN above every number.
+        builder.ToTable("QuestItemDrops", t => t.HasCheckConstraint("CK_QuestItemDrops_Chance",
+            "\"Chance\" >= 0 AND \"Chance\" <= 100"));
+        builder.HasKey(b => new { b.ObjectiveId, b.CreatureTemplateId });
+        builder.Property(b => b.CreatureTemplateId)
+            .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
+            .IsRequired();
+        builder.HasOne<CreatureTemplate>().WithMany().HasForeignKey(b => b.CreatureTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(new QuestItemDrop { ObjectiveId = 201, CreatureTemplateId = 4, Chance = 60f });   // Boar Tusk from Thornback Boars
+
+        builder.HasData(
+            new QuestItemDrop { ObjectiveId = 401, CreatureTemplateId = 6, Chance = 50f },    // Blightfly Wing from Blightfly Swarmlings
+            new QuestItemDrop { ObjectiveId = 501, CreatureTemplateId = 5, Chance = 50f },    // Fen Wolf Pelt from Grey Fen Wolves
+            new QuestItemDrop { ObjectiveId = 602, CreatureTemplateId = 7, Chance = 35f },    // Ledger Page from Husks of the Wold
+            new QuestItemDrop { ObjectiveId = 701, CreatureTemplateId = 9, Chance = 100f },   // Tuskroot Heartwood from Old Tuskroot
+            new QuestItemDrop { ObjectiveId = 803, CreatureTemplateId = 10, Chance = 100f }); // Bramble Heart from Mother Bramble
     }
 
     private static void Configure(EntityTypeBuilder<CreatureTemplate> builder)
@@ -658,7 +889,6 @@ public class WorldDbContext : DbContext
             LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
@@ -691,7 +921,6 @@ public class WorldDbContext : DbContext
             LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
@@ -724,7 +953,6 @@ public class WorldDbContext : DbContext
             LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
@@ -759,7 +987,6 @@ public class WorldDbContext : DbContext
             LootTableId = 2,
             MinGold = 3,
             MaxGold = 8,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 12,
             MovementId = 0,
@@ -793,7 +1020,6 @@ public class WorldDbContext : DbContext
             LootTableId = 3,
             MinGold = 4,
             MaxGold = 10,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 18,
             MovementId = 0,
@@ -827,7 +1053,6 @@ public class WorldDbContext : DbContext
             LootTableId = 4,
             MinGold = 1,
             MaxGold = 4,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 8,
             MovementId = 0,
@@ -861,7 +1086,6 @@ public class WorldDbContext : DbContext
             LootTableId = 5,
             MinGold = 6,
             MaxGold = 14,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 14,
             MovementId = 0,
@@ -895,7 +1119,6 @@ public class WorldDbContext : DbContext
             LootTableId = 6,
             MinGold = 20,
             MaxGold = 45,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 22,
             MovementId = 0,
@@ -929,7 +1152,6 @@ public class WorldDbContext : DbContext
             LootTableId = 7,
             MinGold = 40,
             MaxGold = 90,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
@@ -963,7 +1185,6 @@ public class WorldDbContext : DbContext
             LootTableId = 8,
             MinGold = 150,
             MaxGold = 300,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 26,
             MovementId = 0,
@@ -1000,7 +1221,6 @@ public class WorldDbContext : DbContext
             LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
-            AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
@@ -1045,7 +1265,6 @@ public class WorldDbContext : DbContext
         LootTableId = null,
         MinGold = 0,
         MaxGold = 0,
-        AIName = string.Empty,
         MovementType = 0,
         DetectionRange = 20,
         MovementId = 0,
@@ -1100,7 +1319,11 @@ public class WorldDbContext : DbContext
                 Rarity = ItemRarity.Common,
                 BuyPrice = 10,
                 SellPrice = 5,
-                Slot = null
+                Slot = null,
+                UseScript = "RestoreHealth",
+                UseCooldownMs = 30000,
+                UseCooldownGroup = "potion",
+                UseValue = 30
             },
             new ItemTemplate
             {
@@ -1114,7 +1337,11 @@ public class WorldDbContext : DbContext
                 Rarity = ItemRarity.Common,
                 BuyPrice = 13,
                 SellPrice = 6,
-                Slot = null
+                Slot = null,
+                UseScript = "RestorePower",
+                UseCooldownMs = 30000,
+                UseCooldownGroup = "potion",
+                UseValue = 30
             },
             new ItemTemplate
             {
@@ -1128,7 +1355,10 @@ public class WorldDbContext : DbContext
                 Rarity = ItemRarity.Common,
                 BuyPrice = 100,
                 SellPrice = 50,
-                Slot = null
+                Slot = null,
+                UseScript = "TownPortalScroll",
+                UseCastTimeMs = 3000,
+                UseCooldownMs = 30000
             }, new ItemTemplate
             {
                 Id = 4,
@@ -1349,9 +1579,8 @@ public class WorldDbContext : DbContext
             StarterArmourPiece(54, "Wool Handwraps", CharacterClass.Healer, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
             StarterArmourPiece(55, "Wool Sandals", CharacterClass.Healer, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
 
-        // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. Its
-        // fields are the Health Potion's. ItemTemplate carries no potion effect and nothing uses a
-        // potion yet, so there is no effect of its own to seed.
+        // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. A use restores
+        // 60 % of the maximum health (item use), sharing the potions' cooldown.
         builder.HasData(new ItemTemplate
         {
             Id = 56,
@@ -1364,9 +1593,130 @@ public class WorldDbContext : DbContext
             Rarity = ItemRarity.Common,
             BuyPrice = 25,
             SellPrice = 12,
-            Slot = null
+            Slot = null,
+            UseScript = "RestoreHealth",
+            UseCooldownMs = 30000,
+            UseCooldownGroup = "potion",
+            UseValue = 60
         });
+
+        SeedForestStorylineItems(builder);
+        SeedForestChainItems(builder);
     }
+
+    /// <summary>
+    /// The storyline's items (#433). The Boar Tusk drops only for characters collecting it (QuestItemDrops) and is
+    /// never sold; the Alpha's Fang Pendant is quest 3's reward, for any class.
+    /// </summary>
+    private static void SeedForestStorylineItems(EntityTypeBuilder<ItemTemplate> builder)
+    {
+        builder.HasData(
+            new ItemTemplate
+            {
+                Id = 57,
+                Name = "Boar Tusk",
+                Class = ItemClass.Quest,
+                SubClass = ItemSubClass.QuestItem,
+                Flags = ItemTemplateFlags.QuestItem | ItemTemplateFlags.NoSell,
+                MaxStackSize = 20,
+                DisplayId = 57,
+                Rarity = ItemRarity.Common,
+                BuyPrice = 0,
+                SellPrice = 0,
+                Slot = null,
+            },
+            new ItemTemplate
+            {
+                Id = 58,
+                Name = "Alpha's Fang Pendant",
+                Class = ItemClass.Armor,
+                SubClass = ItemSubClass.Amulet,
+                Flags = ItemTemplateFlags.None,
+                MaxStackSize = 1,
+                DisplayId = 58,
+                Rarity = ItemRarity.Uncommon,
+                BuyPrice = 200,
+                SellPrice = 50,
+                Slot = ItemSlotType.Neck,
+                ItemPower = 3,
+                RequiredLevel = 2,
+                StatType1 = StatType.Stamina,
+                StatValue1 = 2,
+                StatType2 = StatType.Armor,
+                StatValue2 = 1,
+            });
+    }
+
+    /// <summary>
+    /// Quests 4-8 (forest content pass): five quest items, each dropped only for characters collecting it
+    /// (QuestItemDrops) and never sold, and the chain's two rewards, rings for any class. The rings' numbers follow the
+    /// Alpha's Fang Pendant and are first drafts for the balance tool.
+    /// </summary>
+    private static void SeedForestChainItems(EntityTypeBuilder<ItemTemplate> builder)
+    {
+        builder.HasData(
+            ChainQuestItem(59, "Blightfly Wing"),
+            ChainQuestItem(60, "Fen Wolf Pelt"),
+            ChainQuestItem(61, "Ledger Page"),
+            ChainQuestItem(62, "Tuskroot Heartwood"),
+            ChainQuestItem(63, "Bramble Heart"),
+            new ItemTemplate
+            {
+                Id = 64,
+                Name = "Heartwood Band",
+                Class = ItemClass.Armor,
+                SubClass = ItemSubClass.Ring,
+                Flags = ItemTemplateFlags.None,
+                MaxStackSize = 1,
+                DisplayId = 64,
+                Rarity = ItemRarity.Uncommon,
+                BuyPrice = 400,
+                SellPrice = 100,
+                Slot = ItemSlotType.Finger,
+                ItemPower = 5,
+                RequiredLevel = 5,
+                StatType1 = StatType.Stamina,
+                StatValue1 = 3,
+                StatType2 = StatType.Armor,
+                StatValue2 = 2,
+            },
+            new ItemTemplate
+            {
+                Id = 65,
+                Name = "Thornheart Signet",
+                Class = ItemClass.Armor,
+                SubClass = ItemSubClass.Ring,
+                Flags = ItemTemplateFlags.None,
+                MaxStackSize = 1,
+                DisplayId = 65,
+                Rarity = ItemRarity.Rare,
+                BuyPrice = 800,
+                SellPrice = 200,
+                Slot = ItemSlotType.Finger,
+                ItemPower = 7,
+                RequiredLevel = 7,
+                StatType1 = StatType.Stamina,
+                StatValue1 = 5,
+                StatType2 = StatType.Armor,
+                StatValue2 = 4,
+            });
+    }
+
+    /// <summary>A quest item as the Boar Tusk is: QuestItem and NoSell, stacks to 20, worth nothing.</summary>
+    private static ItemTemplate ChainQuestItem(ulong id, string name) => new()
+    {
+        Id = id,
+        Name = name,
+        Class = ItemClass.Quest,
+        SubClass = ItemSubClass.QuestItem,
+        Flags = ItemTemplateFlags.QuestItem | ItemTemplateFlags.NoSell,
+        MaxStackSize = 20,
+        DisplayId = (uint)id,
+        Rarity = ItemRarity.Common,
+        BuyPrice = 0,
+        SellPrice = 0,
+        Slot = null,
+    };
 
     /// <summary>
     /// One piece of forest armour: Uncommon, level 1, for one class, with up to three stats. Used by
@@ -1470,9 +1820,9 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
-        // NOTE: ForestDungeon (Id=2) requires a ProceduralMapConfig row + a populated ChunkPool
-        // + a SpawnTable to be functional. These will be seeded manually via SQL once real chunks
-        // are imported. Until then, attempting to enter ForestDungeon will fail gracefully.
+        // ForestDungeon (Id=2) is procedural: its config (Maps/ProceduralMaps/2.json), spawn table
+        // (Maps/spawn-tables.json), chunk pool and set pieces are seeded from Maps/ by ChunkCatalogSeeder on every World
+        // start, not by migrations.
         builder.HasData(new MapTemplate
             {
                 Id = 1,
@@ -1500,11 +1850,15 @@ public class WorldDbContext : DbContext
                 MapType = MapType.Normal,
                 PvP = false,
                 MinLevel = 1,
-                // Re-banded from 10 to 5. The band scales rewards only — a level 6 creature here is legal.
-                MaxLevel = 5,
+                // The reward band runs to the level cap (15) since the forest content pass; spawns roll their levels
+                // from the map's depth bands (Maps/ProceduralMaps/2.json), so the band scales rewards only.
+                MaxLevel = 15,
                 AreaTableId = 0,
                 LoadingScreenId = 0,
-                MaxPlayers = 1,
+                // A whole party (Game:MaxPartySize, 6 by default) must fit: a party instance holds at most
+                // min(MaxPartySize, MaxPlayers). Solo instances are keyed per character, so this does not
+                // let strangers share one (#707).
+                MaxPlayers = 6,
                 DefaultSpawnX = 0,
                 DefaultSpawnY = 0,
                 DefaultSpawnZ = 0,
@@ -1558,6 +1912,11 @@ public class WorldDbContext : DbContext
             .WithOne(m => m.Pool)
             .HasForeignKey(m => m.ChunkPoolId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(b => b.Groups)
+            .WithOne()
+            .HasForeignKey(g => g.ChunkPoolId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void Configure(EntityTypeBuilder<SpawnTable> builder)
@@ -1589,6 +1948,23 @@ public class WorldDbContext : DbContext
             .HasConversion(v => v.Value, v => new ChunkPoolId(v));
         builder.Property(b => b.SpawnTableId)
             .HasConversion(v => v.Value, v => new SpawnTableId(v));
+
+        // Depth bands (forest content pass). Like the config row itself, the rows are written by ChunkCatalogSeeder
+        // from Maps/ProceduralMaps/<mapId>.json on every World start, not by migrations.
+        builder.OwnsMany(b => b.DepthBands, d =>
+        {
+            d.ToTable("ProceduralDepthBands", t =>
+            {
+                t.HasCheckConstraint("CK_ProceduralDepthBands_Depth",
+                    "\"MinDepth\" >= 0 AND (\"MaxDepth\" IS NULL OR \"MaxDepth\" >= \"MinDepth\")");
+                t.HasCheckConstraint("CK_ProceduralDepthBands_Level",
+                    "\"MinLevel\" >= 1 AND \"MaxLevel\" >= \"MinLevel\"");
+            });
+            d.WithOwner().HasForeignKey("MapTemplateId");
+            d.HasKey("MapTemplateId", nameof(ProceduralDepthBand.MinDepth));
+            // Part of the key, but a value from the band file: never generated (EF would make it an identity column).
+            d.Property(x => x.MinDepth).ValueGeneratedNever();
+        });
     }
 
     private static void Configure(EntityTypeBuilder<MapChunkPlacement> builder)
@@ -1642,55 +2018,55 @@ public class WorldDbContext : DbContext
             .HasForeignKey(b => b.PathId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // Town (map 1). Offsets are metres from the map's entry spawn point and the facings are
-        // yaw in degrees, chosen so each NPC looks back toward an arriving player: forward is
-        // (sin yaw, 0, cos yaw), so atan2(-offsetX, -offsetZ) points at the entry.
-        //
-        // These positions are deliberately provisional. The town's geometry lives in the chunk
-        // .obj assets rather than in this repository, so they were picked to put the three NPCs
-        // in a visible arc a few metres in front of the player instead of against any particular
-        // doorway. Retuning them is a data change, not a code change.
+        // Town (map 1), Glimmerdell: a 2x2 grid of 30 m squares, world X/Z 0-60, the entry spawn at (15, 15) in the
+        // south-west arrival square, the forest portal north-west, the market south-east and the bank and inn
+        // north-east, with inner walls at X = 30 and Z = 30 opened at 12-18 and 42-48. The squares are generated by
+        // tools/Avalon.ChunkGen (TownPieces.cs), and each NPC stands in front of its own building, on the side the
+        // client's fixed camera (yaw 45, south-west of what it looks at) sees and clear of its roof: in front of a porch,
+        // a counter or the smithy's lean-to, or on the bank's step. Offsets are metres from the entry spawn; the facings
+        // are yaw in degrees, forward (sin yaw, 0, cos yaw), so facing a point is atan2(dx, dz) from the NPC to it,
+        // rounded to a whole degree. Every NPC stands at least 2 m from any wall, 1 m from any solid, within 3 m of its
+        // building and off the doorway lanes (TownNpcPlacementShould).
         builder.HasData(
             new MapCreatureSpawn
             {
-                Id = 1, MapTemplateId = 1, CreatureTemplateId = 1,     // Uriel
-                OffsetX = -3f, OffsetY = 0f, OffsetZ = 4f, Facing = 143f
+                Id = 1, MapTemplateId = 1, CreatureTemplateId = 1,     // Uriel, (16.6, 23) in front of the town hall's porch, facing the arrival point
+                OffsetX = 1.6f, OffsetY = 0f, OffsetZ = 8f, Facing = 191f
             },
             new MapCreatureSpawn
             {
-                Id = 2, MapTemplateId = 1, CreatureTemplateId = 2,     // Borin Stoutbeard
-                OffsetX = 3f, OffsetY = 0f, OffsetZ = 4f, Facing = 217f
+                Id = 2, MapTemplateId = 1, CreatureTemplateId = 2,     // Borin Stoutbeard, (16.9, 37) in front of the hunter's lodge porch, facing the path to the gate
+                OffsetX = 1.9f, OffsetY = 0f, OffsetZ = 22f, Facing = 270f
             },
             new MapCreatureSpawn
             {
-                Id = 3, MapTemplateId = 1, CreatureTemplateId = 3,     // Innkeeper
-                OffsetX = 0f, OffsetY = 0f, OffsetZ = 7f, Facing = 180f
+                Id = 3, MapTemplateId = 1, CreatureTemplateId = 3,     // Innkeeper, (50, 47.2) in front of the inn's porch, facing the square's centre (45, 45)
+                OffsetX = 35f, OffsetY = 0f, OffsetZ = 32.2f, Facing = 246f
             });
 
-        // Marta (#463), beyond Uriel on the same side, facing the entry: atan2(6, -6) = 135 degrees.
+        // Marta (#463), the banker, (36.8, 49.4) on the bank's lower step, facing the square's centre (45, 45).
         builder.HasData(new MapCreatureSpawn
         {
             Id = 4, MapTemplateId = 1, CreatureTemplateId = 11,     // Marta Ledgerwell
-            OffsetX = -6f, OffsetY = 0f, OffsetZ = 6f, Facing = 135f
+            OffsetX = 21.8f, OffsetY = 0f, OffsetZ = 34.4f, Facing = 118f
         });
 
-        // The vendors (#432), grouped around Marta on the same side, each facing the entry:
-        // atan2(9, -4) = 114, atan2(9, -8) = 132, atan2(6, -10) = 149 degrees.
+        // The vendors (#432), in the market, each facing the market centre (45, 15).
         builder.HasData(
             new MapCreatureSpawn
             {
-                Id = 5, MapTemplateId = 1, CreatureTemplateId = 12,     // Garrick Emberforge
-                OffsetX = -9f, OffsetY = 0f, OffsetZ = 4f, Facing = 114f
+                Id = 5, MapTemplateId = 1, CreatureTemplateId = 12,     // Garrick Emberforge, (39, 18.2) in front of the smithy's lean-to
+                OffsetX = 24f, OffsetY = 0f, OffsetZ = 3.2f, Facing = 118f
             },
             new MapCreatureSpawn
             {
-                Id = 6, MapTemplateId = 1, CreatureTemplateId = 13,     // Hilde Brassbuckle
-                OffsetX = -9f, OffsetY = 0f, OffsetZ = 8f, Facing = 132f
+                Id = 6, MapTemplateId = 1, CreatureTemplateId = 13,     // Hilde Brassbuckle, (53.9, 15) in front of the armourer's counter
+                OffsetX = 38.9f, OffsetY = 0f, OffsetZ = 0f, Facing = 270f
             },
             new MapCreatureSpawn
             {
-                Id = 7, MapTemplateId = 1, CreatureTemplateId = 14,     // Tobin Marrowfield
-                OffsetX = -6f, OffsetY = 0f, OffsetZ = 10f, Facing = 149f
+                Id = 7, MapTemplateId = 1, CreatureTemplateId = 14,     // Tobin Marrowfield, (51.5, 22.2) in front of the general-goods counter
+                OffsetX = 36.5f, OffsetY = 0f, OffsetZ = 7.2f, Facing = 222f
             });
     }
 
@@ -1770,6 +2146,67 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 22, Text = "I buy anything that isn't nailed to you. Fair prices, mostly." },
             new LocalizedText { Id = 23, Text = "What do you deal in?" },
             new LocalizedText { Id = 24, Text = "Show me your wares." });
+
+        SeedForestStorylineTexts(builder);
+        SeedForestChainTexts(builder);
+    }
+
+    /// <summary>The forest storyline (#433): three quests' titles, descriptions, completion lines, objectives and stages.</summary>
+    private static void SeedForestStorylineTexts(EntityTypeBuilder<LocalizedText> builder)
+    {
+        builder.HasData(
+            new LocalizedText { Id = 25, Text = "Thinning the Herd" },
+            new LocalizedText { Id = 26, Text = "The Thornback Boars have grown bold, {name}. They root up the paths and gore anyone who strays. Cull six of them before someone else is carried home." },
+            new LocalizedText { Id = 27, Text = "Six fewer tusks in the undergrowth. The paths will breathe easier for it." },
+            new LocalizedText { Id = 28, Text = "Thornback Boars slain" },
+            new LocalizedText { Id = 29, Text = "Tusks for Borin" },
+            new LocalizedText { Id = 30, Text = "Borin swears boar tusk takes an edge like nothing else. Bring him four tusks from the Thornback Boars; he will make it worth your while." },
+            new LocalizedText { Id = 31, Text = "Four good tusks! These will temper into something fine. Take these for the road." },
+            new LocalizedText { Id = 32, Text = "Boar Tusks gathered" },
+            new LocalizedText { Id = 33, Text = "The Alpha's Howl" },
+            new LocalizedText { Id = 34, Text = "Something leads the pack now, {name}. Thin the wolves and the husks at the forest's edge, tell Marta what you have seen, then find the Bramblemaw Alpha and end it." },
+            new LocalizedText { Id = 35, Text = "The howling has stopped. The forest is quieter than it has been in a long while. Wear this, {class}; you earned it." },
+            new LocalizedText { Id = 36, Text = "Grey Fen Wolves slain" },
+            new LocalizedText { Id = 37, Text = "Husks of the Wold destroyed" },
+            new LocalizedText { Id = 38, Text = "Speak with Marta Ledgerwell" },
+            new LocalizedText { Id = 39, Text = "Bramblemaw Alpha slain" },
+            new LocalizedText { Id = 40, Text = "Clear the forest's edge." },
+            new LocalizedText { Id = 41, Text = "Tell Marta what you have seen." },
+            new LocalizedText { Id = 42, Text = "Hunt down the Bramblemaw Alpha." });
+    }
+
+    /// <summary>
+    /// Quests 4-8 (forest content pass): titles, descriptions, completion lines, objectives and quest 8's stages.
+    /// Quest 6's kill objective reuses text 37 ("Husks of the Wold destroyed"). Quest 8 asks Garrick first (stage 0), then
+    /// the Alphas and the Bramble Heart together (stage 1).
+    /// </summary>
+    private static void SeedForestChainTexts(EntityTypeBuilder<LocalizedText> builder)
+    {
+        builder.HasData(
+            new LocalizedText { Id = 43, Text = "Wings for the Still" },
+            new LocalizedText { Id = 44, Text = "The Blightfly Swarmlings drone over the wold day and night, {name}, and the dust on their wings settles a fever better than any root I sell. Bring me six wings for my still, whole if you can manage it." },
+            new LocalizedText { Id = 45, Text = "Six good wings. That dust will see a few fevers through the cold months. Take these for your trouble." },
+            new LocalizedText { Id = 46, Text = "Blightfly Wings gathered" },
+            new LocalizedText { Id = 47, Text = "Pelts Before Frost" },
+            new LocalizedText { Id = 48, Text = "Frost comes early under those trees, and the Grey Fen Wolves wear the thickest coats in the wold. Bring me eight of their pelts and I will line half the town's cloaks before the first freeze." },
+            new LocalizedText { Id = 49, Text = "Eight pelts, and barely a nick in them. The town will be warmer for it, {name}." },
+            new LocalizedText { Id = 50, Text = "Fen Wolf Pelts gathered" },
+            new LocalizedText { Id = 51, Text = "What the Husks Carry" },
+            new LocalizedText { Id = 52, Text = "Travellers swear the Husks of the Wold still clutch scraps of paper, {name}: pages from a ledger, with Marta's mark on them. Put down eight of those things and bring whatever pages you find to Marta at the bank." },
+            new LocalizedText { Id = 53, Text = "These are mine. Accounts from a caravan that never came back. I owe you more than coin for this, {name}, but coin is what I have." },
+            new LocalizedText { Id = 54, Text = "Ledger Pages recovered" },
+            new LocalizedText { Id = 55, Text = "Heartwood" },
+            new LocalizedText { Id = 56, Text = "Old Tuskroot has walked the wold longer than this town has stood, and the wood at its heart is harder than iron. Bring me that heartwood, {class}, and I will set it in something worth wearing." },
+            new LocalizedText { Id = 57, Text = "Now that is heartwood. Hold out your hand; this one was made to fit it." },
+            new LocalizedText { Id = 58, Text = "Tuskroot Heartwood taken" },
+            new LocalizedText { Id = 59, Text = "Mother of Thorns" },
+            new LocalizedText { Id = 60, Text = "The Bramblemaw Alphas answer to something deeper in the wold, {name}. Speak with Garrick first: he has forged against thorns before. Then go to the heart of the forest, bring down two of the Alphas and end Mother Bramble, the Mother of Thorns." },
+            new LocalizedText { Id = 61, Text = "The wold is breathing again. It will remember what you did, and so will we. Wear this, {class}." },
+            new LocalizedText { Id = 62, Text = "Speak with Garrick Emberforge" },
+            new LocalizedText { Id = 63, Text = "Bramblemaw Alphas slain" },
+            new LocalizedText { Id = 64, Text = "Bramble Heart taken" },
+            new LocalizedText { Id = 65, Text = "Ask Garrick how to face the thorns." },
+            new LocalizedText { Id = 66, Text = "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart." });
     }
 
     private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
@@ -1819,6 +2256,69 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 22, Locale = AccountLocale.ptPT, Text = "Compro tudo o que não estiver pregado a ti. Preços justos, quase sempre." },
             new LocalizedTextLocale { TextId = 23, Locale = AccountLocale.ptPT, Text = "O que é que vendes?" },
             new LocalizedTextLocale { TextId = 24, Locale = AccountLocale.ptPT, Text = "Mostra-me a tua mercadoria." });
+
+        SeedForestStorylineTranslations(builder);
+        SeedForestChainTranslations(builder);
+    }
+
+    /// <summary>
+    /// The forest storyline (#433) in ptPT. Creature names stay as their nameplates spell them, since creature names
+    /// are not translated. Needs native-speaker review before deploying, like the rows above.
+    /// </summary>
+    private static void SeedForestStorylineTranslations(EntityTypeBuilder<LocalizedTextLocale> builder)
+    {
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 25, Locale = AccountLocale.ptPT, Text = "Desbastar a Manada" },
+            new LocalizedTextLocale { TextId = 26, Locale = AccountLocale.ptPT, Text = "Os Thornback Boars ganharam ousadia, {name}. Revolvem os caminhos e atacam com as presas quem se aproxima. Abate seis deles antes que mais alguém tenha de ser trazido para casa." },
+            new LocalizedTextLocale { TextId = 27, Locale = AccountLocale.ptPT, Text = "Menos seis presas no mato. Os caminhos vão respirar melhor por isso." },
+            new LocalizedTextLocale { TextId = 28, Locale = AccountLocale.ptPT, Text = "Thornback Boars abatidos" },
+            new LocalizedTextLocale { TextId = 29, Locale = AccountLocale.ptPT, Text = "Presas para o Borin" },
+            new LocalizedTextLocale { TextId = 30, Locale = AccountLocale.ptPT, Text = "O Borin jura que a presa de javali ganha gume como mais nada. Leva-lhe quatro presas dos Thornback Boars; ele há de fazer valer a pena." },
+            new LocalizedTextLocale { TextId = 31, Locale = AccountLocale.ptPT, Text = "Quatro boas presas! Depois de temperadas, vão dar coisa fina. Leva isto para a estrada." },
+            new LocalizedTextLocale { TextId = 32, Locale = AccountLocale.ptPT, Text = "Presas de javali recolhidas" },
+            new LocalizedTextLocale { TextId = 33, Locale = AccountLocale.ptPT, Text = "O Uivo do Alfa" },
+            new LocalizedTextLocale { TextId = 34, Locale = AccountLocale.ptPT, Text = "Agora há algo a liderar a alcateia, {name}. Desbasta os lobos e as carcaças na orla da floresta, conta à Marta o que viste, e depois encontra o Bramblemaw Alpha e acaba com ele." },
+            new LocalizedTextLocale { TextId = 35, Locale = AccountLocale.ptPT, Text = "Os uivos pararam. A floresta não estava tão calma há muito tempo. Usa isto, {class}; mereceste-o." },
+            new LocalizedTextLocale { TextId = 36, Locale = AccountLocale.ptPT, Text = "Grey Fen Wolves abatidos" },
+            new LocalizedTextLocale { TextId = 37, Locale = AccountLocale.ptPT, Text = "Husks of the Wold destruídos" },
+            new LocalizedTextLocale { TextId = 38, Locale = AccountLocale.ptPT, Text = "Fala com a Marta Ledgerwell" },
+            new LocalizedTextLocale { TextId = 39, Locale = AccountLocale.ptPT, Text = "Bramblemaw Alpha abatido" },
+            new LocalizedTextLocale { TextId = 40, Locale = AccountLocale.ptPT, Text = "Limpa a orla da floresta." },
+            new LocalizedTextLocale { TextId = 41, Locale = AccountLocale.ptPT, Text = "Conta à Marta o que viste." },
+            new LocalizedTextLocale { TextId = 42, Locale = AccountLocale.ptPT, Text = "Caça o Bramblemaw Alpha." });
+    }
+
+    /// <summary>
+    /// Quests 4-8 (forest content pass) in ptPT. Creature names stay as their nameplates spell them. A draft: needs
+    /// native-speaker review before deploying, like the rows above.
+    /// </summary>
+    private static void SeedForestChainTranslations(EntityTypeBuilder<LocalizedTextLocale> builder)
+    {
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 43, Locale = AccountLocale.ptPT, Text = "Asas para o Alambique" },
+            new LocalizedTextLocale { TextId = 44, Locale = AccountLocale.ptPT, Text = "As Blightfly Swarmlings zumbem sobre a mata dia e noite, {name}, e o pó das asas delas acalma uma febre melhor do que qualquer raiz que eu venda. Traz-me seis asas para o meu alambique, inteiras se conseguires." },
+            new LocalizedTextLocale { TextId = 45, Locale = AccountLocale.ptPT, Text = "Seis boas asas. Esse pó vai ajudar a vencer umas quantas febres nos meses frios. Leva isto pelo teu trabalho." },
+            new LocalizedTextLocale { TextId = 46, Locale = AccountLocale.ptPT, Text = "Asas de Blightfly recolhidas" },
+            new LocalizedTextLocale { TextId = 47, Locale = AccountLocale.ptPT, Text = "Peles Antes da Geada" },
+            new LocalizedTextLocale { TextId = 48, Locale = AccountLocale.ptPT, Text = "A geada chega cedo debaixo daquelas árvores, e os Grey Fen Wolves têm os casacos mais grossos da mata. Traz-me oito das peles deles e forro metade das capas da vila antes da primeira geada." },
+            new LocalizedTextLocale { TextId = 49, Locale = AccountLocale.ptPT, Text = "Oito peles, e quase sem um rasgão. A vila vai ficar mais quente graças a isto, {name}." },
+            new LocalizedTextLocale { TextId = 50, Locale = AccountLocale.ptPT, Text = "Peles de Fen Wolf recolhidas" },
+            new LocalizedTextLocale { TextId = 51, Locale = AccountLocale.ptPT, Text = "O que as Carcaças Carregam" },
+            new LocalizedTextLocale { TextId = 52, Locale = AccountLocale.ptPT, Text = "Os viajantes juram que os Husks of the Wold ainda agarram pedaços de papel, {name}: páginas de um livro de contas, com a marca da Marta. Abate oito dessas coisas e leva as páginas que encontrares à Marta, no banco." },
+            new LocalizedTextLocale { TextId = 53, Locale = AccountLocale.ptPT, Text = "Estas são minhas. Contas de uma caravana que nunca voltou. Devo-te mais do que moedas por isto, {name}, mas moedas é o que tenho." },
+            new LocalizedTextLocale { TextId = 54, Locale = AccountLocale.ptPT, Text = "Páginas do livro de contas recuperadas" },
+            new LocalizedTextLocale { TextId = 55, Locale = AccountLocale.ptPT, Text = "Cerne" },
+            new LocalizedTextLocale { TextId = 56, Locale = AccountLocale.ptPT, Text = "O Old Tuskroot anda pela mata há mais tempo do que esta vila existe, e a madeira do seu coração é mais dura do que o ferro. Traz-me esse cerne, {class}, e engasto-o em algo que valha a pena usar." },
+            new LocalizedTextLocale { TextId = 57, Locale = AccountLocale.ptPT, Text = "Isso sim, é cerne. Estende a mão; este foi feito à tua medida." },
+            new LocalizedTextLocale { TextId = 58, Locale = AccountLocale.ptPT, Text = "Cerne de Tuskroot obtido" },
+            new LocalizedTextLocale { TextId = 59, Locale = AccountLocale.ptPT, Text = "Mãe dos Espinhos" },
+            new LocalizedTextLocale { TextId = 60, Locale = AccountLocale.ptPT, Text = "Os Bramblemaw Alphas obedecem a algo mais fundo na mata, {name}. Fala primeiro com o Garrick: ele já forjou contra espinhos. Depois vai ao coração da floresta, abate dois dos Bramblemaw Alphas e acaba com a Mother Bramble, a Mãe dos Espinhos." },
+            new LocalizedTextLocale { TextId = 61, Locale = AccountLocale.ptPT, Text = "A mata volta a respirar. Vai lembrar-se do que fizeste, e nós também. Usa isto, {class}." },
+            new LocalizedTextLocale { TextId = 62, Locale = AccountLocale.ptPT, Text = "Fala com o Garrick Emberforge" },
+            new LocalizedTextLocale { TextId = 63, Locale = AccountLocale.ptPT, Text = "Bramblemaw Alphas abatidos" },
+            new LocalizedTextLocale { TextId = 64, Locale = AccountLocale.ptPT, Text = "Coração de Bramble obtido" },
+            new LocalizedTextLocale { TextId = 65, Locale = AccountLocale.ptPT, Text = "Pergunta ao Garrick como enfrentar os espinhos." },
+            new LocalizedTextLocale { TextId = 66, Locale = AccountLocale.ptPT, Text = "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble." });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueNode> builder)
@@ -2221,7 +2721,7 @@ public class WorldDbContext : DbContext
             Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, value: 25, range: SpellRange.Short, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.5f),
             Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 18f, cooldown: 3000, cost: 10, value: 20, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.5f, weapon: 1.0f),
             Kit(210, CharacterClass.Wizard, "Arcane Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 22f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.25f),
-            Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, value: 35, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.8f),
+            Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, value: 18, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.4f),
             Kit(212, CharacterClass.Wizard, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
             Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f),
             Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 24f, pierce: true, cooldown: 4000, cost: 15, value: 25, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.2f),

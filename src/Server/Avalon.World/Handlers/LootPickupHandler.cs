@@ -5,6 +5,7 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Public;
+using Avalon.World.Quests;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -19,7 +20,8 @@ public class LootPickupHandler(
     ILogger<LootPickupHandler> logger,
     IWorld world,
     ICharacterEconomy economy,
-    TimeProvider time) : WorldPacketHandler<CLootPickupPacket>
+    TimeProvider time,
+    QuestService? quests = null) : WorldPacketHandler<CLootPickupPacket>
 {
     public override void Execute(IWorldConnection connection, CLootPickupPacket packet)
     {
@@ -36,7 +38,7 @@ public class LootPickupHandler(
 
         LootPickupOutcome outcome = LootPickup.TryPickUp(
             character, host?.Drops, lootGuid, world.Configuration.LootPickupRange,
-            time.GetUtcNow().UtcDateTime, economy, logger);
+            time.GetUtcNow().UtcDateTime, economy, logger, quests);
 
         connection.Send(SLootPickupResultPacket.Create(packet.LootGuid, outcome.Result, connection.CryptoSession.Encrypt));
 

@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
@@ -6,7 +7,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
-using Avalon.World.Creatures;
 using Avalon.World.Maps;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
@@ -138,7 +138,7 @@ public class WorldUpdateReloadShould
             localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            dialogue, LootRepositories.Empty());
+            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off());
 
         await world.LoadAsync(CancellationToken.None);
         return world;

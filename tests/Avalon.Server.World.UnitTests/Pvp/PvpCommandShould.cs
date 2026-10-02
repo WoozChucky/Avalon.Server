@@ -49,10 +49,9 @@ public class PvpCommandShould
         .ToList();
 
     [Fact]
-    public async Task Agree_with_the_packet_because_both_run_one_path()
+    public void Agree_with_the_packet_because_both_run_one_path()
     {
-        await _command.ExecuteAsync(
-            new WorldPacketContext<CChatMessagePacket> { Connection = _connection, Packet = new CChatMessagePacket() }, []);
+        _command.Execute(new CommandContext(_connection, new CChatMessagePacket(), _ => { }), []);
         _handler.Execute(_connection, new CPvpTogglePacket());
 
         List<SPvpStatePacket> replies = Replies();

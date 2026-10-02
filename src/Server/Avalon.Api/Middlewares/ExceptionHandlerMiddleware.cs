@@ -72,7 +72,9 @@ public class ExceptionHandlerMiddleware
         {
             // A refresh that lost a race (#543). The refresh endpoint answers it itself; should it
             // ever get this far it is still that endpoint's 401, not a 500.
-            RefreshAlreadyRotatedException => WriteRefreshAlreadyRotatedAsync(context),
+            RefreshAlreadyRotatedException => WriteClientErrorAsync(context, (int)HttpStatusCode.Unauthorized),
+            // A character deleted between the lookup and the write (#757): the endpoint's own NotFound(), not logged.
+            CharacterNotFoundException => WriteClientErrorAsync(context, (int)HttpStatusCode.NotFound),
             AuthenticationException => WriteProblemAsync(context, (int)HttpStatusCode.Unauthorized,
                 exception.GetType().Name, "Whoops!", exception.Message),
             // Only thrown once the caller has proved they hold the account (password or MFA code).
@@ -88,6 +90,12 @@ public class ExceptionHandlerMiddleware
             // Game distribution: no store configured, or a published build that is not there.
             Distribution.DistributionUnavailableException => WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable,
                 "ServiceUnavailable", "Service unavailable", exception.Message),
+            // The balance workbench's service: not configured, or not reachable. Fixed wording; the
+            // exception's inner cause stays in the log.
+            Balance.BalanceUnavailableException => WriteBalanceUnavailableAsync(context, exception),
+            // A rename of a character that is in the world (#757): it can be renamed once logged out.
+            CharacterOnlineException => WriteProblemAsync(context, StatusCodes.Status409Conflict,
+                exception.GetType().Name, "Conflict", exception.Message),
             BusinessException => WriteProblemAsync(context, (int)HttpStatusCode.BadRequest,
                 exception.GetType().Name, "Client error", exception.Message),
             // An Accounts check constraint refused the row (#503 follow-up): a username or an email
@@ -104,6 +112,9 @@ public class ExceptionHandlerMiddleware
             // Authentication fails closed either way: the request never reaches the endpoint.
             DbException or RetryLimitExceededException => WriteDatabaseUnavailableAsync(context, exception),
             RedisConnectionException => WriteCacheUnavailableAsync(context, exception),
+            // The caller hung up: nothing is listening for a body, and it is not a fault of ours.
+            OperationCanceledException when context.RequestAborted.IsCancellationRequested =>
+                WriteRequestAbortedAsync(context, exception),
             _ => WriteUnexpectedErrorAsync(context, exception),
         });
     }
@@ -122,13 +133,12 @@ public class ExceptionHandlerMiddleware
     }
 
     /// <summary>
-    /// The body the refresh endpoint's own <c>Unauthorized()</c> gets from MVC: the client-error
-    /// ProblemDetails for 401 from the registered factory, written with MVC's JSON options and
+    /// The body an endpoint's own <c>Unauthorized()</c> or <c>NotFound()</c> gets from MVC: the client-error
+    /// ProblemDetails for the status from the registered factory, written with MVC's JSON options and
     /// content type, so the two cannot differ. Not logged, as the endpoint does not log it.
     /// </summary>
-    private static Task WriteRefreshAlreadyRotatedAsync(HttpContext context)
+    private static Task WriteClientErrorAsync(HttpContext context, int status)
     {
-        const int status = (int)HttpStatusCode.Unauthorized;
         ProblemDetails problem = context.RequestServices.GetRequiredService<ProblemDetailsFactory>()
             .CreateProblemDetails(context, status);
         JsonSerializerOptions json = context.RequestServices.GetRequiredService<IOptions<JsonOptions>>().Value
@@ -145,6 +155,13 @@ public class ExceptionHandlerMiddleware
             AccountValueRefused);
     }
 
+    private Task WriteBalanceUnavailableAsync(HttpContext context, Exception exception)
+    {
+        _logger.LogWarning(exception, "Balance service unavailable");
+        return WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable, "ServiceUnavailable",
+            "Service unavailable", exception.Message);
+    }
+
     private Task WriteDatabaseUnavailableAsync(HttpContext context, Exception exception)
     {
         context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
@@ -157,6 +174,12 @@ public class ExceptionHandlerMiddleware
         context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
         _logger.LogError(exception, "Cache unavailable");
         return WriteServiceUnavailableAsync(context);
+    }
+
+    private Task WriteRequestAbortedAsync(HttpContext context, Exception exception)
+    {
+        _logger.LogDebug(exception, "The request was aborted by the caller");
+        return Task.CompletedTask;
     }
 
     private Task WriteUnexpectedErrorAsync(HttpContext context, Exception exception)

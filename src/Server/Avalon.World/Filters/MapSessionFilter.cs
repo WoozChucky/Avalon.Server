@@ -40,12 +40,22 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_LOOT_PICKUP => true,
             NetworkPacketType.CMSG_ITEM_MOVE => true,
             NetworkPacketType.CMSG_ITEM_DESTROY => true,
+            NetworkPacketType.CMSG_ITEM_USE => true,
             NetworkPacketType.CMSG_VENDOR_BUY => true,
             NetworkPacketType.CMSG_VENDOR_SELL => true,
             NetworkPacketType.CMSG_VENDOR_BUYBACK => true,
             NetworkPacketType.CMSG_ENTER_MAP => true,
             NetworkPacketType.CMSG_RESPAWN_AT_TOWN => true,
             NetworkPacketType.CMSG_CHAT_MESSAGE => true,
+            NetworkPacketType.CMSG_PARTY_INVITE => true,
+            NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE => true,
+            NetworkPacketType.CMSG_PARTY_LEAVE => true,
+            NetworkPacketType.CMSG_PARTY_KICK => true,
+            NetworkPacketType.CMSG_PARTY_PROMOTE => true,
+            NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE => true,
+            NetworkPacketType.CMSG_QUEST_ACCEPT => true,
+            NetworkPacketType.CMSG_QUEST_TURN_IN => true,
+            NetworkPacketType.CMSG_QUEST_ABANDON => true,
             _ => false
         };
     }

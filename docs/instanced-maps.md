@@ -15,7 +15,7 @@ Avalon has no single persistent open world. Players gather in shared town instan
 | Type    | Description |
 |---------|-------------|
 | `Town`  | Shared hub with a player cap (default 30). Multiple instances are created automatically when all existing ones are full. New players are always routed to the least-populated instance that still has room. |
-| `Normal`| Private instanced area, one per player (group-ready by design). A 15-minute expiry countdown starts when the last player leaves. Re-entering within that window returns the player to the same live instance. After expiry the instance is freed. |
+| `Normal`| Private instanced area, one per player, or one per party while the character is in a party (see `party-protocol.md` and CLAUDE.md's Parties section). A 15-minute expiry countdown starts when the last player leaves. Re-entering within that window returns the player to the same live instance. After expiry the instance is freed. |
 
 Players move between maps via `CEnterMapPacket`; the server validates that the player is within range of a portal defined for that map pair.
 
@@ -201,11 +201,15 @@ public class CEnterMapPacket : Packet
 ```csharp
 public enum MapTransitionResult : byte
 {
-    Success       = 0,
-    MapNotFound   = 1,
-    NotNearPortal = 2,
-    LevelTooLow   = 3,
-    LevelTooHigh  = 4,
+    Success          = 0,
+    MapNotFound      = 1,
+    NotNearPortal    = 2,
+    LevelTooLow      = 3,
+    LevelTooHigh     = 4,
+    GenerationFailed = 5,
+    InstanceFull     = 6,   // a party's instance is full (docs/party-protocol.md)
+    NoWalkableGround = 7,   // an item teleport found no ground (docs/item-use-protocol.md)
+    MoveInProgress   = 8,   // another move to a map is already under way
 }
 
 public class SMapTransitionPacket : Packet
@@ -226,7 +230,9 @@ public class SMapTransitionPacket : Packet
 ```
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 
-1.  Guard: connection.InGame — else ignore
+1.  Guard: connection.InGame — else ignore; a dead character — ignore
+    Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
+       a respawn or a party return) → send MoveInProgress, return, before anything is looked up
 2.  Resolve current instance from InstanceRegistry (must be a MapInstance with Layout)
 3.  Load MapTemplate for packet.TargetMapId
 4.  Look up matching PortalInstance on mi.Portals where TargetMapId == packet.TargetMapId

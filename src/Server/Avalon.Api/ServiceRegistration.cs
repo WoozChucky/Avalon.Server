@@ -2,8 +2,11 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
+using Avalon.Api.Balance;
 using Avalon.Api.Config;
+using Avalon.Api.Controllers;
 using Avalon.Api.Middlewares;
+using Avalon.Api.Previews;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
 using Avalon.Api.Worlds;
@@ -42,6 +45,9 @@ public static class ServiceRegistration
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
         services.AddAuthDatabase();
+        services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
+        services.AddSingleton(PublicSiteSettings.Create(config.PublicSiteUrl));
+        services.AddOptions<PreviewConfiguration>().BindConfiguration("Application:Previews");
         // Checked at startup (ApiStartup), naming the setting, like the auth and world servers do.
         services.ValidateDatabasesOnStart(DatabaseConnections.Auth);
         // The repositories only. Their contexts come from AddWorldDatabases: one world and characters
@@ -55,6 +61,13 @@ public static class ServiceRegistration
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<Templates.TemplateEditingOptions>()
+            .BindConfiguration(Templates.TemplateEditingOptions.Section)
+            .ValidateOnStart();
+        Templates.TemplateEditingRegistration.AddTemplateEditing(services);
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<Templates.TemplateEditingOptions>,
+            Templates.TemplateEditingOptionsValidator>();
+
         services.AddOptions<MapAssetConfig>()
             .BindConfiguration("Application:MapAssets");
 
@@ -67,6 +80,13 @@ public static class ServiceRegistration
         else
             services.AddSingleton<Distribution.IDistributionStore, Distribution.UnconfiguredDistributionStore>();
         services.AddSingleton<Distribution.ClientDistributionService>();
+
+        // The balance workbench's service (in-cluster). Without it the /balance endpoints answer 503.
+        Balance.BalanceConfiguration balance = config.Balance ?? new();
+        if (balance.IsConfigured)
+            services.AddBalanceClient(balance);
+        else
+            services.AddSingleton<Balance.IBalanceClient, Balance.UnconfiguredBalanceClient>();
 
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();

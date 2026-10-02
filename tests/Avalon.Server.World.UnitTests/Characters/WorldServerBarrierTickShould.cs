@@ -1,18 +1,22 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Combat;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
+using Avalon.Database.World.Seeding;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Database.World.Seeding;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
+using Avalon.World.Entities;
+using Avalon.World.Parties;
+using Avalon.World.Quests;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
-using Avalon.World.Entities;
+using Avalon.World.Pvp;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -20,7 +24,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
-using Avalon.World.Pvp;
 using Avalon.World.Maintenance;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
@@ -74,7 +77,7 @@ public class WorldServerBarrierTickShould : IDisposable
     {
         var gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(default(WorldEntryDecision));
-        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate);
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate);
         connection.AccountId = new AccountId(42);
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
@@ -97,7 +100,7 @@ public class WorldServerBarrierTickShould : IDisposable
         var gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntryDecision(true, DateTime.MaxValue));
-        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate);
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate);
         connection.AccountId = new AccountId(42);
         IMapInstance instance = Substitute.For<IMapInstance>();
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance,
@@ -125,7 +128,7 @@ public class WorldServerBarrierTickShould : IDisposable
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
             TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
         coordinator.ApplyCommitted(new WorldMaintenanceState(false, 1, null));
-        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate, coordinator);
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate, coordinator: coordinator);
         connection.AccountId = new AccountId(42);
         connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
@@ -154,7 +157,7 @@ public class WorldServerBarrierTickShould : IDisposable
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
             TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 2, DateTime.UtcNow.AddMinutes(1)));
-        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate, coordinator);
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate, coordinator: coordinator);
         connection.AccountId = new AccountId(42);
         IMapInstance instance = Substitute.For<IMapInstance>();
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance,
@@ -233,18 +236,68 @@ public class WorldServerBarrierTickShould : IDisposable
         Assert.Equal(CombatSeed.Formula().CritCap, character.SheetSent?.CritPct);
     }
 
+    /// <summary>
+    /// A party member status flush that throws is contained (party play, final review): the ping, outbox and continuation
+    /// flushes after it still run for every connection. The party service is made to throw through its clock.
+    /// </summary>
+    [Fact]
+    public void Run_the_rest_of_the_tick_when_the_party_status_flush_throws()
+    {
+        var clock = new BreakableClock { Broken = true };
+        var parties = new PartyService(Options.Create(new GameConfiguration()), clock, NullLogger<PartyService>.Instance);
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build(parties);
+        bool continued = false;
+        connection.EnqueueContinuation(Task.CompletedTask, () => continued = true);
+
+        Exception? thrown = Record.Exception(() => server.Tick());
+
+        Assert.Null(thrown);
+        Assert.True(continued);
+    }
+
+    /// <summary>
+    /// #639: presence is captured by the tick, after the world update, from the registry it ticked; the Redis writer
+    /// only takes what the tick handed over. A second tick within the second captures nothing new.
+    /// </summary>
+    [Fact]
+    public void Capture_presence_on_the_tick_once_a_second()
+    {
+        var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(
+            new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
+        var presence = new Avalon.World.Presence.PresenceCapture(Options.Create(new GameConfiguration { WorldId = "4" }),
+            NullLogger<Avalon.World.Presence.PresenceCapture>.Instance, clock);
+        (TestWorldServer server, IWorld world, _) = Build(presence: presence);
+        ICharacter nym = PendingSpawnConnection.Character();
+        nym.Position.Returns(Avalon.Common.Mathematics.Vector3.zero);
+        nym.Orientation.Returns(Avalon.Common.Mathematics.Vector3.zero);
+        var instance = Substitute.For<IMapInstance>();
+        instance.TemplateId.Returns(new Avalon.Common.ValueObjects.MapTemplateId(1));
+        Dictionary<Avalon.Common.ObjectGuid, ICharacter> roster = new() { [nym.Guid] = nym };
+        instance.Characters.Returns(roster);
+        var registry = Substitute.For<IInstanceRegistry>();
+        registry.ActiveInstances.Returns([instance]);
+        world.InstanceRegistry.Returns(registry);
+
+        server.Tick();
+        Assert.Equal((ushort)4, presence.Take()?.WorldId);
+
+        server.Tick();
+        Assert.Null(presence.Take());
+    }
+
     /// <summary>Reference data with the seeded combat formula, which the tick's sheet flush reads (#506).</summary>
     private static readonly Lazy<StaticData> SeededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
 
-    private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(
-        IWorldEntryGate? gate = null, WorldMaintenanceCoordinator? coordinator = null)
+    private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(PartyService? parties = null,
+        Avalon.World.Presence.PresenceCapture? presence = null, IWorldEntryGate? gate = null,
+        WorldMaintenanceCoordinator? coordinator = null)
     {
         StaticData data = SeededData.Value;   // loaded outside Returns, which it would otherwise interrupt
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CharacterLoadTimeoutSeconds = 15 });
         world.Data.Returns(data);
 
-        var server = new TestWorldServer(world, gate, coordinator);
+        var server = new TestWorldServer(world, parties, presence, gate, coordinator);
         var connection = new Avalon.World.WorldConnection(
             server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
         server.Add(connection);
@@ -254,16 +307,20 @@ public class WorldServerBarrierTickShould : IDisposable
     /// <summary>Reaches one tick without the socket loop that normally drives it.</summary>
     private sealed class TestWorldServer : WorldServer
     {
-        public TestWorldServer(IWorld world, IWorldEntryGate? gate, WorldMaintenanceCoordinator? coordinator) : base(
+        public TestWorldServer(IWorld world, PartyService? parties = null,
+            Avalon.World.Presence.PresenceCapture? presence = null, IWorldEntryGate? gate = null,
+            WorldMaintenanceCoordinator? coordinator = null) : base(
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
-            new AnyServiceProvider(),
+            new AnyServiceProvider(presence),
             Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 }),
             world,
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
-            Substitute.For<Avalon.World.Persistence.ICharacterSaver>(), gate, coordinator)
+            Substitute.For<Avalon.World.Persistence.ICharacterSaver>(),
+            parties ?? new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance),
+            gate, coordinator)
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
@@ -275,15 +332,38 @@ public class WorldServerBarrierTickShould : IDisposable
     /// The world server reflects over every packet handler in the assembly and activates each one,
     /// so standing it up needs a container that answers for all of their dependencies.
     /// </summary>
-    private sealed class AnyServiceProvider : IServiceProvider
+    private sealed class AnyServiceProvider(Avalon.World.Presence.PresenceCapture? presence = null) : IServiceProvider
     {
+        private QuestService? _quests;
+        private Avalon.World.Items.ItemUseService? _itemUses;
+
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
 
+            // The presence capture (#639), only where a test hands one over; production registers it.
+            if (serviceType == typeof(Avalon.World.Presence.PresenceCapture)) return presence;
+
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            // The party handlers (2026-09-30) take the one party service, a class with settings, a clock and a logger.
+            // The chat handler (#722) takes the one chat limiter, a class with settings and a clock; off, as the defaults are.
+            if (serviceType == typeof(Avalon.World.Chat.ChatRateLimiter))
+                return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            if (serviceType == typeof(PartyService))
+                return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
+                    NullLogger<PartyService>.Instance);
+
+            // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
+            if (serviceType == typeof(QuestService))
+                return _quests ??= Avalon.Server.World.UnitTests.Quests.InertQuestService.Create();
+
+            // ItemUseHandler takes the one item use service, as production's singleton.
+            if (serviceType == typeof(Avalon.World.Items.ItemUseService))
+                return _itemUses ??= Avalon.Server.World.UnitTests.ItemUse.InertItemUseService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(

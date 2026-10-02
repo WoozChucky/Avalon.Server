@@ -33,7 +33,7 @@ public class VendorStock
     /// <summary>Copper per unit. Null means the item's BuyPrice.</summary>
     public uint? PriceOverride { get; set; }
 
-    /// <summary>A QuestTemplate id. No foreign key: the quest system (#433) will reshape that table.</summary>
+    /// <summary>A QuestTemplate id, met when QuestProgress says so (#433). No foreign key.</summary>
     public uint? RequiredQuestId { get; set; }
 
     public QuestRequirementState? RequiredQuestState { get; set; }

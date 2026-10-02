@@ -225,6 +225,31 @@
       "name": "StatValue10",
       "type": "uint32",
       "nullable": true
+    },
+    {
+      "name": "UseScript",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "UseCastTimeMs",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
+      "name": "UseCooldownMs",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
+      "name": "UseCooldownGroup",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "UseValue",
+      "type": "uint32",
+      "nullable": true
     }
   ],
   "enums": {
@@ -376,6 +401,14 @@
         "value": 205
       },
       {
+        "name": "Amulet",
+        "value": 206
+      },
+      {
+        "name": "Ring",
+        "value": 207
+      },
+      {
         "name": "QuestItem",
         "value": 300
       },
@@ -512,6 +545,10 @@
       {
         "name": "NoTrade",
         "value": 1024
+      },
+      {
+        "name": "QuestItem",
+        "value": 2048
       }
     ],
     "CharacterClass": [

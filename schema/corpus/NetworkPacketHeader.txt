@@ -30,12 +30,12 @@ variant empty
   bytes 0
 
 variant populated
-  field 1 Type : NetworkPacketType = CMSG_PLAYER_INPUT (8288)
+  field 1 Type : NetworkPacketType = SMSG_CHARACTER_ABILITIES (12327)
   field 2 Flags : NetworkPacketFlags = ClearText (1)
   field 3 Protocol : NetworkProtocol = Both (3)
   field 4 Version : int = 1000
   bytes 10
-    08 e0 40 10 01 18 03 20 e8 07
+    08 a7 60 10 01 18 03 20 e8 07
 
 variant maxima
   field 1 Type : NetworkPacketType = SMSG_UNIT_HEALED (12556)

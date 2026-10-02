@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.World.Dialogue;
 using Avalon.World.Vendors;
 using NSubstitute;
 
@@ -56,6 +57,37 @@ public class ShopAccessShould : IAsyncLifetime
         _w.Main.Connection.CurrentDialogue = (VendorWorld.PedlarGuid, new DialogueNodeId(VendorWorld.PedlarRoot));
 
         Assert.False(ShopAccess.IsOpen(_w.Main.Connection, _w.Main.Character));
+    }
+
+    [Fact]
+    public void Stay_usable_after_a_step_back_past_the_interact_range()
+    {
+        // 5.5 m from the smith (at z = 3): too far to open a conversation, close enough to keep one.
+        _w.OpenShop();
+        _w.Main.Character.Position = new Vector3(0, 0, 3 + 5.5f);
+
+        Assert.True(TryUse());
+        Assert.NotNull(_w.Main.Connection.CurrentDialogue);
+    }
+
+    [Fact]
+    public void Stay_usable_at_exactly_the_leash()
+    {
+        _w.OpenShop();
+        _w.Main.Character.Position = new Vector3(0, 0, 3 + NpcInteraction.LeashRange);
+
+        Assert.True(TryUse());
+    }
+
+    [Fact]
+    public void Refuse_and_end_the_conversation_just_past_the_leash()
+    {
+        _w.OpenShop();
+        _w.Main.Character.Position = new Vector3(0, 0, 3 + NpcInteraction.LeashRange + 0.01f);
+
+        Assert.False(TryUse());
+
+        AssertEndedWithTheSmith();
     }
 
     [Fact]

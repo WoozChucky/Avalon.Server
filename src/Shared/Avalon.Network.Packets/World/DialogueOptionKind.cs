@@ -24,4 +24,10 @@ public enum DialogueOptionKind
 
     /// <summary>Opens the NPC's shop: SMSG_VENDOR_LIST follows.</summary>
     OpenShop = 2,
+
+    /// <summary>Offers a quest (#433): choosing it sends SMSG_QUEST_OFFER; the option's QuestId names the quest.</summary>
+    QuestOffer = 3,
+
+    /// <summary>Hands in a quest that is ready (#433): choosing it sends SMSG_QUEST_OFFER in TurnIn mode.</summary>
+    QuestTurnIn = 4,
 }

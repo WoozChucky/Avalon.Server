@@ -57,6 +57,18 @@ public static class CacheKeys
     /// </summary>
     public static string WorldSelectChannel(ushort worldId) => $"world:{worldId}:select";
 
+    /// <summary>
+    /// Published by the API after a template save to ask a world to reload part of its static data.
+    /// Message: a <see cref="ReloadRequestMessage"/> as camelCase JSON.
+    /// </summary>
+    public static string WorldReloadChannel(ushort worldId) => $"world:{worldId}:reload";
+
+    /// <summary>
+    /// Published by a world when it has answered a reload request on <see cref="WorldReloadChannel"/>.
+    /// Message: a <see cref="ReloadResultMessage"/> as camelCase JSON, carrying the request's id.
+    /// </summary>
+    public static string WorldReloadResultChannel(ushort worldId) => $"world:{worldId}:reload:result";
+
     // ── String Keys ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -166,6 +178,14 @@ public static class CacheKeys
     /// <summary>The SHA-256 of a secret that names a key, so the key name never carries the secret.</summary>
     private static string Digest(string secret) =>
         Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(secret)));
+
+    /// <summary>
+    /// The script names a world accepts in a template's ScriptName, written by that world after its scripts load and
+    /// after a hot reload. Value: JSON <c>ScriptCatalogSnapshot</c> (<c>{ "ai": [], "ability": [], "quest": [] }</c>),
+    /// sorted names, with no expiry: it stays true until the world publishes again. A missing key means no build of the
+    /// world has reported in yet, which the Api treats as "do not check".
+    /// </summary>
+    public static string WorldScriptCatalog(ushort worldId) => $"world:{worldId}:scripts";
 
     // ── Presence (live player observability) ──────────────────────────────────
 

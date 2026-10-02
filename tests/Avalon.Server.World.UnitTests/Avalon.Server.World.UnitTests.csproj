@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12"/>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1"/>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0"/>
     <PackageReference Include="NSubstitute" Version="6.2.0"/>
     <PackageReference Include="NSubstitute.Analyzers.CSharp" Version="1.0.17">
       <PrivateAssets>all</PrivateAssets>
@@ -37,6 +38,9 @@
     <ProjectReference Include="..\..\src\Server\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\..\tools\Avalon.Exporter\Avalon.Exporter.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Balance.Core\Avalon.Balance.Core.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Balance.Data\Avalon.Balance.Data.csproj"/>
+    <ProjectReference Include="..\..\tools\Avalon.ChunkGen\Avalon.ChunkGen.csproj"/>
   </ItemGroup>
 
 </Project>

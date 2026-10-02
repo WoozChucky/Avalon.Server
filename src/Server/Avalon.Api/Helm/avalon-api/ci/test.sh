@@ -22,6 +22,16 @@ grep -A1 "Application__MapAssets__ChunkAssetRoot" <<<"$out" | grep -q '/app/Maps
 grep -A1 "ASPNETCORE_ENVIRONMENT" <<<"$out" | grep -q 'Production'    || { echo "environment missing"; exit 1; }
 ! grep -q "kind: Secret" <<<"$out"                                     || { echo "rendered a Secret despite existingSecret"; exit 1; }
 
+# The public tooltips' default world: only when set, so the API's fallback applies otherwise.
+! grep -q "Application__PublicWorldId" <<<"$out"                       || { echo "publicWorldId must not render unset"; exit 1; }
+pw=$(helm template t . $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicWorldId=2)
+grep -A1 "name: Application__PublicWorldId" <<<"$pw" | grep -q 'value: "2"' || { echo "publicWorldId must render as Application__PublicWorldId"; exit 1; }
+
+# The link previews' public site URL: only when set, so previews leave og:url out otherwise.
+! grep -q "Application__PublicSiteUrl" <<<"$out"                       || { echo "publicSiteUrl must not render unset"; exit 1; }
+ps=$(helm template t . $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicSiteUrl=https://avalon.example)
+grep -A1 "name: Application__PublicSiteUrl" <<<"$ps" | grep -q 'value: "https://avalon.example"' || { echo "publicSiteUrl must render as Application__PublicSiteUrl"; exit 1; }
+
 # Worlds (#523): one world, its keys as named, and no single World/Characters pair any more.
 grep -A4 "name: Database__Worlds__1__World__ConnectionString" <<<"$out" | grep -q 'key: "world-one"'           || { echo "world 1's world string must come from its key"; exit 1; }
 grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$out" | grep -q 'key: "characters-one"' || { echo "world 1's characters string must come from its key"; exit 1; }
@@ -128,4 +138,23 @@ grep -A1 "name: Application__RateLimiting__ClientAuthPermitsPerMinute" <<<"$rl" 
 on=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=true)
 grep -A1 "name: Application__RateLimiting__Enabled" <<<"$on" | grep -q '"true"'                        || { echo "rateLimiting.enabled=true missing"; exit 1; }
 ! grep -q "Application__RateLimiting__AnonymousPermitsPerMinute" <<<"$on"                             || { echo "an unset limit must not render"; exit 1; }
+# Balance service (admin /balance proxy): the URL renders only when set; the secret is always a
+# secretKeyRef, optional, so an unset key leaves the admin endpoints answering 503.
+! grep -q "Application__Balance__Url" <<<"$out"                                                || { echo "balance url rendered without a value"; exit 1; }
+grep -A4 "name: Application__Balance__SharedSecret" <<<"$out" | grep -q "key: balance-shared-secret" || { echo "balance secret must come from the Secret"; exit 1; }
+grep -A5 "name: Application__Balance__SharedSecret" <<<"$out" | grep -q "optional: true"       || { echo "balance secret must be optional"; exit 1; }
+bal=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set balance.url=http://balance-avalon-balance:8080)
+grep -A1 "name: Application__Balance__Url" <<<"$bal" | grep -q '"http://balance-avalon-balance:8080"' || { echo "balance url missing"; exit 1; }
+must_fail "existingSecret + inline balance.sharedSecret must fail" --set existingSecret=x "${W1[@]}" --set balance.sharedSecret=leak
+balsec=$(helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set balance.sharedSecret=s3cret)
+grep -q 'balance-shared-secret: "s3cret"' <<<"$balsec"                                         || { echo "balance secret must reach the chart-managed Secret"; exit 1; }
+# Live template editing: the editable worlds (indexed env) and the reload timeout render only when set.
+! grep -q "Application__Templates__" <<<"$out"                                                 || { echo "templates env rendered without a value"; exit 1; }
+tpl=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set 'templates.editableWorlds={2,5}' --set templates.reloadTimeout=00:00:20)
+grep -A1 "name: Application__Templates__EditableWorlds__0" <<<"$tpl" | grep -q '"2"'           || { echo "editableWorlds[0] missing"; exit 1; }
+grep -A1 "name: Application__Templates__EditableWorlds__1" <<<"$tpl" | grep -q '"5"'           || { echo "editableWorlds[1] missing"; exit 1; }
+! grep -q "Application__Templates__EditableWorlds__2" <<<"$tpl"                                || { echo "rendered an extra editable world"; exit 1; }
+grep -A1 "name: Application__Templates__ReloadTimeout" <<<"$tpl" | grep -q '"00:00:20"'        || { echo "reloadTimeout missing"; exit 1; }
+tpo=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set templates.reloadTimeout=00:00:20)
+! grep -q "Application__Templates__EditableWorlds" <<<"$tpo"                                   || { echo "empty editableWorlds must not render"; exit 1; }
 echo "avalon-api chart OK"

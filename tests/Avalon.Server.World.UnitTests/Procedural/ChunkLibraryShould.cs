@@ -1,8 +1,10 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Creatures;
 using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -179,11 +181,139 @@ public class ChunkLibraryShould
         await Assert.ThrowsAsync<InvalidProceduralConfigException>(() => lib.LoadAsync(CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Throw_when_a_maps_depth_bands_overlap()
+    {
+        var entryChunk = new ChunkTemplate
+        {
+            Id = new ChunkTemplateId(1), Name = "Entry",
+            SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
+            PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
+        };
+        var lib = BuildLibraryWith(
+            templates: new List<ChunkTemplate> { entryChunk },
+            pools: new List<ChunkPool>
+            {
+                new()
+                {
+                    Id = new ChunkPoolId(1),
+                    Memberships = new List<ChunkPoolMembership>
+                    {
+                        new() { ChunkPoolId = new ChunkPoolId(1), ChunkTemplateId = entryChunk.Id, Template = entryChunk }
+                    }
+                }
+            },
+            configs: new List<ProceduralMapConfig>
+            {
+                new()
+                {
+                    MapTemplateId = new MapTemplateId(13),
+                    ChunkPoolId = new ChunkPoolId(1),
+                    SpawnTableId = new SpawnTableId(1),
+                    MainPathMin = 2, MainPathMax = 2,
+                    BackPortalTargetMapId = 1,
+                    DepthBands =
+                    [
+                        new ProceduralDepthBand { MinDepth = 1, MaxDepth = 5, MinLevel = 1, MaxLevel = 3 },
+                        new ProceduralDepthBand { MinDepth = 3, MaxDepth = null, MinLevel = 3, MaxLevel = 6 },
+                    ],
+                }
+            });
+
+        await Assert.ThrowsAsync<InvalidProceduralConfigException>(() => lib.LoadAsync(CancellationToken.None));
+    }
+
+    private static (ChunkTemplate Entry, ChunkPool Pool, List<ChunkTemplate> Templates) PoolWithBossGroup()
+    {
+        var entry = new ChunkTemplate
+        {
+            Id = new ChunkTemplateId(1), Name = "Entry", Exits = 0b_000_000_000_010,
+            SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
+            PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
+        };
+        var a = new ChunkTemplate { Id = new ChunkTemplateId(2), Name = "a", Exits = 0b_000_010_000_000 };
+        var b = new ChunkTemplate { Id = new ChunkTemplateId(3), Name = "b", SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "boss" } } };
+        var pool = new ChunkPool
+        {
+            Id = new ChunkPoolId(1), Name = "p1",
+            Memberships = new List<ChunkPoolMembership>
+            {
+                new() { ChunkPoolId = new ChunkPoolId(1), ChunkTemplateId = entry.Id, Template = entry }
+            },
+            Groups = new List<ChunkGroup>
+            {
+                new()
+                {
+                    Id = 1, Name = "arena", ChunkPoolId = new ChunkPoolId(1),
+                    Members = new List<ChunkGroupMember>
+                    {
+                        new() { ChunkGroupId = 1, ChunkTemplateId = a.Id, CellX = 0, CellZ = 0 },
+                        new() { ChunkGroupId = 1, ChunkTemplateId = b.Id, CellX = 1, CellZ = 0 },
+                    }
+                }
+            }
+        };
+        return (entry, pool, [entry, a, b]);
+    }
+
+    [Fact]
+    public async Task Hand_out_a_pools_groups_with_their_templates()
+    {
+        (_, ChunkPool pool, List<ChunkTemplate> templates) = PoolWithBossGroup();
+        var lib = BuildLibraryWith(templates, [pool], configs: []);
+
+        await lib.LoadAsync(CancellationToken.None);
+
+        ChunkGroupDefinition group = Assert.Single(lib.GetGroupsByPool(new ChunkPoolId(1)));
+        Assert.Equal("arena", group.Name);
+        Assert.Equal(["a", "b"], group.Cells.OrderBy(c => c.CellX).Select(c => c.Template.Name));
+        Assert.Empty(lib.GetGroupsByPool(new ChunkPoolId(9)));
+    }
+
+    [Fact]
+    public async Task Count_a_boss_group_as_the_pools_boss()
+    {
+        (_, ChunkPool pool, List<ChunkTemplate> templates) = PoolWithBossGroup();
+        var lib = BuildLibraryWith(templates, [pool], configs:
+        [
+            new ProceduralMapConfig
+            {
+                MapTemplateId = new MapTemplateId(14), ChunkPoolId = new ChunkPoolId(1), SpawnTableId = new SpawnTableId(1),
+                MainPathMin = 2, MainPathMax = 2, BackPortalTargetMapId = 1, HasBoss = true,
+            }
+        ]);
+
+        await lib.LoadAsync(CancellationToken.None);   // no InvalidProceduralConfigException
+    }
+
+    /// <summary>
+    /// A group whose member template is not loaded is left out; without a warning the forest's start then failed with
+    /// "HasBoss but pool has no boss-capable chunk", which points at the wrong cause.
+    /// </summary>
+    [Fact]
+    public async Task Warn_when_a_group_is_left_out_for_a_member_it_cannot_find()
+    {
+        (_, ChunkPool pool, List<ChunkTemplate> templates) = PoolWithBossGroup();
+        templates.RemoveAll(t => t.Name == "b");
+        var logs = new CreatureAbilitiesShould.ListLogger();
+        var factory = Substitute.For<ILoggerFactory>();
+        factory.CreateLogger(Arg.Any<string>()).Returns(logs);
+        var lib = BuildLibraryWith(templates, [pool], configs: [], factory);
+
+        await lib.LoadAsync(CancellationToken.None);
+
+        Assert.Empty(lib.GetGroupsByPool(new ChunkPoolId(1)));
+        (LogLevel level, string message) = Assert.Single(logs.Entries, e => e.Level >= LogLevel.Warning);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains("'arena'", message, StringComparison.Ordinal);
+    }
+
     // Helper extracts repeated ServiceCollection + scope-factory wiring.
     private static ChunkLibrary BuildLibraryWith(
         IReadOnlyList<ChunkTemplate> templates,
         IReadOnlyList<ChunkPool> pools,
-        IReadOnlyList<ProceduralMapConfig> configs)
+        IReadOnlyList<ProceduralMapConfig> configs,
+        ILoggerFactory? loggerFactory = null)
     {
         var templateRepo = Substitute.For<IChunkTemplateRepository>();
         var poolRepo     = Substitute.For<IChunkPoolRepository>();
@@ -198,7 +328,7 @@ public class ChunkLibraryShould
             .AddScoped(_ => configRepo)
             .BuildServiceProvider();
 
-        return new ChunkLibrary(NullLoggerFactory.Instance, new DummyScopeFactory(services));
+        return new ChunkLibrary(loggerFactory ?? NullLoggerFactory.Instance, new DummyScopeFactory(services));
     }
 
     private sealed class DummyScopeFactory : IServiceScopeFactory

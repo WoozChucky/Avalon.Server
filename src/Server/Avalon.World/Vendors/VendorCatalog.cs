@@ -124,11 +124,9 @@ public sealed class VendorCatalog
         if (!items.TryGetValue(row.ItemTemplateId.Value, out ItemTemplate? item))
             return $"item template {row.ItemTemplateId.Value} does not exist";
 
-        // Selling below what the vendor pays back would let a player buy and sell it forever for a
-        // profit (#432). At exactly the SellPrice the round trip gains nothing.
-        uint price = row.PriceOverride ?? item.BuyPrice;
-        if (price < item.SellPrice)
-            return $"price {price} is below the item's SellPrice {item.SellPrice}; buying and selling it back would make gold";
+        // Quest items are never sold, and the price may not undercut the SellPrice (#432, #433): shared with the API's item edits.
+        if (ItemUseRules.VendorStockProblem(item, row.PriceOverride) is { } itemProblem)
+            return itemProblem;
 
         if (row.MaxStock is not null && row.RestockSeconds is null)
             return "MaxStock is set without RestockSeconds";

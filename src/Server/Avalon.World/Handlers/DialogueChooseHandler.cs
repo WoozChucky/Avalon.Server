@@ -22,8 +22,8 @@ namespace Avalon.World.Handlers;
 /// so they log at information rather than debug — worth seeing.
 /// </summary>
 /// <remarks>
-/// Range is re-checked on every choose, but against the generous dialogue leash
-/// (<see cref="NpcInteraction.LeashRange"/>, 15 m), not the 5 m interact range that opening a
+/// Range is re-checked on every choose, but against the dialogue leash
+/// (<see cref="NpcInteraction.LeashRange"/>, 6 m), not the 5 m interact range that opening a
 /// conversation needs. Stepping back a metre mid-sentence should not slam a window shut, so the
 /// 5 m check would be wrong here. No check at all would be wrong too: <c>CurrentDialogue</c> lives
 /// until the connection leaves the instance, and once an option does something (a vendor, a quest,
@@ -38,7 +38,8 @@ namespace Avalon.World.Handlers;
 /// (#432), each for as long as this conversation stays open.
 /// </remarks>
 [PacketHandler(NetworkPacketType.CMSG_DIALOGUE_CHOOSE)]
-public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld world, IQuestProgress? quests = null)
+public class DialogueChooseHandler(
+    ILogger<DialogueChooseHandler> logger, IWorld world, IQuestProgress? quests = null, QuestService? questService = null)
     : WorldPacketHandler<CDialogueChoosePacket>
 {
     private IDialogueCatalog Dialogue => world.Data.Dialogue;
@@ -111,6 +112,16 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
             return;
         }
 
+        // #433: a negative option id is a quest option; QuestService offers it or ignores it, and the conversation stays.
+        if (packet.OptionId < 0)
+        {
+            if (questService is not null && character is CharacterEntity questing)
+                questService.TryChoose(connection, questing, npc, current, packet.OptionId);
+            else
+                logger.LogInformation("Quest option {Option} chosen with no quest service", packet.OptionId);
+            return;
+        }
+
         DialogueOptionView? chosen = current.Options.FirstOrDefault(o => o.Id.Value == packet.OptionId);
         if (chosen is null)
         {
@@ -144,7 +155,10 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
             RunAction(connection, character, npc, context, action);
 
         connection.CurrentDialogue = (open.Npc, next.Id);
-        InteractHandler.Send(connection, npc, next, character, world.Data);
+        InteractHandler.Send(connection, npc, next, character, world.Data,
+            questService is not null && character is CharacterEntity questing2
+                ? questService.DialogueOptionsFor(connection, questing2, npc, next)
+                : null);
     }
 
     private static void End(IWorldConnection connection, ObjectGuid npc) =>

@@ -19,6 +19,7 @@ setters. Per-creature state lives on `ICreature`.
 ### Stats are derived at spawn
 
 `CreatureSpawner.Spawn` rolls a level between the template's `MinLevel` and `MaxLevel` (at least 1),
+unless a procedural map's depth band chooses the level (`ICreatureSpawner.Spawn(CreatureInfo, ushort level)`),
 then asks `CreatureStatDeriver.Derive` for the stats that level gives:
 
 1. Look up the `CreatureBaseStats` row for the level: `Health`, `DamageMin`, `DamageMax` and
@@ -62,7 +63,8 @@ The result is stored on the creature as `ICreature.Experience`. That is what a k
 
 `CreatureSpawner.Spawn` also sets the creature's `Name`, its speed (the template's `SpeedWalk`),
 `ScriptName`, `Invulnerable`, `BodyRadius` (the default radius when the template's is not a finite
-value above 0), and `CanInteract`, fixed at spawn from the dialogue catalog. A creature's casts are
+value above 0), `CanInteract`, fixed at spawn from the dialogue catalog, and `Rarity`, the template's,
+which the client is sent as `ObjectState.Rarity` for a coloured nameplate (#709). A creature's casts are
 free (#163), so it has no pool and `Power` is 0. Its abilities are not set here: its script loads them
 when it attaches (see Abilities under Combat).
 
@@ -87,7 +89,9 @@ template with an old deriver.
 For each chunk spawn slot, skipping the `empty` and `entry` tags, the service picks one
 `SpawnTableEntry` with the slot's tag, weighted by `Weight`, and spawns between `MinCount` and
 `MaxCount` of that creature. A single creature stands on the slot's centre. A pack is spread at
-random within 1.5 m of it on each axis. The random seed is the layout's seed.
+random within 1.5 m of it on each axis. The random seed is the layout's seed. On a map with depth
+bands the level comes from the piece's band, and a `leader` slot rolls its `leader_pack` around the
+leader; see "Depth and depth bands" in [map-generation.md](map-generation.md).
 
 ### Authored: `PlaceAuthoredAsync`
 
@@ -328,14 +332,22 @@ is not in the instance. Otherwise, in order:
 3. Melee slots are released both ways: the slot the creature held, and the ring on it.
 4. The corpse remover schedules its removal.
 5. Loot drops, whoever the killer is.
-6. If the killer is a character, it gains experience and may level up.
+6. The kill's experience is shared among the characters eligible for it, and each may level up.
+
+Who shares the kill is decided first, once, before step 1, while the creature is still in its
+encounter (`PartyEligibility`): a killer in no party alone; in a party, every member in the same
+instance, alive or dead, who is in the creature's encounter or within `PartyEligibilityRange`
+(60 m) of the corpse on X/Z, the killer always, and never a character in a party leave countdown
+(a killer in one makes nobody eligible). CLAUDE.md's Parties section has the rules.
 
 ### Loot
 
 `ILootRoller` rolls the template's `LootTableId` and its `MinGold`/`MaxGold` range (copper).
-`ILootAllocator` picks an owner. The only implementation, `InstanceOwnerLootAllocator`, reserves
-every drop for the instance's owner for `GameConfiguration.LootGracePeriod` (default 30 s). In an
-instance with no owner, such as a town, every drop is free for all at once. The drops are placed
+`ILootAllocator` picks an owner for each drop on its own. The only implementation,
+`PartyLootAllocator`, reserves every drop of a solo instance for its owner character, and each drop
+of a party's instance for one eligible member drawn at random (through `ICombatRandom`), in both
+cases for `GameConfiguration.LootGracePeriod` (default 30 s). In an instance with neither owner,
+such as a town, and for a party kill with nobody eligible, every drop is free for all at once. The drops are placed
 around the corpse, kept in the instance's `GroundLootStore`, and broadcast with `SLootSpawnedPacket`.
 A loot failure is logged, and the kill still counts.
 
@@ -343,16 +355,25 @@ CLAUDE.md's World Simulation section describes loot tables and pickup.
 
 ### Experience and level-up
 
-The award is the creature's `Experience`, scaled by the map's level band:
+The creature's `Experience` is first split among the eligible characters (`PartyExperience`): a
+character `PartyExperienceLevelGap` (5) or more levels above the creature, or one that can gain no
+experience (at the maximum level or before a gap in the levels, #735), gets nothing and is not counted, solo too; one counted character gets all of it; several share
+`xp × (1 + PartyExperienceBonusPerExtra × (n − 1))`, evenly or by level as the party's mode says.
+Each share is then scaled by the map's level band, for that character:
 
 - A map with no band (`MapTemplate.MinLevel` or `MaxLevel` unset) scales by 1.
 - Otherwise the award is multiplied by `ExperienceBandDecay` (default 0.75) once for each level the
   character sits outside the band. Inside the band it is not scaled.
 
-If the character's experience plus the award reaches the requirement for its level
-(`CharacterLevelExperiences`), the character gains one level and keeps the overflow. Its stats are
-then recalculated: a living killer is refilled to the new maximums, and a dead one keeps its share of
-each pool, so it is not revived. A level with no requirement row logs a warning and awards nothing.
+The award then goes through `ExperienceAward.Grant`, the one level-up helper kills and quest turn-ins share. While
+the character's experience reaches the requirement for its level (`CharacterLevelExperiences`), it gains that level and
+carries the rest, as many levels as the award covers. A character can gain experience only while its level and the
+next both have a row (`ExperienceAward.CanGainExperience`, #735). So at the maximum level (the highest row, 15 today),
+and on a level whose next level is missing (a gap, treated exactly like the maximum), a character gains no experience
+from any source, and an award that levels a character onto such a level stops there and discards the rest, so the
+character arrives with 0. Nothing is logged for either. Copper and items are paid at the cap as anywhere else. After each level-up the stats are
+recalculated: a living character is refilled to the new maximums, and a dead one keeps its share of each pool, so it is
+not revived. A character whose current level has no row (none does today) logs a warning and is awarded nothing.
 
 ---
 
@@ -379,11 +400,10 @@ These `CreatureTemplate` fields are deliberately unread. Do not assume any of th
 
 | Field | Why |
 |---|---|
-| `RespawnTimerSecs` | Creatures do not respawn. Kept for a future revival mechanic. |
 | `ManaModifier` | A creature's casts are free, and it has no pool (#163). |
 | `RegenHealth` | Creatures do not regenerate health. |
 
-`RangeAttackTime`, `DmgSchool`, `AIName`, `MovementType`, `MovementId` and `Family` are not read by
+`RangeAttackTime`, `DmgSchool`, `MovementType`, `MovementId` and `Family` are not read by
 the world server either.
 
 ---

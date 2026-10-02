@@ -1,6 +1,6 @@
-using Avalon.Server.World.UnitTests.Loot;
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
@@ -11,10 +11,12 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Characters;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
+using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Maintenance;
@@ -43,6 +45,20 @@ public class CharacterSelectChainShould : IDisposable
     private static readonly CharacterId TheCharacter = new(7);
     private static readonly CharacterId AnotherCharacter = new(8);
     private static readonly AccountId TheAccount = new(42L);
+
+    /// <summary>
+    /// How long a test waits for work that finishes on the thread pool (a save chain, a read) before
+    /// it fails. It decides nothing: no outcome under test is timed on the wall clock (the select's
+    /// save wait runs on <see cref="_clock" />), so a slow runner only makes a test slower, and this
+    /// bound only stops a broken one from hanging.
+    /// </summary>
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The select handler's clock. It moves only when a test advances it, so the save wait runs out
+    /// exactly when a test says so and never on its own while a test is waiting for a save.
+    /// </summary>
+    private readonly ManualTimerClock _clock = new();
 
     private readonly TcpClient _clientSide;
     private readonly TcpClient _serverSide;
@@ -284,7 +300,7 @@ public class CharacterSelectChainShould : IDisposable
         repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
-                await gate.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await gate.Task.WaitAsync(Patience);
                 Volatile.Write(ref committed, 1);
             });
         var saver = new CharacterSaver(repository, NullLogger<CharacterSaver>.Instance);
@@ -300,10 +316,14 @@ public class CharacterSelectChainShould : IDisposable
 
         Assert.False(read.Task.IsCompleted, "the select read the character while its save was still in flight");
 
+        // The select's save wait is on _clock, which never moves here, so only the commit can end it:
+        // however slowly the runner gets the save to commit, the select cannot give up first.
         gate.SetResult();
-        Assert.True(await despawn.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.True(await read.Task.WaitAsync(TimeSpan.FromSeconds(5)), "the read ran before the commit");
+        Assert.True(await despawn.WaitAsync(Patience));
+        Assert.True(await read.Task.WaitAsync(Patience), "the read ran before the commit");
 
+        // The read is recorded as it is made, a moment before the step holding it completes on the
+        // thread pool, so the chain's next flush is polled for rather than stepped once.
         await WaitUntilAsync(() => _connection.PendingSpawn != null || StepOnce());
         Assert.NotNull(_connection.PendingSpawn);
     }
@@ -324,7 +344,17 @@ public class CharacterSelectChainShould : IDisposable
         select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
         Assert.True(_connection.SelectInProgress);
 
-        await WaitUntilAsync(() => !_connection.SelectInProgress || StepOnce());
+        // Just short of the limit the select is still waiting.
+        _clock.Advance(TimeSpan.FromMilliseconds(49));
+        Step(3);
+        Assert.True(_connection.SelectInProgress, "the select gave up before its save wait ran out");
+
+        // The limit runs out inside Advance: the wait's timer fires on this thread, and the step it
+        // ended completes with it, so the next flush runs the chain's give-up. No real timer races
+        // a real deadline.
+        _clock.Advance(TimeSpan.FromMilliseconds(1));
+        Step();
+        Assert.False(_connection.SelectInProgress, "the select was still waiting after its save wait ran out");
         Step(3); // anything the failed select might still have queued
 
         await _characters.DidNotReceiveWithAnyArgs().FindByIdAndAccountAsync(default!, default!, default);
@@ -389,6 +419,8 @@ public class CharacterSelectChainShould : IDisposable
         select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
         select.Execute(kicker, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
 
+        // The kicker's save wait is on _clock, which never moves here, so only the held step can end
+        // it: the delay gives a premature read a chance to show, and cannot time the wait out.
         await Task.Delay(100);
         Assert.False(readByKicker.Task.IsCompleted, "the new select read while the kicked one still had a read in flight");
 
@@ -398,7 +430,7 @@ public class CharacterSelectChainShould : IDisposable
             Level = 1, Map = TownMapId
         });
 
-        await readByKicker.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await readByKicker.Task.WaitAsync(Patience);
         Step(6);
         Assert.Null(_connection.PendingSpawn);
         await _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default(Character)!, default);
@@ -448,10 +480,13 @@ public class CharacterSelectChainShould : IDisposable
         Assert.Equal(2, gate.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IWorldEntryGate.CheckAsync)));
     }
 
-    /// <summary>Polls, bounded, for work that finishes on the thread pool.</summary>
+    /// <summary>
+    /// Polls for work that finishes on the thread pool, not on a timer, bounded by
+    /// <see cref="Patience" /> only so a broken chain fails instead of hanging.
+    /// </summary>
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        DateTime deadline = DateTime.UtcNow + Patience;
         while (!condition())
         {
             Assert.True(DateTime.UtcNow < deadline, "timed out waiting for the select chain");
@@ -460,7 +495,7 @@ public class CharacterSelectChainShould : IDisposable
     }
 
     private CharacterSelectHandler BuildSelectHandler(ICharacterSaver? saver = null, TimeSpan? saveWaitLimit = null,
-        IWorldServer? worldServer = null, IWorldEntryGate? entryGate = null)
+        IWorldServer? worldServer = null, IAccountRepository? accounts = null, IWorldEntryGate? entryGate = null)
     {
         var row = new Character
         {
@@ -518,9 +553,11 @@ public class CharacterSelectChainShould : IDisposable
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
-            Substitute.For<IAccountRepository>(),
+            accounts ?? Substitute.For<IAccountRepository>(),
             saver ?? Substitute.For<ICharacterSaver>(),
-            worldServer ?? Substitute.For<IWorldServer>(), entryGate: entryGate)
+            worldServer ?? Substitute.For<IWorldServer>(),
+            _clock,
+            entryGate: entryGate)
         {
             SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
         };
@@ -548,6 +585,55 @@ public class CharacterSelectChainShould : IDisposable
         _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(rows);
         _itemInstances.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(instances);
+    }
+
+    /// <summary>
+    /// #433: the account lookup that carries the locale is not ordered with the select chain. When it lands after
+    /// the pending spawn exists, the character's quest lines must still follow the account's locale, not the
+    /// connection's enUS default the spawn copied.
+    /// </summary>
+    [Fact]
+    public void Give_the_selected_character_the_accounts_locale_when_the_lookup_lands_after_the_spawn()
+    {
+        var lookup = new TaskCompletionSource<Avalon.Domain.Auth.Account?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var accounts = Substitute.For<IAccountRepository>();
+        accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(lookup.Task);
+        CharacterSelectHandler select = BuildSelectHandler(accounts: accounts);
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        Step(6);
+        var character = (CharacterEntity)_connection.PendingSpawn!.Character;
+        Assert.Equal(Avalon.Common.Accounts.AccountLocale.enUS, character.Quests.Locale);
+
+        lookup.SetResult(AccountIn(Avalon.Common.Accounts.AccountLocale.deDE));
+        Step();
+
+        Assert.Equal(Avalon.Common.Accounts.AccountLocale.deDE, _connection.Locale);
+        Assert.Equal(Avalon.Common.Accounts.AccountLocale.deDE, character.Quests.Locale);
+    }
+
+    private static Avalon.Domain.Auth.Account AccountIn(Avalon.Common.Accounts.AccountLocale locale) => new()
+    {
+        Id = TheAccount, Username = "TESTER", Salt = [], Verifier = [], Email = "tester@example.com",
+        JoinDate = DateTime.UnixEpoch, Locale = locale,
+    };
+
+    /// <summary>
+    /// The account lookup landing before the spawn: Spawn copies the connection's locale onto the character.
+    /// </summary>
+    [Fact]
+    public void Give_the_selected_character_the_accounts_locale_when_the_lookup_lands_first()
+    {
+        var accounts = Substitute.For<IAccountRepository>();
+        accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Avalon.Domain.Auth.Account?>(AccountIn(Avalon.Common.Accounts.AccountLocale.frFR)));
+        CharacterSelectHandler select = BuildSelectHandler(accounts: accounts);
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        Step(6);
+
+        Assert.Equal(Avalon.Common.Accounts.AccountLocale.frFR,
+            ((CharacterEntity)_connection.PendingSpawn!.Character).Quests.Locale);
     }
 
     /// <summary>

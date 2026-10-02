@@ -1,0 +1,98 @@
+{{- /* Rendering the Secret template here makes a missing or short sharedSecret fail the whole chart. */}}
+{{- $secretTemplate := include (print $.Template.BasePath "/secret.yaml") . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "avalon-balance.fullname" . }}
+  labels:
+    {{- include "avalon-balance.labels" . | nindent 4 }}
+spec:
+  # One replica: the run queue and finished results live in memory.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "avalon-balance.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- if not .Values.existingSecret }}
+        # Rolls the pod when a chart-managed secret changes.
+        checksum/secret: {{ $secretTemplate | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "avalon-balance.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            # Secrets come from the Secret (templates/secret.yaml or existingSecret), never as plain values.
+            - name: Balance__SharedSecret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-balance.secretName" . }}
+                  key: balance-shared-secret
+            - name: Balance__GitHubToken
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-balance.secretName" . }}
+                  key: github-token
+                  optional: true
+            # Not secret.
+            - name: Balance__Repository
+              value: {{ .Values.repository | quote }}
+            - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
+              value: "false"
+            {{- with .Values.otel.endpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ $.Values.otel.serviceName | default (include "avalon-balance.fullname" $) | quote }}
+            {{- $attrs := list }}
+            {{- range $key, $value := $.Values.otel.resourceAttributes }}
+            {{- $attrs = append $attrs (printf "%s=%v" $key $value) }}
+            {{- end }}
+            {{- with $attrs }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- end }}
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          # /alive and /health are exempt from the X-Balance-Secret check.
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

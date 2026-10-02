@@ -1,0 +1,175 @@
+{
+  "runs": 1000,
+  "seed": 672,
+  "levels": [
+    1,
+    10
+  ],
+  "classes": [
+    "Warrior",
+    "Wizard",
+    "Hunter",
+    "Healer"
+  ],
+  "gear": [
+    "none",
+    "starter",
+    "forest"
+  ],
+  "scenarios": [
+    {
+      "id": "normal-1",
+      "pack": [
+        {
+          "rarity": "Normal",
+          "count": 1
+        }
+      ],
+      "levelOffset": 0
+    },
+    {
+      "id": "normal-3",
+      "pack": [
+        {
+          "rarity": "Normal",
+          "count": 3
+        }
+      ],
+      "levelOffset": 0
+    },
+    {
+      "id": "normal-3-plus2",
+      "pack": [
+        {
+          "rarity": "Normal",
+          "count": 3
+        }
+      ],
+      "levelOffset": 2
+    },
+    {
+      "id": "elite-1",
+      "pack": [
+        {
+          "rarity": "Elite",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "elite-plus-2",
+      "pack": [
+        {
+          "rarity": "Elite",
+          "count": 1
+        },
+        {
+          "rarity": "Normal",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "rare-1",
+      "pack": [
+        {
+          "rarity": "Rare",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "boss-1",
+      "pack": [
+        {
+          "rarity": "Boss",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "forest-real",
+      "pack": [
+        {
+          "template": 5,
+          "count": 2
+        },
+        {
+          "template": 7,
+          "count": 1
+        }
+      ],
+      "levelOffset": "template"
+    }
+  ],
+  "gearProfiles": {
+    "starter": {
+      "Warrior": [
+        32,
+        36,
+        37,
+        38,
+        39,
+        40
+      ],
+      "Wizard": [
+        33,
+        41,
+        42,
+        43,
+        44,
+        45
+      ],
+      "Hunter": [
+        34,
+        46,
+        47,
+        48,
+        49,
+        50
+      ],
+      "Healer": [
+        35,
+        51,
+        52,
+        53,
+        54,
+        55
+      ]
+    },
+    "forest": {
+      "Warrior": [
+        7,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      "Wizard": [
+        5,
+        17,
+        18,
+        19,
+        20,
+        21
+      ],
+      "Hunter": [
+        6,
+        22,
+        23,
+        24,
+        25,
+        26
+      ],
+      "Healer": [
+        8,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    }
+  }
+}

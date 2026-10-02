@@ -71,19 +71,24 @@ public static class ItemSchema
                 continue;
             }
 
-            // Nullable means the declaration says the value may be absent: `T?` on a value type.
-            // Reference types are not inferred here -- a ValueObject wrapper like ItemTemplateId is
-            // a class but is never absent, and saying otherwise would tell the client that a
-            // primary key is optional. Name is the one reference type that is null in practice,
-            // and the catalog coalesces it to "" rather than describing it as optional.
+            // Nullable means the declaration says the value may be absent: `T?` on a value type, or
+            // `string?` on a string (UseScript, UseCooldownGroup), read from the nullable
+            // annotation. Other reference types are not inferred -- a ValueObject wrapper like
+            // ItemTemplateId is a class but is never absent, and saying otherwise would tell the
+            // client that a primary key is optional. Name is a plain string, so it stays required:
+            // the catalog coalesces a missing one to "" rather than describing it as optional.
             yield return new SchemaField(
                 Name: property.Name,
                 Type: TypeNameOf(actual),
-                Nullable: nullable is not null,
+                Nullable: nullable is not null || IsNullableString(property),
                 Element: null,
                 Enum: actual.IsEnum ? actual.Name : null);
         }
     }
+
+    private static bool IsNullableString(PropertyInfo property) =>
+        property.PropertyType == typeof(string)
+        && new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable;
 
     // Scalar shapes only -- List<T> is handled in Fields(), not here. See the comment there.
     private static string TypeNameOf(Type type)

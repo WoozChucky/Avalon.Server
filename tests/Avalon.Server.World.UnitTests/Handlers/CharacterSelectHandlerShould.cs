@@ -1,7 +1,5 @@
-using Avalon.World.Characters;
-using Avalon.Network.Packets.Abilities;
-using Avalon.Server.World.UnitTests.Loot;
 using System.IO;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
@@ -11,12 +9,16 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Loot;
+using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World;
+using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -27,6 +29,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Quests;
 using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -66,7 +69,10 @@ public class CharacterSelectHandlerShould
         int storedHealth = 0,
         IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null,
         int storedPower = 0,
-        GameConfiguration? game = null)
+        GameConfiguration? game = null,
+        ICharacterQuestRepository? quests = null,
+        QuestService? questService = null,
+        ICharacterIgnoreRepository? ignores = null)
     {
         var row = new Character
         {
@@ -145,6 +151,8 @@ public class CharacterSelectHandlerShould
         RunContinuationsInline<IReadOnlyCollection<CharacterInventory>>(connection);
         RunContinuationsInline<IReadOnlyList<ItemInstance>>(connection);
         RunContinuationsInline<IReadOnlyCollection<CharacterAbility>>(connection);
+        RunContinuationsInline<CharacterQuestRows>(connection);
+        RunContinuationsInline<IReadOnlyList<IgnoredCharacterRow>>(connection);
 
         var handler = new CharacterSelectHandler(
             NullLogger<CharacterSelectHandler>.Instance,
@@ -159,7 +167,11 @@ public class CharacterSelectHandlerShould
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>());
+            Substitute.For<IWorldServer>(),
+            null,
+            quests,
+            questService,
+            ignores);
 
         return new Fixture
         {
@@ -279,6 +291,81 @@ public class CharacterSelectHandlerShould
 
         f.World.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
         Assert.Null(f.Connection.Character);
+        f.Connection.Received(1).SetPendingSpawn(Arg.Any<ICharacter>(), f.Instance, Arg.Any<long>());
+    }
+
+    [Fact]
+    public async Task Load_the_quest_log_before_the_pending_spawn()
+    {
+        var quests = Substitute.For<ICharacterQuestRepository>();
+        quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
+            [new CharacterQuest { CharacterId = TheCharacter, QuestId = 5, State = CharacterQuestState.Active, Stage = 1 }],
+            [new CharacterQuestObjective { CharacterId = TheCharacter, QuestId = 5, ObjectiveId = 51, Progress = 2 }],
+            []));
+        Fixture f = await BuildAsync(quests: quests);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        f.Connection.Received(1).SetPendingSpawn(
+            Arg.Is<ICharacter>(c => ((CharacterEntity)c).Quests.Get(5)!.ProgressOf(51) == 2), f.Instance, Arg.Any<long>());
+    }
+
+    /// <summary>
+    /// #433 review fix: with the bag and the quest log both loaded, select counts the quest items the bag holds, so a
+    /// log-in never shows a Collect count the bag no longer matches. Here the saved count is 0 and the bag holds both.
+    /// </summary>
+    [Fact]
+    public async Task Count_the_quest_items_in_the_bag_once_the_bag_and_the_log_are_loaded()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        var quests = Substitute.For<ICharacterQuestRepository>();
+        quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
+            [new CharacterQuest { CharacterId = TheCharacter, QuestId = QuestTestData.Tusks, State = CharacterQuestState.Active, Stage = 0 }],
+            [new CharacterQuestObjective { CharacterId = TheCharacter, QuestId = QuestTestData.Tusks, ObjectiveId = QuestTestData.TusksCollect, Progress = 0 }],
+            []));
+        (List<CharacterInventory> rows, List<ItemInstance> instances) =
+            BuildInventory((InventoryType.Bag, 0, QuestTestData.Tusk, 2, 0, ItemInstanceFlags.None));
+        Fixture f = await BuildAsync(rows, instances, itemTemplates: [QuestTestData.TuskItem()], quests: quests, questService: w.Quests);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        f.Connection.Received(1).SetPendingSpawn(
+            Arg.Is<ICharacter>(c => ((CharacterEntity)c).Quests.Get(QuestTestData.Tusks)!.ProgressOf(QuestTestData.TusksCollect) == 2
+                                    && ((CharacterEntity)c).Quests.Get(QuestTestData.Tusks)!.State == CharacterQuestState.ReadyToTurnIn),
+            f.Instance, Arg.Any<long>());
+    }
+
+    /// <summary>
+    /// #723: the ignore list is loaded before the pending spawn, so the character ignores from its first tick in the
+    /// world, and the whole list is sent with the rest of what select sends.
+    /// </summary>
+    [Fact]
+    public async Task Load_the_ignore_list_before_the_pending_spawn_and_send_it()
+    {
+        var ignores = Substitute.For<ICharacterIgnoreRepository>();
+        ignores.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(
+            (IReadOnlyList<IgnoredCharacterRow>)[new IgnoredCharacterRow(9u, "Borin", DateTime.UtcNow)]);
+        Fixture f = await BuildAsync(ignores: ignores);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        f.Connection.Received(1).SetPendingSpawn(
+            Arg.Is<ICharacter>(c => ((CharacterEntity)c).Ignores.Contains(9)), f.Instance, Arg.Any<long>());
+        NetworkPacket list = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_IGNORE_LIST);
+        using var stream = new MemoryStream(list.Payload);
+        var dto = Assert.Single(Serializer.Deserialize<Avalon.Network.Packets.Social.SIgnoreListPacket>(stream).Characters);
+        Assert.Equal((9u, "Borin"), (dto.CharacterId, dto.Name));
+    }
+
+    /// <summary>#723: without a repository (a handler built outside the container) the list is empty, and still sent.</summary>
+    [Fact]
+    public async Task Send_an_empty_ignore_list_without_a_repository()
+    {
+        Fixture f = await BuildAsync();
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        Assert.Contains(NetworkPacketType.SMSG_IGNORE_LIST, f.Sent);
         f.Connection.Received(1).SetPendingSpawn(Arg.Any<ICharacter>(), f.Instance, Arg.Any<long>());
     }
 

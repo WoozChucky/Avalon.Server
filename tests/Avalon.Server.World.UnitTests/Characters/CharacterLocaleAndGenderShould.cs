@@ -1,6 +1,6 @@
-using Avalon.Server.World.UnitTests.Loot;
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
@@ -9,6 +9,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Hosting.Networking;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -199,7 +200,7 @@ public class CharacterLocaleAndGenderShould
             localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            dialogue, LootRepositories.Empty());
+            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off());
 
         await world.LoadAsync(CancellationToken.None);
         return (world, characterRepository);

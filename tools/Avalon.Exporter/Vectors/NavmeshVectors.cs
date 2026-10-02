@@ -77,54 +77,70 @@ public static class NavmeshVectors
     private static readonly IReadOnlyList<LayoutSpec> Layouts =
     [
         // The live town: four chunks, unrotated, walled apart along x = 30 and z = 30 with doorways
-        // at 12..18 and 42..48. The one layout a player has actually stood in.
+        // at 12..18 and 42..48, and since the town beautification built up with solid buildings and
+        // props (tools/Avalon.ChunkGen/TownPieces.cs). The one layout a player has actually stood in.
         new("town", 30f,
             [
                 Ray(15f, 15f, 16f, 15f, "open floor, one metre"),
                 Ray(15f, 15f, 25f, 15f, "open floor, the length of a tile and then some"),
-                Ray(45f, 45f, 35f, 35f, "open floor, diagonal, north-east quadrant"),
+                Ray(45f, 45f, 35f, 35f, "diagonal, north-east quadrant, starting on the well's rim"),
 
                 // Tile world size is 32 * 0.3 = 9.6, and the grid starts at the geometry's own
                 // minimum, so the seams fall at -0.25 + k * 9.6: 9.35, 18.95, 28.55. Agent values
                 // handed to a tile header in VOXELS rather than world units are observable only
-                // across a seam, so these cross one, two and several of them.
-                Ray(5f, 5f, 15f, 5f, "crosses the x = 9.35 tile seam"),
-                Ray(5f, 5f, 25f, 5f, "crosses the x = 9.35 and 18.95 tile seams"),
-                Ray(5f, 14f, 25f, 14f, "crosses two seams a metre below the z = 14.35 one"),
-                Ray(14f, 5f, 14f, 25f, "the same, on z -- a transposed tile index lands elsewhere"),
+                // across a seam, so these cross one, two and several of them. They run on the arrival square's
+                // open floor, south of the town hall and west of the fountain, clear of the buildings.
+                Ray(5f, 15f, 15f, 15f, "crosses the x = 9.35 tile seam"),
+                Ray(5f, 15f, 25f, 15f, "crosses the x = 9.35 and 18.95 tile seams"),
+                Ray(5f, 17.95f, 25f, 17.95f, "crosses two seams a metre below the z = 18.95 one"),
+                Ray(6f, 3f, 6f, 25f, "the same, on z -- a transposed tile index lands elsewhere"),
 
                 // A SHALLOW diagonal, not a 45-degree one. A ray along x = z from an integer start
                 // passes exactly through the point where four tiles meet, and Detour cannot step a
                 // raycast through a vertex: it clamps there, on a knife edge that two Recast
-                // implementations may fall on either side of. This crosses every seam on both axes
-                // without ever crossing a tile corner.
-                Ray(2f, 3f, 27f, 28f, "shallow diagonal across the seams on both axes"),
+                // implementations may fall on either side of. This crosses two seams on each axis
+                // without ever coming within a metre of a tile corner, on the portal square's open
+                // ground west of the arch and north of the cart.
+                Ray(3f, 38f, 19f, 52f, "shallow diagonal across the seams on both axes"),
 
                 // Into walls, from several angles and distances. The navmesh is eroded by the agent
                 // radius before a polygon reaches a wall, so these clamp short of the wall's face.
-                Ray(25f, 25f, 35f, 25f, "head-on into the x = 30 wall"),
-                Ray(20f, 25f, 40f, 25f, "the same wall from twice the distance"),
-                // 45 degrees at the corner where both walls meet -- and it stops at the TILE corner
-                // (28.55) rather than at either wall's eroded face (28.85, where the head-on row
-                // above stops). The barrier is a polygon edge on the tile seam, not the wall.
-                Ray(25f, 25f, 35f, 35f, "45 degrees, clamping on the tile corner short of the walls"),
-                Ray(25f, 5f, 25f, 35f, "north into the z = 30 wall"),
+                Ray(25f, 3f, 35f, 3f, "head-on into the x = 30 wall"),
+                Ray(20f, 3f, 40f, 3f, "the same line from twice the distance"),
+                Ray(26f, 4f, 36f, -6f, "45 degrees into the corner where the x = 30 and z = 0 walls meet"),
+                Ray(25f, 5f, 25f, 35f, "starts within the agent radius of the bench at (24, 5.25): no step"),
                 Ray(28.9f, 25f, 35f, 25f, "flush against the x = 30 wall, pointing into it"),
-                Ray(25f, 28.9f, 25f, 5f, "flush against the z = 30 wall, pointing away from it"),
+                Ray(25f, 28.9f, 25f, 5f, "flush against the z = 30 wall, south until the town hall"),
 
                 // The doorways: 12..18 and 42..48 are open, so these cross a chunk seam and arrive.
                 Ray(15f, 25f, 15f, 35f, "through the z = 30 doorway at x = 15"),
                 Ray(25f, 45f, 35f, 45f, "through the x = 30 doorway at z = 45"),
-                Ray(15f, 25f, 45f, 25f, "at the doorways' own centre line but across a wall"),
+                Ray(15f, 25f, 45f, 25f, "at the doorways' centre line, east, stopped at the edge of the town hall's porch step"),
 
                 Ray(9000f, 9000f, 9001f, 9000f, "starts off the mesh entirely", y: 0f),
                 Ray(-5f, 15f, 15f, 15f, "starts outside the town's west edge", y: 0f),
+
+                // The buildings and props of the town beautification: a solid facade, a porch deck
+                // reached over its step, the gate arch's opening, and a prop too tall to climb.
+                Ray(15f, 23f, 25f, 23f, "east onto the town hall's porch, stopping short of its body"),
+                Ray(15f, 35f, 15f, 45f, "north under the gate arch to the portal"),
+                Ray(50f, 45f, 50f, 50f, "north onto the inn's porch step and deck"),
+                Ray(15f, 3f, 15f, 12f, "starts within the agent radius of the bench south of the fountain: no step"),
+                Ray(45f, 20f, 58f, 15f, "east across the market toward the armourer's stall"),
             ],
             [
                 Ground(15f, 15f, "open floor, south-west quadrant"),
-                Ground(45f, 45f, "open floor, north-east quadrant"),
-                Ground(9.35f, 9.35f, "on the tile corner at 9.35"),
-                Ground(28f, 25f, "two metres from the x = 30 wall"),
+                Ground(45f, 45f, "on the well's rim: no polygon under the point, only beside it, so the height asked is given back"),
+                // The decks sit under porch roofs whose tops are walkable islands; sampled from a metre
+                // up, as a player standing on them is, so the deck is the nearest polygon.
+                Ground(50f, 50f, "on the inn's porch deck", y: 1f),
+                Ground(36.8f, 49.4f, "on the bank's lower step"),
+                Ground(19f, 23f, "on the town hall's porch deck", y: 1f),
+                // Sampled from above the eaves: the building's floor inside is an island too, and from lower
+                // down it is the nearer polygon.
+                Ground(21.5f, 20f, "inside the town hall: the island on its roof", y: 7f),
+                Ground(9.35f, 9.35f, "on the tile corner at 9.35, open floor"),
+                Ground(28f, 8f, "two metres from the x = 30 wall"),
                 Ground(15f, 30f, "in the z = 30 doorway"),
                 Ground(30f, 25f, "inside the x = 30 wall itself -- off the mesh"),
                 Ground(15f, 15f, "open floor, sampled from five metres BELOW it", y: -5f),
@@ -418,6 +434,9 @@ public static class NavmeshVectors
 
         public IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids) =>
             ids.ToDictionary(id => id, GetById);
+
+        public IReadOnlyList<ChunkGroupDefinition> GetGroupsByPool(ChunkPoolId poolId) =>
+            throw new NotSupportedException("The navmesh export places chunks itself; it selects none.");
     }
 
     private const string Header = """
@@ -470,13 +489,18 @@ public static class NavmeshVectors
         # it differs between implementations even when the navmesh is identical.
         #
         # HEIGHT COVERAGE IS BOUNDED BY THE CHUNK LIBRARY, and that is a real gap rather than an
-        # oversight. Every chunk .obj the server ships is a flat slab: a town floor's top face is at
-        # local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical, so nothing above
-        # a floor is walkable at all. The 'forest-floors' layout puts the two floor heights beside
-        # each other -- the largest vertical variation a layout composed from real chunks can produce
-        # -- and its ground rows all come back at one height, because 5 cm is a quarter of the bake's
-        # 0.2 cell height and both floors quantise to the same voxel. So these vectors pin
-        # SampleGroundHeight at a single height.
+        # oversight. Every chunk floor the server ships is a flat slab: a town floor's top face is at
+        # local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical. The town squares
+        # carry buildings and props besides (solids the bake cuts around; every prop's top is over
+        # 1 m, above the 0.9 m climb, so each stops a walk) and walkable risers of 0.1-0.3 m
+        # (porch decks, the bank's steps), which quantise into the same 0.2 m voxel as the floor
+        # beside them. The 'forest-floors' layout puts the two floor heights beside each other -- the
+        # largest vertical variation two floors can produce -- and its ground rows all come back at
+        # one height, because 5 cm is a quarter of the bake's 0.2 cell height and both floors quantise
+        # to the same voxel. So these vectors pin SampleGroundHeight at a single height on open
+        # ground, and the town's deck and step rows at whatever voxel the bake gives a riser.
+        # Building interiors and roof tops bake as navmesh islands that nothing reaches (the
+        # forest's blocker tops do too); a ground query over one answers the island's height.
         #
         # THAT FLATNESS HAS A SECOND CONSEQUENCE, and it is the one easier to miss: the agent values
         # written into each TILE HEADER are unpinned by anything here. Detour reads walkableHeight

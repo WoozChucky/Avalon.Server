@@ -1,5 +1,4 @@
 using Avalon.Common.Accounts;
-using Avalon.Network.Packets.Social;
 
 namespace Avalon.World.Chat;
 
@@ -8,7 +7,12 @@ public interface ICommand
     string Name { get; }
     string[] Aliases { get; }
 
-    Task ExecuteAsync(WorldPacketContext<CChatMessagePacket> ctx, string[] args, CancellationToken token = default);
+    /// <summary>
+    /// Runs on the tick, to completion, and cannot await. Asynchronous work goes through
+    /// <see cref="CommandContext.Then{T}" />. <c>CommandsNeverBlockTheTickShould</c> fails any command with
+    /// an async method or a blocking wait on a task.
+    /// </summary>
+    void Execute(CommandContext ctx, string[] args);
 
     /// <summary>
     /// Who may run this command. Defaults to any logged-in player, so a command that declares

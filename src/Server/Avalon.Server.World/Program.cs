@@ -5,6 +5,7 @@ using Avalon.Server.World.Extensions;
 using Avalon.Server.World.Presence;
 using Avalon.World;
 using Avalon.World.Configuration;
+using Avalon.World.Presence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -36,15 +37,10 @@ internal class Program
                     provider.GetRequiredService<IReplicatedCache>(),
                     provider.GetRequiredService<ILogger<WorldReadyHeartbeatService>>());
             })
-            // IWorld.InstanceRegistry does not exist until World.LoadAsync runs inside
-            // WorldServer.ExecuteAsync, which happens after every IHostedService below has
-            // already been constructed. The accessor defers that lookup to each capture tick
-            // instead of resolving it once, eagerly, to null. See PresenceSnapshotService's
-            // second constructor for the full explanation.
+            // Writes to Redis what WorldServer captures on the tick (#639).
             .AddHostedService(provider => new PresenceSnapshotService(
-                () => provider.GetRequiredService<IWorld>().InstanceRegistry,
+                provider.GetRequiredService<PresenceCapture>(),
                 provider.GetRequiredService<IReplicatedCache>(),
-                provider.GetRequiredService<IOptions<GameConfiguration>>(),
                 provider.GetRequiredService<ILogger<PresenceSnapshotService>>()));
 
         IHost host = hostBuilder.Build();

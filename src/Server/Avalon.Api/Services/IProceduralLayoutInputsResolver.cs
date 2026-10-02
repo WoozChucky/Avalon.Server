@@ -8,7 +8,7 @@ using Avalon.World.ChunkLayouts;
 namespace Avalon.Api.Services;
 
 /// <summary>
-/// Resolves the chunk pool and pool-member list a <see cref="ProceduralMapConfig"/> points at.
+/// Resolves the chunk pool, its pool-member list and its set pieces a <see cref="ProceduralMapConfig"/> points at.
 ///
 /// Shared by <see cref="MapService.PreviewLayoutAsync"/> (an admin-triggered layout preview)
 /// and <see cref="ObservabilityService"/>'s layout-staleness check (a comparison run on a path

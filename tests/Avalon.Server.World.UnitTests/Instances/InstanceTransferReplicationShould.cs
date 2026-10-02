@@ -119,7 +119,7 @@ public class InstanceTransferReplicationShould
         Maps maps = await Maps.CreateAsync();
         MapInstanceClient traveller = Join(maps.Town, 611_031);
         traveller.Connection.InGame.Returns(true);
-        RunContinuationsInline(traveller.Connection);
+        RunContinuationsInline(traveller.Connection, maps.World);
         Creature townBoar = AddCreature(maps.Town, 611_931, new Vector3(10f, 0f, 0f));
         Creature forestBoar = AddCreature(maps.Forest, 611_932, new Vector3(10f, 0f, 0f));
         Ticks(maps.Town, 2);
@@ -139,7 +139,7 @@ public class InstanceTransferReplicationShould
     {
         Maps maps = await Maps.CreateAsync();
         MapInstanceClient traveller = Join(maps.Forest, 611_041);
-        RunContinuationsInline(traveller.Connection);
+        RunContinuationsInline(traveller.Connection, maps.World);
         Creature forestBoar = AddCreature(maps.Forest, 611_941, new Vector3(10f, 0f, 0f));
         Creature townBoar = AddCreature(maps.Town, 611_942, new Vector3(10f, 0f, 0f));
         Ticks(maps.Forest, 2);
@@ -212,12 +212,19 @@ public class InstanceTransferReplicationShould
     }
 
     /// <summary>The handlers' continuations run as soon as they are queued; every task here is already complete.</summary>
-    private static void RunContinuationsInline(IWorldConnection connection)
+    private static void RunContinuationsInline(IWorldConnection connection, Avalon.World.World world)
     {
+        // A build is published on the tick (#639): publish first, as the tick would before the continuation runs.
         connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
-            .Do(call => call.Arg<Action<IMapInstance>>()(call.Arg<Task<IMapInstance>>().GetAwaiter().GetResult()));
+            .Do(call =>
+            {
+                world.PublishBuiltInstances();
+                call.Arg<Action<IMapInstance>>()(call.Arg<Task<IMapInstance>>().GetAwaiter().GetResult());
+            });
         connection.When(c => c.EnqueueContinuation(Arg.Any<Task<MapTemplateId>>(), Arg.Any<Action<MapTemplateId>>()))
             .Do(call => call.Arg<Action<MapTemplateId>>()(call.Arg<Task<MapTemplateId>>().GetAwaiter().GetResult()));
+        connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
+            .Do(call => call.Arg<Action>()());
     }
 
     /// <summary>
@@ -271,12 +278,12 @@ public class InstanceTransferReplicationShould
                 r.Texts,
                 Substitute.For<IScriptHotReloader>(),
                 chunks,
-                r.Dialogue, r.Loot);
+                r.Dialogue, r.Loot, Avalon.Server.World.UnitTests.Chat.ChatLimits.Off());
             await world.LoadAsync(CancellationToken.None);
 
             // Registered through the registry's own creation paths, so TransferPlayer finds them.
-            Assert.Same(town, await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(TownMap), 30));
-            Assert.Same(forest, await world.InstanceRegistry.GetOrCreateNormalInstanceAsync(0, new MapTemplateId(ForestMap)));
+            Assert.Same(town, await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(TownMap), 30).Published(world));
+            Assert.Same(forest, await world.InstanceRegistry.GetOrCreateNormalInstanceAsync(0, new MapTemplateId(ForestMap)).Published(world));
             return new Maps(world, town, forest, chunks);
         }
     }

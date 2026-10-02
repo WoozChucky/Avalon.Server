@@ -8,7 +8,7 @@ namespace Avalon.Network.Packets.Vendor;
 /// Client to server: buy from one row of the open shop's list. Answered with exactly one
 /// SVendorResultPacket. The gold and the item arrive in the tick's SInventoryUpdatePacket, and a
 /// stock change in SVendorListPacket. Only valid while a vendor conversation that chose
-/// "Show me your wares." is still open and within 15 m of the vendor.
+/// "Show me your wares." is still open and within 6 m of the vendor (the dialogue leash).
 /// </summary>
 [ProtoContract]
 [Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_VENDOR_BUY)]

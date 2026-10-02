@@ -1,12 +1,19 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Chat;
+using Avalon.World.Instances;
 using Avalon.World.Public;
+using Avalon.World.Social;
 
 namespace Avalon.World.Handlers;
 
+/// <summary>
+/// A slash command runs on the tick; anything else is said aloud, to everyone in the sender's instance,
+/// the sender included (spec 2026-09-30 section 5), except a listener that ignores the sender (#723).
+/// </summary>
 [PacketHandler(NetworkPacketType.CMSG_CHAT_MESSAGE)]
-public class ChatMessageHandler(IWorldServer worldServer, ICommandDispatcher commandDispatcher)
+public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatcher,
+    ChatRateLimiter rateLimiter)
     : WorldPacketHandler<CChatMessagePacket>
 {
     public override void Execute(IWorldConnection connection, CChatMessagePacket packet)
@@ -15,54 +22,48 @@ public class ChatMessageHandler(IWorldServer worldServer, ICommandDispatcher com
 
         if (message.StartsWith('/'))
         {
-            WorldPacketContext<CChatMessagePacket> ctx = new() { Packet = packet, Connection = connection };
-
-            connection.EnqueueContinuation(
-                commandDispatcher.DispatchAsync(ctx),
-                dispatched =>
-                {
-                    if (!dispatched)
-                    {
-                        connection.Send(SChatMessagePacket.Create(
-                            0UL, 0UL, "System",
-                            "Unknown command.",
-                            packet.DateTime,
-                            connection.CryptoSession.Encrypt));
-                    }
-                });
-
-            return;
-        }
-
-        if (!connection.InGame)
-        {
-            return;
-        }
-
-        connection.Send(SChatMessagePacket.Create(
-            (ulong)(long)connection.AccountId!,
-            connection.Character!.Guid.Id,
-            connection.Character.Name,
-            message,
-            packet.DateTime,
-            connection.CryptoSession.Encrypt));
-
-        // TODO: Message should be sent to players in same instance as current connection, not all players in the world
-        //  Also, in the future, we need to have chat channels (local, global, party, trade, system)
-        foreach (IWorldConnection target in worldServer.Connections)
-        {
-            if (!target.InGame || target.AccountId == connection.AccountId)
+            if (!commandDispatcher.Dispatch(connection, packet))
             {
-                continue;
+                connection.Send(SChatMessagePacket.System("Unknown command.", packet.DateTime,
+                    connection.CryptoSession.Encrypt));
             }
 
-            target.Send(SChatMessagePacket.Create(
-                (ulong)(long)connection.AccountId!,
-                (ulong)connection.Character!.Guid.Id,
-                connection.Character.Name,
-                message,
-                packet.DateTime,
-                target.CryptoSession.Encrypt));
+            return;
+        }
+
+        if (connection.Character is not { } sender)
+        {
+            return;
+        }
+
+        // Before anything is looked up or sent: an over-limit message is not said, and only the sender is told.
+        if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
+        {
+            connection.Send(SChatMessagePacket.System(ChatRateLimiter.TooFast(retryAfter), packet.DateTime,
+                connection.CryptoSession.Encrypt));
+            return;
+        }
+
+        ulong accountId = connection.AccountId is { } account ? (ulong)account.Value : 0UL;
+
+        if (world.InstanceRegistry.GetInstanceById(sender.InstanceId) is not MapInstance instance)
+        {
+            // Nowhere to say it: the sender still sees its own line.
+            connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
+                connection.CryptoSession.Encrypt, characterClass: (ushort)sender.Class));
+            rateLimiter.Record(sender.Guid.Id);
+            return;
+        }
+
+        rateLimiter.Record(sender.Guid.Id);
+        foreach (IWorldConnection target in instance.Connections)
+        {
+            // A listener ignoring the sender does not hear it (#723); nobody is told.
+            if (Ignoring.Hides(target, sender.Guid.Id))
+                continue;
+
+            target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
+                target.CryptoSession.Encrypt, characterClass: (ushort)sender.Class));
         }
     }
 }

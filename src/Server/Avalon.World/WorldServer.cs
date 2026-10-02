@@ -19,11 +19,16 @@ using Avalon.World.Characters;
 using Avalon.World.Inventory;
 using Avalon.World.Maintenance;
 using System.Globalization;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
+using Avalon.World.Presence;
 using Avalon.World.Public;
+using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Telemetry;
+using Avalon.World.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -128,10 +133,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private readonly IReplicatedCache _cache;
+    private readonly IServiceProvider _services;
     private readonly ConcurrentDictionary<Type, Func<IConnection, Packet?, object>>
         _contextFactoryCache = new();
     private readonly Stopwatch _gameTime = new();
     private readonly ILogger<WorldServer> _logger;
+    private readonly PartyService _parties;
+    private readonly ThrottledErrorLog _memberStatusErrors;
+    private readonly QuestService? _quests;
+    private readonly ThrottledErrorLog _questFlushErrors;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
@@ -140,6 +150,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ICharacterSaver _characterSaver;
     private readonly IWorldEntryGate? _entryGate;
     private readonly WorldMaintenanceCoordinator? _maintenanceCoordinator;
+    private readonly TickThreadGuard? _tickThreadGuard;
+    private readonly PresenceCapture? _presence;
+    private readonly ThrottledErrorLog _presenceErrors;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -177,6 +190,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IReplicatedCache cache,
         IScriptHotReloader scriptHotReloader,
         ICharacterSaver characterSaver,
+        PartyService parties,
         IWorldEntryGate? entryGate = null,
         WorldMaintenanceCoordinator? maintenanceCoordinator = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
@@ -186,13 +200,26 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         _scriptManager = scriptManager;
         _cache = cache;
+        _services = serviceProvider;
         _scriptHotReloader = scriptHotReloader;
         _characterSaver = characterSaver;
         _entryGate = entryGate;
         _maintenanceCoordinator = maintenanceCoordinator;
         _maintenanceCoordinator?.SetDrainObserver(() => _pendingDisconnects.IsEmpty);
+        _parties = parties;
         _logger = loggerFactory.CreateLogger<WorldServer>();
+        _memberStatusErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The party member status flush");
+        // #433. Optional here, like the clock above, so the tests that build a WorldServer from a bare provider still do.
+        _quests = serviceProvider.GetService<QuestService>();
+        _questFlushErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest flush");
         _world = world;
+        // Optional, like the clock: the tests that build a WorldServer from a bare provider have none.
+        _tickThreadGuard = serviceProvider.GetService<TickThreadGuard>();
+        _presence = serviceProvider.GetService<PresenceCapture>();
+        _presenceErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The presence capture");
         
         _logger.LogInformation("R2R enabled: {R2R}",
             System.Runtime.CompilerServices.RuntimeFeature.IsSupported("IsDynamicCodeCompiled"));
@@ -269,11 +296,19 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         await Task.Run(() => _scriptManager.Load(), stoppingToken);
 
+        // The names this world accepts, for the admin app. Required, as the reload handler below is: a host that
+        // builds a WorldServer registers the publisher, so a missing one fails startup rather than going unnoticed.
+        var catalog = _services.GetRequiredService<ScriptCatalogPublisher>();
+        await catalog.PublishAsync();
+
         await _world.LoadAsync(stoppingToken);
 
         if (_maintenanceCoordinator is not null)
             await _maintenanceCoordinator.InitializeAsync(stoppingToken);
 
+        // Hot-reloaded scripts can bring names the load did not see. The event runs on the compiler's thread; the
+        // publish never throws, so nothing is lost by not awaiting it.
+        PublishCatalogOnHotReload(catalog);
         _scriptHotReloader.Start();
 
         await CacheSubscribeAsync();
@@ -286,6 +321,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         if (OperatingSystem.IsWindows())
             _waitableTimer = CreateHighResTimer();
+
+        // The tick-thread assertion (#639) checks only when turned on: Game:TickThreadGuard, for development.
+        if (_world.Configuration.TickThreadGuard)
+        {
+            TickThreadGuard.Enable();
+            _logger.LogInformation("The tick-thread assertion is on (Game:TickThreadGuard)");
+        }
 
         _tickRunning = true;
         _tickThread = new Thread(TickLoop)
@@ -351,9 +393,28 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // and cutting it short would discard the save this exists to make.
         var despawning = new List<Task>();
         while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
-            despawning.Add(_world.DeSpawnPlayerAsync(disconnected));
+        {
+            // Each on its own: one that throws (the tick-thread assertion, say, when the tick outlived its join
+            // above) must not cost the other characters their despawn saves, or skip the wait for saves below.
+            try
+            {
+                despawning.Add(_world.DeSpawnPlayerAsync(disconnected));
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failed to despawn account {AccountId} at shutdown", disconnected.AccountId?.Value);
+            }
+        }
 
-        await Task.WhenAll(despawning).ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(despawning).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            // A despawn's task does not fault today; if one ever does, the wait for saves below still runs.
+            _logger.LogError(e, "A despawn at shutdown failed");
+        }
 
         // The pass above only covers despawns it started. A tick starts each despawn without
         // waiting for it, so one begun on an earlier tick can still be queued behind another save,
@@ -393,6 +454,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     private void TickLoop()
     {
+        // From here until the loop ends, World-side state that only the tick may change refuses any other thread
+        // (while the guard is enabled, #639). Unbound in the finally, so the shutdown despawn that runs once the tick is joined passes.
+        _tickThreadGuard?.Bind();
         long next = Stopwatch.GetTimestamp() + TicksPerFrame;
         TimeSpan prev = _gameTime.Elapsed;
 
@@ -469,6 +533,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
         finally
         {
+            _tickThreadGuard?.Unbind();
             _tickExited.TrySetResult();
         }
     }
@@ -514,6 +579,24 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _worldUpdateHist.Record((long)worldUs);
         _worldUpdateDuration.Record(worldUs);
 
+        // Quest counts, log, updates, lines and markers (#433), before the inventory flush below clears the slot
+        // changes the collect recount reads. Each step is contained inside the flush (a throwing recount still lets the
+        // log and markers out), and the flush per connection: one character's throw costs nobody else.
+        if (_quests is not null)
+        {
+            for (int i = 0; i < conns.Length; i++)
+            {
+                try
+                {
+                    QuestFlusher.Flush(conns[i], _quests);
+                }
+                catch (Exception e)
+                {
+                    _questFlushErrors.Failed(e);
+                }
+            }
+        }
+
         // Inventory and money changed anywhere in this tick, in either pass, leave as one packet per
         // connection with each slot at its final value (spec #459 section 3). Before the ping below,
         // which has to be the last thing enqueued ahead of the flush.
@@ -530,6 +613,31 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Each ability's per-hit amount (#669), in the same flush as the sheet whose stats moved it.
         for (int i = 0; i < conns.Length; i++)
             AbilityAmountsFlusher.Flush(conns[i]);
+
+        // Party members' pools (2026-09-30), to the members in their instance, at most four times a second each.
+        // Contained: a throw must not cost every connection the ping, outbox and continuation flushes below.
+        try
+        {
+            _parties.FlushMemberStatus();
+        }
+        catch (Exception e)
+        {
+            _memberStatusErrors.Failed(e);
+        }
+
+        // The admin view's presence (#639), about once a second: taken here, in the serial phase after the world
+        // update, so the rosters are read on the tick that changes them; the Redis write stays off the tick.
+        if (_presence is not null)
+        {
+            try
+            {
+                _presence.CaptureIfDue(_world.InstanceRegistry);
+            }
+            catch (Exception e)
+            {
+                _presenceErrors.Failed(e);
+            }
+        }
 
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
@@ -582,6 +690,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         => static (conn, pkt) => new WorldPacketContext<TPacket>
             { Connection = (IWorldConnection)conn!, Packet = (TPacket)pkt! };
 
+    private void PublishCatalogOnHotReload(ScriptCatalogPublisher catalog) =>
+        _scriptHotReloader.ScriptsHotReloaded += types =>
+        {
+            _scriptManager.RegisterHotReloaded(types);
+            _ = Task.Run(catalog.PublishAsync, CancellationToken.None);
+        };
+
     #region Cache Subscriptions
 
     private async Task CacheSubscribeAsync()
@@ -589,6 +704,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         await _cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, DelayedDisconnect);
         if (_maintenanceCoordinator is not null)
             await _cache.SubscribeAsync(CacheKeys.WorldMaintenance(_world.Id.Value), MaintenanceNotice);
+
+        // The API asks this world, and only this world, to reload after a template save. Required: a host that
+        // builds a WorldServer registers the handler, so a missing one fails startup rather than going unnoticed.
+        var reloads = _services.GetRequiredService<ReloadRequestHandler>();
+        await _cache.SubscribeAsync(CacheKeys.WorldReloadChannel(_world.Id.Value), reloads.OnMessage);
     }
 
     private void MaintenanceNotice(RedisChannel channel, RedisValue value)

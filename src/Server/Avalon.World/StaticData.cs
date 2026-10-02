@@ -1,15 +1,17 @@
 using System.Collections.Concurrent;
+using Avalon.Combat;
 using Avalon.Database.World.Repositories;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
-using Avalon.World.Creatures;
 using Avalon.World.Dialogue;
 using Avalon.World.Localization;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
+using Avalon.World.Quests;
 using Avalon.World.Reload;
+using Avalon.World.Scripts;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
@@ -29,7 +31,9 @@ public class StaticData(
     ILootTableRepository lootTableRepository,
     ILoggerFactory loggerFactory,
     IVendorStockRepository? vendorStockRepository = null,
-    ICombatDataRepository? combatDataRepository = null)
+    ICombatDataRepository? combatDataRepository = null,
+    IQuestRepository? questRepository = null,
+    IScriptManager? scriptManager = null)
 {
     private readonly ConcurrentQueue<(StaticDataPatch Patch, TaskCompletionSource Done)> _pending = new();
 
@@ -49,6 +53,7 @@ public class StaticData(
     private volatile LootPatch? _loot;
     private volatile VendorsPatch? _vendors;
     private volatile CombatPatch? _combat;
+    private volatile QuestsPatch? _quests;
 
     /// <summary>
     /// Reads the database and builds a whole patch for one area. Runs on the thread pool and
@@ -127,6 +132,21 @@ public class StaticData(
                 return CombatPatch.Build(formulas, factors);
             }
 
+            case ReloadArea.Quests:
+            {
+                // Validated against the creatures and items read here, never the ones applied, so the quests and
+                // what they name are one generation. No repository (tests that build StaticData without one) is empty.
+                IReadOnlyCollection<QuestTemplate> quests = questRepository is null
+                    ? Array.Empty<QuestTemplate>()
+                    : await questRepository.GetAllAsync(ct);
+                IReadOnlyCollection<CreatureTemplate> creatures = (await creatureTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
+                IReadOnlyCollection<ItemTemplate> items = (await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
+                // The dialogue roots too (#737): a giver, ender or Talk target with none could never be talked to.
+                IReadOnlyCollection<DialogueNode> nodes = await dialogueRepository.GetAllNodesAsync(ct);
+                Func<string, Type?> findScript = scriptManager is null ? static _ => null : scriptManager.GetQuestScript;
+                return new QuestsPatch(new QuestCatalog(quests, creatures, items, nodes, findScript, loggerFactory));
+            }
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(area), area, null);
         }
@@ -143,6 +163,7 @@ public class StaticData(
         {
             case DialoguePatch p:
                 _dialogue = p;
+                LogQuestsWithoutDialogue();
                 break;
             case CreaturesPatch p:
                 _creatures = p;
@@ -165,9 +186,35 @@ public class StaticData(
             case CombatPatch p:
                 _combat = p;
                 break;
+            case QuestsPatch p:
+                _quests = p;
+                LogQuestsWithoutDialogue();
+                break;
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
         }
+    }
+
+    /// <summary>
+    /// After a dialogue or a quests apply (#737): each loaded quest whose giver, ender or Talk target has no root in the
+    /// live dialogue is logged at Error, once per quest, listing its problems. Nothing is refused: a quest stays loaded
+    /// until a /reload quests whose prepare reads the roots refuses it. A quests apply is checked too, since the roots
+    /// its prepare read may not be the ones applied (a /reload dialogue in between). Either area missing (early in the
+    /// startup load) checks nothing.
+    /// </summary>
+    private void LogQuestsWithoutDialogue()
+    {
+        if (_quests is not { } quests || _dialogue is not { } dialogue)
+            return;
+
+        IReadOnlyList<string> problems = quests.Catalog.NpcsWithoutDialogue(dialogue.Dialogue);
+        if (problems.Count == 0)
+            return;
+
+        ILogger<StaticData> logger = loggerFactory.CreateLogger<StaticData>();
+        foreach (string problem in problems)
+            logger.LogError("The live dialogue leaves {Problem}; the quest cannot be talked through until the dialogue is fixed " +
+                            "(a /reload quests would refuse it)", problem);
     }
 
     /// <summary>
@@ -276,4 +323,7 @@ public class StaticData(
     /// its own resolve; a stats refresh reads it once for the factors it derives with.
     /// </summary>
     public CombatPatch Combat => _combat!;
+
+    /// <summary>Quests (#433). Read on the tick; one reference, so one generation. Empty before the first load.</summary>
+    public QuestCatalog Quests => _quests?.Catalog ?? QuestCatalog.Empty;
 }

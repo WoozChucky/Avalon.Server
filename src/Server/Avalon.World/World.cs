@@ -8,11 +8,13 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.World.Chat;
 using Avalon.World.Configuration;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
@@ -22,7 +24,9 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Respawn;
+using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -40,6 +44,9 @@ public interface IWorld
     GameTime Time { get; }
 
     IInstanceRegistry InstanceRegistry { get; }
+
+    /// <summary>The registry's party side (2026-09-30). World-side, not on the modding API's IInstanceRegistry.</summary>
+    IPartyInstanceRegistry PartyInstances { get; }
 
     /// <summary>All map templates loaded by the map manager. Convenience accessor for handlers.</summary>
     IReadOnlyList<MapTemplate> MapTemplates { get; }
@@ -79,6 +86,17 @@ public class World : IWorld
     private readonly IntervalTimer _hotReloadTimer = new();
     private readonly IWorldRepository _worldRepository;
     private readonly InstanceTicker _instanceTicker;
+    private readonly PartyService? _parties;
+    private readonly ChatRateLimiter _chatRateLimiter;
+    private readonly ThrottledErrorLog _partyTickErrors;
+    private readonly ThrottledErrorLog _publishErrors;
+    private readonly TickThreadGuard? _tick;
+
+    // Every AI script type hot reloaded so far, by name (the latest of each), applied on the tick. An instance whose build
+    // was in flight during a reload is brought up to date with it when it is published (#639).
+    private readonly Dictionary<string, Type> _hotReloaded = new(StringComparer.InvariantCultureIgnoreCase);
+
+    private InstanceRegistry? _registry;
 
     private Domain.Auth.World? _world;
     private volatile List<Type>? _pendingHotReload;
@@ -102,9 +120,16 @@ public class World : IWorld
         IChunkLibrary chunkLibrary,
         IDialogueRepository dialogueRepository,
         ILootTableRepository lootTableRepository,
+        ChatRateLimiter chatRateLimiter,
         IVendorStockRepository? vendorStockRepository = null,
-        ICombatDataRepository? combatDataRepository = null)
+        ICombatDataRepository? combatDataRepository = null,
+        PartyService? parties = null,
+        IQuestRepository? questRepository = null,
+        TickThreadGuard? tickThread = null)
     {
+        _parties = parties;
+        _tick = tickThread;
+        _chatRateLimiter = chatRateLimiter;
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
         _configuration = configuration;
@@ -117,10 +142,15 @@ public class World : IWorld
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
             abilityTemplateRepository, characterLevelExperienceRepository, creatureTemplateRepository,
             creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
-            dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository);
+            dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository,
+            questRepository, serviceProvider.GetService<IScriptManager>());
 
         _instanceTicker = new InstanceTicker(_logger, DiagnosticsConfig.World.Meter,
             serviceProvider.GetService<TimeProvider>());
+        _partyTickErrors = new ThrottledErrorLog(_logger, serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System,
+            "The party tick");
+        _publishErrors = new ThrottledErrorLog(_logger, serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System,
+            "Publishing built instances");
 
         _hotReloadTimer.SetInterval(
             (long)TimeSpan.FromSeconds(configuration.Value.ScriptHotReloadIntervalSeconds).TotalMilliseconds);
@@ -133,12 +163,27 @@ public class World : IWorld
 
     public GameTime Time { get; } = new();
     public IInstanceRegistry InstanceRegistry { get; private set; } = null!;
+    public IPartyInstanceRegistry PartyInstances { get; private set; } = null!;
     public IReadOnlyList<MapTemplate> MapTemplates => _mapManager.Templates;
     public StaticData Data { get; }
 
     public void SpawnInInstance(IWorldConnection connection, IMapInstance instance)
     {
+        _tick?.AssertOnTick("World.SpawnInInstance");
+
         instance.AddCharacter(connection);
+
+        // The party learns the character is online, and its members get the roster (2026-09-30). Contained: a throw
+        // must not cost the character its online row below.
+        try
+        {
+            _parties?.CharacterOnline(connection);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to bring character {CharacterId} online in its party", connection.Character?.Guid);
+        }
+
         _logger.LogInformation(
             "Character {CharacterName} of account {AccountId} entered instance {InstanceId} (map {MapTemplateId})",
             connection.Character?.Name, connection.AccountId?.Value, instance.InstanceId, instance.TemplateId);
@@ -175,6 +220,8 @@ public class World : IWorld
 
     public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance)
     {
+        _tick?.AssertOnTick("World.TransferPlayer");
+
         // The NPC stays behind in the old instance, so an open conversation, and a bank or shop opened
         // in it (#463, #432), ends here; otherwise the bank would stay usable from the next map. The
         // client hears SMSG_DIALOGUE_END only when there was a conversation to end. The buyback list
@@ -191,11 +238,30 @@ public class World : IWorld
         // the canonical Layout.EntrySpawnWorldPos. TransferPlayer owns instance membership only.
         connection.Character.InstanceId = targetInstance.InstanceId;
         targetInstance.AddCharacter(connection);
+
+        // Who shares an instance changed for the character's whole party (2026-09-30). Contained: the transfer has
+        // happened, and the caller still owes the client its map transition.
+        try
+        {
+            _parties?.InstanceChanged(connection);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to tell the party of character {CharacterId} it changed instance",
+                connection.Character?.Guid);
+        }
     }
 
     public Task DeSpawnPlayerAsync(IWorldConnection connection) => LeaveWorldAsync(connection);
 
-    public async Task<bool> LeaveWorldAsync(IWorldConnection connection)
+    public Task<bool> LeaveWorldAsync(IWorldConnection connection)
+    {
+        // Not async itself, so the assertion throws to the caller rather than into a task a despawn may never await.
+        _tick?.AssertOnTick("World.LeaveWorldAsync");
+        return LeaveWorldCoreAsync(connection);
+    }
+
+    private async Task<bool> LeaveWorldCoreAsync(IWorldConnection connection)
     {
         // A connection that drops while its character is waiting on the readiness barrier never
         // reached an instance, but the row was already written with Online = true by the select.
@@ -209,6 +275,19 @@ public class World : IWorld
 
         _logger.LogInformation("Character {CharacterName} of account {AccountId} left the world",
             character.Name, connection.AccountId?.Value);
+
+        // On the tick, before the connection lets go of the character. Contained: it must not cost the logout save.
+        try
+        {
+            _parties?.CharacterOffline(connection, character);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to take character {CharacterId} offline in its party", character.Guid);
+        }
+
+        // The character's chat window goes with it (#722). Cannot throw: a dictionary remove under a lock.
+        _chatRateLimiter.Forget(character.Guid.Id);
 
         AsyncServiceScope? scope = null;
         Task<bool>? saved = null;
@@ -400,7 +479,12 @@ public class World : IWorld
         await _chunkLibrary.LoadAsync(token);
 
         var chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
-        InstanceRegistry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory);
+        var registry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory, _tick);
+        _registry = registry;
+        InstanceRegistry = registry;
+        PartyInstances = registry;
+        // A disband forgets the party's instances in this registry, so no member is routed to them again.
+        _parties?.AttachInstances(registry);
     }
 
     public void Update(TimeSpan deltaTime)
@@ -423,6 +507,20 @@ public class World : IWorld
             _logger.LogInformation("Hot reloaded {Count} AI scripts", pendingReload.Count);
         }
 
+        // Instances whose builds finished since the last tick join the registry here (#639), after the hot reload
+        // above and before the parties and the instance ticks below, so those see them and their requesters'
+        // continuations run this tick. After the reload rather than before it: a just-published instance whose build
+        // saw the old script types is brought up to date once, as it is published, instead of being rebuilt by the
+        // reload's walk and then checked again. Contained: a throw here must not cost the instances their tick.
+        try
+        {
+            PublishBuiltInstances();
+        }
+        catch (Exception e)
+        {
+            _publishErrors.Failed(e);
+        }
+
         // No clamp needed around Update: IntervalTimer.Update already floors its own counter at
         // zero, and nothing here can drive it negative.
         _hotReloadTimer.Update((long)deltaTime.TotalMilliseconds);
@@ -439,11 +537,78 @@ public class World : IWorld
             _hotReloadTimer.Reset();
         }
 
+        if (_parties is not null)
+            TickParties(_parties);
+
         // Each instance is contained and timed on its own (#639): one that throws is logged, and the
         // others, and the flushes after this update, still run.
         _instanceTicker.Tick(InstanceRegistry.ActiveInstances, deltaTime);
 
         InstanceRegistry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+    }
+
+    /// <summary>
+    /// Party leave countdowns that ran out (2026-09-30): the character goes to its respawn town, alive or dead, and a
+    /// dead one arrives revived as a respawn would. Contained, the tick and each return on its own: a throw here must
+    /// not leave World.Update before the instances tick, or the tick loop's flushes for everyone after it.
+    /// </summary>
+    private void TickParties(PartyService parties)
+    {
+        IReadOnlyList<IWorldConnection> due;
+        try
+        {
+            due = parties.Tick();
+        }
+        catch (Exception e)
+        {
+            _partyTickErrors.Failed(e);
+            return;
+        }
+
+        if (due.Count == 0)
+            return;
+
+        TownReturn town;
+        try
+        {
+            // Resolved here, not injected: TownReturn depends on this World. Required, so a missing registration is
+            // an error in the log rather than countdowns that end silently with nobody moved.
+            town = _serviceProvider.GetRequiredService<TownReturn>();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not return {Count} characters whose party leave countdown ran out to town", due.Count);
+            ReportReturnsFailed(parties, due, e);
+            return;
+        }
+
+        try
+        {
+            // Each start is contained inside; a failed return is tried again by the party service (#700).
+            parties.StartReturns(due, town);
+        }
+        catch (Exception e)
+        {
+            _partyTickErrors.Failed(e);
+        }
+    }
+
+    private void ReportReturnsFailed(PartyService parties, IReadOnlyList<IWorldConnection> due, Exception failure)
+    {
+        foreach (IWorldConnection connection in due)
+        {
+            if (connection.Character is not { } character)
+                continue;
+
+            try
+            {
+                parties.ReturnFailed(character.Guid.Id, failure);
+            }
+            catch (Exception e)
+            {
+                _partyTickErrors.Failed(e);
+            }
+        }
     }
 
     /// <summary>
@@ -520,40 +685,87 @@ public class World : IWorld
         row.Z = town.DefaultSpawnZ;
     }
 
+    /// <summary>
+    /// Registers every instance whose build finished since the last call (<see cref="Instances.InstanceRegistry.PublishFinished" />)
+    /// and completes its requesters' tasks. <see cref="Update" /> runs it after the hot reload and before the parties and
+    /// the instances tick; public so a test can publish without ticking the rest of the world. Tick thread only.
+    /// </summary>
+    /// <remarks>
+    /// A build attaches its creatures' scripts from the script manager as it stood then. A hot reload applied on the
+    /// tick while the build ran walked only the registered instances, so the instance is brought up to date here: each
+    /// living creature whose script name was hot reloaded and whose script is not of the reloaded type gets a fresh one.
+    /// </remarks>
+    public void PublishBuiltInstances()
+    {
+        if (_registry is null)
+            return;
+
+        IReadOnlyList<MapInstance> published = _registry.PublishFinished();
+        if (published.Count == 0 || _hotReloaded.Count == 0)
+            return;
+
+        IServiceProvider serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
+        foreach (MapInstance instance in published)
+        {
+            try
+            {
+                ReattachScripts(instance, _hotReloaded, serviceProvider, onlyOutdated: true);
+            }
+            catch (Exception e)
+            {
+                // Contained: the instance is registered and its requesters answered whatever happens here.
+                _logger.LogError(e, "Failed to bring the scripts of instance {InstanceId} up to date with the hot reload",
+                    instance.InstanceId);
+            }
+        }
+    }
+
     private void ApplyScriptsHotReload(List<Type> aiScriptTypes)
     {
         Dictionary<string, Type> scriptTypeDict =
             aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
+        foreach ((string name, Type type) in scriptTypeDict)
+            _hotReloaded[name] = type;
+
         IServiceProvider serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
 
         foreach (IMapInstance instance in InstanceRegistry.ActiveInstances)
+            ReattachScripts(instance, scriptTypeDict, serviceProvider, onlyOutdated: false);
+    }
+
+    /// <param name="onlyOutdated">
+    /// Only a creature whose script is not already of the named type: for an instance built while the reload was in
+    /// flight, which may have attached the new types already.
+    /// </param>
+    private static void ReattachScripts(IMapInstance instance, IReadOnlyDictionary<string, Type> scriptTypes,
+        IServiceProvider serviceProvider, bool onlyOutdated)
+    {
+        List<(ICreature creature, Type scriptType)> toUpdate = [];
+        foreach (ICreature entity in instance.Creatures.Values)
         {
-            List<(ICreature creature, Type scriptType)> toUpdate = [];
-            foreach (ICreature entity in instance.Creatures.Values)
+            // A corpse stays in the instance until its body is removed, and keeps the script
+            // its kill left it (none). A fresh script would not know it is dead and could chase
+            // and swing at a character nearby, so a creature at 0 health gets none (#607).
+            if (entity.CurrentHealth == 0)
             {
-                // A corpse stays in the instance until its body is removed, and keeps the script
-                // its kill left it (none). A fresh script would not know it is dead and could chase
-                // and swing at a character nearby, so a creature at 0 health gets none (#607).
-                if (entity.CurrentHealth == 0)
-                {
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(entity.ScriptName) &&
-                    scriptTypeDict.TryGetValue(entity.ScriptName, out Type? scriptType))
-                {
-                    toUpdate.Add((entity, scriptType));
-                }
+                continue;
             }
 
-            foreach ((ICreature entity, Type scriptType) in toUpdate)
+            if (!string.IsNullOrWhiteSpace(entity.ScriptName) &&
+                scriptTypes.TryGetValue(entity.ScriptName, out Type? scriptType) &&
+                (!onlyOutdated || entity.Script?.GetType() != scriptType))
             {
-                instance.RemoveCreature(entity);
-                AiScript? script =
-                    ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, instance) as AiScript;
-                entity.Script = script;
-                instance.AddCreature(entity);
+                toUpdate.Add((entity, scriptType));
             }
+        }
+
+        foreach ((ICreature entity, Type scriptType) in toUpdate)
+        {
+            instance.RemoveCreature(entity);
+            AiScript? script =
+                ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, instance) as AiScript;
+            entity.Script = script;
+            instance.AddCreature(entity);
         }
     }
 }

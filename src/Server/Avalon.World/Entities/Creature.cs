@@ -1,8 +1,8 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
-using Avalon.World.Combat;
 using Avalon.World.Creatures;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -50,6 +50,18 @@ public class Creature : ICreature
     /// </remarks>
     public bool CanInteract { get; init; }
 
+    /// <summary>
+    /// How dangerous this creature is, fixed by <see cref="CreatureSpawner"/> from its template's
+    /// <c>Rarity</c> and replicated as <c>ObjectState.Rarity</c> (#709) for a rarity-coloured nameplate.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not on <see cref="ICreature"/>, for the reason <see cref="CanInteract"/> is not: a mod
+    /// must not be able to change the rarity a creature advertises. Init-only, because it is decided once at
+    /// spawn: a <c>/reload creatures</c> reaches only creatures spawned after it. It says what the client is
+    /// told and nothing else; the stats the rarity scaled were fixed at spawn by <c>CreatureStatDeriver</c>.
+    /// </remarks>
+    public Avalon.World.Public.Enums.CreatureRarity Rarity { get; init; }
+
     /// <summary>Metres. Copied from <c>CreatureTemplate.BodyRadius</c> by <see cref="CreatureSpawner"/>.</summary>
     public float BodyRadius { get; init; } = UnitBody.DefaultCreatureRadius;
 
@@ -58,6 +70,31 @@ public class Creature : ICreature
     public uint DamageMin { get; set; }
     public uint DamageMax { get; set; }
     public uint Experience { get; set; }
+
+    /// <summary>
+    /// The maximum health <see cref="CreatureStatDeriver" /> gave it at spawn, never changed (2026-09-30). 0 means
+    /// unknown (a creature built without the spawner), and such a creature is never rescaled.
+    /// </summary>
+    public uint BaseMaxHealth { get; init; }
+
+    /// <summary>
+    /// Sets the maximum to the base times <paramref name="factor" />, rounded, at least 1, and keeps the share of the
+    /// pool it had (<see cref="CharacterStatsCalculator.KeepShare" />), so a living creature stays alive. A creature at
+    /// 0 health is never rescaled (#672: a corpse stays dead). World-side, not on ICreature: no mod scales health.
+    /// </summary>
+    public void Rescale(double factor)
+    {
+        if (BaseMaxHealth == 0 || CurrentHealth == 0 || !double.IsFinite(factor) || factor <= 0)
+            return;
+
+        double scaled = Math.Round(BaseMaxHealth * factor, MidpointRounding.AwayFromZero);
+        uint max = scaled >= uint.MaxValue ? uint.MaxValue : Math.Max(1u, (uint)scaled);
+        if (max == Health)
+            return;
+
+        CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, Health, max);
+        Health = max;
+    }
 
     // What combat resolves this creature's hits with (#506), fixed at spawn by CreatureSpawner from
     // CreatureStatDeriver. World-side and init-only, deliberately not on ICreature: the modding API
@@ -153,7 +190,14 @@ public class Creature : ICreature
     public uint CurrentHealth
     {
         get => _currentHealth;
-        set { _currentHealth = value; _dirtyFields |= GameEntityFields.CurrentHealth; }
+        set
+        {
+            // A creature is dead at 0 health (#672), so reaching 0, or leaving it, changes its death
+            // state too: marked, so the broadcast that carries the 0 carries IsDead with it.
+            if ((_currentHealth == 0) != (value == 0)) _dirtyFields |= GameEntityFields.IsDead;
+            _currentHealth = value;
+            _dirtyFields |= GameEntityFields.CurrentHealth;
+        }
     }
 
     public PowerType PowerType

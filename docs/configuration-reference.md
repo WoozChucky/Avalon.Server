@@ -33,6 +33,9 @@ Hosts: **API** is `Avalon.Api`, **Auth** the auth server, **World** the world se
 | `NotificationConfig`        | `Avalon.Api.Config`                | `Application:Notification` | API | Not validated |
 | `EnvironmentConfig`         | `Avalon.Api.Config`                | `Application:Environment` | API | Not validated |
 | `DistributionConfiguration` | `Avalon.Api.Distribution`          | `Application:Distribution` | API | Not validated; left incomplete, the `/client` endpoints answer 503 |
+| `BalanceConfiguration`      | `Avalon.Api.Balance`               | `Application:Balance` | API | Not validated; left incomplete, the admin `/balance` endpoints answer 503 |
+| `TemplateEditingOptions`    | `Avalon.Api.Templates`             | `Application:Templates` | API | `ValidateOnStart` (`ReloadTimeout` greater than zero). See `Application:Templates` below |
+| `BalanceServiceOptions`     | `Avalon.Balance.Service`           | `Balance` | Balance service | `ValidateOnStart` (`SharedSecret` required, 32 characters or more). See [Balance Service](#balance-service) |
 
 The API's `Cache` settings are therefore under `Application:Cache` (`Application__Cache__Host`), not `Cache`,
 while its database settings are under the top-level `Database`, as on the servers.
@@ -164,6 +167,19 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `InterestRemoveMargin`           | float  | `10`       | Metres added to `InterestRadius` before an object already in a client's view is removed from it (#593), so one standing near the edge does not flicker in and out. `0` or more and finite (`0` turns the margin off); startup refuses anything else |
 | `FuryFromDamageTaken`            | float  | `50`       | Fury a character whose pool is Fury gains when hit (#526): `floor(health lost / max health × this)`, the health lost capped at what it had before the hit. `0` or more and finite (`0` turns it off); startup refuses anything else |
 | `FuryDecayPerSecond`             | float  | `5`        | Fury lost per second out of combat, down to 0 (#526); never in combat. `0` or more and finite (`0` turns it off); startup refuses anything else |
+| `MaxPartySize`                   | int    | `6`        | Most characters in one party; a party's instance also holds at most `min(this, the map's MaxPlayers)`. Range `2`–`40` |
+| `PartyInviteTimeoutSeconds`      | int    | `60`       | Seconds a party invite stays open before it expires. Range `1`–`3600` |
+| `PartyLeaveGraceSeconds`         | int    | `60`       | Seconds a character who stopped being a member may stay in the party's instance before it is moved to town. Range `1`–`3600` |
+| `PartyReturnRetrySeconds`        | int    | `5`        | Seconds before that move to town, when it failed (a town lookup or build that faulted), is tried again, at most 5 times while the character is still in that instance and not back in the party (#700). Range `1`–`3600` |
+| `PartyExperienceModeCooldownSeconds` | int | `60`      | Seconds after a switch of the party's experience mode before the leader may switch it again. Range `0`–`86400` (`0` turns the wait off) |
+| `PartyHealthPerExtraPlayer`      | float  | `0.6`      | Creature health added per player present beyond the first in a party's instance, as a share of its base (`0.6` is +60 %). `0` or more; startup refuses anything else |
+| `PartyEligibilityRange`          | float  | `60`       | Metres, on X/Z, from a corpse within which a party member not in the creature's encounter still shares the kill's loot and experience. At least `1`; its own setting, not tied to `InterestRadius` |
+| `PartyExperienceBonusPerExtra`   | float  | `0.10`     | Experience added to a shared kill per counted member beyond the first (`0.1` is +10 %). `0` to `10`; startup refuses anything else |
+| `PartyExperienceLevelGap`        | int    | `5`        | A character this many levels or more above a creature gets no experience from it, in a party or solo. Range `1`–`1000` |
+| `MaxActiveQuests`                | int    | `20`       | How many quests a character may hold at once; an accept past it is answered `LogFull` (#433). Range `1`–`100` |
+| `MaxIgnoredCharacters`           | int    | `50`       | How many characters one character may ignore (#723); `/ignore` past it is refused with a system line. Range `1`–`500` |
+| `ChatMessagesPerMinute`          | int    | `10`       | How many player chat messages one character may send in any sliding 60 seconds (#722). Plain chat, `/p`, `/w` and `/ignore` (#723) share the one budget; other commands (`/invite`, `/pvp`, ...) are not counted, and a message that is refused (unknown whisper target, not in a party, usage error) does not use any of it. A message over the limit is not delivered and the sender is told how many seconds to wait. `0` or below turns the limit off. The default is in `appsettings.json`, not in code |
+| `TickThreadGuard`                | bool   | `false`    | Turns on the tick-thread assertion (#639): instance membership, the instance registry's indexes, parties, who is online and ignore lists throw `InvalidOperationException` when changed from any thread but the world tick. For development and tests (set `Game__TickThreadGuard=true` in the environment of a local World server); off, each check costs one read of a flag. Read once, when the world server starts |
 
 ```json
 "Game": {
@@ -184,7 +200,19 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "InterestRadius": 60,
   "InterestRemoveMargin": 10,
   "FuryFromDamageTaken": 50,
-  "FuryDecayPerSecond": 5
+  "FuryDecayPerSecond": 5,
+  "MaxPartySize": 6,
+  "PartyInviteTimeoutSeconds": 60,
+  "PartyLeaveGraceSeconds": 60,
+  "PartyReturnRetrySeconds": 5,
+  "PartyExperienceModeCooldownSeconds": 60,
+  "PartyHealthPerExtraPlayer": 0.6,
+  "PartyEligibilityRange": 60,
+  "PartyExperienceBonusPerExtra": 0.10,
+  "PartyExperienceLevelGap": 5,
+  "MaxActiveQuests": 20,
+  "MaxIgnoredCharacters": 50,
+  "ChatMessagesPerMinute": 10
 }
 ```
 
@@ -201,7 +229,9 @@ Before enabling `Crowd` on a busy map, note that DotRecast budgets roughly 25 ag
 
 ### Creature levels, stats and the experience band
 
-A creature's level is rolled from its template's `MinLevel`–`MaxLevel` at spawn. Health, damage and
+A creature's level is rolled from its template's `MinLevel`–`MaxLevel` at spawn, except on a procedural map with
+depth bands (`ProceduralDepthBands`), where it is rolled from the band of the piece it spawns in (set pieces from the
+highest band, the boss at its top); see docs/map-generation.md. Health, damage and
 experience then come from the `CreatureBaseStats` row for that level, scaled by the template's own
 modifiers and by its `CreatureRarity` (`Normal`, `Elite`, `Rare`, `Boss`) through
 `CreatureRarityModifiers`. Both tables are seeded and tuned as data, so rebalancing is a migration
@@ -253,7 +283,7 @@ The API serves any number of worlds, one per `Worlds` row in the auth database (
 
 **At startup** the API migrates the auth database (a failure stops it), then each world's two databases. A world whose migration fails is logged with its id and the exception type and answers 503 until the next restart; the other worlds serve. There is no retry. Every unreachable world adds the driver's connect timeout to startup.
 
-**Routes:** world content and characters are under `/world/{worldId}/...`. A world this API is not configured for, or that the caller may not enter, answers 404 (the same 404 either way); an unavailable world answers 503. `GET /character` lists the caller's characters on every world, with `unavailableWorlds`; `GET /world` says for each world whether it is `configured` and `available`. Character ids are unique only within one world, so a consumer keys a character by `(worldId, id)`. The Redis presence keys name the world too (`presence:world:{worldId}:character:{id}`, #556), and one character's presence is `GET /world/{worldId}/observability/character/{id}`, under the same 404/503 world check; `GET /observability/online` and `GET /observability/instance/{instanceId}` stay cross-world.
+**Routes:** world content and characters are under `/world/{worldId}/...`. A world this API is not configured for, or that the caller may not enter, answers 404 (the same 404 either way); an unavailable world answers 503. `GET /character` lists the caller's characters on every world, with `unavailableWorlds`; `GET /world` says for each world whether it is `configured` and `available`. The anonymous `/public/...` routes are `GET /public/world`, `GET /public/world/{worldId}/item/{id}` and `GET /public/world/{worldId}/ability/{id}`: they serve only worlds every player may enter unless the caller is signed in and may enter more, the list omits unavailable worlds, and any other world answers the same 404 (503 when its databases failed). Character ids are unique only within one world, so a consumer keys a character by `(worldId, id)`. The Redis presence keys name the world too (`presence:world:{worldId}:character:{id}`, #556), and one character's presence is `GET /world/{worldId}/observability/character/{id}`, under the same 404/503 world check; `GET /observability/online` and `GET /observability/instance/{instanceId}` stay cross-world.
 
 **Helm:** a `worlds` map, keyed by world id.
 
@@ -263,6 +293,18 @@ The API serves any number of worlds, one per `Worlds` row in the auth database (
 - The chart refuses to render with no world, a world id the API would refuse, a world missing one of its strings (chart-managed), a string given inline with `existingSecret`, a key that is not a valid Secret key name, a key two settings would read (the chart's own keys included), and the removed `database.world` / `database.characters` values.
 
 The API's `appsettings.json` lists no world, so the published image ships none. Local development gets world 1 (the docker compose databases) from `appsettings.Development.json`, which only the Development environment loads, and the Aspire AppHost sets the same pair. Every other environment has exactly the worlds its environment variables or Helm values give it, and the API refuses to start with none.
+
+**`Application:PublicWorldId`** (optional `ushort`): the world `GET /public/world` names as `defaultWorldId`. It falls back to the first world the caller may read when unset, or when that world is unavailable or not readable by the caller, so set it to the live world in a deployment.
+
+**`Application:PublicSiteUrl`** (optional string, no default; Helm `publicSiteUrl`): the public website's base URL, e.g. `https://avalon.example`. It must be an absolute http or https URL with no query or fragment (a trailing slash is dropped); anything else stops the API at startup, naming the setting. `GET /public/preview/item/{id}` and `/ability/{id}` (link previews for bots that run no JavaScript; `?world=N`, else the default world) name `<PublicSiteUrl>/item/{id}` as the page's `og:url`, adding `?world=N` only when `world` was given. Unset, a preview leaves `og:url` out and its link is relative (`/item/{id}`).
+
+**`Application:Templates`** (live template editing; defaults in the API's `appsettings.json`):
+- `EditableWorlds` (list of world ids, default empty; Helm `templates.editableWorlds`, rendered as indexed env `Application__Templates__EditableWorlds__0`, `__1`, ...): the worlds on which an admin may `PUT` item, ability and creature templates. A `PUT` for any other world answers 403 `This world is not editable`, so with the default no world is editable. An edit reaches the running world on save, so keep production worlds out. The Aspire AppHost lists the local Development world (the id it keys the world databases by).
+- `ReloadTimeout` (TimeSpan, default `00:00:10`; Helm `templates.reloadTimeout`): how long a save waits for the world server to answer its reload request over Redis before the response reports the reload `pending`. The save is already committed either way. It must be greater than zero, else the API refuses to start, naming `Application:Templates:ReloadTimeout`.
+
+Both Helm values render only when set.
+
+**`Application:Previews`** (defaults in the API's `appsettings.json`): `SiteName` (`og:site_name` and the not-found title; left out when empty), `AbilityColour` and `RarityColours` (an `ItemRarity` name to a `#RRGGBB` colour; the `theme-color` of an ability and of an item of that rarity). They mirror the Dashboard's `rarity.ts`. A missing or malformed colour leaves `theme-color` out; it never fails the request. Override one with e.g. `Application__Previews__RarityColours__Epic`.
 
 ---
 
@@ -488,6 +530,41 @@ credentials will load from user-secrets or the environment, like the JWT signing
 The `Authorization: Avalon avp_...` scheme takes no configuration and there is no shared secret. Each
 token belongs to one account; only its SHA-256 hash is stored, and `AvalonAuthenticationHandler` looks
 it up per request. See [Security — Session Management](security-session-management.md#rest-api-authentication).
+
+---
+
+## Balance Service
+
+The balance service (`Avalon.Balance.Service`) is reached only from inside the cluster, by `Avalon.Api`. Both sides
+hold the same shared secret.
+
+**Service** (`Balance`, as `Balance__<Name>` in the environment):
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `SharedSecret` | none, required | The value callers send in `X-Balance-Secret`; at least 32 characters, else the service refuses to start. `/health` and `/alive` do not check it |
+| `GitHubToken` | empty | A fine-grained token for exports; without it `POST /exports` answers 503. Never logged |
+| `Repository` | `WoozChucky/Avalon.Server` | The repository exports open their draft pull request in |
+| `MaxQueued` | 3 | Runs waiting behind the running one; one more gets 429 |
+| `MaxRunsPerRow` | 1000 | The most `runsPerRow` a request may ask for |
+| `MaxOverrides` | 500 | The most override keys a request may carry |
+| `ResultTtl` | `01:00:00` | How long a finished run is kept before it answers 404 |
+| `MaxRetainedFinished` | 100 | Finished runs kept; past this the oldest goes, whatever its age |
+| `RunWorker` | `true` | False builds the worker paused, nothing drains the queue. A test seam |
+
+Exports branch from the commit in the assembly's informational version (`+<sha>`), which CI sets with
+`-p:SourceRevisionId="$(git rev-parse HEAD)"` (the checked-out commit; `github.sha` is main's head on a manual release); a build without it answers exports with 503.
+
+**API** (`Application:Balance`):
+
+| Setting | Meaning |
+|---------|---------|
+| `Url` | The service's in-cluster address, e.g. `http://avalon-balance:8080` |
+| `SharedSecret` | Sent as `X-Balance-Secret`; the same value as the service's `Balance:SharedSecret` |
+
+Both are needed: with either empty the admin `/balance/*` endpoints answer 503 and nothing else changes. In the
+Helm charts the secret is the key `balance-shared-secret` of the Secret, for both charts; the api chart's
+`balance.url` renders `Application__Balance__Url` only when set.
 
 ---
 

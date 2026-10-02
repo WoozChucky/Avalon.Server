@@ -106,4 +106,36 @@ public class ObjectState
     ///     Creatures, portals and spells never carry it.
     /// </summary>
     [ProtoMember(21)] public bool? PvpEnabled { get; set; }
+
+    /// <summary>
+    ///     How dangerous this creature is (#709), so a client can colour its nameplate by rarity.
+    /// </summary>
+    /// <remarks>
+    ///     Only a creature that is not <see cref="CreatureRarity.Normal" /> carries it, and every creature
+    ///     state of one carries it, whatever else changed, like <see cref="CreatureMetadataId" />, so a
+    ///     client that first sees the creature on an update still learns it. A Normal creature leaves it
+    ///     out, so absent on a creature state means Normal. Characters, portals and spells never carry it.
+    ///     It is fixed when the creature spawns, from its template.
+    /// </remarks>
+    [ProtoMember(22)] public CreatureRarity? Rarity { get; set; }
+
+    /// <summary>
+    ///     A character's class (1 Warrior, 2 Wizard, 3 Hunter, 4 Healer — <c>CharacterClass</c>), so a client
+    ///     can draw the right model for every character it sees, not only its own.
+    /// </summary>
+    /// <remarks>
+    ///     Carried on every character state, whatever else changed, like <see cref="Name" />, so a client that
+    ///     first sees a character on an update still learns it. Fixed for the character's life. Creatures,
+    ///     portals and spells never carry it, so absent means "not a character".
+    /// </remarks>
+    [ProtoMember(23)] public uint? Class { get; set; }
+
+    /// <summary>
+    ///     A character's gender (0 Male, 1 Female — <c>CharacterGender</c>), alongside <see cref="Class" />.
+    /// </summary>
+    /// <remarks>
+    ///     Nullable so that Male, which is 0, is still sent: absent means "not a character", never Male.
+    ///     Carried and fixed exactly like <see cref="Class" />.
+    /// </remarks>
+    [ProtoMember(24)] public uint? Gender { get; set; }
 }

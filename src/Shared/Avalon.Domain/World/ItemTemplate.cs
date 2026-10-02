@@ -90,6 +90,24 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     public uint? StatValue10 { get; set; }
 
+    /// <summary>
+    /// The ItemScript a use runs (item use), by class name, or null for an item a use cannot run. An item
+    /// whose Slot is worn somewhere is equipped by a use instead and never runs one.
+    /// </summary>
+    public string? UseScript { get; set; }
+
+    /// <summary>Milliseconds of cast bar before the script runs; null or 0 runs it at once.</summary>
+    public uint? UseCastTimeMs { get; set; }
+
+    /// <summary>Milliseconds before this item can be used again once a use succeeded; null for none.</summary>
+    public uint? UseCooldownMs { get; set; }
+
+    /// <summary>Items naming the same group share one cooldown (the potions' "potion"); null for none.</summary>
+    public string? UseCooldownGroup { get; set; }
+
+    /// <summary>The script's own number: for RestoreHealth and RestorePower, the percentage of the maximum restored.</summary>
+    public uint? UseValue { get; set; }
+
     // For future use
     private void ValidateSubClass()
     {
@@ -106,7 +124,7 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
         {
             ItemClass.Consumable => itemSubClass is ItemSubClass.Potion or ItemSubClass.Food or ItemSubClass.Scroll,
             ItemClass.Weapon => itemSubClass is ItemSubClass.OneHanded or ItemSubClass.TwoHanded or ItemSubClass.Ranged,
-            ItemClass.Armor => itemSubClass is ItemSubClass.Shield or ItemSubClass.Helmet or ItemSubClass.Chest or ItemSubClass.Legs or ItemSubClass.Boots or ItemSubClass.Gloves,
+            ItemClass.Armor => itemSubClass is ItemSubClass.Shield or ItemSubClass.Helmet or ItemSubClass.Chest or ItemSubClass.Legs or ItemSubClass.Boots or ItemSubClass.Gloves or ItemSubClass.Amulet or ItemSubClass.Ring,
             ItemClass.Quest => itemSubClass == ItemSubClass.QuestItem,
             ItemClass.Crafting => itemSubClass == ItemSubClass.CraftingMaterial,
             ItemClass.Junk => itemSubClass == ItemSubClass.JunkItem,
@@ -156,6 +174,12 @@ public enum ItemTemplateFlags
     NoSell = 256,
     NoDestroy = 512,
     NoTrade = 1024,
+
+    /// <summary>
+    /// A quest item (#433): counted by Collect objectives, dropped only for characters who need it, never sold,
+    /// and taken back on turn-in or abandon.
+    /// </summary>
+    QuestItem = 2048,
 }
 
 public enum ItemSlotType : ushort
@@ -210,6 +234,12 @@ public enum ItemSubClass
     Legs = 203,
     Boots = 204,
     Gloves = 205,
+
+    /// <summary>A neck piece (#433: the Alpha's Fang Pendant). Worn in EquipmentSlots.Neck.</summary>
+    Amulet = 206,
+
+    /// <summary>A ring (forest content pass: the Heartwood Band and the Thornheart Signet). Worn in EquipmentSlots.Finger1/Finger2.</summary>
+    Ring = 207,
     // Quest Subclasses
     QuestItem = 300,
     // Crafting Subclasses

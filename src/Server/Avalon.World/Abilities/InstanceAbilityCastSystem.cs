@@ -1,6 +1,6 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
-using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
@@ -24,16 +24,18 @@ public interface IAbilityCastSystem
     /// and <c>Casting</c> left clear, when its script is missing or cannot be built, or the cost cannot be paid.
     /// The script is built now, with this aim and the caster's position now as its origin, and fired once the
     /// cast time has run out. Any unit may cast (#163); a creature's casts cost nothing.
+    /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost.
     /// </summary>
-    bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability);
+    bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false);
 
     /// <summary>
     /// Instant-cast counterpart to <see cref="QueueAbility" />: builds the script, pays the cost, starts
     /// the cooldown, broadcasts the finish-cast, runs <c>Prepare()</c>, and keeps the script ticking if it
     /// has not finished (a projectile). False, with nothing spent, when the script cannot be built or
     /// the cost cannot be paid.
+    /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost.
     /// </summary>
-    bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability);
+    bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false);
 
     void Update(TimeSpan deltaTime, List<IWorldObject> objects);
 
@@ -61,6 +63,12 @@ public interface IAbilityCastSystem
     void CancelScriptsOf(IUnit caster);
 
     IWorldObject? GetAbility(ObjectGuid guid);
+
+    /// <summary>
+    /// The next cast id of this instance (#648), never 0. The cast system takes one for every cast it takes; an item's
+    /// cast bar takes one too, so every cast in an instance has its own.
+    /// </summary>
+    uint TakeCastId();
 }
 
 public class InstanceAbilityCastSystem(
@@ -78,9 +86,10 @@ public class InstanceAbilityCastSystem(
     private readonly List<AbilityInstance> _dequeued = [];
     private uint _lastCastId;
 
-    public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability)
+    public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false)
     {
-        if (!IsFree(caster) && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
+        bool pays = !free && !IsFree(caster);
+        if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
             _logger.LogInformation("QueueAbility reject {Cost} ability={AbilityId} powerType={PowerType}",
                 cost, ability.AbilityId, caster.PowerType);
@@ -101,7 +110,7 @@ public class InstanceAbilityCastSystem(
         // #627: haste is read once, here: the cast time is fixed now, and the cooldown it sets when it fires
         // uses the same value, so a gear change mid-cast changes neither.
         float haste = HasteOf(caster);
-        uint castId = NextCastId();
+        uint castId = TakeCastId();
         _abilityQueue.Add(new AbilityInstance
         {
             Caster = caster, Ability = ability, Script = script, CastStartPosition = caster.Position,
@@ -111,7 +120,7 @@ public class InstanceAbilityCastSystem(
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
         ability.Casting = true;
         ability.CastTimeTimer = Haste.Scale(ability.Metadata.CastTime, haste);
-        if (!IsFree(caster))
+        if (pays)
         {
             AbilityCost.Pay(caster, ability.Metadata);
         }
@@ -123,9 +132,10 @@ public class InstanceAbilityCastSystem(
         return true;
     }
 
-    public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability)
+    public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false)
     {
-        if (!IsFree(caster) && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
+        bool pays = !free && !IsFree(caster);
+        if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
             _logger.LogInformation("RunInstant reject {Cost} ability={AbilityId} powerType={PowerType}",
                 cost, ability.AbilityId, caster.PowerType);
@@ -138,12 +148,12 @@ public class InstanceAbilityCastSystem(
             return false;
         }
 
-        if (!IsFree(caster))
+        if (pays)
         {
             AbilityCost.Pay(caster, ability.Metadata);
         }
 
-        Fire(caster, ability, script, HasteOf(caster), NextCastId());
+        Fire(caster, ability, script, HasteOf(caster), TakeCastId());
         return true;
     }
 
@@ -463,7 +473,7 @@ public class InstanceAbilityCastSystem(
     /// The next cast id (#648): counted per instance, so unique within it, skipping 0, which a packet from before
     /// #648 decodes as.
     /// </summary>
-    private uint NextCastId()
+    public uint TakeCastId()
     {
         _lastCastId = _lastCastId == uint.MaxValue ? 1u : _lastCastId + 1u;
         return _lastCastId;

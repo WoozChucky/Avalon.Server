@@ -212,6 +212,24 @@ public class CreatureAbilityAiShould
         fight.Creature.Received().LookAt(new Vector3(0f, 0f, 3f));
     }
 
+    /// <summary>
+    /// #716 leaves creatures as they were: a creature's Movement cast carries no cursor point and aims along its
+    /// facing toward the target, captured at cast start, whatever way its body faced before.
+    /// </summary>
+    [Fact]
+    public void Aim_a_movement_ability_toward_its_target_with_no_point()
+    {
+        var fight = new Fight(targetAt: new Vector3(1f, 0f, 0f), prefer: SpecialId);
+        fight.Creature.Orientation.Returns(new Vector3(0f, 180f, 0f));   // its body faces -Z
+
+        fight.Tick();
+
+        (_, AbilityAim aim, IAbility special) = Assert.Single(fight.Rig.Casts);
+        Assert.Equal(SpecialId, special.AbilityId);
+        Assert.Null(aim.Point);
+        Assert.Equal(new Vector3(1f, 0f, 0f), aim.Facing);
+    }
+
     /// <summary>Winding up, the creature asks for no movement however far the target runs, then chases again once the cast ends.</summary>
     [Fact]
     public void Ask_for_no_movement_until_the_wind_up_ends()

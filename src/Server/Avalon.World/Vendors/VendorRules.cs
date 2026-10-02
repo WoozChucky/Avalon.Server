@@ -44,6 +44,14 @@ public static class VendorRules
     public static ulong UnitPrice(VendorStockView row, ItemTemplate item) =>
         Math.Max(row.PriceOverride ?? item.BuyPrice, item.SellPrice);
 
+    /// <summary>
+    /// A quest item is never sold (#433). VendorCatalog refuses such a row, but a later /reload items can flag a
+    /// stocked item QuestItem without a vendor reload, so the rule is enforced here too, as the price floor is: the
+    /// row is hidden from the list and a buy of it is NotFound, until /reload vendors drops it. A sale of an item
+    /// flagged since is hidden from the buyback list and its buyback NotFound alike (#738).
+    /// </summary>
+    public static bool IsStockable(ItemTemplate item) => !item.Flags.HasFlag(ItemTemplateFlags.QuestItem);
+
     /// <summary>A row with a quest requirement is shown, and sold, only once IQuestProgress says it is met.</summary>
     public static bool IsVisible(VendorStockView row, CharacterEntity character, IQuestProgress quests) =>
         row.Requirement is not { } requirement || quests.IsMet(character, requirement.QuestId, requirement.State);
@@ -81,7 +89,8 @@ public static class VendorRules
             }
         }
 
-        if (row is null || !IsVisible(row, character, quests) || findTemplate(row.ItemTemplateId) is not { } item)
+        if (row is null || !IsVisible(row, character, quests) || findTemplate(row.ItemTemplateId) is not { } item
+            || !IsStockable(item))
             return new BuyDecision(VendorResult.NotFound, null);
 
         uint buying = count ?? 1;
@@ -142,6 +151,7 @@ public static class VendorRules
 
         if (findTemplate(item.TemplateId) is not { } template
             || template.Flags.HasFlag(ItemTemplateFlags.NoSell)
+            || template.Flags.HasFlag(ItemTemplateFlags.QuestItem)
             || template.SellPrice == 0)
             return new SellDecision(VendorResult.NotSellable, null);
 
@@ -162,9 +172,12 @@ public static class VendorRules
     }
 
     /// <summary>
-    /// Buyback: alive; shop open; the index; the gold it sold for; a free Bag slot, because the
-    /// exact instance is never merged into a stack. Also unique (#432), which the spec's list
-    /// leaves out: re-adding a sold unique item beside a newer copy would leave two.
+    /// Buyback: alive; shop open; the index, and an item that is not now a quest item (#738: a
+    /// /reload items can flag one sold before it, and a quest item is never sold, so it is NotFound
+    /// as a buy of it is); the gold it sold for; a free Bag slot, because the exact instance is never
+    /// merged into a stack. Also unique (#432), which the spec's list leaves out: re-adding a sold
+    /// unique item beside a newer copy would leave two. An item whose template is gone can still be
+    /// bought back.
     /// </summary>
     public static BuybackDecision DecideBuyback(
         CharacterEntity character,
@@ -178,7 +191,8 @@ public static class VendorRules
         if (!shopOpen)
             return new BuybackDecision(VendorResult.ShopClosed, null);
 
-        if (!character.Buyback.TryGet(index, out BuybackEntry? entry))
+        if (!character.Buyback.TryGet(index, out BuybackEntry? entry)
+            || (findTemplate(entry.Item.TemplateId) is { } flagged && !IsStockable(flagged)))
             return new BuybackDecision(VendorResult.NotFound, null);
 
         if (Balance(character) < entry.Price)

@@ -45,6 +45,7 @@ public class ExperienceAwardShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 880_001),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = creatureExperience
         };
         instance.AddCreature(creature);
@@ -80,6 +81,7 @@ public class ExperienceAwardShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 880_011),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = 100,
             Health = 10,
             CurrentHealth = 10,
@@ -118,6 +120,7 @@ public class ExperienceAwardShould
         {
             Guid = new ObjectGuid(ObjectType.Creature, 880_031),
             Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
             Experience = 100,
             Health = 10,
             CurrentHealth = 10,
@@ -214,6 +217,94 @@ public class ExperienceAwardShould
         instance.Dispose();
     }
 
+    /// <summary>
+    /// Working out who shares a kill is contained: a throw there must not leave a creature at 0 health with its script
+    /// and no corpse teardown. Nobody is eligible then, so nobody gains experience. Made to throw through the killer's id,
+    /// which the party lookup reads first.
+    /// </summary>
+    [Fact]
+    public void Still_Take_The_Kill_When_Working_Out_Who_Shares_It_Throws()
+    {
+        var world = Substitute.For<Avalon.World.IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate>());
+        StaticData data = LoadedStaticData();
+        world.Data.Returns(data);
+        var parties = new Avalon.World.Parties.PartyService(
+            Microsoft.Extensions.Options.Options.Create(new GameConfiguration()), new ManualTimerClock(),
+            NullLogger<Avalon.World.Parties.PartyService>.Instance);
+
+        MapInstance instance = TestMapInstances.Build(world, parties: parties);
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 880_041),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 9,
+            Experience = 100,
+        };
+        instance.AddCreature(creature);
+        creature.Script = new Avalon.World.Scripts.Creatures.CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
+
+        ICharacter killer = Substitute.For<ICharacter>();
+        killer.Guid.Returns(_ => throw new InvalidOperationException("broken killer"));
+        killer.Level.Returns((ushort)9);
+
+        Exception? thrown = Record.Exception(() => instance.ReportKill(creature, killer));
+
+        Assert.Null(thrown);
+        Assert.Null(creature.Script);
+        killer.DidNotReceive().Experience = Arg.Any<ulong>();
+        instance.Dispose();
+    }
+
+    /// <summary>
+    /// #433, owner decision 2026-10-01: kills and quest rewards level up through the one helper,
+    /// ExperienceAward.Grant, which carries the experience across every level the award covers. A kill whose
+    /// experience covers two levels raises its killer two levels. Before #433 a kill levelled at most once and kept
+    /// the rest as experience at the new level (here: level 2 with 250).
+    /// </summary>
+    [Fact]
+    public async Task Level_Up_Twice_When_One_Kill_Covers_Two_Levels()
+    {
+        var world = Substitute.For<Avalon.World.IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate>());   // no band: the award is the creature's whole experience
+        StaticData data = await TestStaticData.LoadAsync(levels:
+        [
+            new CharacterLevelExperience { Level = 1, Experience = 100 },
+            new CharacterLevelExperience { Level = 2, Experience = 200 },
+            new CharacterLevelExperience { Level = 3, Experience = 1000 },
+            new CharacterLevelExperience { Level = 4, Experience = 2000 },   // so level 3 is not the maximum (#735)
+        ]);
+        world.Data.Returns(data);
+
+        MapInstance instance = TestMapInstances.Build(world);
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 880_051),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Level = 1,
+            Experience = 350,
+        };
+        instance.AddCreature(creature);
+
+        // Not stubbed with Returns: the substitute remembers what the award sets, so the level it reads back rises.
+        ICharacter killer = Substitute.For<ICharacter>();
+        killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 880_052));
+        killer.Level = 1;
+        killer.Experience = 0;
+
+        instance.ReportKill(creature, killer);
+
+        // 350 - 100 (level 1) - 200 (level 2) = 50 toward level 3's 1000.
+        Assert.Equal((ushort)3, killer.Level);
+        Assert.Equal(50ul, killer.Experience);
+        Assert.Equal(1000ul, killer.RequiredExperience);
+        instance.Dispose();
+    }
+
     [Theory]
     [InlineData(3, 1, 5, 1.0)]      // inside the band
     [InlineData(1, 1, 5, 1.0)]      // on the lower edge
@@ -255,7 +346,7 @@ public class ExperienceAwardShould
     /// StaticData's collections are null until LoadAsync runs, and CreatureKilled reads
     /// CharacterLevelExperiences to decide whether the kill levelled the character up.
     /// </summary>
-    private static StaticData LoadedStaticData()
+    internal static StaticData LoadedStaticData()
     {
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());
@@ -271,10 +362,14 @@ public class ExperienceAwardShould
 
         var levels = Substitute.For<ICharacterLevelExperienceRepository>();
         // Well above anything a single scaled award can reach, so this kill cannot level the
-        // character up and the assertion is on the award itself.
+        // character up and the assertion is on the award itself. The level-10 row keeps 9 below the maximum
+        // level, where nothing is awarded (#735).
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(
             Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>(
-                [new CharacterLevelExperience { Level = 9, Experience = 6500 }]));
+            [
+                new CharacterLevelExperience { Level = 9, Experience = 6500 },
+                new CharacterLevelExperience { Level = 10, Experience = 7000 },
+            ]));
 
         var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
         creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())

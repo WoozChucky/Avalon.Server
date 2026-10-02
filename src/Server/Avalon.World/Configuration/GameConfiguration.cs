@@ -157,8 +157,73 @@ public class GameConfiguration
     [Range(0.0, double.MaxValue)]
     public float FuryDecayPerSecond { get; set; } = DefaultFuryDecayPerSecond;
 
+    /// <summary>The most characters in one party (2026-09-30). A party instance also holds at most this many.</summary>
+    [Range(2, 40)]
+    public int MaxPartySize { get; set; } = 6;
+
+    /// <summary>Seconds an invite stays open before it expires.</summary>
+    [Range(1, 3600)]
+    public int PartyInviteTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>Seconds a character who is no longer a member may stay in the party's instance before being moved to town.</summary>
+    [Range(1, 3600)]
+    public int PartyLeaveGraceSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Seconds before a leave countdown's return to town that failed is tried again (#700), up to
+    /// PartyService.MaxReturnRetries times.
+    /// </summary>
+    [Range(1, 3600)]
+    public int PartyReturnRetrySeconds { get; set; } = 5;
+
+    /// <summary>Seconds after a switch of the experience mode before the leader may switch it again. 0 turns the wait off.</summary>
+    [Range(0, 86400)]
+    public int PartyExperienceModeCooldownSeconds { get; set; } = 60;
+
+    /// <summary>Creature health added per player present beyond the first, as a share of its base: 0.6 is +60 %. 0 or more and finite.</summary>
+    [Range(0.0, double.MaxValue)]
+    public float PartyHealthPerExtraPlayer { get; set; } = 0.6f;
+
+    /// <summary>Metres, on X/Z, from a corpse within which a member not in the creature's encounter still shares the kill. At least 1 and finite.</summary>
+    [Range(1.0, double.MaxValue)]
+    public float PartyEligibilityRange { get; set; } = 60f;
+
+    /// <summary>
+    /// Experience added to a kill per counted member beyond the first, as a share: 0.1 is +10 %. 0 to 10: the bound keeps
+    /// the pool well inside what the experience split's decimal arithmetic can hold.
+    /// </summary>
+    [Range(0.0, 10.0)]
+    public float PartyExperienceBonusPerExtra { get; set; } = 0.10f;
+
+    /// <summary>A character this many levels or more above a creature gets no experience from it, solo or in a party.</summary>
+    [Range(1, 1000)]
+    public int PartyExperienceLevelGap { get; set; } = 5;
+
+    /// <summary>How many quests a character may hold at once (#433). A full log refuses an accept with LogFull.</summary>
+    [Range(1, 100)]
+    public int MaxActiveQuests { get; set; } = 20;
+
+    /// <summary>How many characters one character may ignore (#723). A full list refuses /ignore with a system line.</summary>
+    [Range(1, 500)]
+    public int MaxIgnoredCharacters { get; set; } = 50;
+
+    /// <summary>
+    /// How many player chat messages one character may send in any 60 seconds (#722): plain chat, <c>/p</c> and
+    /// <c>/w</c> share the one budget. Only a delivered message counts. 0 or below turns the limit off. The default
+    /// is in <c>appsettings.json</c>.
+    /// </summary>
+    [Range(int.MinValue, 10_000)]
+    public int ChatMessagesPerMinute { get; set; }
+
+    /// <summary>
+    /// Turns on the tick-thread assertion (#639, <see cref="Threading.TickThreadGuard" />): world state that only the tick may
+    /// change throws when changed from another thread. For development and tests; off by default, where each check
+    /// costs one read of a flag. Read once, when the world server starts.
+    /// </summary>
+    public bool TickThreadGuard { get; set; }
+
     /// <summary>The default of <see cref="FuryFromDamageTaken" />, for whatever is built without the options.</summary>
-    public const float DefaultFuryFromDamageTaken = 50f;
+    public const float DefaultFuryFromDamageTaken = Avalon.Combat.Fury.DefaultFromDamageTaken;
 
     /// <summary>The default of <see cref="FuryDecayPerSecond" />, for whatever is built without the options.</summary>
     public const float DefaultFuryDecayPerSecond = 5f;
