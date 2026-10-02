@@ -1,4 +1,5 @@
 using Avalon.Database.Character.Repositories;
+using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
@@ -25,12 +26,11 @@ public sealed class IgnoreList(SaveStateTracker save)
 
     public bool Contains(uint characterId) => _ids.Contains(characterId);
 
-    /// <summary>The entry with this name, ignoring case and surrounding spaces, or none.</summary>
-    public IgnoredCharacter? FindByName(string name)
-    {
-        string trimmed = name.Trim();
-        return _entries.Find(e => string.Equals(e.Name, trimmed, StringComparison.OrdinalIgnoreCase));
-    }
+    /// <summary>
+    /// The entry with this name, ignoring case and surrounding spaces (by <see cref="CharacterName.Key" />, #757), or
+    /// none. Names are unique by key in a world, so at most one entry matches.
+    /// </summary>
+    public IgnoredCharacter? FindByName(string name) => _entries.Find(e => CharacterName.Same(e.Name, name));
 
     /// <summary>Replaces the whole list with the stored rows, in their order. Marks nothing.</summary>
     public void Load(IEnumerable<IgnoredCharacterRow> rows)

@@ -1,3 +1,4 @@
+using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Characters;
 using Avalon.World.Social;
@@ -36,7 +37,7 @@ public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rate
             return;
         }
 
-        if (string.Equals(name, sender.Name, StringComparison.OrdinalIgnoreCase))
+        if (CharacterName.Same(name, sender.Name))
         {
             ctx.Reply(Self);
             return;

@@ -14,8 +14,30 @@ public class Character : IDbEntity<CharacterId>
     [Required]
     public AccountId AccountId { get; set; }
 
+    private string _name = string.Empty;
+
+    /// <summary>
+    /// The name everyone sees. A new character's is stored in <see cref="CharacterName.Display" /> form (#757).
+    /// Setting it sets <see cref="NameKey" />, so the two never disagree.
+    /// </summary>
     [Required]
-    public string Name { get; set; } = string.Empty;
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            _name = value;
+            NameKey = CharacterName.Key(value);
+        }
+    }
+
+    /// <summary>
+    /// The name upper-cased (<see cref="CharacterName.Key" />), which every lookup by name uses (#757). Unique in a
+    /// world's characters database, and held to <c>upper("Name")</c> by a check constraint. Set only through
+    /// <see cref="Name" />.
+    /// </summary>
+    [Required]
+    public string NameKey { get; private set; } = string.Empty;
 
     [Required]
     public CharacterClass Class { get; set; }

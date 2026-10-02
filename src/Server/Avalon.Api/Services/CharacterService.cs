@@ -64,33 +64,61 @@ public class CharacterService : ICharacterService
 
     public async Task UpdateCosmeticAsync(Character character, string? newName, CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrWhiteSpace(newName) && newName != character.Name)
-        {
-            var existing = await _characterRepository.FindByNameAsync(newName, cancellationToken);
-            if (existing is not null && existing.Id != character.Id)
-                throw new BusinessException("Name already taken");
-
-            character.Name = newName;
-        }
-        await _characterRepository.UpdateAsync(character, cancellationToken);
+        if (newName is not null)
+            await RenameAsync(character, newName, cancellationToken);
     }
 
     public async Task UpdateAnyAsync(Character character, CharacterPatchDto dto, CancellationToken cancellationToken = default)
     {
-        if (dto.Name is not null && dto.Name != character.Name)
-        {
-            var existing = await _characterRepository.FindByNameAsync(dto.Name, cancellationToken);
-            if (existing is not null && existing.Id != character.Id)
-                throw new BusinessException("Name already taken");
-            character.Name = dto.Name;
-        }
+        // The rename first: refused (rule, taken, online), the request changes nothing.
+        if (dto.Name is not null)
+            await RenameAsync(character, dto.Name, cancellationToken);
+
         if (dto.Level.HasValue)      character.Level = dto.Level.Value;
         if (dto.Experience.HasValue) character.Experience = dto.Experience.Value;
         if (dto.Health.HasValue)     character.Health = dto.Health.Value;
         if (dto.Power1.HasValue)     character.Power1 = dto.Power1.Value;
         if (dto.Power2.HasValue)     character.Power2 = dto.Power2.Value;
 
+        // A tracked update never writes the name (it is insert-only to the change tracker): the rename above did.
         await _characterRepository.UpdateAsync(character, cancellationToken);
+    }
+
+    private const string NameTaken = "Name already taken";
+
+    /// <summary>
+    /// Renames the character under the rule a create follows (#757): 3 to 12 ASCII letters, stored first letter
+    /// upper-case and the rest lower-case, refused as taken when another character holds the name in any case, and
+    /// refused with 409 while the character is online (owner decision). A name that would not change writes nothing.
+    /// The write is <see cref="ICharacterRepository.TryRenameAsync" />, one conditional statement that writes only
+    /// while the row is offline, so a login cannot land between the online check and the write; a rename that loses
+    /// the race to the unique index on NameKey is answered as taken.
+    /// </summary>
+    private async Task RenameAsync(Character character, string name, CancellationToken cancellationToken)
+    {
+        if (!CharacterName.IsValid(name))
+            throw new BusinessException(CharacterName.Requirement);
+
+        string display = CharacterName.Display(name);
+        if (string.Equals(display, character.Name, StringComparison.Ordinal))
+            return;
+
+        var existing = await _characterRepository.FindByNameAsync(name, cancellationToken);
+        if (existing is not null && existing.Id != character.Id)
+            throw new BusinessException(NameTaken);
+
+        switch (await _characterRepository.TryRenameAsync(character.Id, display, cancellationToken))
+        {
+            case CharacterRename.Renamed:
+                character.Name = display;
+                return;
+            case CharacterRename.Online:
+                throw new CharacterOnlineException();
+            case CharacterRename.NameTaken:
+                throw new BusinessException(NameTaken);
+            default:
+                throw new CharacterNotFoundException();
+        }
     }
 
     public async Task<CharacterInventoryDto?> GetInventoryAsync(CharacterId id, CancellationToken cancellationToken = default)

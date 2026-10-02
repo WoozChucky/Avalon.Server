@@ -88,4 +88,14 @@ public class IgnoreListShould
         Assert.Equal(7u, c.Ignores.FindByName(name)!.Id);
         Assert.Null(c.Ignores.FindByName("Tom"));
     }
+
+    /// <summary>Only ASCII letters fold, as the stored key does (#757): a dotless i is not an i.</summary>
+    [Fact]
+    public void Find_no_entry_by_a_name_that_matches_only_outside_ascii()
+    {
+        CharacterEntity c = Character();
+        c.Ignores.Add(7, "Bill", Now);
+
+        Assert.Null(c.Ignores.FindByName("Bıll"));
+    }
 }

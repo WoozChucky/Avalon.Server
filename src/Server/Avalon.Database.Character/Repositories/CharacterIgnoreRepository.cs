@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.Characters;
 using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.Character.Repositories;
@@ -25,23 +26,15 @@ public sealed class CharacterIgnoreRepository(IDbContextFactory<CharacterDbConte
 
     public async Task<CharacterNameMatch?> FindCharacterByNameAsync(string name, CancellationToken cancellationToken = default)
     {
-        string trimmed = name.Trim();
-        if (trimmed.Length == 0)
+        string key = CharacterName.LookupKey(name);
+        if (key.Length == 0)
             return null;
 
-        string upper = trimmed.ToUpperInvariant();
         await using CharacterDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var matches = await context.Characters.AsNoTracking()
-#pragma warning disable MA0011 // translated to SQL upper(); a culture overload has no translation
-            .Where(c => c.Name.ToUpper() == upper)
-#pragma warning restore MA0011
+        var match = await context.Characters.AsNoTracking()
+            .Where(c => c.NameKey == key)
             .Select(c => new { c.Id, c.Name })
-            .ToListAsync(cancellationToken);
-
-        var match = matches
-            .OrderBy(m => string.Equals(m.Name, trimmed, StringComparison.Ordinal) ? 0 : 1)
-            .ThenBy(m => m.Id.Value)
-            .FirstOrDefault();
+            .FirstOrDefaultAsync(cancellationToken);
         return match is null ? null : new CharacterNameMatch(match.Id, match.Name);
     }
 }

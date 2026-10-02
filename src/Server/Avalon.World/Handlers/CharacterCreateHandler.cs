@@ -8,6 +8,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Enums;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -55,10 +56,43 @@ public class CharacterCreateHandler(
             return;
         }
 
+        // The name too (#757): 3 to 12 ASCII letters, exactly as sent, before anything is read.
+        if (NameRefusal(CharacterName.Check(packet.Name)) is { } refusal)
+        {
+            logger.LogDebug("Character name {Name} breaks the name rule: {Refusal}", packet.Name, refusal);
+            connection.Send(SCharacterCreatedPacket.Create(refusal, connection.CryptoSession.Encrypt));
+            return;
+        }
+
         connection.EnqueueContinuation(characterRepository.FindByAccountAsync(connection.AccountId), characters =>
         {
             OnCharactersReceived(connection, characters, packet);
         });
+    }
+
+    private static SCharacterCreateResult? NameRefusal(CharacterNameProblem problem) => problem switch
+    {
+        CharacterNameProblem.None => null,
+        CharacterNameProblem.TooShort => SCharacterCreateResult.NameTooShort,
+        CharacterNameProblem.TooLong => SCharacterCreateResult.NameTooLong,
+        _ => SCharacterCreateResult.NameInvalid,
+    };
+
+    /// <summary>
+    /// Inserts the character, or answers null when the name was taken in the meantime. The duplicate check before it
+    /// and this insert are not atomic: a character whose name differs only in case can be created in between, and the
+    /// unique index on NameKey (#757) refuses this one. Only that violation is caught; any other failure is rethrown.
+    /// </summary>
+    private async Task<Character?> CreateUnlessNameTakenAsync(Character character)
+    {
+        try
+        {
+            return await characterRepository.CreateAsync(character, CancellationToken.None);
+        }
+        catch (DbUpdateException ex) when (CharacterNameKeyViolation.Is(ex))
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -94,20 +128,6 @@ public class CharacterCreateHandler(
             return;
         }
 
-        if (packet.Name.Length < 3)
-        {
-            logger.LogDebug("Character name {Name} is too short", packet.Name);
-            connection.Send(SCharacterCreatedPacket.Create(SCharacterCreateResult.NameTooShort, connection.CryptoSession.Encrypt));
-            return;
-        }
-
-        if (packet.Name.Length > 12)
-        {
-            logger.LogDebug("Character name {Name} is too long", packet.Name);
-            connection.Send(SCharacterCreatedPacket.Create(SCharacterCreateResult.NameTooLong, connection.CryptoSession.Encrypt));
-            return;
-        }
-
         var createInfo = world.Data.CharacterCreateInfos.FirstOrDefault(c => c.Class == (CharacterClass)packet.Class);
         if (createInfo == null)
         {
@@ -133,7 +153,7 @@ public class CharacterCreateHandler(
         var character = new Character
         {
             AccountId = connection.AccountId!.Value,
-            Name = packet.Name,
+            Name = CharacterName.Display(packet.Name), // "kAELA" is stored, and shown, as "Kaela" (#757)
             Level = classLevelStats.Level,
             Class = createInfo.Class,
             Gender = gender,
@@ -149,8 +169,15 @@ public class CharacterCreateHandler(
             Experience = 0,
         };
 
-        connection.EnqueueContinuation(characterRepository.CreateAsync(character, CancellationToken.None), createdCharacter =>
+        connection.EnqueueContinuation(CreateUnlessNameTakenAsync(character), createdCharacter =>
         {
+            if (createdCharacter is null)
+            {
+                logger.LogDebug("Character {Name} was created by another request first", character.Name);
+                connection.Send(SCharacterCreatedPacket.Create(SCharacterCreateResult.NameAlreadyExists, connection.CryptoSession.Encrypt));
+                return;
+            }
+
             OnCharacterCreated(connection, createdCharacter, stats, createInfo);
         });
     }

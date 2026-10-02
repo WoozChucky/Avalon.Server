@@ -812,6 +812,7 @@ enum SCharacterCreateResult {
    SCharacterCreateResult_MaxCharactersReached = 5;
    SCharacterCreateResult_AlreadyInGame = 6;
    SCharacterCreateResult_InternalDatabaseError = 7;
+   SCharacterCreateResult_NameInvalid = 8;
 }
 message SCharacterCreatedPacket {
    SCharacterCreateResult Result = 1;

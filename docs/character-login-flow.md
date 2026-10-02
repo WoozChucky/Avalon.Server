@@ -206,6 +206,47 @@ sent.
 
 ---
 
+## Character Creation
+
+`CMSG_CHARACTER_CREATE` (`CCharacterCreatePacket`: `Name`, `Class`, `Gender`) gets exactly one
+`SMSG_CHARACTER_CREATED` (`SCharacterCreatedPacket.Result`, field 1, an `SCharacterCreateResult`),
+unless the connection is closed instead.
+
+- **The name rule (#757):** 3 to 12 ASCII letters, `A`-`Z` and `a`-`z`, nothing else: no digits,
+  spaces, punctuation or letters outside ASCII. It is checked exactly as sent, before anything is
+  read, so a name with a leading or trailing space is refused, not trimmed. Shorter than 3 is
+  `NameTooShort` (2), longer than 12 `NameTooLong` (3), and any other break `NameInvalid` (8).
+- **Stored form:** the name is stored, and shown to everyone, with its first letter upper-case and
+  the rest lower-case: `kAELA` becomes `Kaela`. The character list, select, chat, the party roster
+  and the ignore list all show that form.
+- **One name per world, whatever its case:** a name that differs from an existing character's only
+  in case is `NameAlreadyExists` (1). Every lookup by name (`/w`, `/invite`, `/kick`, `/promote`,
+  `/ignore`, `/unignore`) finds the character whatever case is typed.
+- **Answer order:** the checks run in this order, and the first that fails answers:
+  1. not logged in to the world, or a character selected, being selected or leaving: the
+     connection is closed, with no answer;
+  2. a gender the enum does not define: `InvalidClass` (4);
+  3. the name rule: `NameTooShort` (2), `NameTooLong` (3) or `NameInvalid` (8);
+  4. the account already holds the maximum number of characters: `MaxCharactersReached` (5);
+  5. a character already has the name, in any case: `NameAlreadyExists` (1);
+  6. the class has no creation data or no level 1 stats: `InternalDatabaseError` (7);
+  7. another create took the name between step 5 and the insert: `NameAlreadyExists` (1);
+  8. `Success` (0) once the character, its stats, abilities and starting items are written.
+- **Other results:** `AlreadyInGame` (6) is defined but not sent today (a create while a character
+  is selected closes the connection, step 1). `SCharacterCreateResult` is append-only.
+- **Renames through the REST API** (`PATCH /world/{worldId}/character/{id}`, `name`, owner or admin)
+  follow the same rule and stored form:
+  - a name that breaks the rule, an empty or all-space `name` included, is a 400 validation error
+    ("Character name must be 3 to 12 letters A-Z only."); leaving `name` out leaves the name alone;
+  - a name another character holds in any case is a 400 "Name already taken", and so is a rename
+    that loses the race to another character taking the name;
+  - a character that is in the world is not renamed: 409 "Character is online; rename it while
+    logged out.". Only a name that would change is refused; an admin patch of other fields, with the
+    current name or none, still applies while the character is online.
+  - a character deleted while the rename was under way is a 404, as for a missing character.
+
+---
+
 ## Change Character (#663)
 
 A player in the world returns to character selection on the **same** world connection, with no new

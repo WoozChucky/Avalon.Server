@@ -165,7 +165,7 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
         {
             CharacterId renamed = 2u;
             await context.Characters.Where(c => c.Id == renamed)
-                .ExecuteUpdateAsync(u => u.SetProperty(c => c.Name, "Kaelin"));
+                .ExecuteUpdateAsync(u => u.SetProperty(c => c.Name, "Kaelin").SetProperty(c => c.NameKey, "KAELIN"));
         }
 
         Assert.Equal("Kaelin", Assert.Single((await ReloadAsync(1)).Entries).Name);
@@ -184,15 +184,5 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
         Assert.Equal(new CharacterNameMatch(2u, "Kaela"), match);
         Assert.Null(await _ignores.FindCharacterByNameAsync("Nobody"));
         Assert.Null(await _ignores.FindCharacterByNameAsync("   "));
-    }
-
-    [Fact]
-    public async Task Prefer_the_exact_spelling_when_names_differ_only_in_case()
-    {
-        await StoredCharacterAsync(2, "Kaela");
-        await StoredCharacterAsync(3, "KAELA");
-
-        Assert.Equal(3u, (await _ignores.FindCharacterByNameAsync("KAELA"))!.Id.Value);
-        Assert.Equal(2u, (await _ignores.FindCharacterByNameAsync("kaela"))!.Id.Value);
     }
 }

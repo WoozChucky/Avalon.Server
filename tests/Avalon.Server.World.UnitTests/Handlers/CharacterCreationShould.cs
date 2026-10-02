@@ -265,6 +265,160 @@ public class CharacterCreationShould : IDisposable
         Assert.False(await characterDb.Characters.AnyAsync());
     }
 
+    /// <summary>
+    /// The name rule (#757): 3 to 12 ASCII letters, checked as sent, before anything is read. Too short and too long
+    /// keep their own answers; anything else that breaks it is NameInvalid.
+    /// </summary>
+    [Theory]
+    [InlineData("Bo", SCharacterCreateResult.NameTooShort)]
+    [InlineData("", SCharacterCreateResult.NameTooShort)]
+    [InlineData("Abcdefghijklm", SCharacterCreateResult.NameTooLong)]
+    [InlineData("B0b", SCharacterCreateResult.NameInvalid)]
+    [InlineData("Bob Al", SCharacterCreateResult.NameInvalid)]
+    [InlineData(" Bob", SCharacterCreateResult.NameInvalid)]
+    [InlineData("Zoë", SCharacterCreateResult.NameInvalid)]
+    [InlineData("Bıll", SCharacterCreateResult.NameInvalid)]
+    [InlineData("Bob_", SCharacterCreateResult.NameInvalid)]
+    public async Task Refuse_a_name_that_breaks_the_rule_before_reading_anything(string name,
+        SCharacterCreateResult expected)
+    {
+        StaticData data = await LoadStaticDataAsync();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
+        IWorldConnection connection = NewConnection();
+        CharacterCreateHandler handler = new(
+            NullLogger<CharacterCreateHandler>.Instance, characters,
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<ICharacterInventoryRepository>(), Substitute.For<IItemInstanceRepository>(),
+            new ItemIdAllocator(), NewWorld(data));
+
+        handler.Execute(connection, new CCharacterCreatePacket
+        {
+            Name = name,
+            Class = (int)data.CharacterCreateInfos.First().Class,
+        });
+
+        Assert.Equal(expected, SentResult(connection));
+        Assert.Empty(characters.ReceivedCalls());
+    }
+
+    /// <summary>The name is stored, and shown to everyone, first letter upper-case and the rest lower-case (#757).</summary>
+    [Theory]
+    [InlineData("kAELA")]
+    [InlineData("kaela")]
+    [InlineData("KAELA")]
+    public async Task Store_the_name_with_its_first_letter_upper_case_and_the_rest_lower_case(string sent)
+    {
+        StaticData data = await LoadStaticDataAsync();
+        IWorldConnection connection = NewConnection();
+
+        NewHandler(data).Execute(connection, new CCharacterCreatePacket
+        {
+            Name = sent,
+            Class = (int)data.CharacterCreateInfos.First().Class,
+        });
+        await PumpAsync(connection);
+
+        Assert.Equal(SCharacterCreateResult.Success, SentResult(connection));
+        await using CharacterDbContext characterDb = _characters.CreateDbContext();
+        Avalon.Domain.Characters.Character character = await characterDb.Characters.AsNoTracking().SingleAsync();
+        Assert.Equal(("Kaela", "KAELA"), (character.Name, character.NameKey));
+    }
+
+    /// <summary>"Bob" and "bob" are one name in a world (#757).</summary>
+    [Theory]
+    [InlineData("bob")]
+    [InlineData("BOB")]
+    [InlineData("Bob")]
+    public async Task Refuse_a_name_that_differs_from_an_existing_one_only_in_case(string sent)
+    {
+        StaticData data = await LoadStaticDataAsync();
+        await StoreCharacterAsync("Bob", new AccountId(2));
+        IWorldConnection connection = NewConnection();
+
+        NewHandler(data).Execute(connection, new CCharacterCreatePacket
+        {
+            Name = sent,
+            Class = (int)data.CharacterCreateInfos.First().Class,
+        });
+        await PumpAsync(connection);
+
+        Assert.Equal(SCharacterCreateResult.NameAlreadyExists, SentResult(connection));
+        await using CharacterDbContext characterDb = _characters.CreateDbContext();
+        Assert.Equal(1, await characterDb.Characters.CountAsync());
+    }
+
+    /// <summary>
+    /// The duplicate check and the insert are not atomic: a character of the same name in another case can be created
+    /// in between, and the unique index on NameKey refuses this one. The player gets the answer the check would have
+    /// given, and nothing of the refused character is written.
+    /// </summary>
+    [Fact]
+    public async Task Answer_name_already_exists_to_a_create_that_loses_the_race_to_the_index()
+    {
+        StaticData data = await LoadStaticDataAsync();
+        IWorldConnection connection = NewConnection();
+
+        NewHandler(data).Execute(connection, new CCharacterCreatePacket
+        {
+            Name = "bob",
+            Class = (int)data.CharacterCreateInfos.First().Class,
+        });
+
+        // The second continuation is the duplicate lookup: once it has answered "free", another create lands first.
+        await PumpAsync(connection, beforeCallback: async index =>
+        {
+            if (index == 1)
+                await StoreCharacterAsync("BOB", new AccountId(2));
+        });
+
+        Assert.Equal(SCharacterCreateResult.NameAlreadyExists, SentResult(connection));
+        await using CharacterDbContext characterDb = _characters.CreateDbContext();
+        Avalon.Domain.Characters.Character only = await characterDb.Characters.AsNoTracking().SingleAsync();
+        Assert.Equal(new AccountId(2), only.AccountId);
+        Assert.False(await characterDb.CharacterStats.AnyAsync());
+    }
+
+    /// <summary>Only the unique violation on NameKey is answered NameAlreadyExists; any other failure is rethrown.</summary>
+    [Fact]
+    public async Task Rethrow_an_insert_failure_that_is_not_the_name_key()
+    {
+        StaticData data = await LoadStaticDataAsync();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
+        characters.FindByAccountAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<Domain.Characters.Character>()));
+        characters.CreateAsync(Arg.Any<Domain.Characters.Character>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<Domain.Characters.Character>(new DbUpdateException("disk full")));
+        IWorldConnection connection = NewConnection();
+        CharacterCreateHandler handler = new(
+            NullLogger<CharacterCreateHandler>.Instance, characters,
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<ICharacterInventoryRepository>(), Substitute.For<IItemInstanceRepository>(),
+            new ItemIdAllocator(), NewWorld(data));
+
+        handler.Execute(connection, new CCharacterCreatePacket
+        {
+            Name = "Bob",
+            Class = (int)data.CharacterCreateInfos.First().Class,
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => PumpAsync(connection));
+        Assert.DoesNotContain(connection.ReceivedCalls(),
+            call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send));
+    }
+
+    private async Task StoreCharacterAsync(string name, AccountId account)
+    {
+        await using CharacterDbContext db = _characters.CreateDbContext();
+        db.Characters.Add(new Avalon.Domain.Characters.Character
+        {
+            AccountId = account,
+            Name = name,
+            Class = CharacterClass.Warrior,
+            CreationDate = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+    }
+
     private static SCharacterCreateResult SentResult(IWorldConnection connection)
     {
         NetworkPacket sent = (NetworkPacket)connection.ReceivedCalls()
@@ -344,7 +498,7 @@ public class CharacterCreationShould : IDisposable
     /// The tick loop's continuation drain, in miniature. Each callback enqueues the next, so this
     /// walks the recorded calls forward rather than draining a snapshot of them.
     /// </summary>
-    private static async Task PumpAsync(IWorldConnection connection)
+    private static async Task PumpAsync(IWorldConnection connection, Func<int, Task>? beforeCallback = null)
     {
         for (int processed = 0; processed < 64; processed++)
         {
@@ -360,6 +514,8 @@ public class CharacterCreationShould : IDisposable
             object?[] arguments = enqueued[processed].GetArguments();
             Task task = (Task)arguments[0]!;
             await task;
+            if (beforeCallback is not null)
+                await beforeCallback(processed);
 
             Delegate callback = (Delegate)arguments[1]!;
             object?[] callbackArguments = callback.Method.GetParameters().Length == 0
