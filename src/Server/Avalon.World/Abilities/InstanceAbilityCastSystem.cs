@@ -61,6 +61,12 @@ public interface IAbilityCastSystem
     void CancelScriptsOf(IUnit caster);
 
     IWorldObject? GetAbility(ObjectGuid guid);
+
+    /// <summary>
+    /// The next cast id of this instance (#648), never 0. The cast system takes one for every cast it takes; an item's
+    /// cast bar takes one too, so every cast in an instance has its own.
+    /// </summary>
+    uint TakeCastId();
 }
 
 public class InstanceAbilityCastSystem(
@@ -101,7 +107,7 @@ public class InstanceAbilityCastSystem(
         // #627: haste is read once, here: the cast time is fixed now, and the cooldown it sets when it fires
         // uses the same value, so a gear change mid-cast changes neither.
         float haste = HasteOf(caster);
-        uint castId = NextCastId();
+        uint castId = TakeCastId();
         _abilityQueue.Add(new AbilityInstance
         {
             Caster = caster, Ability = ability, Script = script, CastStartPosition = caster.Position,
@@ -143,7 +149,7 @@ public class InstanceAbilityCastSystem(
             AbilityCost.Pay(caster, ability.Metadata);
         }
 
-        Fire(caster, ability, script, HasteOf(caster), NextCastId());
+        Fire(caster, ability, script, HasteOf(caster), TakeCastId());
         return true;
     }
 
@@ -463,7 +469,7 @@ public class InstanceAbilityCastSystem(
     /// The next cast id (#648): counted per instance, so unique within it, skipping 0, which a packet from before
     /// #648 decodes as.
     /// </summary>
-    private uint NextCastId()
+    public uint TakeCastId()
     {
         _lastCastId = _lastCastId == uint.MaxValue ? 1u : _lastCastId + 1u;
         return _lastCastId;

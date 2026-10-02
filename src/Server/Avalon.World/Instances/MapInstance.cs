@@ -18,6 +18,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Loot;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
@@ -45,7 +46,7 @@ using Microsoft.Extensions.Options;
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
-    IDisposable
+    IItemUseHost, IItemCastAudience, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -61,6 +62,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly InterestRange _interest;
     private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
+    private readonly ItemUseCasts _itemUses;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
     private readonly UnitHitQuery _hits;
@@ -192,6 +194,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>(), this);
 
+        // Item cast bars, numbered with the cast system's own ids.
+        _itemUses = new ItemUseCasts(this, _abilityCastSystem.TakeCastId, loggerFactory.CreateLogger<ItemUseCasts>());
+
         // Optional so an instance built without one (tests) simply has no periodic save.
         _saveScheduler = serviceProvider.GetService<ICharacterSaveScheduler>();
 
@@ -248,6 +253,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IEnumerable<IWorldConnection> Connections => _connections.Values;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
+
+    /// <summary>The item cast bars here. World-side, not on IMapInstance.</summary>
+    public ItemUseCasts ItemUses => _itemUses;
+
+    uint IItemUseHost.RestoreHealth(IUnit healer, IUnit target, uint amount) =>
+        _combatService.RestoreHealth(healer, target, amount);
+
     public IHitQuery Hits => _hits;
     public ICreatureLocomotion Locomotion => _locomotion;
     public IMeleeSlots MeleeSlots => _meleeSlots;
@@ -431,6 +443,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         catch (Exception e)
         {
             _logger.LogError(e, "Dropping the scripts of {CharacterGuid} as it left instance {InstanceId} failed",
+                guid, InstanceId);
+        }
+
+        // An item's cast bar ends here too, out loud, while the character is still a member, and its use is answered
+        // Interrupted. Contained, like the casts above.
+        try
+        {
+            _itemUses.Interrupt(guid);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Interrupting the item use of {CharacterGuid} as it left instance {InstanceId} failed",
                 guid, InstanceId);
         }
 
@@ -863,6 +887,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Step 3: Ability cast system update
         _abilityCastSystem.Update(deltaTime, objectAbilities);
 
+        // Step 3a: item cast bars, after this tick's movement was applied by the packets above.
+        _itemUses.Update(deltaTime);
+
         // Step 3b: Tick combat service — decays threat, ends stale encounters.
         _combatService.Update(deltaTime);
 
@@ -1176,6 +1203,41 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
+    void IItemCastAudience.BroadcastItemCastStart(IUnit caster, ItemTemplateId item, float castTimeSeconds, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            connection.Send(SUnitStartCastPacket.CreateForItem(caster.Guid, castTimeSeconds, item.Value, castId,
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
+    void IItemCastAudience.BroadcastItemCastFinish(IUnit caster, ItemTemplateId item, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            connection.Send(SUnitFinishCastPacket.CreateForItem(caster.Guid, item.Value, castId, connection.CryptoSession.Encrypt));
+        }
+    }
+
+    void IItemCastAudience.BroadcastItemCastInterrupted(IUnit caster, ItemTemplateId item, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            connection.Send(SCharacterInterruptedCastPacket.CreateForItem(caster.Guid, item.Value, castId,
                 connection.CryptoSession.Encrypt));
         }
     }
