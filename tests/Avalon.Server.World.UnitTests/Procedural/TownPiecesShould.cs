@@ -41,7 +41,7 @@ public class TownPiecesShould
         Assert.Equal("town_nw_01", Assert.Single(TownPieces.Squares(), s => s.HasForwardPortal).Name);
     }
 
-    /// <summary>Today's wall boxes, by name, exactly (the Unity exporter's extents; Y is 0-2 for every wall).</summary>
+    /// <summary>The town's wall boxes, by name, exactly (Y is 0-2 for every wall).</summary>
     [Theory]
     [InlineData("town_sw_01", "Wall_N_L", 0f, 12f, 29.75f, 30.25f)]
     [InlineData("town_sw_01", "Wall_N_R", 18f, 30f, 29.75f, 30.25f)]
@@ -100,6 +100,20 @@ public class TownPiecesShould
         Assert.Contains("House B", buildings);
         Assert.Contains("Well", buildings);
         Assert.Equal(112, TownPieces.Squares().Sum(s => s.Pieces.Count));
+    }
+
+    /// <summary>
+    /// The client's camera is fixed at yaw 45 (owner decision, 2026-10-02), south-west of what it looks at: a front on
+    /// the +X or +Z side shows the player a back wall, with the porch and its NPC behind the building.
+    /// </summary>
+    [Fact]
+    public void Face_every_building_front_towards_the_camera()
+    {
+        List<(string Square, TownPiece Piece)> fronts =
+            [.. TownPieces.Squares().SelectMany(s => s.Pieces.Where(p => p.Front != Facing.None).Select(p => (s.Name, p)))];
+        Assert.Equal(7, fronts.Count);
+        Assert.All(fronts, f => Assert.True(f.Piece.Front is Facing.NegX or Facing.NegZ,
+            $"{f.Square}: {f.Piece.Building}'s front faces {f.Piece.Front}, away from the camera"));
     }
 
     /// <summary>Owner decision 2: the two stalls are told apart by their cloth.</summary>

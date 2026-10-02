@@ -67,7 +67,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
             var query = _query!;
 
-            // Chunk-layout navmesh is baked from chunk objs in Unity coords without an X-flip
+            // Chunk-layout navmesh is baked from chunk objs in their own coords without an X-flip
             // (see ChunkLayoutNavmeshBuilder.AppendTransformed → ChunkRotation.LocalToWorld).
             // Queries MUST use the same convention. The previous (-x) negation came from the
             // obsolete world.bin (x,z).obj pipeline that flipped X at bake time; both maps
@@ -287,7 +287,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
         var query = _query!;
 
-        // Chunk objs are exported from Unity in chunk-local space and stitched into the
+        // Chunk objs are written in chunk-local space and stitched into the
         // baked navmesh without any axis flip (see ChunkLayoutNavmeshBuilder.AppendTransformed).
         // Queries must use the same coords — do NOT negate X.
         var startVec = new RcVec3f(from.x, from.y, from.z);

@@ -22,8 +22,9 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// north-west, the market south-east and the bank and inn north-east, with inner walls at X = 30 and Z = 30 opened at
 /// 12-18 and 42-48. The seeded NPCs are checked against the real layout and wall geometry, read from the Maps folder
 /// copied into the test output, so a geometry or seed change that puts an NPC in a wall or a doorway fails here.
-/// Since the town beautification (2026-10-01) each NPC stands in front of its own building: on a porch deck, a step,
-/// behind a counter or under the lean-to, at least 1 m from any solid and within 3 m of its building (TownPieces).
+/// Each NPC stands in front of its own building, on the side the client's fixed camera sees and clear of its roof: on
+/// a porch step, in front of a counter or the smithy's lean-to, on the bank's step, at least 1 m from any solid and
+/// within 3 m of its building (TownPieces).
 /// </summary>
 public class TownNpcPlacementShould
 {
@@ -190,13 +191,13 @@ public class TownNpcPlacementShould
 
     /// <summary>Template, world X and Z, and the south-west corner of the square it belongs in.</summary>
     [Theory]
-    [InlineData(1ul, 11f, 15f, 0f, 0f)]        // Uriel, the town hall porch
-    [InlineData(2ul, 19.4f, 37f, 0f, 30f)]     // Borin Stoutbeard, the hunter's lodge porch
-    [InlineData(12ul, 39.2f, 10f, 30f, 0f)]    // Garrick Emberforge, under the smithy's lean-to
-    [InlineData(13ul, 56.6f, 15f, 30f, 0f)]    // Hilde Brassbuckle, behind the armourer's counter
-    [InlineData(14ul, 51.5f, 25.7f, 30f, 0f)]  // Tobin Marrowfield, behind the general-goods counter
-    [InlineData(11ul, 40f, 53f, 30f, 30f)]     // Marta Ledgerwell, the bank's lower step
-    [InlineData(3ul, 50f, 49.8f, 30f, 30f)]    // Innkeeper, the inn's porch
+    [InlineData(1ul, 16.6f, 23f, 0f, 0f)]      // Uriel, in front of the town hall's porch
+    [InlineData(2ul, 16.9f, 37f, 0f, 30f)]     // Borin Stoutbeard, in front of the hunter's lodge porch
+    [InlineData(12ul, 39f, 18.2f, 30f, 0f)]    // Garrick Emberforge, in front of the smithy's lean-to
+    [InlineData(13ul, 53.9f, 15f, 30f, 0f)]    // Hilde Brassbuckle, in front of the armourer's counter
+    [InlineData(14ul, 51.5f, 22.2f, 30f, 0f)]  // Tobin Marrowfield, in front of the general-goods counter
+    [InlineData(11ul, 36.8f, 49.4f, 30f, 30f)] // Marta Ledgerwell, the bank's lower step
+    [InlineData(3ul, 50f, 47.2f, 30f, 30f)]    // Innkeeper, in front of the inn's porch
     public void Stand_each_npc_where_the_spec_puts_it(ulong template, float x, float z, float squareX, float squareZ)
     {
         MapCreatureSpawn spawn = SpawnOf(SeededSpawns(), template);
@@ -335,6 +336,93 @@ public class TownNpcPlacementShould
 
             float own = Solids(x, z).Where(s => s.Piece.Building == building).Min(s => s.Distance);
             Assert.True(own <= TownRules.NpcBuildingReach, $"creature {spawn.CreatureTemplateId.Value} is {own:0.00} m from {building}");
+        }
+    }
+
+    /// <summary>The client's fixed camera (owner decision, 2026-10-02): yaw 45, 60 degrees below horizontal.</summary>
+    private const float CameraYawDeg = 45f;
+    private const float CameraPitchDeg = 60f;
+
+    /// <summary>
+    /// The client's perspective rig: it looks at a pivot this far above the player, from a zoom distance between these
+    /// (IsometricCameraComponent). A player within <see cref="FramedFraction" /> of that distance from an NPC keeps it
+    /// well inside the 45-degree frame.
+    /// </summary>
+    private const float CameraPivotHeight = 1.75f;
+    private static readonly float[] CameraDistances = [5f, 10f, 15f, 20f, 25f];
+    private const float FramedFraction = 0.35f;
+    private const float PlayerGridStep = 1f;
+
+    /// <summary>A standing NPC's head, and how finely the line from it to the camera is walked.</summary>
+    private const float HeadHeight = 1.8f;
+    private const float SightStep = 0.05f;
+
+    /// <summary>Whether a world point lies inside a solid piece or a wall of the town.</summary>
+    private static string? SolidAt(float x, float y, float z)
+    {
+        foreach (TownSquare square in TownPieces.Squares())
+        {
+            float lx = x - square.Origin.X, lz = z - square.Origin.Z;
+            if (lx < 0f || lx > TownSquare.CellSize || lz < 0f || lz > TownSquare.CellSize)
+                continue;
+            foreach (WallSegment wall in square.Walls)
+                if (y <= WallSegment.Height && wall.DistanceTo(lx, lz) <= 0f)
+                    return $"{square.Name} {wall.Name}";
+            foreach (TownPiece piece in square.Pieces)
+            {
+                if (piece.DistanceTo(lx, lz) > 0f || y < piece.Y0)
+                    continue;
+                float top = piece is GablePiece gable ? GableHeight(gable, lx, lz) : piece.Top;
+                if (y <= top)
+                    return $"{square.Name} {piece.Building}/{piece.Part}";
+            }
+        }
+        return null;
+    }
+
+    /// <summary>A gable's roof height over a point of its footprint: the eaves at the sides, the ridge on its axis.</summary>
+    private static float GableHeight(GablePiece g, float x, float z)
+    {
+        float across = g.RidgeAlongX ? MathF.Abs(z - (g.MinZ + g.MaxZ) / 2f) / ((g.MaxZ - g.MinZ) / 2f)
+                                     : MathF.Abs(x - (g.MinX + g.MaxX) / 2f) / ((g.MaxX - g.MinX) / 2f);
+        return g.Ridge - (g.Ridge - g.Eaves) * Math.Clamp(across, 0f, 1f);
+    }
+
+    /// <summary>
+    /// The camera sees every NPC: from every zoom, and with the player anywhere that keeps the NPC well in frame, the
+    /// line from its head to the camera's eye crosses no piece and no wall. A roof over the NPC, a building between it
+    /// and the camera, or a stall it stands behind each fails here by name and by where the player stood.
+    /// </summary>
+    [Fact]
+    public void Stand_every_npc_where_the_camera_sees_it()
+    {
+        float yaw = CameraYawDeg * MathF.PI / 180f, pitch = CameraPitchDeg * MathF.PI / 180f;
+        var toCamera = new Vector3(-MathF.Cos(pitch) * MathF.Sin(yaw), MathF.Sin(pitch), -MathF.Cos(pitch) * MathF.Cos(yaw));
+
+        foreach (MapCreatureSpawn spawn in SeededSpawns())
+        {
+            (float x, float z) = WorldOf(spawn);
+            var head = new Vector3(x, HeadHeight, z);
+            foreach (float distance in CameraDistances)
+            {
+                float reach = FramedFraction * distance;
+                for (float dx = -reach; dx <= reach; dx += PlayerGridStep)
+                for (float dz = -reach; dz <= reach; dz += PlayerGridStep)
+                {
+                    if (dx * dx + dz * dz > reach * reach)
+                        continue;
+                    Vector3 eye = new Vector3(x + dx, CameraPivotHeight, z + dz) + toCamera * distance;
+                    Vector3 line = eye - head;
+                    float length = MathF.Sqrt(line.x * line.x + line.y * line.y + line.z * line.z);
+                    for (float t = SightStep; t < length; t += SightStep)
+                    {
+                        float f = t / length;
+                        string? hit = SolidAt(head.x + line.x * f, head.y + line.y * f, head.z + line.z * f);
+                        Assert.True(hit is null,
+                            $"creature {spawn.CreatureTemplateId.Value} at ({x}, {z}) is hidden by {hit} from a player at ({x + dx}, {z + dz}), zoom {distance}");
+                    }
+                }
+            }
         }
     }
 

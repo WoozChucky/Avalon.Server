@@ -56,13 +56,16 @@ public static class TownPieces
     /// <summary>South-west: the town hall with its porch, the fountain, benches, lamp posts, the notice board.</summary>
     private static List<TownPiece> Arrival() =>
     [
-        Box("Town hall", "body", Material.Plaster, 2.8f, 10f, 8f, 22f, 0f, 5.5f),
-        Gable("Town hall", "roof", Material.Roof, 2.5f, 10.3f, 7.7f, 22.3f, 5.5f, 7.6f),
-        Box("Town hall", "porch deck", Material.Wood, 10f, 12f, 11.5f, 18.5f, 0f, 0.2f, walkable: true),
-        Box("Town hall", "porch step", Material.Stone, 12f, 12.5f, 11.5f, 18.5f, 0f, 0.1f, walkable: true),
-        Cyl("Town hall", "post", Material.Wood, 11.8f, 11.75f, 0.12f, 0f, 3.2f),
-        Cyl("Town hall", "post", Material.Wood, 11.8f, 18.25f, 0.12f, 0f, 3.2f),
-        Box("Town hall", "porch roof", Material.Roof, 9.9f, 12.4f, 11.2f, 18.8f, 3.2f, 3.5f),
+        // In the square's north-east corner with its porch to the west, facing the camera (it stood on the west side and
+        // showed the camera its back). Its body starts at z 19 and its roof at 18.7, north of the walk to the east
+        // doorway at z 12-18.
+        Box("Town hall", "body", Material.Plaster, 20f, 26.7f, 19f, 27f, 0f, 5.5f),
+        Gable("Town hall", "roof", Material.Roof, 19.7f, 27f, 18.7f, 27.3f, 5.5f, 7.6f),
+        Box("Town hall", "porch deck", Material.Wood, 18f, 20f, 20.5f, 25.5f, 0f, 0.2f, walkable: true) with { Front = Facing.NegX },
+        Box("Town hall", "porch step", Material.Stone, 17.5f, 18f, 20.5f, 25.5f, 0f, 0.1f, walkable: true),
+        Cyl("Town hall", "post", Material.Wood, 18.2f, 20.75f, 0.12f, 0f, 3.2f),
+        Cyl("Town hall", "post", Material.Wood, 18.2f, 25.25f, 0.12f, 0f, 3.2f),
+        Box("Town hall", "porch roof", Material.Roof, 17.6f, 20.1f, 20.2f, 25.8f, 3.2f, 3.5f),
         Ring("Fountain", "basin", Material.Stone, 15f, 7.5f, 2.2f, 1.8f, 0f, 1.1f),   // a 0.4 m rim, 1.1 m up (owner decision 1): the water shows inside it
         Cyl("Fountain", "water", Material.Water, 15f, 7.5f, 1.78f, 0.9f, 1f),         // just inside the rim, its surface 0.1 m below the rim top
         Cyl("Fountain", "column", Material.Stone, 15f, 7.5f, 0.5f, 0f, 2.2f),
@@ -70,13 +73,13 @@ public static class TownPieces
         Box("Benches", "bench W", Material.Wood, 10f, 10.5f, 6.6f, 8.4f, 0f, 1.05f),
         Box("Benches", "bench E", Material.Wood, 19.5f, 20f, 6.6f, 8.4f, 0f, 1.05f),
         Box("Benches", "bench S", Material.Wood, 14.1f, 15.9f, 3.4f, 3.9f, 0f, 1.05f),
-        Box("Benches", "bench NE", Material.Wood, 23.1f, 24.9f, 24.5f, 25f, 0f, 1.05f),
+        Box("Benches", "bench NE", Material.Wood, 21f, 22.8f, 9.5f, 10f, 0f, 1.05f),
         Box("Benches", "bench SE", Material.Wood, 23.1f, 24.9f, 5f, 5.5f, 0f, 1.05f),
         Cyl("Lamp posts", "lamp post 1", Material.Metal, 10.5f, 20.5f, 0.15f, 0f, 3.5f),
         Cyl("Lamp posts", "lamp post 2", Material.Metal, 10.5f, 9.5f, 0.15f, 0f, 3.5f),
-        Cyl("Lamp posts", "lamp post 3", Material.Metal, 19.5f, 20.5f, 0.15f, 0f, 3.5f),
+        Cyl("Lamp posts", "lamp post 3", Material.Metal, 19.5f, 19.2f, 0.15f, 0f, 3.5f),
         Cyl("Lamp posts", "lamp post 4", Material.Metal, 19.5f, 9.5f, 0.15f, 0f, 3.5f),
-        Cyl("Lamp posts", "lamp post 5", Material.Metal, 24f, 21.5f, 0.15f, 0f, 3.5f),
+        Cyl("Lamp posts", "lamp post 5", Material.Metal, 24.5f, 12.5f, 0.15f, 0f, 3.5f),
         Box("Notice board", "board", Material.Wood, 8.85f, 9.15f, 23f, 25f, 0f, 2.3f),
     ];
 
@@ -90,7 +93,7 @@ public static class TownPieces
         Gable("Watchtower", "roof", Material.Roof, 2.7f, 7.3f, 21.7f, 26.3f, 9f, 11f),
         Box("Hunter's lodge", "body", Material.Wood, 20.5f, 27.25f, 3f, 11f, 0f, 4f),
         Gable("Hunter's lodge", "roof", Material.Roof, 20.2f, 27.55f, 2.7f, 11.3f, 4f, 6f),
-        Box("Hunter's lodge", "porch deck", Material.Wood, 18f, 20.5f, 4.5f, 9.5f, 0f, 0.2f, walkable: true),
+        Box("Hunter's lodge", "porch deck", Material.Wood, 18f, 20.5f, 4.5f, 9.5f, 0f, 0.2f, walkable: true) with { Front = Facing.NegX },
         Box("Hunter's lodge", "porch step", Material.Wood, 17.5f, 18f, 4.5f, 9.5f, 0f, 0.1f, walkable: true),
         Cyl("Hunter's lodge", "post", Material.Wood, 18.25f, 4.75f, 0.12f, 0f, 3.2f),
         Cyl("Hunter's lodge", "post", Material.Wood, 18.25f, 9.25f, 0.12f, 0f, 3.2f),
@@ -112,18 +115,20 @@ public static class TownPieces
     /// <summary>South-east: the smithy with its lean-to, the armourer's stall, the general-goods stall, crates and barrels.</summary>
     private static List<TownPiece> Market() =>
     [
-        Box("Smithy", "body", Material.Stone, 6f, 14f, 2.8f, 8.5f, 0f, 4f),
-        Gable("Smithy", "roof", Material.Roof, 5.7f, 14.3f, 2.5f, 8.8f, 4f, 5.8f),
-        Cyl("Smithy", "chimney", Material.Stone, 12.5f, 4f, 0.5f, 0f, 7f),
-        Cyl("Smithy", "post", Material.Wood, 7.2f, 10.8f, 0.12f, 0f, 3f),
-        Cyl("Smithy", "post", Material.Wood, 10.8f, 10.8f, 0.12f, 0f, 3f),
-        Box("Smithy", "lean-to roof", Material.Wood, 6.9f, 11.1f, 8.5f, 11.1f, 3f, 3.25f),
-        Box("Smithy", "anvil", Material.Metal, 7.2f, 8f, 9.4f, 9.8f, 0f, 1.05f),
-        Box("Smithy", "quench trough", Material.Wood, 12.8f, 14.3f, 8.6f, 9.2f, 0f, 1.05f),
-        Box("Smithy", "wood pile", Material.Wood, 3.5f, 5.5f, 3f, 4f, 0f, 1.05f),
-        Cyl("Barrels (smithy)", "barrel 1", Material.Wood, 15.5f, 4.5f, 0.4f, 0f, 1.05f),
-        Cyl("Barrels (smithy)", "barrel 2", Material.Wood, 16.4f, 5.3f, 0.4f, 0f, 1.05f),
-        Box("Armourer's stall", "counter", Material.Wood, 25f, 25.4f, 13.5f, 16.5f, 0f, 1.05f),
+        // On the market's north side with its lean-to to the south, facing the camera (it stood on the south side and
+        // showed the camera its back); its north wall stops at 26.7, clear of the north doorway lane.
+        Box("Smithy", "body", Material.Stone, 6f, 14f, 21.5f, 26.7f, 0f, 4f),
+        Gable("Smithy", "roof", Material.Roof, 5.7f, 14.3f, 21.2f, 27f, 4f, 5.8f),
+        Cyl("Smithy", "chimney", Material.Stone, 12.5f, 26f, 0.5f, 0f, 7f),
+        Cyl("Smithy", "post", Material.Wood, 7.2f, 19.2f, 0.12f, 0f, 3f),
+        Cyl("Smithy", "post", Material.Wood, 10.8f, 19.2f, 0.12f, 0f, 3f),
+        Box("Smithy", "lean-to roof", Material.Wood, 6.9f, 11.1f, 18.9f, 21.5f, 3f, 3.25f) with { Front = Facing.NegZ },
+        Box("Smithy", "anvil", Material.Metal, 7.2f, 8f, 20.2f, 20.6f, 0f, 1.05f),
+        Box("Smithy", "quench trough", Material.Wood, 12.8f, 14.3f, 20.8f, 21.4f, 0f, 1.05f),
+        Box("Smithy", "wood pile", Material.Wood, 3.5f, 5.5f, 26f, 27f, 0f, 1.05f),
+        Cyl("Barrels (smithy)", "barrel 1", Material.Wood, 4.3f, 24f, 0.4f, 0f, 1.05f),   // west of it: the walk to the north doorway stays open
+        Cyl("Barrels (smithy)", "barrel 2", Material.Wood, 4.3f, 23.1f, 0.4f, 0f, 1.05f),
+        Box("Armourer's stall", "counter", Material.Wood, 25f, 25.4f, 13.5f, 16.5f, 0f, 1.05f) with { Front = Facing.NegX },
         Cyl("Armourer's stall", "post", Material.Wood, 25.2f, 13.6f, 0.1f, 0f, 2.9f),
         Cyl("Armourer's stall", "post", Material.Wood, 25.2f, 16.4f, 0.1f, 0f, 2.9f),
         Cyl("Armourer's stall", "post", Material.Wood, 27.3f, 13.6f, 0.1f, 0f, 2.9f),
@@ -131,7 +136,7 @@ public static class TownPieces
         Box("Armourer's stall", "roof", Material.Cloth, 24.6f, 27.6f, 13.1f, 16.9f, 2.9f, 3.15f),
         Box("Crates (armourer)", "crate 1", Material.Wood, 25f, 26f, 19.5f, 20.5f, 0f, 1.05f),
         Box("Crates (armourer)", "crate 2", Material.Wood, 26f, 27f, 19.5f, 20.5f, 0f, 1.05f),
-        Box("General-goods stall", "counter", Material.Wood, 20f, 23f, 24f, 24.4f, 0f, 1.05f),
+        Box("General-goods stall", "counter", Material.Wood, 20f, 23f, 24f, 24.4f, 0f, 1.05f) with { Front = Facing.NegZ },
         Cyl("General-goods stall", "post", Material.Wood, 20.1f, 24.2f, 0.1f, 0f, 2.9f),
         Cyl("General-goods stall", "post", Material.Wood, 22.9f, 24.2f, 0.1f, 0f, 2.9f),
         Cyl("General-goods stall", "post", Material.Wood, 20.1f, 26.4f, 0.1f, 0f, 2.9f),
@@ -140,24 +145,25 @@ public static class TownPieces
         Box("Crates (general goods)", "crate 1", Material.Wood, 24.5f, 25.5f, 25f, 26f, 0f, 1.05f),
         Box("Crates (general goods)", "crate 2", Material.Wood, 25.5f, 26.5f, 25f, 26f, 0f, 1.05f),
         Cyl("Barrels (general goods)", "barrel", Material.Wood, 24.2f, 23.4f, 0.4f, 0f, 1.05f),
-        Box("Benches", "bench market", Material.Wood, 5.1f, 6.9f, 23.75f, 24.25f, 0f, 1.05f),
-        Cyl("Lamp posts", "lamp post 1", Material.Metal, 8f, 18.5f, 0.15f, 0f, 3.5f),
+        Box("Benches", "bench market", Material.Wood, 4.1f, 5.9f, 15.75f, 16.25f, 0f, 1.05f),
+        Cyl("Lamp posts", "lamp post 1", Material.Metal, 5.5f, 18.5f, 0.15f, 0f, 3.5f),
         Cyl("Lamp posts", "lamp post 2", Material.Metal, 22f, 20f, 0.15f, 0f, 3.5f),
     ];
 
     /// <summary>North-east: the bank with its steps, the inn with its porch, two houses, the well, crates and barrels.</summary>
     private static List<TownPiece> BankAndInn() =>
     [
-        Box("Bank", "body", Material.Stone, 3f, 9f, 19f, 27f, 0f, 5f),
-        Gable("Bank", "roof", Material.Roof, 2.7f, 9.3f, 18.7f, 27.3f, 5f, 6.5f),
-        Box("Bank", "lower step", Material.Stone, 9f, 10.5f, 21f, 25f, 0f, 0.15f, walkable: true),
-        Box("Bank", "upper step", Material.Stone, 9f, 9.75f, 21f, 25f, 0f, 0.3f, walkable: true),
-        Box("Bank", "pilaster S", Material.Stone, 9f, 9.6f, 20.3f, 20.9f, 0f, 5f),
-        Box("Bank", "pilaster N", Material.Stone, 9f, 9.6f, 25.1f, 25.7f, 0f, 5f),
+        // Turned in place so its steps are on the south, facing the camera (they were on the east, facing away).
+        Box("Bank", "body", Material.Stone, 2.8f, 10.8f, 20.5f, 26.5f, 0f, 5f),
+        Gable("Bank", "roof", Material.Roof, 2.5f, 11.1f, 20.2f, 26.8f, 5f, 6.5f),
+        Box("Bank", "lower step", Material.Stone, 4.8f, 8.8f, 19f, 20.5f, 0f, 0.15f, walkable: true) with { Front = Facing.NegZ },
+        Box("Bank", "upper step", Material.Stone, 4.8f, 8.8f, 19.75f, 20.5f, 0f, 0.3f, walkable: true),
+        Box("Bank", "pilaster W", Material.Stone, 4.1f, 4.7f, 19.9f, 20.5f, 0f, 5f),
+        Box("Bank", "pilaster E", Material.Stone, 8.9f, 9.5f, 19.9f, 20.5f, 0f, 5f),
         Box("Inn", "body", Material.Plaster, 14f, 26f, 21f, 27.25f, 0f, 7f),
         Gable("Inn", "roof", Material.Roof, 13.7f, 26.3f, 20.7f, 27.55f, 7f, 9.5f),
         Cyl("Inn", "chimney", Material.Stone, 24f, 24f, 0.45f, 0f, 10.5f),
-        Box("Inn", "porch deck", Material.Wood, 16f, 24f, 18.5f, 21f, 0f, 0.2f, walkable: true),
+        Box("Inn", "porch deck", Material.Wood, 16f, 24f, 18.5f, 21f, 0f, 0.2f, walkable: true) with { Front = Facing.NegZ },
         Box("Inn", "porch step", Material.Wood, 16f, 24f, 18f, 18.5f, 0f, 0.1f, walkable: true),
         Cyl("Inn", "post", Material.Wood, 16.3f, 18.8f, 0.12f, 0f, 3.2f),
         Cyl("Inn", "post", Material.Wood, 18.8f, 18.8f, 0.12f, 0f, 3.2f),
