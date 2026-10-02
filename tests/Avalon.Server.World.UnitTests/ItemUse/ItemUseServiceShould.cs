@@ -293,4 +293,111 @@ public class ItemUseServiceShould : IAsyncLifetime
         InventoryItemAssert(2u);
         Assert.Equal(TimeSpan.Zero, _w.Character.ItemCooldowns.Remaining(Fizzler.Id, null, _w.Time.GetUtcNow()));
     }
+
+    /// <summary>An equip that passes its checks ends the running item cast first: the old use is Interrupted, the equip Ok.</summary>
+    [Fact]
+    public void Interrupt_a_running_item_cast_when_gear_is_equipped()
+    {
+        _w.Bag(Item(0, Scroll, count: 2), Item(1, EquipTemplates.Longsword));
+        _w.Use(30, 0);
+
+        _w.Use(31, 1);
+
+        Assert.Equal([(30u, ItemUseResult.Interrupted), (31u, ItemUseResult.Ok)],
+            _w.Results().Select(r => (r.RequestId, r.Result)));
+        Assert.False(_w.Instance.ItemUses.IsCasting(_w.Character.Guid));
+        Assert.Equal(2u, At(_w.Character, InventoryType.Bag, 0).Count);
+    }
+
+    /// <summary>A refused equip changes nothing, the running item cast included.</summary>
+    [Fact]
+    public void Keep_the_cast_when_the_equip_is_refused()
+    {
+        _w.Bag(Item(0, Scroll, count: 2), Item(1, EquipTemplates.IronHelm), Item(2, EquipTemplates.Circlet));
+        _w.Use(32, 0);
+
+        _w.Use(33, 1);
+        _w.Use(34, 2);
+        Assert.True(_w.Instance.ItemUses.IsCasting(_w.Character.Guid));
+        _w.Tick(3.1);
+
+        Assert.Equal(
+            [(33u, ItemUseResult.LevelTooLow), (34u, ItemUseResult.WrongClass), (32u, ItemUseResult.Ok)],
+            _w.Results().Select(r => (r.RequestId, r.Result)));
+    }
+
+    /// <summary>A start hook that throws ends the bar and answers the use once, InternalError, spending nothing.</summary>
+    [Fact]
+    public void Answer_InternalError_once_when_the_cast_start_hook_throws()
+    {
+        _w.Bag(Item(0, Sparkler, count: 2));
+
+        _w.Use(35, 0);
+        _w.Tick(3.1);
+
+        Assert.Equal((35u, ItemUseResult.InternalError), Only());
+        Assert.False(_w.Instance.ItemUses.IsCasting(_w.Character.Guid));
+        Assert.Single(_w.Client.Read<SCharacterInterruptedCastPacket>(NetworkPacketType.SMSG_INTERRUPTED_CAST));
+        InventoryItemAssert(2u);
+        Assert.Equal(TimeSpan.Zero, _w.Character.ItemCooldowns.Remaining(Sparkler.Id, null, _w.Time.GetUtcNow()));
+    }
+
+    /// <summary>CanUse is asked again when the cast completes: what changed meanwhile can refuse it, spending nothing.</summary>
+    [Fact]
+    public void Answer_Refused_when_the_script_refuses_at_completion()
+    {
+        _w.Bag(Item(0, Draught, count: 2));
+        _w.Use(36, 0);
+
+        _w.Character.CurrentHealth = _w.Character.Health;
+        _w.Tick(3.1);
+
+        SItemUseResultPacket result = Assert.Single(_w.Results());
+        Assert.Equal((36u, ItemUseResult.Refused, "Already full."), (result.RequestId, result.Result, result.Message));
+        InventoryItemAssert(2u);
+        Assert.Equal(TimeSpan.Zero, _w.Character.ItemCooldowns.Remaining(Draught.Id, null, _w.Time.GetUtcNow()));
+    }
+
+    /// <summary>An equip refreshes the stats as a drag does: the worn sword's Strength counts at once.</summary>
+    [Fact]
+    public void Refresh_the_stats_after_an_equip()
+    {
+        _w.Bag(Item(0, EquipTemplates.Longsword));
+
+        _w.Use(37, 0);
+
+        Assert.Equal((37u, ItemUseResult.Ok), Only());
+        Assert.Equal(WarriorLevel1.Strength + 3u, _w.Character.Stats!.Value.Strength);
+    }
+
+    /// <summary>A ring goes to the empty finger; a two-hander moves the worn off-hand item to the Bag first.</summary>
+    [Fact]
+    public void Equip_a_ring_and_a_two_hander_through_the_same_request()
+    {
+        _w.Bag(Item(0, EquipTemplates.Band), Item(1, EquipTemplates.Greatsword));
+        _w.Character.Container(InventoryType.Equipment).Load(
+            [Item(EquipmentSlots.Finger1, EquipTemplates.Band), Item(EquipmentSlots.OffHand, EquipTemplates.Buckler)]);
+
+        _w.Use(38, 0);
+        _w.Use(39, 1);
+
+        Assert.Equal([(38u, ItemUseResult.Ok), (39u, ItemUseResult.Ok)], _w.Results().Select(r => (r.RequestId, r.Result)));
+        Assert.Equal(EquipTemplates.Band.Id, At(_w.Character, InventoryType.Equipment, EquipmentSlots.Finger2).TemplateId);
+        Assert.Equal(EquipTemplates.Greatsword.Id, At(_w.Character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
+        Assert.False(_w.Character.Container(InventoryType.Equipment).TryGet(EquipmentSlots.OffHand, out _));
+        Assert.Equal(EquipTemplates.Buckler.Id, At(_w.Character, InventoryType.Bag, 0).TemplateId);
+    }
+
+    /// <summary>Leaving the instance mid-cast ends the bar and answers the use Interrupted, spending nothing.</summary>
+    [Fact]
+    public void Answer_Interrupted_when_the_character_leaves_the_instance_mid_cast()
+    {
+        _w.Bag(Item(0, Scroll, count: 2));
+        _w.Use(40, 0);
+
+        _w.Instance.RemoveCharacter(_w.Client.Connection);
+
+        Assert.Equal((40u, ItemUseResult.Interrupted), Only());
+        InventoryItemAssert(2u);
+    }
 }

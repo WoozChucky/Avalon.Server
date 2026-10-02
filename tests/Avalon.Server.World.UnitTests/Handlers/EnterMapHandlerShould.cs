@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
@@ -74,6 +75,44 @@ public class EnterMapHandlerShould
         Assert.Null(escaped);
         world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
         saver.DidNotReceiveWithAnyArgs().Save(default!, default!);
+    }
+
+    /// <summary>
+    /// A scroll return, an item teleport, a respawn or a party return under way decides where the character goes, so a
+    /// portal entry meanwhile is answered MoveInProgress before anything is looked up or built.
+    /// </summary>
+    [Fact]
+    public void Refuse_a_portal_entry_while_another_move_is_under_way()
+    {
+        CharacterEntity character = New(7);
+        MapInstance source = Source();
+        character.InstanceId = source.InstanceId;
+        character.Position = Vector3.zero;
+
+        var registry = Substitute.For<IInstanceRegistry>();
+        registry.GetInstanceById(source.InstanceId).Returns(source);
+        var world = Substitute.For<IWorld>();
+        world.InstanceRegistry.Returns(registry);
+        world.MapTemplates.Returns(new List<MapTemplate>
+        {
+            new() { Id = new MapTemplateId(TargetMap), MapType = MapType.Town, Name = "target", Description = "" }
+        });
+
+        var connection = Substitute.For<IWorldConnection>();
+        connection.InGame.Returns(true);
+        var sent = new List<NetworkPacket>();
+        TestTown.Record(connection, character, sent);
+        connection.RespawnInFlight.Returns(true);
+
+        var handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, Substitute.For<ICharacterSaver>(),
+            Substitute.For<IChunkLibrary>(), world);
+        handler.Execute(connection, new CEnterMapPacket { TargetMapId = TargetMap });
+
+        Assert.Equal(MapTransitionResult.MoveInProgress,
+            Assert.Single(TestTown.Read<SMapTransitionPacket>(sent, NetworkPacketType.SMSG_MAP_TRANSITION)).Result);
+        connection.DidNotReceiveWithAnyArgs().EnqueueContinuation(default(Task<IMapInstance>)!, default!);
+        registry.DidNotReceiveWithAnyArgs().GetInstanceById(default);
+        _ = world.DidNotReceive().MapTemplates;
     }
 
     /// <summary>A real instance with a layout and a portal to the target map at the origin, so Execute reaches the continuation.</summary>

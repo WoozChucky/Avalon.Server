@@ -268,7 +268,10 @@ public class WorldHostGraphShould
         }
     }
 
-    /// <summary>Item use: the toolbox holds the container's own quest service, party service and creature placement.</summary>
+    /// <summary>
+    /// Item use: the toolbox holds the container's own quest service, party service and creature placement, and its
+    /// map teleport the party service.
+    /// </summary>
     [Fact]
     public async Task Hand_the_item_use_toolbox_the_containers_services()
     {
@@ -283,6 +286,10 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<QuestService>(), tools.Quests);
             Assert.Same(host.Services.GetRequiredService<PartyService>(), tools.Parties);
             Assert.Same(host.Services.GetRequiredService<Avalon.World.ChunkLayouts.ICreaturePlacementService>(), tools.Placement);
+
+            // MapTeleport takes the party service optionally; without it a party member's teleport would skip the
+            // party's instance and its arrival checks.
+            Assert.Same(host.Services.GetRequiredService<PartyService>(), CapturedOfType<PartyService>(tools.Teleport));
         }
         finally
         {

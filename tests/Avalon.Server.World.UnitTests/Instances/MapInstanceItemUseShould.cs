@@ -9,6 +9,7 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Items;
 using Avalon.World.Public.Abilities;
+using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -94,13 +95,15 @@ public class MapInstanceItemUseShould
         Assert.Equal(80u, client.Character.CurrentHealth);
         Assert.Single(client.Read<SUnitHealedPacket>(NetworkPacketType.SMSG_UNIT_HEALED));
     }
-    private static (MapInstance Instance, MapInstanceClient Client, GameAbility Ability) CasterWithCostlyCircle()
+
+    private static (MapInstance Instance, MapInstanceClient Client, GameAbility Ability) CasterWithCostlyCircle(uint castTimeMs = 0)
     {
         MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _);
         MapInstanceClient client = Join(instance, 7);
         var row = AbilityTestData.Circle(1);
         row.Cost = 30;
         row.CostPowerType = PowerType.Mana;
+        row.CastTime = castTimeMs;
         GameAbility ability = AbilityTestData.Game(row);
         client.Character.Spells.Load([ability]);
         client.Character.PowerType = PowerType.Mana;
@@ -179,5 +182,112 @@ public class MapInstanceItemUseShould
         instance.Update(TimeSpan.FromMilliseconds(16));
 
         Assert.True(instance.Creatures.ContainsKey(summon.Guid));   // no corpse timer was registered in this test
+    }
+
+    /// <summary>A queued free cast for an item pays nothing and is still heard: its start is broadcast.</summary>
+    [Fact]
+    public void Queue_a_free_cast_for_an_item_without_its_cost_and_broadcast_its_start()
+    {
+        (MapInstance instance, MapInstanceClient client, GameAbility ability) = CasterWithCostlyCircle(castTimeMs: 1500);
+        using (instance)
+        {
+            var aim = new AbilityAim(AbilityAim.FacingFromYaw(0f), null);
+
+            Assert.True(((IItemUseHost)instance).CastForItem(client.Character, aim, ability, free: true));
+
+            Assert.Equal(10u, client.Character.CurrentPower);
+            SUnitStartCastPacket start = Assert.Single(client.Read<SUnitStartCastPacket>(NetworkPacketType.SMSG_UNIT_START_CAST));
+            Assert.Equal(ability.AbilityId.Value, start.AbilityId);
+        }
+    }
+
+    /// <summary>Item casts and ability casts number from one counter, so their ids never meet and only grow.</summary>
+    [Fact]
+    public void Share_the_cast_id_counter_between_item_and_ability_casts()
+    {
+        (MapInstance instance, MapInstanceClient client, GameAbility ability) = CasterWithCostlyCircle();
+        using (instance)
+        {
+            var aim = new AbilityAim(AbilityAim.FacingFromYaw(0f), null);
+
+            uint item = instance.ItemUses.TakeCastId();
+            Assert.True(((IItemUseHost)instance).CastForItem(client.Character, aim, ability, free: true));
+            uint cast = Assert.Single(client.Read<SUnitFinishCastPacket>(NetworkPacketType.SMSG_UNIT_FINISH_CAST)).CastId;
+            uint next = instance.ItemUses.TakeCastId();
+
+            Assert.True(item < cast && cast < next, $"item {item}, ability {cast}, item {next}");
+        }
+    }
+
+    /// <summary>A summon that leaves takes its threat with it: it is no longer in the encounter it fought in.</summary>
+    [Fact]
+    public void Drop_an_expired_summon_from_its_encounter()
+    {
+        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider();
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), time: clock);
+        MapInstanceClient client = Join(instance, 7);
+        Creature summon = Summon(instance, 92);
+        ((IItemUseHost)instance).DespawnAfter(summon, TimeSpan.FromMinutes(5));
+        instance.CombatService.ApplyDamage(client.Character, summon, 1);
+        Assert.NotNull(instance.CombatService.GetEncounterFor(summon));
+
+        clock.Advance(TimeSpan.FromMinutes(5));
+        instance.Update(TimeSpan.FromMilliseconds(16));
+
+        Assert.False(instance.Creatures.ContainsKey(summon.Guid));
+        Assert.Null(instance.CombatService.GetEncounterFor(summon));
+    }
+
+    /// <summary>A summon removed before its time is forgotten: a later tick neither throws nor removes it again.</summary>
+    [Fact]
+    public void Forget_a_summon_removed_before_its_time()
+    {
+        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider();
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), time: clock);
+        Join(instance, 7);
+        Creature summon = Summon(instance, 93);
+        ((IItemUseHost)instance).DespawnAfter(summon, TimeSpan.FromMinutes(5));
+
+        instance.RemoveCreature(summon);
+        Assert.Null(Record.Exception(() => instance.Update(TimeSpan.FromMilliseconds(16))));
+
+        // Back in the instance (as a script hot reload re-adds a creature), it is no longer a summon.
+        instance.AddCreature(summon);
+        clock.Advance(TimeSpan.FromMinutes(6));
+        Assert.Null(Record.Exception(() => instance.Update(TimeSpan.FromMilliseconds(16))));
+
+        Assert.True(instance.Creatures.ContainsKey(summon.Guid));
+    }
+
+    /// <summary>One summon whose removal throws costs neither the tick nor the other summons their removal.</summary>
+    [Fact]
+    public void Remove_the_other_summons_when_one_throws()
+    {
+        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider();
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), time: clock);
+        Join(instance, 7);
+
+        // Once armed, its health reads 100 when the expired summons are gathered and throws when the removal reads it.
+        bool armed = false;
+        int reads = 0;
+        var broken = Substitute.For<Avalon.World.Public.Creatures.ICreature>();
+        broken.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 94));
+        broken.Name.Returns("Broken");
+        var metadata = Substitute.For<Avalon.World.Public.Creatures.ICreatureMetadata>();
+        metadata.Id.Returns(new CreatureTemplateId(4));
+        broken.Metadata.Returns(metadata);
+        broken.CurrentHealth.Returns(_ => armed && ++reads == 2 ? throw new InvalidOperationException("boom") : 100u);
+        instance.AddCreature(broken);
+        ((IItemUseHost)instance).DespawnAfter(broken, TimeSpan.FromMinutes(5));
+        Creature summon = Summon(instance, 95);
+        ((IItemUseHost)instance).DespawnAfter(summon, TimeSpan.FromMinutes(5));
+
+        clock.Advance(TimeSpan.FromMinutes(5));
+        armed = true;
+        Exception? escaped = Record.Exception(() => instance.Update(TimeSpan.FromMilliseconds(16)));
+
+        Assert.Null(escaped);
+        Assert.True(reads >= 2, $"reads {reads}");
+        Assert.False(instance.Creatures.ContainsKey(summon.Guid));
     }
 }

@@ -544,8 +544,26 @@ public sealed class TemplateEditShould : IAsyncLifetime
         HttpResponseMessage response = await PutAsync(Editable, "item", id, json, Tag(version));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        JsonObject saved = (await ReadAsync("item", id)).Json;
+        (JsonObject saved, string savedVersion) = await ReadAsync("item", id);
         Assert.Equal((1000u, "elixir"), (saved["useCooldownMs"]!.GetValue<uint>(), saved["useCooldownGroup"]!.GetValue<string>()));
+        Assert.NotEqual(version, savedVersion);
+    }
+
+    /// <summary>A blank use script or cooldown group is no name: it is stored as null.</summary>
+    [Fact]
+    public async Task Store_a_blank_use_script_and_cooldown_group_as_null()
+    {
+        ulong id = FirstId("item");
+        (JsonObject json, string version) = await ReadAsync("item", id);
+        json["useScript"] = "   ";
+        json["useCooldownGroup"] = " ";
+
+        HttpResponseMessage response = await PutAsync(Editable, "item", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        JsonObject saved = (await ReadAsync("item", id)).Json;
+        Assert.Null(saved["useScript"]);
+        Assert.Null(saved["useCooldownGroup"]);
     }
 
     [Fact]
@@ -567,7 +585,10 @@ public sealed class TemplateEditShould : IAsyncLifetime
     public async Task Skip_the_item_script_check_for_a_world_that_publishes_no_item_list()
     {
         ulong id = FirstId("item");
-        _catalog.Snapshot = new ScriptCatalogSnapshot([], [], []);
+        // The value a world built before item use wrote: no "item" list at all.
+        _catalog.Snapshot = ScriptCatalogJson.Deserialize("""{"ai":[],"ability":[],"quest":[]}""");
+        Assert.NotNull(_catalog.Snapshot);
+        Assert.Null(_catalog.Snapshot.Item);
         (JsonObject json, string version) = await ReadAsync("item", id);
         json["useScript"] = Unlisted;
 

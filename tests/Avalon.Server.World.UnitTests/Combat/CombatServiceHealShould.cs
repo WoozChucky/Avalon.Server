@@ -154,7 +154,7 @@ public class CombatServiceHealShould
         Assert.Equal(expected, encounter.GetThreatList(boar)[healer], 3);
     }
 
-    /// <summary>Item use (owner decision 8): a fixed amount, capped, reported, adding no threat and joining no encounter.</summary>
+    /// <summary>Item use: a fixed amount, capped, reported, adding no threat and joining no encounter.</summary>
     [Fact]
     public void Restore_an_items_heal_capped_and_report_what_it_restored()
     {
@@ -167,7 +167,27 @@ public class CombatServiceHealShould
         Assert.Equal(20u, restored);
         Assert.Equal(100u, user.CurrentHealth);
         outcomes.Received(1).UnitHealed(user, user, 20u, null, HitResult.None);
-        Assert.Null(_registry.FindEncounterContaining(user));
+    }
+
+    /// <summary>
+    /// An item's heal on a player in a fight gives its healer no threat and does not bring it into the encounter, where
+    /// an ability's heal (above) would do both.
+    /// </summary>
+    [Fact]
+    public void Restore_an_items_heal_without_threat_or_joining_the_encounter()
+    {
+        CharacterEntity healer = TestCharacters.New(2);
+        CharacterEntity target = Wounded(1, max: 100, current: 40);
+        var wolf = Substitute.For<ICreature>();
+        _combat.EnterCombat(wolf, target);
+        var encounter = (Encounter)_combat.GetEncounterFor(target)!;
+
+        Assert.Equal(20u, _combat.RestoreHealth(healer, target, 20));
+
+        Assert.Equal(60u, target.CurrentHealth);
+        Assert.False(encounter.GetThreatList(wolf).ContainsKey(healer));
+        Assert.Null(_combat.GetEncounterFor(healer));
+        Assert.False(healer.IsInCombat);
     }
 
     [Fact]

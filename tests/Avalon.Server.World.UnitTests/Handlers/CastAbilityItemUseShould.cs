@@ -35,4 +35,28 @@ public class CastAbilityItemUseShould
         Assert.Contains(client.Read<SCharacterInterruptedCastPacket>(NetworkPacketType.SMSG_INTERRUPTED_CAST),
             p => p.ItemTemplateId == 3ul);
     }
+
+    /// <summary>A refused ability cast (the global cooldown here) leaves the item cast running.</summary>
+    [Fact]
+    public void Keep_the_item_cast_when_an_ability_cast_is_refused()
+    {
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
+        MapInstanceClient client = MapInstanceClients.Join(instance, 7);
+        client.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(1))]);
+        client.Character.LastCastStartTime = DateTime.UtcNow;
+        var ends = new List<string>();
+        instance.ItemUses.Start(new PendingItemUse
+        {
+            Character = client.Character, Item = new ItemTemplateId(3), StartPosition = client.Character.Position,
+            CastId = instance.ItemUses.TakeCastId(), CastTimeSeconds = 3f, CanComplete = () => true,
+            Completed = () => ends.Add("completed"), Interrupted = () => ends.Add("interrupted"),
+        });
+
+        handler.Execute(client.Connection, new CCastAbilityPacket { AbilityId = 1 });
+
+        Assert.Equal(CastRejectReason.Gcd,
+            Assert.Single(client.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY)).Reason);
+        Assert.Empty(ends);
+        Assert.True(instance.ItemUses.IsCasting(client.Character.Guid));
+    }
 }

@@ -4,12 +4,13 @@ using Avalon.Common.ValueObjects;
 using Avalon.World.Entities;
 using Avalon.World.Items;
 using Avalon.World.Public.Units;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;
 
-/// <summary>An item's cast bar (item use, 2026-10-02): taking damage never ends it; moving, dying and leaving do.</summary>
+/// <summary>An item's cast bar (item use): taking damage never ends it; moving, dying and leaving do.</summary>
 public class ItemUseCastsShould
 {
     private static readonly ItemTemplateId Scroll = new(3);
@@ -128,6 +129,77 @@ public class ItemUseCastsShould
         _casts.Update(TimeSpan.FromSeconds(1));
 
         Assert.False(_casts.IsCasting(_character.Guid));
+    }
+
+    /// <summary>
+    /// A completion that ends another character's cast and starts a new one for it, on the tick both were due: the old
+    /// cast is not completed, and the new one runs on.
+    /// </summary>
+    [Fact]
+    public void Leave_a_cast_started_by_an_earlier_completion_on_the_same_tick_running()
+    {
+        CharacterEntity other = Inventory.TestCharacters.New(8);
+        var otherEnds = new List<string>();
+        PendingItemUse OtherCast(float seconds) => new()
+        {
+            Character = other, Item = Scroll, StartPosition = other.Position, CastId = _casts.TakeCastId(),
+            CastTimeSeconds = seconds, CanComplete = () => true,
+            Completed = () => otherEnds.Add($"completed {seconds}"), Interrupted = () => otherEnds.Add($"interrupted {seconds}"),
+        };
+
+        _casts.Start(new PendingItemUse
+        {
+            Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = _casts.TakeCastId(),
+            CastTimeSeconds = 1f, CanComplete = () => true,
+            Completed = () =>
+            {
+                _casts.Interrupt(other.Guid);
+                _casts.Start(OtherCast(5f));
+            },
+            Interrupted = () => { },
+        });
+        _casts.Start(OtherCast(1f));
+
+        _casts.Update(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(["interrupted 1"], otherEnds);
+        Assert.True(_casts.IsCasting(other.Guid));
+    }
+
+    /// <summary>A CanComplete that throws is logged at Error naming the character, and interrupts instead.</summary>
+    [Fact]
+    public void Log_a_throwing_completion_check_naming_the_character_and_interrupt()
+    {
+        var logger = new RecordingLogger();
+        var casts = new ItemUseCasts(_audience, () => ++_lastId, logger);
+        casts.Start(new PendingItemUse
+        {
+            Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = casts.TakeCastId(),
+            CastTimeSeconds = 1f, CanComplete = () => throw new InvalidOperationException("boom"),
+            Completed = () => _ends.Add("completed"), Interrupted = () => _ends.Add("interrupted"),
+        });
+
+        casts.Update(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(["interrupted"], _ends);
+        (LogLevel level, Exception? error, IReadOnlyList<KeyValuePair<string, object?>> fields) = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, level);
+        Assert.IsType<InvalidOperationException>(error);
+        Assert.Contains(fields, f => f.Key == "Character" && Equals(f.Value, _character.Guid));
+    }
+
+    private sealed class RecordingLogger : ILogger
+    {
+        public List<(LogLevel Level, Exception? Error, IReadOnlyList<KeyValuePair<string, object?>> Fields)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, exception,
+                state as IReadOnlyList<KeyValuePair<string, object?>> ?? []));
     }
 
     private sealed class RecordingAudience : IItemCastAudience

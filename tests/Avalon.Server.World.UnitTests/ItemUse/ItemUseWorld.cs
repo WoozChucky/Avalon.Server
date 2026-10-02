@@ -22,7 +22,7 @@ namespace Avalon.Server.World.UnitTests.ItemUse;
 
 /// <summary>
 /// A real character in a real MapInstance the world's registry finds, and an ItemUseService over test scripts.
-/// The character has 100 of 240 health. Templates 700-708 exercise the flow; the Longsword the equip path.
+/// The character has 100 of 240 health. Templates 700-710 exercise the flow; the equipment templates the equip path.
 /// </summary>
 internal sealed class ItemUseWorld : IDisposable
 {
@@ -31,10 +31,12 @@ internal sealed class ItemUseWorld : IDisposable
     public static readonly ItemTemplate Scroll = Usable(702, "Scroll", nameof(ConsumeOneScript), castMs: 3000);
     public static readonly ItemTemplate Trinket = Usable(703, "Trinket", script: null);
     public static readonly ItemTemplate Refuser = Usable(704, "Refuser", nameof(RefusingScript), cooldownMs: 30000);
-    public static readonly ItemTemplate Thrower = Usable(705, "Thrower", nameof(ThrowingScript), cooldownMs: 30000);
+    public static readonly ItemTemplate Thrower = Usable(705, "Thrower", nameof(OnUseThrowingScript), cooldownMs: 30000);
     public static readonly ItemTemplate Missing = Usable(706, "Missing", "NoSuchItemScript");
     public static readonly ItemTemplate Hungry = Usable(707, "Hungry", nameof(WorldHungryItemScript));
     public static readonly ItemTemplate Fizzler = Usable(708, "Fizzler", nameof(InterruptThrowingScript), castMs: 3000, cooldownMs: 30000);
+    public static readonly ItemTemplate Sparkler = Usable(709, "Sparkler", nameof(CastStartThrowingScript), castMs: 3000, cooldownMs: 30000);
+    public static readonly ItemTemplate Draught = Usable(710, "Draught", nameof(RefuseAtFullHealthScript), castMs: 3000, cooldownMs: 30000);
 
     private static ItemTemplate Usable(ulong id, string name, string? script, uint? castMs = null, uint? cooldownMs = null,
         string? group = null) => new()
@@ -51,8 +53,20 @@ internal sealed class ItemUseWorld : IDisposable
     public ItemUseService Service { get; }
     public IInventoryService Inventory { get; }
 
+    /// <summary>The character's class and level, so a gear change has stats to refresh.</summary>
+    public static readonly ClassLevelStat WarriorLevel1 = new()
+    {
+        Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+    };
+
     public static async Task<ItemUseWorld> CreateAsync() => new(await TestStaticData.LoadAsync(
-        items: [Tonic, Elixir, Scroll, Trinket, Refuser, Thrower, Missing, Hungry, Fizzler, EquipTemplates.Longsword]));
+        classStats: [WarriorLevel1],
+        items:
+        [
+            Tonic, Elixir, Scroll, Trinket, Refuser, Thrower, Missing, Hungry, Fizzler, Sparkler, Draught,
+            EquipTemplates.Longsword, EquipTemplates.Greatsword, EquipTemplates.Buckler, EquipTemplates.Band,
+            EquipTemplates.IronHelm, EquipTemplates.Circlet,
+        ]));
 
     private ItemUseWorld(StaticData data)
     {
@@ -68,8 +82,8 @@ internal sealed class ItemUseWorld : IDisposable
         var scripts = Substitute.For<IScriptManager>();
         foreach (Type type in new[]
                  {
-                     typeof(ConsumeOneScript), typeof(RefusingScript), typeof(ThrowingScript), typeof(WorldHungryItemScript),
-                     typeof(InterruptThrowingScript),
+                     typeof(ConsumeOneScript), typeof(RefusingScript), typeof(OnUseThrowingScript), typeof(WorldHungryItemScript),
+                     typeof(InterruptThrowingScript), typeof(CastStartThrowingScript), typeof(RefuseAtFullHealthScript),
                  })
             scripts.GetItemScript(type.Name).Returns(type);
 

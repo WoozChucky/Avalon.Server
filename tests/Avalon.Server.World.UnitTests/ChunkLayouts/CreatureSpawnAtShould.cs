@@ -21,10 +21,11 @@ public class CreatureSpawnAtShould
     private readonly ICreatureSpawner _spawner = Substitute.For<ICreatureSpawner>();
     private readonly IMapInstance _instance = Substitute.For<IMapInstance>();
     private readonly ICreature _creature = Substitute.For<ICreature>();
+    private readonly IScriptManager _scripts = Substitute.For<IScriptManager>();
 
     private CreaturePlacementService Service() => new(_spawner, Substitute.For<IChunkLibrary>(),
         Substitute.For<ISpawnTableRepository>(), Substitute.For<IMapCreatureSpawnRepository>(),
-        Substitute.For<IScriptManager>(), Substitute.For<IServiceProvider>(), NullLoggerFactory.Instance);
+        _scripts, Substitute.For<IServiceProvider>(), NullLoggerFactory.Instance);
 
     public CreatureSpawnAtShould()
     {
@@ -66,5 +67,39 @@ public class CreatureSpawnAtShould
 
         Assert.Null(Service().SpawnAt(_instance, new CreatureTemplateId(999), Vector3.zero));
         _instance.DidNotReceiveWithAnyArgs().AddCreature(default!);
+    }
+
+    [Theory]
+    [InlineData(NavmeshGroundKind.Under)]
+    [InlineData(NavmeshGroundKind.Nearest)]
+    public void Stand_exactly_where_the_ground_was_found(NavmeshGroundKind found)
+    {
+        var ground = new Vector3(3.25f, 0.75f, 6.5f);
+        var navigator = Substitute.For<IMapNavigator, IGroundNavigator>();
+        ((IGroundNavigator)navigator).FindGround(new Vector3(3, 2, 6), out Arg.Any<Vector3>())
+            .Returns(call =>
+            {
+                call[1] = ground;
+                return found;
+            });
+        _instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(navigator);
+
+        Assert.Same(_creature, Service().SpawnAt(_instance, new CreatureTemplateId(4), new Vector3(3, 2, 6)));
+        _spawner.Received(1).Spawn(Arg.Is<CreatureInfo>(i => i.Position == ground));
+    }
+
+    [Fact]
+    public void Attach_the_creatures_named_script()
+    {
+        var instance = Substitute.For<IMapInstance, Avalon.World.Public.Instances.ISimulationContext>();
+        instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(Substitute.For<IMapNavigator>());
+        _creature.ScriptName.Returns(nameof(Avalon.World.Scripts.Creatures.TownNpcScript));
+        _scripts.GetAiScript(nameof(Avalon.World.Scripts.Creatures.TownNpcScript))
+            .Returns(typeof(Avalon.World.Scripts.Creatures.TownNpcScript));
+
+        Assert.Same(_creature, Service().SpawnAt(instance, new CreatureTemplateId(4), Vector3.zero));
+
+        Assert.IsType<Avalon.World.Scripts.Creatures.TownNpcScript>(_creature.Script);
+        instance.Received(1).AddCreature(_creature);
     }
 }

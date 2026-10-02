@@ -24,7 +24,8 @@ public sealed class RefusingScript : ItemScript
     public override void OnUse(IItemUseContext ctx) => ctx.Tell("used");
 }
 
-public sealed class ThrowingScript : ItemScript
+/// <summary>Its OnUse throws after marking one spent: nothing is consumed and no cooldown starts.</summary>
+public sealed class OnUseThrowingScript : ItemScript
 {
     public override void OnUse(IItemUseContext ctx)
     {
@@ -56,4 +57,24 @@ public sealed class InterruptThrowingScript : ItemScript
     public override void OnUse(IItemUseContext ctx) => ctx.Consume();
 
     public override void OnInterrupted(IItemUseContext ctx) => throw new InvalidOperationException("boom");
+}
+
+/// <summary>A cast-time use whose start hook throws: the bar ends and the use is answered InternalError, once.</summary>
+public sealed class CastStartThrowingScript : ItemScript
+{
+    public override void OnUse(IItemUseContext ctx) => ctx.Consume();
+
+    public override void OnCastStart(IItemUseContext ctx) => throw new InvalidOperationException("boom");
+}
+
+/// <summary>Refused at full health, so a heal landing during its cast refuses it at completion.</summary>
+public sealed class RefuseAtFullHealthScript : ItemScript
+{
+    public override string? CanUse(IItemUseContext ctx) => ctx.Health >= ctx.MaxHealth ? "Already full." : null;
+
+    public override void OnUse(IItemUseContext ctx)
+    {
+        ctx.Consume();
+        ctx.Tell("used");
+    }
 }

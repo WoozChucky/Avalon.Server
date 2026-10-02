@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;
 
-/// <summary>Item use cooldowns (2026-10-02): per item and per group, in memory, measured on absolute time.</summary>
+/// <summary>Item use cooldowns: per item and per group, in memory, measured on absolute time.</summary>
 public class ItemCooldownsShould
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
@@ -46,6 +46,29 @@ public class ItemCooldownsShould
         cooldowns.Start(Elixir, "potion", TimeSpan.FromSeconds(10), Now);
 
         Assert.Equal(TimeSpan.FromSeconds(60), cooldowns.Remaining(Tonic, "potion", Now));
+    }
+
+    /// <summary>The group is the longer: an item off its own cooldown still waits for its group.</summary>
+    [Fact]
+    public void Answer_the_groups_cooldown_when_it_is_the_longer()
+    {
+        var cooldowns = new ItemCooldowns();
+        cooldowns.Start(Tonic, "potion", TimeSpan.FromSeconds(10), Now);
+        cooldowns.Start(Elixir, "potion", TimeSpan.FromSeconds(60), Now);
+
+        Assert.Equal(TimeSpan.FromSeconds(50), cooldowns.Remaining(Tonic, "potion", Now.AddSeconds(10)));
+    }
+
+    /// <summary>A blank group is no group: it shares nothing with another blank one, and a blank lookup sees none.</summary>
+    [Fact]
+    public void Count_a_blank_group_as_no_group()
+    {
+        var cooldowns = new ItemCooldowns();
+        cooldowns.Start(Tonic, "   ", TimeSpan.FromSeconds(30), Now);
+
+        Assert.Equal(TimeSpan.FromSeconds(30), cooldowns.Remaining(Tonic, "   ", Now));
+        Assert.Equal(TimeSpan.Zero, cooldowns.Remaining(Elixir, "   ", Now));
+        Assert.Equal(TimeSpan.Zero, cooldowns.Remaining(Elixir, "", Now));
     }
 
     [Fact]

@@ -20,6 +20,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Items;
 using Avalon.World.Public;
 using Avalon.World.Respawn;
+using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -60,6 +61,8 @@ public class ItemUseContextWorldShould
         Creature near = AddBoar(instance, 90, new Vector3(0, 0, 2));
         Creature far = AddBoar(instance, 91, new Vector3(0, 0, 40));
         Creature npc = AddBoar(instance, 92, new Vector3(0, 0, 1), invulnerable: true);
+        // A script, so the hit lowers its health.
+        near.Script = new CreatureCombatScript(NullLoggerFactory.Instance, near, instance);
         ItemUseContext ctx = ContextFor(world, user.Connection, user.Character, instance);
 
         Assert.Equal([near.Guid], ctx.HostilesAround(5f));
@@ -71,8 +74,27 @@ public class ItemUseContextWorldShould
         Assert.False(user.Character.IsInCombat);
 
         Assert.True(ctx.Damage(near.Guid, 10));                // a raw hit through the combat service
+        Assert.True(near.CurrentHealth < 100u);
         Assert.True(user.Character.IsInCombat);
         Assert.True(ctx.Damage(far.Guid, 10));                 // no range on Damage itself: the script picked it
+    }
+
+    /// <summary>A creature walking home ignores hits, so Damage says it did nothing.</summary>
+    [Fact]
+    public void Answer_false_for_damage_on_a_creature_walking_home()
+    {
+        IWorld world = NewWorld();
+        using MapInstance instance = TestMapInstances.Build(world);
+        MapInstanceClient user = Join(instance, 7);
+        Creature boar = AddBoar(instance, 93, new Vector3(0, 0, 2));
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, boar, instance);
+        boar.Script = script;
+        script.State = CreatureCombatScript.CombatState.Returning;
+        ItemUseContext ctx = ContextFor(world, user.Connection, user.Character, instance);
+
+        Assert.False(ctx.Damage(boar.Guid, 10));
+        Assert.Equal(100u, boar.CurrentHealth);
+        Assert.False(user.Character.IsInCombat);
     }
 
     [Fact]
@@ -93,6 +115,7 @@ public class ItemUseContextWorldShould
             ItemUseContext ctx = ContextFor(NewWorld(), user.Connection, user.Character, instance);
 
             Assert.False(ctx.CastAbility(new AbilityId(1)));              // 10 Mana cannot pay 30
+            Assert.False(user.Character.IsInCombat);                       // a refused cast marks nothing
             Assert.True(ctx.CastAbility(new AbilityId(1), free: true));
             Assert.Equal(10u, user.Character.CurrentPower);
             Assert.True(user.Character.IsInCombat);
@@ -195,6 +218,12 @@ public class ItemUseContextWorldShould
         Assert.Equal(0u, ctx.RestoreHealthOf(c.Character.Guid, 30));   // not in the party
         Assert.Equal(50u, c.Character.CurrentHealth);
         Assert.Equal(0u, ctx.RestoreHealthOf(a.Character.Guid, 30));   // the user is not its own member
+
+        b.Character.CurrentHealth = 0;
+        b.Character.IsDead = true;
+        Assert.Equal(0u, ctx.RestoreHealthOf(b.Character.Guid, 30));   // never the dead
+        Assert.Equal(0u, ctx.RestorePowerOf(b.Character.Guid, 20));
+        Assert.Equal(0u, b.Character.CurrentHealth);
     }
 
     [Fact]
