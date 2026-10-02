@@ -27,6 +27,7 @@ public sealed class WorldMaintenanceTickThreadShould
 
     private WorldMaintenanceCoordinator Coordinator() => new(new WorldId(1), _repository,
         Substitute.For<ICharacterSaver>(), new FixedClock(Start), NullLogger<WorldMaintenanceCoordinator>.Instance,
+        Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()),
         _guard);
 
     [Fact]

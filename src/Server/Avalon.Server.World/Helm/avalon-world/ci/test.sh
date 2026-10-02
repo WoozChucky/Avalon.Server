@@ -47,4 +47,16 @@ grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$bare" | grep -q '"avalon.world.id
 ! grep -q "OTEL_" <<<"$off"                                                                                   || { echo "otel env rendered without an endpoint"; exit 1; }
 dup=$(helm template t . $CACHE --set existingSecret=x --set server.game.worldId=2 --set otel.endpoint=http://c:4317 --set 'otel.resourceAttributes.avalon\.world\.id=9' --set 'otel.resourceAttributes.deployment\.environment=production')
 grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$dup" | grep -q '"avalon.world.id=2,deployment.environment=production"' || { echo "avalon.world.id must come from server.game.worldId, once"; exit 1; }
+sd=$(helm template t . $CACHE --set existingSecret=x --set shutdown.drainSeconds=300 --set shutdown.saveMarginSeconds=90)
+grep -A1 "name: World__Shutdown__DrainTime" <<<"$sd" | grep -q '"0.00:05:00"'                  || { echo "drain must render as a TimeSpan"; exit 1; }
+grep -A1 "name: World__Shutdown__SaveMargin" <<<"$sd" | grep -q '"0.00:01:30"'                 || { echo "save margin must render as a TimeSpan"; exit 1; }
+grep -q "terminationGracePeriodSeconds: 405" <<<"$sd"                                          || { echo "grace period must be drain + margin + 15"; exit 1; }
+grep -A1 "name: World__Shutdown__DrainTime" <<<"$off" | grep -q '"0.00:00:00"'                 || { echo "drain must default to 0"; exit 1; }
+grep -q "terminationGracePeriodSeconds: 75" <<<"$off"                                          || { echo "default grace period must be 0 + 60 + 15"; exit 1; }
+for bad in "shutdown.drainSeconds=-1" "shutdown.drainSeconds=1.5" "shutdown.drainSeconds=3601" "shutdown.saveMarginSeconds=0" "shutdown.saveMarginSeconds=20"; do
+  if helm template t . $CACHE --set existingSecret=x --set "$bad" >/dev/null 2>&1; then
+    echo "rendering with $bad must fail"; exit 1
+  fi
+done
+helm template t . $CACHE --set existingSecret=x --set shutdown.saveMarginSeconds=21 >/dev/null || { echo "a 21 s margin must render"; exit 1; }
 echo "avalon-world chart OK"

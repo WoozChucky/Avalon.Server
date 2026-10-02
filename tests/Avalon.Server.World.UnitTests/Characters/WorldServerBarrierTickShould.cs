@@ -126,7 +126,8 @@ public class WorldServerBarrierTickShould : IDisposable
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(check.Task);
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
-            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         coordinator.ApplyCommitted(new WorldMaintenanceState(false, 1, null));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate, coordinator: coordinator);
         connection.AccountId = new AccountId(42);
@@ -155,7 +156,8 @@ public class WorldServerBarrierTickShould : IDisposable
             .Returns(new WorldEntryDecision(true, DateTime.UtcNow.AddMinutes(1)));
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
-            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 2, DateTime.UtcNow.AddMinutes(1)));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate, coordinator: coordinator);
         connection.AccountId = new AccountId(42);
@@ -181,7 +183,8 @@ public class WorldServerBarrierTickShould : IDisposable
         // What the Redis notification and the reconciliation do from their own threads: offer, nothing more.
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
-            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build(coordinator: coordinator);
         connection.AccountId = new AccountId(42);
         var cutoff = new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddSeconds(-1));
@@ -204,7 +207,8 @@ public class WorldServerBarrierTickShould : IDisposable
         var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(DateTimeOffset.UtcNow.AddHours(1));
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
-            clock, NullLogger<WorldMaintenanceCoordinator>.Instance);
+            clock, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         (TestWorldServer server, _, Avalon.World.WorldConnection connection) =
             Build(coordinator: coordinator, clock: clock);
         connection.AccountId = new AccountId(42);
@@ -244,7 +248,8 @@ public class WorldServerBarrierTickShould : IDisposable
     {
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
-            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance);
+            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         coordinator.ApplyCommitted(new WorldMaintenanceState(false, 1, null));
         bool entered = false;
 

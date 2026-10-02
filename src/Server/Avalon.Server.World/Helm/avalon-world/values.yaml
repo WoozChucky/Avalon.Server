@@ -36,6 +36,14 @@ server:
 
 replicaCount: 1
 
+# On SIGTERM (a rollout, node drain or eviction) the world warns its players and waits for them to leave
+# for up to drainSeconds, then closes everyone and saves (#768). 0 closes at once. saveMarginSeconds is
+# what the close and the saves get after the drain: at least 21, the world's save wait and drain
+# backstop. terminationGracePeriodSeconds is drain + margin + 15.
+shutdown:
+  drainSeconds: 0
+  saveMarginSeconds: 60
+
 image:
   repository: ghcr.io/woozchucky/avalon-server/world
   pullPolicy: IfNotPresent

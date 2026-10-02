@@ -375,6 +375,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {
         _isListening = false;
+
+        // The restart drain (#768) first, with the listener already stopped: warn the players, and wait until they
+        // have left or the drain's deadline has passed. Its countdown and cutoff run on the tick (#639), so the tick
+        // keeps running until it ends. Only a running tick can end it; a stop during the load has none, and skips it.
+        if (_maintenanceCoordinator is not null && _tickRunning && _tickThread is { IsAlive: true })
+            await _maintenanceCoordinator.DrainForRestartAsync(stoppingToken).ConfigureAwait(false);
+
         // The tick goes first. Closing an outbox does its own final flush, so the tick has nothing
         // left to contribute, and letting it keep flushing outboxes that are mid-teardown would
         // put a second writer on buffers the close is about to hand back to the pool.
@@ -437,7 +444,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     }
 
     /// <summary>How long shutdown waits for character saves still in flight before giving up on them.</summary>
-    public TimeSpan SaveDrainLimit { get; init; } = TimeSpan.FromSeconds(20);
+    public TimeSpan SaveDrainLimit { get; init; } = DefaultSaveDrainLimit;
+
+    /// <summary>The production <see cref="SaveDrainLimit" />; <c>World:Shutdown:SaveMargin</c> must cover it.</summary>
+    public static readonly TimeSpan DefaultSaveDrainLimit = TimeSpan.FromSeconds(20);
 
     private async Task WaitForSavesAsync(CancellationToken stoppingToken)
     {
