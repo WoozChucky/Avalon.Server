@@ -98,6 +98,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     private readonly TimeProvider _time;
 
+    // Item use: each summoned creature and when it leaves if still alive, on the instance's clock. Tick thread.
+    private readonly Dictionary<ObjectGuid, (ICreature Creature, DateTimeOffset LeavesAt)> _summons = [];
+    private readonly List<ICreature> _summonsDone = [];
+
     // Creature health scaling (2026-09-30), party instances only: set when someone enters or leaves, applied once at
     // the start of the next Update, so several changes in one tick make one rescale and one message.
     private double _healthFactor = 1d;
@@ -226,6 +230,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _groundLoot.Clear();
         _lootSnapshotOwed.Clear();
         _pvpStateOwed.Clear();
+        _summons.Clear();
     }
 
     public Guid InstanceId { get; }
@@ -259,6 +264,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     uint IItemUseHost.RestoreHealth(IUnit healer, IUnit target, uint amount) =>
         _combatService.RestoreHealth(healer, target, amount);
+
+    bool IItemUseHost.CastForItem(IUnit caster, AbilityAim aim, IAbility ability, bool free) =>
+        ability.Metadata.CastTime > 0
+            ? _abilityCastSystem.QueueAbility(caster, aim, ability, free)
+            : _abilityCastSystem.RunInstant(caster, aim, ability, free);
+
+    void IItemUseHost.DespawnAfter(ICreature creature, TimeSpan lifetime) =>
+        _summons[creature.Guid] = (creature, _time.GetUtcNow() + lifetime);
 
     public IHitQuery Hits => _hits;
     public ICreatureLocomotion Locomotion => _locomotion;
@@ -518,6 +531,35 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // A creature spawned later in a party instance starts at the health the players here make.
         if (_healthFactor != 1d && creature is Creature scaled)
             scaled.Rescale(_healthFactor);
+    }
+
+    /// <summary>
+    /// Step 1b of <see cref="Update" /> (item use): forgets a summon that is gone or dead (a dead one is the corpse
+    /// removal's), and removes a living one whose time has come, dropped from its encounter first so no threat
+    /// outlives it. Allocates nothing while there is no summon.
+    /// </summary>
+    private void DespawnExpiredSummons()
+    {
+        if (_summons.Count == 0)
+            return;
+
+        DateTimeOffset now = _time.GetUtcNow();
+        _summonsDone.Clear();
+        foreach ((ObjectGuid guid, (ICreature creature, DateTimeOffset leavesAt)) in _summons)
+        {
+            if (!_creatures.ContainsKey(guid) || creature.CurrentHealth == 0 || now >= leavesAt)
+                _summonsDone.Add(creature);
+        }
+
+        foreach (ICreature creature in _summonsDone)
+        {
+            _summons.Remove(creature.Guid);
+            if (creature.CurrentHealth == 0 || !_creatures.ContainsKey(creature.Guid))
+                continue;
+
+            ((IHostileEncounterExit)_combatService).DropHostileFromEncounter(creature);
+            RemoveCreature(creature);
+        }
     }
 
     public void RemoveCreature(ICreature creature)
@@ -828,6 +870,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Step 1: remove the corpses whose BodyRemoveTimer has run out. Creatures do not respawn.
         _corpseRemover.Update(deltaTime);
+
+        // Step 1b: summons whose lifetime has passed leave (item use).
+        DespawnExpiredSummons();
 
         // Step 2: Process character packets
         UpdateCharacters(deltaTime);
