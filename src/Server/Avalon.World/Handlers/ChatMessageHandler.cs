@@ -50,7 +50,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         {
             // Nowhere to say it: the sender still sees its own line.
             connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encrypt, characterClass: (ushort)sender.Class));
             rateLimiter.Record(sender.Guid.Id);
             return;
         }
@@ -63,7 +63,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
                 continue;
 
             target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
-                target.CryptoSession.Encrypt));
+                target.CryptoSession.Encrypt, characterClass: (ushort)sender.Class));
         }
     }
 }

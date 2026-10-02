@@ -56,4 +56,33 @@ public class ChatPacketsShould
         Assert.Equal(ChatChannel.Party, read.Channel);
         Assert.Null(read.TargetName);
     }
+
+    /// <summary>#763: the sender's class is field 8, and 0 (not a character) is not written.</summary>
+    [Fact]
+    public void Carry_the_sender_class_as_field_8()
+    {
+        Assert.Equal(DefaultDateTime + "4003", Hex(new SChatMessagePacket { CharacterClass = 3 }));
+        Assert.Equal(DefaultDateTime, Hex(new SChatMessagePacket { CharacterClass = 0 }));
+    }
+
+    [Fact]
+    public void Round_trip_the_sender_class()
+    {
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, new SChatMessagePacket { Channel = ChatChannel.Whisper, CharacterClass = 2 });
+        stream.Position = 0;
+        SChatMessagePacket read = Serializer.Deserialize<SChatMessagePacket>(stream);
+
+        Assert.Equal(ChatChannel.Whisper, read.Channel);
+        Assert.Equal((ushort)2, read.CharacterClass);
+    }
+
+    [Fact]
+    public void Read_a_payload_without_a_class_as_0()
+    {
+        using var stream = new MemoryStream(Convert.FromHexString(DefaultDateTime + "3001"));
+        SChatMessagePacket read = Serializer.Deserialize<SChatMessagePacket>(stream);
+
+        Assert.Equal((ushort)0, read.CharacterClass);
+    }
 }

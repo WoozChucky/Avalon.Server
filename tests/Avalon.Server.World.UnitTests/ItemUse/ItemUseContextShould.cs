@@ -268,6 +268,20 @@ public class ItemUseContextShould
             lines.Select(l => (l.Channel, l.CharacterName, l.Message)));
     }
 
+    /// <summary>#763: a script's whisper and a told line come from no character, so both carry class 0.</summary>
+    [Fact]
+    public void Send_script_lines_with_class_0()
+    {
+        ItemUseContext ctx = Context();
+
+        ctx.Tell("Hello.");
+        ctx.Whisper("A voice", "Psst.");
+
+        List<SChatMessagePacket> lines = TestTown.Read<SChatMessagePacket>(_sent, NetworkPacketType.SMSG_CHAT_MESSAGE);
+        Assert.Equal(2, lines.Count);
+        Assert.All(lines, l => Assert.Equal((ushort)0, l.CharacterClass));
+    }
+
     [Fact]
     public void Offer_no_party_members_to_a_user_in_no_party()
     {

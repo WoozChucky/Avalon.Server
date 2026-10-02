@@ -1,3 +1,5 @@
+using Avalon.World.Entities;
+using Avalon.World.Public.Enums;
 using Avalon.Server.World.UnitTests.Chat;
 using System.IO;
 using Avalon.Common.Cryptography;
@@ -116,5 +118,56 @@ public class ChatMessageHandlerShould
         SChatMessagePacket reply = Serializer.Deserialize<SChatMessagePacket>(stream);
         Assert.Equal(ChatChannel.System, reply.Channel);
         Assert.Equal("Unknown command.", reply.Message);
+    }
+
+    /// <summary>#763: a said line carries the sender's class, to every listener and on the echo.</summary>
+    [Fact]
+    public void Carry_the_senders_class_on_a_said_line()
+    {
+        MapInstance here = TestMapInstances.Build(_world);
+        _world.InstanceRegistry.GetInstanceById(here.InstanceId).Returns(here);
+        CharacterEntity hunter = Inventory.TestCharacters.New(1);
+        hunter.Data!.Class = CharacterClass.Hunter;
+        MapInstanceClient sender = MapInstanceClients.Join(here, hunter);
+        MapInstanceClient neighbour = MapInstanceClients.Join(here, 2);
+
+        _handler.Execute(sender.Connection, MakePacket("Hello"));
+
+        Assert.Equal((ushort)CharacterClass.Hunter,
+            Assert.Single(neighbour.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
+        Assert.Equal((ushort)CharacterClass.Hunter,
+            Assert.Single(sender.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
+    }
+
+    /// <summary>#763: a said line from a sender whose instance cannot be found still carries its class.</summary>
+    [Fact]
+    public void Carry_the_senders_class_when_only_the_sender_hears_it()
+    {
+        var sent = new List<NetworkPacket>();
+        _senderConnection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        CharacterEntity wizard = Inventory.TestCharacters.New(1);
+        wizard.Data!.Class = CharacterClass.Wizard;
+        _senderConnection.Character.Returns(wizard);
+
+        _handler.Execute(_senderConnection, MakePacket("Hello"));
+
+        using var stream = new MemoryStream(Assert.Single(sent).Payload);
+        Assert.Equal((ushort)CharacterClass.Wizard, Serializer.Deserialize<SChatMessagePacket>(stream).CharacterClass);
+    }
+
+    /// <summary>#763: a System line is not from a character, so it carries class 0.</summary>
+    [Fact]
+    public void Send_a_system_line_with_class_0()
+    {
+        _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>()).Returns(false);
+        var sent = new List<NetworkPacket>();
+        _senderConnection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+
+        _handler.Execute(_senderConnection, MakePacket("/nope"));
+
+        using var stream = new MemoryStream(Assert.Single(sent).Payload);
+        SChatMessagePacket reply = Serializer.Deserialize<SChatMessagePacket>(stream);
+        Assert.Equal(ChatChannel.System, reply.Channel);
+        Assert.Equal((ushort)0, reply.CharacterClass);
     }
 }

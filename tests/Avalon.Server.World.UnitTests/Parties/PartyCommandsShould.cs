@@ -1,3 +1,4 @@
+using Avalon.World.Public.Enums;
 using Avalon.Server.World.UnitTests.Chat;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
@@ -170,5 +171,22 @@ public class PartyCommandsShould
         SChatMessagePacket heard = Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE),
             m => m.Channel == ChatChannel.Party);
         Assert.Equal(expected, heard.Message);
+    }
+
+    /// <summary>#763: party chat carries the sender's class, to the members and on the echo.</summary>
+    [Fact]
+    public void Carry_the_senders_class_on_party_chat()
+    {
+        PartyClient a = _w.Online(1, "A");
+        PartyClient b = _w.Online(2, "B");
+        a.Character.Data!.Class = CharacterClass.Healer;
+        _w.Form(a, b);
+
+        Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, "/p heal up");
+
+        Assert.Equal((ushort)CharacterClass.Healer,
+            Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
+        Assert.Equal((ushort)CharacterClass.Healer,
+            Assert.Single(a.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
     }
 }
