@@ -28,6 +28,8 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      # Past the host's own stop timeout (drain + margin), so the kubelet never kills it mid-countdown or mid-save.
+      terminationGracePeriodSeconds: {{ add (include "avalon-server.drainSeconds" .) (include "avalon-server.saveMarginSeconds" .) 15 }}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
@@ -77,6 +79,10 @@ spec:
               value: {{ .Values.server.game.playerRadius | quote }}
             - name: Game__MaxCharactersPerAccount
               value: {{ .Values.server.game.maxCharactersPerAccount | quote }}
+            - name: World__Shutdown__DrainTime
+              value: {{ include "avalon-server.timeSpan" (include "avalon-server.drainSeconds" .) | quote }}
+            - name: World__Shutdown__SaveMargin
+              value: {{ include "avalon-server.timeSpan" (include "avalon-server.saveMarginSeconds" .) | quote }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
             {{- with .Values.otel.endpoint }}
