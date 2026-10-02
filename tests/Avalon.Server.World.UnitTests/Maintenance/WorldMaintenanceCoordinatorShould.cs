@@ -90,7 +90,7 @@ public sealed class WorldMaintenanceCoordinatorShould
         await coordinator.ApplyNotificationAsync(3, CancellationToken.None);
         coordinator.Advance(Start.AddMinutes(5), [player]);
         Assert.Empty(Messages(player));
-        player.DidNotReceive().CloseAsync();
+        _ = player.DidNotReceive().CloseAsync();
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class WorldMaintenanceCoordinatorShould
         coordinator.Advance(Start.AddMinutes(5), [player]);
 
         Assert.False(coordinator.CurrentState!.Enabled);
-        player.DidNotReceive().CloseAsync();
+        _ = player.DidNotReceive().CloseAsync();
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class WorldMaintenanceCoordinatorShould
         coordinator.Advance(Start.AddMinutes(5), [player]);
 
         Assert.Equal(2, Messages(player).Length);
-        player.DidNotReceive().CloseAsync();
+        _ = player.DidNotReceive().CloseAsync();
     }
 
     [Fact]
@@ -153,6 +153,30 @@ public sealed class WorldMaintenanceCoordinatorShould
         save.SetResult();
         await drained;
     }
+
+    [Fact]
+    public void Forget_connections_closed_earlier_in_a_long_cutoff()
+    {
+        var coordinator = Coordinator();
+        var first = Connection(AccountAccessLevel.Player);
+        var second = Connection(AccountAccessLevel.Player);
+        coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, Start.AddSeconds(-1)));
+
+        coordinator.Advance(Start, [first]);
+        Assert.Contains(first, Closing(coordinator));
+
+        first.IsConnected.Returns(false);
+        coordinator.Advance(Start.AddSeconds(1), [second]);
+
+        Assert.DoesNotContain(first, Closing(coordinator));
+        Assert.Contains(second, Closing(coordinator));
+        _ = first.Received(1).CloseAsync();
+    }
+
+    private static HashSet<IWorldConnection> Closing(WorldMaintenanceCoordinator coordinator) =>
+        (HashSet<IWorldConnection>)typeof(WorldMaintenanceCoordinator)
+            .GetField("_closing", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(coordinator)!;
 
     private static IWorldConnection Connection(AccountAccessLevel access)
     {

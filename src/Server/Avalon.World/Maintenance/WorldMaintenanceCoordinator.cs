@@ -173,6 +173,9 @@ public sealed class WorldMaintenanceCoordinator(
     /// <summary>Blocks every authenticated non-Admin connection and closes each once, after the zero line.</summary>
     private void CloseNonAdmins(IReadOnlyList<IWorldConnection> connections)
     {
+        // A connection closed earlier in the cutoff is gone; forget it, so a long cutoff holds only the live ones.
+        _closing.RemoveWhere(static connection => !connection.IsConnected);
+
         int newCloses = 0;
         foreach (IWorldConnection connection in connections)
         {
@@ -204,7 +207,11 @@ public sealed class WorldMaintenanceCoordinator(
                     _drainTask = Task.Run(DrainAndLogAsync, CancellationToken.None);
     }
 
-    /// <summary>Waits for every maintenance close so far, the despawns they queue and the saves those start.</summary>
+    /// <summary>
+    /// Waits for every maintenance close so far, the despawns they queue and the saves those start. Nothing waits on it
+    /// in production: its only effect there is the error <see cref="DrainAndLogAsync" /> logs when a drain does not
+    /// finish. It changes no state.
+    /// </summary>
     public async Task WhenDrainedAsync(CancellationToken ct)
     {
         int awaited = 0;
@@ -251,6 +258,7 @@ public sealed class WorldMaintenanceCoordinator(
             worldId.Value, state.Revision, state.Enabled, state.DeadlineUtc);
     }
 
+    /// <summary>Started after the cutoff's closes; its only effect is the error log when the drain does not finish.</summary>
     private async Task DrainAndLogAsync()
     {
         try
