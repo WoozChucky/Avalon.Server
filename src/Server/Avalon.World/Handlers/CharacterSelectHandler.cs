@@ -120,49 +120,59 @@ public class CharacterSelectHandler(
 
         if (entryGate is not null)
         {
-            // A repository call must never begin on the simulation tick. The completed result is
-            // applied by the connection's continuation queue on a later tick.
-            Task<WorldEntryDecision> check = Task.Run(async () =>
-            {
-                try
-                {
-                    return await entryGate.CheckAsync(connection.AccountId!, CancellationToken.None)
-                        .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-                }
-                catch (Exception)
-                {
-                    return default;
-                }
-            });
-            _entryCheckInFlight.Add(connection, check);
-            connection.EnqueueContinuation(check, decision =>
-            {
-                _entryCheckInFlight.Remove(connection);
-                if (!connection.IsConnected || connection.IsClosing) return;
-                if (!decision.IsValidAt((time ?? TimeProvider.System).GetUtcNow().UtcDateTime))
-                {
-#pragma warning disable MA0045 // tick continuation cannot await; the close finishes on its own
-                    GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
-                        DisconnectReason.Maintenance, logger);
-#pragma warning restore MA0045
-                    return;
-                }
-
-                BeginSelection(connection, packet, null);
-            });
+            SelectAfterEntryCheck(connection, packet, entryGate);
             return;
         }
 
         BeginSelection(connection, packet, activity);
     }
 
+    /// <summary>
+    /// The maintenance entry check, off the tick; its answer begins the selection, or closes the connection, on a
+    /// later tick.
+    /// </summary>
+    private void SelectAfterEntryCheck(IWorldConnection connection, CCharacterSelectedPacket packet,
+        IWorldEntryGate gate)
+    {
+        // A repository call must never begin on the simulation tick. The completed result is
+        // applied by the connection's continuation queue on a later tick.
+        Task<WorldEntryDecision> check = Task.Run(async () =>
+        {
+            try
+            {
+                return await gate.CheckAsync(connection.AccountId!, CancellationToken.None)
+                    .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+            }
+            catch (Exception)
+            {
+                return default;
+            }
+        });
+        _entryCheckInFlight.Add(connection, check);
+        connection.EnqueueContinuation(check, decision =>
+        {
+            _entryCheckInFlight.Remove(connection);
+            if (!connection.IsConnected || connection.IsClosing) return;
+            if (!decision.IsValidAt((time ?? TimeProvider.System).GetUtcNow().UtcDateTime))
+            {
+#pragma warning disable MA0045 // tick continuation cannot await; the close finishes on its own
+                GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
+                    DisconnectReason.Maintenance, logger);
+#pragma warning restore MA0045
+                return;
+            }
+
+            BeginSelection(connection, packet, null);
+        });
+    }
+
     private void BeginSelection(IWorldConnection connection, CCharacterSelectedPacket packet, Activity? activity)
     {
         if (connection.Character != null || connection.PendingSpawn != null || connection.SelectInProgress ||
-            connection.LeaveInProgress || connection.IsClosing)
+            connection.LeaveInProgress || connection.IsClosing || connection.AccountId is not { } accountId)
             return;
 
-        IReadOnlyList<Task> kickedWork = TakeOverFromOtherSessions(connection, connection.AccountId, packet.CharacterId);
+        IReadOnlyList<Task> kickedWork = TakeOverFromOtherSessions(connection, accountId, packet.CharacterId);
         if (kickedWork.Count > 0)
             activity?.AddEvent(new ActivityEvent("WaitingOnKickedSessions"));
 
@@ -172,7 +182,7 @@ public class CharacterSelectHandler(
         connection.BeginSelect(select);
 
         Step(connection, select,
-            FindAfterSavesAsync(packet.CharacterId, connection.AccountId, kickedWork),
+            FindAfterSavesAsync(packet.CharacterId, accountId, kickedWork),
             found =>
             {
                 if (found.SaveStillRunning)

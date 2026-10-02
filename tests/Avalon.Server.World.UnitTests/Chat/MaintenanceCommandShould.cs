@@ -96,7 +96,7 @@ public sealed class MaintenanceCommandShould
     }
 
     [Fact]
-    public void Write_off_the_tick_and_apply_the_committed_state_only_in_the_continuation()
+    public async Task Write_off_the_tick_and_apply_the_committed_state_only_in_the_continuation()
     {
         var connection = Substitute.For<IWorldConnection>();
         connection.AccountId.Returns(new AccountId(7));
@@ -121,7 +121,7 @@ public sealed class MaintenanceCommandShould
         Assert.Single(queued);
         Assert.Null(coordinator.CurrentState);
 
-        Assert.True(queued[0].Task.Wait(TimeSpan.FromSeconds(5)));
+        await queued[0].Task.WaitAsync(TimeSpan.FromSeconds(5));
         queued[0].Callback();
 
         Assert.Equal(committed, coordinator.CurrentState);

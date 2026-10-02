@@ -40,7 +40,7 @@ public sealed class WorldMaintenanceCoordinator(
     private int _lastRemaining;
 
     // Shared between the tick, which starts closes, and the drain that waits for them.
-    private readonly object _closesSync = new();
+    private readonly Lock _closesSync = new();
     private readonly List<Task> _closes = [];
     private Task? _drainTask;
     private Func<bool> _disconnectsProcessed = static () => true;
@@ -127,6 +127,17 @@ public sealed class WorldMaintenanceCoordinator(
         if (_state is not { Enabled: true } state) return;
 
         int remaining = Remaining(state, nowUtc);
+        if (WarningDue(remaining) is { } message)
+            Broadcast(message, nowUtc, connections);
+
+        if (remaining == 0)
+            CloseNonAdmins(connections);
+    }
+
+    /// <summary>The line due at <paramref name="remaining" /> seconds, from the stored deadline: the start line once,
+    /// then the lowest threshold crossed since the last tick, so a late tick skips stale ones.</summary>
+    private string? WarningDue(int remaining)
+    {
         string? message = null;
         if (_startPending && remaining > 0)
         {
@@ -141,21 +152,27 @@ public sealed class WorldMaintenanceCoordinator(
         }
 
         _lastRemaining = remaining;
-        if (message is not null)
-            foreach (IWorldConnection connection in connections)
-                if (connection.IsConnected && !connection.IsClosing && connection.InGame)
-                    try
-                    {
-                        connection.Send(SChatMessagePacket.System(message, nowUtc, connection.CryptoSession.Encrypt));
-                    }
-                    catch (Exception e)
-                    {
-                        logger.LogWarning(e, "World {WorldId} maintenance warning could not be sent to a client",
-                            worldId.Value);
-                    }
+        return message;
+    }
 
-        if (remaining != 0) return;
+    private void Broadcast(string message, DateTime nowUtc, IReadOnlyList<IWorldConnection> connections)
+    {
+        foreach (IWorldConnection connection in connections)
+            if (connection.IsConnected && !connection.IsClosing && connection.InGame)
+                try
+                {
+                    connection.Send(SChatMessagePacket.System(message, nowUtc, connection.CryptoSession.Encrypt));
+                }
+                catch (Exception e)
+                {
+                    logger.LogWarning(e, "World {WorldId} maintenance warning could not be sent to a client",
+                        worldId.Value);
+                }
+    }
 
+    /// <summary>Blocks every authenticated non-Admin connection and closes each once, after the zero line.</summary>
+    private void CloseNonAdmins(IReadOnlyList<IWorldConnection> connections)
+    {
         int newCloses = 0;
         foreach (IWorldConnection connection in connections)
         {

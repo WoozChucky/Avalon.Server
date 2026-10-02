@@ -41,7 +41,7 @@ public sealed class WorldMaintenanceTickThreadShould
         _guard.Bind(); // the tick is this test's thread, wherever the await resumed
 
         Assert.Null(coordinator.CurrentState);
-        Assert.Empty(player.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IWorldConnection.Send)));
+        player.DidNotReceiveWithAnyArgs().Send(default!);
 
         coordinator.Advance(Start, [player]);
 
