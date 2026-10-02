@@ -206,6 +206,26 @@ sent.
 
 ---
 
+## Character Creation
+
+`CMSG_CHARACTER_CREATE` (`CCharacterCreatePacket`: `Name`, `Class`, `Gender`) gets exactly one
+`SMSG_CHARACTER_CREATED` (`SCharacterCreatedPacket.Result`, field 1, an `SCharacterCreateResult`).
+
+- **The name rule (#757):** 3 to 12 ASCII letters, `A`-`Z` and `a`-`z`, nothing else: no digits,
+  spaces, punctuation or letters outside ASCII. It is checked exactly as sent, before anything is
+  read, so a name with a leading or trailing space is refused, not trimmed. Shorter than 3 is
+  `NameTooShort` (2), longer than 12 `NameTooLong` (3), and any other break `NameInvalid` (8).
+- **Stored form:** the name is stored, and shown to everyone, with its first letter upper-case and
+  the rest lower-case: `kAELA` becomes `Kaela`. The character list, select, chat, the party roster
+  and the ignore list all show that form.
+- **One name per world, whatever its case:** a name that differs from an existing character's only
+  in case is `NameAlreadyExists` (1). Every lookup by name (`/w`, `/invite`, `/kick`, `/promote`,
+  `/ignore`, `/unignore`) finds the character whatever case is typed.
+- **Other results:** `Success` (0), `InvalidClass` (4, also an undefined gender),
+  `MaxCharactersReached` (5), `InternalDatabaseError` (7). `SCharacterCreateResult` is append-only.
+
+---
+
 ## Change Character (#663)
 
 A player in the world returns to character selection on the **same** world connection, with no new
