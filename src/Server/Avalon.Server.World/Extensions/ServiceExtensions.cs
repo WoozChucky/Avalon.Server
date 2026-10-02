@@ -16,6 +16,7 @@ using Avalon.World.Loot;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
+using Avalon.World.Presence;
 using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
 using Avalon.World.Quests;
@@ -24,6 +25,7 @@ using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Social;
+using Avalon.World.Threading;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -60,6 +62,11 @@ public static class ServiceExtensions
             .ValidateDatabasesOnStart(DatabaseConnections.Auth | DatabaseConnections.Characters | DatabaseConnections.World)
             .AddCache();
 
+        // The tick-thread assertion (#639): WorldServer binds its tick thread to it, and the world, the registry, the party
+        // service, who is online and every ignore list check it before changing what only the tick may change.
+        services.AddSingleton<TickThreadGuard>();
+        // The admin view's presence (#639): WorldServer captures it on the tick, PresenceSnapshotService writes it to Redis.
+        services.AddSingleton<PresenceCapture>();
         services.AddSingleton<IWorld, Avalon.World.World>();
         services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
         services.AddSingleton<IScriptManager, ScriptManager>();

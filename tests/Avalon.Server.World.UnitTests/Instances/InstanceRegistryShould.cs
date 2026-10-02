@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Instances;
@@ -20,13 +21,15 @@ public class InstanceRegistryShould : IDisposable
 {
     private static readonly MapTemplateId TownId = new(1);
     private static readonly MapTemplateId DungeonId = new(2);
+    private static readonly MapTemplateId CaveId = new(3);
     private const uint CharacterId = 42;
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
 
     private readonly IChunkLayoutInstanceFactory _factory = Substitute.For<IChunkLayoutInstanceFactory>();
     private readonly List<TaskCompletionSource<MapInstance>> _builds = [];
-    private readonly List<MapTemplate> _requested = [];
+    private readonly List<(MapTemplate Template, uint? Owner)> _requested = [];
     private readonly List<MapInstance> _instances = [];
+    private readonly FixedTimeProvider _clock = new(new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
     private readonly InstanceRegistry _registry;
 
     public InstanceRegistryShould()
@@ -35,15 +38,17 @@ public class InstanceRegistryShould : IDisposable
         mapManager.Templates.Returns([
             new MapTemplate { Id = TownId, MapType = MapType.Town },
             new MapTemplate { Id = DungeonId, MapType = MapType.Normal },
+            new MapTemplate { Id = CaveId, MapType = MapType.Normal },
         ]);
 
         // Each build gets its own completion source, so the test decides when each one finishes.
         // One shared task for every call would hand both callers the same instance and pass with
-        // the bug present — the assertions below count builds and registered towns instead.
+        // the bug present — the assertions below count builds and registered towns instead. Completed
+        // inline, so a build finished by the test is queued for publication before CompleteBuilds returns.
         _factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(call =>
         {
-            _requested.Add(call.ArgAt<MapTemplate>(0));
-            var build = new TaskCompletionSource<MapInstance>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _requested.Add((call.ArgAt<MapTemplate>(0), call.ArgAt<uint?>(1)));
+            var build = new TaskCompletionSource<MapInstance>();
             _builds.Add(build);
             return build.Task;
         });
@@ -65,11 +70,52 @@ public class InstanceRegistryShould : IDisposable
 
         Assert.Single(_builds);
 
-        CompleteBuilds();
+        CompleteBuildsAndPublish();
         IMapInstance[] results = await Task.WhenAll(first, second).WaitAsync(Bound);
 
         Assert.Same(results[0], results[1]);
         Assert.Single(_registry.ActiveInstances, i => i.TemplateId == TownId && i.MapType == MapType.Town);
+    }
+
+    /// <summary>
+    /// #639: a build that has finished is not in the registry, and its requesters are not answered, until the tick
+    /// publishes it. Before, the build's own continuation registered the instance and wrote the character index from
+    /// the thread pool while the tick read and pruned the same index.
+    /// </summary>
+    [Fact]
+    public async Task Leave_A_Finished_Build_Out_Of_The_Registry_Until_It_Is_Published()
+    {
+        Task<IMapInstance> town = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        Task<IMapInstance> dungeon = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+
+        CompleteBuilds();
+
+        Assert.Empty(_registry.ActiveInstances);
+        Assert.False(town.IsCompleted);
+        Assert.False(dungeon.IsCompleted);
+        // Still in flight as far as requesters can tell: a second request joins the build rather than starting one.
+        Assert.Same(dungeon, _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId));
+        Assert.Equal(2, _builds.Count);
+
+        IReadOnlyList<MapInstance> published = _registry.PublishFinished();
+
+        Assert.Equal(2, published.Count);
+        Assert.True(town.IsCompletedSuccessfully);
+        Assert.True(dungeon.IsCompletedSuccessfully);
+        Assert.Equal(2, _registry.ActiveInstances.Count);
+        Assert.Same(await dungeon.WaitAsync(Bound),
+            await _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId).WaitAsync(Bound));
+        Assert.Equal(2, _builds.Count);
+    }
+
+    /// <summary>A tick with nothing finished publishes nothing, and allocates no list for it.</summary>
+    [Fact]
+    public void Publish_Nothing_While_No_Build_Has_Finished()
+    {
+        _ = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+
+        Assert.Same(Array.Empty<MapInstance>(), _registry.PublishFinished());
+        Assert.Empty(_registry.ActiveInstances);
     }
 
     /// <summary>
@@ -84,6 +130,8 @@ public class InstanceRegistryShould : IDisposable
         Task<IMapInstance> second = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
 
         _builds[0].SetException(new InvalidOperationException("navmesh bake failed"));
+        Assert.False(first.IsCompleted); // the failure, too, reaches requesters only through the tick
+        _registry.PublishFinished();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(Bound));
         await Assert.ThrowsAsync<InvalidOperationException>(() => second.WaitAsync(Bound));
@@ -92,7 +140,7 @@ public class InstanceRegistryShould : IDisposable
 
         Assert.Equal(2, _builds.Count);
 
-        CompleteBuilds();
+        CompleteBuildsAndPublish();
         IMapInstance town = await retry.WaitAsync(Bound);
 
         Assert.Single(_registry.ActiveInstances, i => i.TemplateId == TownId && i.MapType == MapType.Town);
@@ -107,7 +155,7 @@ public class InstanceRegistryShould : IDisposable
     public async Task Reuse_The_Registered_Town_Once_Its_Build_Has_Finished()
     {
         Task<IMapInstance> first = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
-        CompleteBuilds();
+        CompleteBuildsAndPublish();
         IMapInstance town = await first.WaitAsync(Bound);
 
         IMapInstance later = await _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).WaitAsync(Bound);
@@ -129,7 +177,7 @@ public class InstanceRegistryShould : IDisposable
 
         Assert.Single(_builds);
 
-        CompleteBuilds();
+        CompleteBuildsAndPublish();
         IMapInstance[] results = await Task.WhenAll(first, second).WaitAsync(Bound);
 
         Assert.Same(results[0], results[1]);
@@ -146,16 +194,51 @@ public class InstanceRegistryShould : IDisposable
         Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
 
         _builds[0].SetException(new InvalidOperationException("navmesh bake failed"));
+        _registry.PublishFinished();
         await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(Bound));
 
         Task<IMapInstance> retry = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
 
         Assert.Equal(2, _builds.Count);
 
-        CompleteBuilds();
+        CompleteBuildsAndPublish();
         IMapInstance instance = await retry.WaitAsync(Bound);
 
         Assert.Same(instance, _registry.ActiveInstances.Single());
+    }
+
+    /// <summary>
+    /// A publish step that throws (here a build that handed back no instance) loses nothing: its requesters get the
+    /// failure, the build behind it is still published, and the next request starts afresh.
+    /// </summary>
+    [Fact]
+    public async Task Answer_the_requesters_of_a_build_whose_publish_throws_and_publish_the_rest()
+    {
+        Task<IMapInstance> broken = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> town = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        _builds[0].SetResult(null!);
+        CompleteBuilds();
+
+        IReadOnlyList<MapInstance> published = _registry.PublishFinished();
+
+        await Assert.ThrowsAnyAsync<Exception>(() => broken.WaitAsync(Bound));
+        Assert.Same(Assert.Single(published), await town.WaitAsync(Bound));
+        _ = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Assert.Equal(3, _builds.Count);
+    }
+
+    /// <summary>A build whose map is unknown fails the same way, through the tick, and is not cached.</summary>
+    [Fact]
+    public async Task Fail_A_Build_Of_An_Unknown_Map_Through_The_Tick()
+    {
+        Task<IMapInstance> unknown = _registry.GetOrCreateNormalInstanceAsync(CharacterId, new MapTemplateId(99));
+
+        Assert.False(unknown.IsCompleted);
+        _registry.PublishFinished();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => unknown.WaitAsync(Bound));
+        Assert.NotSame(unknown, _registry.GetOrCreateNormalInstanceAsync(CharacterId, new MapTemplateId(99)));
+        Assert.Empty(_builds);
     }
 
     /// <summary>
@@ -170,7 +253,7 @@ public class InstanceRegistryShould : IDisposable
 
         Assert.Equal(2, _builds.Count);
 
-        CompleteBuilds();
+        CompleteBuildsAndPublish();
         IMapInstance[] results = await Task.WhenAll(mine, theirs).WaitAsync(Bound);
 
         Assert.NotSame(results[0], results[1]);
@@ -184,13 +267,71 @@ public class InstanceRegistryShould : IDisposable
     public async Task Return_A_Characters_Finished_Normal_Instance_On_Re_Entry()
     {
         Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
-        CompleteBuilds();
+        CompleteBuildsAndPublish();
         IMapInstance instance = await first.WaitAsync(Bound);
 
         IMapInstance again = await _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId).WaitAsync(Bound);
 
         Assert.Same(instance, again);
         Assert.Single(_builds);
+    }
+
+    /// <summary>
+    /// #639, the race the analysis found: one of a character's instances expires while a build of another of its maps
+    /// finishes. Both now change the character's index on the tick, one after the other: the expiry frees only the
+    /// expired map's entry, and the publish adds the new one.
+    /// </summary>
+    [Fact]
+    public async Task Expire_One_Map_And_Publish_Another_For_The_Same_Character_In_Tick_Order()
+    {
+        Task<IMapInstance> dungeonBuild = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        CompleteBuildsAndPublish();
+        IMapInstance dungeon = await dungeonBuild.WaitAsync(Bound);
+
+        _clock.Now += TimeSpan.FromMinutes(15);
+        Task<IMapInstance> caveBuild = _registry.GetOrCreateNormalInstanceAsync(CharacterId, CaveId);
+        CompleteBuilds(); // the cave's build ends off the tick, queued until the next publish
+
+        _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+        Assert.Null(_registry.GetInstanceById(dungeon.InstanceId));
+
+        _registry.PublishFinished();
+        IMapInstance cave = await caveBuild.WaitAsync(Bound);
+
+        Assert.Same(cave, await _registry.GetOrCreateNormalInstanceAsync(CharacterId, CaveId).WaitAsync(Bound));
+        Assert.Equal(2, _builds.Count);
+        _ = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Assert.Equal(3, _builds.Count); // the expired dungeon's entry is gone, so a fresh one is built
+    }
+
+    /// <summary>
+    /// A newer build of the same character and map replaced the entry; freeing the older, expired one must keep it,
+    /// as for a party's instances.
+    /// </summary>
+    [Fact]
+    public async Task Keep_The_Newer_Normal_Instance_Indexed_When_An_Older_One_Of_The_Map_Is_Freed()
+    {
+        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        CompleteBuildsAndPublish();
+        IMapInstance older = await first.WaitAsync(Bound);
+
+        _clock.Now += TimeSpan.FromMinutes(15); // older is expired but not yet freed
+        Task<IMapInstance> second = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Assert.Equal(2, _builds.Count);
+        CompleteBuildsAndPublish();
+        IMapInstance newer = await second.WaitAsync(Bound);
+
+        _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+
+        Assert.Null(_registry.GetInstanceById(older.InstanceId));
+        Assert.Same(newer, await _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId).WaitAsync(Bound));
+        Assert.Equal(2, _builds.Count);
+    }
+
+    private void CompleteBuildsAndPublish()
+    {
+        CompleteBuilds();
+        _registry.PublishFinished();
     }
 
     private void CompleteBuilds()
@@ -203,18 +344,19 @@ public class InstanceRegistryShould : IDisposable
                 continue;
             }
 
-            MapInstance instance = BuildInstance(_requested[i]);
+            MapInstance instance = BuildInstance(_requested[i].Template, _requested[i].Owner, _clock);
             _instances.Add(instance);
             build.SetResult(instance);
         }
     }
 
-    /// <summary>Follows <c>MapInstanceDisposalShould.BuildInstance</c>, for the requested template.</summary>
-    private static MapInstance BuildInstance(MapTemplate template)
+    /// <summary>Follows <c>MapInstanceDisposalShould.BuildInstance</c>, for the requested template and owner.</summary>
+    private static MapInstance BuildInstance(MapTemplate template, uint? owner, TimeProvider clock)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        serviceProvider.GetService(typeof(TimeProvider)).Returns(clock);
 
         var world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
@@ -235,7 +377,7 @@ public class InstanceRegistryShould : IDisposable
             serviceProvider,
             world,
             template.Id,
-            ownerCharacterId: null,
+            ownerCharacterId: owner,
             layout,
             Substitute.For<IMapNavigator>(),
             seed: 0,

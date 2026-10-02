@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Persistence;
+using Avalon.World.Threading;
 
 namespace Avalon.World.Social;
 
@@ -13,8 +14,9 @@ namespace Avalon.World.Social;
 /// read or change it. Memory is authoritative: every check runs against it, with no database query per message.
 /// Every change marks the save (<see cref="SaveStateTracker.IgnoreChanged" />); <see cref="Load" /> does not. It does
 /// not enforce the cap or refuse the owner's own id: the ignore commands decide what may be added.
+/// Its writers assert the tick thread while <see cref="TickThreadGuard" /> is enabled (#639).
 /// </summary>
-public sealed class IgnoreList(SaveStateTracker save)
+public sealed class IgnoreList(SaveStateTracker save, TickThreadGuard? tickThread = null)
 {
     private readonly List<IgnoredCharacter> _entries = [];
     private readonly HashSet<uint> _ids = [];
@@ -35,6 +37,7 @@ public sealed class IgnoreList(SaveStateTracker save)
     /// <summary>Replaces the whole list with the stored rows, in their order. Marks nothing.</summary>
     public void Load(IEnumerable<IgnoredCharacterRow> rows)
     {
+        tickThread?.AssertOnTick("IgnoreList.Load");
         _entries.Clear();
         _ids.Clear();
         foreach (IgnoredCharacterRow row in rows)
@@ -47,6 +50,7 @@ public sealed class IgnoreList(SaveStateTracker save)
     /// <summary>Adds the character at the end of the list; false (and nothing marked) when it is already on it.</summary>
     public bool Add(uint characterId, string name, DateTime createdAt)
     {
+        tickThread?.AssertOnTick("IgnoreList.Add");
         if (!_ids.Add(characterId))
             return false;
 
@@ -58,6 +62,7 @@ public sealed class IgnoreList(SaveStateTracker save)
     /// <summary>Takes the character off the list; false (and nothing marked) when it was not on it.</summary>
     public bool Remove(uint characterId)
     {
+        tickThread?.AssertOnTick("IgnoreList.Remove");
         if (!_ids.Remove(characterId))
             return false;
 

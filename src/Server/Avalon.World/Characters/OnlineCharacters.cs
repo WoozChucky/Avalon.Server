@@ -1,6 +1,7 @@
 using Avalon.Domain.Characters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Threading;
 
 namespace Avalon.World.Characters;
 
@@ -11,8 +12,9 @@ namespace Avalon.World.Characters;
 /// hooks, which reach it through <see cref="Parties.PartyService.CharacterOnline" /> and
 /// <see cref="Parties.PartyService.CharacterOffline" /> (World.SpawnInInstance and World.LeaveWorldAsync), so the party
 /// invite and the whisper (#717) look a name up in one place and cannot disagree about who is online.
+/// Its writers assert the tick thread while <see cref="TickThreadGuard" /> is enabled (#639).
 /// </summary>
-public sealed class OnlineCharacters
+public sealed class OnlineCharacters(TickThreadGuard? tickThread = null)
 {
     private readonly Dictionary<uint, IWorldConnection> _byId = [];
     private readonly Dictionary<string, uint> _byName = new(StringComparer.Ordinal); // by CharacterName.Key (#757)
@@ -33,6 +35,8 @@ public sealed class OnlineCharacters
     /// <summary>The character the connection holds is online. A connection with no character changes nothing.</summary>
     public void Add(IWorldConnection connection)
     {
+        tickThread?.AssertOnTick("OnlineCharacters.Add");
+
         if (connection.Character is not { } character)
             return;
 
@@ -47,6 +51,8 @@ public sealed class OnlineCharacters
     /// </summary>
     public bool Remove(IWorldConnection connection, ICharacter character)
     {
+        tickThread?.AssertOnTick("OnlineCharacters.Remove");
+
         uint id = character.Guid.Id;
         if (!_byId.TryGetValue(id, out IWorldConnection? held) || !ReferenceEquals(held, connection))
             return false;

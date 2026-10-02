@@ -79,7 +79,8 @@ public class ScriptHotReloadPollingShould
     internal static async Task<Avalon.World.World> BuildWorldAsync(
         IScriptHotReloader reloader, int intervalSeconds,
         IAvalonMapManager? mapManager = null, IChunkLayoutInstanceFactory? chunkLayoutFactory = null,
-        Avalon.World.Parties.PartyService? parties = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null)
+        Avalon.World.Parties.PartyService? parties = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null,
+        Avalon.World.Threading.TickThreadGuard? tickThread = null)
     {
         var worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -161,7 +162,7 @@ public class ScriptHotReloadPollingShould
             localizedText,
             reloader,
             Substitute.For<IChunkLibrary>(),
-            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(), parties: parties);
+            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(), parties: parties, tickThread: tickThread);
 
         await world.LoadAsync(CancellationToken.None);
         return world;

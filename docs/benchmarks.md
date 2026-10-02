@@ -17,6 +17,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorldPac
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderDecryptGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*GetContextPacketGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallListenerGc*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThreadGuard*"
 ```
 
 ---
@@ -873,3 +874,55 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2/2025Update/HudsonValle
   close the per-byte half, which is a property of the implementation rather than of how it is
   called.
 
+
+---
+
+### Tick-thread guard — `TickThreadGuardBenchmarks.cs`
+
+The cost of `TickThreadGuard.AssertOnTick` (#639), compiled into every build and checked only while
+`Game:TickThreadGuard` is on. The switch can only be turned on in a process, so the two states are
+two classes: `TickThreadGuardOffBenchmarks` refuses to run if the guard is already on, and
+`TickThreadGuardOnBenchmarks` turns it on and binds its own thread in its global setup. Both rely on
+BenchmarkDotNet's default out-of-process toolchain, which runs every benchmark in a process of its
+own; no reset hook was added to production code.
+
+| Scenario | What it models |
+|---|---|
+| `Baseline_EmptyCall` | An empty method of the guard's shape, called the way the guard is (`x?.Method("...")`) |
+| `Guard_Off` / `Guard_OnBound` | The guard itself: off (production default), and on, bound, called on the bound thread |
+| `IgnoreList_AddRemove_*` | One ignore and one unignore, a real guarded write: no guard handed over, guard off, guard on |
+| `PartyService_Leave_*` | `PartyService.Leave` for a character in no party, the cheapest guarded mutator |
+
+### Results — first baseline (2026-10-02)
+
+Windows 11, 12th Gen Intel Core i9-12900K, .NET 10.0.12, BenchmarkDotNet 0.15.8, DefaultJob, Release.
+
+| Method | Mean | StdDev | Allocated |
+|---|---:|---:|---:|
+| `Baseline_EmptyCall` (off run) | 0.000 ns | 0.000 ns | - |
+| `Guard_Off` | 1.008 ns | 0.065 ns | - |
+| `IgnoreList_AddRemove_NoGuard` | 32.85 ns | 0.71 ns | 64 B |
+| `IgnoreList_AddRemove_GuardOff` | 26.13 ns | 1.24 ns | 128 B |
+| `PartyService_Leave_NoGuard` | 0.550 ns | 0.023 ns | - |
+| `PartyService_Leave_GuardOff` | 0.563 ns | 0.025 ns | - |
+| `Baseline_EmptyCall` (on run) | 0.016 ns | 0.022 ns | - |
+| `Guard_OnBound` | 0.726 ns | 0.005 ns | - |
+| `IgnoreList_AddRemove_GuardOn` | 43.63 ns | 5.11 ns | 128 B |
+| `PartyService_Leave_GuardOn` | 0.475 ns | 0.064 ns | - |
+
+### Key observations
+
+- **The guard costs about a nanosecond a call, on or off.** Off it is one static volatile read;
+  on and bound it adds a volatile read of the bound thread and a compare with the current thread
+  id. The empty baseline is inlined away to nothing, so the whole ~1 ns is the guard.
+- **In a real write it is lost in the noise.** `PartyService.Leave` measures the same with and
+  without it (all three under a nanosecond, below what the harness resolves reliably).
+  `IgnoreList` add-and-remove varies more between runs (26-44 ns) than the guard costs.
+- **The 64 B against 128 B on `IgnoreList` is the JIT, not the guard.** With no guard handed over,
+  .NET 10's escape analysis keeps one of the two short-lived objects (most likely the removal's
+  closure) on the stack; the extra guard code changes the inlining and it moves to the heap. With
+  `DOTNET_JitObjectStackAllocation=0` both variants allocate 128 B and run in the same time
+  (short job: 26.4 ns against 27.5 ns). The guard itself never allocates.
+- **The tick runs a few guarded calls every tick** (the party tick, the member-status flush, the
+  publish and the expiry pass) and more only on rare requests (transfers, spawns, party requests,
+  ignores), so at 60 Hz the guard costs well under a microsecond a second.

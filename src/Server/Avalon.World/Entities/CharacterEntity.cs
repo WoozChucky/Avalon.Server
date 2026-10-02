@@ -19,6 +19,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Avalon.World.Quests;
 using Avalon.World.Social;
+using Avalon.World.Threading;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
@@ -73,12 +74,13 @@ public class CharacterEntity : ICharacter
 
     /// <param name="time">The container's clock, the one the instance and combat time by (#614).</param>
     /// <param name="furyDecayPerSecond">Game:FuryDecayPerSecond (#526); the setting's default when omitted.</param>
+    /// <param name="tickThread">The tick-thread assertion its ignore list makes (#639); none when omitted.</param>
     public CharacterEntity(ILoggerFactory loggerFactory, Character character,
         RegenConfiguration regenConfig, TimeProvider? time = null,
-        float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond)
+        float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond, TickThreadGuard? tickThread = null)
     {
         Quests = new QuestLog(SaveState);
-        Ignores = new IgnoreList(SaveState);
+        Ignores = new IgnoreList(SaveState, tickThread);
         _time = time ?? TimeProvider.System;
         _furyDecayPerSecond = furyDecayPerSecond;
         _logger = loggerFactory.CreateLogger<CharacterEntity>();

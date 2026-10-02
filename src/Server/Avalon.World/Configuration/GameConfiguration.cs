@@ -215,6 +215,13 @@ public class GameConfiguration
     [Range(int.MinValue, 10_000)]
     public int ChatMessagesPerMinute { get; set; }
 
+    /// <summary>
+    /// Turns on the tick-thread assertion (#639, <see cref="Threading.TickThreadGuard" />): world state that only the tick may
+    /// change throws when changed from another thread. For development and tests; off by default, where each check
+    /// costs one read of a flag. Read once, when the world server starts.
+    /// </summary>
+    public bool TickThreadGuard { get; set; }
+
     /// <summary>The default of <see cref="FuryFromDamageTaken" />, for whatever is built without the options.</summary>
     public const float DefaultFuryFromDamageTaken = Avalon.Combat.Fury.DefaultFromDamageTaken;
 
