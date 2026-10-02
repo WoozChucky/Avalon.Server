@@ -60,6 +60,9 @@ public class ScriptCatalogShould
         Assert.Equal(manager.AiScriptNames.OrderBy(n => n, StringComparer.Ordinal), manager.AiScriptNames);
         Assert.Equal(manager.AbilityScriptNames.OrderBy(n => n, StringComparer.Ordinal), manager.AbilityScriptNames);
         Assert.Equal(manager.QuestScriptNames.OrderBy(n => n, StringComparer.Ordinal), manager.QuestScriptNames);
+        Assert.Contains(typeof(ItemUse.SampleItemScript).Name, manager.ItemScriptNames);
+        Assert.Same(typeof(ItemUse.SampleItemScript), manager.GetItemScript(typeof(ItemUse.SampleItemScript).Name));
+        Assert.Equal(manager.ItemScriptNames.OrderBy(n => n, StringComparer.Ordinal), manager.ItemScriptNames);
     }
 
     [Fact]
@@ -82,6 +85,7 @@ public class ScriptCatalogShould
         Assert.Empty(manager.AiScriptNames);
         Assert.Empty(manager.AbilityScriptNames);
         Assert.Empty(manager.QuestScriptNames);
+        Assert.Empty(manager.ItemScriptNames);
     }
 
     [Fact]
