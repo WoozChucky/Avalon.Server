@@ -2,12 +2,17 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Instances;
 using Avalon.World.Maps.Navigation;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Enums;
@@ -142,7 +147,7 @@ public class MapTeleportShould
     [Fact]
     public void Keep_the_position_on_a_map_with_no_navmesh()
     {
-        TownGround(NavmeshGroundKind.NoNavMesh, new Vector3(5, 3, 6));
+        TownGround(NavmeshGroundKind.NoNavMesh, new Vector3(9, 9, 9));
 
         Assert.True(_teleport.Start(_connection, Town, new Vector3(5, 3, 6)));
         RunContinuations();
@@ -211,6 +216,88 @@ public class MapTeleportShould
         RunContinuations();
 
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
+        Assert.False(_connection.RespawnInFlight);
+    }
+    /// <summary>A character that died while the instance built stays where it died; the item that started it stays used.</summary>
+    [Fact]
+    public void Not_move_a_character_that_died_before_the_instance_was_ready()
+    {
+        Assert.True(_teleport.Start(_connection, Town, new Vector3(5, 0, 6)));
+        _character.IsDead = true;
+
+        RunContinuations();
+
+        _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
+        _saver.DidNotReceiveWithAnyArgs().Save(default(IWorldConnection)!, default!);
+        Assert.Empty(TestTown.Read<SMapTransitionPacket>(_sent, NetworkPacketType.SMSG_MAP_TRANSITION));
+        Assert.False(_connection.RespawnInFlight);
+    }
+
+    /// <summary>
+    /// A party of the test's character (7) and one other member, a MapTeleport that knows it, and the party's instance
+    /// of the forest. The configuration is the defaults (MaxPartySize 6).
+    /// </summary>
+    private (PartyTestWorld Parties, MapTeleport Teleport, IPartyInstanceRegistry Instances) InParty()
+    {
+        var parties = new PartyTestWorld();
+        PartyClient member = parties.Online(7);
+        PartyClient other = parties.Online(8);
+        parties.Form(member, other);
+
+        // The party world's character and connection stand in for the test's own.
+        _connection.Character.Returns(member.Character);
+        _registry.GetInstanceById(member.Character.InstanceId).Returns(_source);
+        _world.Configuration.Returns(new GameConfiguration());
+        var instances = Substitute.For<IPartyInstanceRegistry>();
+        instances.GetOrCreatePartyInstanceAsync(Arg.Any<PartyId>(), Forest).Returns(Task.FromResult(_forest));
+        _world.PartyInstances.Returns(instances);
+
+        var teleport = new MapTeleport(NullLogger<MapTeleport>.Instance, _world, Substitute.For<IChunkLibrary>(), _saver,
+            parties.Parties);
+        return (parties, teleport, instances);
+    }
+
+    [Fact]
+    public void Use_the_partys_instance_for_a_member()
+    {
+        (PartyTestWorld parties, MapTeleport teleport, IPartyInstanceRegistry instances) = InParty();
+
+        Assert.True(teleport.Start(_connection, Forest, position: null));
+        RunContinuations();
+
+        instances.Received(1).GetOrCreatePartyInstanceAsync(parties.Parties.PartyOf(7)!.Id, Forest);
+        _registry.DidNotReceiveWithAnyArgs().GetOrCreateNormalInstanceAsync(default, default!);
+        _world.Received(1).TransferPlayer(_connection, _forest);
+        Assert.False(_connection.RespawnInFlight);
+    }
+
+    [Fact]
+    public void Refuse_a_full_party_instance()
+    {
+        (_, MapTeleport teleport, _) = InParty();
+        _forest.PlayerCount.Returns(6);
+
+        Assert.True(teleport.Start(_connection, Forest, position: null));
+        RunContinuations();
+
+        _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
+        Assert.Equal(MapTransitionResult.InstanceFull,
+            Assert.Single(TestTown.Read<SMapTransitionPacket>(_sent, NetworkPacketType.SMSG_MAP_TRANSITION)).Result);
+        Assert.False(_connection.RespawnInFlight);
+    }
+
+    [Fact]
+    public void Refuse_a_character_that_left_the_party_while_the_instance_built()
+    {
+        (PartyTestWorld parties, MapTeleport teleport, _) = InParty();
+
+        Assert.True(teleport.Start(_connection, Forest, position: null));
+        Assert.Equal(PartyResult.Ok, parties.Parties.Leave(7));
+        RunContinuations();
+
+        _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
+        Assert.Equal(MapTransitionResult.MapNotFound,
+            Assert.Single(TestTown.Read<SMapTransitionPacket>(_sent, NetworkPacketType.SMSG_MAP_TRANSITION)).Result);
         Assert.False(_connection.RespawnInFlight);
     }
 }

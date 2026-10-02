@@ -76,6 +76,14 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
 
         try
         {
+            // A character that died while the instance built is not moved: no transfer, no save.
+            if (character.IsDead)
+            {
+                logger.LogDebug("Teleport of {Name} to map {Map} dropped: the character died before it arrived",
+                    character.Name, template.Id.Value);
+                return;
+            }
+
             if (!built.IsCompletedSuccessfully)
             {
                 logger.LogError(built.Exception, "Teleport of {Name} to map {Map} failed: its instance could not be built",
@@ -87,12 +95,9 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
             IMapInstance target = built.Result;
 #pragma warning restore MA0045
 
-            if (partyId is { } party
-                && (parties?.PartyOf(character.Guid.Id)?.Id.Equals(party) != true || target.PlayerCount >= capacity))
+            if (PartyRefusal(character, target, partyId, capacity) is { } refusal)
             {
-                connection.Send(SMapTransitionPacket.CreateFailure(
-                    target.PlayerCount >= capacity ? MapTransitionResult.InstanceFull : MapTransitionResult.MapNotFound,
-                    connection.CryptoSession.Encrypt));
+                connection.Send(SMapTransitionPacket.CreateFailure(refusal, connection.CryptoSession.Encrypt));
                 return;
             }
 
@@ -121,6 +126,25 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
         {
             connection.RespawnInFlight = false;
         }
+    }
+
+    /// <summary>
+    /// For a party instance, as a portal entry checks it: a character no longer in that party is refused MapNotFound,
+    /// then a full instance InstanceFull. Null when the arrival may go on.
+    /// </summary>
+    private MapTransitionResult? PartyRefusal(ICharacter character, IMapInstance target, PartyId? partyId, int capacity)
+    {
+        if (partyId is not { } party)
+            return null;
+
+        // The party can end, or the character leave it, while the instance builds.
+        if (parties?.PartyOf(character.Guid.Id)?.Id.Equals(party) != true)
+            return MapTransitionResult.MapNotFound;
+
+        if (target.PlayerCount >= capacity)
+            return MapTransitionResult.InstanceFull;
+
+        return null;
     }
 
     /// <summary>Saved on arrival, as a portal entry is (EnterMapHandler step 13): map, instance and position on the row.</summary>

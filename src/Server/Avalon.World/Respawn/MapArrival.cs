@@ -21,6 +21,11 @@ public static class MapArrival
             ? entry
             : new Vector3(template.DefaultSpawnX, template.DefaultSpawnY, template.DefaultSpawnZ);
 
+    /// <summary>
+    /// Sends <paramref name="connection" /> a successful transition into <paramref name="instance" /> at
+    /// <paramref name="at" />, then, for an instance built from a chunk layout, that layout (its chunks and portals).
+    /// Call it in the same callback as the transfer.
+    /// </summary>
     public static void Send(IWorldConnection connection, IMapInstance instance, MapTemplate template, Vector3 at,
         IChunkLibrary chunkLibrary)
     {
