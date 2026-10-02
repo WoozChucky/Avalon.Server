@@ -13,7 +13,7 @@ namespace Avalon.World.Chat;
 /// that name (offline and unknown alike, so it never reveals who exists). The chat rate limit (#722) is checked
 /// after the usage and self refusals and before the lookup, and a whisper counts against it only once delivered.
 /// A recipient that ignores the sender (#723) is not sent the line, and the sender cannot tell: it gets its echo and
-/// the whisper counts as delivered.
+/// the whisper counts as delivered. Both copies carry the sender's class (#763), since both name the sender.
 /// </summary>
 public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rateLimiter) : ICommand
 {
@@ -61,11 +61,12 @@ public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rate
         if (!Ignoring.Hides(target, sender.Guid.Id))
         {
             target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
-                target.CryptoSession.Encrypt, ChatChannel.Whisper));
+                target.CryptoSession.Encrypt, ChatChannel.Whisper, characterClass: (ushort)sender.Class));
         }
 
         ctx.Connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
-            ctx.Connection.CryptoSession.Encrypt, ChatChannel.Whisper, targetName: recipient.Name));
+            ctx.Connection.CryptoSession.Encrypt, ChatChannel.Whisper, targetName: recipient.Name,
+            characterClass: (ushort)sender.Class));
         rateLimiter.Record(sender.Guid.Id);
     }
 }

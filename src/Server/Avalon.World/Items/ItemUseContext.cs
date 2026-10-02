@@ -197,6 +197,7 @@ public sealed class ItemUseContext(
     public void Tell(string line) => connection.Send(SChatMessagePacket.System(line,
         tools.Time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encrypt));
 
+    // A script's line, not a character's: no character id and class 0 (#763).
     public void Whisper(string from, string text) => connection.Send(SChatMessagePacket.Create(0UL, 0UL, from, text,
         tools.Time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encrypt, ChatChannel.Whisper));
 

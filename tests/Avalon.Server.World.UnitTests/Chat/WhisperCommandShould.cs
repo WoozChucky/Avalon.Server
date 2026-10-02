@@ -1,3 +1,4 @@
+using Avalon.World.Public.Enums;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Parties;
@@ -157,4 +158,22 @@ public class WhisperCommandShould
 
     [Fact]
     public void Never_block_the_tick() => Assert.Empty(TickBlockingScan.Violations(typeof(WhisperCommand)));
+
+    /// <summary>
+    /// #763: the recipient's copy and the sender's echo both carry the sender's class, since both name the sender in
+    /// CharacterName; the recipient's class is not sent.
+    /// </summary>
+    [Fact]
+    public void Carry_the_senders_class_on_both_copies()
+    {
+        PartyClient a = _w.Online(1, "Aren");
+        PartyClient b = _w.Online(2, "Kaela");
+        a.Character.Data!.Class = CharacterClass.Wizard;
+        b.Character.Data!.Class = CharacterClass.Hunter;
+
+        Run(a, "/w Kaela hi");
+
+        Assert.Equal((ushort)CharacterClass.Wizard, Assert.Single(Whispers(b)).CharacterClass);
+        Assert.Equal((ushort)CharacterClass.Wizard, Assert.Single(Whispers(a)).CharacterClass);
+    }
 }

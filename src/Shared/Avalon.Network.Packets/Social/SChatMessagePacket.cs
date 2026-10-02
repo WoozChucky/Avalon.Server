@@ -26,13 +26,23 @@ public class SChatMessagePacket : Packet
     /// </summary>
     [ProtoMember(7)] public string? TargetName { get; set; }
 
+    /// <summary>
+    /// The sending character's class (#763), as <c>CharacterClass</c>, so the client can colour the name in
+    /// <see cref="CharacterName" />: set on said, party and whispered lines, the whisper's echo included, since that
+    /// name is the sender's there too. 0 on a line no character sent (a System line, a script's whisper), and a
+    /// payload from before it existed reads as 0.
+    /// </summary>
+    [ProtoMember(8)] public ushort CharacterClass { get; set; }
+
     public static NetworkPacket Create(ulong accountId, ulong characterId, string characterName, string message,
-        DateTime dateTime, EncryptFunc encryptFunc, ChatChannel channel = ChatChannel.Say, string? targetName = null)
+        DateTime dateTime, EncryptFunc encryptFunc, ChatChannel channel = ChatChannel.Say, string? targetName = null,
+        ushort characterClass = 0)
         => PacketSerializationHelper.Serialize(
             new SChatMessagePacket
             {
                 AccountId = accountId, CharacterId = characterId, CharacterName = characterName, Message = message,
-                DateTime = dateTime, Channel = channel, TargetName = targetName
+                DateTime = dateTime, Channel = channel, TargetName = targetName,
+                CharacterClass = characterClass
             },
             PacketType, Flags, Protocol, encryptFunc);
 

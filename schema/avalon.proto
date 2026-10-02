@@ -905,6 +905,7 @@ message SChatMessagePacket {
    .bcl.DateTime DateTime = 5;
    ChatChannel Channel = 6;
    optional string TargetName = 7;
+   uint32 CharacterClass = 8;
 }
 message SChunkLayoutPacket {
    int32 Seed = 1;
