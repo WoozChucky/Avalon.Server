@@ -121,6 +121,9 @@ public class CharacterCharacterGameState
         return _forgotten;
     }
 
+    /// <summary>Whether the client has this character or creature in view, as of the last update (auras).</summary>
+    public bool Knows(ObjectGuid guid) => _characterTrackingSystem.IsTracked(guid) || _creatureTrackingSystem.IsTracked(guid);
+
     // "Already tracked" is the object's own tracking system's set, so a tracked object keeps its margin.
     private static bool InView(IWorldObject obj, EntityTrackingSystem tracking, ObjectGuid watcher,
         Vector3 watcherPosition, InterestRange range) =>

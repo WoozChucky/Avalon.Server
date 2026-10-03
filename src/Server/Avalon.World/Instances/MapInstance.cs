@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Auras;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.Party;
@@ -1137,6 +1138,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (character is CharacterEntity entity)
                 BroadcastStateTo(entity);
         }
+
+        ClearAuraChanges();
     }
 
     /// <summary>
@@ -1197,6 +1200,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (state.AddedObjects.Count > 0)
             connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, connection.CryptoSession.Encrypt));
 
+        // Auras: a list for every unit that came into view this tick, and the changes of every other unit in view. After
+        // the add, so the client knows the unit before it hears its auras.
+        SendAuraLists(connection, character, newObjects);
+        SendAuraUpdates(connection, character, newObjects);
+
         // _frameDirtyFields is populated only on broadcast ticks (see Step 5a in Update),
         // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
         if (state.UpdatedObjects.Count > 0)
@@ -1208,6 +1216,84 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 character.CharacterGameState.RemovedObjects, connection.CryptoSession.Encrypt));
         }
     }
+
+    /// <summary>
+    /// A unit's whole list to a client that has just been told the unit exists (auras): for any unit holding an aura,
+    /// and always for the client's own character, so an entry (the world, a portal, a respawn) replaces what it held.
+    /// </summary>
+    private void SendAuraLists(IWorldConnection connection, CharacterEntity recipient, IReadOnlyList<ObjectGuid> added)
+    {
+        for (int i = 0; i < added.Count; i++)
+        {
+            ObjectGuid guid = added[i];
+            if (UnitHere(guid) is not { } unit || AuraHolders.Of(unit) is not { } auras)
+                continue;
+
+            if (auras.Count == 0 && guid != recipient.Guid)
+                continue;
+
+            connection.Send(SAuraListPacket.Create(guid.RawValue, AuraWire.List(auras, _time.GetUtcNow()),
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
+    /// <summary>
+    /// This tick's aura changes of every unit the client has in view, its own character included, one packet a unit.
+    /// A unit it was just told about is skipped: its list carried them. A unit out of view is skipped too, and its
+    /// changes are cleared with everyone's at the end of the broadcast, so a client never hears of a copy it was not
+    /// listed; a unit that comes back into view is listed again. Allocates nothing while no unit changed.
+    /// </summary>
+    private void SendAuraUpdates(IWorldConnection connection, CharacterEntity recipient, IReadOnlyList<ObjectGuid> added)
+    {
+        foreach (ICharacter unit in _characters.Values)
+            SendAuraUpdate(connection, recipient, unit, added);
+
+        foreach (ICreature unit in _creatures.Values)
+            SendAuraUpdate(connection, recipient, unit, added);
+    }
+
+    private static void SendAuraUpdate(IWorldConnection connection, CharacterEntity recipient, IUnit unit,
+        IReadOnlyList<ObjectGuid> added)
+    {
+        if (AuraHolders.Of(unit) is not { HasChanges: true } auras)
+            return;
+
+        if (unit.Guid != recipient.Guid && !recipient.CharacterGameState.Knows(unit.Guid))
+            return;
+
+        for (int i = 0; i < added.Count; i++)
+        {
+            if (added[i] == unit.Guid)
+                return;
+        }
+
+        connection.Send(SAuraUpdatePacket.Create(unit.Guid.RawValue, AuraWire.Updates(auras.Changes),
+            connection.CryptoSession.Encrypt));
+    }
+
+    /// <summary>
+    /// Every unit's changes have gone to whoever sees it: forgotten, so each is sent once and none waits for a watcher
+    /// that never comes.
+    /// </summary>
+    private void ClearAuraChanges()
+    {
+        foreach (ICharacter character in _characters.Values)
+        {
+            if (character is CharacterEntity entity && entity.Auras.HasChanges)
+                entity.Auras.ClearChanges();
+        }
+
+        foreach (ICreature creature in _creatures.Values)
+        {
+            if (creature is Creature held && held.Auras.HasChanges)
+                held.Auras.ClearChanges();
+        }
+    }
+
+    private IUnit? UnitHere(ObjectGuid guid) =>
+        _characters.TryGetValue(guid, out ICharacter? character) ? character
+        : _creatures.TryGetValue(guid, out ICreature? creature) ? creature
+        : null;
 
     /// <summary>
     /// An entity the recipient has not seen before, described in full. Null when the entity
