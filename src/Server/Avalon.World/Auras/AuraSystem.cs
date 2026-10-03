@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
@@ -81,16 +82,24 @@ public sealed class AuraSystem
     /// Applies the loaded aura <paramref name="aura" />, looked up in the current catalog now; Refused (and logged)
     /// when the catalog does not hold it, as after a reload that dropped it.
     /// </summary>
-    public AuraApplyResult Apply(IUnit? caster, IUnit target, AuraId aura, AuraSource source)
-    {
-        if (!_catalog().TryGet(aura, out AuraTemplate? template))
-        {
-            if (ShouldLogRefusal("not loaded", aura.Value))
-                _logger.LogWarning("Aura {AuraId} is not loaded; nothing was applied to {Unit}", aura.Value, target.Guid);
-            return AuraApplyResult.Refused;
-        }
+    public AuraApplyResult Apply(IUnit? caster, IUnit target, AuraId aura, AuraSource source) =>
+        TryGetLoaded(aura, target, out AuraTemplate? template)
+            ? Apply(caster, target, template, source)
+            : AuraApplyResult.Refused;
 
-        return Apply(caster, target, template, source);
+    /// <summary>
+    /// The loaded aura <paramref name="aura" /> from the current catalog; false, logged at most once per
+    /// ThrottledErrorLog.Interval for each aura, when the catalog does not hold it (nothing was applied to
+    /// <paramref name="target" />).
+    /// </summary>
+    public bool TryGetLoaded(AuraId aura, IUnit target, [NotNullWhen(true)] out AuraTemplate? template)
+    {
+        if (_catalog().TryGet(aura, out template))
+            return true;
+
+        if (ShouldLogRefusal("not loaded", aura.Value))
+            _logger.LogWarning("Aura {AuraId} is not loaded; nothing was applied to {Unit}", aura.Value, target.Guid);
+        return false;
     }
 
     /// <summary>

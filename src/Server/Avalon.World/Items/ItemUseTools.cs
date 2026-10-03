@@ -31,4 +31,7 @@ public sealed class ItemUseTools(
     public ILogger Logger { get; } = logger;
     public QuestService? Quests { get; } = quests;
     public PartyService? Parties { get; } = parties;
+
+    /// <summary>An item's aura that threw on the way on, logged at most once per ThrottledErrorLog.Interval.</summary>
+    internal ThrottledErrorLog AuraFailures { get; } = new(logger, time, "Applying an item's aura");
 }

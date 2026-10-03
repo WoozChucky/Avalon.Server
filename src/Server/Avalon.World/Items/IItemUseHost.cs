@@ -1,4 +1,5 @@
 using Avalon.World.Abilities.Targeting;
+using Avalon.World.Auras;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
@@ -7,7 +8,7 @@ using Avalon.World.Public.Units;
 namespace Avalon.World.Items;
 
 /// <summary>What an item use needs from the instance its user is in. MapInstance implements it; World-side, not the modding API.</summary>
-public interface IItemUseHost : IMapInstance
+public interface IItemUseHost : IMapInstance, IAuraHost
 {
     ItemUseCasts ItemUses { get; }
 

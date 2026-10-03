@@ -9,6 +9,7 @@ using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
@@ -192,6 +193,33 @@ public sealed class ItemUseContext(
 
     public uint RestorePowerOf(ObjectGuid member, uint amount) =>
         MemberHere(member) is { } m ? GainPower(m, amount) : 0u;
+
+    // Auras.
+    public bool ApplyAura(AuraId aura, ObjectGuid? member = null)
+    {
+        if (character.IsDead)
+            return false;
+
+        CharacterEntity? target = member is { } guid ? MemberHere(guid) : character;
+        if (target is null)
+            return false;
+
+        AuraSystem auras = host.Auras;
+        if (!auras.TryGetLoaded(aura, target, out AuraTemplate? template) || template.Kind != AuraKind.Helpful)
+            return false;
+
+        // Contained: a stats refresh or a hook inside the aura system can throw, and the item use goes on. Whether the
+        // aura is still held afterwards is the aura system's business (a hook may already have ended it).
+        try
+        {
+            return auras.Apply(character, target, template, AuraSource.None) != AuraApplyResult.Refused;
+        }
+        catch (Exception e)
+        {
+            tools.AuraFailures.Failed(e);
+            return false;
+        }
+    }
 
     // Messages.
     public void Tell(string line) => connection.Send(SChatMessagePacket.System(line,

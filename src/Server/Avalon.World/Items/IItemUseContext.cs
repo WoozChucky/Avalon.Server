@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
@@ -123,6 +124,15 @@ public interface IItemUseContext
 
     /// <summary>Adds to a member's power, capped; 0 for anyone else.</summary>
     uint RestorePowerOf(ObjectGuid member, uint amount);
+
+    // Auras.
+
+    /// <summary>
+    /// A helpful aura (auras) on the user, or on <paramref name="member" /> when it is one of
+    /// <see cref="PartyMembersHere" />, with the user as its caster. False, doing nothing, for a dead user, anyone else,
+    /// an aura that is not loaded or not helpful, or one the aura system refused.
+    /// </summary>
+    bool ApplyAura(AuraId aura, ObjectGuid? member = null);
 
     // Messages.
 
