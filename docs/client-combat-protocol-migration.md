@@ -169,7 +169,7 @@ Server → the healer, the target, and every client within `Game:InterestRadius`
 | `Result` | 6 | `HitResult` | `Crit` for a critical heal, otherwise `None`; a heal is never dodged or blocked. |
 | `AuraId` | 7 | `uint?` | The aura whose tick healed (auras); absent for an ability's or an item's heal. |
 
-**Aura ticks (auras).** `AuraId` (field 7 of `SUnitHealedPacket`, field 6 of `SUnitDamagePacket`, field 7 of `SCharacterDamagePacket`) is set on a tick of an aura and absent otherwise; such a hit or heal carries no `AbilityId`. A tick is never dodged or blocked, can be a crit (`Result` `Crit`), and names the aura's caster as the attacker or healer, or raw 0 when nobody applied it or its caster is gone. A damage tick worth no whole point, and a heal tick that restored nothing, sends nothing. See `docs/aura-protocol.md`.
+**Aura ticks (auras)** heal on this packet with `AuraId` set: see the paragraph of that name under `SUnitDeathPacket` above, and `docs/aura-protocol.md`.
 
 ### `SCharacterStatsPacket` (`SMSG_CHARACTER_STATS = 0x302A`, encrypted, TCP)
 

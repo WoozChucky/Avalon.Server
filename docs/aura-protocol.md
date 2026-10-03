@@ -130,8 +130,9 @@ at full health). A killing tick is sent like any killing hit, before `SMSG_UNIT_
   A target that takes no hits (an invulnerable town creature, a corpse, a creature walking home) gets no harmful aura.
 - **A harmful aura starts combat**, as a hit does: the creature engages its caster, and both are in combat.
 - **Auras survive map changes and logout.** Their time does not run while the character is offline, nor while it
-  loads into the world after a login; it starts again when the character enters its instance. Across a map change it
-  runs on.
+  loads into the world after a login; it starts again when the character enters its instance. Across a map change (a
+  portal, a scroll, a respawn, a party's return to town) it pauses while the character is between instances and runs
+  on once it arrives, so the move costs no tick and pays none in a burst.
 - **Death ends every aura**, sent as `Removed` entries.
 - **A creature that gives up a fight and walks home** loses the harmful auras the fight put on it.
 - **Stats already include auras.** `SMSG_CHARACTER_STATS`, the movement speed the server steps at and the ability

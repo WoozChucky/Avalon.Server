@@ -23,7 +23,10 @@ namespace Avalon.Database.Character.Migrations
                 "WHERE a.\"CharacterId\" = c.\"Id\" AND a.\"AbilityId\" = k.ability);");
         }
 
-        /// <summary>Takes back exactly those abilities from characters of those classes.</summary>
+        /// <summary>
+        /// Takes back exactly those abilities from characters of those classes, a matching pair held before Up included:
+        /// Up records nothing about which rows it inserted.
+        /// </summary>
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(

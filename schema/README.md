@@ -39,8 +39,10 @@ exists, re-export them by hand when `ChunkRotation`, `ObjectGuid`, `NavmeshBuild
 `MapNavigator` or `Maps/Chunks/*.obj` changes.
 
 `items/item-catalog-v1.json`, `abilities/ability-catalog-v1.json`, `auras/aura-catalog-v1.json` and `quests/quest-catalog-v1.json` are the only artifacts read from
-a database rather than from the code. Their content changes when game data changes, so no test can
-regenerate and compare them — they are reviewed as data diffs. Export it from a freshly migrated database, or a local experiment becomes
+a database rather than from the code. Their content changes when game data changes, and they are reviewed as data
+diffs. The aura and quest catalogs are also checked against the seed: `AuraCatalogExportShould` and
+`QuestCatalogExportShould` render the seed and fail when the committed file differs. The item and ability catalogs
+are not checked by any test. Export each from a freshly migrated database, or a local experiment becomes
 a committed artifact. `dotnet run --project tools/Avalon.Exporter -- all` refuses to write anything
 at all without a `Database__World__ConnectionString`.
 
