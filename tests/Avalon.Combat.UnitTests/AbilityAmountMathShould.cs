@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Enums;
 using Xunit;
 
 namespace Avalon.Combat.UnitTests;
@@ -15,7 +16,7 @@ public class AbilityAmountMathShould
     [InlineData(null, AbilityAffects.Hostile, AbilityAmountKind.None)]
     public void Name_the_amount_kind_from_the_script_and_affects(string? script, AbilityAffects affects,
         AbilityAmountKind expected) =>
-        Assert.Equal(expected, AbilityAmountMath.KindOf(script, affects));
+        Assert.Equal(expected, AbilityAmountMath.KindOf(script, affects, SpellEffect.Damage | SpellEffect.Heal));
 
     /// <summary>10 + 0.5 × 40 attack + 1 × (24..28) weapon: 54..58.</summary>
     [Fact]

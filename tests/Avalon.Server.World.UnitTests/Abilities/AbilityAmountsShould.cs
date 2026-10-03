@@ -138,7 +138,7 @@ public class AbilityAmountsShould
         AbilityAmount amount = AbilityAmounts.For(Caster(attack: attack, weaponMin: weaponMin, weaponMax: weaponMax),
             ability);
 
-        AbilityAmountKind kind = AbilityAmountMath.KindOf(ability.ScriptName, affects);
+        AbilityAmountKind kind = AbilityAmountMath.KindOf(ability.ScriptName, affects, ability.Effects);
         (uint min, uint max) = AbilityAmountMath.Range(kind, effect, ScalingStat.Attack, scaling, weapon, attack, 0,
             weaponMin, weaponMax);
 
