@@ -272,6 +272,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     };
 
     /// <summary>A creature whose combat script is walking it home (#610); see <see cref="IReturningHome" />.</summary>
+    /// <summary>This service's instance is a town, where players are never hostile to one another.</summary>
+    private bool InTown => _context is IMapInstance { MapType: MapType.Town };
+
     private static bool IsReturningHome(IUnit unit) =>
         unit is ICreature { Script: IReturningHome { IsReturningHome: true } };
 
@@ -457,17 +460,12 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // and what needs positive damage are suppressed.
         uint dealt = target is CharacterEntity { GodMode: true } ? 0u : points;
 
-        if (dealt > 0 && caster is CharacterEntity attackerEntity && target is CharacterEntity { IsDead: false } targetEntity)
+        // A town never lets players be hostile, so a tick there (an aura brought in from elsewhere) restarts no PvP timer.
+        if (dealt > 0 && !InTown && caster is CharacterEntity attackerEntity
+            && target is CharacterEntity { IsDead: false } targetEntity)
             _pvp?.OnPlayerHitPlayer(attackerEntity, targetEntity);
 
-        Encounter? enc = caster is null
-            ? _registry.FindEncounterContaining(target) as Encounter
-            : ResolveOrSpawn(caster, target);
-        if (caster is not null && enc is not null && target is ICreature)
-        {
-            CharacterClass casterClass = (caster as ICharacter)?.Class ?? CharacterClass.Hunter;
-            enc.AddThreat(target, caster, dealt * hit.Source.ThreatMultiplier * ClassThreatModifier.Get(casterClass));
-        }
+        Encounter? enc = PeriodicEncounter(hit, dealt);
 
         uint healthBefore = target.CurrentHealth;
         if (target is CharacterEntity character)
@@ -475,8 +473,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             character.OnPeriodicHit(dealt);
             GainFuryFromDamage(character, healthBefore);
         }
-        else
+        else if (dealt > 0)
         {
+            // Written only when it changes, so a tick that deals nothing does not mark the health for a broadcast.
             target.CurrentHealth = healthBefore - Math.Min(dealt, healthBefore);
         }
 
@@ -499,6 +498,28 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         NotifyDeathIfApplicable(enc, target, caster);
         return dealt;
+    }
+
+    /// <summary>
+    /// The encounter a damage tick counts in, and the threat it adds to a creature target. A creature caster never forms
+    /// or rejoins an encounter with its ticks: the aura formed one when it landed, and a creature that has since given up
+    /// the fight and reset at home must stay out of it. A character caster's tick forms or joins one as a hit does, and a
+    /// tick from nobody counts in whatever encounter its target is in.
+    /// </summary>
+    private Encounter? PeriodicEncounter(in PeriodicHit hit, uint dealt)
+    {
+        IUnit target = hit.Target;
+        IUnit? caster = hit.Caster;
+        Encounter? enc = caster is null or ICreature
+            ? _registry.FindEncounterContaining(target) as Encounter
+            : ResolveOrSpawn(caster, target);
+        if (caster is not null && enc is not null && target is ICreature)
+        {
+            CharacterClass casterClass = (caster as ICharacter)?.Class ?? CharacterClass.Hunter;
+            enc.AddThreat(target, caster, dealt * hit.Source.ThreatMultiplier * ClassThreatModifier.Get(casterClass));
+        }
+
+        return enc;
     }
 
     /// <summary>

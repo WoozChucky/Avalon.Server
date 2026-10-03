@@ -1,9 +1,23 @@
+using Avalon.Combat;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
+using Avalon.Server.World.UnitTests.Scripts;
 using Avalon.World.Auras;
+using Avalon.World.Combat;
+using Avalon.World.Configuration;
+using Avalon.World.Creatures;
 using Avalon.World.Entities;
+using Avalon.World.Public.Combat;
+using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
+using Avalon.World.Pvp;
+using Avalon.World.Scripts.Creatures;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
@@ -350,5 +364,122 @@ public class AuraTickShould
             _h.Auras.Update();
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    /// <summary>
+    /// A creature poisons a player, is drawn past its leash, walks home and resets there, leaving the encounter. The
+    /// poison ticks on from it: the tick does not pull it back into an encounter, and a heal on the player gives it no
+    /// threat.
+    /// </summary>
+    [Fact]
+    public void Keep_a_creature_out_of_the_fight_its_tick_lands_in_after_it_reset_at_home()
+    {
+        var h = new AuraHarness();
+        h.Use(AuraTestData.Bleed(), AuraTestData.Renew());
+        Creature boar = h.Creature(910_920);
+        boar.Metadata = Substitute.For<ICreatureMetadata>();
+        CharacterEntity player = h.Player(910_130);
+        player.Position = new Vector3(1f, 0f, 0f);
+        CharacterEntity healer = h.Player(910_131);
+        KitCombatScript script = ScriptOf(boar, h);
+        boar.Script = script;
+
+        Assert.Equal(AuraApplyResult.Applied, h.Auras.Apply(boar, player, Bleed, AuraSource.None));
+        Assert.NotNull(h.Encounters.FindEncounterContaining(boar));
+        script.OnEnteredRange(player);
+        boar.Position = new Vector3(40.5f, 0f, 0f);   // drawn past the 40 m leash
+        player.Position = new Vector3(41f, 0f, 0f);
+        script.Update(TimeSpan.FromSeconds(0.1));
+        Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
+        boar.Position = Vector3.zero;                  // home
+        script.Update(TimeSpan.FromSeconds(0.1));
+        Assert.Equal((object)CreatureCombatScript.CombatState.None, script.State);
+        Assert.Null(h.Encounters.FindEncounterContaining(boar));
+
+        h.Advance(TimeSpan.FromSeconds(3));
+        h.Auras.Update();
+        Assert.Equal(497u, player.CurrentHealth);   // the tick lands
+        Assert.Null(h.Encounters.FindEncounterContaining(boar));
+
+        h.Auras.Apply(healer, player, Renew, new AuraSource(new AbilityId(233), 1f, 0.5f, 0));
+        h.Advance(TimeSpan.FromSeconds(3));
+        h.Auras.Update();
+
+        Assert.Equal(500u, player.CurrentHealth);   // 3 more from the poison, 6 healed
+        Assert.Null(h.Encounters.FindEncounterContaining(boar));
+    }
+
+    /// <summary>A combat script over the harness's real combat service, standing at the origin, routes always reaching.</summary>
+    private static KitCombatScript ScriptOf(Creature creature, AuraHarness h)
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        Vector3? requested = null;
+        locomotion.When(l => l.MoveTo(creature, Arg.Any<Vector3>())).Do(ci => requested = ci.ArgAt<Vector3>(1));
+        locomotion.ResolvedDestination(creature).Returns(_ => requested);
+        locomotion.HasArrived(creature).Returns(true);
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(h.Combat);
+        context.Locomotion.Returns(locomotion);
+        context.MeleeSlots.Returns(new MeleeSlots(6, radius: 1.5f));
+        return new KitCombatScript(creature, context, h.Time);
+    }
+
+    /// <summary>
+    /// Players are never hostile in a town, so a tick between two players there (an aura brought in from elsewhere)
+    /// restarts no PvP timer; it still deals its damage. Anywhere else it restarts both, as a hit does.
+    /// </summary>
+    [Theory]
+    [InlineData(MapType.Town, false)]
+    [InlineData(MapType.Normal, true)]
+    public void Restart_no_pvp_timer_on_a_tick_in_a_town(MapType mapType, bool restarted)
+    {
+        var time = new FakeTimeProvider(AuraHarness.T0);
+        var pvp = new PvpToggle(Options.Create(new GameConfiguration()), time);
+        var instance = Substitute.For<IMapInstance>();
+        instance.MapType.Returns(mapType);
+        var combat = new CombatService(new CombatConfig(), new EncounterRegistry(new CombatConfig(), time), instance, pvp,
+            time: time);
+        CharacterEntity attacker = PvpPlayer(910_140, time);
+        CharacterEntity target = PvpPlayer(910_141, time);
+        DateTime timerSetAt = time.GetUtcNow().UtcDateTime;
+        time.Advance(TimeSpan.FromSeconds(30));
+
+        uint dealt = combat.ApplyPeriodicDamage(new PeriodicHit(attacker, target, Bleed, 10f, new AuraSnapshot(10f, 0f, 1),
+            AuraSource.None));
+
+        Assert.Equal((10u, 490u), (dealt, target.CurrentHealth));
+        DateTime expected = (restarted ? time.GetUtcNow().UtcDateTime : timerSetAt) + new GameConfiguration().PvpOffDelay;
+        Assert.Equal((expected, expected), (attacker.PvpOffAt!.Value, target.PvpOffAt!.Value));
+    }
+
+    private static CharacterEntity PvpPlayer(uint id, TimeProvider time)
+    {
+        CharacterEntity character = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(id);
+        character.Health = 500;
+        character.CurrentHealth = 500;
+        character.Data!.PvpEnabled = true;
+        character.Data.PvpOffAt = time.GetUtcNow().UtcDateTime + new GameConfiguration().PvpOffDelay;
+        return character;
+    }
+
+    /// <summary>A tick worth less than a point deals nothing and leaves the creature's health unmarked for a broadcast.</summary>
+    [Fact]
+    public void Leave_a_creatures_health_unmarked_after_a_tick_that_dealt_nothing()
+    {
+        _h.Use(new AuraTemplate
+        {
+            Id = new AuraId(908), Name = "Scratch", Icon = "scratch", Kind = AuraKind.Harmful, DurationMs = 12000,
+            TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 1f,
+            Stacking = AuraStacking.Refresh, MaxStacks = 1,
+        });
+        Creature boar = _h.Creature(910_921);
+        _h.Auras.Apply(_h.Player(910_142), boar, new AuraId(908), AuraSource.None);
+        boar.ConsumeDirtyFields();
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(1000u, boar.CurrentHealth);
+        Assert.False(boar.ConsumeDirtyFields().HasFlag(GameEntityFields.CurrentHealth));
     }
 }
