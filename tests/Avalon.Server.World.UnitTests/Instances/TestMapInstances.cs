@@ -35,8 +35,9 @@ internal static class TestMapInstances
     /// </summary>
     /// <param name="world">The world the instance belongs to; <see cref="MapInstanceClients.NewWorld" /> when omitted.</param>
     /// <param name="random">Every combat roll (#506); the instance's own no-proc fallback when omitted.</param>
+    /// <param name="time">The container's clock; the system clock when omitted.</param>
     public static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal,
-        IWorld? world = null, ICombatRandom? random = null, params Type[] extraScripts)
+        IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, params Type[] extraScripts)
     {
         var scripts = Substitute.For<IScriptManager>();
         foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) }
@@ -48,7 +49,7 @@ internal static class TestMapInstances
         var navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         world ??= MapInstanceClients.NewWorld();
-        MapInstance instance = Build(world, scripts, navigator, mapType: mapType, random: random);
+        MapInstance instance = Build(world, scripts, navigator, mapType: mapType, time: time, random: random);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
         handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
         return instance;

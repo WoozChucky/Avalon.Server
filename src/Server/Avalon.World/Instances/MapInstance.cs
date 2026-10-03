@@ -11,6 +11,7 @@ using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
@@ -65,6 +66,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly ItemUseCasts _itemUses;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
+    private readonly AuraSystem _auras;
+
+    // The aura pass and an ability's aura application, each logged at most once per ThrottledErrorLog.Interval when it
+    // throws, so one that throws every tick or every cast cannot flood the log.
+    private readonly ThrottledErrorLog _auraPassFailures;
+    private readonly ThrottledErrorLog _auraApplyFailures;
     private readonly UnitHitQuery _hits;
     private readonly ThreatBroadcastService _threatBroadcast;
     private readonly IWorld _world;
@@ -189,6 +196,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             formula: () => world.Data?.Combat?.Formula ?? SeededFormula);
         _threatBroadcast   = new ThreatBroadcastService(combatConfig, _time);
 
+        // Auras: one system per instance over its own units, ticked right after the ability cast system on this
+        // instance's clock. The catalog and the reference data are read through the world each time, so a reload
+        // reaches the next application. A world built without reference data (tests) has no aura at all.
+        _auras = new AuraSystem(_combatService, _characters, _creatures,
+            () => world.Data?.Auras ?? AuraCatalog.Empty, () => world.Data, _time, world.Configuration.MaxAurasPerUnit,
+            loggerFactory.CreateLogger<AuraSystem>(), serviceProvider.GetService<AuraScripts>(),
+            guid => _connections.TryGetValue(guid, out IWorldConnection? connection) ? connection : null);
+        _auraPassFailures = new ThrottledErrorLog(_logger, _time, $"The aura pass of instance {InstanceId}");
+        _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
+
         // Shape scripts ask this for the living units their shape overlaps (#164).
         _hits = new UnitHitQuery(_characters, _creatures);
 
@@ -258,6 +275,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IEnumerable<IWorldConnection> Connections => _connections.Values;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
+
+    /// <summary>The auras of this instance's units (auras). World-side, not on IMapInstance.</summary>
+    public AuraSystem Auras => _auras;
 
     /// <summary>The item cast bars here. World-side, not on IMapInstance.</summary>
     public ItemUseCasts ItemUses => _itemUses;
@@ -951,19 +971,33 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    /// <summary>Step 3 of <see cref="Update" />: the cast system, then the combat service, then the threat mirror.</summary>
+    /// <summary>
+    /// Step 3 of <see cref="Update" />: the cast system, the auras, the item cast bars, then the combat service, then the
+    /// threat mirror.
+    /// </summary>
     private void UpdateCombat(TimeSpan deltaTime, List<IWorldObject> objectAbilities)
     {
         // Step 3: Ability cast system update
         _abilityCastSystem.Update(deltaTime, objectAbilities);
 
-        // Step 3a: item cast bars, after this tick's movement was applied by the packets above.
+        // Step 3a: auras, right after the casts that may have applied them, on this instance's clock. The pass contains
+        // each aura and each unit itself; this catches anything else, so a throw never costs the instance its tick.
+        try
+        {
+            _auras.Update();
+        }
+        catch (Exception e)
+        {
+            _auraPassFailures.Failed(e);
+        }
+
+        // Step 3b: item cast bars, after this tick's movement was applied by the packets above.
         _itemUses.Update(deltaTime);
 
-        // Step 3b: Tick combat service — decays threat, ends stale encounters.
+        // Step 3c: Tick combat service — decays threat, ends stale encounters.
         _combatService.Update(deltaTime);
 
-        // Step 3c: Mirror threat lists for each player's currently-targeted hostile.
+        // Step 3d: Mirror threat lists for each player's currently-targeted hostile.
         // Throttled (250 ms / 5 % delta) inside the service; iterating _connections.Values
         // here is safe because no inbound packet handler dequeued above mutates _connections
         // (target-unit just stores a ulong on the connection itself).
@@ -1432,8 +1466,48 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
+    /// <summary>
+    /// Death ends every aura (auras). Reached again for a unit already dead, and from inside an aura's own tick, so it
+    /// ends only what is still held. Contained: a failure costs the auras, never the death that follows.
+    /// </summary>
     void ICombatOutcomes.UnitDied(IUnit unit)
     {
+        try
+        {
+            _auras.RemoveAll(unit, AuraRemoveReason.Death);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Ending the auras of {UnitGuid} on its death in instance {InstanceId} failed", unit.Guid, InstanceId);
+        }
+    }
+
+    HitOutcome IAbilityArena.DamageForAbility(IUnit caster, IUnit target, IAbility ability) =>
+        _combatService.ApplyDamageWithOutcome(caster, target, ability.Metadata.EffectValue, ability);
+
+    void IAbilityArena.HealForAbility(IUnit caster, IUnit target, IAbility ability) =>
+        _combatService.ApplyHeal(caster, target, ability.Metadata.EffectValue, ability);
+
+    /// <summary>
+    /// The aura the ability's live row names, on <paramref name="target" />; who may receive it the shape and Hostility
+    /// already decided. Contained: an application that throws (a stats refresh or a hook's removal inside it) is logged,
+    /// throttled, and costs the cast none of its other targets.
+    /// </summary>
+    void IAbilityArena.ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability)
+    {
+        if (_world.Data?.LoadedAbilities is not { } abilities
+            || !abilities.TryGet(ability.AbilityId, out AbilityTemplate? row)
+            || row.AuraId is not { } aura)
+            return;
+
+        try
+        {
+            _auras.Apply(caster, target, aura, AuraSource.Of(ability));
+        }
+        catch (Exception e)
+        {
+            _auraApplyFailures.Failed(e);
+        }
     }
 
     void ICombatOutcomes.CreatureKilled(ICreature creature, IUnit? killer)
