@@ -271,10 +271,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         _ => default,
     };
 
-    /// <summary>A creature whose combat script is walking it home (#610); see <see cref="IReturningHome" />.</summary>
     /// <summary>This service's instance is a town, where players are never hostile to one another.</summary>
     private bool InTown => _context is IMapInstance { MapType: MapType.Town };
 
+    /// <summary>A creature whose combat script is walking it home (#610); see <see cref="IReturningHome" />.</summary>
     private static bool IsReturningHome(IUnit unit) =>
         unit is ICreature { Script: IReturningHome { IsReturningHome: true } };
 
