@@ -68,10 +68,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly CombatService _combatService;
     private readonly AuraSystem _auras;
 
-    // The aura pass and an ability's aura application, each logged at most once per ThrottledErrorLog.Interval when it
-    // throws, so one that throws every tick or every cast cannot flood the log.
+    // The aura pass, an ability's aura application and ending a unit's auras on its death, each logged at most once per
+    // ThrottledErrorLog.Interval when it throws, so one that throws every tick, cast or death cannot flood the log.
     private readonly ThrottledErrorLog _auraPassFailures;
     private readonly ThrottledErrorLog _auraApplyFailures;
+    private readonly ThrottledErrorLog _auraDeathFailures;
+
+    // Set by a tick that found nobody here, so the aura pass did not run: the next tick with players skips the ticks
+    // owed meanwhile rather than paying them all at once.
+    private bool _aurasPaused;
     private readonly UnitHitQuery _hits;
     private readonly ThreatBroadcastService _threatBroadcast;
     private readonly IWorld _world;
@@ -205,6 +210,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             guid => _connections.TryGetValue(guid, out IWorldConnection? connection) ? connection : null);
         _auraPassFailures = new ThrottledErrorLog(_logger, _time, $"The aura pass of instance {InstanceId}");
         _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
+        _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
         _hits = new UnitHitQuery(_characters, _creatures);
@@ -895,12 +901,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         if (_characters.Count == 0)
         {
-            // Nothing ticks while nobody is here, but a projectile that finished just before the last
-            // character left would wait for a broadcast that never comes, and show frozen to the next
-            // player to enter (#164). Nobody is left to send its final state to, so drop it now.
-            _abilityCastSystem.DropFinished();
+            StandStillWhileEmpty();
             return;
         }
+
+        if (_aurasPaused)
+            ResumeAuras();
 
         if (_healthFactorOwed)
             ApplyHealthFactor();
@@ -947,6 +953,35 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (_lastBroadcastTime >= BroadcastInterval)
         {
             _lastBroadcastTime = 0;
+        }
+    }
+
+    /// <summary>A tick with nobody here: nothing ticks, and what would wait for a player is settled now or on return.</summary>
+    private void StandStillWhileEmpty()
+    {
+        // A projectile that finished just before the last character left would wait for a broadcast
+        // that never comes, and show frozen to the next player to enter (#164). Nobody is left to send
+        // its final state to, so drop it now.
+        _abilityCastSystem.DropFinished();
+
+        // Auras stand still too; their time does not, and the first tick with players skips what came due meanwhile.
+        _aurasPaused = true;
+    }
+
+    /// <summary>
+    /// The first tick with players after one without: the auras' owed ticks are skipped, never paid in a burst, and those
+    /// whose end passed meanwhile end. Contained, as the aura pass is.
+    /// </summary>
+    private void ResumeAuras()
+    {
+        _aurasPaused = false;
+        try
+        {
+            _auras.SkipOwed();
+        }
+        catch (Exception e)
+        {
+            _auraPassFailures.Failed(e);
         }
     }
 
@@ -1468,7 +1503,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Death ends every aura (auras). Reached again for a unit already dead, and from inside an aura's own tick, so it
-    /// ends only what is still held. Contained: a failure costs the auras, never the death that follows.
+    /// ends only what is still held. Contained and throttled: a failure costs the auras, never the death that follows;
+    /// what it leaves on the corpse the next aura pass ends.
     /// </summary>
     void ICombatOutcomes.UnitDied(IUnit unit)
     {
@@ -1478,7 +1514,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Ending the auras of {UnitGuid} on its death in instance {InstanceId} failed", unit.Guid, InstanceId);
+            _auraDeathFailures.Failed(e);
         }
     }
 

@@ -2,6 +2,7 @@ using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World;
+using Avalon.World.Auras;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
 using Avalon.World.Handlers;
@@ -36,8 +37,10 @@ internal static class TestMapInstances
     /// <param name="world">The world the instance belongs to; <see cref="MapInstanceClients.NewWorld" /> when omitted.</param>
     /// <param name="random">Every combat roll (#506); the instance's own no-proc fallback when omitted.</param>
     /// <param name="time">The container's clock; the system clock when omitted.</param>
+    /// <param name="auraScripts">Runs the auras' scripts; none runs when omitted.</param>
     public static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal,
-        IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, params Type[] extraScripts)
+        IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, AuraScripts? auraScripts = null,
+        params Type[] extraScripts)
     {
         var scripts = Substitute.For<IScriptManager>();
         foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) }
@@ -49,7 +52,8 @@ internal static class TestMapInstances
         var navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         world ??= MapInstanceClients.NewWorld();
-        MapInstance instance = Build(world, scripts, navigator, mapType: mapType, time: time, random: random);
+        MapInstance instance = Build(world, scripts, navigator, mapType: mapType, time: time, random: random,
+            auraScripts: auraScripts);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
         handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
         return instance;
@@ -74,11 +78,13 @@ internal static class TestMapInstances
     /// <param name="quests">The quest service kills are credited through; none when omitted.</param>
     /// <param name="lootRoller">The loot roller a kill drops through; none when omitted, so no kill drops anything.</param>
     /// <param name="lootAllocator">Who a drop is reserved for; none when omitted, so no kill drops anything.</param>
+    /// <param name="auraScripts">Runs the auras' scripts; none runs when omitted.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
         MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
         PartyId? ownerPartyId = null, MapTemplateId? templateId = null, PartyService? parties = null,
-        QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null)
+        QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null,
+        AuraScripts? auraScripts = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -110,6 +116,10 @@ internal static class TestMapInstances
         if (lootAllocator is not null)
         {
             serviceProvider.GetService(typeof(ILootAllocator)).Returns(lootAllocator);
+        }
+        if (auraScripts is not null)
+        {
+            serviceProvider.GetService(typeof(AuraScripts)).Returns(auraScripts);
         }
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);

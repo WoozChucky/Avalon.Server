@@ -204,20 +204,7 @@ public sealed class AuraSystem
     /// </summary>
     public void Update()
     {
-        _holders.Clear();
-        foreach (ICharacter character in _characters.Values)
-        {
-            if (character is CharacterEntity { Auras.Count: > 0 } entity)
-                _holders.Add(entity);
-        }
-
-        foreach (ICreature creature in _creatures.Values)
-        {
-            if (creature is Creature { Auras.Count: > 0 } held)
-                _holders.Add(held);
-        }
-
-        if (_holders.Count == 0)
+        if (!CollectHolders())
             return;
 
         try
@@ -241,6 +228,96 @@ public sealed class AuraSystem
         {
             _holders.Clear();
         }
+    }
+
+    /// <summary>
+    /// After a stretch with no players, when the instance's pass did not run: no tick owed meanwhile is paid. An aura whose
+    /// end has passed ends (Expired, its script told); every other one keeps its end and is left owing only the ticks at
+    /// now or later, as a resumed aura is (<see cref="AuraSchedule.Resume" />: a tick that falls on now is kept), with its
+    /// carried fraction. Time is not stopped: a stretch longer than an aura's remaining time ends it. Call it before the
+    /// first pass after the stretch. Contained per unit, as the pass is.
+    /// </summary>
+    public void SkipOwed()
+    {
+        if (!CollectHolders())
+            return;
+
+        try
+        {
+            DateTimeOffset now = _time.GetUtcNow();
+            for (int i = 0; i < _holders.Count; i++)
+            {
+                IUnit unit = _holders[i];
+                try
+                {
+                    SkipOwed(unit, now);
+                }
+                catch (Exception e)
+                {
+                    UnitFailed(unit, e);
+                }
+            }
+        }
+        finally
+        {
+            _holders.Clear();
+        }
+    }
+
+    private void SkipOwed(IUnit unit, DateTimeOffset now)
+    {
+        UnitAuras auras = AuraHolders.Of(unit)!;
+        _working.Clear();
+        _working.AddRange(auras.All);
+        try
+        {
+            foreach (ActiveAura aura in _working)
+            {
+                if (!auras.Contains(aura))
+                    continue;
+
+                AuraSchedule schedule = aura.Schedule;
+                if (now > schedule.ExpiresAt)
+                {
+                    Remove(unit, aura, AuraRemoveReason.Expired);
+
+                    // Its script's OnRemove may have killed the unit: death ends the rest.
+                    if (!EndIfDead(unit))
+                        return;
+                    continue;
+                }
+
+                uint remainingMs = (uint)Math.Min(uint.MaxValue, Math.Floor(schedule.Remaining(now).TotalMilliseconds));
+                uint intervalMs = (uint)Math.Min(uint.MaxValue, schedule.Interval.TotalMilliseconds);
+                aura.Schedule = schedule with
+                {
+                    TicksLeft = AuraSchedule.Resume(now, remainingMs, intervalMs, schedule.TicksLeft).TicksLeft,
+                };
+            }
+        }
+        finally
+        {
+            _working.Clear();
+        }
+    }
+
+    /// <summary>Fills the reused holder list with every unit here holding an aura; false when none does.</summary>
+    private bool CollectHolders()
+    {
+        _holders.Clear();
+        foreach (ICharacter character in _characters.Values)
+        {
+            if (character is CharacterEntity { Auras.Count: > 0 } entity)
+                _holders.Add(entity);
+        }
+
+        foreach (ICreature creature in _creatures.Values)
+        {
+            if (creature is Creature { Auras.Count: > 0 } held)
+                _holders.Add(held);
+        }
+
+        return _holders.Count > 0;
     }
 
     private void UpdateUnit(IUnit unit, DateTimeOffset now, AuraCatalog catalog)
