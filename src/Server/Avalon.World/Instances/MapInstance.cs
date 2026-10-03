@@ -48,7 +48,7 @@ using Microsoft.Extensions.Options;
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
-    IItemUseHost, IItemCastAudience, IDisposable
+    IItemUseHost, IItemCastAudience, IAuraHost, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 

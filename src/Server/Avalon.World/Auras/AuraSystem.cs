@@ -2,6 +2,7 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Auras;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
@@ -532,6 +533,34 @@ public sealed class AuraSystem
             // The aura is gone either way: its script hears of it even when the stats refresh threw.
             RunHook(unit, aura, "OnRemove", (s, c) => s.OnRemove(c, reason));
         }
+    }
+
+    /// <summary>
+    /// The owner's cancel (auras), in this order: a dead unit cancels nothing; one holding no copy of the aura (with
+    /// <paramref name="instanceKey" /> when given, matched as given, so 0 names no copy) is told so; a harmful aura cannot
+    /// be cancelled; otherwise the named copy ends, or every copy it holds when no key was given, reason Cancelled.
+    /// </summary>
+    public AuraCancelResult Cancel(IUnit unit, AuraId aura, uint? instanceKey = null)
+    {
+        if (IsDead(unit))
+            return AuraCancelResult.Dead;
+
+        if (AuraHolders.Of(unit) is not { } auras)
+            return AuraCancelResult.NotFound;
+
+        ActiveAura[] copies = auras.All
+            .Where(a => a.Id.Value == aura.Value && (instanceKey is not { } key || a.Key == key))
+            .ToArray();
+        if (copies.Length == 0)
+            return AuraCancelResult.NotFound;
+
+        if (copies.Any(a => a.Template.Kind != AuraKind.Helpful))
+            return AuraCancelResult.NotCancellable;
+
+        foreach (ActiveAura copy in copies)
+            Remove(unit, copy, AuraRemoveReason.Cancelled);
+
+        return AuraCancelResult.Ok;
     }
 
     /// <summary>Ends every aura on <paramref name="unit" />: death does this.</summary>

@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Auras;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Scripts;
@@ -34,6 +35,7 @@ public class AuraScriptHooksShould
             Named(AuraTestData.Independent(911), "Undertow", nameof(KillOnRemoveAuraScript)),
             Named(AuraTestData.Independent(912), "Echo", nameof(RemoveOnRemoveAuraScript)),
             Named(AuraTestData.Independent(913), "Keepsake", nameof(KeepContextAuraScript)),
+            Named(AuraTestData.Renew(914), "Mend", nameof(RecordingAuraScript)),
             AuraTestData.Scripted(AuraTestData.Fortified(), nameof(ThrowingAuraScript)));
         RecordingAuraScript.Heard.Clear();
         KeepContextAuraScript.Kept = null;
@@ -58,6 +60,17 @@ public class AuraScriptHooksShould
         _h.Auras.RemoveAll(boar, AuraRemoveReason.Death);
 
         Assert.Equal(["Bleed:apply:1", "Bleed:stack:2", "Bleed:tick", "Bleed:remove:Death"], RecordingAuraScript.Heard);
+    }
+
+    [Fact]
+    public void Hear_a_cancel_as_Cancelled()
+    {
+        CharacterEntity healer = _h.Player(911_120);
+
+        _h.Auras.Apply(healer, healer, new AuraId(914), AuraSource.None);
+        Assert.Equal(AuraCancelResult.Ok, _h.Auras.Cancel(healer, new AuraId(914)));
+
+        Assert.Equal(["Mend:apply:1", "Mend:remove:Cancelled"], RecordingAuraScript.Heard);
     }
 
     [Fact]
