@@ -62,6 +62,16 @@ public static class Overrides
         ["Item"] = new(typeof(ItemTemplate), ["Id"],
             (t, k) => t.ItemTemplates.FirstOrDefault(i => Text(i.Id.Value) == k),
             t => t.ItemTemplates.Select(i => (Text(i.Id.Value), (object)i))),
+        // An aura's Modifiers list is not a column an override can write (Supports refuses a list): its modifiers are
+        // their own table.
+        ["Aura"] = new(typeof(AuraTemplate), ["Id"],
+            (t, k) => t.AuraTemplates.FirstOrDefault(a => Text(a.Id.Value) == k),
+            t => t.AuraTemplates.Select(a => (Text(a.Id.Value), (object)a))),
+        ["AuraStatModifier"] = new(typeof(AuraStatModifier), ["AuraId", "Stat"],
+            (t, k) => k.Split('.') is [var aura, var s] && Enum.TryParse(s, false, out AuraStat stat)
+                ? t.AuraStatModifiers.FirstOrDefault(m => Text(m.AuraId.Value) == aura && m.Stat == stat)
+                : null,
+            t => t.AuraStatModifiers.Select(m => ($"{Text(m.AuraId.Value)}.{m.Stat}", (object)m))),
     };
 
     public static OverrideReport Apply(SeedTables tables, JsonElement root)

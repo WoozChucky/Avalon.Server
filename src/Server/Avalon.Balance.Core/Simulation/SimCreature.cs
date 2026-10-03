@@ -20,6 +20,12 @@ public sealed class SimCreature : SimUnit
 
     public required float HasteCap { get; init; }
 
+    /// <summary>
+    /// As Creature.BaseMaxHealth: the maximum health it spawned with, which a health aura is folded onto; 0 leaves its
+    /// health to whoever set it. Settable so a test that gives a creature its own health can set its base too.
+    /// </summary>
+    public uint BaseMaxHealth { get; set; }
+
     /// <summary>As Creature.SwingInterval: BaseAttackTime over 1 + haste / 100, haste at most the cap.</summary>
     public float SwingInterval => Haste.Scale(Template.BaseAttackTime, MathF.Min(HastePct, HasteCap));
 
@@ -27,6 +33,29 @@ public sealed class SimCreature : SimUnit
     public SimAbility? Choose() =>
         Specials.FirstOrDefault(s => s.Ready && !RangedOnly.Contains(s.Id))
         ?? (Basic is { Ready: true } basic ? basic : null);
+
+    /// <summary>
+    /// As Creature.ApplyAuraStats: its attack, defence and haste with its auras folded in; its maximum health
+    /// <see cref="BaseMaxHealth" /> with its health aura on top, at least 1, its health keeping its share. A corpse's
+    /// health, and one with no base, is never changed.
+    /// </summary>
+    public void ApplyAuraStats()
+    {
+        AuraStatTotals totals = AuraTotals();
+        Attack = AuraStats.Fold(Derived.Attacker, totals);
+        Defence = AuraStats.Fold(Derived.Defence, totals);
+        HastePct = AuraStats.Apply(0f, totals, AuraStat.HastePct);
+
+        if (BaseMaxHealth == 0 || CurrentHealth == 0)
+            return;
+
+        uint max = Math.Max(1u, AuraStats.Apply(BaseMaxHealth, totals, AuraStat.MaxHealth));
+        if (max == Health)
+            return;
+
+        CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, Health, max);
+        Health = max;
+    }
 
     /// <summary>
     /// A creature as CreatureSpawner builds it, with the abilities its script's kit loads (CreatureAbilities.Load):
@@ -58,6 +87,7 @@ public sealed class SimCreature : SimUnit
             Level = derived.Level,
             Health = derived.Health,
             CurrentHealth = derived.Health,
+            BaseMaxHealth = derived.Health,
             PowerType = PowerType.None,
         };
         if (basic is not null) creature.Abilities.Add(basic);

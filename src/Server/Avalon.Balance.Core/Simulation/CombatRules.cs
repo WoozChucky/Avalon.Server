@@ -75,6 +75,25 @@ public static class CombatRules
         return dealt;
     }
 
+    /// <summary>
+    /// An aura's damage tick on a creature, as CombatService.ApplyPeriodicDamage: the creature loses at most its health;
+    /// a caster still standing (null otherwise) gains the source ability's power when the tick dealt more than 0 to a
+    /// living creature. Returns the health taken.
+    /// </summary>
+    public static uint PeriodicHitCreature(SimCreature target, uint damage, SimPlayer? caster, uint powerGainPerHit)
+    {
+        uint before = target.CurrentHealth;
+        if (before == 0)
+            return 0;
+
+        uint dealt = Math.Min(damage, before);
+        target.CurrentHealth = before - dealt;
+        if (dealt > 0 && powerGainPerHit > 0)
+            caster?.GainPower(powerGainPerHit);
+
+        return dealt;
+    }
+
     /// <summary>A heal, as CombatService.ApplyHeal: nothing on the dead, then HealRules.After. Returns the health restored.</summary>
     public static uint HealPlayer(SimPlayer target, uint heal)
     {

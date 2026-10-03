@@ -16,6 +16,7 @@ using Avalon.Server.World.UnitTests.Combat;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Creatures;
@@ -25,6 +26,7 @@ using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -283,6 +285,198 @@ public class SimulatorParityShould
 
         Assert.True(cast[211] >= 2, $"Flame Burst was cast {cast[211]} times");
         Assert.True(regenTicks > 0 && heldTicks > 0, $"{regenTicks} ticks regenerated, {heldTicks} held still");
+    }
+
+    /// <summary>
+    /// With a base damage coefficient, so each application draws a roll of the Warrior's main hand right after the cone's
+    /// own draws: a roll drawn in a different place, or not at all, moves every later roll and the healths part. Its
+    /// total per tick is not a whole number, so every tick carries a fraction of a point to the next.
+    /// </summary>
+    private static AuraTemplate TestBleed() => new()
+    {
+        Id = new Avalon.Common.ValueObjects.AuraId(9901), Name = "Test Bleed", Icon = "bleed", Kind = AuraKind.Harmful,
+        DurationMs = 12000, TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 12f,
+        ScalingStat = ScalingStat.Attack, ScalingCoefficient = 0.25f, BaseDamageCoefficient = 0.5f,
+        Stacking = AuraStacking.Stack, MaxStacks = 3,
+    };
+
+    private static AbilityTemplate TestRend() => new()
+    {
+        Id = new Avalon.Common.ValueObjects.AbilityId(9203), Name = "Test Rend", ScriptName = "ConeAbilityScript",
+        Shape = AbilityShape.Cone, AimMode = AbilityAimMode.Movement, Reach = 2.5f, ArcDegrees = 90f, Cooldown = 6000,
+        Effects = SpellEffect.Damage, EffectValue = 8, ScalingStat = ScalingStat.Attack, ScalingCoefficient = 0.2f,
+        BaseDamageCoefficient = 0.5f, AllowedClasses = [CharacterClass.Warrior],
+        AuraId = new Avalon.Common.ValueObjects.AuraId(9901), ThreatMultiplier = 1f,
+    };
+
+    /// <summary>
+    /// Auras: a Warrior casting a bleeding cone through the real handler, cast system and aura system, against the
+    /// simulator, the boar's health compared after every tick for 15 s: the hit, then each bleed tick (its base damage
+    /// roll at apply, its crit roll, the boar's armour and the fraction of a point carried between ticks), its stacks
+    /// and its refresh, on the same ticks. The instance's clock is moved to each tick's simulated time, as the
+    /// simulator's is. The simulator never falls behind (it steps every server tick), so the server's catch-up after a
+    /// stall is not exercised here.
+    /// </summary>
+    [Fact]
+    public async Task Bleed_the_same_as_the_aura_system_tick_for_tick()
+    {
+        var clock = new FixedTimeProvider(ClockStart);
+        StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            abilities: () => [TestRend()], auras: () => [TestBleed()]));
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
+            world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
+        MapInstanceClient real = RealWarrior(instance, 6760_171, TestRend());
+
+        SeedTables seed = SeedSource.Load();
+        seed.AuraTemplates.Add(TestBleed());
+        seed.AbilityTemplates.Add(TestRend());
+        BalanceData data = BalanceData.From(seed);
+        SimPlayer simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
+        simWarrior.Abilities.Add(new SimAbility(TestRend()));
+        Assert.True(simWarrior.Attack.WeaponMax > 0, "the Warrior has no main hand to roll");
+        SimCreature simBoar = PassiveBoar(Level);
+        Creature realBoar = RealBoar(instance, 6760_971, simBoar);
+        CompiledRotationEntry[] rotation = [new(9203, [])];
+        var fight = new FightSimulator(Data.Combat.Formula, simWarrior, [simBoar], rotation,
+            new CombatRandom(new Random(Seed)), data: data);
+        bool carried = false;
+
+        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, PointBlank, ticks: 900, tick =>
+            {
+                Assert.True(simBoar.CurrentHealth == realBoar.CurrentHealth,
+                    $"tick {tick}: the boar has {realBoar.CurrentHealth} health on the server, {simBoar.CurrentHealth} simulated");
+                Assert.True(simBoar.Auras.Count == realBoar.Auras.Count,
+                    $"tick {tick}: the boar holds {realBoar.Auras.Count} auras on the server, {simBoar.Auras.Count} simulated");
+                if (simBoar.Auras is [{ } simBleed])
+                {
+                    ActiveAura realBleed = Assert.Single(realBoar.Auras.All);
+                    Assert.Equal(realBleed.Stacks, simBleed.Stacks);
+                    Assert.Equal(realBleed.Schedule, simBleed.Schedule);
+                    Assert.Equal(realBleed.PeriodicCarry, simBleed.PeriodicCarry);
+                    carried |= simBleed.PeriodicCarry > 0d;
+                }
+            },
+            clock);
+
+        Assert.True(cast[9203] >= 3, $"the bleeding cone was cast {cast[9203]} times");
+        Assert.Equal(3u, Assert.Single(realBoar.Auras.All).Stacks);
+        Assert.True(carried, "no bleed tick carried a fraction of a point");
+        Assert.True(fight.Result().DamageDealt["Test Bleed"] > 0, "the bleed never ticked");
+    }
+
+    /// <summary>
+    /// Auras from a creature: the boar's Gore carrying a poison scaled by a roll of its natural damage (a creature has no
+    /// damage stats), cast once through the real cast system and the aura system and once by the simulated boar, the
+    /// Warrior's health and Fury compared after every tick for 10 s: the hit and its draws, the poison's roll right
+    /// after them, each tick's crit roll, the Warrior's armour, the carry, and the Fury each tick's lost health gives.
+    /// </summary>
+    [Fact]
+    public async Task Poison_from_a_creatures_natural_damage_the_same_as_the_aura_system_tick_for_tick()
+    {
+        // Seed rolls the bottom of the boar's range for the poison, which a roll left out would match; this one does not.
+        const int PoisonSeed = 676;
+
+        AuraTemplate poison = new()
+        {
+            Id = new Avalon.Common.ValueObjects.AuraId(9902), Name = "Test Poison", Icon = "poison", Kind = AuraKind.Harmful,
+            DurationMs = 9000, TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 3.5f,
+            BaseDamageCoefficient = 1f, Stacking = AuraStacking.Refresh, MaxStacks = 1,
+        };
+        SeedTables seed = SeedSource.Load();
+        AbilityTemplate gore = seed.AbilityTemplates.Single(a => a.Id.Value == 300);
+        gore.AuraId = poison.Id;
+        seed.AuraTemplates.Add(poison);
+        BalanceData data = BalanceData.From(seed);
+
+        var clock = new FixedTimeProvider(ClockStart);
+        StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            abilities: () => [gore], auras: () => [poison]));
+        using MapInstance instance = TestMapInstances.BuildCasting(out _,
+            world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(PoisonSeed)), time: clock);
+        MapInstanceClient real = RealWarrior(instance, 6760_191, Row(200));
+
+        SimPlayer simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
+        SimCreature simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
+        simBoar.Health = simBoar.CurrentHealth = 1_000_000;
+        foreach (SimAbility special in simBoar.Specials) special.CooldownLeft = 1_000f;   // only Gore, once
+        Assert.True(simBoar.Attack.WeaponMax > 0, "the boar has no natural damage to roll");
+        Creature realBoar = RealBoar(instance, 6760_991, simBoar);
+        var fight = new FightSimulator(Data.Combat.Formula, simWarrior, [simBoar], [], new CombatRandom(new Random(PoisonSeed)),
+            data: data);
+        IAbility realGore = AbilityTestData.Game(gore);
+        bool carried = false;
+
+        for (int tick = 0; tick < 600; tick++)
+        {
+            clock.Now = ClockStart + Ticks(tick);
+            fight.Tick();
+            if (tick == 0)
+            {
+                // The simulated boar swung Gore in this tick's creature phase; the real one swings it now, before the
+                // instance ticks: the same draws, in the same order, at the same time on the aura clock.
+                Assert.True(((ISimulationContext)instance).RunInstantAbility(realBoar,
+                    new AbilityAim(new Vector3(0f, 0f, -1f), null), realGore));
+                simBoar.Basic!.CooldownLeft = 1_000f;
+                AuraSnapshot snapshot = Assert.Single(real.Character.Auras.All).Snapshot;
+                Assert.Equal(snapshot, Assert.Single(simWarrior.Auras).Snapshot);
+                // A roll above the bottom of the range, so a roll left out (or drawn elsewhere) would show.
+                Assert.True(snapshot.PerTickPerStack > (3.5f + simBoar.Attack.WeaponMin) / 3f + 1e-4f,
+                    $"the poison rolled the bottom of the boar's range: {snapshot.PerTickPerStack} a tick");
+            }
+
+            instance.Update(OneTick);
+
+            Assert.True(simWarrior.CurrentHealth == real.Character.CurrentHealth,
+                $"tick {tick}: the Warrior has {real.Character.CurrentHealth} health on the server, {simWarrior.CurrentHealth} simulated");
+            Assert.True(simWarrior.CurrentPower == real.Character.CurrentPower,
+                $"tick {tick}: the Warrior has {real.Character.CurrentPower} Fury on the server, {simWarrior.CurrentPower} simulated");
+            Assert.Equal(real.Character.Auras.Count, simWarrior.Auras.Count);
+            if (simWarrior.Auras is [{ } simPoison])
+            {
+                Assert.Equal(Assert.Single(real.Character.Auras.All).PeriodicCarry, simPoison.PeriodicCarry);
+                carried |= simPoison.PeriodicCarry > 0d;
+            }
+        }
+
+        Assert.Empty(real.Character.Auras.All);   // its three ticks paid, it expired
+        Assert.True(carried, "no poison tick carried a fraction of a point");
+        Assert.True(fight.Result().DamageTaken["Test Poison"] > 0, "the poison never ticked");
+    }
+
+    /// <summary>Auras: a percentage armour and a flat crit aura fold into the same derived stats on the server and in the simulator.</summary>
+    [Fact]
+    public void Fold_a_stat_aura_into_the_same_stats_as_a_stats_refresh()
+    {
+        using MapInstance instance = TestMapInstances.BuildCasting(out _);
+        MapInstanceClient real = RealWarrior(instance, 6760_181, Row(200));
+        AuraTemplate ward = new()
+        {
+            Id = new Avalon.Common.ValueObjects.AuraId(9905), Name = "Test Ward", Icon = "ward", Kind = AuraKind.Helpful,
+            DurationMs = 30000, Stacking = AuraStacking.Refresh, MaxStacks = 1,
+            Modifiers =
+            [
+                new AuraStatModifier { AuraId = new Avalon.Common.ValueObjects.AuraId(9905), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f },
+                new AuraStatModifier { AuraId = new Avalon.Common.ValueObjects.AuraId(9905), Stat = AuraStat.CritPct, Kind = AuraModifierKind.Flat, Value = 3f },
+                new AuraStatModifier { AuraId = new Avalon.Common.ValueObjects.AuraId(9905), Stat = AuraStat.MaxHealth, Kind = AuraModifierKind.Flat, Value = 25f },
+            ],
+        };
+        real.Character.Auras.Add(new ActiveAura(ward, real.Character.Guid, AuraSource.None, 1, default,
+            AuraSchedule.Start(ClockStart, 30000, 0), 30000, ClockStart.UtcDateTime), ClockStart);
+        Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
+            tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid), CurrentValues.KeepShare, Data.Combat.Formula));
+
+        SimPlayer sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(ClockStart, 30000, 0), 0));
+        sim.ApplyAuraStats(Data);
+
+        Assert.Equal(real.Character.Stats, sim.Stats);
+        Assert.Equal(real.Character.EffectiveHastePct, sim.HastePct);
+        Assert.Equal(real.Character.RegenStat, sim.RegenStat);
+        Assert.Equal(Internal<AttackerCombat>(real.Character, "Combat"), sim.Attack);
+        Assert.Equal(Internal<DefenderCombat>(real.Character, "Defence"), sim.Defence);
+        Assert.Equal(real.Character.Health, sim.Health);
+        Assert.Equal(real.Character.CurrentHealth, sim.CurrentHealth);
+        Assert.Equal(real.Character.CurrentPower, sim.CurrentPower);
     }
 
     /// <summary>A level-<paramref name="level" /> Thornback Boar that never swings, with the health to outlast every exchange.</summary>

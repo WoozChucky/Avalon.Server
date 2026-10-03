@@ -15,10 +15,12 @@ public sealed record CombatData(CombatFormula Formula, IReadOnlyDictionary<Chara
 /// </summary>
 public sealed class BalanceData
 {
-    private BalanceData(SeedTables tables, IReadOnlyDictionary<AbilityId, AbilityTemplate> abilities,
-        IReadOnlyList<string> refusedAbilities, CombatData combat, CreatureStatDeriver creatureStats)
+    private BalanceData(SeedTables tables, IReadOnlyDictionary<AuraId, AuraTemplate> auras,
+        IReadOnlyDictionary<AbilityId, AbilityTemplate> abilities, IReadOnlyList<string> refusedAbilities, CombatData combat,
+        CreatureStatDeriver creatureStats)
     {
         Tables = tables;
+        Auras = auras;
         Abilities = abilities;
         RefusedAbilities = refusedAbilities;
         Combat = combat;
@@ -30,6 +32,9 @@ public sealed class BalanceData
     }
 
     public SeedTables Tables { get; }
+
+    /// <summary>The aura templates that passed the server's checks, by id, each with its stat modifiers attached.</summary>
+    public IReadOnlyDictionary<AuraId, AuraTemplate> Auras { get; }
 
     /// <summary>The ability templates that passed the server's checks, by id.</summary>
     public IReadOnlyDictionary<AbilityId, AbilityTemplate> Abilities { get; }
@@ -46,11 +51,33 @@ public sealed class BalanceData
     /// <exception cref="InvalidDataException">A row the server would refuse; the message names it.</exception>
     public static BalanceData From(SeedTables tables)
     {
+        // Auras: each row with its modifiers, checked as the world's AuraCatalog checks it (the script names aside: the
+        // simulator runs no script). Attaching the modifiers writes only the row given, a copy wherever a run reads it.
+        var auras = new Dictionary<AuraId, AuraTemplate>();
+        List<string> refusedAuras = [];
+        foreach (AuraTemplate aura in tables.AuraTemplates.OrderBy(a => a.Id.Value))
+        {
+            aura.Modifiers = tables.AuraStatModifiers
+                .Where(m => m.AuraId.Value == aura.Id.Value)
+                .OrderBy(m => m.Stat)
+                .ToList();
+            if (AuraRules.Problem(aura) is { } reason)
+                refusedAuras.Add($"aura {aura.Id.Value} '{aura.Name}': {reason}");
+            else
+                auras[aura.Id] = aura;
+        }
+
+        if (refusedAuras.Count > 0)
+            throw new InvalidDataException("The aura catalog refused: " + string.Join("; ", refusedAuras));
+
         var abilities = new Dictionary<AbilityId, AbilityTemplate>();
         List<string> refused = [];
         foreach (AbilityTemplate template in tables.AbilityTemplates.OrderBy(t => t.Id.Value))
         {
-            if (AbilityRules.Problem(template) is { } reason)
+            // As the world's AbilityCatalog: the row's own checks, then its aura link.
+            if ((AbilityRules.Problem(template)
+                 ?? AuraRules.LinkProblem(template.Affects, template.AuraId,
+                     id => auras.TryGetValue(id, out AuraTemplate? aura) ? aura : null)) is { } reason)
             {
                 refused.Add($"ability {template.Id.Value} '{template.Name}': {reason}");
                 continue;
@@ -68,14 +95,16 @@ public sealed class BalanceData
         var creatureStats = new CreatureStatDeriver(tables.CreatureBaseStats, tables.CreatureRarityModifiers,
             NullLoggerFactory.Instance);
 
-        return new BalanceData(tables, abilities, refused, new CombatData(formula, factors), creatureStats);
+        return new BalanceData(tables, auras, abilities, refused, new CombatData(formula, factors), creatureStats);
     }
 
-    public DerivedCharacterStats CharacterStats(CharacterClass characterClass, ushort level, IEnumerable<ItemTemplate> worn)
+    /// <param name="auras">What the character's auras add, folded in as the server's stats refresh folds them; none when null.</param>
+    public DerivedCharacterStats CharacterStats(CharacterClass characterClass, ushort level, IEnumerable<ItemTemplate> worn,
+        AuraStatTotals? auras = null)
     {
         ClassLevelStat row = Tables.ClassLevelStats.FirstOrDefault(r => r.Class == characterClass && r.Level == level)
             ?? throw new InvalidDataException($"ClassLevelStat {characterClass} level {level} is not seeded");
-        return CharacterStatsCalculator.Calculate(row, worn.ToList(), Combat.Factors[characterClass]);
+        return CharacterStatsCalculator.Calculate(row, worn.ToList(), Combat.Factors[characterClass], auras);
     }
 
     /// <summary>The class's starting abilities (CharacterCreateInfos.StartingSpells), as the catalog holds them.</summary>
