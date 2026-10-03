@@ -121,6 +121,25 @@ public class CharacterController : BaseController
         return Ok(await _service.GetQuestLogAsync(new CharacterId(id), ct));
     }
 
+    /// <summary>
+    /// The character's auras as its world last saved them (auras), by slot: each with the time it had left, which stands
+    /// still while the character is offline, and its caster as saved (0 when unknown).
+    /// </summary>
+    [HttpGet("{id}/auras", Name = "GetCharacterAuras")]
+    [ProducesResponseType(typeof(CharacterAurasDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetAuras([FromRoute] uint id, CancellationToken ct)
+    {
+        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        if (character is null) return NotFound();
+
+        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        if (!authz.Succeeded) return NotFoundOrForbid();
+
+        return Ok(await _service.GetAurasAsync(new CharacterId(id), ct));
+    }
+
     [HttpPatch("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

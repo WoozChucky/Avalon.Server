@@ -22,6 +22,9 @@ public interface ICharacterService
 
     /// <summary>The character's quest log as its world last saved it (#714); empty lists for a character with none.</summary>
     Task<CharacterQuestLogDto> GetQuestLogAsync(CharacterId id, CancellationToken cancellationToken = default);
+
+    /// <summary>The character's auras as its world last saved them, by slot; empty for a character with none.</summary>
+    Task<CharacterAurasDto> GetAurasAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task<PagedResult<Character>> PaginateAsync(CharacterPaginateFilters filters, CancellationToken cancellationToken = default);
 }
 
@@ -35,6 +38,7 @@ public class CharacterService : ICharacterService
     private readonly IItemTemplateRepository _itemTemplateRepository;
     private readonly ICharacterStatsRepository _statsRepository;
     private readonly ICharacterQuestRepository _questRepository;
+    private readonly ICharacterAuraRepository? _auraRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
@@ -44,7 +48,8 @@ public class CharacterService : ICharacterService
         IAbilityTemplateRepository abilityTemplateRepository,
         IItemTemplateRepository itemTemplateRepository,
         ICharacterStatsRepository statsRepository,
-        ICharacterQuestRepository questRepository)
+        ICharacterQuestRepository questRepository,
+        ICharacterAuraRepository? auraRepository = null)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
@@ -54,6 +59,7 @@ public class CharacterService : ICharacterService
         _itemTemplateRepository = itemTemplateRepository;
         _statsRepository = statsRepository;
         _questRepository = questRepository;
+        _auraRepository = auraRepository;
     }
 
     public Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default) =>
@@ -202,6 +208,29 @@ public class CharacterService : ICharacterService
     {
         CharacterQuestRows rows = await _questRepository.GetByCharacterIdAsync(id, cancellationToken);
         return rows.ToQuestLogDto(id.Value);
+    }
+
+    public async Task<CharacterAurasDto> GetAurasAsync(CharacterId id, CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<CharacterAura> rows = _auraRepository is null
+            ? []
+            : await _auraRepository.GetByCharacterIdAsync(id, cancellationToken);
+
+        return new CharacterAurasDto
+        {
+            CharacterId = id.Value,
+            Auras = rows.Select(r => new CharacterAuraDto
+            {
+                AuraId = r.AuraId,
+                CasterGuid = r.CasterGuid,
+                SourceAbilityId = r.SourceAbilityId,
+                Stacks = r.Stacks,
+                RemainingMs = r.RemainingMs,
+                DurationMs = r.DurationMs,
+                TicksLeft = r.TicksLeft,
+                AppliedAt = r.AppliedAt,
+            }).ToList(),
+        };
     }
 
     public async Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default)

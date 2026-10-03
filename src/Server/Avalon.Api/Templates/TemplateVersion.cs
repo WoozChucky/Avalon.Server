@@ -33,11 +33,28 @@ public static class TemplateVersion
 
     public static string Of(CreatureTemplate template) => Hash(template);
 
+    /// <summary>
+    /// An aura's version covers its modifiers too: each (stat, kind, value), by stat, under "Modifiers", so a save made
+    /// from a read taken before a modifier was added, removed or changed is refused like any other stale save.
+    /// </summary>
+    public static string Of(AuraTemplate template)
+    {
+        SortedDictionary<string, object?> values = Values(template);
+        values["Modifiers"] = template.Modifiers
+            .OrderBy(m => m.Stat)
+            .Select(m => new object[] { m.Stat.ToString(), m.Kind.ToString(), m.Value })
+            .ToArray();
+        return HashOf(values);
+    }
+
     /// <summary>The names of the columns the version covers for an entity type.</summary>
     public static IReadOnlyList<string> ColumnsOf(Type entityType) =>
         ColumnsFor(entityType).Select(p => p.Name).ToList();
 
-    private static string Hash(object entity)
+    private static string Hash(object entity) => HashOf(Values(entity));
+
+    /// <summary>The entity's stored values, by column name in ordinal order.</summary>
+    private static SortedDictionary<string, object?> Values(object entity)
     {
         SortedDictionary<string, object?> values = new(StringComparer.Ordinal);
         foreach (IProperty property in ColumnsFor(entity.GetType()))
@@ -46,6 +63,11 @@ public static class TemplateVersion
             values[property.Name] = clr is null ? null : Stored(property, clr);
         }
 
+        return values;
+    }
+
+    private static string HashOf(SortedDictionary<string, object?> values)
+    {
         byte[] json = JsonSerializer.SerializeToUtf8Bytes(values, Json);
         return Convert.ToHexStringLower(SHA256.HashData(json));
     }

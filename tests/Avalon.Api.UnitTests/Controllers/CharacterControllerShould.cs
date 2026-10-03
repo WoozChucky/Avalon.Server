@@ -352,4 +352,63 @@ public class CharacterControllerShould
 
         Assert.IsType<ForbidResult>(result);
     }
+
+    [Fact]
+    public async Task GetAuras_Returns200_WhenAuthzSucceeds()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var ch = MakeChar(7);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Success());
+        _service.GetAurasAsync(new CharacterId(42), Arg.Any<CancellationToken>())
+            .Returns(new CharacterAurasDto { CharacterId = 42, Auras = [new CharacterAuraDto { AuraId = 1, RemainingMs = 4000 }] });
+
+        var result = await MakeSut(user).GetAuras(42, CancellationToken.None);
+
+        var auras = Assert.IsType<CharacterAurasDto>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal((1u, 4000u), (Assert.Single(auras.Auras).AuraId, auras.Auras[0].RemainingMs));
+    }
+
+    [Fact]
+    public async Task GetAuras_Returns404_WhenCharacterMissing()
+    {
+        var user = User(7, AvalonRoles.Player);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
+            .Returns((Character?)null);
+
+        var result = await MakeSut(user).GetAuras(42, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+        await _service.DidNotReceive().GetAurasAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetAuras_Returns404_WhenAuthzFailsAndCallerIsPlayer()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var ch = MakeChar(99);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Failed());
+
+        var result = await MakeSut(user).GetAuras(42, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+        await _service.DidNotReceive().GetAurasAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetAuras_Returns403_WhenAuthzFailsAndCallerIsGameMaster()
+    {
+        var user = User(7, AvalonRoles.GameMaster);
+        var ch = MakeChar(99);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Failed());
+
+        var result = await MakeSut(user).GetAuras(42, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
 }

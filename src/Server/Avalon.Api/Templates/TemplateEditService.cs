@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using Avalon.Api.Contract;
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.Auth;
@@ -41,7 +42,7 @@ public sealed record TemplateChange(string Field, string? Old, string? New)
 public readonly record struct TemplateEditCaller(WorldId World, AccountId Account);
 
 /// <summary>
-/// Saves an edit to an item, ability or creature template. In one transaction: load the row, check the version the
+/// Saves an edit to an item, ability, creature or aura template. In one transaction: load the row, check the version the
 /// caller read, validate, apply, save. Then one audit line naming only the changed fields, and a reload request for
 /// the world. The editable-world and If-Match-present checks come before this (<see cref="TemplateEditGuard"/>).
 /// </summary>
@@ -86,11 +87,51 @@ public sealed class TemplateEditService(
                 return found;
             },
             TemplateVersion.Of, TemplateValidation.Ability,
-            async (_, row, errors, ct2) =>
+            async (db, row, errors, ct2) =>
             {
                 TemplateValidation.AbilityWorldRules(errors, row);
                 ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
                 TemplateValidation.ScriptKnown(errors, row.ScriptName, stored, catalog, c => c.Ability);
+                // The aura must exist (its foreign key) and be one the world loads, and fit what the ability affects,
+                // as the world's ability catalog checks the link.
+                if (row.AuraId is { } auraId)
+                {
+                    AuraTemplate? aura = await db.AuraTemplates.AsNoTracking().Include(a => a.Modifiers)
+                        .FirstOrDefaultAsync(a => a.Id == auraId, ct2);
+                    AuraTemplate? loaded = aura is not null && AuraRules.Problem(aura) is null ? aura : null;
+                    if (AuraRules.LinkProblem(row.Affects, auraId, _ => loaded) is { } problem)
+                        errors.Add("auraId", $"The world would refuse this ability: {problem}.");
+                }
+            }),
+            caller, id, ifMatch, request, ct);
+    }
+
+    public Task<TemplateEditResult<AuraTemplate>> EditAuraAsync(
+        TemplateEditCaller caller, uint id, string ifMatch, UpdateAuraTemplateRequest request, CancellationToken ct)
+    {
+        string? stored = null; // the script name as the row held it, before the request is applied
+        return RunAsync(new Kind<AuraTemplate, UpdateAuraTemplateRequest>(
+            "Aura", TemplateReloadArea.Auras, TemplateFields.Aura,
+            async (db, ct2) =>
+            {
+                AuraTemplate? found = await db.AuraTemplates.Include(a => a.Modifiers)
+                    .FirstOrDefaultAsync(a => a.Id == new AuraId(id), ct2);
+                stored = found?.ScriptName;
+                return found;
+            },
+            TemplateVersion.Of, TemplateValidation.Aura,
+            async (db, row, errors, ct2) =>
+            {
+                TemplateValidation.AuraWorldRules(errors, row);
+                ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
+                TemplateValidation.ScriptKnown(errors, row.ScriptName, stored, catalog, c => c.Aura);
+                // The aura must still fit every ability that applies it, or the world would refuse those abilities.
+                foreach (AbilityTemplate ability in await db.AbilityTemplates.AsNoTracking()
+                             .Where(a => a.AuraId == row.Id).ToListAsync(ct2))
+                {
+                    if (AuraRules.LinkProblem(ability.Affects, row.Id, _ => row) is { } problem)
+                        errors.Add("kind", $"The world would refuse ability {ability.Id.Value} '{ability.Name}': {problem}.");
+                }
             }),
             caller, id, ifMatch, request, ct);
     }
@@ -215,6 +256,15 @@ public sealed class TemplateEditService(
                 return Invalid<TRow>(errors);
             }
 
+            // A foreign key the row checks missed (a row deleted between the check and the save): the value names a
+            // row that is not there, which is the caller's to fix, not an outage.
+            if (pg.SqlState == PostgresErrorCodes.ForeignKeyViolation)
+            {
+                logger.LogWarning(ex, "A {Kind} template save {TemplateId} was refused by a foreign key", kind, id);
+                errors.Add(TemplateDbErrors.FieldOf(pg), $"The database refused this value ({pg.ConstraintName}).");
+                return Invalid<TRow>(errors);
+            }
+
             if (pg.SqlState == PostgresErrorCodes.SerializationFailure)
                 return new(TemplateEditOutcome.Conflict);
 
@@ -265,13 +315,18 @@ public static class TemplateDbErrors
 
     /// <summary>
     /// The request field a constraint is about: <c>CK_AbilityTemplates_ThreatMultiplier_NonNegative</c> is
-    /// <c>threatMultiplier</c>. A constraint named some other way is <c>template</c>.
+    /// <c>threatMultiplier</c>, and the foreign key <c>FK_AbilityTemplates_AuraTemplates_AuraId</c> is <c>auraId</c>. A
+    /// constraint named some other way is <c>template</c>.
     /// </summary>
     public static string FieldOf(PostgresException error)
     {
         string[] parts = (error.ConstraintName ?? "").Split('_');
-        return parts is ["CK", _, { Length: > 0 } column, ..]
-            ? char.ToLowerInvariant(column[0]) + column[1..]
-            : "template";
+        string? column = parts switch
+        {
+            ["CK", _, { Length: > 0 } c, ..] => c,
+            ["FK", _, _, { Length: > 0 } c] => c,
+            _ => null,
+        };
+        return column is null ? "template" : char.ToLowerInvariant(column[0]) + column[1..];
     }
 }

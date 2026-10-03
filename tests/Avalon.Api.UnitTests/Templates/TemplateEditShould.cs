@@ -50,12 +50,34 @@ public sealed class TemplateEditShould : IAsyncLifetime
 
     public TemplateEditShould() => _worlds = new CountingWorlds(_sqlite);
 
-    public static TheoryData<string> Kinds => new() { "item", "ability", "creature" };
+    public static TheoryData<string> Kinds => new() { "item", "ability", "creature", "aura" };
+
+    /// <summary>A helpful aura every test world holds, whatever the seed has: the one a Hostile ability cannot apply.</summary>
+    private const uint TestWard = 990;
 
     public async Task InitializeAsync()
     {
         Row(Editable);
         Row(ReadOnly);
+        using (WorldDbContext db = _sqlite.CreateWorld(new WorldId(Editable)))
+        {
+            db.AuraTemplates.Add(new Avalon.Domain.World.AuraTemplate
+            {
+                Id = new Avalon.Common.ValueObjects.AuraId(TestWard), Name = "Test Ward", Icon = "ward",
+                Kind = Avalon.Domain.World.AuraKind.Helpful, DurationMs = 10000,
+                Stacking = Avalon.Domain.World.AuraStacking.Refresh, MaxStacks = 1,
+                Modifiers =
+                [
+                    new Avalon.Domain.World.AuraStatModifier
+                    {
+                        AuraId = new Avalon.Common.ValueObjects.AuraId(TestWard), Stat = Avalon.Domain.World.AuraStat.Armor,
+                        Kind = Avalon.Domain.World.AuraModifierKind.Percent, Value = 10f,
+                    },
+                ],
+            });
+            db.SaveChanges();
+        }
+
         _host = await ApiAuthHost.StartAsync(configure: services =>
         {
             services.AddWorldDatabases(new WorldDatabases(
@@ -117,6 +139,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         {
             "item" => db.ItemTemplates.AsEnumerable().Min(t => t.Id.Value),
             "ability" => db.AbilityTemplates.AsEnumerable().Min(t => (ulong)t.Id.Value),
+            "aura" => db.AuraTemplates.AsEnumerable().Min(t => (ulong)t.Id.Value),
             _ => db.CreatureTemplates.AsEnumerable().Min(t => t.Id.Value),
         };
     }
@@ -164,7 +187,13 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal(newVersion, readBack);
         (WorldId world, TemplateReloadArea area) = Assert.Single(_signal.Requests);
         Assert.Equal(Editable, world.Value);
-        Assert.Equal(kind switch { "item" => TemplateReloadArea.Items, "ability" => TemplateReloadArea.Abilities, _ => TemplateReloadArea.Creatures }, area);
+        Assert.Equal(kind switch
+        {
+            "item" => TemplateReloadArea.Items,
+            "ability" => TemplateReloadArea.Abilities,
+            "aura" => TemplateReloadArea.Auras,
+            _ => TemplateReloadArea.Creatures,
+        }, area);
     }
 
     [Theory]
@@ -271,6 +300,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             {
                 "item" => db.ItemTemplates.AsEnumerable().Select(t => t.Id.Value).ToList(),
                 "ability" => db.AbilityTemplates.AsEnumerable().Select(t => (ulong)t.Id.Value).ToList(),
+                "aura" => db.AuraTemplates.AsEnumerable().Select(t => (ulong)t.Id.Value).ToList(),
                 _ => db.CreatureTemplates.AsEnumerable().Select(t => t.Id.Value).ToList(),
             };
         }
@@ -305,6 +335,9 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "creature", "maxLevel", -5, "maxLevel" },
         { "creature", "speedRun", -1, "speedRun" },
         { "creature", "lootTableId", 987654, "lootTableId" },
+        { "aura", "icon", " ", "icon" },
+        { "aura", "maxStacks", 0, "maxStacks" },
+        { "aura", "durationMs", 0, "durationMs" },
     };
 
     [Theory]
@@ -597,6 +630,207 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    // ---- Auras, and the aura an ability applies ----
+
+    [Fact]
+    public async Task Replace_an_auras_modifiers_and_change_its_version()
+    {
+        ulong id = FirstId("aura");
+        (JsonObject json, string version) = await ReadAsync("aura", id);
+        json["modifiers"] = new JsonArray(
+            new JsonObject { ["stat"] = "Armor", ["value"] = 15f, ["kind"] = "Percent" },
+            new JsonObject { ["stat"] = "DodgePct", ["value"] = 2f, ["kind"] = "Flat" });
+
+        HttpResponseMessage response = await PutAsync(Editable, "aura", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        (JsonObject saved, string newVersion) = await ReadAsync("aura", id);
+        Assert.NotEqual(version, newVersion);
+        Assert.Equal(["Armor:Percent:15", "DodgePct:Flat:2"], saved["modifiers"]!.AsArray()
+            .Select(m => $"{m!["stat"]}:{m["kind"]}:{m["value"]}"));
+    }
+
+    [Fact]
+    public async Task Remove_every_modifier_of_an_aura()
+    {
+        (JsonObject json, string version) = await ReadAsync("aura", TestWard);
+        json["modifiers"] = new JsonArray();
+
+        HttpResponseMessage response = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty((await ReadAsync("aura", TestWard)).Json["modifiers"]!.AsArray());
+        using WorldDbContext db = _sqlite.CreateWorld(new WorldId(Editable));
+        Assert.DoesNotContain(db.AuraStatModifiers.AsEnumerable(), m => m.AuraId.Value == TestWard);
+    }
+
+    [Fact]
+    public async Task Refuse_an_aura_the_world_would_refuse_keyed_by_its_field()
+    {
+        ulong id = FirstId("aura");
+        (JsonObject json, string version) = await ReadAsync("aura", id);
+        json["tickIntervalMs"] = json["durationMs"]!.GetValue<uint>() + 1;
+
+        HttpResponseMessage response = await PutAsync(Editable, "aura", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.NotNull((await BodyAsync(response))["errors"]!["tickIntervalMs"]);
+        Assert.Empty(_signal.Requests);
+    }
+
+    [Fact]
+    public async Task Refuse_a_stat_modified_twice_or_below_the_tables_floor()
+    {
+        (JsonObject json, string version) = await ReadAsync("aura", TestWard);
+        json["modifiers"] = new JsonArray(
+            new JsonObject { ["stat"] = "Armor", ["value"] = 5f, ["kind"] = "Flat" },
+            new JsonObject { ["stat"] = "Armor", ["value"] = 5f, ["kind"] = "Percent" });
+        HttpResponseMessage twice = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
+
+        json["modifiers"] = new JsonArray(new JsonObject { ["stat"] = "Armor", ["value"] = -1_000_000f, ["kind"] = "Flat" });
+        HttpResponseMessage floor = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.BadRequest, twice.StatusCode);
+        Assert.NotNull((await BodyAsync(twice))["errors"]!["modifiers"]);
+        Assert.Equal(HttpStatusCode.BadRequest, floor.StatusCode);
+        Assert.NotNull((await BodyAsync(floor))["errors"]!["modifiers"]);
+        Assert.Equal(version, (await ReadAsync("aura", TestWard)).Version);
+    }
+
+    [Fact]
+    public async Task Save_a_base_damage_coefficient_and_refuse_a_negative_one_by_its_field()
+    {
+        ulong id = FirstId("aura");
+        (JsonObject json, string version) = await ReadAsync("aura", id);
+        json["baseDamageCoefficient"] = -1f;
+
+        HttpResponseMessage refused = await PutAsync(Editable, "aura", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.NotNull((await BodyAsync(refused))["errors"]!["baseDamageCoefficient"]);
+        Assert.Empty(_signal.Requests);
+
+        json["baseDamageCoefficient"] = 0.5f;
+        HttpResponseMessage saved = await PutAsync(Editable, "aura", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        (JsonObject stored, string newVersion) = await ReadAsync("aura", id);
+        Assert.Equal(0.5f, stored["baseDamageCoefficient"]!.GetValue<float>());
+        Assert.NotEqual(version, newVersion);
+    }
+
+    [Fact]
+    public async Task Refuse_an_ability_naming_an_aura_that_does_not_exist_or_does_not_fit()
+    {
+        (JsonObject json, string version) = await ReadAsync("ability", 200);   // Cleave, Hostile
+        json["auraId"] = 999_999;
+        HttpResponseMessage missing = await PutAsync(Editable, "ability", 200, json, Tag(version));
+
+        json["auraId"] = TestWard;   // a helpful aura on a Hostile ability
+        HttpResponseMessage unfit = await PutAsync(Editable, "ability", 200, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+        Assert.Contains("names aura 999999, which is missing or refused",
+            (await BodyAsync(missing))["errors"]!["auraId"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.BadRequest, unfit.StatusCode);
+        Assert.Contains($"its aura {TestWard} 'Test Ward' is Helpful, which a Hostile ability cannot apply",
+            (await BodyAsync(unfit))["errors"]!["auraId"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Equal(version, (await ReadAsync("ability", 200)).Version);
+        Assert.Empty(_signal.Requests);
+    }
+
+    [Fact]
+    public async Task Save_an_ally_ability_applying_a_helpful_aura_and_read_it_back()
+    {
+        (JsonObject json, string version) = await ReadAsync("ability", 232);   // Mending Circle, Ally
+        json["auraId"] = TestWard;
+
+        HttpResponseMessage response = await PutAsync(Editable, "ability", 232, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(TestWard, (await ReadAsync("ability", 232)).Json["auraId"]!.GetValue<uint>());
+    }
+
+    [Fact]
+    public async Task Refuse_an_aura_kind_an_ability_applying_it_cannot_apply()
+    {
+        Seed(db => db.AbilityTemplates.Find(new Avalon.Common.ValueObjects.AbilityId(232))!.AuraId =
+            new Avalon.Common.ValueObjects.AuraId(TestWard));
+        (JsonObject json, string version) = await ReadAsync("aura", TestWard);
+        json["kind"] = "Harmful";
+
+        HttpResponseMessage response = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("ability 232", (await BodyAsync(response))["errors"]!["kind"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Refuse_an_aura_script_the_published_catalog_does_not_list()
+    {
+        ulong id = FirstId("aura");
+        _catalog.Snapshot = new ScriptCatalogSnapshot([], [], [], [], ["WardScript"]);
+        (JsonObject json, string version) = await ReadAsync("aura", id);
+        json["scriptName"] = Unlisted;
+
+        HttpResponseMessage response = await PutAsync(Editable, "aura", id, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.NotNull((await BodyAsync(response))["errors"]!["scriptName"]);
+    }
+
+    [Fact]
+    public async Task Accept_an_aura_script_the_published_catalog_lists()
+    {
+        _catalog.Snapshot = new ScriptCatalogSnapshot([], [], [], [], ["WardScript"]);
+        (JsonObject json, string version) = await ReadAsync("aura", TestWard);
+        json["scriptName"] = "WardScript";
+
+        HttpResponseMessage response = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("WardScript", (await ReadAsync("aura", TestWard)).Json["scriptName"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Skip_the_aura_script_check_for_a_world_that_publishes_no_aura_list()
+    {
+        // The value a world built before auras wrote: no "aura" list at all.
+        _catalog.Snapshot = ScriptCatalogJson.Deserialize("""{"ai":[],"ability":[],"quest":[],"item":[]}""");
+        Assert.NotNull(_catalog.Snapshot);
+        Assert.Null(_catalog.Snapshot.Aura);
+        (JsonObject json, string version) = await ReadAsync("aura", TestWard);
+        json["scriptName"] = Unlisted;
+
+        HttpResponseMessage response = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Store_a_blank_aura_script_name_as_null()
+    {
+        (JsonObject json, string version) = await ReadAsync("aura", TestWard);
+        json["scriptName"] = "   ";
+
+        HttpResponseMessage response = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null((await ReadAsync("aura", TestWard)).Json["scriptName"]);
+    }
+
+    [Fact]
+    public async Task Refuse_a_stale_aura_version_after_only_a_modifier_changed()
+    {
+        (JsonObject json, string version) = await ReadAsync("aura", TestWard);
+        Seed(db => db.AuraStatModifiers.Single(m => m.AuraId == new Avalon.Common.ValueObjects.AuraId(TestWard)).Value = 11f);
+        json["name"] = "Saved from a stale read";
+
+        HttpResponseMessage response = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
     [Fact]
     public async Task Refuse_a_creature_the_world_reload_would_refuse_even_when_the_field_rules_pass()
     {
@@ -859,6 +1093,18 @@ public sealed class TemplateEditShould : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Map_a_foreign_key_violation_that_slipped_past_validation_to_400()
+    {
+        // An ability's aura deleted between the check and the save: Postgres refuses its foreign key with 23503.
+        TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(
+            new FailingSave(PostgresErrorCodes.ForeignKeyViolation, "FK_AbilityTemplates_AuraTemplates_AuraId"));
+
+        Assert.Equal(TemplateEditOutcome.Invalid, result.Outcome);
+        Assert.Equal(["auraId"], result.Errors!.Keys);
+        Assert.Empty(_signal.Requests);
+    }
+
+    [Fact]
     public async Task Map_a_serialization_failure_at_save_to_a_conflict()
     {
         // The losing side of two concurrent saves of one version: Postgres fails its UPDATE with 40001.
@@ -912,6 +1158,8 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal("bodyRadius", TemplateDbErrors.FieldOf(Pg("23514", "CK_CreatureTemplates_BodyRadius_Positive")));
         Assert.Equal("template", TemplateDbErrors.FieldOf(Pg("23514", "something_else")));
         Assert.Equal("template", TemplateDbErrors.FieldOf(Pg("23514", null)));
+        Assert.Equal("auraId", TemplateDbErrors.FieldOf(Pg("23503", "FK_AbilityTemplates_AuraTemplates_AuraId")));
+        Assert.Equal("lootTableId", TemplateDbErrors.FieldOf(Pg("23503", "FK_CreatureTemplates_LootTables_LootTableId")));
     }
 
     [Fact]

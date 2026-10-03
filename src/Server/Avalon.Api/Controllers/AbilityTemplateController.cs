@@ -113,5 +113,6 @@ public class AbilityTemplateController : BaseController
         Effects = (Avalon.Api.Contract.SpellEffect)t.Effects,
         EffectValue = t.EffectValue,
         AllowedClasses = t.AllowedClasses is null ? [] : t.AllowedClasses.ToList(),
+        AuraId = t.AuraId?.Value,
     };
 }

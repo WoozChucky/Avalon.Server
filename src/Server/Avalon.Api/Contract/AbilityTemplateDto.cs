@@ -25,6 +25,9 @@ public sealed class AbilityTemplateDto
     public uint EffectValue { get; set; }
     public List<CharacterClass> AllowedClasses { get; set; } = [];
 
+    /// <summary>The aura each unit the ability affects receives, or null (auras).</summary>
+    public uint? AuraId { get; set; }
+
     /// <summary>
     /// The row's version: a lowercase hex SHA-256 of its stored values, also sent as the ETag on a single read.
     /// An edit sends it back as If-Match.

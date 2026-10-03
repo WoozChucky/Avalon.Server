@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Api.Contract;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -31,6 +32,9 @@ internal static class TemplateFields
     private static TemplateField<CreatureTemplate, UpdateCreatureTemplateRequest> C(
         string name, Func<CreatureTemplate, object?> get, Action<CreatureTemplate, UpdateCreatureTemplateRequest> set) => new(name, get, set);
 
+    private static TemplateField<AuraTemplate, UpdateAuraTemplateRequest> U(
+        string name, Func<AuraTemplate, object?> get, Action<AuraTemplate, UpdateAuraTemplateRequest> set) => new(name, get, set);
+
     public static readonly IReadOnlyList<TemplateField<AbilityTemplate, UpdateAbilityTemplateRequest>> Ability =
     [
         A("name", e => e.Name, (e, r) => e.Name = r.Name),
@@ -43,6 +47,7 @@ internal static class TemplateFields
         A("effects", e => e.Effects, (e, r) => e.Effects = Conv(r.Effects, e.Effects)),
         A("effectValue", e => e.EffectValue, (e, r) => e.EffectValue = r.EffectValue),
         A("allowedClasses", e => e.AllowedClasses, (e, r) => e.AllowedClasses = r.AllowedClasses.ToList()),
+        A("auraId", e => e.AuraId?.Value, (e, r) => e.AuraId = r.AuraId is { } aura ? new AuraId(aura) : null),
     ];
 
     public static readonly IReadOnlyList<TemplateField<CreatureTemplate, UpdateCreatureTemplateRequest>> Creature =
@@ -125,4 +130,54 @@ internal static class TemplateFields
         I("useCooldownGroup", e => e.UseCooldownGroup, (e, r) => e.UseCooldownGroup = NullIfBlank(r.UseCooldownGroup)),
         I("useValue", e => e.UseValue, (e, r) => e.UseValue = r.UseValue),
     ];
+
+    public static readonly IReadOnlyList<TemplateField<AuraTemplate, UpdateAuraTemplateRequest>> Aura =
+    [
+        U("name", e => e.Name, (e, r) => e.Name = r.Name),
+        U("icon", e => e.Icon, (e, r) => e.Icon = r.Icon),
+        U("kind", e => e.Kind, (e, r) => e.Kind = Conv(r.Kind, e.Kind)),
+        U("durationMs", e => e.DurationMs, (e, r) => e.DurationMs = r.DurationMs),
+        U("tickIntervalMs", e => e.TickIntervalMs, (e, r) => e.TickIntervalMs = r.TickIntervalMs),
+        U("periodicKind", e => e.PeriodicKind, (e, r) => e.PeriodicKind = Conv(r.PeriodicKind, e.PeriodicKind)),
+        U("periodicBase", e => e.PeriodicBase, (e, r) => e.PeriodicBase = r.PeriodicBase),
+        U("scalingStat", e => e.ScalingStat, (e, r) => e.ScalingStat = Conv(r.ScalingStat, e.ScalingStat)),
+        U("scalingCoefficient", e => e.ScalingCoefficient, (e, r) => e.ScalingCoefficient = r.ScalingCoefficient),
+        U("baseDamageCoefficient", e => e.BaseDamageCoefficient, (e, r) => e.BaseDamageCoefficient = r.BaseDamageCoefficient),
+        U("stacking", e => e.Stacking, (e, r) => e.Stacking = Conv(r.Stacking, e.Stacking)),
+        U("maxStacks", e => e.MaxStacks, (e, r) => e.MaxStacks = r.MaxStacks),
+        U("scriptName", e => e.ScriptName, (e, r) => e.ScriptName = NullIfBlank(r.ScriptName)),
+        U("modifiers", e => ModifierText(e.Modifiers), (e, r) => MergeModifiers(e, r.Modifiers ?? [])),
+    ];
+
+    /// <summary>The modifiers as the audit line shows them: stat:kind:value by stat.</summary>
+    private static string ModifierText(IEnumerable<Avalon.Domain.World.AuraStatModifier> modifiers) =>
+        string.Join(",", modifiers.OrderBy(m => m.Stat)
+            .Select(m => $"{m.Stat}:{m.Kind}:{m.Value.ToString("R", CultureInfo.InvariantCulture)}"));
+
+    /// <summary>
+    /// Makes the row's modifiers the request's, by stat: a stat no longer listed is removed (EF deletes the orphan), a
+    /// listed one updated in place, a new one added, so EF never tracks two rows with one key.
+    /// </summary>
+    private static void MergeModifiers(AuraTemplate row, IReadOnlyList<AuraStatModifierDto> wanted)
+    {
+        foreach (Avalon.Domain.World.AuraStatModifier held in row.Modifiers.ToList())
+        {
+            if (!wanted.Any(w => (int)w.Stat == (int)held.Stat))
+                row.Modifiers.Remove(held);
+        }
+
+        foreach (AuraStatModifierDto w in wanted)
+        {
+            var stat = (Avalon.Domain.World.AuraStat)(int)w.Stat;
+            var kind = (Avalon.Domain.World.AuraModifierKind)(int)w.Kind;
+            Avalon.Domain.World.AuraStatModifier? held = row.Modifiers.FirstOrDefault(m => m.Stat == stat);
+            if (held is null)
+                row.Modifiers.Add(new Avalon.Domain.World.AuraStatModifier { AuraId = row.Id, Stat = stat, Kind = kind, Value = w.Value });
+            else
+            {
+                held.Kind = kind;
+                held.Value = w.Value;
+            }
+        }
+    }
 }
