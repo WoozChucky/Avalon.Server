@@ -14,6 +14,7 @@ contracts so a non-.NET client can be built against it.
 | `items/item-schema-v1.json` | Generated. What an `ItemTemplate` is, and what every value of its eight enumerations means. |
 | `items/item-catalog-v1.json` | Generated **from the database**. The item template rows. See below. |
 | `abilities/ability-catalog-v1.json` | Generated **from the database**. Every ability row, the creatures' included, as a client names and draws it (#163). See below. |
+| `auras/aura-catalog-v1.json` | Generated **from the database**. Every aura a client names and draws: its name, icon, kind, duration, tick interval, periodic kind, stacking and stat modifiers; each ability's `auraId` in the ability catalog points into it. `AuraCatalogExportShould` fails when it differs from the seed rendered. |
 | `quests/quest-catalog-v1.json` | Generated **from the database**. Every quest's title (enUS), stages, objectives (type, target, count) and rewards, for tooling such as a quest browser (#714); the game client needs none of it, since the quest packets are self-describing. See below. |
 | `vectors/navmesh-v1.txt` | Generated. Known-answer answers from the DotRecast bake and `MapNavigator`'s two movement queries, keyed on a chunk layout so one row covers composition, bake and query. |
 | `protobuf-net/bcl.proto` | Vendored, not generated. See below. |
@@ -26,7 +27,7 @@ dotnet run --project tools/Avalon.Exporter -- all
 ```
 
 Or name what you want: `proto`, `opcodes`, `corpus`, `crypto`, `item-schema`, `rotation`,
-`object-guid`, `navmesh`, `item-catalog`, `ability-catalog`, `quest-catalog`. A bare run lists them and writes nothing.
+`object-guid`, `navmesh`, `item-catalog`, `ability-catalog`, `aura-catalog`, `quest-catalog`. A bare run lists them and writes nothing.
 
 `WireSchemaShould`, `WireCorpusShould` and `SessionCryptoVectorsShould` in
 `tests/Avalon.Shared.UnitTests` regenerate and compare, so forgetting to is a failing test rather
@@ -37,9 +38,11 @@ guid packing, navmesh bake settings or chunk `.obj`s change and they are not re-
 exists, re-export them by hand when `ChunkRotation`, `ObjectGuid`, `NavmeshBuildSettings`,
 `MapNavigator` or `Maps/Chunks/*.obj` changes.
 
-`items/item-catalog-v1.json`, `abilities/ability-catalog-v1.json` and `quests/quest-catalog-v1.json` are the only artifacts read from
-a database rather than from the code. Their content changes when game data changes, so no test can
-regenerate and compare them — they are reviewed as data diffs. Export it from a freshly migrated database, or a local experiment becomes
+`items/item-catalog-v1.json`, `abilities/ability-catalog-v1.json`, `auras/aura-catalog-v1.json` and `quests/quest-catalog-v1.json` are the only artifacts read from
+a database rather than from the code. Their content changes when game data changes, and they are reviewed as data
+diffs. The aura and quest catalogs are also checked against the seed: `AuraCatalogExportShould` and
+`QuestCatalogExportShould` render the seed and fail when the committed file differs. The item and ability catalogs
+are not checked by any test. Export each from a freshly migrated database, or a local experiment becomes
 a committed artifact. `dotnet run --project tools/Avalon.Exporter -- all` refuses to write anything
 at all without a `Database__World__ConnectionString`.
 

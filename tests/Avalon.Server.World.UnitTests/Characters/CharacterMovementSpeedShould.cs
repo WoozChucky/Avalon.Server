@@ -15,6 +15,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Reload;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -161,6 +162,33 @@ public class CharacterMovementSpeedShould
                 .Sum(s => (float)(s.Value ?? 0));
             Assert.True(Drift(0f, bonus) < CharacterMovement.ClientSnapThreshold,
                 $"item {item.Id.Value} ({item.Name}) moves the speed {Drift(0f, bonus)} m off over a round trip");
+        }
+    }
+
+    /// <summary>
+    /// A movement aura changes the speed the server steps at the moment it lands or ends, and the client learns it with
+    /// the sheet a round trip later, as with gear. Each seeded aura that changes movement speed, alone and at its most
+    /// stacks, folded the way a character folds it, must stay under the snap at the default cap and floor, so an aura
+    /// seeded with a big slow fails here.
+    /// </summary>
+    [Fact]
+    public void Keep_the_drift_of_each_seeded_movement_aura_over_one_round_trip_under_the_clients_snap()
+    {
+        const float roundTrip = 0.1f;
+        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
+        List<AuraTemplate> movement = context.AuraTemplates.Include(a => a.Modifiers).AsEnumerable()
+            .Where(a => a.Modifiers.Any(m => m.Stat == AuraStat.MovementSpeed))
+            .ToList();
+        Assert.NotEmpty(movement);
+
+        foreach (AuraTemplate aura in movement)
+        {
+            AuraStatTotals totals = AuraStatTotals.Of([(aura.Modifiers, Math.Max(1u, aura.MaxStacks))]);
+            float pct = AuraStats.Apply(0f, totals, AuraStat.MovementSpeed);
+            float drift = MathF.Abs(CharacterMovement.SpeedFor(pct, Seeded) - CharacterMovement.SpeedFor(0f, Seeded)) * roundTrip;
+            Assert.True(drift < CharacterMovement.ClientSnapThreshold,
+                $"aura {aura.Id.Value} ({aura.Name}) moves the speed {drift} m off over a round trip");
         }
     }
 

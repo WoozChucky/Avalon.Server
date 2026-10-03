@@ -22,7 +22,8 @@ public static class FightFactory
             }
         }
 
-        return new FightSimulator(data.Combat.Formula, player, creatures, rotation, new CombatRandom(random), scenario.ConeHits);
+        return new FightSimulator(data.Combat.Formula, player, creatures, rotation, new CombatRandom(random), scenario.ConeHits,
+            data: data);
     }
 
     /// <summary>

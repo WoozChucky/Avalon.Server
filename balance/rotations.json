@@ -17,6 +17,10 @@
       ]
     },
     {
+      "ability": 203,
+      "when": []
+    },
+    {
       "ability": 202,
       "when": []
     },
@@ -33,6 +37,10 @@
           "targetsAlive": ">=2"
         }
       ]
+    },
+    {
+      "ability": 213,
+      "when": []
     },
     {
       "ability": 212,
@@ -57,6 +65,10 @@
       ]
     },
     {
+      "ability": 223,
+      "when": []
+    },
+    {
       "ability": 221,
       "when": []
     },
@@ -75,6 +87,18 @@
       "when": [
         {
           "healthPct": "<=50"
+        }
+      ]
+    },
+    {
+      "ability": 234,
+      "when": []
+    },
+    {
+      "ability": 233,
+      "when": [
+        {
+          "healthPct": "<=80"
         }
       ]
     },

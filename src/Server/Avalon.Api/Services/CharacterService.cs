@@ -2,6 +2,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Exceptions;
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Character.Repositories;
@@ -22,6 +23,9 @@ public interface ICharacterService
 
     /// <summary>The character's quest log as its world last saved it (#714); empty lists for a character with none.</summary>
     Task<CharacterQuestLogDto> GetQuestLogAsync(CharacterId id, CancellationToken cancellationToken = default);
+
+    /// <summary>The character's auras as its world last saved them, by slot; empty for a character with none.</summary>
+    Task<CharacterAurasDto> GetAurasAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task<PagedResult<Character>> PaginateAsync(CharacterPaginateFilters filters, CancellationToken cancellationToken = default);
 }
 
@@ -35,6 +39,7 @@ public class CharacterService : ICharacterService
     private readonly IItemTemplateRepository _itemTemplateRepository;
     private readonly ICharacterStatsRepository _statsRepository;
     private readonly ICharacterQuestRepository _questRepository;
+    private readonly ICharacterAuraRepository _auraRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
@@ -44,7 +49,8 @@ public class CharacterService : ICharacterService
         IAbilityTemplateRepository abilityTemplateRepository,
         IItemTemplateRepository itemTemplateRepository,
         ICharacterStatsRepository statsRepository,
-        ICharacterQuestRepository questRepository)
+        ICharacterQuestRepository questRepository,
+        ICharacterAuraRepository auraRepository)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
@@ -54,6 +60,7 @@ public class CharacterService : ICharacterService
         _itemTemplateRepository = itemTemplateRepository;
         _statsRepository = statsRepository;
         _questRepository = questRepository;
+        _auraRepository = auraRepository;
     }
 
     public Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default) =>
@@ -204,6 +211,34 @@ public class CharacterService : ICharacterService
         return rows.ToQuestLogDto(id.Value);
     }
 
+    public async Task<CharacterAurasDto> GetAurasAsync(CharacterId id, CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<CharacterAura> rows = await _auraRepository.GetByCharacterIdAsync(id, cancellationToken);
+
+        return new CharacterAurasDto
+        {
+            CharacterId = id.Value,
+            Auras = rows.Select(r => new CharacterAuraDto
+            {
+                AuraId = r.AuraId,
+                CasterCharacterId = CasterCharacterIdOf(r.CasterGuid),
+                SourceAbilityId = r.SourceAbilityId,
+                Stacks = r.Stacks,
+                RemainingMs = r.RemainingMs,
+                DurationMs = r.DurationMs,
+                TicksLeft = r.TicksLeft,
+                AppliedAt = r.AppliedAt,
+            }).ToList(),
+        };
+    }
+
+    /// <summary>The character id a saved caster names; null for nobody (0) or for anything but a character.</summary>
+    private static uint? CasterCharacterIdOf(ulong casterGuid)
+    {
+        var guid = new ObjectGuid(casterGuid);
+        return guid.Type == ObjectType.Character && guid.Id != 0 ? guid.Id : null;
+    }
+
     public async Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default)
     {
         var character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
@@ -247,7 +282,7 @@ public class CharacterService : ICharacterService
 
     private static CharacterAbilityAmountDto AmountFor(AbilityTemplate t, CharacterStats? stats, uint weaponMin, uint weaponMax)
     {
-        var kind = AbilityAmountMath.KindOf(t.ScriptName, t.Affects);
+        var kind = AbilityAmountMath.KindOf(t.ScriptName, t.Affects, t.Effects);
         var (min, max) = AbilityAmountMath.Range(kind, t.EffectValue, t.ScalingStat, t.ScalingCoefficient,
             t.BaseDamageCoefficient, stats?.AttackDamage ?? 0, stats?.AbilityDamage ?? 0, weaponMin, weaponMax);
         return new CharacterAbilityAmountDto { Kind = (Avalon.Api.Contract.AbilityAmountKind)kind, Min = min, Max = max };

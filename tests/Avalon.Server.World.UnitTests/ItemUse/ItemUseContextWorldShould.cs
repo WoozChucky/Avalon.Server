@@ -12,6 +12,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World;
+using Avalon.World.Auras;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -238,5 +239,39 @@ public class ItemUseContextWorldShould
         Assert.Equal(1u, c.Character.Quests.Get(QuestTestData.Hunt)!.ProgressOf(QuestTestData.HuntKill));
         Assert.False(ctx.AdvanceQuest(QuestTestData.Tusks, QuestTestData.TusksCollect));   // not held, and Collect anyway
         Assert.Equal(QuestResult.NotAvailable, ctx.StartQuest(QuestTestData.Hunt));       // already held
+    }
+
+    [Fact]
+    public async Task Apply_a_helpful_aura_to_the_user_or_a_party_member_here_and_to_nobody_else()
+    {
+        var party = new PartyTestWorld();
+        PartyClient a = party.Online(1, "A");
+        PartyClient b = party.Online(2, "B");
+        PartyClient c = party.Online(3, "C");
+        party.Form(a, b);
+        IWorld world = NewWorld(await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            auras: () => [Auras.AuraTestData.Renew(), Auras.AuraTestData.Bleed()])));
+        using MapInstance instance = TestMapInstances.Build(world);
+        foreach (PartyClient member in new[] { a, b, c })
+        {
+            member.Character.Spells.Load([]);
+            member.Character.InstanceId = instance.InstanceId;
+            member.Character.Health = 100;
+            member.Character.CurrentHealth = 50;
+            instance.AddCharacter(member.Connection);
+        }
+
+        ItemUseContext ctx = ContextFor(world, a.Connection, a.Character, instance);
+
+        Assert.True(ctx.ApplyAura(new AuraId(904)));
+        Assert.True(ctx.ApplyAura(new AuraId(904), b.Character.Guid));
+        Assert.False(ctx.ApplyAura(new AuraId(904), c.Character.Guid));   // not in the party
+        Assert.False(ctx.ApplyAura(new AuraId(901)));                     // harmful: never from an item
+        Assert.False(ctx.ApplyAura(new AuraId(999)));                     // not loaded
+        Assert.Equal((1, 1, 0), (a.Character.Auras.Count, b.Character.Auras.Count, c.Character.Auras.Count));
+        Assert.Equal(a.Character.Guid, b.Character.Auras.All[0].CasterGuid);
+
+        a.Character.IsDead = true;
+        Assert.False(ctx.ApplyAura(new AuraId(904), b.Character.Guid));
     }
 }

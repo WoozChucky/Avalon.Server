@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
@@ -22,7 +23,7 @@ public sealed record FightResult(
 
 /// <summary>
 /// One player against a pack, one server tick at a time. The order inside a tick is MapInstance.Update's:
-/// characters (their cast, then their own update), the cast system, then creature scripts. Circles and cones hit
+/// characters (their cast, then their own update), the cast system, the auras, then creature scripts. Circles and cones hit
 /// when they fire, as their scripts do in Prepare. A projectile hits in the cast system's script pass, as
 /// ProjectileAbilityScript does in Update: after every due wind-up has fired, on the tick it was loosed for one
 /// loosed before that pass (a character's instant cast, any wind-up), on the next tick for one a creature looses in
@@ -46,6 +47,7 @@ public sealed class FightSimulator
     private readonly IReadOnlyList<CompiledRotationEntry> _rotation;
     private readonly ICombatRandom _rng;
     private readonly int? _coneHits;
+    private readonly BalanceData? _data;
     private readonly List<PendingCast> _queue = [];
     private readonly List<(SimUnit Caster, SimAbility Ability)> _projectiles = [];
     private readonly List<CastEvent> _casts = [];
@@ -59,8 +61,9 @@ public sealed class FightSimulator
     private double _lastCasting = double.NegativeInfinity;
     private double _regenCarry;   // PowerRegen's fraction of a point, as CharacterEntity keeps it
 
+    /// <param name="data">The data auras are read from (an ability's aura, a character's stats refresh); none applies without it.</param>
     public FightSimulator(CombatFormula formula, SimPlayer player, IReadOnlyList<SimCreature> creatures,
-        IReadOnlyList<CompiledRotationEntry> rotation, ICombatRandom rng, int? coneHits = null)
+        IReadOnlyList<CompiledRotationEntry> rotation, ICombatRandom rng, int? coneHits = null, BalanceData? data = null)
     {
         _formula = formula;
         Player = player;
@@ -68,13 +71,24 @@ public sealed class FightSimulator
         _rotation = rotation;
         _rng = rng;
         _coneHits = coneHits;
+        _data = data;
     }
+
+    /// <summary>
+    /// The instant the simulated clock starts at, which aura schedules are timed on; a tick's time is this plus its
+    /// seconds in whole 100 ns units (<see cref="Now" />).
+    /// </summary>
+    public static readonly DateTimeOffset Epoch = new(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
 
     public SimPlayer Player { get; }
 
     public IReadOnlyList<SimCreature> Creatures { get; }
 
     public double Time => _tick * StepSeconds;
+
+    /// <summary>This tick's time on the aura clock: <see cref="Epoch" /> plus the tick's seconds, rounded to 100 ns units.</summary>
+    public DateTimeOffset Now =>
+        Epoch + TimeSpan.FromTicks((long)Math.Round(_tick * (double)TimeSpan.TicksPerSecond * StepSeconds));
 
     public bool Over => Player.IsDead || Creatures.All(c => c.IsDead) || Time >= MaxSeconds - 1e-9;
 
@@ -88,6 +102,7 @@ public sealed class FightSimulator
     {
         PlayerPhase();
         CastPhase();
+        AuraPhase();
         CreaturePhase();
         _tick++;
     }
@@ -251,20 +266,43 @@ public sealed class FightSimulator
             FireCreature((SimCreature)caster, ability);
     }
 
+    /// <summary>
+    /// As AbilityEffect.Apply for each unit the shape affects: the direct amount when Effects has one, then the aura. A
+    /// dodged hit applies no aura, and a hit that kills ends every aura its target held.
+    /// </summary>
     private void FirePlayer(SimPlayer player, SimAbility ability)
     {
         AbilityMetadata m = ability.Metadata;
+        bool direct = AbilityRules.HasDirectEffect(m.Effects, m.Affects);
         if (m.Affects == AbilityAffects.Ally)
         {
-            (uint heal, _) = CombatRules.Heal(player, ability, _formula, _rng);
-            _healing += CombatRules.HealPlayer(player, heal);
+            if (direct)
+            {
+                (uint heal, _) = CombatRules.Heal(player, ability, _formula, _rng);
+                _healing += CombatRules.HealPlayer(player, heal);
+            }
+
+            ApplyAura(player, player, ability);
             return;
         }
 
         foreach (SimCreature target in TargetsOf(m))
         {
-            (uint damage, _) = CombatRules.Damage(player, target, ability, _formula, _rng);
-            Add(_dealt, m.Name, CombatRules.HitCreature(player, target, damage, ability));
+            if (direct)
+            {
+                (uint damage, HitResult result) = CombatRules.Damage(player, target, ability, _formula, _rng);
+                Add(_dealt, m.Name, CombatRules.HitCreature(player, target, damage, ability));
+                if ((result & HitResult.Dodged) != HitResult.None)
+                    continue;
+
+                if (target.IsDead)
+                {
+                    ClearAuras(target);
+                    continue;
+                }
+            }
+
+            ApplyAura(player, target, ability);
         }
     }
 
@@ -287,11 +325,166 @@ public sealed class FightSimulator
 
     private void FireCreature(SimCreature creature, SimAbility ability)
     {
-        if (Player.IsDead || ability.Metadata.Affects == AbilityAffects.Ally)
+        AbilityMetadata m = ability.Metadata;
+        if (Player.IsDead || m.Affects == AbilityAffects.Ally)
             return;
 
-        (uint damage, _) = CombatRules.Damage(creature, Player, ability, _formula, _rng);
-        Add(_taken, $"{creature.Template.Name}: {ability.Name}", CombatRules.HitPlayer(Player, damage));
+        if (AbilityRules.HasDirectEffect(m.Effects, m.Affects))
+        {
+            (uint damage, HitResult result) = CombatRules.Damage(creature, Player, ability, _formula, _rng);
+            Add(_taken, $"{creature.Template.Name}: {ability.Name}", CombatRules.HitPlayer(Player, damage));
+            if ((result & HitResult.Dodged) != HitResult.None)
+                return;
+
+            if (Player.IsDead)
+            {
+                ClearAuras(Player);
+                return;
+            }
+        }
+
+        ApplyAura(creature, Player, ability);
+    }
+
+    // ---- 2a. auras (AuraSystem): applied after the hit, ticked right after the cast system ----
+
+    /// <summary>
+    /// As AuraSystem.Apply for an ability's aura: the copy held is renewed (stacked when its row allows), else a new one
+    /// is added; the snapshot comes from the caster now, its base damage roll drawn from the fight's random right after
+    /// the hit's draws, where the server draws it. A dead target gets none. The server's cap on auras per unit is never
+    /// reached here: no fight holds that many kinds of aura.
+    /// </summary>
+    private void ApplyAura(SimUnit caster, SimUnit target, SimAbility ability)
+    {
+        if (_data is null || target.IsDead || ability.Template.AuraId is not { } id
+            || !_data.Auras.TryGetValue(id, out AuraTemplate? aura))
+            return;
+
+        SimAura? held = target.Auras.FirstOrDefault(a => a.Template.Id.Value == aura.Id.Value
+            && (!AuraRules.KeysByCaster(aura.Stacking) || ReferenceEquals(a.Caster, caster)));
+        AuraSnapshot snapshot = AuraRules.Snapshot(aura, caster.Attack, _rng);
+        AuraSchedule schedule = AuraSchedule.Start(Now, aura.DurationMs, aura.TickIntervalMs);
+        uint gain = (uint)Math.Max(0, ability.Metadata.PowerGainPerHit);
+
+        if (held is not null)
+        {
+            uint stacks = AuraRules.NextStacks(aura.Stacking, held.Stacks, aura.MaxStacks);
+            bool stacked = stacks > held.Stacks;
+            held.Renew(caster, stacks, snapshot, schedule, gain);
+            if (stacked) RefreshStats(target, aura);
+            return;
+        }
+
+        target.Auras.Add(new SimAura(aura, caster, 1, snapshot, schedule, gain));
+        RefreshStats(target, aura);
+    }
+
+    /// <summary>
+    /// As AuraSystem.Update: the player, then each creature; a dead unit loses every aura; each aura, in the order
+    /// applied, takes the ticks it is owed now (its last tick rounding what its carry holds), then ends once its time is
+    /// up; a tick that kills ends every aura on the unit. The simulator steps every server tick and is never late, so it
+    /// does not model the server's catch-up after a stall (each aura's owed ticks paid together, aura by aura).
+    /// </summary>
+    private void AuraPhase()
+    {
+        DateTimeOffset now = Now;
+        TickAuras(Player, now);
+        foreach (SimCreature creature in Creatures)
+            TickAuras(creature, now);
+    }
+
+    private void TickAuras(SimUnit unit, DateTimeOffset now)
+    {
+        if (unit.Auras.Count == 0)
+            return;
+
+        if (unit.IsDead)
+        {
+            ClearAuras(unit);
+            return;
+        }
+
+        foreach (SimAura aura in unit.Auras.ToList())
+        {
+            int due = aura.Schedule.Due(now);
+            for (int k = 0; k < due && !unit.IsDead; k++)
+            {
+                aura.Schedule = aura.Schedule.AfterTicks(1);
+                PeriodicTick(unit, aura, lastTick: aura.Schedule.TicksLeft == 0);
+            }
+
+            if (unit.IsDead)
+            {
+                ClearAuras(unit);
+                return;
+            }
+
+            if (aura.Schedule.Expired(now))
+            {
+                unit.Auras.Remove(aura);
+                RefreshStats(unit, aura.Template);
+            }
+        }
+    }
+
+    /// <summary>
+    /// One tick, as CombatService.ApplyPeriodicDamage and ApplyPeriodicHeal: one crit roll, armour on damage, never a
+    /// dodge or a block; only the whole points of the amount and the aura's carry are dealt or healed
+    /// (AuraRules.TakeTick). A damage tick on the player gains Fury from the health it lost, tick by tick; one on a
+    /// creature gives its caster, while standing, the source ability's power.
+    /// </summary>
+    private void PeriodicTick(SimUnit unit, SimAura aura, bool lastTick)
+    {
+        float amount = aura.Snapshot.PerTickPerStack * aura.Stacks;
+        double carry = aura.PeriodicCarry;
+        switch (aura.Template.PeriodicKind)
+        {
+            case AuraPeriodicKind.Damage:
+            {
+                (double damage, _) = HitResolver.ResolvePeriodic(aura.Snapshot.Attacker, unit.Defence, amount, _formula, _rng);
+                uint points = AuraRules.TakeTick(damage, ref carry, lastTick);
+                if (unit is SimPlayer player)
+                    Add(_taken, aura.Template.Name, CombatRules.HitPlayer(player, points));
+                else
+                    Add(_dealt, aura.Template.Name, CombatRules.PeriodicHitCreature((SimCreature)unit, points,
+                        aura.Caster is SimPlayer { IsDead: false } caster ? caster : null, aura.PowerGainPerHit));
+                break;
+            }
+            case AuraPeriodicKind.Heal when unit is SimPlayer player:
+            {
+                (double heal, _) = HitResolver.ResolvePeriodicHeal(aura.Snapshot.Attacker, amount, _formula, _rng);
+                _healing += CombatRules.HealPlayer(player, AuraRules.TakeTick(heal, ref carry, lastTick));
+                break;
+            }
+        }
+
+        aura.PeriodicCarry = carry;
+    }
+
+    /// <summary>Death ends every aura the unit holds, its stats refreshed when any of them modified them.</summary>
+    private void ClearAuras(SimUnit unit)
+    {
+        if (unit.Auras.Count == 0)
+            return;
+
+        bool modified = unit.Auras.Any(a => a.Template.Modifiers.Count > 0);
+        unit.Auras.Clear();
+        if (modified) RefreshStats(unit, null);
+    }
+
+    /// <summary>
+    /// As AuraStatsRefresh after an aura with stat modifiers changed (<paramref name="changed" /> null for any): a
+    /// character's stats refreshed, a creature's auras folded.
+    /// </summary>
+    private void RefreshStats(SimUnit unit, AuraTemplate? changed)
+    {
+        if (changed is not null && changed.Modifiers.Count == 0)
+            return;
+
+        if (unit is SimPlayer player && _data is not null)
+            player.ApplyAuraStats(_data);
+        else if (unit is SimCreature creature)
+            creature.ApplyAuraStats();
     }
 
     // ---- 3. creature scripts (CreatureCombatScript: cooldowns first, then a choice) ----

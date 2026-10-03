@@ -17,6 +17,7 @@ public class StaticDataRulesShould
         Shape = AbilityShape.Cone,
         Reach = 4f,
         ArcDegrees = 90f,
+        Effects = SpellEffect.Damage,
     };
 
     private static CombatFormula Formula() => new()

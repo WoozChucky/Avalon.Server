@@ -6,6 +6,7 @@ using Avalon.Database.Extensions;
 using Avalon.Database.World.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.World;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Chat;
 using Avalon.World.ChunkLayouts;
@@ -136,6 +137,7 @@ public static class ServiceExtensions
         services.AddSingleton<MapTeleport>();
         services.AddSingleton<ItemUseTools>();
         services.AddSingleton<ItemUseService>();
+        services.AddSingleton<AuraScripts>();
 
         // Combat (Phase D): V1 uses default CombatConfig values. EncounterRegistry +
         // CombatService are constructed per MapInstance, not registered as singletons.

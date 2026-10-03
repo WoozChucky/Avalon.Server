@@ -91,6 +91,15 @@ public class MapSessionFilterShould
         Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_PVP_TOGGLE));
 
     [Fact]
+    public void Accept_an_aura_cancel_for_a_character_on_a_map_and_none_without_one()
+    {
+        Assert.True(For(CharacterOnMap()).CanProcess(NetworkPacketType.CMSG_AURA_CANCEL));
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_AURA_CANCEL));
+        Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_AURA_CANCEL));
+        Assert.True(MapSessionFilter.IsMapPacket(NetworkPacketType.CMSG_AURA_CANCEL));
+    }
+
+    [Fact]
     public void Reject_Loot_Pickup_Without_A_Character()
     {
         Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_LOOT_PICKUP));

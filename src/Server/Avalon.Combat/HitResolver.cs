@@ -97,6 +97,39 @@ public static class HitResolver
     public static (uint Heal, HitResult Result) ResolveHeal(in AttackerCombat a, float baseHeal, CombatFormula f,
         ICombatRandom rng)
     {
+        (double heal, HitResult result) = ResolvePeriodicHeal(a, baseHeal, f, rng);
+        return (Floor(heal), result);
+    }
+
+    /// <summary>
+    /// An aura's damage tick: the base, then a crit roll (the one draw), then armour; never dodged or blocked.
+    /// <paramref name="a" /> is the caster as the aura snapshotted it. Not floored and with no minimum: the aura carries
+    /// the fraction from tick to tick (<see cref="AuraRules.TakeTick" />), so its ticks add up to its total.
+    /// </summary>
+    public static (double Damage, HitResult Result) ResolvePeriodic(in AttackerCombat a, in DefenderCombat d,
+        float baseDamage, CombatFormula f, ICombatRandom rng)
+    {
+        double damage = NonNegative(baseDamage);
+        HitResult result = HitResult.None;
+
+        if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
+        {
+            damage *= NonNegative(f.CritMultiplier);
+            result |= HitResult.Crit;
+        }
+
+        damage *= 1d - ArmorReduction(d.Armor, a.Level, f);
+
+        return (damage, result);
+    }
+
+    /// <summary>
+    /// A heal before flooring: the base, then a crit roll (the one draw). An aura's heal tick takes it as it is and
+    /// carries the fraction (<see cref="AuraRules.TakeTick" />); <see cref="ResolveHeal" /> floors it.
+    /// </summary>
+    public static (double Heal, HitResult Result) ResolvePeriodicHeal(in AttackerCombat a, float baseHeal,
+        CombatFormula f, ICombatRandom rng)
+    {
         double heal = NonNegative(baseHeal);
         HitResult result = HitResult.None;
 
@@ -106,7 +139,7 @@ public static class HitResolver
             result |= HitResult.Crit;
         }
 
-        return (Floor(heal), result);
+        return (heal, result);
     }
 
     /// <summary>

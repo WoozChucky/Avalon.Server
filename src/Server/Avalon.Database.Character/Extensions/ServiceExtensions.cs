@@ -44,7 +44,8 @@ public static class ServiceExtensions
             .AddSingleton<IItemInstanceRepository, ItemInstanceRepository>()
             .AddSingleton<ICharacterSaveRepository, CharacterSaveRepository>()
             .AddSingleton<ICharacterQuestRepository, CharacterQuestRepository>()
-            .AddSingleton<ICharacterIgnoreRepository, CharacterIgnoreRepository>();
+            .AddSingleton<ICharacterIgnoreRepository, CharacterIgnoreRepository>()
+            .AddSingleton<ICharacterAuraRepository, CharacterAuraRepository>();
 
         return services;
     }

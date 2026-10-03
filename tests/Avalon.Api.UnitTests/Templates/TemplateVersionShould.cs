@@ -22,6 +22,7 @@ public class TemplateVersionShould
     public static TheoryData<string, string> ItemColumns => Columns(typeof(ItemTemplate));
     public static TheoryData<string, string> AbilityColumns => Columns(typeof(AbilityTemplate));
     public static TheoryData<string, string> CreatureColumns => Columns(typeof(CreatureTemplate));
+    public static TheoryData<string, string> AuraColumns => Columns(typeof(AuraTemplate));
 
     [Fact]
     public void Give_the_same_version_for_the_same_row()
@@ -71,6 +72,36 @@ public class TemplateVersionShould
     [MemberData(nameof(CreatureColumns))]
     public void Change_with_any_creature_column(string kind, string column) =>
         AssertChanges(Creature, TemplateVersion.Of, column);
+
+    [Theory]
+    [MemberData(nameof(AuraColumns))]
+    public void Change_with_any_aura_column(string kind, string column) =>
+        AssertChanges(Aura, TemplateVersion.Of, column);
+
+    [Fact]
+    public void Cover_the_base_damage_coefficient_of_an_aura() =>
+        Assert.Contains(nameof(AuraTemplate.BaseDamageCoefficient), TemplateVersion.ColumnsOf(typeof(AuraTemplate)));
+
+    [Fact]
+    public void Change_with_any_aura_modifier_and_not_with_their_order()
+    {
+        string version = TemplateVersion.Of(Aura());
+
+        AuraTemplate value = Aura();
+        value.Modifiers[0].Value += 1f;
+        AuraTemplate kind = Aura();
+        kind.Modifiers[0].Kind = AuraModifierKind.Flat;
+        AuraTemplate added = Aura();
+        added.Modifiers.Add(new AuraStatModifier { AuraId = added.Id, Stat = AuraStat.MaxHealth, Kind = AuraModifierKind.Flat, Value = 5f });
+        AuraTemplate removed = Aura();
+        removed.Modifiers.RemoveAt(0);
+        AuraTemplate reordered = Aura();
+        reordered.Modifiers.Reverse();
+
+        Assert.Equal(5, new[] { version, TemplateVersion.Of(value), TemplateVersion.Of(kind), TemplateVersion.Of(added), TemplateVersion.Of(removed) }
+            .Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(version, TemplateVersion.Of(reordered));
+    }
 
     private static void AssertChanges<T>(Func<T> make, Func<T, string> version, string column) where T : class
     {
@@ -162,6 +193,23 @@ public class TemplateVersionShould
         Name = "Cleave",
         ScriptName = "script",
         AllowedClasses = [CharacterClass.Warrior],
+        AuraId = new AuraId(1),
+    };
+
+    private static AuraTemplate Aura() => new()
+    {
+        Id = new AuraId(3),
+        Name = "Ward",
+        Icon = "ward",
+        Kind = AuraKind.Helpful,
+        DurationMs = 10000,
+        Stacking = AuraStacking.Refresh,
+        MaxStacks = 1,
+        Modifiers =
+        [
+            new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 10f },
+            new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.DodgePct, Kind = AuraModifierKind.Flat, Value = 2f },
+        ],
     };
 
     private static CreatureTemplate Creature() => new()

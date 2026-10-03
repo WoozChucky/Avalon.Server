@@ -22,12 +22,16 @@ public class SUnitDamagePacket : Packet
     /// <summary>How the hit went (#506): a crit, a block, both, or a dodge, which deals 0. Absent is None.</summary>
     [ProtoMember(5)] public HitResult Result { get; set; }
 
+    /// <summary>The aura whose tick this was (auras); absent for every other hit.</summary>
+    [ProtoMember(6)] public uint? AuraId { get; set; }
+
     public static NetworkPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, EncryptFunc encryptFunc,
-        HitResult result = HitResult.None)
+        HitResult result = HitResult.None, uint? auraId = null)
         => PacketSerializationHelper.Serialize(
             new SUnitDamagePacket
             {
                 Attacker = attacker.RawValue, Target = target, CurrentHealth = currentHealth, Damage = damage, Result = result,
+                AuraId = auraId,
             },
             PacketType, Flags, Protocol, encryptFunc);
 }

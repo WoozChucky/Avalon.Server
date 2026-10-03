@@ -17,6 +17,7 @@ public enum TemplateReloadArea
     Items,
     Abilities,
     Creatures,
+    Auras,
 }
 
 /// <param name="Status"><c>applied</c>, <c>failed</c> or <c>pending</c> (the world did not answer in time).</param>

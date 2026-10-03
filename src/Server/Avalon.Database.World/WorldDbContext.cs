@@ -79,6 +79,8 @@ public class WorldDbContext : DbContext
     public DbSet<CreatureRarityModifier> CreatureRarityModifiers { get; set; } = null!;
     public DbSet<CharacterCreateInfo> CharacterCreateInfos { get; set; } = null!;
     public DbSet<AbilityTemplate> AbilityTemplates { get; set; } = null!;
+    public DbSet<AuraTemplate> AuraTemplates { get; set; } = null!;
+    public DbSet<AuraStatModifier> AuraStatModifiers { get; set; } = null!;
     public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
     public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
     public DbSet<ChunkGroup> ChunkGroups { get; set; } = null!;
@@ -133,6 +135,8 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<CreatureBaseStat>());
         Configure(modelBuilder.Entity<CreatureRarityModifier>());
         Configure(modelBuilder.Entity<CharacterCreateInfo>());
+        Configure(modelBuilder.Entity<AuraTemplate>());
+        Configure(modelBuilder.Entity<AuraStatModifier>());
         Configure(modelBuilder.Entity<AbilityTemplate>());
         Configure(modelBuilder.Entity<ChunkTemplate>());
         Configure(modelBuilder.Entity<ChunkPool>());
@@ -300,7 +304,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2, 3],
-            StartingSpells = [200, 201, 202]
+            StartingSpells = [200, 201, 202, 203]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Wizard,
@@ -310,7 +314,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [210, 211, 212]
+            StartingSpells = [210, 211, 212, 213]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Hunter,
@@ -320,7 +324,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [220, 221, 222]
+            StartingSpells = [220, 221, 222, 223]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Healer,
@@ -330,7 +334,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [230, 231, 232]
+            StartingSpells = [230, 231, 232, 233, 234]
         });
     }
 
@@ -2713,6 +2717,16 @@ public class WorldDbContext : DbContext
                 v => new AbilityId(v)
             ).IsRequired();
 
+        // The aura the ability applies to each unit it affects, or none. Restrict: an aura an ability names cannot be
+        // deleted from under it.
+        builder.Property(b => b.AuraId)
+            .HasConversion(v => v!.Value, v => new AuraId(v))
+            .IsRequired(false);
+        builder.HasOne<AuraTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.AuraId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // The starter kit (#164): three skills per class, one generic script per shape. The ids are new,
         // so no client that cached the retired abilities (1, 2, 100-103) confuses them. Numbers are
         // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres.
@@ -2729,6 +2743,15 @@ public class WorldDbContext : DbContext
             Kit(230, CharacterClass.Healer, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f),
             Kit(231, CharacterClass.Healer, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
             Kit(232, CharacterClass.Healer, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, value: 40, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, coefficient: 0.6f));
+
+        // Auras: one new ability per class (two for the Healer), each applying its aura; the existing skills are
+        // untouched. Ignite, Renew and Fortify deal and heal nothing directly (Effects has no Damage or Heal).
+        builder.HasData(
+            Kit(203, CharacterClass.Warrior, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 6000, cost: 10, value: 8, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.5f, aura: 1),
+            Kit(213, CharacterClass.Wizard, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 6000, cost: 20, value: 0, range: SpellRange.Long, scaling: ScalingStat.Ability, effects: SpellEffect.Debuff, aura: 2),
+            Kit(223, CharacterClass.Hunter, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 8000, cost: 15, value: 14, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.35f, weapon: 0.6f, aura: 3),
+            Kit(233, CharacterClass.Healer, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 6000, cost: 15, value: 0, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 4),
+            Kit(234, CharacterClass.Healer, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, radius: 8f, cooldown: 20000, cost: 20, value: 0, range: SpellRange.Short, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 5));
 
         // The forest creatures' abilities (#163), creature-only (no class), free, and dealt from each creature's
         // natural damage range through BaseDamageCoefficient. Each creature's AI script declares its own ids and
@@ -2753,6 +2776,11 @@ public class WorldDbContext : DbContext
             CreatureAbility(314, "Bramble Lash", AbilityShape.Cone, reach: 2.5f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
             CreatureAbility(315, "Bramble Nova", AbilityShape.Circle, radius: 6f, castTime: 1200, cooldown: 16000, baseDamage: 2.5f),
             CreatureAbility(316, "Thornspray", AbilityShape.Cone, reach: 5f, arc: 120f, cooldown: 8000, baseDamage: 1.8f));
+
+        // Auras: the Blightfly's poisoning spit and the Alpha's armour-breaking howl.
+        builder.HasData(
+            CreatureAbility(317, "Venom Spit", AbilityShape.Projectile, reach: 10f, speed: 14f, cooldown: 8000, baseDamage: 0.6f, aura: 6),
+            CreatureAbility(318, "Sundering Howl", AbilityShape.Circle, radius: 6f, cooldown: 18000, baseDamage: 0f, effects: SpellEffect.Debuff, aura: 7));
     }
 
     /// <summary>
@@ -2762,7 +2790,7 @@ public class WorldDbContext : DbContext
     /// </summary>
     private static AbilityTemplate CreatureAbility(uint id, string name, AbilityShape shape, uint cooldown,
         float baseDamage, float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false,
-        uint castTime = 0) => new()
+        uint castTime = 0, SpellEffect effects = SpellEffect.Damage, uint? aura = null) => new()
     {
         Id = id,
         Name = name,
@@ -2776,7 +2804,7 @@ public class WorldDbContext : DbContext
             <= 10f => SpellRange.Medium,
             _ => SpellRange.Long,
         },
-        Effects = SpellEffect.Damage,
+        Effects = effects,
         EffectValue = 0,
         AllowedClasses = [],
         ScriptName = shape switch
@@ -2800,6 +2828,7 @@ public class WorldDbContext : DbContext
         ScalingStat = ScalingStat.Attack,
         ScalingCoefficient = 0f,
         BaseDamageCoefficient = baseDamage,
+        AuraId = aura is { } a ? new AuraId(a) : null,
     };
 
     /// <summary>
@@ -2818,7 +2847,8 @@ public class WorldDbContext : DbContext
         SpellRange range, uint cooldown, uint cost, uint value, AbilityAnchor anchor = AbilityAnchor.Caster,
         float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
         AbilityAffects affects = AbilityAffects.Hostile, int powerGainPerHit = 0,
-        ScalingStat scaling = ScalingStat.Attack, float coefficient = 0f, float weapon = 0f) => new()
+        ScalingStat scaling = ScalingStat.Attack, float coefficient = 0f, float weapon = 0f, SpellEffect? effects = null,
+        uint? aura = null) => new()
     {
         Id = id,
         Name = name,
@@ -2827,7 +2857,7 @@ public class WorldDbContext : DbContext
         Cost = cost,
         CostPowerType = cost == 0 ? PowerType.None : ClassPool(cls),
         Range = range,
-        Effects = affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage,
+        Effects = effects ?? (affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage),
         EffectValue = value,
         AllowedClasses = [cls],
         ScriptName = shape switch
@@ -2851,7 +2881,99 @@ public class WorldDbContext : DbContext
         ScalingStat = scaling,
         ScalingCoefficient = coefficient,
         BaseDamageCoefficient = weapon,
+        AuraId = aura is { } a ? new AuraId(a) : null,
     };
+
+    /// <summary>
+    /// Auras: timed effects abilities, items and scripts put on units. Reference data; the world's AuraCatalog validates
+    /// it on load and on /reload auras. The checks mirror AuraRules.Problem, so a row the world would refuse never
+    /// reaches it. Kind 1 Helpful, 2 Harmful; PeriodicKind 0 None, 1 Damage, 2 Heal; Stacking 1 Refresh, 2 Stack,
+    /// 3 Independent.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<AuraTemplate> builder)
+    {
+        builder.ToTable("AuraTemplates", t =>
+        {
+            t.HasCheckConstraint("CK_AuraTemplates_Kind", "\"Kind\" IN (1, 2)");
+            t.HasCheckConstraint("CK_AuraTemplates_PeriodicKind", "\"PeriodicKind\" IN (0, 1, 2)");
+            t.HasCheckConstraint("CK_AuraTemplates_Stacking", "\"Stacking\" IN (1, 2, 3)");
+            // ScalingStat: 0 Attack, 1 Ability.
+            t.HasCheckConstraint("CK_AuraTemplates_ScalingStat", "\"ScalingStat\" IN (0, 1)");
+            t.HasCheckConstraint("CK_AuraTemplates_DurationMs", "\"DurationMs\" > 0");
+            t.HasCheckConstraint("CK_AuraTemplates_TickIntervalMs",
+                "\"TickIntervalMs\" <= \"DurationMs\" AND (\"PeriodicKind\" = 0 OR \"TickIntervalMs\" > 0)");
+            t.HasCheckConstraint("CK_AuraTemplates_MaxStacks", "\"MaxStacks\" >= 1");
+            t.HasCheckConstraint("CK_AuraTemplates_PeriodicBase", Finite("PeriodicBase"));
+            t.HasCheckConstraint("CK_AuraTemplates_ScalingCoefficient", Finite("ScalingCoefficient"));
+            t.HasCheckConstraint("CK_AuraTemplates_BaseDamageCoefficient", Finite("BaseDamageCoefficient"));
+            // A harmful aura never heals and a helpful one never deals damage.
+            t.HasCheckConstraint("CK_AuraTemplates_PeriodicFitsKind",
+                "(\"Kind\" = 2 OR \"PeriodicKind\" <> 1) AND (\"Kind\" = 1 OR \"PeriodicKind\" <> 2)");
+        });
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new AuraId(v))
+            .IsRequired()
+            .ValueGeneratedNever();
+        builder.Property(b => b.Name).IsRequired().HasMaxLength(100);
+        builder.Property(b => b.Icon).IsRequired().HasMaxLength(100);
+        builder.Property(b => b.ScriptName).IsRequired(false).HasMaxLength(200);
+        builder.HasMany(b => b.Modifiers).WithOne().HasForeignKey(m => m.AuraId).OnDelete(DeleteBehavior.Cascade);
+
+        // The seeded auras: numbers set against the kit (a level-1 Warrior attacks for 46, a Wizard has 69 ability
+        // damage, a Healer 46). A creature has no damage stats, so Poison scales through one roll of its natural damage
+        // (base damage coefficient 1.0) and grows with its level as its hits do; base 3 keeps a floor under a low roll.
+        // Every other aura has no base damage term: Bleed already scales with attack damage, the spells (Burn, Renew)
+        // with ability damage, and the stat auras have no periodic amount.
+        builder.HasData(
+            Aura(1, "Bleed", AuraKind.Harmful, 12000, 3000, AuraPeriodicKind.Damage, 12f, ScalingStat.Attack, 0.25f, AuraStacking.Stack, 3),
+            Aura(2, "Burn", AuraKind.Harmful, 9000, 3000, AuraPeriodicKind.Damage, 24f, ScalingStat.Ability, 0.6f, AuraStacking.Refresh, 1),
+            Aura(3, "Crippled", AuraKind.Harmful, 6000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(4, "Renew", AuraKind.Helpful, 12000, 3000, AuraPeriodicKind.Heal, 24f, ScalingStat.Ability, 0.4f, AuraStacking.Refresh, 1),
+            Aura(5, "Fortified", AuraKind.Helpful, 30000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(6, "Poison", AuraKind.Harmful, 9000, 3000, AuraPeriodicKind.Damage, 3f, ScalingStat.Attack, 0f, AuraStacking.Stack, 3,
+                baseDamage: 1f),
+            Aura(7, "Sundered", AuraKind.Harmful, 10000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1));
+    }
+
+    /// <summary>
+    /// An aura row; its icon is its name in lower case, and no seeded aura names a script. <paramref name="baseDamage" />
+    /// is its base damage coefficient, 0 unless the aura should grow with its caster's base damage.
+    /// </summary>
+    private static AuraTemplate Aura(uint id, string name, AuraKind kind, uint durationMs, uint tickIntervalMs,
+        AuraPeriodicKind periodic, float periodicBase, ScalingStat stat, float coefficient, AuraStacking stacking,
+        uint maxStacks, float baseDamage = 0f) => new()
+    {
+        Id = id, Name = name, Icon = name.ToLowerInvariant(), Kind = kind, DurationMs = durationMs,
+        TickIntervalMs = tickIntervalMs, PeriodicKind = periodic, PeriodicBase = periodicBase, ScalingStat = stat,
+        ScalingCoefficient = coefficient, BaseDamageCoefficient = baseDamage, Stacking = stacking, MaxStacks = maxStacks,
+    };
+
+    /// <summary>
+    /// One stat an aura modifies, at most one row per stat. Stat 1-10 (AuraStat); Kind 1 Flat, 2 Percent. The value may be
+    /// negative (a debuff) but must be finite, and a percentage above -100. The lower bound is a number, not the text
+    /// '-Infinity', because SQLite (the tests) sorts every number below any text; Postgres refuses -Infinity by it too.
+    /// That bound, -1,000,000, is also a floor AuraRules.Problem does not have: a flat value at or below it passes the
+    /// rule but not the database.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<AuraStatModifier> builder)
+    {
+        builder.ToTable("AuraStatModifiers", t =>
+        {
+            t.HasCheckConstraint("CK_AuraStatModifiers_Stat", "\"Stat\" BETWEEN 1 AND 10");
+            t.HasCheckConstraint("CK_AuraStatModifiers_Kind", "\"Kind\" IN (1, 2)");
+            t.HasCheckConstraint("CK_AuraStatModifiers_Value",
+                "\"Value\" > -1000000 AND \"Value\" < 'Infinity' AND (\"Kind\" = 1 OR \"Value\" > -100)");
+        });
+        builder.HasKey(b => new { b.AuraId, b.Stat });
+        builder.Property(b => b.AuraId).HasConversion(v => v.Value, v => new AuraId(v)).IsRequired();
+
+        // Crippled slows by 30 points of movement speed; Fortified raises armour by a fifth; Sundered takes a quarter.
+        builder.HasData(
+            new AuraStatModifier { AuraId = 3, Stat = AuraStat.MovementSpeed, Kind = AuraModifierKind.Flat, Value = -30f },
+            new AuraStatModifier { AuraId = 5, Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f },
+            new AuraStatModifier { AuraId = 7, Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = -25f });
+    }
 
     /// <summary>
     /// The one combat formula row (#506). Every value finite, the multipliers and armour terms 0 or more,

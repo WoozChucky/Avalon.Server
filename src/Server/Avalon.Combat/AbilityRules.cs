@@ -1,6 +1,7 @@
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.Combat;
 
@@ -53,6 +54,18 @@ public static class AbilityRules
         if (t.Affects == AbilityAffects.Ally && t.Shape != AbilityShape.Circle)
             return "only a circle may affect allies";
 
+        // With neither a direct amount nor an aura the ability would spend its cost and change nothing.
+        if (!HasDirectEffect(t.Effects, t.Affects) && t.AuraId is null)
+            return t.Affects == AbilityAffects.Ally
+                ? "the ability does nothing: Effects has no Heal for an Ally ability, and it applies no aura"
+                : "the ability does nothing: Effects has no Damage for a Hostile ability, and it applies no aura";
+
+        return ShapeProblem(t);
+    }
+
+    /// <summary>The checks of the row's own shape, or null when they pass.</summary>
+    private static string? ShapeProblem(AbilityTemplate t)
+    {
         switch (t.Shape)
         {
             case AbilityShape.Circle:
@@ -84,6 +97,13 @@ public static class AbilityRules
                 return $"unknown shape {(byte)t.Shape}";
         }
     }
+
+    /// <summary>
+    /// Whether the ability deals or heals its own amount: a Hostile ability when <paramref name="effects" /> has Damage,
+    /// an Ally one when it has Heal. Without it the ability only applies its aura.
+    /// </summary>
+    public static bool HasDirectEffect(SpellEffect effects, AbilityAffects affects) =>
+        (effects & (affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage)) != SpellEffect.None;
 
     /// <summary>
     /// Each shape has exactly one script that resolves it, so a row naming another would fire a shape

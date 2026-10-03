@@ -31,7 +31,8 @@ desktop; narrow it with `--class`, `--scenario` and `--runs` while iterating. Th
 
 - `overrides.json`: a flat map `"Table.key.Column": value`, empty on `main`. Tables and keys:
   `Ability.<id>`, `ClassLevelStat.<Class>.<level>`, `ClassStatFactors.<Class>`, `CombatFormula` (no key),
-  `CreatureBaseStats.<level>`, `CreatureRarityModifiers.<Rarity>`, `CreatureTemplate.<id>`, `Item.<id>`.
+  `CreatureBaseStats.<level>`, `CreatureRarityModifiers.<Rarity>`, `CreatureTemplate.<id>`, `Item.<id>`, `Aura.<id>`,
+  `AuraStatModifier.<auraId>.<Stat>`.
   Example: `{ "Ability.201.EffectValue": 18, "CombatFormula.ArmorBase": 60 }`. An unknown table, key or column stops
   the run naming it, as does a key given twice or a computed column; a value the server's validators would refuse
   stops it with their message. An override equal to the seed is reported as stale ("already applied"): delete it.
@@ -79,6 +80,14 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
 - **Creature levels end at 5.** No seeded hostile template's level range goes past 5 (several stop sooner), and a
   `levelOffset` is clamped to the template's range, so the "same level" and "+2" rows above that fight capped
   creatures: from level 6 up they grade how the player outgrows the forest, not a fair fight.
+- **Auras** (damage and healing over time, and stat auras) are modelled through the server's rules (`AuraRules`,
+  `AuraSchedule`, `AuraStats`, `HitResolver.ResolvePeriodic` and `ResolvePeriodicHeal`): an ability's aura goes on
+  every unit its hit landed on (none after a dodge, and on the caster for an Ally ability), its base damage roll drawn
+  right after the hit's; it ticks on the server's schedule right after the cast phase, each tick with one crit roll and
+  the fraction of a point carried to the next; and it folds its modifiers into stats as `CharacterStatsCalculator`
+  does. A death ends every aura the unit holds. Movement speed modifiers change nothing (nobody moves), the cap on
+  auras per unit is never reached, no aura script runs, and the server's catch-up after a stall does not arise (the
+  simulator never falls behind).
 - Not modelled: movement, dodging wind-ups, potions and other consumables, groups, PvP, threat, out-of-combat health
   regeneration and Fury decay, and the map's experience band.
 - A fight ends when the player dies, every creature dies, or at 300 s (a loss).

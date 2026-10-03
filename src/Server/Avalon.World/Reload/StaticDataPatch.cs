@@ -117,3 +117,13 @@ public sealed record QuestsPatch(Quests.QuestCatalog Catalog) : StaticDataPatch(
 {
     public override string Describe() => Catalog.Describe();
 }
+
+/// <summary>
+/// Aura templates, validated with the aura scripts loaded. Forward-only: an aura already on a unit keeps the template,
+/// snapshot and stacks it was applied with; one whose template this patch drops expires on its next tick. An ability's
+/// aura link is checked by the Abilities area against the auras its own prepare reads.
+/// </summary>
+public sealed record AurasPatch(Auras.AuraCatalog Catalog) : StaticDataPatch(ReloadArea.Auras)
+{
+    public override string Describe() => Catalog.Describe();
+}

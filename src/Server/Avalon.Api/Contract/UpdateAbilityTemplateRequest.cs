@@ -24,4 +24,7 @@ public sealed class UpdateAbilityTemplateRequest
     public SpellEffect Effects { get; set; }
     public uint EffectValue { get; set; }
     public List<CharacterClass> AllowedClasses { get; set; } = [];
+
+    /// <summary>The aura each unit the ability affects receives, or null (auras).</summary>
+    public uint? AuraId { get; set; }
 }

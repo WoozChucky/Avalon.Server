@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Api.Contract;
 using Avalon.Combat;
 using Avalon.Domain.World;
@@ -28,12 +29,16 @@ public sealed class TemplateErrors
 /// One rule set per template kind: the rules a save must pass so that the world's own loaders accept the row
 /// afterwards. The field rules run on the request, the "world rules" on the row as it would be stored (they cover
 /// the columns an edit cannot reach too, so an already-bad row is refused rather than re-saved). Rules that the
-/// shared <c>Avalon.Combat</c> loaders own are called, not copied: <see cref="AbilityRules.Problem"/> and
+/// shared <c>Avalon.Combat</c> loaders own are called, not copied: <see cref="AbilityRules.Problem"/>,
+/// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/> and
 /// <see cref="CreatureTemplateRules.Validate"/>. The world loads items with no validation of its own and the
 /// ItemTemplates table has no check constraint, so items get sanity rules only.
 /// </summary>
 public static class TemplateValidation
 {
+    /// <summary>The lowest stat modifier the AuraStatModifiers table takes, exclusive (CK_AuraStatModifiers_Value).</summary>
+    private const float AuraModifierFloor = -1_000_000f;
+
     public static TemplateErrors Item(UpdateItemTemplateRequest r)
     {
         TemplateErrors e = new();
@@ -81,6 +86,29 @@ public static class TemplateValidation
         if (r.Cost > 0 && r.CostPowerType == Contract.PowerType.None)
             e.Add("costPowerType", "A cost needs the pool it is spent from (Mana, Fury or Energy).");
         Classes(e, r.AllowedClasses);
+        return e;
+    }
+
+    public static TemplateErrors Aura(UpdateAuraTemplateRequest r)
+    {
+        TemplateErrors e = new();
+        Name(e, r.Name);
+        if (string.IsNullOrWhiteSpace(r.Icon)) e.Add("icon", "Icon is required.");
+        Defined(e, "kind", r.Kind);
+        Defined(e, "periodicKind", r.PeriodicKind);
+        Defined(e, "scalingStat", r.ScalingStat);
+        Defined(e, "stacking", r.Stacking);
+        foreach (AuraStatModifierDto m in r.Modifiers ?? [])
+        {
+            Defined(e, "modifiers", m.Stat);
+            Defined(e, "modifiers", m.Kind);
+            // CK_AuraStatModifiers_Value: a floor the world's rules do not have.
+            if (m.Value <= AuraModifierFloor)
+                e.Add("modifiers", $"{m.Stat} modifier must be above {AuraModifierFloor.ToString(CultureInfo.InvariantCulture)}.");
+        }
+
+        if (r.Modifiers is { } list && list.Select(m => m.Stat).Distinct().Count() != list.Count)
+            e.Add("modifiers", "A stat is modified more than once.");
         return e;
     }
 
@@ -145,6 +173,16 @@ public static class TemplateValidation
     }
 
     /// <summary>
+    /// What the world's Auras reload and the AuraTemplates check constraints say of the row as it would be stored:
+    /// <see cref="AuraRules.Problem"/>, keyed by the field the problem is about.
+    /// </summary>
+    public static void AuraWorldRules(TemplateErrors errors, AuraTemplate row)
+    {
+        if (AuraRules.Problem(row) is not { } problem) return;
+        errors.Add(AuraField(problem), $"The world would refuse this aura: {problem}.");
+    }
+
+    /// <summary>
     /// A script name the world's published catalog does not list (<paramref name="known"/> is the list for this kind of
     /// template). Not checked while no catalog is published (<paramref name="catalog"/> null: no world has reported in),
     /// and an empty name is never unknown: whether a template needs a script is its own rule. A name equal to
@@ -167,6 +205,25 @@ public static class TemplateValidation
         _ when problem.Contains("must use", StringComparison.Ordinal) => "scriptName",
         _ when problem.Contains("power type", StringComparison.OrdinalIgnoreCase) => "costPowerType",
         _ when problem.StartsWith("Cost ", StringComparison.Ordinal) => "costPowerType",
+        _ when problem.StartsWith("the ability does nothing", StringComparison.Ordinal) => "effects",
+        _ => "template",
+    };
+
+    private static string AuraField(string problem) => problem switch
+    {
+        _ when problem.StartsWith("unknown kind", StringComparison.Ordinal) => "kind",
+        _ when problem.StartsWith("unknown periodic kind", StringComparison.Ordinal) => "periodicKind",
+        _ when problem.StartsWith("unknown stacking", StringComparison.Ordinal) => "stacking",
+        _ when problem.StartsWith("unknown scaling stat", StringComparison.Ordinal) => "scalingStat",
+        _ when problem.StartsWith("TickIntervalMs", StringComparison.Ordinal) => "tickIntervalMs",
+        _ when problem.Contains("TickIntervalMs above 0", StringComparison.Ordinal) => "tickIntervalMs",
+        _ when problem.StartsWith("DurationMs", StringComparison.Ordinal) => "durationMs",
+        _ when problem.Contains("MaxStacks", StringComparison.Ordinal) => "maxStacks",
+        _ when problem.StartsWith("PeriodicBase", StringComparison.Ordinal) => "periodicBase",
+        _ when problem.StartsWith("ScalingCoefficient", StringComparison.Ordinal) => "scalingCoefficient",
+        _ when problem.StartsWith("BaseDamageCoefficient", StringComparison.Ordinal) => "baseDamageCoefficient",
+        _ when problem.Contains("cannot heal", StringComparison.Ordinal) || problem.Contains("cannot deal", StringComparison.Ordinal) => "periodicKind",
+        _ when problem.Contains("modif", StringComparison.Ordinal) || problem.StartsWith("unknown stat", StringComparison.Ordinal) => "modifiers",
         _ => "template",
     };
 

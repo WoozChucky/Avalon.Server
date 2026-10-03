@@ -60,6 +60,11 @@ public class WorldHostGraphShould
             // WorldServer resolves this after the scripts load; a missing registration stops the world from starting.
             Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Scripts.ScriptCatalogPublisher>());
 
+            // Auras: MapInstance reads the aura script host with GetService, so a missing registration would silently
+            // run no aura's script.
+            Assert.Same(host.Services.GetRequiredService<Avalon.World.Auras.AuraScripts>(),
+                host.Services.GetRequiredService<Avalon.World.Auras.AuraScripts>());
+
             // Loot (#460). MapInstance reads these with GetService, so a missing registration would
             // not fail anything else: it would silently make every creature drop nothing.
             Assert.NotNull(host.Services.GetRequiredService<ILootRoller>());
@@ -70,6 +75,11 @@ public class WorldHostGraphShould
             // DialogueChooseHandler, MapInstance), so only this proves production supplies them.
             Assert.NotNull(host.Services.GetRequiredService<IVendorStockRepository>());
             Assert.NotNull(host.Services.GetRequiredService<ICombatDataRepository>());
+
+            // Auras. World takes the repository optionally and would otherwise load no aura at all, so every ability that
+            // names one would be refused: only this proves production hands it over.
+            Assert.Same(host.Services.GetRequiredService<IAuraTemplateRepository>(),
+                CapturedOfType<IAuraTemplateRepository>(host.Services.GetRequiredService<IWorld>().Data));
 
             // Quests (#433). Production registers the quest repository; that CharacterSelectHandler is handed it (it
             // takes it optionally and loads an empty log without it) is Hand_the_quest_service_to_the_handlers.
@@ -110,6 +120,11 @@ public class WorldHostGraphShould
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is Avalon.World.Social.IgnoreListCommand);
             Assert.Same(host.Services.GetRequiredService<ICharacterIgnoreRepository>(),
                 CapturedOfType<ICharacterIgnoreRepository>(ActivatorUtilities.CreateInstance(host.Services,
+                    typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
+            // Auras: CharacterSelectHandler takes the repository optionally and would otherwise bring every character
+            // back with no aura, so only this proves production loads them.
+            Assert.Same(host.Services.GetRequiredService<ICharacterAuraRepository>(),
+                CapturedOfType<ICharacterAuraRepository>(ActivatorUtilities.CreateInstance(host.Services,
                     typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
             // The delete takes a deleted character off the loaded lists through the world server's connections, which
             // WorldServer hands only to a handler whose constructor names IWorldServer.
@@ -201,6 +216,7 @@ public class WorldHostGraphShould
     [InlineData(NetworkPacketType.CMSG_VENDOR_SELL, typeof(VendorSellHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUYBACK, typeof(VendorBuybackHandler))]
     [InlineData(NetworkPacketType.CMSG_PVP_TOGGLE, typeof(PvpToggleHandler))]
+    [InlineData(NetworkPacketType.CMSG_AURA_CANCEL, typeof(AuraCancelHandler))]
     [InlineData(NetworkPacketType.CMSG_CHAT_MESSAGE, typeof(ChatMessageHandler))]
     [InlineData(NetworkPacketType.CMSG_PARTY_INVITE, typeof(PartyInviteHandler))]
     [InlineData(NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE, typeof(PartyInviteResponseHandler))]

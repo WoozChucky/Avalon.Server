@@ -21,6 +21,8 @@ public static class SeedSource
             CharacterCreateInfos = reader.Rows<CharacterCreateInfo>(),
             CharacterLevelExperiences = reader.Rows<CharacterLevelExperience>(),
             VendorStocks = reader.Rows<VendorStock>(),
+            AuraTemplates = reader.Rows<AuraTemplate>(),
+            AuraStatModifiers = reader.Rows<AuraStatModifier>(),
         };
     }
 }

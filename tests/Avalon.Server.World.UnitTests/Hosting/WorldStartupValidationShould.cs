@@ -240,7 +240,9 @@ public class WorldStartupValidationShould
     [Theory]
     [InlineData("MaxActiveQuests", "0")]
     [InlineData("MaxActiveQuests", "101")]
-    public async Task Refuse_to_start_with_a_quest_setting_out_of_range(string setting, string value)
+    [InlineData("MaxAurasPerUnit", "0")]
+    [InlineData("MaxAurasPerUnit", "257")]
+    public async Task Refuse_to_start_with_a_cap_setting_out_of_range(string setting, string value)
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -289,6 +291,7 @@ public class WorldStartupValidationShould
         Assert.Equal(5, config.PartyExperienceLevelGap);
         Assert.Equal(20, config.MaxActiveQuests);
         Assert.Equal(50, config.MaxIgnoredCharacters);
+        Assert.Equal(32, config.MaxAurasPerUnit);
     }
 
     private static async Task<IHost> BuildAsync(Dictionary<string, string?> overrides)

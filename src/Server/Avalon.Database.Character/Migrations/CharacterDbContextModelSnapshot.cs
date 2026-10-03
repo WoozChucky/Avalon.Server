@@ -164,6 +164,60 @@ namespace Avalon.Database.Character.Migrations
                     b.ToTable("CharacterAbilities");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterAura", b =>
+                {
+                    b.Property<long>("CharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Slot")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("AppliedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("AuraId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("CasterGuid")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<int>("CasterLevel")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("CritPct")
+                        .HasColumnType("real");
+
+                    b.Property<long>("DurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<double>("PeriodicCarry")
+                        .HasColumnType("double precision");
+
+                    b.Property<long>("RemainingMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("SourceAbilityId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Stacks")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("TickAmount")
+                        .HasColumnType("real");
+
+                    b.Property<int>("TicksLeft")
+                        .HasColumnType("integer");
+
+                    b.HasKey("CharacterId", "Slot");
+
+                    b.ToTable("CharacterAuras", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CharacterAuras_Stacks", "\"Stacks\" >= 1");
+
+                            t.HasCheckConstraint("CK_CharacterAuras_TicksLeft", "\"TicksLeft\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterCompletedQuest", b =>
                 {
                     b.Property<long>("CharacterId")
@@ -355,6 +409,15 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired();
 
                     b.Navigation("Character");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterAura", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterCompletedQuest", b =>

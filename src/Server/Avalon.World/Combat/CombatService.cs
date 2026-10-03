@@ -7,6 +7,7 @@ using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
+using Avalon.World.Auras;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
@@ -65,6 +66,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// stat and weapon roll are added, then the target's defences are rolled.
     /// </summary>
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability)
+        => ApplyDamageWithOutcome(attacker, target, damage, ability);
+
+    /// <summary>An ability's hit, as <see cref="ApplyDamage(IUnit, IUnit, uint, IAbility)" />, answering how it went (auras).</summary>
+    public HitOutcome ApplyDamageWithOutcome(IUnit attacker, IUnit target, uint damage, IAbility ability)
         => ApplyDamageCore(attacker, target, damage, ability);
 
     /// <summary>A raw hit, such as a creature's swing (#506): <paramref name="damage" /> is the base the defences reduce.</summary>
@@ -76,22 +81,22 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// The ability that hit, or null for a swing: it scales the base, multiplies the threat, names the hit to
     /// the character hit, and gives its PowerGainPerHit to the caster per unit damaged (#526).
     /// </param>
-    private void ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability)
+    private HitOutcome ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability)
     {
         // Invulnerable creatures (town NPCs) absorb nothing and provoke nothing. This sits ahead of
         // ResolveOrSpawn deliberately: attacking one must not create an encounter, add threat, or
         // put the attacker in combat, or a player could tag themselves in combat on the innkeeper.
         // Every damage source in the game funnels through here, so this one guard covers them all.
-        if (target is ICreature { Invulnerable: true }) return;
+        if (target is ICreature { Invulnerable: true }) return HitOutcome.Ignored;
 
         // A corpse takes no hits (#588), as a dead character's OnHit ignores them: no threat, no
         // encounter, no script call, no second death, and its attacker is not tagged in combat.
-        if (target is ICreature { CurrentHealth: 0 }) return;
+        if (target is ICreature { CurrentHealth: 0 }) return HitOutcome.Ignored;
 
         // A creature walking home, after the leash or a lost target, ignores hits entirely (#610): no
         // encounter, no threat, no script call, no broadcast, and its attacker is not tagged in
         // combat, so nothing from the walk home outlives the reset there.
-        if (IsReturningHome(target)) return;
+        if (IsReturningHome(target)) return HitOutcome.Ignored;
 
         // #506: the hit resolves here, past every early return above, so nothing refused draws a roll.
         // The formula is read once for the whole hit.
@@ -112,7 +117,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if ((result & HitResult.Dodged) != 0)
         {
             Dodged(attacker, target, baseDamage * threatMultiplier, abilityId);
-            return;
+            return HitOutcome.Dodged;
         }
 
         // Everything below reads the resolved damage (#506): threat, the hit, the gain and the PvP reset.
@@ -163,6 +168,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // encounter and broadcast SUnitDeathPacket. ICharacter exposes IsDead explicitly; creatures
         // signal death via CurrentHealth == 0 (their script sets it).
         NotifyDeathIfApplicable(enc, target, attacker);
+        return HitOutcome.Landed;
     }
 
     /// <summary>
@@ -180,18 +186,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             character.OnHit(attacker, damage, abilityId);
             if (!wasDead)
             {
-                // #526: a Fury character gains a share of the health it lost, from any source: what OnHit
-                // actually took, not the damage it was handed, so it stays right once armour reduces a hit
-                // (#506). A hit that kills it gains nothing: GainPower refuses the dead, and death empties
-                // Fury anyway.
-                if (character.PowerType == PowerType.Fury)
-                {
-                    uint lost = characterHealthBefore > character.CurrentHealth
-                        ? characterHealthBefore - character.CurrentHealth
-                        : 0u;
-                    character.GainPower(Fury.FromDamageTaken(lost, characterHealthBefore, character.Health, _furyFromDamageTaken));
-                }
-
+                GainFuryFromDamage(character, characterHealthBefore);
                 _outcomes?.CharacterDamaged(character, attacker, damage, abilityId, result);
             }
             return;
@@ -216,6 +211,20 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         if (target is ICreature creature && healthBefore > 0 && creature.CurrentHealth == 0)
             _outcomes?.CreatureKilled(creature, attacker);
+    }
+
+    /// <summary>
+    /// #526: a Fury character gains a share of the health it lost, from any source: what it actually lost, not the
+    /// damage it was handed, so it stays right once armour reduces a hit (#506). A hit that kills it gains nothing:
+    /// GainPower refuses the dead, and death empties Fury anyway.
+    /// </summary>
+    private void GainFuryFromDamage(CharacterEntity character, uint healthBefore)
+    {
+        if (character.PowerType != PowerType.Fury)
+            return;
+
+        uint lost = healthBefore > character.CurrentHealth ? healthBefore - character.CurrentHealth : 0u;
+        character.GainPower(Fury.FromDamageTaken(lost, healthBefore, character.Health, _furyFromDamageTaken));
     }
 
     /// <summary>
@@ -262,6 +271,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         _ => default,
     };
 
+    /// <summary>This service's instance is a town, where players are never hostile to one another.</summary>
+    private bool InTown => _context is IMapInstance { MapType: MapType.Town };
+
     /// <summary>A creature whose combat script is walking it home (#610); see <see cref="IReturningHome" />.</summary>
     private static bool IsReturningHome(IUnit unit) =>
         unit is ICreature { Script: IReturningHome { IsReturningHome: true } };
@@ -273,13 +285,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     internal static bool IgnoresHits(IUnit target) =>
         target is ICreature { Invulnerable: true } or ICreature { CurrentHealth: 0 } || IsReturningHome(target);
 
-    private void NotifyDeathIfApplicable(Encounter enc, IUnit target, IUnit attacker)
+    private void NotifyDeathIfApplicable(Encounter? enc, IUnit target, IUnit? attacker)
     {
         bool dead = (target is ICharacter c && c.IsDead) || target.CurrentHealth == 0;
         if (!dead) return;
 
-        enc.OnParticipantDied(target);
+        enc?.OnParticipantDied(target);
         _context?.BroadcastUnitDeath(target, attacker);
+        _outcomes?.UnitDied(target);
     }
 
     private Encounter ResolveOrSpawn(IUnit attacker, IUnit target)
@@ -349,19 +362,27 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // #506: only a heal that restored something is reported, with what it restored, overheal left out.
         _outcomes?.UnitHealed(healer, target, restored, ability.AbilityId, result);
 
-        if (ability.Metadata.HealThreatPerHp <= 0) return;
+        AddHealThreat(healer, target, restored, ability.Metadata.HealThreatPerHp);
+    }
+
+    /// <summary>
+    /// Heal threat for health actually restored (#531): <c>restored x perHp x class modifier</c>, split across the
+    /// hostiles still fighting in the target's encounter; the healer joins it. A creature walking home takes none
+    /// (#610), or it would carry it past its reset; the creatures still fighting share the whole of it.
+    /// </summary>
+    private void AddHealThreat(IUnit healer, IUnit target, uint restored, float healThreatPerHp)
+    {
+        if (healThreatPerHp <= 0 || restored == 0)
+            return;
 
         var enc = _registry.FindEncounterContaining(target) as Encounter;
         if (enc is null) return;
 
-        // A creature walking home takes no heal threat either (#610), or it would carry it past its
-        // reset; the creatures still fighting share the whole of it.
         List<IUnit> fighting = enc.Hostiles.Where(h => !IsReturningHome(h)).ToList();
         if (fighting.Count == 0) return;
 
         var healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Healer;
-        float threatTotal = restored * ability.Metadata.HealThreatPerHp * ClassThreatModifier.Get(healerClass);
-        float perHostile  = threatTotal / fighting.Count;
+        float perHostile = restored * healThreatPerHp * ClassThreatModifier.Get(healerClass) / fighting.Count;
 
         if (!enc.Players.Contains(healer)) enc.AddPlayer(healer);
         foreach (var h in fighting)
@@ -388,6 +409,175 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             _outcomes?.UnitHealed(healer, target, restored, abilityId: null, HitResult.None);
 
         return restored;
+    }
+
+    /// <summary>What a unit attacks with (#506), for an aura's snapshot. World-side.</summary>
+    internal static AttackerCombat AttackerFor(IUnit unit) => AttackerOf(unit);
+
+    /// <summary>
+    /// The random every roll of this service draws from, so an aura's base damage roll at apply time comes from the
+    /// same source as a hit's. World-side.
+    /// </summary>
+    internal ICombatRandom Random => _random;
+
+    /// <summary>
+    /// One hit an aura deals on its own, outside its run of ticks (auras), such as one its script deals: a single tick,
+    /// so its amount is rounded to the nearest point rather than carried. As
+    /// <see cref="ApplyPeriodicDamage(in PeriodicHit, ref double, bool)" /> otherwise.
+    /// </summary>
+    public uint ApplyPeriodicDamage(in PeriodicHit hit)
+    {
+        double carry = 0d;
+        return ApplyPeriodicDamage(hit, ref carry, lastTick: true);
+    }
+
+    /// <summary>
+    /// One damage tick of a harmful aura (auras), World-side, not on ICombatService: the snapshot's crit is rolled (the
+    /// one draw) and the target's armour taken off, never a dodge or a block. The resolved amount is added to
+    /// <paramref name="carry" /> (the aura's own) and only its whole points are dealt, the fraction kept for the next
+    /// tick; the <paramref name="lastTick" /> rounds what is left (AuraRules.TakeTick). A tick worth less than a point
+    /// deals nothing and is not reported, though it still counts as combat. A target every hit passes over
+    /// (invulnerable, a corpse, a creature walking home) takes nothing, draws nothing and carries nothing. With a
+    /// caster present: the encounter forms, the creature gains the caster's threat (the source ability's multiplier,
+    /// the class modifier) and is told it was attacked, the caster gains the source ability's power per unit damaged,
+    /// both are tagged in combat, and a killing tick credits the caster. With none: the target is hurt, a killing tick
+    /// is a kill nobody is credited with, and the target's encounter, if it has one, hears of the death. A creature's
+    /// health changes here, not through its script, so its script broadcasts nothing; the instance reports the tick
+    /// with its aura. Answers the damage dealt.
+    /// </summary>
+    public uint ApplyPeriodicDamage(in PeriodicHit hit, ref double carry, bool lastTick)
+    {
+        IUnit target = hit.Target;
+        IUnit? caster = hit.Caster;
+        if (IgnoresHits(target) || target is ICharacter { IsDead: true })
+            return 0;
+
+        (double amount, HitResult result) =
+            HitResolver.ResolvePeriodic(hit.Snapshot.Attacker, DefenderOf(target), hit.BaseAmount, _formula(), _random);
+        uint points = AuraRules.TakeTick(amount, ref carry, lastTick);
+
+        // Staff testing still resolves and reports the tick, forms an encounter, and tags combat; only its health loss
+        // and what needs positive damage are suppressed.
+        uint dealt = target is CharacterEntity { GodMode: true } ? 0u : points;
+
+        // A town never lets players be hostile, so a tick there (an aura brought in from elsewhere) restarts no PvP timer.
+        if (dealt > 0 && !InTown && caster is CharacterEntity attackerEntity
+            && target is CharacterEntity { IsDead: false } targetEntity)
+            _pvp?.OnPlayerHitPlayer(attackerEntity, targetEntity);
+
+        Encounter? enc = PeriodicEncounter(hit, dealt);
+
+        uint healthBefore = target.CurrentHealth;
+        if (target is CharacterEntity character)
+        {
+            character.OnPeriodicHit(dealt);
+            GainFuryFromDamage(character, healthBefore);
+        }
+        else if (dealt > 0)
+        {
+            // Written only when it changes, so a tick that deals nothing does not mark the health for a broadcast.
+            target.CurrentHealth = healthBefore - Math.Min(dealt, healthBefore);
+        }
+
+        if (points > 0)
+            _outcomes?.PeriodicTick(caster, target, dealt, hit.Aura, result, heal: false);
+
+        if (target is ICreature creature)
+        {
+            if (healthBefore > 0 && creature.CurrentHealth == 0)
+                _outcomes?.CreatureKilled(creature, caster);
+            else if (caster is not null)
+                creature.Script?.OnAttacked(caster);
+        }
+
+        if (dealt > 0 && healthBefore > 0 && hit.Source.PowerGainPerHit > 0 && caster is CharacterEntity gainer)
+            gainer.GainPower(hit.Source.PowerGainPerHit);
+
+        if (caster is ICharacter casterCharacter) casterCharacter.MarkCombat();
+        if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
+
+        NotifyDeathIfApplicable(enc, target, caster);
+        return dealt;
+    }
+
+    /// <summary>
+    /// The encounter a damage tick counts in, and the threat it adds to a creature target. A creature caster never forms
+    /// or rejoins an encounter with its ticks: the aura formed one when it landed, and a creature that has since given up
+    /// the fight and reset at home must stay out of it. A character caster's tick forms or joins one as a hit does, and a
+    /// tick from nobody counts in whatever encounter its target is in.
+    /// </summary>
+    private Encounter? PeriodicEncounter(in PeriodicHit hit, uint dealt)
+    {
+        IUnit target = hit.Target;
+        IUnit? caster = hit.Caster;
+        Encounter? enc = caster is null or ICreature
+            ? _registry.FindEncounterContaining(target) as Encounter
+            : ResolveOrSpawn(caster, target);
+        if (caster is not null && enc is not null && target is ICreature)
+        {
+            CharacterClass casterClass = (caster as ICharacter)?.Class ?? CharacterClass.Hunter;
+            enc.AddThreat(target, caster, dealt * hit.Source.ThreatMultiplier * ClassThreatModifier.Get(casterClass));
+        }
+
+        return enc;
+    }
+
+    /// <summary>
+    /// One heal an aura gives on its own, outside its run of ticks (auras): a single tick, rounded to the nearest point.
+    /// As <see cref="ApplyPeriodicHeal(in PeriodicHit, ref double, bool)" /> otherwise.
+    /// </summary>
+    public uint ApplyPeriodicHeal(in PeriodicHit hit)
+    {
+        double carry = 0d;
+        return ApplyPeriodicHeal(hit, ref carry, lastTick: true);
+    }
+
+    /// <summary>
+    /// One heal tick of a helpful aura (auras), World-side: the snapshot's crit is rolled (the one draw), the whole
+    /// points are taken from the amount and <paramref name="carry" /> as a damage tick takes them, the heal never raises
+    /// health past the maximum nor lowers it (#548), and the dead are never healed (nothing drawn or carried). A tick
+    /// that restored something is reported with its aura, and gives a present caster heal threat by its source
+    /// ability. Answers what it restored.
+    /// </summary>
+    public uint ApplyPeriodicHeal(in PeriodicHit hit, ref double carry, bool lastTick)
+    {
+        IUnit target = hit.Target;
+        if (target is ICharacter { IsDead: true } || target.CurrentHealth == 0)
+            return 0;
+
+        (double amount, HitResult result) =
+            HitResolver.ResolvePeriodicHeal(hit.Snapshot.Attacker, hit.BaseAmount, _formula(), _random);
+        uint points = AuraRules.TakeTick(amount, ref carry, lastTick);
+
+        uint before = target.CurrentHealth;
+        uint after = HealRules.After(before, target.Health, points);
+        target.CurrentHealth = after;
+
+        uint restored = after > before ? after - before : 0;
+        if (restored == 0)
+            return 0;
+
+        _outcomes?.PeriodicTick(hit.Caster, target, restored, hit.Aura, result, heal: true);
+        if (hit.Caster is { } healer)
+            AddHealThreat(healer, target, restored, hit.Source.HealThreatPerHp);
+        return restored;
+    }
+
+    /// <summary>
+    /// A harmful aura landed (auras): combat as a dodge is, with nothing dealt. The encounter forms (so the creature's
+    /// list holds the caster at the initial seed), a creature's script is told it was attacked so it engages, and both
+    /// are tagged in combat. Nothing for a target every hit passes over.
+    /// </summary>
+    public void EnterAuraCombat(IUnit caster, IUnit target)
+    {
+        if (IgnoresHits(target))
+            return;
+
+        ResolveOrSpawn(caster, target);
+        if (target is ICreature creature)
+            creature.Script?.OnAttacked(caster);
+        if (caster is ICharacter casterCharacter) casterCharacter.MarkCombat();
+        if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
     }
 
     public void ApplyTaunt(IUnit caster, IUnit target, uint durationMs)

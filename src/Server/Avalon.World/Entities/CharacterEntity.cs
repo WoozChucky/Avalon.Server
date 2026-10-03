@@ -6,6 +6,7 @@ using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Inventory;
@@ -64,6 +65,7 @@ public class CharacterEntity : ICharacter
     public CharacterEntity()
     {
         Quests = new QuestLog(SaveState);
+        Auras = new UnitAuras(SaveState.AurasChanged);
         Ignores = new IgnoreList(SaveState);
         _logger = null!;
         _equipment = null!;
@@ -81,6 +83,7 @@ public class CharacterEntity : ICharacter
         float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond, TickThreadGuard? tickThread = null)
     {
         Quests = new QuestLog(SaveState);
+        Auras = new UnitAuras(SaveState.AurasChanged);
         Ignores = new IgnoreList(SaveState, tickThread);
         _time = time ?? TimeProvider.System;
         _furyDecayPerSecond = furyDecayPerSecond;
@@ -250,6 +253,15 @@ public class CharacterEntity : ICharacter
     /// Loaded at select; every change marks <see cref="SaveState" />.
     /// </summary>
     public IgnoreList Ignores { get; }
+
+    /// <summary>
+    /// The auras on this character (auras). World-side, never on ICharacter: no mod can add, end or read them. Every
+    /// change marks <see cref="SaveState" />, so the next save rewrites them; loaded at select.
+    /// </summary>
+    public UnitAuras Auras { get; }
+
+    /// <summary>The container's clock, which this character's auras count their time left by when it is saved.</summary>
+    public TimeProvider Clock => _time;
 
     /// <summary>World-side only, not on ICharacter: the modding API cannot read or set PvP (#164).</summary>
     public bool PvpEnabled => Data?.PvpEnabled ?? false;
@@ -459,6 +471,23 @@ public class CharacterEntity : ICharacter
 
         _logger.LogInformation("{Name} has been hit by unit {Attacker} for {Damage} damage", Name, attacker.Guid,
             damage);
+        TakeDamage(damage);
+    }
+
+    /// <summary>
+    /// Takes an aura's damage tick (auras), as <see cref="OnHit(IUnit, uint, AbilityId?)" /> takes a hit, with no attacker
+    /// to name. World-side, not on ICharacter.
+    /// </summary>
+    public void OnPeriodicHit(uint damage)
+    {
+        if (IsDead) return;
+
+        TakeDamage(damage);
+    }
+
+    /// <summary>A hit or a tick on a living character: tagged in combat, then hurt, and dead at 0 health.</summary>
+    private void TakeDamage(uint damage)
+    {
         MarkCombat();
 
         if (damage >= CurrentHealth)

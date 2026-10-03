@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.Abilities.Targeting;
+using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
@@ -18,6 +19,21 @@ public interface IAbilityArena
     MapType MapType { get; }
 
     ICombatService CombatService { get; }
+
+    /// <summary>
+    /// An ability's direct damage on one unit (its EffectValue, scaled), through this instance's combat service,
+    /// answering how it went: only a hit that landed applies the ability's aura (auras).
+    /// </summary>
+    HitOutcome DamageForAbility(IUnit caster, IUnit target, IAbility ability);
+
+    /// <summary>An ability's direct heal on one unit, through this instance's combat service (auras).</summary>
+    void HealForAbility(IUnit caster, IUnit target, IAbility ability);
+
+    /// <summary>
+    /// The aura the ability's row names, if any, on one unit, from <paramref name="caster" /> (auras). Read from the live
+    /// ability catalog, so the modding API's ability metadata never carries one.
+    /// </summary>
+    void ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability);
 
     /// <summary>The instance's living units by shape.</summary>
     IHitQuery Hits { get; }

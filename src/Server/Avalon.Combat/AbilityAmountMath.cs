@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.Combat;
 
@@ -16,10 +17,15 @@ public static class AbilityAmountMath
         "CircleAbilityScript", "ConeAbilityScript", "ProjectileAbilityScript",
     };
 
-    public static AbilityAmountKind KindOf(string? scriptName, AbilityAffects affects) =>
-        scriptName is null || !DirectScripts.Contains(scriptName) ? AbilityAmountKind.None
-        : affects == AbilityAffects.Ally ? AbilityAmountKind.Healing
-        : AbilityAmountKind.Damage;
+    /// <summary>
+    /// What a player is told an ability does to each unit it hits: Damage or Healing; None for a script that may do
+    /// anything, or for an ability whose Effects gives it no direct amount (it only applies an aura).
+    /// </summary>
+    public static AbilityAmountKind KindOf(string? scriptName, AbilityAffects affects, SpellEffect effects) =>
+        scriptName is null || !DirectScripts.Contains(scriptName) || !AbilityRules.HasDirectEffect(effects, affects)
+            ? AbilityAmountKind.None
+            : affects == AbilityAffects.Ally ? AbilityAmountKind.Healing
+            : AbilityAmountKind.Damage;
 
     /// <summary>The base before flooring. <paramref name="weaponRoll"/> is ignored when the coefficient is not above 0.</summary>
     public static double Sum(double effectValue, double scaling, double statValue, double baseDamageCoefficient,

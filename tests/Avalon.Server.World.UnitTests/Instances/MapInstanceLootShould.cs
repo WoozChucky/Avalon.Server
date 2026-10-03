@@ -207,6 +207,33 @@ public class MapInstanceLootShould
         });
     }
 
+    /// <summary>
+    /// A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all at once, even in
+    /// a solo instance, whose drops would otherwise be reserved for its owner.
+    /// </summary>
+    [Fact]
+    public async Task Drop_A_Kill_Nobody_Is_Credited_With_Free_For_All_Even_In_A_Solo_Instance()
+    {
+        using MapInstance instance = await Build(owner: 7);
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 460_004),
+            Metadata = BoarTemplate(1, minGold: 5, maxGold: 5),
+            Position = new Vector3(10f, 2f, 10f),
+            Experience = 50,
+        };
+        instance.AddCreature(creature);
+
+        instance.ReportKill(creature, killer: null);
+
+        Assert.Equal(2, instance.Drops.Count);   // the sword and the pile: Assert.All passes on nothing
+        Assert.All(instance.Drops.All, drop =>
+        {
+            Assert.Null(drop.OwnerCharacterId);
+            Assert.Equal(Now.UtcDateTime, drop.FreeForAllAt);
+        });
+    }
+
     /// <summary>2026-09-30: in a party instance each drop is reserved for its own member, drawn among those sharing the kill.</summary>
     [Fact]
     public async Task Reserve_Each_Drop_Of_A_Party_Kill_For_A_Member_Drawn_Among_The_Eligible()

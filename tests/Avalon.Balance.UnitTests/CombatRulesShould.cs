@@ -26,7 +26,7 @@ public class CombatRulesShould
         Assert.Equal(PowerType.Fury, warrior.PowerType);
         Assert.Equal(0u, warrior.CurrentPower);
         Assert.Equal(100u, warrior.Power);
-        Assert.Equal([200u, 201u, 202u], warrior.Abilities.Select(a => a.Id));
+        Assert.Equal([200u, 201u, 202u, 203u], warrior.Abilities.Select(a => a.Id));
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class CombatRulesShould
     }
 
     [Fact]
-    public void Choose_a_ready_special_before_the_basic_and_never_blight_spit()
+    public void Choose_a_ready_special_before_the_basic_and_never_blight_spit_in_melee()
     {
         SimCreature boar = Boar();
         Assert.Equal(301u, boar.Choose()!.Id);         // Trample ready
@@ -168,6 +168,8 @@ public class CombatRulesShould
         Assert.Equal(300u, boar.Choose()!.Id);         // Gore
 
         SimCreature fly = SimCreature.Create(Data, Data.Creature(6), 1, 0);
+        Assert.Equal(317u, fly.Choose()!.Id);          // Venom Spit ready
+        fly.Specials.Single(s => s.Id == 317).CooldownLeft = 5f;
         Assert.Equal(304u, fly.Choose()!.Id);          // Sting, never Blight Spit in melee
     }
 

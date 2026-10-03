@@ -4,6 +4,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Dialogue;
 using Avalon.World.Localization;
 using Avalon.World.Loot;
@@ -14,6 +15,7 @@ using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.World;
 
@@ -33,7 +35,8 @@ public class StaticData(
     IVendorStockRepository? vendorStockRepository = null,
     ICombatDataRepository? combatDataRepository = null,
     IQuestRepository? questRepository = null,
-    IScriptManager? scriptManager = null)
+    IScriptManager? scriptManager = null,
+    IAuraTemplateRepository? auraTemplateRepository = null)
 {
     private readonly ConcurrentQueue<(StaticDataPatch Patch, TaskCompletionSource Done)> _pending = new();
 
@@ -54,6 +57,7 @@ public class StaticData(
     private volatile VendorsPatch? _vendors;
     private volatile CombatPatch? _combat;
     private volatile QuestsPatch? _quests;
+    private volatile AurasPatch? _auras;
 
     /// <summary>
     /// Reads the database and builds a whole patch for one area. Runs on the thread pool and
@@ -93,8 +97,14 @@ public class StaticData(
             }
 
             case ReloadArea.Abilities:
+                // Each ability's aura link is checked against the auras read here, never the ones applied. That catalog
+                // is thrown away, so it logs nothing: the Auras area reports its own refusals.
                 return new AbilitiesPatch(new AbilityCatalog(
-                    (await abilityTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(), loggerFactory));
+                    (await abilityTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(), loggerFactory,
+                    await ReadAurasAsync(NullLoggerFactory.Instance, ct)));
+
+            case ReloadArea.Auras:
+                return new AurasPatch(await ReadAurasAsync(loggerFactory, ct));
 
             case ReloadArea.Items:
                 return new ItemsPatch((await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly());
@@ -190,6 +200,9 @@ public class StaticData(
                 _quests = p;
                 LogQuestsWithoutDialogue();
                 break;
+            case AurasPatch p:
+                _auras = p;
+                break;
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
         }
@@ -247,6 +260,14 @@ public class StaticData(
             }
         }
     }
+
+    /// <summary>
+    /// The aura rows, validated with the aura scripts loaded, refusals logged to <paramref name="logTo" />; empty without
+    /// a repository (tests).
+    /// </summary>
+    private async Task<AuraCatalog> ReadAurasAsync(ILoggerFactory logTo, CancellationToken ct) =>
+        new(auraTemplateRepository is null ? [] : await auraTemplateRepository.GetAllAsync(ct),
+            scriptManager is null ? static _ => null : scriptManager.GetAuraScript, logTo);
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -326,4 +347,10 @@ public class StaticData(
 
     /// <summary>Quests (#433). Read on the tick; one reference, so one generation. Empty before the first load.</summary>
     public QuestCatalog Quests => _quests?.Catalog ?? QuestCatalog.Empty;
+
+    /// <summary>
+    /// Auras. Read on the tick whenever an aura is applied or ticks; one reference, so one generation. Empty before the
+    /// first load.
+    /// </summary>
+    public AuraCatalog Auras => _auras?.Catalog ?? AuraCatalog.Empty;
 }

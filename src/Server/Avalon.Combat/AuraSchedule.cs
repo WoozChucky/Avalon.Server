@@ -1,0 +1,58 @@
+namespace Avalon.Combat;
+
+/// <summary>
+/// When an aura ends and when it still ticks: <see cref="TicksLeft" /> ticks at <c>ExpiresAt - j x Interval</c> for
+/// j = TicksLeft - 1 down to 0, so the last lands at expiry. Absolute times on the instance's clock: a late update owes
+/// every tick whose time has passed, and never more than are left.
+/// </summary>
+public readonly record struct AuraSchedule(DateTimeOffset ExpiresAt, TimeSpan Interval, int TicksLeft)
+{
+    public static AuraSchedule Start(DateTimeOffset now, uint durationMs, uint tickIntervalMs) =>
+        new(now + TimeSpan.FromMilliseconds(durationMs), TimeSpan.FromMilliseconds(tickIntervalMs),
+            AuraRules.TickCount(durationMs, tickIntervalMs));
+
+    /// <summary>
+    /// A saved aura resumed <paramref name="remainingMs" /> before its end, its time having stood still while it was not
+    /// in the world. It is never owed more ticks than its remaining time holds: those at <c>now</c> or later, so a tick
+    /// that falls on the resume instant is kept and owed at once, as <see cref="Due" /> owes it, and an aura resumed at
+    /// its very end keeps its final tick.
+    /// </summary>
+    public static AuraSchedule Resume(DateTimeOffset now, uint remainingMs, uint tickIntervalMs, int ticksLeft)
+    {
+        int fits = tickIntervalMs == 0 ? 0 : (int)(remainingMs / tickIntervalMs) + 1;
+        return new(now + TimeSpan.FromMilliseconds(remainingMs), TimeSpan.FromMilliseconds(tickIntervalMs),
+            Math.Clamp(ticksLeft, 0, fits));
+    }
+
+    /// <summary>
+    /// A saved aura brought back at select, <paramref name="remainingMs" /> before its end. As <see cref="Resume" />, but
+    /// it keeps one tick more than the remaining time holds: a save can be taken after a tick came due and before the
+    /// aura pass took it, and that tick is owed, so <see cref="Due" /> pays it at once. Never more than one: a row
+    /// claiming more is not believed.
+    /// </summary>
+    public static AuraSchedule Restore(DateTimeOffset now, uint remainingMs, uint tickIntervalMs, int ticksLeft)
+    {
+        int fits = tickIntervalMs == 0 ? 0 : (int)(remainingMs / tickIntervalMs) + 2;
+        return new(now + TimeSpan.FromMilliseconds(remainingMs), TimeSpan.FromMilliseconds(tickIntervalMs),
+            Math.Clamp(ticksLeft, 0, fits));
+    }
+
+    /// <summary>How many ticks are owed at <paramref name="now" />: those whose time has come, at most <see cref="TicksLeft" />.</summary>
+    public int Due(DateTimeOffset now)
+    {
+        if (TicksLeft <= 0) return 0;
+
+        long left = (ExpiresAt - now).Ticks;
+        if (left <= 0 || Interval.Ticks <= 0) return TicksLeft;
+
+        // The ticks still to come are those with j x Interval < left.
+        long notYet = (left + Interval.Ticks - 1) / Interval.Ticks;
+        return (int)Math.Max(0L, TicksLeft - notYet);
+    }
+
+    public AuraSchedule AfterTicks(int count) => this with { TicksLeft = Math.Max(0, TicksLeft - count) };
+
+    public bool Expired(DateTimeOffset now) => now >= ExpiresAt;
+
+    public TimeSpan Remaining(DateTimeOffset now) => ExpiresAt > now ? ExpiresAt - now : TimeSpan.Zero;
+}

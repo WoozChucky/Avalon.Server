@@ -65,7 +65,8 @@ public static class AbilityCatalogExport
                      "1 cursor (at a ground point). anchor, where a circle is centred: 0 caster, 1 aim point. " +
                      "affects: 0 hostile (damaged), 1 ally (healed). Distances in metres, arcDegrees the full arc " +
                      "of a cone, projectileSpeed in metres per second, castTimeMs and cooldownMs in milliseconds " +
-                     "before haste. The basic of a creature waits its swing interval rather than its cooldownMs.",
+                     "before haste. The basic of a creature waits its swing interval rather than its cooldownMs. " +
+                     "auraId: the aura each unit the ability affects receives (see aura-catalog), or null.",
             Abilities: templates.OrderBy(template => template.Id.Value).Select(Row.From).ToList());
 
         return JsonSerializer.Serialize(document, SerializerOptions) + "\n";
@@ -89,10 +90,11 @@ public static class AbilityCatalogExport
         float ProjectileSpeed,
         bool Pierce,
         uint CastTimeMs,
-        uint CooldownMs)
+        uint CooldownMs,
+        uint? AuraId)
     {
         public static Row From(AbilityTemplate t) => new(
             t.Id.Value, t.Name ?? string.Empty, (byte)t.Shape, (byte)t.AimMode, (byte)t.Anchor, (byte)t.Affects,
-            t.Radius, t.Reach, t.ArcDegrees, t.ProjectileSpeed, t.Pierce, t.CastTime, t.Cooldown);
+            t.Radius, t.Reach, t.ArcDegrees, t.ProjectileSpeed, t.Pierce, t.CastTime, t.Cooldown, t.AuraId?.Value);
     }
 }

@@ -3,7 +3,7 @@ namespace Avalon.Api.Contract;
 /// <summary>
 /// The script names one world accepts, for the admin app's dropdowns: <see cref="Ai"/> for a creature template,
 /// <see cref="Ability"/> for an ability template, <see cref="Quest"/> for a quest, <see cref="Item"/> for an item
-/// template's UseScript.
+/// template's UseScript, <see cref="Aura"/> for an aura template.
 /// </summary>
 public class WorldScriptCatalogDto
 {
@@ -11,6 +11,7 @@ public class WorldScriptCatalogDto
     public List<string> Ability { get; set; } = [];
     public List<string> Quest { get; set; } = [];
     public List<string> Item { get; set; } = [];
+    public List<string> Aura { get; set; } = [];
 
     /// <summary>
     /// False when the world has not published its names (no build of it has reported in yet): the lists are then

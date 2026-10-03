@@ -28,13 +28,16 @@ public class SUnitHealedPacket : Packet
     /// <summary>Crit for a critical heal; absent is None.</summary>
     [ProtoMember(6)] public HitResult Result { get; set; }
 
+    /// <summary>The aura whose tick healed (auras); absent for an ability's or an item's heal.</summary>
+    [ProtoMember(7)] public uint? AuraId { get; set; }
+
     public static NetworkPacket Create(ulong healer, ulong target, uint amount, uint currentHealth, uint? abilityId,
-        HitResult result, EncryptFunc encrypt)
+        HitResult result, EncryptFunc encrypt, uint? auraId = null)
         => PacketSerializationHelper.Serialize(
             new SUnitHealedPacket
             {
                 Healer = healer, Target = target, Amount = amount, CurrentHealth = currentHealth, AbilityId = abilityId,
-                Result = result,
+                Result = result, AuraId = auraId,
             },
             PacketType, Flags, Protocol, encrypt);
 }

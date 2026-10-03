@@ -1,7 +1,9 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -114,9 +116,50 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
         return new CharacterSaveSnapshot(
             new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats, quests,
-                IgnoresOf(character, row.Id, marks)),
+                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks)),
             marks);
     }
+
+    /// <summary>
+    /// Every save of a character holding an aura rewrites them all, with the time each has left on the character's
+    /// clock (or, while restored auras wait for the character to enter the world, at the moment their time stopped) and
+    /// the fraction of a point its ticks carry, so a save is never behind; a save marked by a change, with none left,
+    /// deletes them. A dead character holds none, whatever memory says: death ends every aura. Nothing otherwise.
+    /// </summary>
+    private static CharacterAuraWrite? AurasOf(CharacterEntity character, CharacterId owner, SaveMarks marks)
+    {
+        if (character.IsDead)
+            return new CharacterAuraWrite([]);
+
+        if (marks.AurasVersion is null && character.Auras.Count == 0)
+            return null;
+
+        DateTimeOffset now = character.Auras.HeldSince ?? character.Clock.GetUtcNow();
+        List<CharacterAura> rows = [];
+        foreach (ActiveAura aura in character.Auras.All)
+        {
+            uint remaining = UnitAuras.RemainingMs(aura, now);
+            if (remaining == 0 && aura.Schedule.TicksLeft <= 0)
+                continue;   // over, with nothing left to deal: the next pass ends it
+
+            rows.Add(new CharacterAura
+            {
+                CharacterId = owner, Slot = rows.Count, AuraId = aura.Id.Value, CasterGuid = SavedCaster(aura.CasterGuid),
+                SourceAbilityId = aura.Source.AbilityId?.Value, Stacks = (int)aura.Stacks, RemainingMs = remaining,
+                DurationMs = aura.DurationMs, TicksLeft = aura.Schedule.TicksLeft, TickAmount = aura.Snapshot.PerTickPerStack,
+                CritPct = aura.Snapshot.CritPct, CasterLevel = aura.Snapshot.CasterLevel,
+                PeriodicCarry = aura.PeriodicCarry, AppliedAt = aura.AppliedAt,
+            });
+        }
+
+        return new CharacterAuraWrite(rows);
+    }
+
+    /// <summary>
+    /// A character's guid is built from its id, so it names the same character after a restart; any other unit's guid
+    /// is numbered per run and could name an unrelated one then, so it is saved as nobody.
+    /// </summary>
+    private static ulong SavedCaster(ObjectGuid caster) => caster.Type == ObjectType.Character ? caster.RawValue : 0UL;
 
     /// <summary>
     /// #723: every marked ignore entry is rewritten from memory: deleted, and inserted again while still on the list.

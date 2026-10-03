@@ -54,6 +54,10 @@ public interface IWorld
     StaticData Data { get; }
 
     void SpawnInInstance(IWorldConnection connection, IMapInstance instance);
+    /// <summary>
+    /// Moves the connection's character from its instance to <paramref name="targetInstance" />. Aura time is paused
+    /// across the move: the character's auras are held from its removal until the target adds it.
+    /// </summary>
     void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance);
     Task DeSpawnPlayerAsync(IWorldConnection connection);
 
@@ -125,7 +129,8 @@ public class World : IWorld
         ICombatDataRepository? combatDataRepository = null,
         PartyService? parties = null,
         IQuestRepository? questRepository = null,
-        TickThreadGuard? tickThread = null)
+        TickThreadGuard? tickThread = null,
+        IAuraTemplateRepository? auraTemplateRepository = null)
     {
         _parties = parties;
         _tick = tickThread;
@@ -143,7 +148,7 @@ public class World : IWorld
             abilityTemplateRepository, characterLevelExperienceRepository, creatureTemplateRepository,
             creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
             dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository,
-            questRepository, serviceProvider.GetService<IScriptManager>());
+            questRepository, serviceProvider.GetService<IScriptManager>(), auraTemplateRepository);
 
         _instanceTicker = new InstanceTicker(_logger, DiagnosticsConfig.World.Meter,
             serviceProvider.GetService<TimeProvider>());
@@ -233,6 +238,11 @@ public class World : IWorld
 
         IMapInstance? current = InstanceRegistry.GetInstanceById(connection.Character!.InstanceId);
         current?.RemoveCharacter(connection);
+
+        // Aura time is paused across the move: held from the removal, resumed by the target's AddCharacter, so the time
+        // between the two instances costs no tick and pays none in a burst. Only a move holds them; a logout does not.
+        if (connection.Character is CharacterEntity moving)
+            moving.Auras.Hold(moving.Clock.GetUtcNow());
 
         // Position is set by the caller (EnterMapHandler / CharacterSelectHandler) which knows
         // the canonical Layout.EntrySpawnWorldPos. TransferPlayer owns instance membership only.

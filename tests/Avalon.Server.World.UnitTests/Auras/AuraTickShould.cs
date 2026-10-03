@@ -1,0 +1,485 @@
+using Avalon.Combat;
+using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
+using Avalon.Server.World.UnitTests.Scripts;
+using Avalon.World.Auras;
+using Avalon.World.Combat;
+using Avalon.World.Configuration;
+using Avalon.World.Creatures;
+using Avalon.World.Entities;
+using Avalon.World.Public.Combat;
+using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
+using Avalon.World.Public.Units;
+using Avalon.World.Pvp;
+using Avalon.World.Scripts.Creatures;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
+using Xunit;
+
+namespace Avalon.Server.World.UnitTests.Auras;
+
+/// <summary>
+/// Ticks on absolute time, the last at expiry, caught up after a stall; credit to a caster only while it is here; and
+/// every way an aura ends: expiry, death, an unloaded template, a creature walking home.
+/// </summary>
+public class AuraTickShould
+{
+    private static readonly AuraId Bleed = new(901);
+    private static readonly AuraId Renew = new(904);
+    private readonly HashSet<IUnit> _walkingHome = [];
+    private readonly AuraHarness _h;
+
+    public AuraTickShould()
+    {
+        _h = new AuraHarness(returningHome: unit => _walkingHome.Contains(unit));
+        _h.Use(AuraTestData.Bleed(), AuraTestData.Crippled(), AuraTestData.Renew());
+    }
+
+    [Fact]
+    public void Tick_on_schedule_and_expire_after_the_last_tick()
+    {
+        CharacterEntity warrior = _h.Player(910_101);
+        Creature boar = _h.Creature(910_901);
+        _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+
+        _h.Advance(TimeSpan.FromMilliseconds(2999));
+        _h.Auras.Update();
+        Assert.Equal(1000u, boar.CurrentHealth);
+
+        _h.Advance(TimeSpan.FromMilliseconds(1));
+        _h.Auras.Update();
+        Assert.Equal(997u, boar.CurrentHealth);   // 12 over 4 ticks: 3 a tick, the first at 3 s
+        Assert.Equal(1, boar.Auras.Count);
+
+        _h.Advance(TimeSpan.FromSeconds(9));
+        _h.Auras.Update();
+
+        Assert.Equal(1000u - 4 * 3u, boar.CurrentHealth);   // the last at 12 s
+        Assert.Equal(0, boar.Auras.Count);
+        Assert.Equal(AuraChangeKind.Removed, boar.Auras.Changes[^1].Kind);
+    }
+
+    /// <summary>A stall of a minute delivers the four owed ticks once, then the aura is gone.</summary>
+    [Fact]
+    public void Catch_up_every_owed_tick_after_a_stall_and_no_more()
+    {
+        Creature boar = _h.Creature(910_902);
+        _h.Auras.Apply(_h.Player(910_102), boar, Bleed, AuraSource.None);
+
+        _h.Advance(TimeSpan.FromMinutes(1));
+        _h.Auras.Update();
+        _h.Auras.Update();
+
+        Assert.Equal(1000u - 12u, boar.CurrentHealth);
+        Assert.Equal(0, boar.Auras.Count);
+        _h.Outcomes.ReceivedWithAnyArgs(4).PeriodicTick(default, default!, default, default!, default, default);
+    }
+
+    /// <summary>A copy's fraction is carried from tick to tick, caught up or not, so its ticks add up to its total.</summary>
+    [Fact]
+    public void Carry_the_fraction_of_a_point_across_ticks_so_they_add_up_to_the_total()
+    {
+        _h.Use(new AuraTemplate
+        {
+            Id = new AuraId(907), Name = "Graze", Icon = "graze", Kind = AuraKind.Harmful, DurationMs = 12000,
+            TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 10f,
+            Stacking = AuraStacking.Refresh, MaxStacks = 1,
+        });
+        Creature boar = _h.Creature(910_911);
+        _h.Auras.Apply(_h.Player(910_113), boar, new AuraId(907), AuraSource.None);
+
+        _h.Advance(TimeSpan.FromSeconds(6));
+        _h.Auras.Update();
+        Assert.Equal(1000u - 5u, boar.CurrentHealth);   // 2.5 a tick: two owed at once deal 5 between them
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(1000u - 10u, boar.CurrentHealth);
+        Assert.Equal(0, boar.Auras.Count);
+    }
+
+    [Fact]
+    public void Multiply_a_tick_by_the_stacks()
+    {
+        CharacterEntity warrior = _h.Player(910_103);
+        Creature boar = _h.Creature(910_903);
+        for (int cast = 0; cast < 3; cast++)
+            _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(1000u - 9u, boar.CurrentHealth);
+    }
+
+    [Fact]
+    public void Heal_over_time()
+    {
+        CharacterEntity healer = _h.Player(910_104);
+        CharacterEntity friend = _h.Player(910_105);
+        friend.CurrentHealth = 400;
+        _h.Auras.Apply(healer, friend, Renew, AuraSource.None);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(406u, friend.CurrentHealth);   // 24 over 4 ticks
+        _h.Outcomes.Received(1).PeriodicTick(healer, friend, 6u, Renew, HitResult.None, true);
+    }
+
+    [Fact]
+    public void Credit_the_caster_only_while_it_is_alive_here()
+    {
+        CharacterEntity warrior = _h.Player(910_106);
+        Creature boar = _h.Creature(910_904);
+        _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+        _h.Characters.Remove(warrior.Guid);   // it left the instance
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        _h.Outcomes.Received(1).PeriodicTick(warrior, boar, 3u, Bleed, HitResult.None, false);
+        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, Bleed, HitResult.None, false);
+    }
+
+    /// <summary>The caster logged out; the last tick kills; the kill counts and nobody is credited.</summary>
+    [Fact]
+    public void Kill_with_a_tick_after_the_caster_left_and_credit_nobody()
+    {
+        CharacterEntity warrior = _h.Player(910_107);
+        Creature boar = _h.Creature(910_905, health: 3);
+        _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+        _h.Characters.Remove(warrior.Guid);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(0u, boar.CurrentHealth);
+        _h.Outcomes.Received(1).CreatureKilled(boar, null);
+        Assert.Equal(0, boar.Auras.Count);
+    }
+
+    /// <summary>A killing tick among several owed ends the run: the dead take no more ticks.</summary>
+    [Fact]
+    public void Tick_nothing_more_on_a_unit_a_tick_killed()
+    {
+        Creature boar = _h.Creature(910_912, health: 4);
+        _h.Auras.Apply(_h.Player(910_114), boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_115), boar, Renew, AuraSource.None);
+
+        _h.Advance(TimeSpan.FromMinutes(1));
+        _h.Auras.Update();
+        _h.Auras.Update();
+
+        Assert.Equal(0u, boar.CurrentHealth);
+        Assert.Equal(0, boar.Auras.Count);
+        _h.Outcomes.ReceivedWithAnyArgs(2).PeriodicTick(default, default!, default, default!, default, default);
+        _h.Outcomes.ReceivedWithAnyArgs(1).CreatureKilled(default!, default);
+    }
+
+    [Fact]
+    public void Credit_nobody_for_a_caster_that_died()
+    {
+        CharacterEntity warrior = _h.Player(910_108);
+        Creature boar = _h.Creature(910_906);
+        _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+        warrior.IsDead = true;
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, Bleed, HitResult.None, false);
+    }
+
+    [Fact]
+    public void End_every_aura_when_its_unit_dies_and_give_back_its_speed()
+    {
+        CharacterEntity hunter = _h.Player(910_109);
+        Creature boar = _h.Creature(910_907);
+        _h.Auras.Apply(hunter, boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(hunter, boar, new AuraId(903), AuraSource.None);
+        boar.CurrentHealth = 0;
+
+        _h.Auras.Update();
+
+        Assert.Equal(0, boar.Auras.Count);
+        Assert.Equal(1f, boar.SpeedFactor);
+    }
+
+    [Fact]
+    public void Expire_an_aura_whose_template_is_no_longer_loaded_without_ticking_it()
+    {
+        Creature boar = _h.Creature(910_908);
+        _h.Auras.Apply(_h.Player(910_110), boar, Bleed, AuraSource.None);
+        _h.Use(AuraTestData.Renew());
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(0, boar.Auras.Count);
+        Assert.Equal(1000u, boar.CurrentHealth);
+    }
+
+    /// <summary>A creature walking home loses the harmful auras a fight put on it.</summary>
+    [Fact]
+    public void End_the_harmful_auras_of_a_creature_walking_home()
+    {
+        Creature boar = _h.Creature(910_909);
+        _h.Auras.Apply(_h.Player(910_111), boar, Bleed, AuraSource.None);
+        _walkingHome.Add(boar);
+
+        _h.Auras.Update();
+
+        Assert.Equal(0, boar.Auras.Count);
+    }
+
+    /// <summary>Only the harmful auras end with the fight: a helpful one on a creature walking home stays and ticks.</summary>
+    [Fact]
+    public void Keep_the_helpful_auras_of_a_creature_walking_home()
+    {
+        Creature boar = _h.Creature(910_913);
+        boar.CurrentHealth = 900;
+        CharacterEntity caster = _h.Player(910_116);
+        _h.Auras.Apply(caster, boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(caster, boar, Renew, AuraSource.None);
+        _walkingHome.Add(boar);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        ActiveAura held = Assert.Single(boar.Auras.All);
+        Assert.Equal(Renew.Value, held.Id.Value);
+        Assert.Equal(906u, boar.CurrentHealth);
+    }
+
+    /// <summary>The aura system's one answer to "walking home" refuses a harmful aura as its tick ends one.</summary>
+    [Fact]
+    public void Refuse_a_harmful_aura_on_a_creature_walking_home()
+    {
+        Creature boar = _h.Creature(910_914);
+        _walkingHome.Add(boar);
+
+        AuraApplyResult harmful = _h.Auras.Apply(_h.Player(910_117), boar, Bleed, AuraSource.None);
+        AuraApplyResult helpful = _h.Auras.Apply(_h.Player(910_118), boar, Renew, AuraSource.None);
+
+        Assert.Equal(AuraApplyResult.Refused, harmful);
+        Assert.Equal(AuraApplyResult.Applied, helpful);
+    }
+
+    /// <summary>
+    /// A tick whose report throws has still taken its points: the carry it left is kept, the rest of the pass still ticks,
+    /// and a throw on every pass stops none of the later ones.
+    /// </summary>
+    [Fact]
+    public void Keep_the_carry_of_a_tick_that_threw_and_tick_the_rest_of_the_pass()
+    {
+        _h.Use(AuraTestData.Bleed(), new AuraTemplate
+        {
+            Id = new AuraId(907), Name = "Graze", Icon = "graze", Kind = AuraKind.Harmful, DurationMs = 12000,
+            TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 10f,
+            Stacking = AuraStacking.Refresh, MaxStacks = 1,
+        });
+        Creature thrower = _h.Creature(910_915);
+        Creature other = _h.Creature(910_916);
+        _h.Auras.Apply(_h.Player(910_119), thrower, new AuraId(907), AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_120), other, Bleed, AuraSource.None);
+        _h.Outcomes
+            .When(o => o.PeriodicTick(Arg.Any<IUnit?>(), thrower, Arg.Any<uint>(), Arg.Any<AuraId>(), Arg.Any<HitResult>(),
+                Arg.Any<bool>()))
+            .Do(_ => throw new InvalidOperationException("report failed"));
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(998u, thrower.CurrentHealth);   // 2.5: 2 dealt before the report threw
+        Assert.Equal(0.5d, Assert.Single(thrower.Auras.All).PeriodicCarry, 6);
+        Assert.Equal(997u, other.CurrentHealth);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(995u, thrower.CurrentHealth);   // 2.5 + 0.5 carried: 3
+        Assert.Equal(994u, other.CurrentHealth);
+    }
+
+    /// <summary>
+    /// A stats refresh that throws while a dead character's auras end stops neither the instance's pass nor the next one:
+    /// the units after it still tick.
+    /// </summary>
+    [Fact]
+    public void Tick_the_other_units_when_ending_a_units_auras_throws()
+    {
+        _h.Use(AuraTestData.Bleed(), AuraTestData.Fortified());
+        CharacterEntity fallen = _h.Player(910_123);
+        Creature boar = _h.Creature(910_917);
+        _h.Auras.Apply(fallen, fallen, new AuraId(905), AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_124), boar, Bleed, AuraSource.None);
+        fallen.IsDead = true;
+        _h.DataFails = true;
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+        Assert.Equal(997u, boar.CurrentHealth);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+        Assert.Equal(994u, boar.CurrentHealth);
+    }
+
+    /// <summary>A heal over time on a unit at full health restores nothing and reports nothing.</summary>
+    [Fact]
+    public void Restore_and_report_nothing_on_a_unit_at_full_health()
+    {
+        CharacterEntity healer = _h.Player(910_121);
+        CharacterEntity friend = _h.Player(910_122);
+        _h.Auras.Apply(healer, friend, Renew, AuraSource.None);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(500u, friend.CurrentHealth);
+        _h.Outcomes.DidNotReceiveWithAnyArgs().PeriodicTick(default, default!, default, default!, default, default);
+    }
+
+    /// <summary>The tick path: no unit holding an aura costs nothing (#640).</summary>
+    [Fact]
+    public void Allocate_nothing_while_no_unit_holds_an_aura()
+    {
+        _h.Player(910_112);
+        _h.Creature(910_910);
+        _h.Auras.Update();
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+            _h.Auras.Update();
+
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    /// <summary>
+    /// A creature poisons a player, is drawn past its leash, walks home and resets there, leaving the encounter. The
+    /// poison ticks on from it: the tick does not pull it back into an encounter, and a heal on the player gives it no
+    /// threat.
+    /// </summary>
+    [Fact]
+    public void Keep_a_creature_out_of_the_fight_its_tick_lands_in_after_it_reset_at_home()
+    {
+        var h = new AuraHarness();
+        h.Use(AuraTestData.Bleed(), AuraTestData.Renew());
+        Creature boar = h.Creature(910_920);
+        boar.Metadata = Substitute.For<ICreatureMetadata>();
+        CharacterEntity player = h.Player(910_130);
+        player.Position = new Vector3(1f, 0f, 0f);
+        CharacterEntity healer = h.Player(910_131);
+        KitCombatScript script = ScriptOf(boar, h);
+        boar.Script = script;
+
+        Assert.Equal(AuraApplyResult.Applied, h.Auras.Apply(boar, player, Bleed, AuraSource.None));
+        Assert.NotNull(h.Encounters.FindEncounterContaining(boar));
+        script.OnEnteredRange(player);
+        boar.Position = new Vector3(40.5f, 0f, 0f);   // drawn past the 40 m leash
+        player.Position = new Vector3(41f, 0f, 0f);
+        script.Update(TimeSpan.FromSeconds(0.1));
+        Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
+        boar.Position = Vector3.zero;                  // home
+        script.Update(TimeSpan.FromSeconds(0.1));
+        Assert.Equal((object)CreatureCombatScript.CombatState.None, script.State);
+        Assert.Null(h.Encounters.FindEncounterContaining(boar));
+
+        h.Advance(TimeSpan.FromSeconds(3));
+        h.Auras.Update();
+        Assert.Equal(497u, player.CurrentHealth);   // the tick lands
+        Assert.Null(h.Encounters.FindEncounterContaining(boar));
+
+        h.Auras.Apply(healer, player, Renew, new AuraSource(new AbilityId(233), 1f, 0.5f, 0));
+        h.Advance(TimeSpan.FromSeconds(3));
+        h.Auras.Update();
+
+        Assert.Equal(500u, player.CurrentHealth);   // 3 more from the poison, 6 healed
+        Assert.Null(h.Encounters.FindEncounterContaining(boar));
+    }
+
+    /// <summary>A combat script over the harness's real combat service, standing at the origin, routes always reaching.</summary>
+    private static KitCombatScript ScriptOf(Creature creature, AuraHarness h)
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        Vector3? requested = null;
+        locomotion.When(l => l.MoveTo(creature, Arg.Any<Vector3>())).Do(ci => requested = ci.ArgAt<Vector3>(1));
+        locomotion.ResolvedDestination(creature).Returns(_ => requested);
+        locomotion.HasArrived(creature).Returns(true);
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(h.Combat);
+        context.Locomotion.Returns(locomotion);
+        context.MeleeSlots.Returns(new MeleeSlots(6, radius: 1.5f));
+        return new KitCombatScript(creature, context, h.Time);
+    }
+
+    /// <summary>
+    /// Players are never hostile in a town, so a tick between two players there (an aura brought in from elsewhere)
+    /// restarts no PvP timer; it still deals its damage. Anywhere else it restarts both, as a hit does.
+    /// </summary>
+    [Theory]
+    [InlineData(MapType.Town, false)]
+    [InlineData(MapType.Normal, true)]
+    public void Restart_no_pvp_timer_on_a_tick_in_a_town(MapType mapType, bool restarted)
+    {
+        var time = new FakeTimeProvider(AuraHarness.T0);
+        var pvp = new PvpToggle(Options.Create(new GameConfiguration()), time);
+        var instance = Substitute.For<IMapInstance>();
+        instance.MapType.Returns(mapType);
+        var combat = new CombatService(new CombatConfig(), new EncounterRegistry(new CombatConfig(), time), instance, pvp,
+            time: time);
+        CharacterEntity attacker = PvpPlayer(910_140, time);
+        CharacterEntity target = PvpPlayer(910_141, time);
+        DateTime timerSetAt = time.GetUtcNow().UtcDateTime;
+        time.Advance(TimeSpan.FromSeconds(30));
+
+        uint dealt = combat.ApplyPeriodicDamage(new PeriodicHit(attacker, target, Bleed, 10f, new AuraSnapshot(10f, 0f, 1),
+            AuraSource.None));
+
+        Assert.Equal((10u, 490u), (dealt, target.CurrentHealth));
+        DateTime expected = (restarted ? time.GetUtcNow().UtcDateTime : timerSetAt) + new GameConfiguration().PvpOffDelay;
+        Assert.Equal((expected, expected), (attacker.PvpOffAt!.Value, target.PvpOffAt!.Value));
+    }
+
+    private static CharacterEntity PvpPlayer(uint id, TimeProvider time)
+    {
+        CharacterEntity character = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(id);
+        character.Health = 500;
+        character.CurrentHealth = 500;
+        character.Data!.PvpEnabled = true;
+        character.Data.PvpOffAt = time.GetUtcNow().UtcDateTime + new GameConfiguration().PvpOffDelay;
+        return character;
+    }
+
+    /// <summary>A tick worth less than a point deals nothing and leaves the creature's health unmarked for a broadcast.</summary>
+    [Fact]
+    public void Leave_a_creatures_health_unmarked_after_a_tick_that_dealt_nothing()
+    {
+        _h.Use(new AuraTemplate
+        {
+            Id = new AuraId(908), Name = "Scratch", Icon = "scratch", Kind = AuraKind.Harmful, DurationMs = 12000,
+            TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 1f,
+            Stacking = AuraStacking.Refresh, MaxStacks = 1,
+        });
+        Creature boar = _h.Creature(910_921);
+        _h.Auras.Apply(_h.Player(910_142), boar, new AuraId(908), AuraSource.None);
+        boar.ConsumeDirtyFields();
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(1000u, boar.CurrentHealth);
+        Assert.False(boar.ConsumeDirtyFields().HasFlag(GameEntityFields.CurrentHealth));
+    }
+}

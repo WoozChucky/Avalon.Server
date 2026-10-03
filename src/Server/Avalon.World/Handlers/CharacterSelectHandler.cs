@@ -17,6 +17,7 @@ using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -57,7 +58,8 @@ public class CharacterSelectHandler(
     QuestService? questService = null,
     ICharacterIgnoreRepository? ignoreRepository = null,
     TickThreadGuard? tickThread = null,
-    IWorldEntryGate? entryGate = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    IWorldEntryGate? entryGate = null,
+    ICharacterAuraRepository? auraRepository = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -729,7 +731,7 @@ public class CharacterSelectHandler(
         if (ignoreRepository is null)
         {
             connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
-            Spawn(connection, entity, instance);
+            LoadAuras(connection, select, entity, instance);
             return;
         }
 
@@ -737,6 +739,42 @@ public class CharacterSelectHandler(
         {
             entity.Ignores.Load(rows);
             connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
+            LoadAuras(connection, select, entity, instance);
+        });
+    }
+
+    /// <summary>
+    /// Auras, the last step before the pending spawn: the saved ones come back with the time they had left, paused while
+    /// the character was away and until it enters its instance. Contained: a failure to restore costs the auras, never
+    /// the select. No repository (tests that build the handler without one) is no aura.
+    /// </summary>
+    private void LoadAuras(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance)
+    {
+        if (auraRepository is null)
+        {
+            Spawn(connection, entity, instance);
+            return;
+        }
+
+        Step(connection, select, auraRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        {
+            StaticData? data = null;
+            int maxAuras = 0;
+            try
+            {
+                data = world.Data;
+                maxAuras = world.Configuration.MaxAurasPerUnit;
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Reading the reference data to restore the auras of character {CharacterId} failed; it enters with none",
+                    entity.Guid.Id);
+            }
+
+            // On the character's own clock, as its saves read it; the time stands still until it enters its instance.
+            if (data is not null)
+                AuraRestore.RestoreOrNone(entity, rows, data, maxAuras, logger);
+
             Spawn(connection, entity, instance);
         });
     }

@@ -45,6 +45,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("ArcDegrees")
                         .HasColumnType("real");
 
+                    b.Property<long?>("AuraId")
+                        .HasColumnType("bigint");
+
                     b.Property<float>("BaseDamageCoefficient")
                         .HasColumnType("real");
 
@@ -114,6 +117,8 @@ namespace Avalon.Database.World.Migrations
                         .HasColumnType("real");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AuraId");
 
                     b.ToTable("AbilityTemplates", null, t =>
                         {
@@ -509,6 +514,171 @@ namespace Avalon.Database.World.Migrations
                             Range = 10,
                             Reach = 15f,
                             ScalingCoefficient = 0.6f,
+                            ScalingStat = (byte)1,
+                            ScriptName = "CircleAbilityScript",
+                            Shape = (byte)0,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 203L,
+                            Affects = (byte)0,
+                            AimMode = (byte)0,
+                            AllowedClasses = new[] { 1 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 90f,
+                            AuraId = 1L,
+                            BaseDamageCoefficient = 0.5f,
+                            CastTime = 0L,
+                            Cooldown = 6000L,
+                            Cost = 10L,
+                            CostPowerType = 2,
+                            EffectValue = 8L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Rend",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 0f,
+                            Radius = 0f,
+                            Range = 2,
+                            Reach = 2.5f,
+                            ScalingCoefficient = 0.2f,
+                            ScalingStat = (byte)0,
+                            ScriptName = "ConeAbilityScript",
+                            Shape = (byte)1,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 213L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 2 },
+                            Anchor = (byte)1,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            AuraId = 2L,
+                            BaseDamageCoefficient = 0f,
+                            CastTime = 0L,
+                            Cooldown = 6000L,
+                            Cost = 20L,
+                            CostPowerType = 1,
+                            EffectValue = 0L,
+                            Effects = 8,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Ignite",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 0f,
+                            Radius = 3f,
+                            Range = 20,
+                            Reach = 18f,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)1,
+                            ScriptName = "CircleAbilityScript",
+                            Shape = (byte)0,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 223L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 3 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            AuraId = 3L,
+                            BaseDamageCoefficient = 0.6f,
+                            CastTime = 0L,
+                            Cooldown = 8000L,
+                            Cost = 15L,
+                            CostPowerType = 3,
+                            EffectValue = 14L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Crippling Shot",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 28f,
+                            Radius = 0f,
+                            Range = 20,
+                            Reach = 25f,
+                            ScalingCoefficient = 0.35f,
+                            ScalingStat = (byte)0,
+                            ScriptName = "ProjectileAbilityScript",
+                            Shape = (byte)2,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 233L,
+                            Affects = (byte)1,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 4 },
+                            Anchor = (byte)1,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            AuraId = 4L,
+                            BaseDamageCoefficient = 0f,
+                            CastTime = 0L,
+                            Cooldown = 6000L,
+                            Cost = 15L,
+                            CostPowerType = 1,
+                            EffectValue = 0L,
+                            Effects = 4,
+                            Flags = 0L,
+                            HealThreatPerHp = 0.5f,
+                            Name = "Renew",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 0f,
+                            Radius = 4f,
+                            Range = 10,
+                            Reach = 15f,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)1,
+                            ScriptName = "CircleAbilityScript",
+                            Shape = (byte)0,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 234L,
+                            Affects = (byte)1,
+                            AimMode = (byte)0,
+                            AllowedClasses = new[] { 4 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            AuraId = 5L,
+                            BaseDamageCoefficient = 0f,
+                            CastTime = 0L,
+                            Cooldown = 20000L,
+                            Cost = 20L,
+                            CostPowerType = 1,
+                            EffectValue = 0L,
+                            Effects = 4,
+                            Flags = 0L,
+                            HealThreatPerHp = 0.5f,
+                            Name = "Fortify",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 0f,
+                            Radius = 8f,
+                            Range = 5,
+                            Reach = 0f,
+                            ScalingCoefficient = 0f,
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
@@ -1058,6 +1228,312 @@ namespace Avalon.Database.World.Migrations
                             Shape = (byte)1,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 317L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new int[0],
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            AuraId = 6L,
+                            BaseDamageCoefficient = 0.6f,
+                            CastTime = 0L,
+                            Cooldown = 8000L,
+                            Cost = 0L,
+                            CostPowerType = 0,
+                            EffectValue = 0L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Venom Spit",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 14f,
+                            Radius = 0f,
+                            Range = 10,
+                            Reach = 10f,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            ScriptName = "ProjectileAbilityScript",
+                            Shape = (byte)2,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 318L,
+                            Affects = (byte)0,
+                            AimMode = (byte)0,
+                            AllowedClasses = new int[0],
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            AuraId = 7L,
+                            BaseDamageCoefficient = 0f,
+                            CastTime = 0L,
+                            Cooldown = 18000L,
+                            Cost = 0L,
+                            CostPowerType = 0,
+                            EffectValue = 0L,
+                            Effects = 8,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Sundering Howl",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 0f,
+                            Radius = 6f,
+                            Range = 10,
+                            Reach = 0f,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            ScriptName = "CircleAbilityScript",
+                            Shape = (byte)0,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.AuraStatModifier", b =>
+                {
+                    b.Property<long>("AuraId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte>("Stat")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("smallint");
+
+                    b.Property<float>("Value")
+                        .HasColumnType("real");
+
+                    b.HasKey("AuraId", "Stat");
+
+                    b.ToTable("AuraStatModifiers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AuraStatModifiers_Kind", "\"Kind\" IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_AuraStatModifiers_Stat", "\"Stat\" BETWEEN 1 AND 10");
+
+                            t.HasCheckConstraint("CK_AuraStatModifiers_Value", "\"Value\" > -1000000 AND \"Value\" < 'Infinity' AND (\"Kind\" = 1 OR \"Value\" > -100)");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            AuraId = 3L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = -30f
+                        },
+                        new
+                        {
+                            AuraId = 5L,
+                            Stat = (byte)1,
+                            Kind = (byte)2,
+                            Value = 20f
+                        },
+                        new
+                        {
+                            AuraId = 7L,
+                            Stat = (byte)1,
+                            Kind = (byte)2,
+                            Value = -25f
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.AuraTemplate", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("BaseDamageCoefficient")
+                        .HasColumnType("real");
+
+                    b.Property<long>("DurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("smallint");
+
+                    b.Property<long>("MaxStacks")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<float>("PeriodicBase")
+                        .HasColumnType("real");
+
+                    b.Property<byte>("PeriodicKind")
+                        .HasColumnType("smallint");
+
+                    b.Property<float>("ScalingCoefficient")
+                        .HasColumnType("real");
+
+                    b.Property<byte>("ScalingStat")
+                        .HasColumnType("smallint");
+
+                    b.Property<string>("ScriptName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<byte>("Stacking")
+                        .HasColumnType("smallint");
+
+                    b.Property<long>("TickIntervalMs")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AuraTemplates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AuraTemplates_BaseDamageCoefficient", "\"BaseDamageCoefficient\" >= 0 AND \"BaseDamageCoefficient\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_DurationMs", "\"DurationMs\" > 0");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_Kind", "\"Kind\" IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_MaxStacks", "\"MaxStacks\" >= 1");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_PeriodicBase", "\"PeriodicBase\" >= 0 AND \"PeriodicBase\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_PeriodicFitsKind", "(\"Kind\" = 2 OR \"PeriodicKind\" <> 1) AND (\"Kind\" = 1 OR \"PeriodicKind\" <> 2)");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_PeriodicKind", "\"PeriodicKind\" IN (0, 1, 2)");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_ScalingCoefficient", "\"ScalingCoefficient\" >= 0 AND \"ScalingCoefficient\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_ScalingStat", "\"ScalingStat\" IN (0, 1)");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_Stacking", "\"Stacking\" IN (1, 2, 3)");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_TickIntervalMs", "\"TickIntervalMs\" <= \"DurationMs\" AND (\"PeriodicKind\" = 0 OR \"TickIntervalMs\" > 0)");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 12000L,
+                            Icon = "bleed",
+                            Kind = (byte)2,
+                            MaxStacks = 3L,
+                            Name = "Bleed",
+                            PeriodicBase = 12f,
+                            PeriodicKind = (byte)1,
+                            ScalingCoefficient = 0.25f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)2,
+                            TickIntervalMs = 3000L
+                        },
+                        new
+                        {
+                            Id = 2L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 9000L,
+                            Icon = "burn",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Burn",
+                            PeriodicBase = 24f,
+                            PeriodicKind = (byte)1,
+                            ScalingCoefficient = 0.6f,
+                            ScalingStat = (byte)1,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 3000L
+                        },
+                        new
+                        {
+                            Id = 3L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 6000L,
+                            Icon = "crippled",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Crippled",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 4L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 12000L,
+                            Icon = "renew",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Renew",
+                            PeriodicBase = 24f,
+                            PeriodicKind = (byte)2,
+                            ScalingCoefficient = 0.4f,
+                            ScalingStat = (byte)1,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 3000L
+                        },
+                        new
+                        {
+                            Id = 5L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 30000L,
+                            Icon = "fortified",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Fortified",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 6L,
+                            BaseDamageCoefficient = 1f,
+                            DurationMs = 9000L,
+                            Icon = "poison",
+                            Kind = (byte)2,
+                            MaxStacks = 3L,
+                            Name = "Poison",
+                            PeriodicBase = 3f,
+                            PeriodicKind = (byte)1,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)2,
+                            TickIntervalMs = 3000L
+                        },
+                        new
+                        {
+                            Id = 7L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 10000L,
+                            Icon = "sundered",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Sundered",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
                         });
                 });
 
@@ -1135,7 +1611,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2,3",
-                            StartingSpells = "200,201,202",
+                            StartingSpells = "200,201,202,203",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -1146,7 +1622,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "210,211,212",
+                            StartingSpells = "210,211,212,213",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -1157,7 +1633,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "220,221,222",
+                            StartingSpells = "220,221,222,223",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -1168,7 +1644,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "230,231,232",
+                            StartingSpells = "230,231,232,233,234",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -7729,6 +8205,23 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.AbilityTemplate", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.AuraTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("AuraId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.AuraStatModifier", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.AuraTemplate", null)
+                        .WithMany("Modifiers")
+                        .HasForeignKey("AuraId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ChunkPool", null)
@@ -8081,6 +8574,11 @@ namespace Avalon.Database.World.Migrations
                         .HasForeignKey("VendorStockId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.AuraTemplate", b =>
+                {
+                    b.Navigation("Modifiers");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>

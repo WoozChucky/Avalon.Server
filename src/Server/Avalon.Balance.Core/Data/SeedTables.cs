@@ -18,6 +18,8 @@ public sealed class SeedTables
     public required List<CharacterCreateInfo> CharacterCreateInfos { get; init; }
     public required List<CharacterLevelExperience> CharacterLevelExperiences { get; init; }
     public required List<VendorStock> VendorStocks { get; init; }
+    public required List<AuraTemplate> AuraTemplates { get; init; }
+    public required List<AuraStatModifier> AuraStatModifiers { get; init; }
 
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> Columns = new();
 
@@ -39,6 +41,8 @@ public sealed class SeedTables
         CharacterCreateInfos = CloneRows(CharacterCreateInfos),
         CharacterLevelExperiences = CloneRows(CharacterLevelExperiences),
         VendorStocks = CloneRows(VendorStocks),
+        AuraTemplates = CloneRows(AuraTemplates),
+        AuraStatModifiers = CloneRows(AuraStatModifiers),
     };
 
     private static List<T> CloneRows<T>(List<T> rows) where T : class, new()

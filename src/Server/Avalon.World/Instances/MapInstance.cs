@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Auras;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.Party;
@@ -11,6 +12,7 @@ using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
@@ -46,7 +48,7 @@ using Microsoft.Extensions.Options;
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
-    IItemUseHost, IItemCastAudience, IDisposable
+    IItemUseHost, IItemCastAudience, IAuraHost, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -65,6 +67,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly ItemUseCasts _itemUses;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
+    private readonly AuraSystem _auras;
+
+    // The aura pass, an ability's aura application and ending a unit's auras on its death, each logged at most once per
+    // ThrottledErrorLog.Interval when it throws, so one that throws every tick, cast or death cannot flood the log.
+    private readonly ThrottledErrorLog _auraPassFailures;
+    private readonly ThrottledErrorLog _auraApplyFailures;
+    private readonly ThrottledErrorLog _auraDeathFailures;
+
+    // Set by a tick that found nobody here, so the aura pass did not run: the next tick with players skips the ticks
+    // owed meanwhile rather than paying them all at once.
+    private bool _aurasPaused;
     private readonly UnitHitQuery _hits;
     private readonly ThreatBroadcastService _threatBroadcast;
     private readonly IWorld _world;
@@ -189,6 +202,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             formula: () => world.Data?.Combat?.Formula ?? SeededFormula);
         _threatBroadcast   = new ThreatBroadcastService(combatConfig, _time);
 
+        // Auras: one system per instance over its own units, ticked right after the ability cast system on this
+        // instance's clock. The catalog and the reference data are read through the world each time, so a reload
+        // reaches the next application. A world built without reference data (tests) has no aura at all.
+        _auras = new AuraSystem(_combatService, _characters, _creatures,
+            () => world.Data?.Auras ?? AuraCatalog.Empty, () => world.Data, _time, world.Configuration.MaxAurasPerUnit,
+            loggerFactory.CreateLogger<AuraSystem>(), serviceProvider.GetService<AuraScripts>(),
+            guid => _connections.TryGetValue(guid, out IWorldConnection? connection) ? connection : null);
+        _auraPassFailures = new ThrottledErrorLog(_logger, _time, $"The aura pass of instance {InstanceId}");
+        _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
+        _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
+
         // Shape scripts ask this for the living units their shape overlaps (#164).
         _hits = new UnitHitQuery(_characters, _creatures);
 
@@ -258,6 +282,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IEnumerable<IWorldConnection> Connections => _connections.Values;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
+
+    /// <summary>The auras of this instance's units (auras). World-side, not on IMapInstance.</summary>
+    public AuraSystem Auras => _auras;
 
     /// <summary>The item cast bars here. World-side, not on IMapInstance.</summary>
     public ItemUseCasts ItemUses => _itemUses;
@@ -417,12 +444,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             arriving.ResetFury();
         }
 
+        // An instance that stood empty skips the ticks its units were owed meanwhile now, before the arrival is a member:
+        // the arriving character's auras ran elsewhere, or stood still while it loaded, and owe nothing to this stretch.
+        if (_aurasPaused)
+            ResumeAuras();
+
         _characters[connection.Character!.Guid] = connection.Character;
         _connections[connection.Character.Guid] = connection;
         _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
         _lootSnapshotOwed.Add(connection.Character.Guid);
         _pvpStateOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
+
+        // Auras restored at select stood still while the client loaded, and a moved character's while it was between
+        // instances (World.TransferPlayer); their time starts again now, here.
+        if (connection.Character is CharacterEntity entered)
+            entered.Auras.ResumeHeld(entered.Clock.GetUtcNow());
 
         NotePresenceChange(connection.Character, "entered");
     }
@@ -746,9 +783,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// called by this instance's combat service inside combat and ability processing. Reads the Loot, Items and
     /// Quests areas as they are now, so a reload applies to the next kill. Each table drop is allocated on its own,
     /// among the characters that share the kill (2026-09-30); each quest drop (#433) belongs to the member it was
-    /// rolled for, for good. All of them are placed in one ring.
+    /// rolled for, for good. All of them are placed in one ring. A kill nobody is credited with
+    /// (<paramref name="credited" /> false: an aura's tick whose caster is gone) drops every table drop free for all at
+    /// once, whatever instance this is.
     /// </summary>
-    private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible, bool credited)
     {
         IReadOnlyList<(RolledDrop Drop, uint Owner)> questDrops = RollQuestDrops(creature, eligible);
         bool rollsTable = _lootRoller is not null && _lootAllocator is not null && creature.Metadata is CreatureTemplate;
@@ -778,9 +817,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             int tableCount = table.Count;
             IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
                 creature.Position, rolled,
-                i => i < tableCount
-                    ? allocator!.Allocate(OwnerCharacterId, OwnerPartyId, eligible)
-                    : new LootAllocation(questDrops[i - tableCount].Owner, DateTime.MaxValue),
+                i => i >= tableCount
+                    ? new LootAllocation(questDrops[i - tableCount].Owner, DateTime.MaxValue)
+                    : credited
+                        ? allocator!.Allocate(OwnerCharacterId, OwnerPartyId, eligible)
+                        : allocator!.Allocate(instanceOwner: null, instanceParty: null, []),
                 GetNavigatorForPosition(creature.Position), IObject.GenerateId);
 
             foreach (GroundLoot drop in drops)
@@ -871,12 +912,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         if (_characters.Count == 0)
         {
-            // Nothing ticks while nobody is here, but a projectile that finished just before the last
-            // character left would wait for a broadcast that never comes, and show frozen to the next
-            // player to enter (#164). Nobody is left to send its final state to, so drop it now.
-            _abilityCastSystem.DropFinished();
+            StandStillWhileEmpty();
             return;
         }
+
+        if (_aurasPaused)
+            ResumeAuras();
 
         if (_healthFactorOwed)
             ApplyHealthFactor();
@@ -926,6 +967,35 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
+    /// <summary>A tick with nobody here: nothing ticks, and what would wait for a player is settled now or on return.</summary>
+    private void StandStillWhileEmpty()
+    {
+        // A projectile that finished just before the last character left would wait for a broadcast
+        // that never comes, and show frozen to the next player to enter (#164). Nobody is left to send
+        // its final state to, so drop it now.
+        _abilityCastSystem.DropFinished();
+
+        // Auras stand still too; their time does not, and the first tick with players skips what came due meanwhile.
+        _aurasPaused = true;
+    }
+
+    /// <summary>
+    /// The first tick with players after one without: the auras' owed ticks are skipped, never paid in a burst, and those
+    /// whose end passed meanwhile end. Contained, as the aura pass is.
+    /// </summary>
+    private void ResumeAuras()
+    {
+        _aurasPaused = false;
+        try
+        {
+            _auras.SkipOwed();
+        }
+        catch (Exception e)
+        {
+            _auraPassFailures.Failed(e);
+        }
+    }
+
     /// <summary>Step 2 of <see cref="Update" />: each character's packets, its own tick, its PvP timer and its periodic save.</summary>
     private void UpdateCharacters(TimeSpan deltaTime)
     {
@@ -947,19 +1017,33 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    /// <summary>Step 3 of <see cref="Update" />: the cast system, then the combat service, then the threat mirror.</summary>
+    /// <summary>
+    /// Step 3 of <see cref="Update" />: the cast system, the auras, the item cast bars, then the combat service, then the
+    /// threat mirror.
+    /// </summary>
     private void UpdateCombat(TimeSpan deltaTime, List<IWorldObject> objectAbilities)
     {
         // Step 3: Ability cast system update
         _abilityCastSystem.Update(deltaTime, objectAbilities);
 
-        // Step 3a: item cast bars, after this tick's movement was applied by the packets above.
+        // Step 3a: auras, right after the casts that may have applied them, on this instance's clock. The pass contains
+        // each aura and each unit itself; this catches anything else, so a throw never costs the instance its tick.
+        try
+        {
+            _auras.Update();
+        }
+        catch (Exception e)
+        {
+            _auraPassFailures.Failed(e);
+        }
+
+        // Step 3b: item cast bars, after this tick's movement was applied by the packets above.
         _itemUses.Update(deltaTime);
 
-        // Step 3b: Tick combat service — decays threat, ends stale encounters.
+        // Step 3c: Tick combat service — decays threat, ends stale encounters.
         _combatService.Update(deltaTime);
 
-        // Step 3c: Mirror threat lists for each player's currently-targeted hostile.
+        // Step 3d: Mirror threat lists for each player's currently-targeted hostile.
         // Throttled (250 ms / 5 % delta) inside the service; iterating _connections.Values
         // here is safe because no inbound packet handler dequeued above mutates _connections
         // (target-unit just stores a ulong on the connection itself).
@@ -1039,21 +1123,29 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>Steps 5b and 6 of <see cref="Update" />: every character's visibility first, then every broadcast.</summary>
     private void BroadcastState(List<IWorldObject> objectAbilities)
     {
-        // Step 5b: Update entity visibility state per character, each by its own interest range (#593)
-        // The replication state is World-side (#612), so a character that is not a CharacterEntity is
-        // seen by the others but is sent nothing itself.
-        foreach (ICharacter character in _characters.Values)
+        // The aura changes are forgotten even when a step below throws, so none is held over and sent again next tick.
+        try
         {
-            if (character is CharacterEntity entity)
-                entity.CharacterGameState.Update(entity.Guid, entity.Position, _interest, _creatures,
-                    _characters, objectAbilities, _frameDirtyFields);
-        }
+            // Step 5b: Update entity visibility state per character, each by its own interest range (#593)
+            // The replication state is World-side (#612), so a character that is not a CharacterEntity is
+            // seen by the others but is sent nothing itself.
+            foreach (ICharacter character in _characters.Values)
+            {
+                if (character is CharacterEntity entity)
+                    entity.CharacterGameState.Update(entity.Guid, entity.Position, _interest, _creatures,
+                        _characters, objectAbilities, _frameDirtyFields);
+            }
 
-        // Step 6: Broadcast instance state to each character
-        foreach (ICharacter character in _characters.Values)
+            // Step 6: Broadcast instance state to each character
+            foreach (ICharacter character in _characters.Values)
+            {
+                if (character is CharacterEntity entity)
+                    BroadcastStateTo(entity);
+            }
+        }
+        finally
         {
-            if (character is CharacterEntity entity)
-                BroadcastStateTo(entity);
+            ClearAuraChanges();
         }
     }
 
@@ -1115,6 +1207,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (state.AddedObjects.Count > 0)
             connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, connection.CryptoSession.Encrypt));
 
+        // Auras: a list for every unit that came into view this tick, and the changes of every other unit in view. After
+        // the add, so the client knows the unit before it hears its auras.
+        SendAuraLists(connection, character, newObjects);
+        SendAuraUpdates(connection, character, newObjects);
+
         // _frameDirtyFields is populated only on broadcast ticks (see Step 5a in Update),
         // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
         if (state.UpdatedObjects.Count > 0)
@@ -1126,6 +1223,84 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 character.CharacterGameState.RemovedObjects, connection.CryptoSession.Encrypt));
         }
     }
+
+    /// <summary>
+    /// A unit's whole list to a client that has just been told the unit exists (auras): for any unit holding an aura,
+    /// and always for the client's own character, so an entry (the world, a portal, a respawn) replaces what it held.
+    /// </summary>
+    private void SendAuraLists(IWorldConnection connection, CharacterEntity recipient, IReadOnlyList<ObjectGuid> added)
+    {
+        for (int i = 0; i < added.Count; i++)
+        {
+            ObjectGuid guid = added[i];
+            if (UnitHere(guid) is not { } unit || AuraHolders.Of(unit) is not { } auras)
+                continue;
+
+            if (auras.Count == 0 && guid != recipient.Guid)
+                continue;
+
+            connection.Send(SAuraListPacket.Create(guid.RawValue, AuraWire.List(auras, _time.GetUtcNow()),
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
+    /// <summary>
+    /// This tick's aura changes of every unit the client has in view, its own character included, one packet a unit.
+    /// A unit it was just told about is skipped: its list carried them. A unit out of view is skipped too, and its
+    /// changes are cleared with everyone's at the end of the broadcast, so a client never hears of a copy it was not
+    /// listed; a unit that comes back into view is listed again. Allocates nothing while no unit changed.
+    /// </summary>
+    private void SendAuraUpdates(IWorldConnection connection, CharacterEntity recipient, IReadOnlyList<ObjectGuid> added)
+    {
+        foreach (ICharacter unit in _characters.Values)
+            SendAuraUpdate(connection, recipient, unit, added);
+
+        foreach (ICreature unit in _creatures.Values)
+            SendAuraUpdate(connection, recipient, unit, added);
+    }
+
+    private static void SendAuraUpdate(IWorldConnection connection, CharacterEntity recipient, IUnit unit,
+        IReadOnlyList<ObjectGuid> added)
+    {
+        if (AuraHolders.Of(unit) is not { HasChanges: true } auras)
+            return;
+
+        if (unit.Guid != recipient.Guid && !recipient.CharacterGameState.Knows(unit.Guid))
+            return;
+
+        for (int i = 0; i < added.Count; i++)
+        {
+            if (added[i] == unit.Guid)
+                return;
+        }
+
+        connection.Send(SAuraUpdatePacket.Create(unit.Guid.RawValue, AuraWire.Updates(auras.Changes),
+            connection.CryptoSession.Encrypt));
+    }
+
+    /// <summary>
+    /// Every unit's changes have gone to whoever sees it: forgotten, so each is sent once and none waits for a watcher
+    /// that never comes.
+    /// </summary>
+    private void ClearAuraChanges()
+    {
+        foreach (ICharacter character in _characters.Values)
+        {
+            if (character is CharacterEntity entity && entity.Auras.HasChanges)
+                entity.Auras.ClearChanges();
+        }
+
+        foreach (ICreature creature in _creatures.Values)
+        {
+            if (creature is Creature held && held.Auras.HasChanges)
+                held.Auras.ClearChanges();
+        }
+    }
+
+    private IUnit? UnitHere(ObjectGuid guid) =>
+        _characters.TryGetValue(guid, out ICharacter? character) ? character
+        : _creatures.TryGetValue(guid, out ICreature? creature) ? creature
+        : null;
 
     /// <summary>
     /// An entity the recipient has not seen before, described in full. Null when the entity
@@ -1394,7 +1569,86 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    void ICombatOutcomes.CreatureKilled(ICreature creature, IUnit killer)
+    /// <summary>
+    /// An aura's tick (auras), to everyone who hears it (#532), as a hit or a heal is, naming its aura: a character hurt
+    /// is sent its own damage packet first. Nobody applied it, or its caster is gone: the packets name raw 0. Only for a
+    /// target in this instance, as a hit is.
+    /// </summary>
+    void ICombatOutcomes.PeriodicTick(IUnit? caster, IUnit target, uint amount, AuraId aura, HitResult result, bool heal)
+    {
+        if (!_characters.ContainsKey(target.Guid) && !_creatures.ContainsKey(target.Guid))
+        {
+            return;
+        }
+
+        ObjectGuid from = caster?.Guid ?? new ObjectGuid();
+        if (!heal && target is CharacterEntity character && _connections.TryGetValue(character.Guid, out IWorldConnection? own))
+        {
+            own.Send(SCharacterDamagePacket.Create(from.RawValue, character.Guid.RawValue, character.CurrentHealth, amount,
+                null, own.CryptoSession.Encrypt, result, aura.Value));
+        }
+
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, target.Guid, caster?.Guid, target.Position, null))
+            {
+                continue;
+            }
+
+            connection.Send(heal
+                ? SUnitHealedPacket.Create(from.RawValue, target.Guid.RawValue, amount, target.CurrentHealth, null, result,
+                    connection.CryptoSession.Encrypt, aura.Value)
+                : SUnitDamagePacket.Create(from, target.Guid.RawValue, target.CurrentHealth, amount,
+                    connection.CryptoSession.Encrypt, result, aura.Value));
+        }
+    }
+
+    /// <summary>
+    /// Death ends every aura (auras). Reached again for a unit already dead, and from inside an aura's own tick, so it
+    /// ends only what is still held. Contained and throttled: a failure costs the auras, never the death that follows;
+    /// what it leaves on the corpse the next aura pass ends.
+    /// </summary>
+    void ICombatOutcomes.UnitDied(IUnit unit)
+    {
+        try
+        {
+            _auras.RemoveAll(unit, AuraRemoveReason.Death);
+        }
+        catch (Exception e)
+        {
+            _auraDeathFailures.Failed(e);
+        }
+    }
+
+    HitOutcome IAbilityArena.DamageForAbility(IUnit caster, IUnit target, IAbility ability) =>
+        _combatService.ApplyDamageWithOutcome(caster, target, ability.Metadata.EffectValue, ability);
+
+    void IAbilityArena.HealForAbility(IUnit caster, IUnit target, IAbility ability) =>
+        _combatService.ApplyHeal(caster, target, ability.Metadata.EffectValue, ability);
+
+    /// <summary>
+    /// The aura the ability's live row names, on <paramref name="target" />; who may receive it the shape and Hostility
+    /// already decided. Contained: an application that throws (a stats refresh or a hook's removal inside it) is logged,
+    /// throttled, and costs the cast none of its other targets.
+    /// </summary>
+    void IAbilityArena.ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability)
+    {
+        if (_world.Data?.LoadedAbilities is not { } abilities
+            || !abilities.TryGet(ability.AbilityId, out AbilityTemplate? row)
+            || row.AuraId is not { } aura)
+            return;
+
+        try
+        {
+            _auras.Apply(caster, target, aura, AuraSource.Of(ability));
+        }
+        catch (Exception e)
+        {
+            _auraApplyFailures.Failed(e);
+        }
+    }
+
+    void ICombatOutcomes.CreatureKilled(ICreature creature, IUnit? killer)
     {
         if (!_creatures.ContainsKey(creature.Guid))
         {
@@ -1425,7 +1679,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
         // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
-        DropLoot(creature, eligible);
+        // A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all.
+        DropLoot(creature, eligible, credited: killer is not null);
         AwardExperience(creature, eligible);
     }
 
@@ -1451,9 +1706,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// The characters that share this kill: the killer alone outside a party, or every present, eligible member of
-    /// its party. Empty when the killer is not a character or is in a leave countdown.
+    /// its party. Empty when there is no killer, or it is not a character or is in a leave countdown.
     /// </summary>
-    private IReadOnlyList<ICharacter> EligibleFor(ICreature creature, IUnit killer)
+    private IReadOnlyList<ICharacter> EligibleFor(ICreature creature, IUnit? killer)
     {
         ICharacter? character = killer as ICharacter;
         Party? party = character is null ? null : _parties?.PartyOf(character.Guid.Id);

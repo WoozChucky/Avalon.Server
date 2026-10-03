@@ -124,6 +124,9 @@ public class PublicMappingShould
             CostPowerType = Avalon.Network.Packets.State.PowerType.Fury, CastTime = 1500, Cooldown = 800, Range = Avalon.World.Public.Enums.SpellRange.Melee,
             ScriptName = script, Affects = affects, EffectValue = 10, ScalingStat = scaling,
             ScalingCoefficient = 0.5f, BaseDamageCoefficient = 1f, AllowedClasses = [CharacterClass.Warrior],
+            Effects = affects == AbilityAffects.Ally
+                ? Avalon.World.Public.Enums.SpellEffect.Heal
+                : Avalon.World.Public.Enums.SpellEffect.Damage,
         };
 
         PublicAbilityDto dto = cleave.ToPublicDto();

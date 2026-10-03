@@ -49,7 +49,7 @@ public class TemplateReadShould
     public async Task Ability_get_returns_version_etag_and_editable(ushort world, bool editable)
     {
         var repository = Substitute.For<IAbilityTemplateRepository>();
-        var row = new AbilityTemplate { Id = new AbilityId(1), Name = "Cleave", ScriptName = "s" };
+        var row = new AbilityTemplate { Id = new AbilityId(1), Name = "Cleave", ScriptName = "s", AuraId = new AuraId(1) };
         repository.FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>()).Returns(row);
         var sut = new AbilityTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
             { ControllerContext = Context() };
@@ -59,6 +59,77 @@ public class TemplateReadShould
         Assert.Equal(TemplateVersion.Of(row), dto.Version);
         Assert.Equal($"\"{dto.Version}\"", sut.Response.Headers.ETag.ToString());
         Assert.Equal(editable, dto.Editable);
+        Assert.Equal(1u, dto.AuraId);
+    }
+
+    [Fact]
+    public async Task Aura_get_returns_the_row_with_its_modifiers()
+    {
+        var repository = Substitute.For<IAuraTemplateRepository>();
+        var row = new Avalon.Domain.World.AuraTemplate
+        {
+            Id = new AuraId(5), Name = "Fortified", Icon = "fortified", Kind = Avalon.Domain.World.AuraKind.Helpful,
+            DurationMs = 30000, Stacking = Avalon.Domain.World.AuraStacking.Refresh, MaxStacks = 1,
+            Modifiers = [new Avalon.Domain.World.AuraStatModifier { AuraId = new AuraId(5), Stat = Avalon.Domain.World.AuraStat.Armor, Kind = Avalon.Domain.World.AuraModifierKind.Percent, Value = 20f }],
+        };
+        repository.FindByIdAsync(Arg.Any<AuraId>(), Arg.Any<CancellationToken>()).Returns(row);
+        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
+            { ControllerContext = Context() };
+
+        var dto = Dto<AuraTemplateDto>(await sut.Get(5, CancellationToken.None));
+
+        Assert.Equal(("Fortified", Avalon.Api.Contract.AuraKind.Helpful, 30000u), (dto.Name, dto.Kind, dto.DurationMs));
+        AuraStatModifierDto modifier = Assert.Single(dto.Modifiers);
+        Assert.Equal((Avalon.Api.Contract.AuraStat.Armor, Avalon.Api.Contract.AuraModifierKind.Percent, 20f),
+            (modifier.Stat, modifier.Kind, modifier.Value));
+        Assert.Equal(TemplateVersion.Of(row), dto.Version);
+        Assert.Equal($"\"{dto.Version}\"", sut.Response.Headers.ETag.ToString());
+        Assert.True(dto.Editable);
+    }
+
+    [Fact]
+    public async Task Aura_get_returns_its_periodic_amounts_and_base_damage_coefficient()
+    {
+        var repository = Substitute.For<IAuraTemplateRepository>();
+        var row = new Avalon.Domain.World.AuraTemplate
+        {
+            Id = new AuraId(6), Name = "Poison", Icon = "poison", Kind = Avalon.Domain.World.AuraKind.Harmful,
+            DurationMs = 9000, TickIntervalMs = 3000, PeriodicKind = Avalon.Domain.World.AuraPeriodicKind.Damage,
+            PeriodicBase = 3f, BaseDamageCoefficient = 1f,
+            Stacking = Avalon.Domain.World.AuraStacking.Stack, MaxStacks = 3,
+        };
+        repository.FindByIdAsync(Arg.Any<AuraId>(), Arg.Any<CancellationToken>()).Returns(row);
+        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
+            { ControllerContext = Context() };
+
+        var dto = Dto<AuraTemplateDto>(await sut.Get(6, CancellationToken.None));
+
+        Assert.Equal((3f, 0f, 1f), (dto.PeriodicBase, dto.ScalingCoefficient, dto.BaseDamageCoefficient));
+        Assert.Equal((Avalon.Api.Contract.AuraPeriodicKind.Damage, 3000u, Avalon.Api.Contract.AuraStacking.Stack, 3u),
+            (dto.PeriodicKind, dto.TickIntervalMs, dto.Stacking, dto.MaxStacks));
+    }
+
+    [Fact]
+    public async Task Aura_get_answers_404_for_an_unknown_id()
+    {
+        var repository = Substitute.For<IAuraTemplateRepository>();
+        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
+            { ControllerContext = Context() };
+
+        Assert.IsType<NotFoundResult>(await sut.Get(7, CancellationToken.None));
+    }
+
+    /// <summary>The contract enums are cast from the stored ones, so the two must agree name for value.</summary>
+    [Fact]
+    public void Mirror_every_aura_enum_by_name_and_value()
+    {
+        static IEnumerable<(string, int)> Of<T>() where T : struct, Enum =>
+            Enum.GetValues<T>().Select(v => (v.ToString(), Convert.ToInt32(v, System.Globalization.CultureInfo.InvariantCulture)));
+        Assert.Equal(Of<Avalon.Domain.World.AuraKind>(), Of<Avalon.Api.Contract.AuraKind>());
+        Assert.Equal(Of<Avalon.Domain.World.AuraPeriodicKind>(), Of<Avalon.Api.Contract.AuraPeriodicKind>());
+        Assert.Equal(Of<Avalon.Domain.World.AuraStacking>(), Of<Avalon.Api.Contract.AuraStacking>());
+        Assert.Equal(Of<Avalon.Domain.World.AuraStat>(), Of<Avalon.Api.Contract.AuraStat>());
+        Assert.Equal(Of<Avalon.Domain.World.AuraModifierKind>(), Of<Avalon.Api.Contract.AuraModifierKind>());
     }
 
     [Theory]

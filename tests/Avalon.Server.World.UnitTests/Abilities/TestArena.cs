@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
+using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -39,6 +40,23 @@ internal sealed class TestArena : IAbilityArena
     public List<(Vector3 Origin, Vector3? Direction, Vector3? Centre)> Fired { get; } = [];
 
     public IMapNavigator GetNavigatorForPosition(Vector3 position) => Navigator;
+
+    /// <summary>How every damage call is answered; Landed unless a test says otherwise.</summary>
+    public HitOutcome NextOutcome { get; set; } = HitOutcome.Landed;
+
+    /// <summary>Every aura application asked for, in order.</summary>
+    public List<(IUnit Caster, IUnit Target, IAbility Ability)> AurasApplied { get; } = [];
+
+    public HitOutcome DamageForAbility(IUnit caster, IUnit target, IAbility ability)
+    {
+        CombatService.ApplyDamage(caster, target, ability.Metadata.EffectValue, ability);
+        return NextOutcome;
+    }
+
+    public void HealForAbility(IUnit caster, IUnit target, IAbility ability) =>
+        CombatService.ApplyHeal(caster, target, ability.Metadata.EffectValue, ability);
+
+    public void ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability) => AurasApplied.Add((caster, target, ability));
 
     /// <summary>Every fired broadcast's whole footprint and the cast id in flight then, in order (#648).</summary>
     public List<(AbilityFootprint Footprint, uint CastId)> FiredFootprints { get; } = [];

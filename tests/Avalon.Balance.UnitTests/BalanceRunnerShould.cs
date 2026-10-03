@@ -97,7 +97,7 @@ public class BalanceRunnerShould
         Assert.Equal(new RowKey(CharacterClass.Warrior, 3, "forest", "normal-1"), row.Key);
         Assert.InRange(row.WinRatePct, 0, 100);
         Assert.True(row.FightSeconds.P10 <= row.FightSeconds.Median && row.FightSeconds.Median <= row.FightSeconds.P90);
-        Assert.Equal(3, row.Snapshot.Abilities.Count);
+        Assert.Equal(4, row.Snapshot.Abilities.Count);
         Assert.True(row.DamageDealtPerRun.ContainsKey("Cleave"));
     }
 }

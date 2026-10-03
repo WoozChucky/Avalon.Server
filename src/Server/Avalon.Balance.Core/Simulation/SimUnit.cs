@@ -46,17 +46,29 @@ public abstract class SimUnit : IUnit
 {
     public required string Name { get; init; }
 
-    public AttackerCombat Attack { get; protected init; }
+    /// <summary>What it attacks with, its auras folded in (set again whenever an aura with modifiers changes).</summary>
+    public AttackerCombat Attack { get; protected set; }
 
-    public DefenderCombat Defence { get; protected init; }
+    /// <summary>What it defends with, its auras folded in.</summary>
+    public DefenderCombat Defence { get; protected set; }
 
     /// <summary>
     /// Percentage points: a character's effective haste (already capped), a creature's raw haste, which
-    /// CombatRules.EffectiveHaste caps as the server does. Init-only; public so a test can build a creature past its cap.
+    /// CombatRules.EffectiveHaste caps as the server does. Public so a test can build a creature past its cap; an aura
+    /// with a haste modifier sets it again.
     /// </summary>
-    public float HastePct { get; init; }
+    public float HastePct { get; set; }
 
     public List<SimAbility> Abilities { get; } = [];
+
+    /// <summary>The auras this unit holds, in the order applied, as the server's UnitAuras.</summary>
+    public List<SimAura> Auras { get; } = [];
+
+    /// <summary>What its auras add to its stats, as UnitAuras.StatTotals.</summary>
+    public AuraStatTotals AuraTotals() =>
+        Auras.Count == 0
+            ? AuraStatTotals.Empty
+            : AuraStatTotals.Of(Auras.Select(a => ((IReadOnlyList<AuraStatModifier>)a.Template.Modifiers, a.Stacks)));
 
     public PendingCast? Casting { get; set; }
 
