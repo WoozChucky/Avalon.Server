@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Avalon.Network.Packets.Abstractions;
@@ -32,6 +31,7 @@ public class AuraPacketsShould
         Assert.Equal("3805", Hex(new SUnitHealedPacket { AuraId = 5 }));
         Assert.Equal("", Hex(new SUnitDamagePacket()));
     }
+
     [Fact]
     public void Use_the_next_free_combat_opcodes()
     {
@@ -70,6 +70,9 @@ public class AuraPacketsShould
     public void Keep_the_cancel_field_numbers()
     {
         Assert.Equal("0805", Hex(new CAuraCancelPacket { AuraId = 5 }));
+        Assert.Equal("1007", Hex(new CAuraCancelPacket { InstanceKey = 7 }));
+        Assert.Equal("1000", Hex(new CAuraCancelPacket { InstanceKey = 0 }));
+        Assert.Equal("", Hex(new CAuraCancelPacket { InstanceKey = null }));
         Assert.Equal("0805", Hex(new SAuraCancelResultPacket { AuraId = 5 }));
         Assert.Equal("1003", Hex(new SAuraCancelResultPacket { Result = AuraCancelResult.NotCancellable }));
     }

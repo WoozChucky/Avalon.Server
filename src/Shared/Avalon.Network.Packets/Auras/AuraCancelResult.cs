@@ -5,14 +5,17 @@ public enum AuraCancelResult : byte
 {
     Unknown = 0,
 
-    /// <summary>Every copy of the aura on the canceller ended.</summary>
+    /// <summary>The named copy ended, or, when the cancel named no copy, every copy of the aura on the canceller.</summary>
     Ok = 1,
 
-    /// <summary>The canceller holds no such aura.</summary>
+    /// <summary>
+    /// The canceller holds no copy of the aura with that id, and, when the cancel named a copy, with that key.
+    /// </summary>
     NotFound = 2,
 
     /// <summary>It is harmful: only helpful auras can be cancelled.</summary>
     NotCancellable = 3,
 
+    /// <summary>The canceller is dead: nothing ended.</summary>
     Dead = 4,
 }

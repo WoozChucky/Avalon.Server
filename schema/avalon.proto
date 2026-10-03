@@ -151,6 +151,7 @@ message CAudioRecordPacket {
 }
 message CAuraCancelPacket {
    uint32 AuraId = 1;
+   optional uint32 InstanceKey = 2;
 }
 message CAuthGameTicketPacket {
    optional string Ticket = 1;
