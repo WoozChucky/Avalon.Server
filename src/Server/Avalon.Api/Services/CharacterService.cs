@@ -2,6 +2,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Exceptions;
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Character.Repositories;
@@ -220,7 +221,7 @@ public class CharacterService : ICharacterService
             Auras = rows.Select(r => new CharacterAuraDto
             {
                 AuraId = r.AuraId,
-                CasterGuid = r.CasterGuid,
+                CasterCharacterId = CasterCharacterIdOf(r.CasterGuid),
                 SourceAbilityId = r.SourceAbilityId,
                 Stacks = r.Stacks,
                 RemainingMs = r.RemainingMs,
@@ -229,6 +230,13 @@ public class CharacterService : ICharacterService
                 AppliedAt = r.AppliedAt,
             }).ToList(),
         };
+    }
+
+    /// <summary>The character id a saved caster names; null for nobody (0) or for anything but a character.</summary>
+    private static uint? CasterCharacterIdOf(ulong casterGuid)
+    {
+        var guid = new ObjectGuid(casterGuid);
+        return guid.Type == ObjectType.Character && guid.Id != 0 ? guid.Id : null;
     }
 
     public async Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default)

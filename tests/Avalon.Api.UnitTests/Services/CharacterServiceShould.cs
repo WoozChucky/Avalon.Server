@@ -1,5 +1,6 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
@@ -351,7 +352,8 @@ public class CharacterServiceShould
         DateTime applied = new(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc);
         auras.GetByCharacterIdAsync(new CharacterId(42), Arg.Any<CancellationToken>()).Returns(
         [
-            new CharacterAura { CharacterId = new CharacterId(42), Slot = 0, AuraId = 1, CasterGuid = 9, SourceAbilityId = 203,
+            new CharacterAura { CharacterId = new CharacterId(42), Slot = 0, AuraId = 1,
+                CasterGuid = new ObjectGuid(ObjectType.Character, 9).RawValue, SourceAbilityId = 203,
                 Stacks = 3, RemainingMs = 4000, DurationMs = 12000, TicksLeft = 2, AppliedAt = applied },
             new CharacterAura { CharacterId = new CharacterId(42), Slot = 1, AuraId = 5, CasterGuid = 0, SourceAbilityId = null,
                 Stacks = 1, RemainingMs = 30000, DurationMs = 30000, TicksLeft = 0, AppliedAt = applied },
@@ -366,10 +368,11 @@ public class CharacterServiceShould
         Assert.Equal(42u, dto.CharacterId);
         Assert.Equal(2, dto.Auras.Count);
         CharacterAuraDto bleed = dto.Auras[0];
-        Assert.Equal((1u, 9ul, (uint?)203u, 3, 4000u, 12000u, 2, applied), (bleed.AuraId, bleed.CasterGuid, bleed.SourceAbilityId,
-            bleed.Stacks, bleed.RemainingMs, bleed.DurationMs, bleed.TicksLeft, bleed.AppliedAt));
-        // A caster nobody knows is shown as saved: 0.
-        Assert.Equal((5u, 0ul, (uint?)null), (dto.Auras[1].AuraId, dto.Auras[1].CasterGuid, dto.Auras[1].SourceAbilityId));
+        Assert.Equal((1u, (uint?)9u, (uint?)203u, 3, 4000u, 12000u, 2, applied), (bleed.AuraId, bleed.CasterCharacterId,
+            bleed.SourceAbilityId, bleed.Stacks, bleed.RemainingMs, bleed.DurationMs, bleed.TicksLeft, bleed.AppliedAt));
+        // A caster nobody knows is nobody.
+        Assert.Equal((5u, (uint?)null, (uint?)null), (dto.Auras[1].AuraId, dto.Auras[1].CasterCharacterId,
+            dto.Auras[1].SourceAbilityId));
     }
 
     [Fact]

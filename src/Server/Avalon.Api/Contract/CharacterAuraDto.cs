@@ -5,8 +5,11 @@ public sealed class CharacterAuraDto
 {
     public uint AuraId { get; set; }
 
-    /// <summary>Who applied it, raw; 0 for nobody or nobody known.</summary>
-    public ulong CasterGuid { get; set; }
+    /// <summary>
+    /// The character that applied it, by character id in the same world; null for nobody or nobody known. A world saves
+    /// only a character caster.
+    /// </summary>
+    public uint? CasterCharacterId { get; set; }
 
     /// <summary>The ability that applied it, or null.</summary>
     public uint? SourceAbilityId { get; set; }
