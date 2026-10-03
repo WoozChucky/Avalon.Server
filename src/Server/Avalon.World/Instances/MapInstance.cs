@@ -456,7 +456,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _pvpStateOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
 
-        // Auras restored at select stood still while the client loaded; their time starts again now, in the world.
+        // Auras restored at select stood still while the client loaded, and a moved character's while it was between
+        // instances (World.TransferPlayer); their time starts again now, here.
         if (connection.Character is CharacterEntity entered)
             entered.Auras.ResumeHeld(entered.Clock.GetUtcNow());
 

@@ -68,9 +68,9 @@ public sealed class UnitAuras(Action? changed = null)
     }
 
     /// <summary>
-    /// The moment the restored auras' time stopped, while their character waits to enter the world; null once it has
-    /// entered (<see cref="ResumeHeld" />), or for auras that were never held. A save taken meanwhile reads the time left
-    /// at this moment, so the wait costs nothing.
+    /// The moment the auras' time stopped, while their character waits to enter the world or moves between instances
+    /// (<see cref="Hold" />); null once it has entered (<see cref="ResumeHeld" />), or for auras that were never held. A
+    /// save taken meanwhile reads the time left at this moment, so the wait costs nothing.
     /// </summary>
     public DateTimeOffset? HeldSince { get; private set; }
 
@@ -92,6 +92,13 @@ public sealed class UnitAuras(Action? changed = null)
         HeldSince = heldSince;
         _totals = null;
     }
+
+    /// <summary>
+    /// The character has left one instance for another: its auras' time stands still from <paramref name="now" /> until
+    /// it enters the next (<see cref="ResumeHeld" />), so no tick is lost or paid in a burst for the time between. A hold
+    /// already in place (a character still waiting to enter) is kept.
+    /// </summary>
+    public void Hold(DateTimeOffset now) => HeldSince ??= now;
 
     /// <summary>
     /// The character has entered its instance: the held auras' time starts again from <paramref name="now" />, each
