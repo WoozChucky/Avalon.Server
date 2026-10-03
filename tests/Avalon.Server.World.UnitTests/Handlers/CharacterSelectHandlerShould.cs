@@ -72,7 +72,9 @@ public class CharacterSelectHandlerShould
         GameConfiguration? game = null,
         ICharacterQuestRepository? quests = null,
         QuestService? questService = null,
-        ICharacterIgnoreRepository? ignores = null)
+        ICharacterIgnoreRepository? ignores = null,
+        ICharacterAuraRepository? auras = null,
+        IReadOnlyCollection<AuraTemplate>? auraTemplates = null)
     {
         var row = new Character
         {
@@ -118,7 +120,7 @@ public class CharacterSelectHandlerShould
 
         // Built first: configuring a substitute inside a Returns() argument breaks NSubstitute's
         // last-call tracking.
-        StaticData staticData = await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates);
+        StaticData staticData = await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates, auraTemplates);
 
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(game ?? new GameConfiguration());   // the select reads Game:FuryDecayPerSecond (#526)
@@ -153,6 +155,7 @@ public class CharacterSelectHandlerShould
         RunContinuationsInline<IReadOnlyCollection<CharacterAbility>>(connection);
         RunContinuationsInline<CharacterQuestRows>(connection);
         RunContinuationsInline<IReadOnlyList<IgnoredCharacterRow>>(connection);
+        RunContinuationsInline<IReadOnlyList<CharacterAura>>(connection);
 
         var handler = new CharacterSelectHandler(
             NullLogger<CharacterSelectHandler>.Instance,
@@ -171,7 +174,8 @@ public class CharacterSelectHandlerShould
             null,
             quests,
             questService,
-            ignores);
+            ignores,
+            auraRepository: auras);
 
         return new Fixture
         {
@@ -237,7 +241,8 @@ public class CharacterSelectHandlerShould
     private static async Task<StaticData> EmptyStaticDataAsync(
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
         IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
-        IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null)
+        IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null,
+        IReadOnlyCollection<AuraTemplate>? auraTemplates = null)
     {
         var levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterLevelExperience>());
@@ -271,13 +276,17 @@ public class CharacterSelectHandlerShould
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
                 [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
+        var auraRepository = Substitute.For<IAuraTemplateRepository>();
+        auraRepository.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<AuraTemplate>>(auraTemplates?.ToArray() ?? []));
         var rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
         var data = new StaticData(createInfos, stats, items, abilities, levels,
             creatureTemplates, baseStats, rarities,
-            localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
+            localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance,
+            auraTemplateRepository: auraRepository);
         await data.LoadAsync(CancellationToken.None);
         return data;
     }
@@ -355,6 +364,52 @@ public class CharacterSelectHandlerShould
         using var stream = new MemoryStream(list.Payload);
         var dto = Assert.Single(Serializer.Deserialize<Avalon.Network.Packets.Social.SIgnoreListPacket>(stream).Characters);
         Assert.Equal((9u, "Borin"), (dto.CharacterId, dto.Name));
+    }
+
+    /// <summary>
+    /// The saved auras are read after the ignore list and brought back on the pending character, their time held until it
+    /// enters its instance.
+    /// </summary>
+    [Fact]
+    public async Task Bring_the_saved_auras_back_on_the_pending_character()
+    {
+        var auras = Substitute.For<ICharacterAuraRepository>();
+        auras.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns((IReadOnlyList<CharacterAura>)
+        [
+            new CharacterAura
+            {
+                CharacterId = TheCharacter, Slot = 0, AuraId = 901, Stacks = 1, RemainingMs = 7500, DurationMs = 12000,
+                TicksLeft = 3, TickAmount = 3f, AppliedAt = DateTime.UtcNow,
+            },
+        ]);
+        Fixture f = await BuildAsync(auras: auras, auraTemplates: [Auras.AuraTestData.Bleed()]);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        f.Connection.Received(1).SetPendingSpawn(
+            Arg.Is<ICharacter>(c => ((CharacterEntity)c).Auras.Count == 1 && ((CharacterEntity)c).Auras.HeldSince != null),
+            f.Instance, Arg.Any<long>());
+    }
+
+    /// <summary>A select cancelled before the aura step (here, its connection kicked during the ignore read) reads no aura.</summary>
+    [Fact]
+    public async Task Read_no_aura_for_a_select_cancelled_before_its_aura_step()
+    {
+        bool closing = false;
+        var ignores = Substitute.For<ICharacterIgnoreRepository>();
+        ignores.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            closing = true;
+            return Task.FromResult<IReadOnlyList<IgnoredCharacterRow>>([]);
+        });
+        var auras = Substitute.For<ICharacterAuraRepository>();
+        Fixture f = await BuildAsync(ignores: ignores, auras: auras);
+        f.Connection.IsClosing.Returns(_ => closing);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        await auras.DidNotReceiveWithAnyArgs().GetByCharacterIdAsync(default!, default);
+        f.Connection.DidNotReceiveWithAnyArgs().SetPendingSpawn(default!, default!, default);
     }
 
     /// <summary>#723: without a repository (a handler built outside the container) the list is empty, and still sent.</summary>

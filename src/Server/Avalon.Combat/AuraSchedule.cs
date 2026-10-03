@@ -24,6 +24,19 @@ public readonly record struct AuraSchedule(DateTimeOffset ExpiresAt, TimeSpan In
             Math.Clamp(ticksLeft, 0, fits));
     }
 
+    /// <summary>
+    /// A saved aura brought back at select, <paramref name="remainingMs" /> before its end. As <see cref="Resume" />, but
+    /// it keeps one tick more than the remaining time holds: a save can be taken after a tick came due and before the
+    /// aura pass took it, and that tick is owed, so <see cref="Due" /> pays it at once. Never more than one: a row
+    /// claiming more is not believed.
+    /// </summary>
+    public static AuraSchedule Restore(DateTimeOffset now, uint remainingMs, uint tickIntervalMs, int ticksLeft)
+    {
+        int fits = tickIntervalMs == 0 ? 0 : (int)(remainingMs / tickIntervalMs) + 2;
+        return new(now + TimeSpan.FromMilliseconds(remainingMs), TimeSpan.FromMilliseconds(tickIntervalMs),
+            Math.Clamp(ticksLeft, 0, fits));
+    }
+
     /// <summary>How many ticks are owed at <paramref name="now" />: those whose time has come, at most <see cref="TicksLeft" />.</summary>
     public int Due(DateTimeOffset now)
     {

@@ -744,9 +744,9 @@ public class CharacterSelectHandler(
     }
 
     /// <summary>
-    /// Auras, the last step before the pending spawn: the saved ones resume with the time they had left, paused while
-    /// the character was away. Contained: a failure to restore costs the auras, never the select. No repository (tests
-    /// that build the handler without one) is no aura.
+    /// Auras, the last step before the pending spawn: the saved ones come back with the time they had left, paused while
+    /// the character was away and until it enters its instance. Contained: a failure to restore costs the auras, never
+    /// the select. No repository (tests that build the handler without one) is no aura.
     /// </summary>
     private void LoadAuras(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance)
     {
@@ -758,17 +758,22 @@ public class CharacterSelectHandler(
 
         Step(connection, select, auraRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
         {
+            StaticData? data = null;
+            int maxAuras = 0;
             try
             {
-                AuraRestore.Restore(entity, rows, world.Data, (time ?? TimeProvider.System).GetUtcNow(), logger);
+                data = world.Data;
+                maxAuras = world.Configuration.MaxAurasPerUnit;
             }
             catch (Exception e)
             {
-                // Whatever the restore had loaded before it threw goes too, so the character enters as the log says.
-                entity.Auras.Load([]);
-                logger.LogError(e, "Restoring the auras of character {CharacterId} at select failed; it enters with none",
+                logger.LogError(e, "Reading the reference data to restore the auras of character {CharacterId} failed; it enters with none",
                     entity.Guid.Id);
             }
+
+            // On the character's own clock, as its saves read it; the time stands still until it enters its instance.
+            if (data is not null)
+                AuraRestore.RestoreOrNone(entity, rows, data, maxAuras, logger);
 
             Spawn(connection, entity, instance);
         });

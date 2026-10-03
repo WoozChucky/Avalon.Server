@@ -67,8 +67,19 @@ public sealed class UnitAuras(Action? changed = null)
         return true;
     }
 
-    /// <summary>The auras a character had when it last left the world, at select. Nothing is owed: the client gets a list.</summary>
-    public void Load(IEnumerable<ActiveAura> restored)
+    /// <summary>
+    /// The moment the restored auras' time stopped, while their character waits to enter the world; null once it has
+    /// entered (<see cref="ResumeHeld" />), or for auras that were never held. A save taken meanwhile reads the time left
+    /// at this moment, so the wait costs nothing.
+    /// </summary>
+    public DateTimeOffset? HeldSince { get; private set; }
+
+    /// <summary>
+    /// The auras a character had when it last left the world, at select. Nothing is owed: the client gets a list. With
+    /// <paramref name="heldSince" />, their schedules are anchored there and their time stands still until
+    /// <see cref="ResumeHeld" />.
+    /// </summary>
+    public void Load(IEnumerable<ActiveAura> restored, DateTimeOffset? heldSince = null)
     {
         _auras.Clear();
         _changes.Clear();
@@ -78,7 +89,26 @@ public sealed class UnitAuras(Action? changed = null)
             _auras.Add(aura);
         }
 
+        HeldSince = heldSince;
         _totals = null;
+    }
+
+    /// <summary>
+    /// The character has entered its instance: the held auras' time starts again from <paramref name="now" />, each
+    /// schedule moved on by the time it waited, so it keeps all the time and ticks it had. Nothing when nothing is held.
+    /// </summary>
+    public void ResumeHeld(DateTimeOffset now)
+    {
+        if (HeldSince is not { } since)
+            return;
+
+        HeldSince = null;
+        TimeSpan waited = now - since;
+        if (waited <= TimeSpan.Zero)
+            return;
+
+        foreach (ActiveAura aura in _auras)
+            aura.Schedule = aura.Schedule with { ExpiresAt = aura.Schedule.ExpiresAt + waited };
     }
 
     public void ClearChanges() => _changes.Clear();

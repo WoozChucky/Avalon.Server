@@ -443,12 +443,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             arriving.ResetFury();
         }
 
+        // An instance that stood empty skips the ticks its units were owed meanwhile now, before the arrival is a member:
+        // the arriving character's auras ran elsewhere, or stood still while it loaded, and owe nothing to this stretch.
+        if (_aurasPaused)
+            ResumeAuras();
+
         _characters[connection.Character!.Guid] = connection.Character;
         _connections[connection.Character.Guid] = connection;
         _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
         _lootSnapshotOwed.Add(connection.Character.Guid);
         _pvpStateOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
+
+        // Auras restored at select stood still while the client loaded; their time starts again now, in the world.
+        if (connection.Character is CharacterEntity entered)
+            entered.Auras.ResumeHeld(entered.Clock.GetUtcNow());
 
         NotePresenceChange(connection.Character, "entered");
     }
