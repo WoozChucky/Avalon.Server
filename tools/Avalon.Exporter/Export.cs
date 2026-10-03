@@ -72,6 +72,12 @@ internal static class Exports
                 Path.Combine(root, AbilityCatalogExport.DirectoryName, AbilityCatalogExport.FileName)),
             AbilityCatalogExport.Readiness),
 
+        new("aura-catalog", AuraCatalogExport.DirectoryName + "/" + AuraCatalogExport.FileName,
+            "every aura's name, icon, kind, timing, stacking and stat modifiers (needs a World database)",
+            root => AuraCatalogExport.Write(
+                Path.Combine(root, AuraCatalogExport.DirectoryName, AuraCatalogExport.FileName)),
+            AuraCatalogExport.Readiness),
+
         new("quest-catalog", QuestCatalogExport.DirectoryName + "/" + QuestCatalogExport.FileName,
             "every quest's title, stages, objectives and rewards, for tooling (needs a World database)",
             root => QuestCatalogExport.Write(

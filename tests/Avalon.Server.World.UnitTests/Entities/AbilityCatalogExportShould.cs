@@ -78,7 +78,7 @@ public class AbilityCatalogExportShould
 
         Assert.Equal(
             ["id", "name", "shape", "aimMode", "anchor", "affects", "radius", "reach", "arcDegrees", "projectileSpeed",
-             "pierce", "castTimeMs", "cooldownMs"],
+             "pierce", "castTimeMs", "cooldownMs", "auraId"],
             bite.EnumerateObject().Select(p => p.Name));
     }
 
