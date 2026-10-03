@@ -50,7 +50,8 @@ public class AuraSimulationShould
         SimPlayer warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
         warrior.Abilities.Add(new SimAbility(data.Abilities[new AbilityId(9203)]));
         SimCreature boar = SimCreature.Create(data, data.Creature(4), 3, 0);
-        boar.Health = boar.CurrentHealth = 1_000_000;
+        // Its base maximum too, as the parity test's server boar has, so a stat aura keeps its health where it is.
+        boar.Health = boar.CurrentHealth = boar.BaseMaxHealth = 1_000_000;
         foreach (SimAbility a in boar.Abilities) a.CooldownLeft = 1_000f;
         var fight = new FightSimulator(data.Combat.Formula, warrior, [boar], [new CompiledRotationEntry(9203, [])],
             rng ?? CombatRandom.Steady, data: data);

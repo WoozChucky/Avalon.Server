@@ -77,6 +77,7 @@ public class SimulatorParityShould
             Level = twin.Derived.Level,
             Health = 1_000_000,
             CurrentHealth = 1_000_000,
+            BaseMaxHealth = 1_000_000,
             DamageMin = twin.Derived.DamageMin,
             DamageMax = twin.Derived.DamageMax,
             Armor = twin.Derived.Armor,
@@ -300,13 +301,13 @@ public class SimulatorParityShould
         Stacking = AuraStacking.Stack, MaxStacks = 3,
     };
 
-    private static AbilityTemplate TestRend() => new()
+    private static AbilityTemplate TestRend(int powerGainPerHit = 0) => new()
     {
         Id = new Avalon.Common.ValueObjects.AbilityId(9203), Name = "Test Rend", ScriptName = "ConeAbilityScript",
         Shape = AbilityShape.Cone, AimMode = AbilityAimMode.Movement, Reach = 2.5f, ArcDegrees = 90f, Cooldown = 6000,
         Effects = SpellEffect.Damage, EffectValue = 8, ScalingStat = ScalingStat.Attack, ScalingCoefficient = 0.2f,
         BaseDamageCoefficient = 0.5f, AllowedClasses = [CharacterClass.Warrior],
-        AuraId = new Avalon.Common.ValueObjects.AuraId(9901), ThreatMultiplier = 1f,
+        AuraId = new Avalon.Common.ValueObjects.AuraId(9901), ThreatMultiplier = 1f, PowerGainPerHit = powerGainPerHit,
     };
 
     /// <summary>
@@ -443,6 +444,111 @@ public class SimulatorParityShould
         Assert.True(fight.Result().DamageTaken["Test Poison"] > 0, "the poison never ticked");
     }
 
+    /// <summary>
+    /// Auras: a bleeding cone that also gives Fury for each unit it damages, which every bleed tick gives again, through
+    /// the real handler, cast system and aura system against the simulator, the boar's health and the Warrior's Fury
+    /// compared after every tick for 15 s.
+    /// </summary>
+    [Fact]
+    public async Task Gain_the_same_fury_from_each_bleed_tick_as_the_aura_system()
+    {
+        const int Gain = 8;
+        var clock = new FixedTimeProvider(ClockStart);
+        StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            abilities: () => [TestRend(Gain)], auras: () => [TestBleed()]));
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
+            world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
+        MapInstanceClient real = RealWarrior(instance, 6760_172, TestRend(Gain));
+
+        SeedTables seed = SeedSource.Load();
+        seed.AuraTemplates.Add(TestBleed());
+        seed.AbilityTemplates.Add(TestRend(Gain));
+        BalanceData data = BalanceData.From(seed);
+        SimPlayer simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
+        simWarrior.Abilities.Add(new SimAbility(TestRend(Gain)));
+        SimCreature simBoar = PassiveBoar(Level);
+        Creature realBoar = RealBoar(instance, 6760_972, simBoar);
+        CompiledRotationEntry[] rotation = [new(9203, [])];
+        var fight = new FightSimulator(Data.Combat.Formula, simWarrior, [simBoar], rotation,
+            new CombatRandom(new Random(Seed)), data: data);
+
+        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, PointBlank, ticks: 900, tick =>
+            {
+                Assert.True(simBoar.CurrentHealth == realBoar.CurrentHealth,
+                    $"tick {tick}: the boar has {realBoar.CurrentHealth} health on the server, {simBoar.CurrentHealth} simulated");
+                Assert.True(simWarrior.CurrentPower == real.Character.CurrentPower,
+                    $"tick {tick}: the Warrior has {real.Character.CurrentPower} Fury on the server, {simWarrior.CurrentPower} simulated");
+            },
+            clock);
+
+        uint furyAfterHits = (uint)(cast[9203] * Gain);
+        Assert.True(cast[9203] >= 3, $"the bleeding cone was cast {cast[9203]} times");
+        Assert.True(real.Character.CurrentPower > furyAfterHits,
+            $"{real.Character.CurrentPower} Fury: the bleed ticks gave none beyond the {furyAfterHits} the hits gave");
+    }
+
+    /// <summary>
+    /// Auras: a level-3 Healer at half health casting the seeded Renew (233, an ally circle that heals nothing directly)
+    /// on itself through the real handler, cast system and aura system, against the simulator, health and Mana compared
+    /// after every tick for 20 s: each heal tick (its crit roll and the fraction of a point carried), the refresh on each
+    /// recast, and the Mana it costs. The Healer is kept in combat every tick, as the simulator's continuous fight is.
+    /// </summary>
+    [Fact]
+    public async Task Heal_over_time_the_same_as_the_aura_system_tick_for_tick()
+    {
+        AbilityTemplate renew = Row(233);
+        AuraTemplate renewAura = Data.Tables.AuraTemplates.Single(a => a.Id.Value == renew.AuraId!.Value);
+        Assert.Equal(AuraPeriodicKind.Heal, renewAura.PeriodicKind);
+        var clock = new FixedTimeProvider(ClockStart);
+        StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            abilities: () => [renew], auras: () => [renewAura]));
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
+            world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
+        var row = new Avalon.Domain.Characters.Character
+        {
+            Id = new Avalon.Common.ValueObjects.CharacterId(6760_173), AccountId = new Avalon.Common.ValueObjects.AccountId(1),
+            Name = "Tester6760173", Class = CharacterClass.Healer, Level = Level, CreationDate = DateTime.UtcNow,
+        };
+        MapInstanceClient real = Join(instance, new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), clock) { Data = row });
+        real.Character.PowerType = PowerType.Mana;
+        Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
+            tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid), CurrentValues.Refill, Data.Combat.Formula));
+        real.Character.Spells.Load([AbilityTestData.Game(renew)]);
+
+        SimPlayer simHealer = SimPlayer.Create(Data, CharacterClass.Healer, Level, []);
+        Assert.Equal(real.Character.Health, simHealer.Health);
+        Assert.Equal(real.Character.CurrentPower, simHealer.CurrentPower);
+        real.Character.CurrentHealth = simHealer.CurrentHealth = simHealer.Health / 2;
+        SimCreature simBoar = PassiveBoar(Level);
+        RealBoar(instance, 6760_973, simBoar);
+        CompiledRotationEntry[] rotation = [new(233, [])];
+        var fight = new FightSimulator(Data.Combat.Formula, simHealer, [simBoar], rotation,
+            new CombatRandom(new Random(Seed)), data: Data);
+        bool carried = false;
+
+        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, PointBlank, ticks: 1200, tick =>
+            {
+                Assert.True(simHealer.CurrentHealth == real.Character.CurrentHealth,
+                    $"tick {tick}: the Healer has {real.Character.CurrentHealth} health on the server, {simHealer.CurrentHealth} simulated");
+                Assert.True(simHealer.CurrentPower == real.Character.CurrentPower,
+                    $"tick {tick}: the Healer has {real.Character.CurrentPower} Mana on the server, {simHealer.CurrentPower} simulated");
+                Assert.Equal(real.Character.Auras.Count, simHealer.Auras.Count);
+                if (simHealer.Auras is [{ } simRenew])
+                {
+                    ActiveAura realRenew = Assert.Single(real.Character.Auras.All);
+                    Assert.Equal(realRenew.Schedule, simRenew.Schedule);
+                    Assert.Equal(realRenew.PeriodicCarry, simRenew.PeriodicCarry);
+                    carried |= simRenew.PeriodicCarry > 0d;
+                }
+            },
+            clock, beforeUpdate: () => real.Character.MarkCombat());
+
+        Assert.True(cast[233] >= 3, $"Renew was cast {cast[233]} times");
+        Assert.True(carried, "no heal tick carried a fraction of a point");
+        Assert.True(fight.Result().Healing > 0, "Renew never healed");
+        Assert.True(real.Character.CurrentHealth > simHealer.Health / 2, "the Healer gained no health");
+    }
+
     /// <summary>Auras: a percentage armour and a flat crit aura fold into the same derived stats on the server and in the simulator.</summary>
     [Fact]
     public void Fold_a_stat_aura_into_the_same_stats_as_a_stats_refresh()
@@ -479,11 +585,14 @@ public class SimulatorParityShould
         Assert.Equal(real.Character.CurrentPower, sim.CurrentPower);
     }
 
-    /// <summary>A level-<paramref name="level" /> Thornback Boar that never swings, with the health to outlast every exchange.</summary>
+    /// <summary>
+    /// A level-<paramref name="level" /> Thornback Boar that never swings, with the health to outlast every exchange, its
+    /// base maximum the same as RealBoar's, so a stat aura folds its health as the server's does.
+    /// </summary>
     private static SimCreature PassiveBoar(ushort level)
     {
         SimCreature boar = SimCreature.Create(Data, Data.Creature(4), level, 0);
-        boar.Health = boar.CurrentHealth = 1_000_000;
+        boar.Health = boar.CurrentHealth = boar.BaseMaxHealth = 1_000_000;
         foreach (SimAbility a in boar.Abilities) a.CooldownLeft = 1_000f;   // the real boar's script never casts
         return boar;
     }
