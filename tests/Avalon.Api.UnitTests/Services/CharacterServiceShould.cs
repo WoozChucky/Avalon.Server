@@ -47,7 +47,8 @@ public class CharacterServiceShould
 
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>());
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
+            Substitute.For<ICharacterAuraRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -95,7 +96,8 @@ public class CharacterServiceShould
 
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>());
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
+            Substitute.For<ICharacterAuraRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -137,7 +139,8 @@ public class CharacterServiceShould
         statsRepository.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(stats);
 
         return new CharacterService(characters, slots, instances, rows, abilities, templates, statsRepository,
-            Substitute.For<ICharacterQuestRepository>());
+            Substitute.For<ICharacterQuestRepository>(),
+            Substitute.For<ICharacterAuraRepository>());
     }
 
     private static AbilityTemplate Cleave() => new()
@@ -220,7 +223,8 @@ public class CharacterServiceShould
 
         var service = new CharacterService(characters, Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), rows, abilities, Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>());
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
+            Substitute.For<ICharacterAuraRepository>());
 
         CharacterAbilitiesDto? result = await service.GetAbilitiesAsync(id);
 
@@ -283,7 +287,8 @@ public class CharacterServiceShould
         new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(), stats,
-            Substitute.For<ICharacterQuestRepository>());
+            Substitute.For<ICharacterQuestRepository>(),
+            Substitute.For<ICharacterAuraRepository>());
 
     /// <summary>#714: the saved quest rows, each held quest with its own counts, by quest and objective id.</summary>
     [Fact]
@@ -387,5 +392,5 @@ public class CharacterServiceShould
         new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), quests);
+            Substitute.For<ICharacterStatsRepository>(), quests, Substitute.For<ICharacterAuraRepository>());
 }

@@ -85,4 +85,45 @@ public class ApiHostGraphShould
         Assert.IsType<CurrentWorldDbContextFactory<Avalon.Database.Character.CharacterDbContext>>(
             provider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<Avalon.Database.Character.CharacterDbContext>>());
     }
+
+    /// <summary>
+    /// The character service needs every repository it reads, the saved auras' included: a registration missing from
+    /// the api's composition fails here, not as an empty list on a live endpoint.
+    /// </summary>
+    [Fact]
+    public void Build_the_character_service_with_every_repository_it_reads()
+    {
+        ApplicationConfig config = new()
+        {
+            Environment = new EnvironmentConfig(),
+            Authentication = new AuthenticationConfig { IssuerSigningKey = new string('k', 64) },
+            Notification = new NotificationConfig(),
+            Cache = new CacheConfiguration(),
+        };
+        ServiceCollection services = new();
+        services.AddLogging();
+        // Resolving the repositories builds the per-request context factories, which read the configured worlds.
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                ["Database:Worlds:1:World:ConnectionString"] = "Host=w",
+                ["Database:Worlds:1:Characters:ConnectionString"] = "Host=c",
+            })
+            .Build());
+        services.AddHttpContextAccessor();
+        services.AddSingleton(config);
+        services.AddSingleton(config.Environment);
+        services.AddSingleton(config.Authentication);
+        services.AddSingleton(config.Notification);
+        services.AddSingleton(config.Cache);
+        services.AddSingleton(JwtSigningKey.Create(config.Authentication));
+        services.AddInfrastructure(config);
+
+        using ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.IsType<Avalon.Api.Services.CharacterService>(
+            scope.ServiceProvider.GetRequiredService<Avalon.Api.Services.ICharacterService>());
+        Assert.NotNull(provider.GetRequiredService<Avalon.Database.Character.Repositories.ICharacterAuraRepository>());
+    }
 }

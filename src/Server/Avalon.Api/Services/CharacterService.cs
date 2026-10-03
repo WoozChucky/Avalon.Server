@@ -38,7 +38,7 @@ public class CharacterService : ICharacterService
     private readonly IItemTemplateRepository _itemTemplateRepository;
     private readonly ICharacterStatsRepository _statsRepository;
     private readonly ICharacterQuestRepository _questRepository;
-    private readonly ICharacterAuraRepository? _auraRepository;
+    private readonly ICharacterAuraRepository _auraRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
@@ -49,7 +49,7 @@ public class CharacterService : ICharacterService
         IItemTemplateRepository itemTemplateRepository,
         ICharacterStatsRepository statsRepository,
         ICharacterQuestRepository questRepository,
-        ICharacterAuraRepository? auraRepository = null)
+        ICharacterAuraRepository auraRepository)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
@@ -212,9 +212,7 @@ public class CharacterService : ICharacterService
 
     public async Task<CharacterAurasDto> GetAurasAsync(CharacterId id, CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<CharacterAura> rows = _auraRepository is null
-            ? []
-            : await _auraRepository.GetByCharacterIdAsync(id, cancellationToken);
+        IReadOnlyList<CharacterAura> rows = await _auraRepository.GetByCharacterIdAsync(id, cancellationToken);
 
         return new CharacterAurasDto
         {
