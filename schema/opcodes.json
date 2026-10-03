@@ -452,6 +452,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_AURA_CANCEL",
+      "opcode": 8452,
+      "hex": "0x2104",
+      "message": "CAuraCancelPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_SERVER_INFO",
       "opcode": 12288,
       "hex": "0x3000",
@@ -1068,6 +1077,33 @@
       "opcode": 12556,
       "hex": "0x310C",
       "message": "SUnitHealedPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_AURA_UPDATE",
+      "opcode": 12557,
+      "hex": "0x310D",
+      "message": "SAuraUpdatePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_AURA_LIST",
+      "opcode": 12558,
+      "hex": "0x310E",
+      "message": "SAuraListPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_AURA_CANCEL_RESULT",
+      "opcode": 12559,
+      "hex": "0x310F",
+      "message": "SAuraCancelResultPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

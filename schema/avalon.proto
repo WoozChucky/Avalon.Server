@@ -112,6 +112,29 @@ enum AbilityShape {
    AbilityShape_Cone = 1;
    AbilityShape_Projectile = 2;
 }
+enum AuraCancelResult {
+   AuraCancelResult_Unknown = 0;
+   AuraCancelResult_Ok = 1;
+   AuraCancelResult_NotFound = 2;
+   AuraCancelResult_NotCancellable = 3;
+   AuraCancelResult_Dead = 4;
+}
+message AuraEntryDto {
+   uint32 AuraId = 1;
+   uint32 InstanceKey = 2;
+   uint64 CasterGuid = 3;
+   uint32 Stacks = 4;
+   uint32 RemainingMs = 5;
+   uint32 DurationMs = 6;
+   AuraUpdateAction Action = 7;
+}
+enum AuraUpdateAction {
+   AuraUpdateAction_Unknown = 0;
+   AuraUpdateAction_Applied = 1;
+   AuraUpdateAction_Refreshed = 2;
+   AuraUpdateAction_Stacked = 3;
+   AuraUpdateAction_Removed = 4;
+}
 enum AuthResult {
    AuthResult_INVALID_CREDENTIALS = 0;
    AuthResult_WRONG_KEY = 1;
@@ -125,6 +148,9 @@ enum AuthResult {
 }
 message CAudioRecordPacket {
    optional bytes SoundBuffer = 1;
+}
+message CAuraCancelPacket {
+   uint32 AuraId = 1;
 }
 message CAuthGameTicketPacket {
    optional string Ticket = 1;
@@ -553,6 +579,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_CMSG_PVP_TOGGLE = 8451;
+   NetworkPacketType_CMSG_AURA_CANCEL = 8452;
    NetworkPacketType_SMSG_SERVER_INFO = 12288;
    NetworkPacketType_SMSG_SERVER_HANDSHAKE_RESULT = 12289;
    NetworkPacketType_SMSG_SERVER_HANDSHAKE = 12290;
@@ -622,6 +649,9 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_ABILITY_FIRED = 12554;
    NetworkPacketType_SMSG_PVP_STATE = 12555;
    NetworkPacketType_SMSG_UNIT_HEALED = 12556;
+   NetworkPacketType_SMSG_AURA_UPDATE = 12557;
+   NetworkPacketType_SMSG_AURA_LIST = 12558;
+   NetworkPacketType_SMSG_AURA_CANCEL_RESULT = 12559;
    NetworkPacketType_ERROR = -1;
 }
 enum NetworkProtocol {
@@ -820,6 +850,18 @@ message SAbilityNotReadyPacket {
 }
 message SAudioRecordPacket {
    optional bytes SoundBuffer = 1;
+}
+message SAuraCancelResultPacket {
+   uint32 AuraId = 1;
+   AuraCancelResult Result = 2;
+}
+message SAuraListPacket {
+   uint64 UnitGuid = 1;
+   repeated AuraEntryDto Entries = 2;
+}
+message SAuraUpdatePacket {
+   uint64 UnitGuid = 1;
+   repeated AuraEntryDto Entries = 2;
 }
 message SAuthResultPacket {
    int64 AccountId = 1;

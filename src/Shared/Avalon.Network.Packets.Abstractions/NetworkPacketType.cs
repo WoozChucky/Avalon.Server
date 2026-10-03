@@ -77,6 +77,7 @@ public enum NetworkPacketType : short
     CMSG_CAST_ABILITY = 0x2101,
     CMSG_TARGET_UNIT  = 0x2102,
     CMSG_PVP_TOGGLE   = 0x2103,
+    CMSG_AURA_CANCEL  = 0x2104,
 
     // Parties (2026-09-30)
     CMSG_PARTY_INVITE = 0x20B0,
@@ -153,6 +154,9 @@ public enum NetworkPacketType : short
     SMSG_ABILITY_FIRED = 0x310A,
     SMSG_PVP_STATE = 0x310B,
     SMSG_UNIT_HEALED = 0x310C,
+    SMSG_AURA_UPDATE = 0x310D,
+    SMSG_AURA_LIST = 0x310E,
+    SMSG_AURA_CANCEL_RESULT = 0x310F,
 
 
     SMSG_PONG = 0x3006,

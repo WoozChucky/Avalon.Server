@@ -1,0 +1,130 @@
+# SAuraUpdatePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SAuraUpdatePacket
+
+variant absent
+  field 1 UnitGuid : ulong = 0
+  field 2 Entries : List<AuraEntryDto> = null
+  bytes 0
+
+variant empty
+  field 1 UnitGuid : ulong = 0
+  field 2 Entries : List<AuraEntryDto> = 0 elements
+  bytes 0
+
+variant populated
+  field 1 UnitGuid : ulong = 19
+  field 2 Entries : List<AuraEntryDto> = 2 elements
+    element 0
+      field 1 AuraId : uint = 7
+      field 2 InstanceKey : uint = 1000000
+      field 3 CasterGuid : ulong = 7
+      field 4 Stacks : uint = 65535
+      field 5 RemainingMs : uint = 300
+      field 6 DurationMs : uint = 4000000000
+      field 7 Action : AuraUpdateAction = Removed (4)
+    element 1
+      field 1 AuraId : uint = 65535
+      field 2 InstanceKey : uint = 7
+      field 3 CasterGuid : ulong = 1000000
+      field 4 Stacks : uint = 7
+      field 5 RemainingMs : uint = 4000000000
+      field 6 DurationMs : uint = 1000000
+      field 7 Action : AuraUpdateAction = Applied (1)
+  bytes 53
+    08 13 12 17 08 07 10 c0 84 3d 18 07 20 ff ff 03
+    28 ac 02 30 80 d0 ac f3 0e 38 04 12 18 08 ff ff
+    03 10 07 18 c0 84 3d 20 07 28 80 d0 ac f3 0e 30
+    c0 84 3d 38 01
+
+variant maxima
+  field 1 UnitGuid : ulong = 18446744073709551615
+  field 2 Entries : List<AuraEntryDto> = 3 elements
+    element 0
+      field 1 AuraId : uint = 4294967295
+      field 2 InstanceKey : uint = 4294967295
+      field 3 CasterGuid : ulong = 18446744073709551615
+      field 4 Stacks : uint = 4294967295
+      field 5 RemainingMs : uint = 4294967295
+      field 6 DurationMs : uint = 4294967295
+      field 7 Action : AuraUpdateAction = Removed (4)
+    element 1
+      field 1 AuraId : uint = 4294967295
+      field 2 InstanceKey : uint = 4294967295
+      field 3 CasterGuid : ulong = 18446744073709551615
+      field 4 Stacks : uint = 4294967295
+      field 5 RemainingMs : uint = 4294967295
+      field 6 DurationMs : uint = 4294967295
+      field 7 Action : AuraUpdateAction = Removed (4)
+    element 2
+      field 1 AuraId : uint = 4294967295
+      field 2 InstanceKey : uint = 4294967295
+      field 3 CasterGuid : ulong = 18446744073709551615
+      field 4 Stacks : uint = 4294967295
+      field 5 RemainingMs : uint = 4294967295
+      field 6 DurationMs : uint = 4294967295
+      field 7 Action : AuraUpdateAction = Removed (4)
+  bytes 146
+    08 ff ff ff ff ff ff ff ff ff 01 12 2b 08 ff ff
+    ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff ff ff ff
+    ff ff ff 01 20 ff ff ff ff 0f 28 ff ff ff ff 0f
+    30 ff ff ff ff 0f 38 04 12 2b 08 ff ff ff ff 0f
+    10 ff ff ff ff 0f 18 ff ff ff ff ff ff ff ff ff
+    01 20 ff ff ff ff 0f 28 ff ff ff ff 0f 30 ff ff
+    ff ff 0f 38 04 12 2b 08 ff ff ff ff 0f 10 ff ff
+    ff ff 0f 18 ff ff ff ff ff ff ff ff ff 01 20 ff
+    ff ff ff 0f 28 ff ff ff ff 0f 30 ff ff ff ff 0f
+    38 04
+
+variant minima
+  field 1 UnitGuid : ulong = 0
+  field 2 Entries : List<AuraEntryDto> = 1 element
+    element 0
+      field 1 AuraId : uint = 0
+      field 2 InstanceKey : uint = 0
+      field 3 CasterGuid : ulong = 0
+      field 4 Stacks : uint = 0
+      field 5 RemainingMs : uint = 0
+      field 6 DurationMs : uint = 0
+      field 7 Action : AuraUpdateAction = Unknown (0)
+  bytes 2
+    12 00
+
+variant varint-edges
+  field 1 UnitGuid : ulong = 34359738368
+  field 2 Entries : List<AuraEntryDto> = 2 elements
+    element 0
+      field 1 AuraId : uint = 16384
+      field 2 InstanceKey : uint = 128
+      field 3 CasterGuid : ulong = 34359738367
+      field 4 Stacks : uint = 16383
+      field 5 RemainingMs : uint = 268435456
+      field 6 DurationMs : uint = 128
+      field 7 Action : AuraUpdateAction = <not a declared member> (5)
+    element 1
+      field 1 AuraId : uint = 127
+      field 2 InstanceKey : uint = 268435455
+      field 3 CasterGuid : ulong = 268435456
+      field 4 Stacks : uint = 2097152
+      field 5 RemainingMs : uint = 2097151
+      field 6 DurationMs : uint = 268435455
+      field 7 Action : AuraUpdateAction = <not a declared member> (5)
+  bytes 67
+    08 80 80 80 80 80 01 12 1b 08 80 80 01 10 80 01
+    18 ff ff ff ff 7f 20 ff 7f 28 80 80 80 80 01 30
+    80 01 38 05 12 1d 08 7f 10 ff ff ff 7f 18 80 80
+    80 80 01 20 80 80 80 01 28 ff ff 7f 30 ff ff ff
+    7f 38 05
