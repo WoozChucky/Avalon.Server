@@ -81,6 +81,9 @@ public class Account : IDbEntity<AccountId>
     /// that proved them, and is refused once it no longer equals this.
     /// </summary>
     public int CredentialsVersion { get; set; }
+
+    /// <summary>Monotonic game-context revocation epoch, independent of password/MFA versioning.</summary>
+    public long SessionEpoch { get; set; }
 }
 
 public enum OperatingSystem : ushort

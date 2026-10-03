@@ -24,6 +24,9 @@ public static class ServiceExtensions
         services.AddSingleton<IDbTransactionRunner<AuthDbContext>, DbTransactionRunner<AuthDbContext>>();
 
         services
+            .AddSingleton<Repositories.IExternalIdentityRepository, Repositories.ExternalIdentityRepository>()
+            .AddSingleton<Repositories.ILicenseObservationRepository, Repositories.LicenseObservationRepository>()
+            .AddSingleton<Repositories.IGameSessionRepository, Repositories.GameSessionRepository>()
             .AddSingleton<Repositories.IAccountRepository, Repositories.AccountRepository>()
             .AddSingleton<Repositories.IMfaSetupRepository, Repositories.MfaSetupRepository>()
             .AddSingleton<Repositories.IDeviceRepository, Repositories.DeviceRepository>()
