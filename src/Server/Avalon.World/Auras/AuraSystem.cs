@@ -136,6 +136,14 @@ public sealed class AuraSystem
             _combat.Random);
         AuraApplyResult result = Place(target, auras, held, template, casterGuid, source, snapshot);
 
+        // A first hook (or the removal it asked for) that killed the target: death ends every aura, and a corpse enters
+        // no combat.
+        if (IsDead(target))
+        {
+            RemoveAll(target, AuraRemoveReason.Death);
+            return result;
+        }
+
         if (template.Kind == AuraKind.Harmful && caster is not null)
             _combat.EnterAuraCombat(caster, target);
 
@@ -279,7 +287,7 @@ public sealed class AuraSystem
         if (!catalog.TryGet(aura.Id, out _))
         {
             Remove(unit, aura, AuraRemoveReason.Expired);
-            return true;
+            return EndIfDead(unit);
         }
 
         int due = aura.Schedule.Due(now);
@@ -306,7 +314,20 @@ public sealed class AuraSystem
             Remove(unit, aura, AuraRemoveReason.Script);
         else if (aura.Schedule.Expired(now))
             Remove(unit, aura, AuraRemoveReason.Expired);
-        return true;
+        return EndIfDead(unit);
+    }
+
+    /// <summary>
+    /// After an aura ended: its script's OnRemove may have killed the unit, in which case every aura it holds ends and
+    /// nothing more ticks on the corpse. False once the unit is dead.
+    /// </summary>
+    private bool EndIfDead(IUnit unit)
+    {
+        if (!IsDead(unit))
+            return true;
+
+        RemoveAll(unit, AuraRemoveReason.Death);
+        return false;
     }
 
     private void UnitFailed(IUnit unit, Exception e)
@@ -364,7 +385,15 @@ public sealed class AuraSystem
             return;
 
         var context = new AuraContext(this, unit, aura, _time.GetUtcNow());
-        _scripts.Run(aura.Template, hook, script => call(script, context));
+        try
+        {
+            _scripts.Run(aura.Template, hook, script => call(script, context));
+        }
+        finally
+        {
+            // A script that keeps its context cannot act through it once the hook has returned.
+            context.End();
+        }
     }
 
     /// <summary>

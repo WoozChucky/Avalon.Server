@@ -73,3 +73,42 @@ public sealed class EndOnApplyAuraScript : AuraScript
     public override void OnRemove(IAuraContext ctx, AuraRemoveReason reason) =>
         RecordingAuraScript.Heard.Add($"{ctx.AuraName}:remove:{reason}");
 }
+
+/// <summary>Deals its target all the health it has left from the hook that applied it; records its removal.</summary>
+public sealed class KillOnApplyAuraScript : AuraScript
+{
+    public override void OnApply(IAuraContext ctx) => ctx.Damage(ctx.TargetHealth);
+
+    public override void OnRemove(IAuraContext ctx, AuraRemoveReason reason) =>
+        RecordingAuraScript.Heard.Add($"{ctx.AuraName}:remove:{reason}");
+}
+
+/// <summary>Ends its aura from its tick; once it has ended, records that and kills its target.</summary>
+public sealed class KillOnRemoveAuraScript : AuraScript
+{
+    public override void OnTick(IAuraContext ctx) => ctx.Remove();
+
+    public override void OnRemove(IAuraContext ctx, AuraRemoveReason reason)
+    {
+        RecordingAuraScript.Heard.Add($"{ctx.AuraName}:remove:{reason}");
+        ctx.Damage(ctx.TargetHealth);
+    }
+}
+
+/// <summary>Records its removal and asks, too late, to end its aura from it.</summary>
+public sealed class RemoveOnRemoveAuraScript : AuraScript
+{
+    public override void OnRemove(IAuraContext ctx, AuraRemoveReason reason)
+    {
+        RecordingAuraScript.Heard.Add($"{ctx.AuraName}:remove:{reason}");
+        ctx.Remove();
+    }
+}
+
+/// <summary>Keeps the context it was handed on apply, to try acting through it afterwards.</summary>
+public sealed class KeepContextAuraScript : AuraScript
+{
+    public static IAuraContext? Kept { get; set; }
+
+    public override void OnApply(IAuraContext ctx) => Kept = ctx;
+}

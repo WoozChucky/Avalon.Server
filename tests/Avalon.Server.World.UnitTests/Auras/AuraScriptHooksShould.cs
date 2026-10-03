@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Auras;
@@ -14,19 +15,12 @@ namespace Avalon.Server.World.UnitTests.Auras;
 [Collection(nameof(RecordingAuraScript))]
 public class AuraScriptHooksShould
 {
-    private static readonly Type[] TestScripts =
-    [
-        typeof(RecordingAuraScript), typeof(ThrowingAuraScript), typeof(EndOnTickAuraScript), typeof(KillOnTickAuraScript),
-        typeof(EndOnTickRecordingAuraScript), typeof(EndOnApplyAuraScript),
-    ];
-
     private readonly AuraHarness _h;
 
     public AuraScriptHooksShould()
     {
         var manager = Substitute.For<IScriptManager>();
-        foreach (Type type in TestScripts)
-            manager.GetAuraScript(type.Name).Returns(type);
+        manager.GetAuraScript(Arg.Any<string>()).Returns(call => AuraHarness.TestScript(call.Arg<string>()));
         var host = new AuraScripts(manager, new ServiceCollection().BuildServiceProvider(), TimeProvider.System,
             NullLogger<AuraScripts>.Instance);
         _h = new AuraHarness(scripts: host);
@@ -35,8 +29,14 @@ public class AuraScriptHooksShould
             AuraTestData.Scripted(AuraTestData.Independent(), nameof(EndOnTickAuraScript)),
             Named(AuraTestData.Independent(907), "Doom", nameof(KillOnTickAuraScript)),
             Named(AuraTestData.Independent(908), "Fleeting", nameof(EndOnTickRecordingAuraScript)),
-            Named(AuraTestData.Independent(909), "Stillborn", nameof(EndOnApplyAuraScript)));
+            Named(AuraTestData.Independent(909), "Stillborn", nameof(EndOnApplyAuraScript)),
+            Named(AuraTestData.Independent(910), "Ruin", nameof(KillOnApplyAuraScript)),
+            Named(AuraTestData.Independent(911), "Undertow", nameof(KillOnRemoveAuraScript)),
+            Named(AuraTestData.Independent(912), "Echo", nameof(RemoveOnRemoveAuraScript)),
+            Named(AuraTestData.Independent(913), "Keepsake", nameof(KeepContextAuraScript)),
+            AuraTestData.Scripted(AuraTestData.Fortified(), nameof(ThrowingAuraScript)));
         RecordingAuraScript.Heard.Clear();
+        KeepContextAuraScript.Kept = null;
     }
 
     private static AuraTemplate Named(AuraTemplate template, string name, string script)
@@ -144,6 +144,90 @@ public class AuraScriptHooksShould
         Assert.Equal(0, boar.Auras.Count);
         Assert.Empty(RecordingAuraScript.Heard);
     }
+
+    [Fact]
+    public void End_every_aura_and_enter_no_combat_when_a_first_hook_kills()
+    {
+        CharacterEntity caster = _h.Player(911_110);
+        _h.Characters.Remove(caster.Guid);   // not in the instance, so the hook's damage credits nobody
+        CharacterEntity victim = _h.Player(911_111);
+
+        _h.Auras.Apply(caster, victim, new AuraId(910), AuraSource.None);
+
+        Assert.True(victim.IsDead);
+        Assert.Equal(0, victim.Auras.Count);
+        Assert.Equal(["Ruin:remove:Death"], RecordingAuraScript.Heard);
+        Assert.Null(_h.Encounters.FindEncounterContaining(victim));
+        Assert.Null(_h.Encounters.FindEncounterContaining(caster));
+        Assert.False(caster.IsInCombat);
+    }
+
+    [Fact]
+    public void Tick_nothing_on_a_corpse_an_ending_script_made()
+    {
+        CharacterEntity warrior = _h.Player(911_112);
+        Creature boar = _h.Creature(911_912);
+        _h.Auras.Apply(warrior, boar, new AuraId(911), AuraSource.None);
+        _h.Auras.Apply(warrior, boar, new AuraId(901), AuraSource.None);
+
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(0u, boar.CurrentHealth);
+        Assert.Equal(0, boar.Auras.Count);
+        // The bleed after the aura whose removal killed never ticked, and ended once, with the death.
+        Assert.Equal(["Bleed:apply:1", "Undertow:remove:Script", "Bleed:remove:Death"], RecordingAuraScript.Heard);
+    }
+
+    [Fact]
+    public void Ignore_a_removal_asked_for_from_the_removal_itself()
+    {
+        Creature boar = _h.Creature(911_913);
+        _h.Auras.Apply(_h.Player(911_113), boar, new AuraId(912), AuraSource.None);
+
+        _h.Auras.RemoveAll(boar, AuraRemoveReason.Death);
+        _h.Advance(TimeSpan.FromSeconds(6));
+        _h.Auras.Update();
+        _h.Auras.RemoveAll(boar, AuraRemoveReason.Death);
+
+        Assert.Equal(0, boar.Auras.Count);
+        Assert.Equal(["Echo:remove:Death"], RecordingAuraScript.Heard);
+    }
+
+    [Fact]
+    public void Let_a_kept_context_do_nothing_once_its_hook_returned()
+    {
+        Creature boar = _h.Creature(911_914);
+        _h.Auras.Apply(_h.Player(911_114), boar, new AuraId(913), AuraSource.None);
+        ActiveAura keepsake = Assert.Single(boar.Auras.All);
+        IAuraContext kept = Assert.IsAssignableFrom<IAuraContext>(KeepContextAuraScript.Kept);
+        boar.CurrentHealth = 900;
+
+        Assert.Equal(0u, kept.Damage(50));
+        Assert.Equal(0u, kept.Heal(50));
+        kept.Remove();
+        kept.Tell("too late");
+
+        Assert.Equal(900u, boar.CurrentHealth);
+        Assert.False(keepsake.ScriptEnded);
+        Assert.Single(boar.Auras.All);
+    }
+
+    [Fact]
+    public void Apply_an_aura_and_its_stats_when_its_first_hook_throws()
+    {
+        Creature boar = _h.Creature(911_915, armor: 100);
+
+        Assert.Equal(AuraApplyResult.Applied, _h.Auras.Apply(_h.Player(911_115), boar, new AuraId(905), AuraSource.None));
+
+        Assert.Single(boar.Auras.All);
+        Assert.Equal(new DefenderCombat(120, 0f, 0f), Defence(boar));   // +20 % armour
+    }
+
+    /// <summary>A creature's World-side defence, read as AuraStatsIntegrationShould reads it.</summary>
+    private static DefenderCombat Defence(Creature creature) =>
+        (DefenderCombat)typeof(Creature).GetProperty("Defence",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(creature)!;
 
     [Fact]
     public void Show_a_script_the_aura_it_runs_for()

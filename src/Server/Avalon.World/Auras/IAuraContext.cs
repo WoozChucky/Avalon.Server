@@ -35,6 +35,8 @@ public interface IAuraContext
     /// <summary>
     /// A hit on the target from this aura, as one of its damage ticks: crit and armour roll with its snapshot, never a
     /// dodge or a block; the caster is credited while present. Answers the damage dealt; 0 on a target that ignores hits.
+    /// It goes through the combat service's periodic path with no hostility check, from any aura, a helpful one
+    /// included: aura scripts are trusted, so a script author must make sure the target is one it means to hurt.
     /// </summary>
     uint Damage(uint amount);
 

@@ -31,7 +31,8 @@ internal sealed class AuraHarness
     public AuraHarness(int maxPerUnit = 32, ICombatRandom? random = null, AuraScripts? scripts = null,
         Func<IUnit, bool>? returningHome = null)
     {
-        Combat = new CombatService(new CombatConfig(), new EncounterRegistry(new CombatConfig(), Time), outcomes: Outcomes,
+        Encounters = new EncounterRegistry(new CombatConfig(), Time);
+        Combat = new CombatService(new CombatConfig(), Encounters, outcomes: Outcomes,
             time: Time, random: random ?? ScriptedCombatRandom.Plain(1000));
         Auras = new AuraSystem(Combat, Characters, Creatures, () => _catalog,
             () => DataFails ? throw new InvalidOperationException("reference data failed") : Data, Time, maxPerUnit,
@@ -42,6 +43,7 @@ internal sealed class AuraHarness
     public Dictionary<ObjectGuid, ICreature> Creatures { get; } = [];
     public FakeTimeProvider Time { get; } = new(T0);
     public ICombatOutcomes Outcomes { get; } = Substitute.For<ICombatOutcomes>();
+    public EncounterRegistry Encounters { get; }
     public CombatService Combat { get; }
     public AuraSystem Auras { get; }
 
@@ -53,16 +55,14 @@ internal sealed class AuraHarness
 
     /// <summary>The aura catalog from now on; the test scripts are its loaded scripts.</summary>
     public void Use(params AuraTemplate[] templates) =>
-        _catalog = new AuraCatalog(templates, name => name switch
-        {
-            nameof(RecordingAuraScript) => typeof(RecordingAuraScript),
-            nameof(ThrowingAuraScript) => typeof(ThrowingAuraScript),
-            nameof(EndOnTickAuraScript) => typeof(EndOnTickAuraScript),
-            nameof(KillOnTickAuraScript) => typeof(KillOnTickAuraScript),
-            nameof(EndOnTickRecordingAuraScript) => typeof(EndOnTickRecordingAuraScript),
-            nameof(EndOnApplyAuraScript) => typeof(EndOnApplyAuraScript),
-            _ => null,
-        }, NullLoggerFactory.Instance);
+        _catalog = new AuraCatalog(templates, TestScript, NullLoggerFactory.Instance);
+
+    /// <summary>An aura script of this test assembly's Auras namespace, by its class name; null for any other name.</summary>
+    public static Type? TestScript(string name) =>
+        typeof(RecordingAuraScript).Assembly.GetType($"{typeof(RecordingAuraScript).Namespace}.{name}") is { } type
+        && type.IsSubclassOf(typeof(AuraScript))
+            ? type
+            : null;
 
     public CharacterEntity Player(uint id, uint health = 500)
     {
