@@ -2,6 +2,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -114,8 +115,39 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
         return new CharacterSaveSnapshot(
             new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats, quests,
-                IgnoresOf(character, row.Id, marks)),
+                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks)),
             marks);
+    }
+
+    /// <summary>
+    /// Every save of a character holding an aura rewrites them all, with the time each has left on the character's
+    /// clock and the fraction of a point its ticks carry, so a save is never behind; a save marked by a change, with
+    /// none left, deletes them. Nothing otherwise.
+    /// </summary>
+    private static CharacterAuraWrite? AurasOf(CharacterEntity character, CharacterId owner, SaveMarks marks)
+    {
+        if (marks.AurasVersion is null && character.Auras.Count == 0)
+            return null;
+
+        DateTimeOffset now = character.Clock.GetUtcNow();
+        List<CharacterAura> rows = [];
+        foreach (ActiveAura aura in character.Auras.All)
+        {
+            uint remaining = UnitAuras.RemainingMs(aura, now);
+            if (remaining == 0)
+                continue;   // already over: the next tick ends it
+
+            rows.Add(new CharacterAura
+            {
+                CharacterId = owner, Slot = rows.Count, AuraId = aura.Id.Value, CasterGuid = aura.CasterGuid.RawValue,
+                SourceAbilityId = aura.Source.AbilityId?.Value, Stacks = (int)aura.Stacks, RemainingMs = remaining,
+                DurationMs = aura.DurationMs, TicksLeft = aura.Schedule.TicksLeft, TickAmount = aura.Snapshot.PerTickPerStack,
+                CritPct = aura.Snapshot.CritPct, CasterLevel = aura.Snapshot.CasterLevel,
+                PeriodicCarry = aura.PeriodicCarry, AppliedAt = aura.AppliedAt,
+            });
+        }
+
+        return new CharacterAuraWrite(rows);
     }
 
     /// <summary>

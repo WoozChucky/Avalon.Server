@@ -133,6 +133,25 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         Assert.Equal((260u, 8u), (stored.MaxHealth, stored.Armor));
     }
 
+    [Fact]
+    public async Task Replace_every_aura_row_of_the_character_with_the_ones_written()
+    {
+        CharacterRow row = await SeedCharacterAsync(1);
+        CharacterAura Aura(int slot, uint auraId) => new()
+        {
+            CharacterId = row.Id, Slot = slot, AuraId = auraId, CasterGuid = 5, Stacks = 1, RemainingMs = 4000,
+            DurationMs = 6000, TicksLeft = 1, TickAmount = 2.5f, CritPct = 1f, CasterLevel = 3, PeriodicCarry = 0.75d,
+            AppliedAt = DateTime.UtcNow,
+        };
+
+        await _saves.WriteAsync([new CharacterSaveBatch(row, [], [], [], [], Auras: new CharacterAuraWrite([Aura(0, 1), Aura(1, 2)]))]);
+        await _saves.WriteAsync([new CharacterSaveBatch(row, [], [], [], [], Auras: new CharacterAuraWrite([Aura(0, 7)]))]);
+
+        await using CharacterDbContext read = _database.CreateDbContext();
+        CharacterAura only = Assert.Single(await read.CharacterAuras.AsNoTracking().ToListAsync());
+        Assert.Equal((0, 7u, 4000u, 2.5f, 0.75d), (only.Slot, only.AuraId, only.RemainingMs, only.TickAmount, only.PeriodicCarry));
+    }
+
     private async Task<CharacterRow> SeedCharacterAsync(uint id)
     {
         var row = new CharacterRow

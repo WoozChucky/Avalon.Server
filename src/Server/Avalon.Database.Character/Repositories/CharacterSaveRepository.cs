@@ -23,6 +23,7 @@ public sealed record CharacterQuestWrite(
 /// <paramref name="Stats" />, when present, is the character's derived-stats row, upserted.
 /// <paramref name="Quests" />, when present, is the quest rows to rewrite (#433).
 /// <paramref name="Ignores" />, when present, is the ignore entries to rewrite (#723).
+/// <paramref name="Auras" />, when present, replaces every aura row of the character.
 /// </summary>
 public sealed record CharacterSaveBatch(
     Domain.Characters.Character Row,
@@ -32,7 +33,8 @@ public sealed record CharacterSaveBatch(
     IReadOnlyList<(InventoryType Container, ushort Slot)> DeleteSlots,
     CharacterStats? Stats = null,
     CharacterQuestWrite? Quests = null,
-    CharacterIgnoreWrite? Ignores = null);
+    CharacterIgnoreWrite? Ignores = null,
+    CharacterAuraWrite? Auras = null);
 
 public interface ICharacterSaveRepository
 {
@@ -92,6 +94,9 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
 
                 if (batch.Ignores is { } ignores)
                     await DeleteIgnoresAsync(context, owner, ignores, token);
+
+                if (batch.Auras is not null)
+                    await context.CharacterAuras.Where(a => a.CharacterId == owner).ExecuteDeleteAsync(token);
             }
 
             // After the slots, which reference items by foreign key.
@@ -180,6 +185,12 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
 
                 if (batch.Ignores is { } ignoreWrite)
                     await InsertIgnoresAsync(context, ignoreWrite, token);
+
+                if (batch.Auras is { } auras)
+                {
+                    foreach (CharacterAura aura in auras.Rows)
+                        context.TrackForInsert(aura);
+                }
             }
 
             // One SaveChanges: EF orders the item inserts ahead of the slot inserts that reference them.

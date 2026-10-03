@@ -17,6 +17,7 @@ using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -57,7 +58,8 @@ public class CharacterSelectHandler(
     QuestService? questService = null,
     ICharacterIgnoreRepository? ignoreRepository = null,
     TickThreadGuard? tickThread = null,
-    IWorldEntryGate? entryGate = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    IWorldEntryGate? entryGate = null,
+    ICharacterAuraRepository? auraRepository = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -729,7 +731,7 @@ public class CharacterSelectHandler(
         if (ignoreRepository is null)
         {
             connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
-            Spawn(connection, entity, instance);
+            LoadAuras(connection, select, entity, instance);
             return;
         }
 
@@ -737,6 +739,37 @@ public class CharacterSelectHandler(
         {
             entity.Ignores.Load(rows);
             connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
+            LoadAuras(connection, select, entity, instance);
+        });
+    }
+
+    /// <summary>
+    /// Auras, the last step before the pending spawn: the saved ones resume with the time they had left, paused while
+    /// the character was away. Contained: a failure to restore costs the auras, never the select. No repository (tests
+    /// that build the handler without one) is no aura.
+    /// </summary>
+    private void LoadAuras(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance)
+    {
+        if (auraRepository is null)
+        {
+            Spawn(connection, entity, instance);
+            return;
+        }
+
+        Step(connection, select, auraRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        {
+            try
+            {
+                AuraRestore.Restore(entity, rows, world.Data, (time ?? TimeProvider.System).GetUtcNow(), logger);
+            }
+            catch (Exception e)
+            {
+                // Whatever the restore had loaded before it threw goes too, so the character enters as the log says.
+                entity.Auras.Load([]);
+                logger.LogError(e, "Restoring the auras of character {CharacterId} at select failed; it enters with none",
+                    entity.Guid.Id);
+            }
+
             Spawn(connection, entity, instance);
         });
     }

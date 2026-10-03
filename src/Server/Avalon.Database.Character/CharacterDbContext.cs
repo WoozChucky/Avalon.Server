@@ -68,6 +68,7 @@ public class CharacterDbContext : DbContext
     public DbSet<CharacterQuestObjective> CharacterQuestObjectives { get; set; } = null!;
     public DbSet<CharacterCompletedQuest> CharacterCompletedQuests { get; set; } = null!;
     public DbSet<CharacterIgnore> CharacterIgnores { get; set; } = null!;
+    public DbSet<CharacterAura> CharacterAuras { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -100,6 +101,7 @@ public class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterQuestObjective>());
         Configure(modelBuilder.Entity<CharacterCompletedQuest>());
         Configure(modelBuilder.Entity<CharacterIgnore>());
+        Configure(modelBuilder.Entity<CharacterAura>());
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder, bool postgres)
@@ -303,5 +305,23 @@ public class CharacterDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(b => b.IgnoredCharacterId);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterAura> builder)
+    {
+        // Rewritten whole by every save of a character holding one (delete, then insert), so a slot key is enough.
+        builder.ToTable("CharacterAuras", t =>
+        {
+            t.HasCheckConstraint("CK_CharacterAuras_Stacks", "\"Stacks\" >= 1");
+            t.HasCheckConstraint("CK_CharacterAuras_TicksLeft", "\"TicksLeft\" >= 0");
+        });
+        builder.HasKey(b => new { b.CharacterId, b.Slot });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+
+        // Characters are hard-deleted: their auras go with them.
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

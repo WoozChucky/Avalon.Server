@@ -121,6 +121,11 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<ICharacterIgnoreRepository>(),
                 CapturedOfType<ICharacterIgnoreRepository>(ActivatorUtilities.CreateInstance(host.Services,
                     typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
+            // Auras: CharacterSelectHandler takes the repository optionally and would otherwise bring every character
+            // back with no aura, so only this proves production loads them.
+            Assert.Same(host.Services.GetRequiredService<ICharacterAuraRepository>(),
+                CapturedOfType<ICharacterAuraRepository>(ActivatorUtilities.CreateInstance(host.Services,
+                    typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
             // The delete takes a deleted character off the loaded lists through the world server's connections, which
             // WorldServer hands only to a handler whose constructor names IWorldServer.
             Assert.Contains(typeof(CharacterDeletetHandler).GetConstructors(),
