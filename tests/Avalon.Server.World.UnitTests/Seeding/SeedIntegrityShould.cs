@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
@@ -604,25 +605,25 @@ public class SeedIntegrityShould
         _ => throw new ArgumentOutOfRangeException(nameof(subClass), subClass, "not an armour slot"),
     };
 
-    /// <summary>The starter kit (#164): three skills per class.</summary>
+    /// <summary>The starter kit (#164) and the aura abilities (auras).</summary>
     private static readonly Dictionary<CharacterClass, uint[]> Kit = new()
     {
-        [CharacterClass.Warrior] = [200, 201, 202],
-        [CharacterClass.Wizard] = [210, 211, 212],
-        [CharacterClass.Hunter] = [220, 221, 222],
-        [CharacterClass.Healer] = [230, 231, 232],
+        [CharacterClass.Warrior] = [200, 201, 202, 203],
+        [CharacterClass.Wizard] = [210, 211, 212, 213],
+        [CharacterClass.Hunter] = [220, 221, 222, 223],
+        [CharacterClass.Healer] = [230, 231, 232, 233, 234],
     };
 
-    /// <summary>The twelve kit abilities and, since #163, the seventeen creature abilities 300-316; none of the retired ones.</summary>
+    /// <summary>The seventeen kit abilities and the nineteen creature abilities 300-318; none of the retired ones.</summary>
     [Fact]
-    public void Seed_exactly_the_twelve_kit_abilities_and_the_creature_abilities_and_none_of_the_old_ones()
+    public void Seed_exactly_the_kit_abilities_and_the_creature_abilities_and_none_of_the_old_ones()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         List<uint> ids = context.AbilityTemplates.AsNoTracking().AsEnumerable().Select(a => a.Id.Value).OrderBy(i => i).ToList();
 
-        Assert.Equal(Kit.Values.SelectMany(v => v).Concat(Enumerable.Range(300, 17).Select(i => (uint)i)).OrderBy(i => i), ids);
+        Assert.Equal(Kit.Values.SelectMany(v => v).Concat(Enumerable.Range(300, 19).Select(i => (uint)i)).OrderBy(i => i), ids);
     }
 
     /// <summary>
@@ -649,6 +650,8 @@ public class SeedIntegrityShould
     [InlineData(314u, "Bramble Lash", AbilityShape.Cone, 2.5f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]
     [InlineData(315u, "Bramble Nova", AbilityShape.Circle, 0f, 6f, 0f, 0f, false, 1200u, 16000u, 2.5f)]
     [InlineData(316u, "Thornspray", AbilityShape.Cone, 5f, 0f, 120f, 0f, false, 0u, 8000u, 1.8f)]
+    [InlineData(317u, "Venom Spit", AbilityShape.Projectile, 10f, 0f, 0f, 14f, false, 0u, 8000u, 0.6f)]
+    [InlineData(318u, "Sundering Howl", AbilityShape.Circle, 0f, 6f, 0f, 0f, false, 0u, 18000u, 0f)]
     public void Seed_each_creature_ability_as_designed(uint id, string name, AbilityShape shape, float reach,
         float radius, float arc, float speed, bool pierce, uint castTime, uint cooldown, float baseDamage)
     {
@@ -672,9 +675,9 @@ public class SeedIntegrityShould
     [Theory]
     [InlineData(4, "ThornbackBoarScript", new uint[] { 300, 301 })]
     [InlineData(5, "GreyFenWolfScript", new uint[] { 302, 303 })]
-    [InlineData(6, "BlightflySwarmlingScript", new uint[] { 304, 305 })]
+    [InlineData(6, "BlightflySwarmlingScript", new uint[] { 304, 317, 305 })]
     [InlineData(7, "HuskOfTheWoldScript", new uint[] { 306, 307 })]
-    [InlineData(8, "BramblemawAlphaScript", new uint[] { 308, 310, 309 })]
+    [InlineData(8, "BramblemawAlphaScript", new uint[] { 308, 310, 318, 309 })]
     [InlineData(9, "OldTuskrootScript", new uint[] { 311, 312, 313 })]
     [InlineData(10, "MotherBrambleScript", new uint[] { 314, 315, 316 })]
     public void Run_each_forest_creature_on_its_own_script(int templateId, string script, uint[] abilities)
@@ -699,14 +702,17 @@ public class SeedIntegrityShould
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        var catalog = new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance);
+        var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
+            static _ => null, NullLoggerFactory.Instance);
+        var catalog = new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras);
 
+        Assert.Empty(auras.Refused);
         Assert.Empty(catalog.Refused);
-        Assert.Equal(12 + 17, catalog.Count);
+        Assert.Equal(17 + 19, catalog.Count);
     }
 
     [Fact]
-    public void Give_each_class_its_own_three_kit_abilities_to_start_with()
+    public void Give_each_class_its_own_kit_abilities_to_start_with()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -789,16 +795,18 @@ public class SeedIntegrityShould
             a => Assert.Equal(a.Id.Value == 200 ? 8 : 0, a.PowerGainPerHit));
     }
 
+    /// <summary>The Healer's three ally abilities; Mending Circle the only direct heal, Renew and Fortify aura-only (auras).</summary>
     [Fact]
-    public void Seed_only_the_healers_mending_circle_as_an_ally_heal()
+    public void Seed_the_healers_ally_abilities_with_mending_circle_the_only_direct_heal()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        AbilityTemplate heal = Assert.Single(context.AbilityTemplates.AsNoTracking().ToList(), a => a.Affects == AbilityAffects.Ally);
-        Assert.Equal(232u, heal.Id.Value);
-        Assert.Equal(0.5f, heal.HealThreatPerHp);
-        Assert.Equal(SpellEffect.Heal, heal.Effects);
+        List<AbilityTemplate> allies = context.AbilityTemplates.AsNoTracking().ToList()
+            .Where(a => a.Affects == AbilityAffects.Ally).OrderBy(a => a.Id.Value).ToList();
+        Assert.Equal([232u, 233u, 234u], allies.Select(a => a.Id.Value));
+        Assert.Equal([SpellEffect.Heal, SpellEffect.Buff, SpellEffect.Buff], allies.Select(a => a.Effects));
+        Assert.All(allies, a => Assert.Equal(0.5f, a.HealThreatPerHp));
     }
 
     /// <summary>#506: each kit ability's damage stat and coefficients, as the balance seed set them.</summary>
@@ -815,6 +823,11 @@ public class SeedIntegrityShould
     [InlineData(230u, ScalingStat.Ability, 0.3f, 0f)]
     [InlineData(231u, ScalingStat.Ability, 0.5f, 0f)]
     [InlineData(232u, ScalingStat.Ability, 0.6f, 0f)]
+    [InlineData(203u, ScalingStat.Attack, 0.2f, 0.5f)]
+    [InlineData(213u, ScalingStat.Ability, 0f, 0f)]
+    [InlineData(223u, ScalingStat.Attack, 0.35f, 0.6f)]
+    [InlineData(233u, ScalingStat.Ability, 0f, 0f)]
+    [InlineData(234u, ScalingStat.Ability, 0f, 0f)]
     public void Seed_each_kit_abilitys_scaling(uint id, ScalingStat stat, float scaling, float weapon)
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
@@ -833,6 +846,85 @@ public class SeedIntegrityShould
 
         AbilityTemplate burst = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == 211);
         Assert.Equal((18u, 0.4f, 25u, 3f), (burst.EffectValue, burst.ScalingCoefficient, burst.Cost, burst.Radius));
+    }
+
+    /// <summary>Auras: the seven seeded auras, each as designed.</summary>
+    [Theory]
+    [InlineData(1u, "Bleed", AuraKind.Harmful, 12000u, 3000u, AuraPeriodicKind.Damage, 12f, ScalingStat.Attack, 0.25f, 0f, AuraStacking.Stack, 3u)]
+    [InlineData(2u, "Burn", AuraKind.Harmful, 9000u, 3000u, AuraPeriodicKind.Damage, 24f, ScalingStat.Ability, 0.6f, 0f, AuraStacking.Refresh, 1u)]
+    [InlineData(3u, "Crippled", AuraKind.Harmful, 6000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u)]
+    [InlineData(4u, "Renew", AuraKind.Helpful, 12000u, 3000u, AuraPeriodicKind.Heal, 24f, ScalingStat.Ability, 0.4f, 0f, AuraStacking.Refresh, 1u)]
+    [InlineData(5u, "Fortified", AuraKind.Helpful, 30000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u)]
+    [InlineData(6u, "Poison", AuraKind.Harmful, 9000u, 3000u, AuraPeriodicKind.Damage, 3f, ScalingStat.Attack, 0f, 1f, AuraStacking.Stack, 3u)]
+    [InlineData(7u, "Sundered", AuraKind.Harmful, 10000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u)]
+    public void Seed_each_aura_as_designed(uint id, string name, AuraKind kind, uint duration, uint interval,
+        AuraPeriodicKind periodic, float periodicBase, ScalingStat stat, float coefficient, float baseDamage,
+        AuraStacking stacking, uint maxStacks)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        AuraTemplate a = context.AuraTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
+
+        Assert.Equal((name, name.ToLowerInvariant(), kind, duration, interval, periodic, periodicBase, stat, coefficient,
+                baseDamage, stacking, maxStacks, (string?)null),
+            (a.Name, a.Icon, a.Kind, a.DurationMs, a.TickIntervalMs, a.PeriodicKind, a.PeriodicBase, a.ScalingStat,
+                a.ScalingCoefficient, a.BaseDamageCoefficient, a.Stacking, a.MaxStacks, a.ScriptName));
+    }
+
+    [Fact]
+    public void Seed_exactly_three_aura_modifiers()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Assert.Equal(
+            [(3u, AuraStat.MovementSpeed, AuraModifierKind.Flat, -30f), (5u, AuraStat.Armor, AuraModifierKind.Percent, 20f),
+             (7u, AuraStat.Armor, AuraModifierKind.Percent, -25f)],
+            context.AuraStatModifiers.AsNoTracking().AsEnumerable().OrderBy(m => m.AuraId.Value)
+                .Select(m => (m.AuraId.Value, m.Stat, m.Kind, m.Value)));
+    }
+
+    /// <summary>Auras: the new abilities, each with its shape, timing, cost, direct amount and aura.</summary>
+    [Theory]
+    [InlineData(203u, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 6000u, 10u, PowerType.Fury, SpellEffect.Damage, 8u, 1u)]
+    [InlineData(213u, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 6000u, 20u, PowerType.Mana, SpellEffect.Debuff, 0u, 2u)]
+    [InlineData(223u, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 28f, 8000u, 15u, PowerType.Energy, SpellEffect.Damage, 14u, 3u)]
+    [InlineData(233u, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, 15f, 4f, 0f, 0f, 6000u, 15u, PowerType.Mana, SpellEffect.Buff, 0u, 4u)]
+    [InlineData(234u, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 8f, 0f, 0f, 20000u, 20u, PowerType.Mana, SpellEffect.Buff, 0u, 5u)]
+    [InlineData(317u, "Venom Spit", AbilityShape.Projectile, AbilityAimMode.Cursor, 10f, 0f, 0f, 14f, 8000u, 0u, PowerType.None, SpellEffect.Damage, 0u, 6u)]
+    [InlineData(318u, "Sundering Howl", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 6f, 0f, 0f, 18000u, 0u, PowerType.None, SpellEffect.Debuff, 0u, 7u)]
+    public void Seed_each_aura_ability_as_designed(uint id, string name, AbilityShape shape, AbilityAimMode aim, float reach,
+        float radius, float arc, float speed, uint cooldown, uint cost, PowerType pool, SpellEffect effects, uint value, uint aura)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        AbilityTemplate a = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
+
+        Assert.Equal((name, shape, aim, reach, radius, arc, speed, 0u, cooldown, cost, pool, effects, value, (uint?)aura),
+            (a.Name, a.Shape, a.AimMode, a.Reach, a.Radius, a.ArcDegrees, a.ProjectileSpeed, a.CastTime, a.Cooldown, a.Cost,
+                a.CostPowerType, a.Effects, a.EffectValue, a.AuraId?.Value));
+    }
+
+    /// <summary>
+    /// Crippled on a character: its whole change from the base speed must stay under the client's prediction snap, as
+    /// gear's must (CharacterMovementSpeedShould): 4 m/s x 0.30 x 0.1 s = 0.12 m.
+    /// </summary>
+    [Fact]
+    public void Keep_every_seeded_slow_under_the_clients_snap()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        Avalon.Domain.World.CombatFormula formula = Avalon.Database.World.Seeding.CombatSeed.Formula();
+
+        foreach (AuraStatModifier m in context.AuraStatModifiers.AsNoTracking().AsEnumerable().Where(m => m.Stat == AuraStat.MovementSpeed))
+        {
+            float speed = Avalon.World.Characters.CharacterMovement.SpeedFor(m.Value, formula);
+            float drift = Math.Abs(speed - Avalon.World.Characters.CharacterMovement.BaseSpeed) * 0.1f;
+            Assert.True(drift < Avalon.World.Characters.CharacterMovement.ClientSnapThreshold,
+                $"aura {m.AuraId.Value} moves a character {drift} m over a round trip");
+        }
     }
 
     /// <summary>#506: the starter weapons roll 4-7, the forest weapons 7-11, and the two-handed Thornwood Staff 9-14.</summary>

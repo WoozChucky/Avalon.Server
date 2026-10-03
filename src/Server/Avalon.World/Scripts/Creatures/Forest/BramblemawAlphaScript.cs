@@ -10,9 +10,10 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Scripts.Creatures.Forest;
 
 /// <summary>
-/// Bramblemaw Alpha (template 8, Elite, #163): mauls; winds up a Howling Roar, then a Rending Frenzy, when they are ready.
+/// Bramblemaw Alpha (template 8, Elite, #163): mauls; winds up a Howling Roar, then howls to sunder armour, then a Rending
+/// Frenzy, when they are ready.
 /// </summary>
-/// <remarks>Rotation: Howling Roar, then Rending Frenzy, each when ready and in reach; else Maul. The numbers are the ability rows; the rotation is this code.</remarks>
+/// <remarks>Rotation: Howling Roar, then Sundering Howl, then Rending Frenzy, each when ready and in reach; else Maul. The numbers are the ability rows; the rotation is this code.</remarks>
 public sealed class BramblemawAlphaScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
     TimeProvider? time = null, IWorld? world = null)
     : AggroDefendScript(loggerFactory, creature, context,
@@ -27,8 +28,11 @@ public sealed class BramblemawAlphaScript(ILoggerFactory loggerFactory, ICreatur
     /// <summary>A 1 s wind-up, a 5 m circle on itself, 15 s.</summary>
     public static readonly AbilityId HowlingRoar = new(310);
 
+    /// <summary>A 6 m circle on itself, 18 s: Sundered on every player in it.</summary>
+    public static readonly AbilityId SunderingHowl = new(318);
+
     /// <summary>The abilities this creature fights with, its basic first.</summary>
-    public static CreatureAbilityKit Kit { get; } = new(Maul, HowlingRoar, RendingFrenzy);
+    public static CreatureAbilityKit Kit { get; } = new(Maul, HowlingRoar, SunderingHowl, RendingFrenzy);
 
     /// <summary>The creature's rotation. Built by the script above only, so the loader never names it.</summary>
     [ChainedScript]
@@ -37,6 +41,7 @@ public sealed class BramblemawAlphaScript(ILoggerFactory loggerFactory, ICreatur
         : CreatureCombatScript(loggerFactory, creature, context, time, world?.Data?.LoadedAbilities, Kit)
     {
         protected override IAbility? ChooseAbility(IUnit target, float distance) =>
-            Ready(HowlingRoar, distance) ?? Ready(RendingFrenzy, distance) ?? base.ChooseAbility(target, distance);
+            Ready(HowlingRoar, distance) ?? Ready(SunderingHowl, distance) ?? Ready(RendingFrenzy, distance)
+            ?? base.ChooseAbility(target, distance);
     }
 }

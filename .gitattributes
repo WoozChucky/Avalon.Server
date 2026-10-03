@@ -8,6 +8,7 @@ schema/vectors/*.txt text eol=lf
 schema/items/*.json text eol=lf
 schema/quests/*.json text eol=lf
 schema/abilities/*.json text eol=lf
+schema/auras/*.json text eol=lf
 schema/protobuf-net/NOTICE text eol=lf
 
 # CI scripts run under bash on Linux runners and locally in Git Bash; a CR breaks them.

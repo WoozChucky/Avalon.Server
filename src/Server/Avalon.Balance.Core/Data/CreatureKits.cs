@@ -26,14 +26,14 @@ public static class CreatureKits
             ["ThornbackBoarScript"] = Kit(300, 301),
             // GreyFenWolfScript: new(Bite, RavenousClaw)
             ["GreyFenWolfScript"] = Kit(302, 303),
-            // BlightflySwarmlingScript: new(Sting, BlightSpit). BlightSpit is cast only while Sting cannot reach; in the
-            // simulator everyone is in melee, so it never is.
+            // BlightflySwarmlingScript: new(Sting, VenomSpit, BlightSpit). BlightSpit is cast only while Sting cannot
+            // reach; in the simulator everyone is in melee, so it never is. VenomSpit is cast whenever it is ready.
             ["BlightflySwarmlingScript"] = new CreatureKit(
-                new AbilityId(304), [new AbilityId(305)], new HashSet<AbilityId> { new(305) }),
+                new AbilityId(304), [new AbilityId(317), new AbilityId(305)], new HashSet<AbilityId> { new(305) }),
             // HuskOfTheWoldScript: new(Slam, RottingBurst)
             ["HuskOfTheWoldScript"] = Kit(306, 307),
-            // BramblemawAlphaScript: new(Maul, HowlingRoar, RendingFrenzy)
-            ["BramblemawAlphaScript"] = Kit(308, 310, 309),
+            // BramblemawAlphaScript: new(Maul, HowlingRoar, SunderingHowl, RendingFrenzy)
+            ["BramblemawAlphaScript"] = Kit(308, 310, 318, 309),
             // OldTuskrootScript: new(TuskGore, Earthsplitter, ThornVolley)
             ["OldTuskrootScript"] = Kit(311, 312, 313),
             // MotherBrambleScript: new(BrambleLash, BrambleNova, Thornspray)

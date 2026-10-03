@@ -35,11 +35,10 @@ public class ForestCreatureScriptsShould
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         List<AbilityTemplate> abilities = context.AbilityTemplates.AsNoTracking().ToList();
+        // The seeded auras too: the ability catalog refuses an ability naming an aura it does not hold.
+        List<AuraTemplate> auras = context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList();
 
-        TestStaticDataRepositories repositories = TestStaticData.Repositories();
-        repositories.Abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(abilities));
-        return await TestStaticData.LoadAsync(repositories);
+        return await TestStaticData.LoadAsync(TestStaticData.Repositories(abilities: () => abilities, auras: () => auras));
     }
 
     private sealed class Fight
@@ -124,7 +123,7 @@ public class ForestCreatureScriptsShould
     [InlineData(typeof(ThornbackBoarScript), new uint[] { 301, 300 })]
     [InlineData(typeof(GreyFenWolfScript), new uint[] { 303, 302 })]
     [InlineData(typeof(HuskOfTheWoldScript), new uint[] { 307, 306 })]
-    [InlineData(typeof(BramblemawAlphaScript), new uint[] { 310, 309, 308 })]
+    [InlineData(typeof(BramblemawAlphaScript), new uint[] { 310, 318, 309, 308 })]
     [InlineData(typeof(OldTuskrootScript), new uint[] { 312, 313, 311 })]
     [InlineData(typeof(MotherBrambleScript), new uint[] { 315, 316, 314 })]
     public async Task Prefer_each_ready_special_in_reach_then_the_basic(Type scriptType, uint[] rotation)
@@ -150,18 +149,32 @@ public class ForestCreatureScriptsShould
             Arg.Is<IAbility>(a => a.AbilityId.Value == windUp));
     }
 
+    /// <summary>Venom Spit whenever it is ready, in melee too; then Sting, never Blight Spit there.</summary>
     [Fact]
-    public async Task Sting_in_melee_and_never_spit_there()
+    public async Task Spit_venom_then_sting_in_melee_and_never_spit_blight_there()
     {
         var fight = new Fight(typeof(BlightflySwarmlingScript), await World(), targetDistance: 1.5f);
 
-        Assert.Equal([304u], fight.Rotation());
+        Assert.Equal([317u, 304u], fight.Rotation());
+    }
+
+    [Fact]
+    public async Task Spit_venom_first_at_a_player_beyond_its_sting()
+    {
+        var fight = new Fight(typeof(BlightflySwarmlingScript), await World(), targetDistance: 6f);
+
+        IAbility? venom = fight.Tick();
+
+        Assert.Equal(317u, venom?.AbilityId.Value);
+        fight.Context.Received(1).RunInstantAbility(fight.Creature,
+            Arg.Is<AbilityAim>(a => a.Point == new Vector3(6f, 0f, 0f)), venom!);
     }
 
     [Fact]
     public async Task Spit_blight_at_a_player_beyond_its_sting_and_within_ten_metres()
     {
         var fight = new Fight(typeof(BlightflySwarmlingScript), await World(), targetDistance: 6f);
+        fight.Tick()!.CooldownTimer = 100f;   // Venom Spit, which comes first
 
         IAbility? spit = fight.Tick();
 

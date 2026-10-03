@@ -72,6 +72,8 @@ public class ColumnRuleShould
         ("CreatureRarityModifiers", typeof(Avalon.Domain.World.CreatureRarityModifier)),
         ("CreatureTemplate", typeof(Avalon.Domain.World.CreatureTemplate)),
         ("Item", typeof(Avalon.Domain.World.ItemTemplate)),
+        ("Aura", typeof(Avalon.Domain.World.AuraTemplate)),
+        ("AuraStatModifier", typeof(Avalon.Domain.World.AuraStatModifier)),
     ];
 
     [Fact]
