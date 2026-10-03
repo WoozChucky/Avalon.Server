@@ -15,6 +15,7 @@ using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.World;
 
@@ -96,13 +97,14 @@ public class StaticData(
             }
 
             case ReloadArea.Abilities:
-                // Each ability's aura link is checked against the auras read here, never the ones applied.
+                // Each ability's aura link is checked against the auras read here, never the ones applied. That catalog
+                // is thrown away, so it logs nothing: the Auras area reports its own refusals.
                 return new AbilitiesPatch(new AbilityCatalog(
                     (await abilityTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(), loggerFactory,
-                    await ReadAurasAsync(ct)));
+                    await ReadAurasAsync(NullLoggerFactory.Instance, ct)));
 
             case ReloadArea.Auras:
-                return new AurasPatch(await ReadAurasAsync(ct));
+                return new AurasPatch(await ReadAurasAsync(loggerFactory, ct));
 
             case ReloadArea.Items:
                 return new ItemsPatch((await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly());
@@ -259,10 +261,13 @@ public class StaticData(
         }
     }
 
-    /// <summary>The aura rows, validated with the aura scripts loaded; empty without a repository (tests).</summary>
-    private async Task<AuraCatalog> ReadAurasAsync(CancellationToken ct) =>
+    /// <summary>
+    /// The aura rows, validated with the aura scripts loaded, refusals logged to <paramref name="logTo" />; empty without
+    /// a repository (tests).
+    /// </summary>
+    private async Task<AuraCatalog> ReadAurasAsync(ILoggerFactory logTo, CancellationToken ct) =>
         new(auraTemplateRepository is null ? [] : await auraTemplateRepository.GetAllAsync(ct),
-            scriptManager is null ? static _ => null : scriptManager.GetAuraScript, loggerFactory);
+            scriptManager is null ? static _ => null : scriptManager.GetAuraScript, logTo);
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {

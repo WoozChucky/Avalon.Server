@@ -14,7 +14,8 @@ namespace Avalon.World.Auras;
 /// world, and it stands still on until the character enters its instance (<see cref="UnitAuras.ResumeHeld" />), so the
 /// loading screen costs none of it. Each keeps its snapshot, stacks, ticks owed, carried fraction of a point and, when a
 /// character applied it, its caster; it is held under the template loaded now. A row whose aura is no longer loaded, or
-/// whose snapshot cannot be believed, is dropped with a warning. Restoring owes the client nothing: it gets a list when
+/// whose snapshot cannot be believed, is dropped with a warning, and so is any row past the cap; a drop marks the auras
+/// changed, so the next save deletes the dropped rows. Restoring owes the client nothing: it gets a list when
 /// the character enters the world. A restored stat aura refills the pools as select does. Tick thread.
 /// </summary>
 public static class AuraRestore
@@ -33,6 +34,8 @@ public static class AuraRestore
         catch (Exception e)
         {
             character.Auras.Load([]);
+            if (rows.Count > 0)
+                character.SaveState.AurasChanged();   // the next save deletes the rows it could not restore
             logger.LogError(e, "Restoring the auras of character {CharacterId} at select failed; it enters with none",
                 character.Guid.Id);
 
@@ -54,12 +57,14 @@ public static class AuraRestore
     {
         DateTimeOffset now = character.Clock.GetUtcNow();
         var kept = new List<(CharacterAura Row, ActiveAura Aura)>(rows.Count);
+        bool dropped = false;
         foreach (CharacterAura row in rows)
         {
             if (!data.Auras.TryGet(new AuraId(row.AuraId), out AuraTemplate? template))
             {
                 logger.LogWarning("Dropped the saved aura {AuraId} of character {CharacterId}: it is not loaded",
                     row.AuraId, character.Guid.Id);
+                dropped = true;
                 continue;
             }
 
@@ -68,12 +73,16 @@ public static class AuraRestore
                 logger.LogWarning(
                     "Dropped the saved aura {AuraId} of character {CharacterId}: its tick amount {TickAmount} or crit chance {CritPct} is not a number of 0 or more",
                     row.AuraId, character.Guid.Id, row.TickAmount, row.CritPct);
+                dropped = true;
                 continue;
             }
 
             AuraSchedule schedule = AuraSchedule.Restore(now, row.RemainingMs, template.TickIntervalMs, row.TicksLeft);
             if (row.RemainingMs == 0 && schedule.TicksLeft == 0)
+            {
+                dropped = true;
                 continue;   // over, with nothing left to deal
+            }
 
             AuraSource source = row.SourceAbilityId is { } abilityId &&
                                 data.Abilities.TryGet(new AbilityId(abilityId), out AbilityTemplate? ability)
@@ -90,19 +99,31 @@ public static class AuraRestore
             }));
         }
 
-        int limit = Math.Max(0, maxAuras);
-        if (kept.Count > limit)
-        {
-            logger.LogWarning("Dropped {Count} saved auras of character {CharacterId}: it may hold at most {Max}",
-                kept.Count - limit, character.Guid.Id, limit);
-            kept = kept.OrderBy(k => k.Row.AppliedAt).ThenBy(k => k.Row.Slot).Take(limit).ToList();
-        }
+        dropped |= Cap(ref kept, maxAuras, character, logger);
 
         List<ActiveAura> restored = kept.OrderBy(k => k.Row.Slot).Select(k => k.Aura).ToList();
         character.Auras.Load(restored, heldSince: now);
 
+        // A row left behind would come back at every select: the next save rewrites the auras, deleting it.
+        if (dropped)
+            character.SaveState.AurasChanged();
+
         if (restored.Any(a => a.Template.Modifiers.Count > 0))
             CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld);
+    }
+
+    /// <summary>At most <paramref name="maxAuras" /> are kept, the earliest applied; true when any was dropped.</summary>
+    private static bool Cap(ref List<(CharacterAura Row, ActiveAura Aura)> kept, int maxAuras, CharacterEntity character,
+        ILogger logger)
+    {
+        int limit = Math.Max(0, maxAuras);
+        if (kept.Count <= limit)
+            return false;
+
+        logger.LogWarning("Dropped {Count} saved auras of character {CharacterId}: it may hold at most {Max}",
+            kept.Count - limit, character.Guid.Id, limit);
+        kept = kept.OrderBy(k => k.Row.AppliedAt).ThenBy(k => k.Row.Slot).Take(limit).ToList();
+        return true;
     }
 
     /// <summary>Only a character's guid names the same unit after a restart; anything else comes back as nobody.</summary>

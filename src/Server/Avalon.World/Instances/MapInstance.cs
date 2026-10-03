@@ -1123,24 +1123,30 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>Steps 5b and 6 of <see cref="Update" />: every character's visibility first, then every broadcast.</summary>
     private void BroadcastState(List<IWorldObject> objectAbilities)
     {
-        // Step 5b: Update entity visibility state per character, each by its own interest range (#593)
-        // The replication state is World-side (#612), so a character that is not a CharacterEntity is
-        // seen by the others but is sent nothing itself.
-        foreach (ICharacter character in _characters.Values)
+        // The aura changes are forgotten even when a step below throws, so none is held over and sent again next tick.
+        try
         {
-            if (character is CharacterEntity entity)
-                entity.CharacterGameState.Update(entity.Guid, entity.Position, _interest, _creatures,
-                    _characters, objectAbilities, _frameDirtyFields);
-        }
+            // Step 5b: Update entity visibility state per character, each by its own interest range (#593)
+            // The replication state is World-side (#612), so a character that is not a CharacterEntity is
+            // seen by the others but is sent nothing itself.
+            foreach (ICharacter character in _characters.Values)
+            {
+                if (character is CharacterEntity entity)
+                    entity.CharacterGameState.Update(entity.Guid, entity.Position, _interest, _creatures,
+                        _characters, objectAbilities, _frameDirtyFields);
+            }
 
-        // Step 6: Broadcast instance state to each character
-        foreach (ICharacter character in _characters.Values)
+            // Step 6: Broadcast instance state to each character
+            foreach (ICharacter character in _characters.Values)
+            {
+                if (character is CharacterEntity entity)
+                    BroadcastStateTo(entity);
+            }
+        }
+        finally
         {
-            if (character is CharacterEntity entity)
-                BroadcastStateTo(entity);
+            ClearAuraChanges();
         }
-
-        ClearAuraChanges();
     }
 
     /// <summary>

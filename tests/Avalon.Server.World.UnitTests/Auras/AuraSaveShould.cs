@@ -194,6 +194,32 @@ public class AuraSaveShould
         Assert.Equal([901u], character.Auras.All.Select(a => a.Id.Value));
     }
 
+    /// <summary>
+    /// A row dropped at select (its template gone, its snapshot unbelievable, past the cap) is deleted by the next save:
+    /// the restore marks the auras changed, so that save rewrites them. A restore that keeps every row marks nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("kept", false)]
+    [InlineData("template gone", true)]
+    [InlineData("bad snapshot", true)]
+    [InlineData("over the cap", true)]
+    public async Task Have_the_next_save_delete_a_row_dropped_at_select(string drop, bool marked)
+    {
+        CharacterEntity character = Character(913_113);
+        CharacterAura second = Saved(901, 3000, 1, slot: 1);
+        switch (drop)
+        {
+            case "template gone": second.AuraId = 999; break;
+            case "bad snapshot": second.TickAmount = float.NaN; break;
+        }
+
+        AuraRestore.Restore(character, [Saved(901, 7500, 3), second], await DataAsync(AuraTestData.Bleed()),
+            drop == "over the cap" ? 1 : 32, NullLogger.Instance);
+
+        Assert.Equal(marked, character.SaveState.AurasDirty);
+        Assert.Equal(marked ? 1 : 2, CharacterSaveSnapshot.Take(character).Batch.Auras!.Rows.Count);
+    }
+
     [Fact]
     public async Task Bring_a_creature_caster_back_as_nobody()
     {
