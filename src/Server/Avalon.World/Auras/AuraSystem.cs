@@ -2,6 +2,7 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Social;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -13,19 +14,6 @@ using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Auras;
-
-/// <summary>What applying an aura did.</summary>
-public enum AuraApplyResult
-{
-    /// <summary>
-    /// Nothing: the target is dead, ignores hits (a harmful aura), holds none, is at the cap, or the aura is not loaded
-    /// or no longer fits the ability that applies it.
-    /// </summary>
-    Refused,
-    Applied,
-    Refreshed,
-    Stacked,
-}
 
 /// <summary>
 /// The auras of one instance's units (auras): applies them (by their row's stacking, up to Game:MaxAurasPerUnit a unit),
@@ -144,10 +132,24 @@ public sealed class AuraSystem
         }
 
         // Rolled once, here, past every refusal, so a refused aura draws nothing from the combat random.
-        DateTimeOffset now = _time.GetUtcNow();
         AuraSnapshot snapshot = AuraRules.Snapshot(template, caster is null ? default : CombatService.AttackerFor(caster),
             _combat.Random);
+        AuraApplyResult result = Place(target, auras, held, template, casterGuid, source, snapshot);
 
+        if (template.Kind == AuraKind.Harmful && caster is not null)
+            _combat.EnterAuraCombat(caster, target);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Renews the copy held (stacking it when its row allows) or adds a new one, refreshes the stats it modifies and runs
+    /// its script's OnStack or OnApply; a script that ended its aura from that hook has it removed at once.
+    /// </summary>
+    private AuraApplyResult Place(IUnit target, UnitAuras auras, ActiveAura? held, AuraTemplate template,
+        ObjectGuid casterGuid, AuraSource source, AuraSnapshot snapshot)
+    {
+        DateTimeOffset now = _time.GetUtcNow();
         AuraApplyResult result;
         if (held is not null)
         {
@@ -156,7 +158,11 @@ public sealed class AuraSystem
             held.Renew(template, casterGuid, source, stacks, snapshot, now);
             auras.Changed(held, stacked ? AuraChangeKind.Stacked : AuraChangeKind.Refreshed, now);
             if (stacked)
+            {
                 RefreshStats(target, template);
+                RunHook(target, held, "OnStack", static (s, c) => s.OnStack(c));
+            }
+
             result = stacked ? AuraApplyResult.Stacked : AuraApplyResult.Refreshed;
         }
         else
@@ -165,11 +171,13 @@ public sealed class AuraSystem
                 AuraSchedule.Start(now, template.DurationMs, template.TickIntervalMs), template.DurationMs, now.UtcDateTime);
             auras.Add(held, now);
             RefreshStats(target, template);
+            RunHook(target, held, "OnApply", static (s, c) => s.OnApply(c));
             result = AuraApplyResult.Applied;
         }
 
-        if (template.Kind == AuraKind.Harmful && caster is not null)
-            _combat.EnterAuraCombat(caster, target);
+        // A script may end its aura from its first hook.
+        if (held.ScriptEnded && auras.Contains(held))
+            Remove(target, held, AuraRemoveReason.Script);
 
         return result;
     }
@@ -342,6 +350,40 @@ public sealed class AuraSystem
             // Written back even when the tick threw after taking its points, so they are never dealt twice.
             aura.PeriodicCarry = carry;
         }
+
+        RunHook(unit, aura, "OnTick", static (s, c) => s.OnTick(c));
+    }
+
+    /// <summary>
+    /// Runs one hook of the aura's script, contained by the script host; nothing without a script host or a script. A
+    /// hook may end its aura (ScriptEnded) or deal damage that kills; the caller checks both once the hook returns.
+    /// </summary>
+    private void RunHook(IUnit unit, ActiveAura aura, string hook, Action<AuraScript, IAuraContext> call)
+    {
+        if (_scripts is null || string.IsNullOrWhiteSpace(aura.Template.ScriptName))
+            return;
+
+        var context = new AuraContext(this, unit, aura, _time.GetUtcNow());
+        _scripts.Run(aura.Template, hook, script => call(script, context));
+    }
+
+    /// <summary>
+    /// A script's hit from its aura, as a single tick: the snapshot's crit and the target's armour, the caster credited
+    /// only while it is here (<see cref="CasterHere" />).
+    /// </summary>
+    internal uint ScriptDamage(IUnit target, ActiveAura aura, uint amount) =>
+        _combat.ApplyPeriodicDamage(new PeriodicHit(CasterHere(aura.CasterGuid), target, aura.Id, amount, aura.Snapshot,
+            aura.Source));
+
+    /// <summary>A script's fixed heal, from the caster while it is here, else from the target itself.</summary>
+    internal uint ScriptHeal(IUnit target, ActiveAura aura, uint amount) =>
+        _combat.RestoreHealth(CasterHere(aura.CasterGuid) ?? target, target, amount);
+
+    /// <summary>A system line to the target's connection in this instance, if it has one.</summary>
+    internal void Tell(IUnit target, string line)
+    {
+        if (_connectionOf(target.Guid) is { } connection)
+            connection.Send(SChatMessagePacket.System(line, _time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encrypt));
     }
 
     /// <summary>The caster, only while it is alive in this instance: an aura outlives its caster, but its credit does not.</summary>
@@ -365,13 +407,25 @@ public sealed class AuraSystem
     /// </summary>
     private bool IsWalkingHome(IUnit unit) => unit is ICreature && _returningHome(unit);
 
-    /// <summary>Ends one aura on <paramref name="unit" />, for <paramref name="reason" />. Nothing if it no longer holds it.</summary>
+    /// <summary>
+    /// Ends one aura on <paramref name="unit" />, for <paramref name="reason" />, then tells its script. Nothing if it no
+    /// longer holds it, so its script hears of it once however often removal is reached (a hook that kills while its
+    /// aura ends included).
+    /// </summary>
     public void Remove(IUnit unit, ActiveAura aura, AuraRemoveReason reason)
     {
         if (AuraHolders.Of(unit) is not { } auras || !auras.Remove(aura, _time.GetUtcNow()))
             return;
 
-        RefreshStats(unit, aura.Template);
+        try
+        {
+            RefreshStats(unit, aura.Template);
+        }
+        finally
+        {
+            // The aura is gone either way: its script hears of it even when the stats refresh threw.
+            RunHook(unit, aura, "OnRemove", (s, c) => s.OnRemove(c, reason));
+        }
     }
 
     /// <summary>Ends every aura on <paramref name="unit" />: death does this.</summary>

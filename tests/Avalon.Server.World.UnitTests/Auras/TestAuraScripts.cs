@@ -38,3 +38,38 @@ public sealed class WorldHungryAuraScript(IWorld world) : AuraScript
 {
     public IWorld World { get; } = world;
 }
+
+/// <summary>Records its tick, then deals its target all the health it has left; records its removal.</summary>
+public sealed class KillOnTickAuraScript : AuraScript
+{
+    public override void OnTick(IAuraContext ctx)
+    {
+        RecordingAuraScript.Heard.Add($"{ctx.AuraName}:tick");
+        ctx.Damage(ctx.TargetHealth);
+    }
+
+    public override void OnRemove(IAuraContext ctx, AuraRemoveReason reason) =>
+        RecordingAuraScript.Heard.Add($"{ctx.AuraName}:remove:{reason}");
+}
+
+/// <summary>Records its tick and ends its aura from it; records its removal.</summary>
+public sealed class EndOnTickRecordingAuraScript : AuraScript
+{
+    public override void OnTick(IAuraContext ctx)
+    {
+        RecordingAuraScript.Heard.Add($"{ctx.AuraName}:tick");
+        ctx.Remove();
+    }
+
+    public override void OnRemove(IAuraContext ctx, AuraRemoveReason reason) =>
+        RecordingAuraScript.Heard.Add($"{ctx.AuraName}:remove:{reason}");
+}
+
+/// <summary>Ends its aura from the hook that applied it; records its removal.</summary>
+public sealed class EndOnApplyAuraScript : AuraScript
+{
+    public override void OnApply(IAuraContext ctx) => ctx.Remove();
+
+    public override void OnRemove(IAuraContext ctx, AuraRemoveReason reason) =>
+        RecordingAuraScript.Heard.Add($"{ctx.AuraName}:remove:{reason}");
+}

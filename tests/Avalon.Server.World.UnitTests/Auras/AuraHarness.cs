@@ -51,13 +51,16 @@ internal sealed class AuraHarness
     /// <summary>Makes every read of the reference data throw, as a character's stats refresh would.</summary>
     public bool DataFails { get; set; }
 
-    /// <summary>The aura catalog from now on; the three test scripts are its loaded scripts.</summary>
+    /// <summary>The aura catalog from now on; the test scripts are its loaded scripts.</summary>
     public void Use(params AuraTemplate[] templates) =>
         _catalog = new AuraCatalog(templates, name => name switch
         {
             nameof(RecordingAuraScript) => typeof(RecordingAuraScript),
             nameof(ThrowingAuraScript) => typeof(ThrowingAuraScript),
             nameof(EndOnTickAuraScript) => typeof(EndOnTickAuraScript),
+            nameof(KillOnTickAuraScript) => typeof(KillOnTickAuraScript),
+            nameof(EndOnTickRecordingAuraScript) => typeof(EndOnTickRecordingAuraScript),
+            nameof(EndOnApplyAuraScript) => typeof(EndOnApplyAuraScript),
             _ => null,
         }, NullLoggerFactory.Instance);
 
