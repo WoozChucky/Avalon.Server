@@ -70,7 +70,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             var link = await identities.FindAsync(StoreProviders.Steam, subject, cancellationToken);
             if (link?.AccountId != account.Id) return false;
             if (context.State == GameAuthStates.Authorized && context.IdentityVerifiedAt is { } verified &&
-                await observations.HasNegativeSinceAsync(account.Id, StoreProviders.Steam, subject, context.Environment, context.Product, verified, cancellationToken)) return false;
+                await observations.HasNegativeSinceAsync(account.Id, StoreProviders.Steam, subject, context.Environment, context.Product, context.SteamAppId.ToString(CultureInfo.InvariantCulture), verified, cancellationToken)) return false;
         }
         return context.LauncherFamilyId is not { } family ||
             await refreshTokens.IsLiveLauncherFamilyAsync(account.Id, family, Now, cancellationToken);

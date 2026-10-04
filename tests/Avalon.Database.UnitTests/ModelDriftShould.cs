@@ -1,4 +1,5 @@
 using Avalon.Database.Character;
+using Avalon.Database.Auth;
 using Avalon.Database.World;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -13,6 +14,13 @@ namespace Avalon.Database.UnitTests;
 public class ModelDriftShould
 {
     private const string Nowhere = "Host=127.0.0.1;Port=1;Database=design_time_only";
+
+    [Fact]
+    public void Have_no_authentication_model_change_without_a_migration()
+    {
+        using var context = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>().UseNpgsql(Nowhere).Options);
+        Assert.False(context.Database.HasPendingModelChanges(), "AuthDbContext has changes no migration captures.");
+    }
 
     [Fact]
     public void Have_no_world_model_change_without_a_migration()

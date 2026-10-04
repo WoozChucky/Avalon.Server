@@ -90,6 +90,25 @@ public class GameContextStoreShould
         Assert.Empty(_store.Entries);
     }
 
+    [Theory]
+    [InlineData(2499460u, 2514590u)]
+    [InlineData(2514590u, 2499460u)]
+    public async Task Negative_observation_revokes_only_the_context_for_its_application(uint revokedApp, uint unaffectedApp)
+    {
+        _config.Value.SteamAppId = 2499460;
+        _config.Value.SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] };
+        var revokedAttempt = (await Attempt("steam", appId: revokedApp))!;
+        var otherAttempt = (await Attempt("steam", appId: unaffectedApp))!;
+        var revoked = await Service().AuthenticateSteamAsync(revokedAttempt.AttemptCredential, "ABCD", Guid.NewGuid(), default);
+        var unaffected = await Service().AuthenticateSteamAsync(otherAttempt.AttemptCredential, "DCBA", Guid.NewGuid(), default);
+        Assert.NotNull(await Service().GetContextAsync(revoked.GameContextCredential!, true, default));
+        _licenses.HasNegativeSinceAsync(_account.Id, "steam", "76561198000000001", "production", "avalon.base", revokedApp.ToString(System.Globalization.CultureInfo.InvariantCulture), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+        Assert.Null(await Service().GetContextAsync(revoked.GameContextCredential!, true, default));
+        Assert.NotNull(await Service().GetContextAsync(unaffected.GameContextCredential!, true, default));
+        _links.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns((ExternalIdentity?)null);
+        Assert.Null(await Service().GetContextAsync(unaffected.GameContextCredential!, true, default));
+    }
+
     private string Handoff()
     {
         string secret = GameAuthCryptography.NewToken();
@@ -155,7 +174,7 @@ public class GameContextStoreShould
         var attempt = (await Attempt("steam"))!;
         var result = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
         var current = (await Service().GetContextAsync(result.GameContextCredential!, true, CancellationToken.None))!;
-        _licenses.HasNegativeSinceAsync(_account.Id, "steam", "76561198000000001", "production", "avalon.base", current.IdentityVerifiedAt!.Value, Arg.Any<CancellationToken>()).Returns(true);
+        _licenses.HasNegativeSinceAsync(_account.Id, "steam", "76561198000000001", "production", "avalon.base", "480", current.IdentityVerifiedAt!.Value, Arg.Any<CancellationToken>()).Returns(true);
         Assert.Null(await Service().GetContextByIdAsync(current.Id, true, CancellationToken.None));
         Assert.Equal("CONTEXT_REVOKED", (await Service().RefreshAsync(result.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None)).Error);
     }
