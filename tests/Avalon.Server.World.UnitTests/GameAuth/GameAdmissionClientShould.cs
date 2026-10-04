@@ -8,7 +8,15 @@ namespace Avalon.Server.World.UnitTests.GameAuth;
 
 public sealed class GameAdmissionClientShould
 {
-    private static GameAdmissionOptions Options() => new() { ApiUrl = "https://internal.avalon.example/", ServerId = "world-one", WorldId = 1, ClientCertificatePath = "mounted-workload.pfx" };
+    private static GameAdmissionOptions Options() => new() { ApiUrl = "https://internal.avalon.example/", ServerId = "world-one", WorldId = 1, ClientCertificatePath = "mounted-workload.pfx", ApiCertificateSha256 = new string('A', 64) };
+    [Fact]
+    public void Refuse_admission_configuration_without_an_explicit_API_certificate_pin()
+    {
+        var options = Options();
+        options.ApiCertificateSha256 = string.Empty;
+        Assert.False(options.IsValid());
+    }
+
     private static JoinRedemptionReceipt Receipt(Guid connection, Guid redemption) => new()
     {
         AccountId = "42", FencingToken = "7", GameSessionId = Guid.NewGuid().ToString("D"), GameContextId = Guid.NewGuid().ToString("D"),

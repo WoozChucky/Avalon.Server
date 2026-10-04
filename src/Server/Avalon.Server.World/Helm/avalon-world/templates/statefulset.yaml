@@ -51,6 +51,11 @@ spec:
                   optional: true
             - name: World__Admission__ApiUrl
               value: {{ required "server.admission.apiUrl is required" .Values.server.admission.apiUrl | quote }}
+            - name: World__Admission__ApiCertificateSha256
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "server.admission.apiCertificateSecret is required" .Values.server.admission.apiCertificateSecret | quote }}
+                  key: {{ required "server.admission.apiCertificateKey is required" .Values.server.admission.apiCertificateKey | quote }}
             - name: World__Admission__ServerId
               value: {{ required "server.admission.serverId is required" .Values.server.admission.serverId | quote }}
             - name: World__Admission__ClientCertificatePath

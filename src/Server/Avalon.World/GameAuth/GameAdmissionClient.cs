@@ -14,10 +14,11 @@ public sealed class GameAdmissionOptions
     public ushort WorldId { get; set; }
     public string ClientCertificatePath { get; set; } = string.Empty;
     public string? ClientCertificatePassword { get; set; }
+    public string ApiCertificateSha256 { get; set; } = string.Empty;
     public bool IsValid() => Uri.TryCreate(ApiUrl, UriKind.Absolute, out var uri) && uri.Scheme == "https" &&
         uri.AbsolutePath == "/" && uri.Query.Length == 0 && uri.Fragment.Length == 0 && uri.UserInfo.Length == 0 &&
         ServerId is { Length: >= 1 and <= 128 } && ServerId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_') &&
-        WorldId > 0 && !string.IsNullOrWhiteSpace(ClientCertificatePath);
+        WorldId > 0 && !string.IsNullOrWhiteSpace(ClientCertificatePath) && ApiCertificateTrust.IsValidPin(ApiCertificateSha256);
 }
 
 public sealed record WorldAdmissionResult(GameSessionLease? Lease, string? Error);

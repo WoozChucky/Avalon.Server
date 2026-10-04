@@ -23,6 +23,8 @@ server:
   admission:
     apiUrl: ""  # HTTPS origin of the API GameInternal endpoint, ending in /.
     serverId: ""  # Must match the API workload assignment for game.worldId.
+    apiCertificateSecret: ""  # Required Secret containing the exact API leaf SHA-256 pin.
+    apiCertificateKey: api-tls-sha256
   cache:
     # Required: host:port of Redis.
     host: ""

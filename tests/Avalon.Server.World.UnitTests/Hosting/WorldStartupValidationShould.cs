@@ -299,6 +299,8 @@ public class WorldStartupValidationShould
     [InlineData("World:Admission:ApiUrl", "https://internal.example/path")]
     [InlineData("World:Admission:ServerId", "")]
     [InlineData("World:Admission:ClientCertificatePath", "")]
+    [InlineData("World:Admission:ApiCertificateSha256", "")]
+    [InlineData("World:Admission:ApiCertificateSha256", "not-a-pin")]
     [InlineData("Hosting:Security:CertificatePath", "")]
     public async Task Refuse_to_start_without_authenticated_admission_configuration(string setting, string value)
     {
@@ -321,7 +323,8 @@ public class WorldStartupValidationShould
                 ["Hosting:Security:CertificatePath"] = "mounted-world.pfx",
                 ["World:Admission:ApiUrl"] = "https://internal.avalon.example/",
                 ["World:Admission:ServerId"] = "world-one",
-                ["World:Admission:ClientCertificatePath"] = "mounted-workload.pfx"
+                ["World:Admission:ClientCertificatePath"] = "mounted-workload.pfx",
+                ["World:Admission:ApiCertificateSha256"] = new string('A', 64)
             });
             builder.Configuration.AddInMemoryCollection(overrides);
             builder.Services

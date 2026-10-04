@@ -22,7 +22,7 @@ Account recovery, bans/deactivation, role changes and consolidation remain enfor
 
 ## Private deployment configuration
 
-Supply `Application:StoreAuthentication:SteamPublisherKey` through the backend's private secret provider (`Application__StoreAuthentication__SteamPublisherKey` for environment injection). Do not put it in appsettings, source control, chat, client packages or CI logs. Keep the App ID 2499460 and environment/product settings consistent. A real publisher key and controlled Steam accounts are still required for live provider verification.
+Supply `Application:StoreAuthentication:SteamPublisherKey` through the backend's private secret provider (`Application__StoreAuthentication__SteamPublisherKey` for environment injection). Do not put its plaintext in appsettings, source control, chat, client packages or CI logs. Homelab stores only a SOPS-encrypted Secret using its existing age recipient. Keep the App ID 2499460 and environment/product settings consistent. The supplied publisher key is configured in the encrypted homelab Secret; controlled Steam accounts and actual publisher authorization still require live provider verification.
 
 Configure the workload client certificate, world TLS private key and API certificate bindings described in [game server admission configuration](steam-authentication-workloads.md). Required certificate secrets are mounted read-only. Client `netconfig.json` supplies the trusted HTTPS API and website locations; a local override is excluded from packages. Steam depots use `--channel steam`, contain the Steam runtime DLL and exclude `steam_appid.txt`. Avalon packages use `--channel avalon` and omit the Steam DLL; the runtime delay-loads it only on the Steam route.
 
@@ -50,14 +50,14 @@ Rollback must retain TLS, current ownership checks, short-lived admission and SQ
 
 ## Automated verification record — 2026-10-04
 
-Implementation and automated checks are complete on feature branches. Private deployment setup,
-real Steam smoke checks and coordinated staging remain pending; no live provider verification is claimed.
+Implementation, automated checks and the encrypted deployment-secret setup are complete on feature branches.
+Real Steam smoke checks and coordinated staging remain pending; no live provider verification is claimed.
 
 | Suite | Passed | Existing skips |
 |---|---:|---:|
 | API | 1521 | 0 |
 | Database | 283 | 0 |
-| World | 3704 | 1 |
+| World | 3716 | 1 |
 | Auth | 394 | 0 |
 | Shared | 1611 | 1 |
 | Launcher core | 89 | 0 |
@@ -100,4 +100,17 @@ values. Shared wire values and client/server versions were checked for agreement
 
 All four API/world charts rendered from the actual homelab HelmRelease values. Negative render checks
 refused missing publisher Secret references or workload assignments. Existing homelab release versions were
-retained; certificates, private CA trust (if used), secret injection and release rollout still require operator setup.
+retained. The authorized follow-up configured the supplied publisher key and seven independent private
+certificates/PFX passwords plus matching DER-leaf pins in six SOPS-encrypted homelab Secrets. Each
+encrypted file passed MAC and exact value verification after decryption in memory; SAN, EKU, validity,
+RSA key independence and matching pins were checked without logging plaintext. No machine trust roots,
+certificate stores, Windows users or live workloads were changed.
+
+World-to-internal-API trust now requires an exact API leaf SHA-256 pin. TLS verifies the API hostname,
+validity, server-auth EKU and digital-signature usage; only chain errors for the pinned leaf are accepted.
+The mandatory-pin refusal test failed before implementation. Real mTLS tests cover correct private leaves,
+wrong pin, wrong name, expiry and pooled-connection expiry. Review identified a LOW synchronous-send
+gap; its regression failed with no exception before the fix, and the same lifetime guard now applies to
+both synchronous and asynchronous sends. The full World suite then passed 3716 tests with one existing
+skip. All four actual HelmRelease value documents rendered; six missing-pin Secret/key cases refused
+rendering. No live Steam/provider verification or release deployment is claimed.

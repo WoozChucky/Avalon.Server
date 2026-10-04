@@ -62,16 +62,22 @@ Flush authoritative state before ending the session. End blocks the matching Cha
 
 The world host requires a current TLS leaf with its private key before it listens. Configure
 `Hosting:Security:CertificatePath` and its secret password. `World:Admission:ApiUrl` is the fixed
-HTTPS origin of the API's GameInternal listener; its server certificate must pass normal TLS
-validation. `World:Admission:ServerId` matches the API assignment for `Game:WorldId`.
+HTTPS origin of the API's GameInternal listener. `World:Admission:ApiCertificateSha256` is mandatory:
+SHA-256 of the complete DER API server leaf, exactly 64 hexadecimal characters. This explicit leaf
+is the private trust anchor; there is no system-CA fallback. TLS still checks the origin hostname,
+leaf validity, server-auth EKU and digital-signature key usage. Only chain errors are allowed for the
+exact pinned leaf; name mismatch, unavailable certificate, missing usage, wrong pin and expiry fail.
+Every request also checks the cached leaf validity, including an already pooled TLS connection. `World:Admission:ServerId` matches the API assignment for `Game:WorldId`.
 `World:Admission:ClientCertificatePath` and its secret password supply the pinned client-auth PFX.
 Never share the world TLS private key with clients; clients receive only the assigned leaf SHA-256
 pin and TLS server name from the authenticated join response.
 
 The world chart requires `server.transport.existingSecret`, `server.admission.apiUrl`, and
-`server.admission.serverId`. The transport Secret holds `world-tls.pfx` and `workload.pfx`; optional
+`server.admission.serverId`, `server.admission.apiCertificateSecret`, and
+`server.admission.apiCertificateKey` (default `api-tls-sha256`). The latter Secret/key supplies the API
+leaf pin; no optional reference or unpinned fallback is available. The transport Secret holds `world-tls.pfx` and `workload.pfx`; optional
 `world-tls-password` and `workload-password` keys provide their passwords. PFX files mount read-only
-under `/run/avalon-auth`. These are deployment credentials supplied outside source control.
+under `/run/avalon-auth`. These are deployment credentials; only SOPS-encrypted copies belong in source control.
 
 Updated clients use CGameAdmissionPacket/SGameAdmissionPacket (0x201E/0x301E) inside TLS, then the
 existing encrypted version handshake. Minimum supported gameplay client version is 0.2.0. Retired
@@ -102,5 +108,7 @@ Missing required references/assignments refuse chart rendering.
 The sibling homelab repository prepares these settings for worlds 1, 2 and 3, plus the production
 Steam OpenID callback and website origin, on `feature/steam-authentication`. Its existing release
 versions remain pinned pending coordinated staging. See homelab `docs/avalon.md` for Secret keys,
-certificate DNS/trust requirements and cutover instructions. Certificate issuance/private CA trust
-and publisher-key injection are external setup gates; this work did not deploy or install trust roots.
+certificate DNS/trust requirements, rotation and cutover instructions. The authorized follow-up
+created SOPS-encrypted publisher-key, seven independent private leaves, PFX passwords and all
+matching leaf pins using homelab's existing age recipient. No machine trust roots or live workloads
+were changed. Real provider and coordinated staging checks remain required.
