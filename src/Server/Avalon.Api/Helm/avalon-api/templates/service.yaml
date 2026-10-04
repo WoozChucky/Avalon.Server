@@ -7,6 +7,10 @@ metadata:
 spec:
   type: {{ .Values.service.type }}
   ports:
+    - port: {{ .Values.gameAdmission.port }}
+      targetPort: game-internal
+      protocol: TCP
+      name: game-internal
     - port: {{ .Values.service.port }}
       targetPort: http
       protocol: TCP

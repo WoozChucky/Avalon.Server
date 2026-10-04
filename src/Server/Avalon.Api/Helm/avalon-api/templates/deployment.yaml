@@ -38,6 +38,50 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            - name: Application__StoreAuthentication__SteamPublisherKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "storeAuthentication.existingSecret is required" .Values.storeAuthentication.existingSecret | quote }}
+                  key: {{ required "storeAuthentication.publisherKeyKey is required" .Values.storeAuthentication.publisherKeyKey | quote }}
+            - name: Application__StoreAuthentication__Environment
+              value: {{ .Values.storeAuthentication.environment | quote }}
+            - name: Application__StoreAuthentication__SteamIdentityPrefix
+              value: {{ .Values.storeAuthentication.steamIdentityPrefix | quote }}
+            - name: Application__StoreAuthentication__PolicyVersion
+              value: {{ .Values.storeAuthentication.policyVersion | quote }}
+            - name: Kestrel__Endpoints__Public__Url
+              value: {{ printf "http://0.0.0.0:%v" .Values.service.port | quote }}
+            - name: Kestrel__Endpoints__GameInternal__Url
+              value: {{ printf "https://0.0.0.0:%v" .Values.gameAdmission.port | quote }}
+            - name: Kestrel__Endpoints__GameInternal__Certificate__Path
+              value: /run/avalon-auth/api-workload.pfx
+            - name: Kestrel__Endpoints__GameInternal__Certificate__Password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "gameAdmission.tlsExistingSecret is required" .Values.gameAdmission.tlsExistingSecret | quote }}
+                  key: tls-password
+                  optional: true
+            {{- if not .Values.gameAdmission.servers }}
+            {{- fail "gameAdmission.servers is required: bind each world to its TLS/workload certificates" }}
+            {{- end }}
+            {{- range $i, $server := .Values.gameAdmission.servers }}
+            - name: Application__GameWorkloads__Servers__{{ $i }}__ServerId
+              value: {{ required "gameAdmission serverId is required" $server.serverId | quote }}
+            - name: Application__GameWorkloads__Servers__{{ $i }}__WorldId
+              value: {{ required "gameAdmission worldId is required" $server.worldId | quote }}
+            - name: Application__GameWorkloads__Servers__{{ $i }}__TlsServerName
+              value: {{ required "gameAdmission tlsServerName is required" $server.tlsServerName | quote }}
+            - name: Application__GameWorkloads__Servers__{{ $i }}__TlsCertificateSha256
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "gameAdmission.bindingsExistingSecret is required" $.Values.gameAdmission.bindingsExistingSecret | quote }}
+                  key: {{ printf "%s-tls-sha256" $server.serverId | quote }}
+            - name: Application__GameWorkloads__Servers__{{ $i }}__ClientCertificateSha256
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.gameAdmission.bindingsExistingSecret | quote }}
+                  key: {{ printf "%s-client-sha256" $server.serverId | quote }}
+            {{- end }}
             # Secrets come from the Secret (templates/secret.yaml or existingSecret), never as
             # plain values in the pod spec (#482).
             - name: Database__Auth__ConnectionString
@@ -182,7 +226,14 @@ spec:
               value: {{ .Values.environment | quote }}
             - name: Application__MapAssets__ChunkAssetRoot
               value: {{ .Values.mapAssets.chunkAssetRoot | quote }}
+          volumeMounts:
+            - name: api-admission-credentials
+              mountPath: /run/avalon-auth
+              readOnly: true
           ports:
+            - name: game-internal
+              containerPort: {{ .Values.gameAdmission.port }}
+              protocol: TCP
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
@@ -204,3 +255,10 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: api-admission-credentials
+          secret:
+            secretName: {{ .Values.gameAdmission.tlsExistingSecret | quote }}
+            items:
+              - key: tls.pfx
+                path: api-workload.pfx

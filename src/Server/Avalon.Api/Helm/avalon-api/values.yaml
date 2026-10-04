@@ -189,3 +189,19 @@ distribution:
   region: garage
   accessKeyId: ""
   secretAccessKey: ""
+
+# Mandatory store verification credentials. Only a reference is accepted; Helm never holds the publisher key.
+storeAuthentication:
+  existingSecret: ""
+  publisherKeyKey: steam-publisher-key
+  environment: production
+  steamIdentityPrefix: avalon-auth-prod
+  policyVersion: 1
+
+# Direct mTLS listener, separate from public ingress. Pins are read from the binding Secret,
+# using <serverId>-tls-sha256 and <serverId>-client-sha256 keys. Supply one entry per served world.
+gameAdmission:
+  port: 9443
+  tlsExistingSecret: ""
+  bindingsExistingSecret: ""
+  servers: [] # {serverId: world-dev, worldId: 1, tlsServerName: dev.example.test}

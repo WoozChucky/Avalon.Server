@@ -87,3 +87,20 @@ is checked again at dispatch. A renewal outage grants no additional time: the wo
 five seconds before the lease deadline to flush final state, then ends the session. Character
 creation and its initial children commit atomically under the same durable account guard; select,
 update and delete also validate the current owner and lease inside their database transaction.
+
+
+## API chart and homelab configuration
+
+The API chart requires `storeAuthentication.existingSecret` (key `steam-publisher-key` by default),
+`gameAdmission.tlsExistingSecret` (`tls.pfx`, optional `tls-password`), and
+`gameAdmission.bindingsExistingSecret`. `gameAdmission.servers` supplies each `serverId`, `worldId`
+and `tlsServerName`; the binding Secret has `<serverId>-tls-sha256` and `<serverId>-client-sha256`.
+The chart mounts the API PFX read-only and exposes a separate direct mTLS service port (default 9443).
+Publisher keys are only Secret references; there is no plaintext Helm publisher-key setting.
+Missing required references/assignments refuse chart rendering.
+
+The sibling homelab repository prepares these settings for worlds 1, 2 and 3, plus the production
+Steam OpenID callback and website origin, on `feature/steam-authentication`. Its existing release
+versions remain pinned pending coordinated staging. See homelab `docs/avalon.md` for Secret keys,
+certificate DNS/trust requirements and cutover instructions. Certificate issuance/private CA trust
+and publisher-key injection are external setup gates; this work did not deploy or install trust roots.
