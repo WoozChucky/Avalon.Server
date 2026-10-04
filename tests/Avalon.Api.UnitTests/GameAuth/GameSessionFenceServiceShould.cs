@@ -1,3 +1,4 @@
+using Avalon.Infrastructure.GameAuth;
 using Avalon.Api.Services;
 using Avalon.Api.Worlds;
 using Avalon.Common.GameAuth;
@@ -20,17 +21,17 @@ public sealed class GameSessionFenceServiceShould
     private readonly List<string> _order = [];
     private GameSession _head = null!;
     private GameSessionFenceService _service = null!;
-    private async Task Arrange()
+    private async Task Arrange(uint? appId = null, ushort worldId = 1)
     {
-        var auth = await _h.Authenticate();
+        var auth = await _h.Authenticate(appId);
         var context = (await _h.Authorization.GetContextAsync(auth.GameContextCredential!, true, CancellationToken.None))!;
         var now = _h.Clock.GetUtcNow().UtcDateTime;
         _head = new GameSession { AccountId = _h.Account.Id, GameSessionId = Guid.NewGuid(), GameContextId = context.Id,
-            FencingToken = 2, ServerId = "world-1", WorldId = 1, Environment = "production", State = GameSessionState.Pending,
+            FencingToken = 2, ServerId = "world-" + worldId, WorldId = worldId, Environment = "production", State = GameSessionState.Pending,
             PreviousWorldId = 2, PreviousServerId = "world-2", PreviousGameSessionId = Guid.NewGuid(),
             CreatedAt = now, LeaseUntil = now.AddSeconds(45), LicenseUntil = now.AddMinutes(5) };
         _h.Sessions.FindAsync(_h.Account.Id, Arg.Any<CancellationToken>()).Returns(_head);
-        _worlds.GameplayFences(new WorldId(1)).Returns(_target);
+        _worlds.GameplayFences(new WorldId(worldId)).Returns(_target);
         _worlds.GameplayFences(new WorldId(2)).Returns(_previous);
         _previous.AdvanceAsync(Arg.Any<GameplayWriteAuthority>(), true, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("previous"); return true; });
         _target.AdvanceAsync(Arg.Any<GameplayWriteAuthority>(), false, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("target"); return true; });
@@ -39,7 +40,31 @@ public sealed class GameSessionFenceServiceShould
         _target.ActivateAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("target-active"); return true; });
         var accounts = Substitute.For<IAccountRepository>();
         accounts.FindByIdAsync(_h.Account.Id, false, Arg.Any<CancellationToken>()).Returns(_h.Account);
-        _service = new(_h.Sessions, _h.Authorization, _worlds, accounts, Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }] }), _h.Clock);
+        _service = new(_h.Sessions, _h.Authorization, _worlds, accounts, Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] }), _h.Clock, new GameApplicationAccessPolicy(Options.Create(_h.Configuration)));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task Activation_and_heartbeat_recheck_the_actual_world_application_policy(ushort worldId)
+    {
+        await Arrange(2514590, worldId);
+        _h.Account.AccessLevel |= Avalon.Common.Accounts.AccountAccessLevel.Admin;
+        var first = await Activate("world-" + worldId);
+        if (worldId == 1)
+        {
+            Assert.NotNull(first.Error);
+            Assert.Empty(_order);
+            return;
+        }
+        Assert.Null(first.Error);
+        _h.Configuration.SteamPlaytest.AllowedWorldIds = [1];
+        Assert.NotNull((await _service.HeartbeatAsync("world-3", _head.AccountId, _head.GameSessionId, 2, default)).Error);
+        Assert.NotNull((await Activate("world-3")).Error);
+        await _h.Sessions.DidNotReceive().TryRenewAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        _h.Configuration.SteamPlaytest.AllowedWorldIds = [3];
+        _h.Configuration.SteamPlaytest.Enabled = false;
+        Assert.NotNull((await Activate("world-3")).Error);
     }
     private Task<GameSessionLeaseReply> Activate(string server = "world-1") => _service.ActivateAsync(server, _head.AccountId, _head.GameSessionId, 2, CancellationToken.None);
     [Fact]

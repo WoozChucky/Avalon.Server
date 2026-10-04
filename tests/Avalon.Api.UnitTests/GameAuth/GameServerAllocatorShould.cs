@@ -26,8 +26,39 @@ public sealed class GameServerAllocatorShould
     private readonly ICharacterRepository _characters = Substitute.For<ICharacterRepository>();
     private readonly Account _account = new() { Id = new AccountId(7), Username = "PLAYER", Email = "p@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
     private readonly Avalon.Domain.Auth.World _world = new() { Id = new WorldId(1), Name = "World", Host = "world.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0", MaintenanceRevision = 1 };
-    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), AccountId = 7, ProtocolVersion = "0.2.0", Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
+    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), SteamAppId = 480, AccountId = 7, ProtocolVersion = "0.2.0", Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
     private readonly GameServerAllocator _allocator;
+
+    [Fact]
+    public async Task Playtest_lists_only_PTR_and_rejects_direct_other_worlds_even_for_admins()
+    {
+        var ptr = new Avalon.Domain.Auth.World { Id = new WorldId(3), Name = "PTR", Host = "ptr.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0" };
+        _worlds.FindByIdAsync(ptr.Id, false, Arg.Any<CancellationToken>()).Returns(ptr);
+        _databases.IsAvailable(ptr.Id).Returns(true);
+        _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
+        var workload = Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] });
+        var config = new StoreAuthenticationConfiguration { SteamAppId = 480, SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
+        var allocator = new GameServerAllocator(_worlds, _accounts, _databases, _readiness, _repositories, workload, _clock, new GameApplicationAccessPolicy(Options.Create(config)));
+        var context = _context with { SteamAppId = 2514590 };
+        _account.AccessLevel |= AccountAccessLevel.Admin;
+        Assert.Equal((ushort)3, Assert.Single(await allocator.ListAsync(context, default)).WorldId);
+        Assert.Null(await allocator.FindAsync(context, 1, null, default));
+        Assert.Null(await allocator.FindAsync(context, 2, null, default));
+        Assert.NotNull(await allocator.FindAsync(context with { SteamAppId = 480 }, 1, null, default));
+        _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(false);
+        Assert.Empty(await allocator.ListAsync(context, default));
+        _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
+        _repositories.Characters(ptr.Id).Returns(_characters);
+        Assert.Null(await allocator.FindAsync(context, 3, 42, default));
+        ptr.MaintenanceEnabled = true;
+        ptr.MaintenanceDeadlineUtc = _clock.GetUtcNow().UtcDateTime;
+        _account.AccessLevel &= ~AccountAccessLevel.Admin;
+        Assert.Null(await allocator.FindAsync(context, 3, null, default));
+        ptr.MaintenanceEnabled = false;
+        Assert.NotNull(await allocator.FindAsync(context, 3, null, default));
+        config.SteamPlaytest.Enabled = false;
+        Assert.Empty(await allocator.ListAsync(context, default));
+    }
     public GameServerAllocatorShould()
     {
         _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);
@@ -36,7 +67,7 @@ public sealed class GameServerAllocatorShould
         _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(true);
         _repositories.Characters(_world.Id).Returns(_characters);
         _allocator = new(_worlds, _accounts, _databases, _readiness, _repositories,
-            Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1, TlsServerName = "world.example.test", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = new string('B', 64) }] }), _clock);
+            Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1, TlsServerName = "world.example.test", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = new string('B', 64) }] }), _clock, new GameApplicationAccessPolicy(Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 480 })));
     }
     private Task<GameWorldDestination?> Find(GameContextRecord? context = null, uint? character = null) => _allocator.FindAsync(context ?? _context, 1, character, CancellationToken.None);
 
