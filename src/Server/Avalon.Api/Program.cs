@@ -64,6 +64,16 @@ IServiceCollection services = builder.Services;
             return Task.CompletedTask;
         });
         options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+        options.AddSchemaTransformer((schema, context, cancellationToken) =>
+        {
+            // Preserve the CLR uint32 bounds, including nullable request selectors.
+            if (context.JsonTypeInfo.Type == typeof(uint) || context.JsonTypeInfo.Type == typeof(uint?))
+            {
+                schema.Minimum = "0";
+                schema.Maximum = "4294967295";
+            }
+            return Task.CompletedTask;
+        });
         options.CreateSchemaReferenceId = type => type.Type.FullName!;
     });
     services.AddAuth(applicationConfig);
