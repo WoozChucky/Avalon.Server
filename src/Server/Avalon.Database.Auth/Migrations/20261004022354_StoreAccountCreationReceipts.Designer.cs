@@ -3,6 +3,7 @@ using System;
 using Avalon.Database.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.Auth.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    partial class AuthDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261004022354_StoreAccountCreationReceipts")]
+    partial class StoreAccountCreationReceipts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -37,13 +40,11 @@ namespace Avalon.Database.Auth.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("FailedLogins")
                         .HasColumnType("integer");
-
-                    b.Property<bool>("IsStoreGenerated")
-                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("JoinDate")
                         .HasColumnType("timestamp with time zone");
@@ -141,7 +142,6 @@ namespace Avalon.Database.Auth.Migrations
                             CredentialsVersion = 0,
                             Email = "admin@avalon.monster",
                             FailedLogins = 0,
-                            IsStoreGenerated = false,
                             JoinDate = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             LastAttemptIp = "",
                             LastIp = "127.0.0.1",

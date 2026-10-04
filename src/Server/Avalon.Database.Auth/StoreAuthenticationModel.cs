@@ -8,6 +8,14 @@ internal static class StoreAuthenticationModel
 {
     public static void Configure(ModelBuilder model)
     {
+        var creations = model.Entity<StoreAccountCreation>();
+        creations.HasKey(x => x.Id);
+        creations.Property(x => x.Id).ValueGeneratedNever();
+        creations.Property(x => x.AccountId).HasConversion(v => v.Value, v => new AccountId(v));
+        creations.Property(x => x.ProviderSubject).HasMaxLength(128);
+        // An audit/idempotency receipt, not a dependent account row: deletion must not erase it.
+        creations.HasIndex(x => x.AccountId);
+
         var identities = model.Entity<ExternalIdentity>();
         identities.HasKey(x => x.Id);
         identities.Property(x => x.Id).ValueGeneratedNever();

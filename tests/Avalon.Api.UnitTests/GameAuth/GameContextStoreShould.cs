@@ -137,14 +137,16 @@ public class GameContextStoreShould
     }
 
     [Fact]
-    public async Task Keep_unknown_store_identity_pending_without_creating_an_account()
+    public async Task Keep_an_unknown_store_identity_pending_when_it_is_bound_to_a_launcher_account()
     {
         _links.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns((ExternalIdentity?)null);
-        var attempt = (await Attempt("steam"))!;
+        var handoffAttempt = (await Attempt("avalon"))!;
+        var inherited = await Service().RedeemHandoffAsync(handoffAttempt.AttemptCredential, Handoff(), Guid.NewGuid(), CancellationToken.None);
+        var attempt = (await Attempt("steam", inherited.GameContextCredential))!;
         var result = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
         Assert.Equal("pending_link", result.State);
         Assert.Equal("ACCOUNT_LINK_REQUIRED", result.Error);
-        Assert.Null(result.AccountId);
+        Assert.Equal("7", result.AccountId);
         Assert.NotNull(result.PendingLinkId);
         await _accounts.DidNotReceive().CreateAsync(Arg.Any<Account>(), Arg.Any<CancellationToken>());
     }

@@ -39,7 +39,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization) :
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
     public Task<IActionResult> Steam(SteamGameProofRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(() => authorization.AuthenticateSteamAsync(
-            request.AttemptCredential, request.TicketHex, requestId, cancellationToken));
+            request.AttemptCredential, request.TicketHex, requestId, cancellationToken, HttpContext.Connection.RemoteIpAddress?.ToString()));
 
     [HttpPost("game-context/refresh", Name = "RefreshGameAuthContext")]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
@@ -57,6 +57,34 @@ public sealed class GameAuthController(GameAuthorizationService authorization) :
         }
         catch (RedisException) { return StatusCode(503, GameAuthReply.Failure("SERVICE_UNAVAILABLE")); }
     }
+
+    [HttpPost("links/proposal", Name = "GetGameAccountLinkProposal")]
+    [ProducesResponseType(typeof(LinkProposalReply), StatusCodes.Status200OK)]
+    public async Task<IActionResult> LinkProposal(GameLinkProposalRequest request, [FromServices] PendingLinkStore links,
+        CancellationToken cancellationToken)
+    {
+        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure("HTTPS_REQUIRED"));
+        try
+        {
+            var reply = await links.ProposalAsync(request.GameContextCredential, request.PkceVerifier, cancellationToken);
+            return reply.Error is null ? Ok(reply) : Unauthorized(reply);
+        }
+        catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
+        { return StatusCode(503, GameAuthReply.Failure("SERVICE_UNAVAILABLE")); }
+    }
+
+    [HttpPost("links/complete", Name = "CompleteGameAccountLink")]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    public Task<IActionResult> CompleteLink(GameLinkCompleteRequest request, [FromServices] PendingLinkStore links,
+        [FromServices] ILogger<GameAuthController> logger, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
+        CancellationToken cancellationToken) => Execute(async () =>
+    {
+        var reply = await authorization.CompleteAccountLinkAsync(links, request.GameContextCredential,
+            request.ConsentCode, request.PkceVerifier, requestId, request.Accepted, cancellationToken);
+        if (reply.AccountId is not null && reply.GameContextCredential is not null)
+            logger.LogInformation("Store identity linked for account {AccountId}, provider {Provider}", reply.AccountId, "steam");
+        return reply;
+    });
 
     private async Task<IActionResult> Execute(Func<Task<GameAuthReply>> action)
     {

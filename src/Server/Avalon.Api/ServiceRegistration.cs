@@ -80,6 +80,10 @@ public static class ServiceRegistration
         services.AddSingleton<Avalon.Infrastructure.GameAuth.IGameContextStore, Avalon.Infrastructure.GameAuth.RedisGameContextStore>();
         services.AddSingleton<Avalon.Infrastructure.GameAuth.AuthAttemptStore>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.GameAuthorizationService>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.PendingLinkStore>();
+        services.AddScoped<AccountLinkReauthentication>();
+        services.AddScoped<StoreAccountRegistration>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.IGameAccountRegistration>(sp => sp.GetRequiredService<StoreAccountRegistration>());
         services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
         services.AddSingleton(PublicSiteSettings.Create(config.PublicSiteUrl));
         services.AddOptions<PreviewConfiguration>().BindConfiguration("Application:Previews");

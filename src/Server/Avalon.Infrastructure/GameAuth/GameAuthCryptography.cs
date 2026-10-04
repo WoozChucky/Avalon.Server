@@ -21,9 +21,11 @@ public sealed class GameAuthCryptography
     public string ProofDigest(string hex) => Convert.ToHexStringLower(HMACSHA256.HashData(_proofKey, Convert.FromHexString(hex)));
     public string Binding(string operation, Guid requestId, string digest) => Digest($"{operation}:{requestId:N}:{digest}");
 
-    public string Protect(GameAuthReply reply, string binding)
+    public string Protect(GameAuthReply reply, string binding) => ProtectText(GameAuthJson.Serialize(reply), binding);
+
+    public string ProtectText(string value, string binding)
     {
-        var bytes = Encoding.UTF8.GetBytes(GameAuthJson.Serialize(reply));
+        var bytes = Encoding.UTF8.GetBytes(value);
         var nonce = RandomNumberGenerator.GetBytes(12);
         var tag = new byte[16];
         var cipher = new byte[bytes.Length];
@@ -33,14 +35,17 @@ public sealed class GameAuthCryptography
         return Convert.ToBase64String(nonce.Concat(tag).Concat(cipher).ToArray());
     }
 
-    public GameAuthReply Unprotect(string envelope, string binding)
+    public GameAuthReply Unprotect(string envelope, string binding) =>
+        GameAuthJson.Deserialize<GameAuthReply>(UnprotectText(envelope, binding)) ?? throw new CryptographicException("Invalid game receipt.");
+
+    public string UnprotectText(string envelope, string binding)
     {
         var bytes = Convert.FromBase64String(envelope);
         if (bytes.Length < 28 || bytes.Length > 16384) throw new CryptographicException("Invalid game receipt.");
         var clear = new byte[bytes.Length - 28];
         using var aes = new AesGcm(_receiptKey, 16);
         aes.Decrypt(bytes.AsSpan(0, 12), bytes.AsSpan(28), bytes.AsSpan(12, 16), clear, Encoding.UTF8.GetBytes(binding));
-        try { return GameAuthJson.Deserialize<GameAuthReply>(Encoding.UTF8.GetString(clear)) ?? throw new CryptographicException("Invalid game receipt."); }
+        try { return Encoding.UTF8.GetString(clear); }
         finally { CryptographicOperations.ZeroMemory(clear); }
     }
 }

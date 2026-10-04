@@ -93,6 +93,19 @@ public sealed class RestLoginPolicyShould : IDisposable
         verifier.ReceivedWithAnyArgs(1).Verify(default!, default!);
     }
 
+    [Fact]
+    public async Task Refuse_password_login_for_a_store_only_root_and_pay_the_dummy_verify_cost()
+    {
+        var candidate = NewAccount();
+        candidate.Salt = []; candidate.Verifier = [];
+        await _accounts.CreateAsync(candidate);
+        var verifier = Substitute.For<IPasswordVerifier>();
+        verifier.Verify(default!, default!).ReturnsForAnyArgs(true);
+        await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(Password, service: Service(verifier: verifier)));
+        verifier.Received(1).Verify(Password, BCryptPasswordVerifier.UnknownAccountHash);
+        verifier.DidNotReceive().Verify(Arg.Any<string>(), string.Empty);
+    }
+
     private Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> LoginAsync(string password,
         string username = "caller", AccountService? service = null) =>
         (service ?? Service()).Authenticate(new AuthenticateRequest { Username = username, Password = password },

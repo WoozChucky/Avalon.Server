@@ -23,8 +23,11 @@ public class Account : IDbEntity<AccountId>
     [Column("SessionKey")]
     public byte[] SessionKey { get; set; } = [];
 
-    [Required]
-    public required string Email { get; set; }
+    /// <summary>Absent until a Steam-only account adds recovery credentials.</summary>
+    public required string? Email { get; set; }
+
+    /// <summary>Root automatically provisioned by verified store authentication, eligible for consolidation.</summary>
+    public bool IsStoreGenerated { get; init; }
 
     [Required]
     public required DateTime JoinDate { get; init; } = DateTime.UtcNow;

@@ -13,7 +13,7 @@ namespace Avalon.Infrastructure.GameAuth;
 public sealed partial class GameAuthorizationService(IGameContextStore store, AuthAttemptStore attempts, GameAuthCryptography crypto,
     IAccountRepository accounts, IRefreshTokenRepository refreshTokens, IExternalIdentityRepository identities,
     ILicenseObservationRepository observations, ISteamProofVerifier verifier, ISteamOwnershipClient ownership,
-    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock)
+    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, IGameAccountRegistration? registration = null)
 {
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     private string Key(string kind, string id) => CacheKeys.GameAuth(options.Value.Environment, kind, id);
@@ -93,7 +93,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
     }
 
     public async Task<GameAuthReply> AuthenticateSteamAsync(string attemptCredential, string ticketHex, Guid requestId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string? sourceAddress = null)
     {
         if (string.IsNullOrEmpty(ticketHex) || ticketHex.Length > 5120 || ticketHex.Length % 2 != 0 || !ticketHex.All(Uri.IsHexDigit))
             return GameAuthReply.Failure("INVALID_PROOF");
@@ -122,7 +122,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             return await FinishErrorAsync(claim, "ACCOUNT_MISMATCH", cancellationToken, proofDigest);
         var context = existing ?? NewContext(claim.Record);
         context = context with { Provider = "steam", ProviderSubject = proof.ProviderSubject, IdentityVerifiedAt = Now };
-        if (linked is null)
+        if (linked is null && existing?.AccountId is not null)
         {
             context = context with
             {
@@ -131,11 +131,29 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             };
             return await FinishContextAsync(claim, context, existing, proofDigest, cancellationToken, "ACCOUNT_LINK_REQUIRED");
         }
+        SteamOwnershipResult? firstLicense = null;
+        if (linked is null)
+        {
+            firstLicense = await ownership.CheckAsync(proof.ProviderSubject, cancellationToken);
+            if (firstLicense.Status != SteamOwnershipStatus.Owned || firstLicense.ProviderSubject != proof.ProviderSubject ||
+                firstLicense.AuthorizedUntil <= Now || firstLicense.AuthorizedUntil > firstLicense.ObservedAt.AddMinutes(5))
+                return await FinishErrorAsync(claim, firstLicense.Status == SteamOwnershipStatus.NotOwned
+                    ? "OWNERSHIP_REQUIRED" : "PROVIDER_UNAVAILABLE", cancellationToken, proofDigest);
+            if (registration is null || sourceAddress is null)
+                return await FinishErrorAsync(claim, "SERVICE_UNAVAILABLE", cancellationToken, proofDigest);
+            var created = await registration.CreateFromSteamAsync(claim.Record.Id, proof.ProviderSubject,
+                Earlier(claim.Record.CreatedAt.AddMinutes(5), firstLicense.AuthorizedUntil), sourceAddress, cancellationToken);
+            linked = created.Status is IdentityLinkStatus.Linked or IdentityLinkStatus.AlreadyLinked ? created.Identity :
+                created.Status == IdentityLinkStatus.SubjectTaken ? await identities.FindAsync("steam", proof.ProviderSubject, cancellationToken) : null;
+            if (linked is null)
+                return await FinishErrorAsync(claim, created.Status == IdentityLinkStatus.CreationRefused
+                    ? "REGISTRATION_LIMIT" : "ACCOUNT_UNAVAILABLE", cancellationToken, proofDigest);
+        }
         var account = await accounts.FindByIdAsync(linked.AccountId, false, cancellationToken);
         if (!Eligible(account, linked.AccountId.Value))
             return await FinishErrorAsync(claim, "ACCOUNT_UNAVAILABLE", cancellationToken, proofDigest);
         context = context with { AccountId = account!.Id.Value, CredentialsVersion = account.CredentialsVersion, SessionEpoch = account.SessionEpoch };
-        var license = await ownership.CheckAsync(proof.ProviderSubject, cancellationToken);
+        var license = firstLicense ?? await ownership.CheckAsync(proof.ProviderSubject, cancellationToken);
         if (license.ProviderSubject != proof.ProviderSubject || license.AuthorizedUntil > license.ObservedAt.AddMinutes(5))
             return await FinishErrorAsync(claim, "PROVIDER_UNAVAILABLE", cancellationToken, proofDigest);
         Guid? observationId = null;

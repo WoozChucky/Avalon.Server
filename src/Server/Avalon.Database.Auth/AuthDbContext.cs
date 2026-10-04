@@ -80,6 +80,7 @@ public class AuthDbContext : DbContext
     }
 
     public DbSet<Account> Accounts { get; set; } = null!;
+    public DbSet<StoreAccountCreation> StoreAccountCreations { get; set; } = null!;
     public DbSet<ExternalIdentity> ExternalIdentities { get; set; } = null!;
     public DbSet<LicenseObservation> LicenseObservations { get; set; } = null!;
     public DbSet<GameSession> GameSessions { get; set; } = null!;
