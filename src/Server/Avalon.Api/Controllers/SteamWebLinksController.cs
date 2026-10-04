@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Data.Common;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -35,7 +36,7 @@ public sealed record SteamWebLinkConfirmation(Guid TransactionId, string Current
 
 [ApiController, Authorize(Policy = AvalonRoles.Player), Route("account/links/steam")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-[RequestSizeLimit(16384), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+[RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
 public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLinkReauthentication recent,
     AccountConsolidationService consolidation, IAccountConsolidationRepository operations,
     IExternalIdentityRepository identities, IAccountRepository accounts, IMfaSetupRepository mfaSetups, IAuthContext auth,
@@ -51,9 +52,9 @@ public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLink
     public Task<IActionResult> Start([FromHeader(Name = "Idempotency-Key")] Guid requestId, CancellationToken ct) => Execute(async () =>
     {
         var start = await links.StartAsync(requestId, auth.Account!, BrowserSession, ct);
-        if (start is null) return new("pending", "INVALID_LINK");
+        if (start is null) return new(GameAuthStates.Pending, GameAuthErrors.InvalidLink);
         Response.Cookies.Append(SteamWebLinkRegistration.CookieName(start.Id), start.Cookie, new()
-        { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, Path = "/", MaxAge = TimeSpan.FromHours(1), IsEssential = true });
+        { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, Path = "/", MaxAge = GameAuthPolicy.WebConfirmationLifetime, IsEssential = true });
         return new("created") { TransactionId = start.Id.ToString("N"), ChallengeUrl = trusted.Value.ChallengeUrl(start.Id) };
     });
 
@@ -65,7 +66,7 @@ public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLink
         var root = record is null ? null : await accounts.FindByIdAsync(record.AccountId, false, ct);
         if (root is null || root.GameplayConsolidationId is not null || root.IsLockedAt(clock.GetUtcNow().UtcDateTime) || root.Status != Avalon.Domain.Auth.AccountStatus.Active ||
             root.CredentialsVersion != record!.CredentialsVersion || root.SessionEpoch != record.SessionEpoch ||
-            !await links.ChallengeAsync(id, Cookie(id), ct)) return BadRequest(new SteamWebLinkReply("pending", "INVALID_LINK"));
+            !await links.ChallengeAsync(id, Cookie(id), ct)) return BadRequest(new SteamWebLinkReply(GameAuthStates.Pending, GameAuthErrors.InvalidLink));
         var properties = new AuthenticationProperties { RedirectUri = trusted.Value.ResultUrl(id) };
         properties.Items[SteamWebLinkRegistration.TransactionProperty] = id.ToString("N");
         return Challenge(properties, SteamWebLinkOptions.Scheme);
@@ -76,12 +77,12 @@ public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLink
     public Task<IActionResult> Info(Guid id, CancellationToken ct) => Execute(async () =>
     {
         var record = await links.ReadBoundAsync(id, auth.Account!.Id, BrowserSession, Cookie(id), ct);
-        if (record is null) return new("pending", "INVALID_LINK");
+        if (record is null) return new(GameAuthStates.Pending, GameAuthErrors.InvalidLink);
         var operation = await operations.FindAsync(id, ct);
         if (operation is not null) return new("consolidating") { Consolidation = await consolidation.StatusAsync(id, auth.Account.Id, ct) };
-        var identity = record.SteamSubject is null ? null : await identities.FindAsync("steam", record.SteamSubject, ct);
+        var identity = record.SteamSubject is null ? null : await identities.FindAsync(StoreProviders.Steam, record.SteamSubject, ct);
         if (record.State == "committing" && identity is not null && identity.AccountId != auth.Account.Id && !record.ConsolidationConsent)
-            return new("pending", "STEAM_LINK_CHANGED_START_AGAIN");
+            return new(GameAuthStates.Pending, GameAuthErrors.SteamLinkChangedStartAgain);
         if (record.State == "committing" && identity?.AccountId == auth.Account.Id) return new("linked");
         var mfa = await mfaSetups.FindByAccountIdAsync(auth.Account.Id, ct);
         return new(record.State) { ConfirmationId = record.ConfirmationId?.ToString("N"), Username = auth.Account.Username, SteamId = record.SteamSubject, RequiresMfa = mfa?.Status == Avalon.Domain.Auth.MfaSetupStatus.Confirmed, TransactionId = id.ToString("N"), RequiresConsolidation = identity is not null && identity.AccountId != auth.Account.Id, ProofExpiresAt = record.ProofExpiresAt };
@@ -92,38 +93,38 @@ public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLink
     public Task<IActionResult> Confirm(SteamWebLinkConfirmation request,
         [FromHeader(Name = "Idempotency-Key")] Guid requestId, CancellationToken ct) => Execute(async () =>
     {
-        if (!request.Confirmed || requestId == Guid.Empty || request.TransactionId == Guid.Empty) return new("pending", "CONFIRMATION_REQUIRED");
+        if (!request.Confirmed || requestId == Guid.Empty || request.TransactionId == Guid.Empty) return new(GameAuthStates.Pending, GameAuthErrors.ConfirmationRequired);
         var bound = await links.ReadBoundAsync(request.TransactionId, auth.Account!.Id, BrowserSession, Cookie(request.TransactionId), ct);
-        if (bound is null) return new("pending", "INVALID_LINK");
-        var currentIdentity = bound.SteamSubject is null ? null : await identities.FindAsync("steam", bound.SteamSubject, ct);
+        if (bound is null) return new(GameAuthStates.Pending, GameAuthErrors.InvalidLink);
+        var currentIdentity = bound.SteamSubject is null ? null : await identities.FindAsync(StoreProviders.Steam, bound.SteamSubject, ct);
         if (currentIdentity is not null && currentIdentity.AccountId != auth.Account.Id && !request.ConfirmedConsolidation)
-            return new("pending", bound.State == "committing" ? "STEAM_LINK_CHANGED_START_AGAIN" : "CONSOLIDATION_CONFIRMATION_REQUIRED");
+            return new(GameAuthStates.Pending, bound.State == "committing" ? GameAuthErrors.SteamLinkChangedStartAgain : GameAuthErrors.ConsolidationConfirmationRequired);
         Guid? mfaId = bound.ConfirmedMfaId;
         if (bound.State != "committing")
         {
-            if (bound.State != "verified" || bound.ProofExpiresAt <= clock.GetUtcNow().UtcDateTime) return new("pending", "INVALID_LINK");
+            if (bound.State != "verified" || bound.ProofExpiresAt <= clock.GetUtcNow().UtcDateTime) return new(GameAuthStates.Pending, GameAuthErrors.InvalidLink);
             var proof = await recent.RequireAsync(auth.Account, request.CurrentPassword, request.MfaCode, SourceAddress, ct);
-            if (proof.Error is not null) return new("pending", proof.Error);
+            if (proof.Error is not null) return new(GameAuthStates.Pending, proof.Error);
             mfaId = proof.ConfirmedMfaId;
         }
         var record = await links.CommitAsync(request.TransactionId, auth.Account, BrowserSession, Cookie(request.TransactionId), requestId, mfaId, ct, request.ConfirmedConsolidation);
-        if (record?.SteamSubject is null) return new("pending", "INVALID_LINK");
+        if (record?.SteamSubject is null) return new(GameAuthStates.Pending, GameAuthErrors.InvalidLink);
         // Recover a durable authorization even if its short provider proof expired after the SQL commit.
         var existing = await operations.FindAsync(record.Id, ct);
         if (existing is not null) return new("consolidating") { Consolidation = await consolidation.ResumeAsync(record.Id, auth.Account.Id, ct) };
-        var identity = await identities.FindAsync("steam", record.SteamSubject, ct);
+        var identity = await identities.FindAsync(StoreProviders.Steam, record.SteamSubject, ct);
         if (identity?.AccountId == record.AccountId) return new("linked");
         if (identity is not null && identity.AccountId != record.AccountId)
         {
-            if (!record.ConsolidationConsent) return new("pending", "STEAM_LINK_CHANGED_START_AGAIN");
+            if (!record.ConsolidationConsent) return new(GameAuthStates.Pending, GameAuthErrors.SteamLinkChangedStartAgain);
             var reply = await consolidation.BeginAsync(new(record.Id, record.AccountId, record.SteamSubject, record.CredentialsVersion,
                 record.SessionEpoch, record.ConfirmedMfaId, [], record.ProofExpiresAt!.Value), ct);
             return new("consolidating", reply.Error) { Consolidation = reply };
         }
-        var link = await identities.LinkWithAuthorityAsync(new(record.Id, record.AccountId, "steam", record.SteamSubject,
+        var link = await identities.LinkWithAuthorityAsync(new(record.Id, record.AccountId, StoreProviders.Steam, record.SteamSubject,
             record.CredentialsVersion, record.SessionEpoch, record.ConfirmedMfaId) { ProofExpiresAt = record.ProofExpiresAt!.Value }, clock.GetUtcNow().UtcDateTime, ct);
         return link.Status is IdentityLinkStatus.Linked or IdentityLinkStatus.AlreadyLinked ? new("linked") :
-            new("pending", link.Status == IdentityLinkStatus.SubjectTaken ? "STEAM_LINK_CHANGED_START_AGAIN" : "LINK_UNAVAILABLE");
+            new(GameAuthStates.Pending, link.Status == IdentityLinkStatus.SubjectTaken ? GameAuthErrors.SteamLinkChangedStartAgain : GameAuthErrors.LinkUnavailable);
     });
 
     [HttpGet("consolidations/pending", Name = "GetPendingAccountConsolidation")]
@@ -152,6 +153,6 @@ public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLink
         if (!Browser) return Unauthorized();
         try { var reply = await action(); return reply.Error is null ? Ok(reply) : BadRequest(reply); }
         catch (Exception e) when (e is RedisException or JsonException or CryptographicException or DbException)
-        { return StatusCode(503, new SteamWebLinkReply("pending", "SERVICE_UNAVAILABLE")); }
+        { return StatusCode(503, new SteamWebLinkReply(GameAuthStates.Pending, GameAuthErrors.ServiceUnavailable)); }
     }
 }

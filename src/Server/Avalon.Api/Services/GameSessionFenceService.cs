@@ -13,7 +13,7 @@ namespace Avalon.Api.Services;
 
 public sealed record GameSessionLeaseReply
 {
-    public string State { get; init; } = "pending";
+    public string State { get; init; } = GameAuthStates.Pending;
     public string? Error { get; init; }
     public string? AccountId { get; init; }
     public string? GameSessionId { get; init; }
@@ -37,17 +37,17 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
     public async Task<GameSessionLeaseReply> HeartbeatAsync(string serverId, AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken)
     {
         var valid = await ReadAsync(serverId, accountId, sessionId, fence, cancellationToken);
-        if (valid is null || valid.Value.Head.State != GameSessionState.Active) return GameSessionLeaseReply.Failure("SESSION_REVOKED");
+        if (valid is null || valid.Value.Head.State != GameSessionState.Active) return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         var (head, context, _) = valid.Value;
         var licenseUntil = Deadline(context);
-        var until = Min(Now.AddSeconds(45), licenseUntil);
+        var until = Min(Now.Add(GameAuthPolicy.SessionLeaseLifetime), licenseUntil);
         if (!await sessions.TryRenewAsync(accountId, sessionId, fence, serverId, head.CredentialsVersion, head.SessionEpoch,
-                Now, until, licenseUntil, cancellationToken)) return GameSessionLeaseReply.Failure("SESSION_REVOKED");
+                Now, until, licenseUntil, cancellationToken)) return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         if (!await worlds.GameplayFences(new WorldId(head.WorldId)).RenewAsync(new(accountId, sessionId, fence), until, cancellationToken))
-            return GameSessionLeaseReply.Failure("BARRIER_PENDING");
+            return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
         valid = await ReadAsync(serverId, accountId, sessionId, fence, cancellationToken);
         return valid is { } current && current.Head.State == GameSessionState.Active
-            ? Reply(current.Head, current.Root) : GameSessionLeaseReply.Failure("SESSION_REVOKED");
+            ? Reply(current.Head, current.Root) : GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
     }
     public async Task<GameSessionLeaseReply> EndAsync(string serverId, AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken)
     {
@@ -56,41 +56,41 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         var head = await sessions.FindAsync(accountId, cancellationToken);
         if (definition is null || head is null || head.ServerId != serverId || head.WorldId != definition.WorldId ||
             head.GameSessionId != sessionId || head.FencingToken != fence || sessionId == Guid.Empty || fence <= 0)
-            return GameSessionLeaseReply.Failure("SESSION_REPLACED");
+            return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
         if (!await worlds.GameplayFences(new WorldId(head.WorldId)).EndAsync(new(accountId, sessionId, fence), cancellationToken))
-            return GameSessionLeaseReply.Failure("BARRIER_PENDING");
+            return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
         return await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken)
-            ? new() { State = "ended" } : GameSessionLeaseReply.Failure("SESSION_REPLACED");
+            ? new() { State = "ended" } : GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
     }
     public async Task<GameSessionLeaseReply> ActivateAsync(string serverId, AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken)
     {
         var valid = await ReadAsync(serverId, accountId, sessionId, fence, cancellationToken);
-        if (valid is null) return GameSessionLeaseReply.Failure("SESSION_REVOKED");
+        if (valid is null) return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         var (head, context, root) = valid.Value;
         var authority = new GameplayWriteAuthority(accountId, sessionId, fence);
-        var until = Min(Now.AddSeconds(45), head.LicenseUntil, Deadline(context));
+        var until = Min(Now.Add(GameAuthPolicy.SessionLeaseLifetime), head.LicenseUntil, Deadline(context));
         if (head.State == GameSessionState.Pending)
         {
             if (head.PreviousWorldId is { } previous && previous != head.WorldId &&
                 !await worlds.GameplayFences(new WorldId(previous)).AdvanceAsync(authority, true, until, cancellationToken))
-                return GameSessionLeaseReply.Failure("BARRIER_PENDING");
+                return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
             if (!await worlds.GameplayFences(new WorldId(head.WorldId)).AdvanceAsync(authority, false, until, cancellationToken))
-                return GameSessionLeaseReply.Failure("BARRIER_PENDING");
+                return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
             // An epoch/recovery/ban change during either world barrier must not activate SQL authority.
             if (await ReadAsync(serverId, accountId, sessionId, fence, cancellationToken) is null)
-                return GameSessionLeaseReply.Failure("SESSION_REVOKED");
+                return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
             if (!await sessions.TryActivateAsync(accountId, sessionId, fence, Now, until, cancellationToken))
-                return GameSessionLeaseReply.Failure("SESSION_REVOKED");
+                return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         }
         // Recover a crash after SQL activation by completing its same target guard, never a new reservation.
         valid = await ReadAsync(serverId, accountId, sessionId, fence, cancellationToken);
-        if (valid is null || valid.Value.Head.State != GameSessionState.Active) return GameSessionLeaseReply.Failure("SESSION_REVOKED");
+        if (valid is null || valid.Value.Head.State != GameSessionState.Active) return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         (head, context, root) = valid.Value;
         if (!await worlds.GameplayFences(new WorldId(head.WorldId)).ActivateAsync(authority, head.LeaseUntil, cancellationToken))
-            return GameSessionLeaseReply.Failure("BARRIER_PENDING");
+            return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
         valid = await ReadAsync(serverId, accountId, sessionId, fence, cancellationToken);
         return valid is { } current && current.Head.State == GameSessionState.Active
-            ? Reply(current.Head, current.Root) : GameSessionLeaseReply.Failure("SESSION_REVOKED");
+            ? Reply(current.Head, current.Root) : GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
     }
     private async Task<(GameSession Head, GameContextRecord Context, Account Root)?> ReadAsync(string serverId, AccountId accountId,
         Guid sessionId, long fence, CancellationToken cancellationToken)
@@ -108,11 +108,11 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
             (root.AccessLevel & AccountAccessLevel.Player) == 0 || root.CredentialsVersion != head.CredentialsVersion || root.SessionEpoch != head.SessionEpoch) return null;
         return (head, context, root);
     }
-    private static DateTime Deadline(GameContextRecord context) => Min(context.AuthorizationValidUntil!.Value, context.AbsoluteExpiresAt, context.IdentityVerifiedAt!.Value.AddMinutes(30));
+    private static DateTime Deadline(GameContextRecord context) => Min(context.AuthorizationValidUntil!.Value, context.AbsoluteExpiresAt, context.IdentityVerifiedAt!.Value.Add(GameAuthPolicy.IdentityLifetime));
     private static DateTime Min(params DateTime[] values) => values.Min();
     private static GameSessionLeaseReply Reply(GameSession head, Account root) => new()
     {
-        State = "active", AccountId = head.AccountId.Value.ToString(CultureInfo.InvariantCulture), GameSessionId = head.GameSessionId.ToString("D"),
+        State = GameAuthStates.Active, AccountId = head.AccountId.Value.ToString(CultureInfo.InvariantCulture), GameSessionId = head.GameSessionId.ToString("D"),
         GameContextId = head.GameContextId.ToString("D"), FencingToken = head.FencingToken.ToString(CultureInfo.InvariantCulture), ServerId = head.ServerId,
         WorldId = head.WorldId, AccessLevel = (ushort)root.AccessLevel, CredentialsVersion = head.CredentialsVersion,
         SessionEpoch = head.SessionEpoch.ToString(CultureInfo.InvariantCulture), LeaseUntil = head.LeaseUntil, AuthorizationUntil = head.LicenseUntil,

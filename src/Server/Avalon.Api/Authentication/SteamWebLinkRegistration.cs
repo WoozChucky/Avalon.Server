@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Security.Claims;
 using AspNet.Security.OpenId;
 using AspNet.Security.OpenId.Steam;
@@ -25,10 +26,10 @@ public static class SteamWebLinkRegistration
             o.CallbackPath = SteamWebLinkOptions.CallbackPath;
             o.Configuration = new() { AuthenticationEndpoint = SteamWebLinkOptions.ProviderEndpoint };
             o.ApplicationKey = null; o.UserInformationEndpoint = string.Empty; o.Attributes.Clear();
-            o.Backchannel = new HttpClient(new SteamOpenIdBackchannelHandler()) { Timeout = TimeSpan.FromSeconds(5) };
+            o.Backchannel = new HttpClient(new SteamOpenIdBackchannelHandler()) { Timeout = GameAuthPolicy.TransportTimeout };
             o.CorrelationCookie.Name = "__Host-AvalonSteamCorrelation.";
             o.CorrelationCookie.Path = "/"; o.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-            o.RemoteAuthenticationTimeout = TimeSpan.FromMinutes(5);
+            o.RemoteAuthenticationTimeout = GameAuthPolicy.WebLinkLifetime;
             o.Events.OnRedirectToIdentityProvider = context =>
             {
                 var trusted = context.HttpContext.RequestServices.GetRequiredService<IOptions<SteamWebLinkOptions>>().Value;

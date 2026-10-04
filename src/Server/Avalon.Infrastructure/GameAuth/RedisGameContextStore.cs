@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using StackExchange.Redis;
 
 namespace Avalon.Infrastructure.GameAuth;
@@ -5,6 +6,8 @@ namespace Avalon.Infrastructure.GameAuth;
 /// <summary>Shared Redis transactions cover handoff consumption, attempts, context creation and credential rotation together.</summary>
 public sealed class RedisGameContextStore(IReplicatedCache cache, TimeProvider clock) : IGameContextStore
 {
+    private const int MaximumMutations = 16;
+    private const int MaximumKeyCharacters = 256;
     private const string Exchange = """
         for i = 1, #KEYS do
           local offset = (i - 1) * 5
@@ -31,7 +34,7 @@ public sealed class RedisGameContextStore(IReplicatedCache cache, TimeProvider c
     public async Task<bool> CompareExchangeAsync(IReadOnlyList<GameAuthMutation> mutations, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (mutations.Count is < 1 or > 16 || mutations.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count() != mutations.Count)
+        if (mutations.Count is < 1 or  > MaximumMutations || mutations.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count() != mutations.Count)
             throw new ArgumentException("Invalid atomic game-auth write set.", nameof(mutations));
         var now = clock.GetUtcNow().UtcDateTime;
         var keys = new RedisKey[mutations.Count];
@@ -40,7 +43,7 @@ public sealed class RedisGameContextStore(IReplicatedCache cache, TimeProvider c
         {
             var mutation = mutations[i];
             if (mutation.Value is not null && mutation.ExpiresAt <= now) return false;
-            if (mutation.Key.Length > 256 || mutation.Expected?.Length > 16384 || mutation.Value?.Length > 16384)
+            if (mutation.Key.Length > MaximumKeyCharacters || mutation.Expected?.Length > GameAuthPolicy.MaximumBodyBytes || mutation.Value?.Length > GameAuthPolicy.MaximumBodyBytes)
                 throw new ArgumentException("Game-auth entry exceeds its bound.", nameof(mutations));
             keys[i] = mutation.Key;
             values[i * 5] = mutation.Expected is null ? "0" : "1";

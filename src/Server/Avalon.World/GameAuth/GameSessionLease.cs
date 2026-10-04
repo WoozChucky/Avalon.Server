@@ -8,7 +8,7 @@ namespace Avalon.World.GameAuth;
 // The internal API's wire response. These values arrive only over workload-authenticated HTTPS.
 public sealed record SessionLeaseResponse
 {
-    public string State { get; init; } = "pending";
+    public string State { get; init; } = GameAuthStates.Pending;
     public string? Error { get; init; }
     public string? AccountId { get; init; }
     public string? GameSessionId { get; init; }
@@ -70,7 +70,7 @@ public sealed class GameSessionLease
             epoch.ToString(CultureInfo.InvariantCulture) != response.SessionEpoch || response.CredentialsVersion is null or < 0 ||
             !Guid.TryParseExact(response.GameSessionId, "D", out var session) || session == Guid.Empty ||
             !Guid.TryParseExact(response.GameContextId, "D", out var context) || context == Guid.Empty ||
-            response.AccessLevel is not { } access || (access & (ushort)AccountAccessLevel.Player) == 0 || (access & ~63) != 0)
+            response.AccessLevel is not { } access || (access & (ushort)AccountAccessLevel.Player) == 0 || (access & ~(ushort)(AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin | AccountAccessLevel.Console | AccountAccessLevel.Tournament | AccountAccessLevel.PTR)) != 0)
             return null;
         return new(response, new(new AccountId(account), session, fence), clock);
     }
@@ -106,6 +106,6 @@ public sealed class GameSessionLease
     private static bool Positive(string? text, out long value) =>
         long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value > 0 && value.ToString(CultureInfo.InvariantCulture) == text;
     private static bool ValidDeadline(SessionLeaseResponse response, DateTime now) =>
-        response.State == "active" && response.Error is null && response.LeaseUntil is { Kind: DateTimeKind.Utc } until &&
-        response.AuthorizationUntil is { Kind: DateTimeKind.Utc } authorization && until > now && until <= now.AddSeconds(45) && until <= authorization;
+        response.State == GameAuthStates.Active && response.Error is null && response.LeaseUntil is { Kind: DateTimeKind.Utc } until &&
+        response.AuthorizationUntil is { Kind: DateTimeKind.Utc } authorization && until > now && until <= now.Add(GameAuthPolicy.SessionLeaseLifetime) && until <= authorization;
 }

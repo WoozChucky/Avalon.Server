@@ -36,41 +36,41 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
     public async Task<WorldAdmissionResult> AdmitAsync(string ticket, Guid connectionId, Guid redemptionId, CancellationToken cancellationToken)
     {
         if (!options.IsValid() || !GameAuthCryptography.IsToken(ticket) || connectionId == Guid.Empty || redemptionId == Guid.Empty)
-            return new(null, "INVALID_ADMISSION");
+            return new(null, GameAuthErrors.InvalidAdmission);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(15));
+        deadline.CancelAfter(GameAuthPolicy.AdmissionTimeout);
         try
         {
             JoinRedemptionReceipt? receipt = null;
-            for (int attempt = 0; attempt < 3; attempt++)
+            for (int attempt = 0; attempt < GameAuthPolicy.MutationAttempts; attempt++)
             {
                 receipt = await PostAsync<JoinRedemptionReceipt>("join-tickets/redeem", new { JoinTicket = ticket, ConnectionId = connectionId, RedemptionId = redemptionId }, deadline.Token);
-                if (receipt?.Error is not ("IN_PROGRESS" or "SERVICE_UNAVAILABLE")) break;
-                await Task.Delay(TimeSpan.FromMilliseconds(250), deadline.Token);
+                if (receipt?.Error is not (GameAuthErrors.InProgress or GameAuthErrors.ServiceUnavailable)) break;
+                await Task.Delay(GameAuthPolicy.RetryDelay, deadline.Token);
             }
             if (receipt is null || receipt.Error is not null) return new(null, SafeError(receipt?.Error));
-            if (receipt.State != "pending" || receipt.ServerId != options.ServerId || receipt.WorldId != options.WorldId ||
+            if (receipt.State != GameAuthStates.Pending || receipt.ServerId != options.ServerId || receipt.WorldId != options.WorldId ||
                 receipt.ConnectionId != connectionId.ToString("D") || receipt.RedemptionId != redemptionId.ToString("D") ||
                 !Positive(receipt.AccountId) || !Positive(receipt.FencingToken) ||
                 !Guid.TryParseExact(receipt.GameSessionId, "D", out var session) || session == Guid.Empty ||
                 !Guid.TryParseExact(receipt.GameContextId, "D", out var context) || context == Guid.Empty)
-                return new(null, "INVALID_ADMISSION");
+                return new(null, GameAuthErrors.InvalidAdmission);
             SessionLeaseResponse? response = null;
-            for (int attempt = 0; attempt < 3; attempt++)
+            for (int attempt = 0; attempt < GameAuthPolicy.MutationAttempts; attempt++)
             {
                 response = await PostAsync<SessionLeaseResponse>("sessions/activate", new { receipt.AccountId, GameSessionId = session, receipt.FencingToken }, deadline.Token);
-                if (response?.Error is not ("BARRIER_PENDING" or "SERVICE_UNAVAILABLE")) break;
-                await Task.Delay(TimeSpan.FromMilliseconds(250), deadline.Token);
+                if (response?.Error is not (GameAuthErrors.BarrierPending or GameAuthErrors.ServiceUnavailable)) break;
+                await Task.Delay(GameAuthPolicy.RetryDelay, deadline.Token);
             }
             if (response is null || response.Error is not null) return new(null, SafeError(response?.Error));
             if (response.AccountId != receipt.AccountId || response.GameSessionId != receipt.GameSessionId || response.GameContextId != receipt.GameContextId ||
                 response.FencingToken != receipt.FencingToken || response.SessionEpoch != receipt.SessionEpoch || response.CredentialsVersion != receipt.CredentialsVersion)
-                return new(null, "INVALID_ADMISSION");
+                return new(null, GameAuthErrors.InvalidAdmission);
             var lease = GameSessionLease.TryCreate(response, options.ServerId, options.WorldId, clock);
-            return new(lease, lease is null ? "INVALID_ADMISSION" : null);
+            return new(lease, lease is null ? GameAuthErrors.InvalidAdmission : null);
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException or IOException)
-        { return new(null, "SERVICE_UNAVAILABLE"); }
+        { return new(null, GameAuthErrors.ServiceUnavailable); }
     }
     public Task<SessionLeaseResponse> HeartbeatAsync(GameSessionLease lease, CancellationToken cancellationToken) => ControlAsync("heartbeat", lease, cancellationToken);
     public Task<SessionLeaseResponse> EndAsync(GameSessionLease lease, CancellationToken cancellationToken) => ControlAsync("end", lease, cancellationToken);
@@ -82,27 +82,27 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
             {
                 AccountId = lease.Authority.AccountId.Value.ToString(CultureInfo.InvariantCulture),
                 lease.Authority.GameSessionId, FencingToken = lease.Authority.FencingToken.ToString(CultureInfo.InvariantCulture)
-            }, cancellationToken) ?? new() { Error = "SERVICE_UNAVAILABLE" };
+            }, cancellationToken) ?? new() { Error = GameAuthErrors.ServiceUnavailable };
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException or IOException)
-        { return new() { Error = "SERVICE_UNAVAILABLE" }; }
+        { return new() { Error = GameAuthErrors.ServiceUnavailable }; }
     }
     private async Task<T?> PostAsync<T>(string path, object body, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        timeout.CancelAfter(GameAuthPolicy.TransportTimeout);
         using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint(path)) { Content = JsonContent.Create(body) };
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
         if (response.StatusCode is System.Net.HttpStatusCode.Redirect or System.Net.HttpStatusCode.MovedPermanently or System.Net.HttpStatusCode.TemporaryRedirect or System.Net.HttpStatusCode.PermanentRedirect)
             return default;
-        if (response.Content.Headers.ContentLength is > 16384) return default;
+        if (response.Content.Headers.ContentLength is > GameAuthPolicy.MaximumBodyBytes) return default;
         await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
         using var bytes = new MemoryStream();
         var buffer = new byte[4096];
         int read;
         while ((read = await stream.ReadAsync(buffer, timeout.Token)) != 0)
         {
-            if (bytes.Length + read > 16384) return default;
+            if (bytes.Length + read > GameAuthPolicy.MaximumBodyBytes) return default;
             bytes.Write(buffer, 0, read);
         }
         if (bytes.Length == 0) return default;
@@ -118,7 +118,7 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
     private static bool Positive(string? text) => long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var value) && value > 0 && value.ToString(CultureInfo.InvariantCulture) == text;
     private static string SafeError(string? error) => error switch
     {
-        "SESSION_REVOKED" or "SESSION_CONFLICT" or "SESSION_REPLACED" or "INVALID_TICKET" or "WORLD_UNAVAILABLE" or "BARRIER_PENDING" => error,
-        _ => "SERVICE_UNAVAILABLE"
+        GameAuthErrors.SessionRevoked or GameAuthErrors.SessionConflict or GameAuthErrors.SessionReplaced or GameAuthErrors.InvalidTicket or GameAuthErrors.WorldUnavailable or GameAuthErrors.BarrierPending => error,
+        _ => GameAuthErrors.ServiceUnavailable
     };
 }

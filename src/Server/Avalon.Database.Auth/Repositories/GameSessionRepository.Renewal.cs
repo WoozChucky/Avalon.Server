@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ public sealed partial class GameSessionRepository
         CancellationToken cancellationToken = default)
     {
         now = clock?.GetUtcNow().UtcDateTime ?? now;
-        if (sessionId == Guid.Empty || fence <= 0 || leaseUntil <= now || leaseUntil > now.AddSeconds(45) ||
+        if (sessionId == Guid.Empty || fence <= 0 || leaseUntil <= now || leaseUntil > now.Add(GameAuthPolicy.SessionLeaseLifetime) ||
             licenseUntil < leaseUntil || licenseUntil > now.AddMinutes(5)) return false;
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);

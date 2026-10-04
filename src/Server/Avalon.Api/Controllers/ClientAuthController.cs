@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Security.Authentication;
 using System.Security.Claims;
 using Avalon.Api.Authentication;
@@ -144,7 +145,7 @@ public sealed class ClientAuthController : BaseController
     /// Rotates the launcher's refresh token. Presenting a rotated one again (outside the grace a lost
     /// answer gets) ends the session and the account's world sessions, as the website's refresh does.
     /// </summary>
-    [HttpPost("refresh", Name = "RefreshLauncherSession")]
+    [HttpPost(GameAuthTokenKinds.Refresh, Name = "RefreshLauncherSession")]
     [AllowAnonymous]
     [EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
     [ProducesResponseType(typeof(ClientAuthTokens), StatusCodes.Status200OK)]

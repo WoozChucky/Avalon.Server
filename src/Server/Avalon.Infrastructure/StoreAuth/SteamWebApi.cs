@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Globalization;
 using System.Net;
 using System.Text.Json;
@@ -8,7 +9,15 @@ namespace Avalon.Infrastructure.StoreAuth;
 /// <summary>Fixed-host, bounded transport. Never log an HTTP exception, URL or provider body containing credentials.</summary>
 internal static class SteamWebApi
 {
-    private const int MaxResponseBytes = 16384;
+    private const int MaxResponseBytes = GameAuthPolicy.MaximumBodyBytes;
+    private const int MaximumAttempts = 2;
+    private const int MaximumSteamIdCharacters = 20;
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(100);
+    private const int JsonDepth = 8;
+    private const string Origin = "https://partner.steam-api.com/";
+    internal const string AuthenticateTicketPath = "ISteamUserAuth/AuthenticateUserTicket/v1/";
+    internal const string CheckOwnershipPath = "ISteamUser/CheckAppOwnership/v4/";
     internal static Uri Request(string endpoint, StoreAuthenticationConfiguration config, params (string Key, string Value)[] fields)
     {
         var parameters = new List<(string Key, string Value)>
@@ -16,22 +25,22 @@ internal static class SteamWebApi
             ("key", config.SteamPublisherKey), ("appid", config.SteamAppId.ToString(CultureInfo.InvariantCulture)),
         };
         parameters.AddRange(fields);
-        return new Uri("https://partner.steam-api.com/" + endpoint + "?" + string.Join("&", parameters.Select(
+        return new Uri(Origin + endpoint + "?" + string.Join("&", parameters.Select(
             x => Uri.EscapeDataString(x.Key) + "=" + Uri.EscapeDataString(x.Value))));
     }
 
-    internal static bool IsSteamId(string? value) => value is { Length: > 0 and <= 20 } &&
+    internal static bool IsSteamId(string? value) => value is { Length: > 0 and <= MaximumSteamIdCharacters } &&
         ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id != 0 &&
         string.Equals(id.ToString(CultureInfo.InvariantCulture), value, StringComparison.Ordinal);
 
     internal static async Task<(bool Available, JsonDocument? Document)> GetAsync(HttpClient client, Uri uri,
         CancellationToken cancellationToken)
     {
-        for (var attempt = 0; attempt < 2; attempt++)
+        for (var attempt = 0; attempt < MaximumAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            bounded.CancelAfter(TimeSpan.FromSeconds(5));
+            bounded.CancelAfter(RequestTimeout);
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, uri);
@@ -39,17 +48,17 @@ internal static class SteamWebApi
                 if (response.StatusCode == HttpStatusCode.OK)
                     return (true, await ReadDocumentAsync(response, bounded.Token));
                 if ((response.StatusCode != HttpStatusCode.TooManyRequests && response.StatusCode != HttpStatusCode.RequestTimeout &&
-                     (int)response.StatusCode < 500) || attempt == 1)
+                     (int)response.StatusCode < 500) || attempt == MaximumAttempts - 1)
                     return (false, null);
             }
             catch (OperationCanceledException)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (attempt == 1) return (false, null);
+                if (attempt == MaximumAttempts - 1) return (false, null);
             }
-            catch (HttpRequestException) { if (attempt == 1) return (false, null); }
-            catch (IOException) { if (attempt == 1) return (false, null); }
-            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
+            catch (HttpRequestException) { if (attempt == MaximumAttempts - 1) return (false, null); }
+            catch (IOException) { if (attempt == MaximumAttempts - 1) return (false, null); }
+            await Task.Delay(RetryDelay, cancellationToken);
         }
         return (false, null);
     }
@@ -67,7 +76,7 @@ internal static class SteamWebApi
             used += read;
         }
         if (used == 0 || used > MaxResponseBytes) return null;
-        try { return JsonDocument.Parse(buffer.AsMemory(0, used), new JsonDocumentOptions { MaxDepth = 8 }); }
+        try { return JsonDocument.Parse(buffer.AsMemory(0, used), new JsonDocumentOptions { MaxDepth = JsonDepth }); }
         catch (JsonException) { return null; }
     }
 

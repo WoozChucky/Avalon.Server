@@ -30,7 +30,7 @@ public partial class CharacterRepository
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var guard = await HoldGameplayAsync(db, authority, cancellationToken);
         if (await db.Characters.CountAsync(c => c.AccountId == authority.AccountId, cancellationToken) >= maximum)
-            return new(Error: "MAX_CHARACTERS");
+            return new(Error: GameAuthErrors.MaxCharacters);
         db.ValidatedGameplaySave = true;
         db.Characters.Add(batch.Row);
         try
@@ -46,7 +46,7 @@ public partial class CharacterRepository
             await transaction.CommitAsync(cancellationToken);
             return new(batch.Row);
         }
-        catch (DbUpdateException error) when (CharacterNameKeyViolation.Is(error)) { return new(Error: "NAME_TAKEN"); }
+        catch (DbUpdateException error) when (CharacterNameKeyViolation.Is(error)) { return new(Error: GameAuthErrors.NameTaken); }
     }
     public async Task<bool> DeleteForGameplayAsync(GameplayWriteAuthority authority, CharacterId id, CancellationToken cancellationToken = default)
     {

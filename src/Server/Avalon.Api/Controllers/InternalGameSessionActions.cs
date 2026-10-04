@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Data.Common;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -32,21 +33,21 @@ public sealed partial class InternalGameAdmissionController
         Func<string, AccountId, Guid, long, CancellationToken, Task<GameSessionLeaseReply>> action, CancellationToken cancellationToken)
     {
         var serverId = User.FindFirst(GameServerAuthHandler.ServerIdClaim)?.Value;
-        if (!Request.IsHttps || serverId is null) return Unauthorized(GameSessionLeaseReply.Failure("WORKLOAD_AUTHENTICATION_REQUIRED"));
+        if (!Request.IsHttps || serverId is null) return Unauthorized(GameSessionLeaseReply.Failure(GameAuthErrors.WorkloadAuthenticationRequired));
         if (!long.TryParse(request.AccountId, NumberStyles.None, CultureInfo.InvariantCulture, out var accountId) || accountId <= 0 ||
             accountId.ToString(CultureInfo.InvariantCulture) != request.AccountId ||
             !long.TryParse(request.FencingToken, NumberStyles.None, CultureInfo.InvariantCulture, out var fence) || fence <= 0 ||
             fence.ToString(CultureInfo.InvariantCulture) != request.FencingToken || request.GameSessionId == Guid.Empty)
-            return BadRequest(GameSessionLeaseReply.Failure("INVALID_REQUEST"));
+            return BadRequest(GameSessionLeaseReply.Failure(GameAuthErrors.InvalidRequest));
         try
         {
             var reply = await action(serverId, new AccountId(accountId), request.GameSessionId, fence, cancellationToken);
             return reply.Error switch
             {
-                null => Ok(reply), "BARRIER_PENDING" => StatusCode(503, reply), _ => Unauthorized(reply),
+                null => Ok(reply), GameAuthErrors.BarrierPending => StatusCode(503, reply), _ => Unauthorized(reply),
             };
         }
         catch (Exception error) when (error is DbException or RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, GameSessionLeaseReply.Failure("SERVICE_UNAVAILABLE")); }
+        { return StatusCode(503, GameSessionLeaseReply.Failure(GameAuthErrors.ServiceUnavailable)); }
     }
 }

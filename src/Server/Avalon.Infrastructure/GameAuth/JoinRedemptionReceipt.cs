@@ -1,9 +1,10 @@
+using Avalon.Common.GameAuth;
 namespace Avalon.Infrastructure.GameAuth;
 
 /// <summary>Authority for one authenticated server/connection. Pending authority cannot admit gameplay.</summary>
 public sealed record JoinRedemptionReceipt
 {
-    public string State { get; init; } = "pending";
+    public string State { get; init; } = GameAuthStates.Pending;
     public string? Error { get; init; }
     public string? AccountId { get; init; }
     public string? GameSessionId { get; init; }

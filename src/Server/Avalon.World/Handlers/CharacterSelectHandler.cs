@@ -141,7 +141,7 @@ public class CharacterSelectHandler(
     {
         // A repository call must never begin on the simulation tick. The completed result is
         // applied by the connection's continuation queue on a later tick.
-        Task<WorldEntryDecision> check = Task.Run(async () =>
+        Task<WorldEntryDecision> check = WorldDatabaseWork.ThreadPool.Run(async () =>
         {
             try
             {

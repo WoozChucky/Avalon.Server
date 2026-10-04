@@ -47,8 +47,9 @@ public class PendingLinkStoreShould
         {
             var operation = call.Arg<IdentityLinkOperation>();
             _account.SessionEpoch = operation.SessionEpoch + 1;
-            return new IdentityLinkResult(IdentityLinkStatus.Linked, new ExternalIdentity
-            { Id = operation.OperationId, AccountId = _account.Id, Provider = "steam", ProviderSubject = Subject });
+            var identity = new ExternalIdentity { Id = operation.OperationId, AccountId = _account.Id, Provider = "steam", ProviderSubject = Subject };
+            _identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns(identity);
+            return new IdentityLinkResult(IdentityLinkStatus.Linked, identity);
         });
     }
 

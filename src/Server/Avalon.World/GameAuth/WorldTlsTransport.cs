@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
@@ -26,7 +27,7 @@ public sealed class WorldTlsTransport : IDisposable
     {
         var stream = new SslStream(network, leaveInnerStreamOpen: false);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        timeout.CancelAfter(GameAuthPolicy.TransportTimeout);
         try
         {
             await stream.AuthenticateAsServerAsync(new SslServerAuthenticationOptions

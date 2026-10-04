@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Security.Cryptography;
 using Avalon.Configuration;
 using Microsoft.Extensions.Options;
@@ -10,7 +11,7 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
     public async Task<AuthAttemptReply?> CreateAsync(string channel, string protocol, Guid runId, string challenge,
         Guid? contextId, CancellationToken cancellationToken)
     {
-        if (channel is not ("steam" or "avalon") || string.IsNullOrWhiteSpace(protocol) || protocol.Length > 32 ||
+        if (channel is not (GameLaunchChannels.Steam or GameLaunchChannels.Avalon) || string.IsNullOrWhiteSpace(protocol) || protocol.Length > GameAuthPolicy.MaximumProtocolVersionCharacters ||
             runId == Guid.Empty || !GameAuthCryptography.IsToken(challenge)) return null;
         var now = clock.GetUtcNow().UtcDateTime;
         var credential = GameAuthCryptography.NewToken();
@@ -18,7 +19,7 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
         var attempt = new AuthAttemptRecord
         {
             Id = Guid.NewGuid(), ClientRunId = runId, Channel = channel, ProtocolVersion = protocol, ContextId = contextId,
-            LinkChallenge = challenge, CreatedAt = now, ExpiresAt = now.AddSeconds(120), ExpectedSteamIdentity = identity,
+            LinkChallenge = challenge, CreatedAt = now, ExpiresAt = now.Add(GameAuthPolicy.AttemptLifetime), ExpectedSteamIdentity = identity,
         };
         return await store.CompareExchangeAsync([new(Key(credential), null, GameAuthJson.Serialize(attempt), attempt.ExpiresAt)], cancellationToken)
             ? new(credential, identity, attempt.ExpiresAt) : null;

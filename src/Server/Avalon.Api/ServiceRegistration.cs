@@ -81,6 +81,7 @@ public static class ServiceRegistration
             sp.GetRequiredService<Microsoft.IdentityModel.Tokens.SymmetricSecurityKey>().Key));
         services.AddSingleton<Avalon.Infrastructure.GameAuth.IGameContextStore, Avalon.Infrastructure.GameAuth.RedisGameContextStore>();
         services.AddSingleton<Avalon.Infrastructure.GameAuth.AuthAttemptStore>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.IGameContextRevocations, Avalon.Infrastructure.GameAuth.GameContextRevocations>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.GameAuthorizationService>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.PendingLinkStore>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.JoinTicketStore>();

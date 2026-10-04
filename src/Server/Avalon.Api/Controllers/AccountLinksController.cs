@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Authentication;
@@ -15,7 +16,7 @@ namespace Avalon.Api.Controllers;
 
 [ApiController, Authorize(Policy = AvalonRoles.Player), Route("account/links")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-[RequestSizeLimit(16384), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+[RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
 public sealed class AccountLinksController(PendingLinkStore links, AccountLinkReauthentication recent,
     IAuthContext auth) : BaseController
 {
@@ -34,10 +35,10 @@ public sealed class AccountLinksController(PendingLinkStore links, AccountLinkRe
         [FromHeader(Name = "Idempotency-Key")] Guid requestId, CancellationToken cancellationToken) => Execute(async () =>
     {
         if (!request.Confirmed || requestId == Guid.Empty || request.PendingLinkId == Guid.Empty)
-            return new("pending", "CONFIRMATION_REQUIRED");
+            return new(GameAuthStates.Pending, GameAuthErrors.ConfirmationRequired);
         var proof = await recent.RequireAsync(auth.Account!, request.CurrentPassword, request.MfaCode,
             SourceAddress, cancellationToken);
-        if (proof.Error is not null) return new("pending", proof.Error);
+        if (proof.Error is not null) return new(GameAuthStates.Pending, proof.Error);
         return await links.ConfirmAsync(request.PendingLinkId, auth.Account!.Id, proof.CredentialsVersion,
             proof.SessionEpoch, proof.ConfirmedMfaId, requestId, cancellationToken);
     });
@@ -46,7 +47,7 @@ public sealed class AccountLinksController(PendingLinkStore links, AccountLinkRe
     [ProducesResponseType(typeof(LinkBrowserReply), StatusCodes.Status200OK)]
     public Task<IActionResult> Cancel(Guid pendingLinkId, CancellationToken cancellationToken) => Execute(async () =>
         await links.CancelAsync(pendingLinkId, auth.Account!.Id, cancellationToken)
-            ? new("canceled") : new("pending", "INVALID_LINK"));
+            ? new("canceled") : new(GameAuthStates.Pending, GameAuthErrors.InvalidLink));
 
     private async Task<IActionResult> Execute(Func<Task<LinkBrowserReply>> action)
     {
@@ -57,6 +58,6 @@ public sealed class AccountLinksController(PendingLinkStore links, AccountLinkRe
             return reply.Error is null ? Ok(reply) : BadRequest(reply);
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, new LinkBrowserReply("pending", "SERVICE_UNAVAILABLE")); }
+        { return StatusCode(503, new LinkBrowserReply(GameAuthStates.Pending, GameAuthErrors.ServiceUnavailable)); }
     }
 }

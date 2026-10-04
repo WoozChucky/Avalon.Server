@@ -1,6 +1,8 @@
+using Avalon.Common.GameAuth;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Contract;
+using Avalon.Configuration;
 using Avalon.Api.Middlewares;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Authorization;
@@ -12,21 +14,23 @@ namespace Avalon.Api.Controllers;
 
 [ApiController, AllowAnonymous, Route("client/auth")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-[RequestSizeLimit(16384), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+[RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
 public sealed class GameAuthController(GameAuthorizationService authorization) : ControllerBase
 {
     [HttpPost("attempts", Name = "CreateGameAuthAttempt")]
     [ProducesResponseType(typeof(AuthAttemptReply), StatusCodes.Status200OK)]
     public async Task<IActionResult> Attempt(GameAttemptRequest request, CancellationToken cancellationToken)
     {
-        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure("HTTPS_REQUIRED"));
+        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired));
+        if (request.ProtocolVersion != GameWorkloadConfiguration.ClientProtocolVersion)
+            return BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol));
         try
         {
             var reply = await authorization.CreateAttemptAsync(request.ChannelHint, request.ProtocolVersion,
                 request.ClientRunId, request.LinkChallenge, request.GameContextCredential, cancellationToken);
-            return reply is null ? BadRequest(GameAuthReply.Failure("INVALID_ATTEMPT")) : Ok(reply);
+            return reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) : Ok(reply);
         }
-        catch (RedisException) { return StatusCode(503, GameAuthReply.Failure("SERVICE_UNAVAILABLE")); }
+        catch (RedisException) { return StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)); }
     }
 
     [HttpPost("handoffs/redeem", Name = "RedeemGameAuthHandoff")]
@@ -49,13 +53,13 @@ public sealed class GameAuthController(GameAuthorizationService authorization) :
     [HttpPost("game-context/logout", Name = "LogoutGameAuthContext")]
     public async Task<IActionResult> Logout(GameContextCredentialRequest request, CancellationToken cancellationToken)
     {
-        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure("HTTPS_REQUIRED"));
+        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired));
         try
         {
             await authorization.LogoutAsync(request.GameContextCredential, cancellationToken);
             return NoContent();
         }
-        catch (RedisException) { return StatusCode(503, GameAuthReply.Failure("SERVICE_UNAVAILABLE")); }
+        catch (RedisException) { return StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)); }
     }
 
     [HttpPost("links/proposal", Name = "GetGameAccountLinkProposal")]
@@ -63,14 +67,14 @@ public sealed class GameAuthController(GameAuthorizationService authorization) :
     public async Task<IActionResult> LinkProposal(GameLinkProposalRequest request, [FromServices] PendingLinkStore links,
         CancellationToken cancellationToken)
     {
-        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure("HTTPS_REQUIRED"));
+        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired));
         try
         {
             var reply = await links.ProposalAsync(request.GameContextCredential, request.PkceVerifier, cancellationToken);
             return reply.Error is null ? Ok(reply) : Unauthorized(reply);
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, GameAuthReply.Failure("SERVICE_UNAVAILABLE")); }
+        { return StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)); }
     }
 
     [HttpPost("links/complete", Name = "CompleteGameAccountLink")]
@@ -82,24 +86,24 @@ public sealed class GameAuthController(GameAuthorizationService authorization) :
         var reply = await authorization.CompleteAccountLinkAsync(links, request.GameContextCredential,
             request.ConsentCode, request.PkceVerifier, requestId, request.Accepted, cancellationToken);
         if (reply.AccountId is not null && reply.GameContextCredential is not null)
-            logger.LogInformation("Store identity linked for account {AccountId}, provider {Provider}", reply.AccountId, "steam");
+            logger.LogInformation("Store identity linked for account {AccountId}, provider {Provider}", reply.AccountId, StoreProviders.Steam);
         return reply;
     });
 
     private async Task<IActionResult> Execute(Func<Task<GameAuthReply>> action)
     {
-        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure("HTTPS_REQUIRED"));
+        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired));
         try
         {
             var reply = await action();
             if (reply.GameContextCredential is not null || reply.Error is null) return Ok(reply);
             return reply.Error switch
             {
-                "IN_PROGRESS" => StatusCode(409, reply), "PROVIDER_UNAVAILABLE" => StatusCode(503, reply),
-                "ACCOUNT_MISMATCH" => Conflict(reply), _ => Unauthorized(reply),
+                GameAuthErrors.InProgress => StatusCode(409, reply), GameAuthErrors.ProviderUnavailable => StatusCode(503, reply),
+                GameAuthErrors.AccountMismatch => Conflict(reply), _ => Unauthorized(reply),
             };
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, GameAuthReply.Failure("SERVICE_UNAVAILABLE")); }
+        { return StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)); }
     }
 }

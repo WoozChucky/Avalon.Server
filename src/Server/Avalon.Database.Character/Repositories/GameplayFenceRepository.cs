@@ -30,7 +30,7 @@ public sealed class GameplayFenceRepository(IDbContextFactory<CharacterDbContext
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var guard = await LockAsync(db, authority.AccountId, cancellationToken);
         var now = await NowAsync(db, clock, cancellationToken);
-        if (leaseUntil <= now || leaseUntil > now.AddSeconds(45) || guard.ConsolidationId is not null || guard.FencingToken > authority.FencingToken) return false;
+        if (leaseUntil <= now || leaseUntil > now.Add(GameAuthPolicy.SessionLeaseLifetime) || guard.ConsolidationId is not null || guard.FencingToken > authority.FencingToken) return false;
         if (guard.FencingToken == authority.FencingToken)
             return guard.GameSessionId == authority.GameSessionId && (blocked ? guard.Mode == GameplayFenceMode.Blocked : guard.Mode is GameplayFenceMode.Pending or GameplayFenceMode.Active);
         guard.GameSessionId = authority.GameSessionId;
@@ -53,7 +53,7 @@ public sealed class GameplayFenceRepository(IDbContextFactory<CharacterDbContext
         var guard = await LockAsync(db, authority.AccountId, cancellationToken);
         var now = await NowAsync(db, clock, cancellationToken);
         if (guard.GameSessionId != authority.GameSessionId || guard.FencingToken != authority.FencingToken ||
-            guard.ConsolidationId is not null || guard.LeaseUntil <= now || until <= now || until > now.AddSeconds(45) ||
+            guard.ConsolidationId is not null || guard.LeaseUntil <= now || until <= now || until > now.Add(GameAuthPolicy.SessionLeaseLifetime) ||
             !(guard.Mode == GameplayFenceMode.Active || (activate && guard.Mode == GameplayFenceMode.Pending))) return false;
         guard.Mode = GameplayFenceMode.Active;
         guard.LeaseUntil = until;

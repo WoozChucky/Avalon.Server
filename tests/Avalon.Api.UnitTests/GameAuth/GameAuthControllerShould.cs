@@ -35,6 +35,27 @@ public class GameAuthControllerShould
         Assert.Empty(store.Entries);
     }
 
+    [Theory]
+    [InlineData("1")]
+    [InlineData("0.1.0")]
+    [InlineData("99")]
+    public async Task Refuse_unsupported_protocols_before_allocating_an_attempt(string version)
+    {
+        var store = new AtomicAuthStore();
+        var crypto = new GameAuthCryptography(new byte[32]);
+        var config = Options.Create(new StoreAuthenticationConfiguration { SteamPublisherKey = "test-secret" });
+        var service = new GameAuthorizationService(store, new AuthAttemptStore(store, crypto, config, TimeProvider.System), crypto,
+            Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
+            Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(),
+            config, TimeProvider.System);
+        var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        controller.Request.Scheme = "https";
+        var result = Assert.IsType<BadRequestObjectResult>(await controller.Attempt(new GameAttemptRequest
+        { ChannelHint = "steam", ProtocolVersion = version, ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A',43) }, CancellationToken.None));
+        Assert.Equal("UNSUPPORTED_PROTOCOL", Assert.IsType<GameAuthReply>(result.Value).Error);
+        Assert.Empty(store.Entries);
+    }
+
     [Fact]
     public void Apply_no_store_and_keep_unversioned_native_routes()
     {

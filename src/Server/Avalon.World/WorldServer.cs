@@ -12,6 +12,7 @@ using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.GameAuth;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
@@ -759,6 +760,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private async Task CacheSubscribeAsync()
     {
         await _cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, DelayedDisconnect);
+        await _cache.SubscribeAsync(GameContextRevocations.Channel, (_, value) => NotifyGameContextRevocation(Connections, value.ToString()));
         if (_maintenanceCoordinator is not null)
             await _cache.SubscribeAsync(CacheKeys.WorldMaintenance(_world.Id.Value), MaintenanceNotice);
 
@@ -791,6 +793,20 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             _logger.LogWarning(e, "World maintenance notification could not be applied; reconciliation will retry");
         }
+    }
+
+    /// <summary>A notice requests an authoritative heartbeat. A delayed notice cannot kill a newer positive grant.</summary>
+    public static int NotifyGameContextRevocation(IEnumerable<IWorldConnection> connections, string message)
+    {
+        if (!GameContextRevocations.TryParse(message, out var accountId, out var contextId)) return 0;
+        int notified = 0;
+        foreach (var connection in connections.OfType<WorldConnection>())
+        {
+            if (connection.GameSessionLease is not { } lease || lease.Authority.AccountId != accountId ||
+                (contextId != Guid.Empty && lease.GameContextId != contextId)) continue;
+            connection.RequestGameplayRevalidation(); ++notified;
+        }
+        return notified;
     }
 
     private void DelayedDisconnect(RedisChannel channel, RedisValue value)

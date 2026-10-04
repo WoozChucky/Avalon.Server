@@ -1,3 +1,5 @@
+using Avalon.Common.GameAuth;
+using Avalon.World.Persistence;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Database.Character.Repositories;
@@ -66,13 +68,13 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         }
         var batch = new CharacterCreationBatch(row, stats.ToRow(new(0)),
             createInfo.StartingSpells.Select(id => new CharacterAbility { AbilityId = id }).ToArray(), items, slots);
-        var work = Task.Run(async () =>
+        var work = WorldDatabaseWork.ThreadPool.Run(async () =>
         {
             try { return await characterRepository.CreateForGameplayAsync(authority, batch, world.Configuration.MaxCharactersPerAccount, CancellationToken.None); }
             catch (Exception error)
             {
                 logger.LogWarning(error, "Character creation failed for account {AccountId}", authority.AccountId);
-                return new CharacterCreationReply(Error: error is GameplayWriteRejectedException ? "AUTHORITY_REVOKED" : "DATABASE_UNAVAILABLE");
+                return new CharacterCreationReply(Error: error is GameplayWriteRejectedException ? GameAuthErrors.AuthorityRevoked : GameAuthErrors.DatabaseUnavailable);
             }
         });
         connection.EnqueueContinuation(work, reply =>
@@ -80,11 +82,11 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             if (!connection.IsConnected || connection.IsClosing) return;
             Answer(connection, reply.Error switch
             {
-                null => SCharacterCreateResult.Success, "NAME_TAKEN" => SCharacterCreateResult.NameAlreadyExists,
-                "MAX_CHARACTERS" => SCharacterCreateResult.MaxCharactersReached, _ => SCharacterCreateResult.InternalDatabaseError
+                null => SCharacterCreateResult.Success, GameAuthErrors.NameTaken => SCharacterCreateResult.NameAlreadyExists,
+                GameAuthErrors.MaxCharacters => SCharacterCreateResult.MaxCharactersReached, _ => SCharacterCreateResult.InternalDatabaseError
             });
 #pragma warning disable MA0045 // Tick continuations must not await socket cleanup.
-            if (reply.Error == "AUTHORITY_REVOKED") connection.Close();
+            if (reply.Error == GameAuthErrors.AuthorityRevoked) connection.Close();
 #pragma warning restore MA0045
         });
     }

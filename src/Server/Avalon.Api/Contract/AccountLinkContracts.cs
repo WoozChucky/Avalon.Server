@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -15,15 +16,15 @@ public sealed class AccountLinkConfirmRequest
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class GameLinkProposalRequest
 {
-    [Required, StringLength(43, MinimumLength = 43)] public required string GameContextCredential { get; init; }
-    [Required, StringLength(128, MinimumLength = 43)] public required string PkceVerifier { get; init; }
+    [Required, StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string GameContextCredential { get; init; }
+    [Required, StringLength(GameAuthPolicy.MaximumPkceVerifierCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string PkceVerifier { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class GameLinkCompleteRequest
 {
-    [Required, StringLength(43, MinimumLength = 43)] public required string GameContextCredential { get; init; }
-    [Required, StringLength(43, MinimumLength = 43)] public required string ConsentCode { get; init; }
-    [Required, StringLength(128, MinimumLength = 43)] public required string PkceVerifier { get; init; }
+    [Required, StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string GameContextCredential { get; init; }
+    [Required, StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string ConsentCode { get; init; }
+    [Required, StringLength(GameAuthPolicy.MaximumPkceVerifierCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string PkceVerifier { get; init; }
     public bool Accepted { get; init; }
 }

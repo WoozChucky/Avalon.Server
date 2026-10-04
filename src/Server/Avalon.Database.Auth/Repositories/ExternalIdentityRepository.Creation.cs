@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,7 @@ public sealed partial class ExternalIdentityRepository
         if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
         var retry = await CreationRetryAsync(db, operation, cancellationToken);
         if (retry is not null) return retry;
-        if (await db.ExternalIdentities.AnyAsync(x => x.Provider == "steam" && x.ProviderSubject == operation.Subject, cancellationToken))
+        if (await db.ExternalIdentities.AnyAsync(x => x.Provider == StoreProviders.Steam && x.ProviderSubject == operation.Subject, cancellationToken))
             return await CreationRetryAsync(db, operation, cancellationToken) ?? new(IdentityLinkStatus.SubjectTaken, null);
         if (await db.Accounts.AnyAsync(x => x.Username == operation.Account.Username, cancellationToken))
             return await CreationRetryAsync(db, operation, cancellationToken) ?? new(IdentityLinkStatus.UsernameTaken, null);
@@ -47,7 +48,7 @@ public sealed partial class ExternalIdentityRepository
             await db.SaveChangesAsync(cancellationToken);
             var identity = new ExternalIdentity
             {
-                Id = operation.OperationId, AccountId = account.Id, Provider = "steam",
+                Id = operation.OperationId, AccountId = account.Id, Provider = StoreProviders.Steam,
                 ProviderSubject = operation.Subject, LinkedAt = now,
             };
             db.ExternalIdentities.Add(identity);
@@ -67,7 +68,7 @@ public sealed partial class ExternalIdentityRepository
             await using var read = await factory.CreateDbContextAsync(cancellationToken);
             var raced = await CreationRetryAsync(read, operation, cancellationToken);
             if (raced is not null) return raced;
-            if (await read.ExternalIdentities.AnyAsync(x => x.Provider == "steam" && x.ProviderSubject == operation.Subject, cancellationToken))
+            if (await read.ExternalIdentities.AnyAsync(x => x.Provider == StoreProviders.Steam && x.ProviderSubject == operation.Subject, cancellationToken))
                 return new(IdentityLinkStatus.SubjectTaken, null);
             if (await read.Accounts.AnyAsync(x => x.Username == operation.Account.Username, cancellationToken))
                 return new(IdentityLinkStatus.UsernameTaken, null);
@@ -84,7 +85,7 @@ public sealed partial class ExternalIdentityRepository
         if (receipt is null) return null;
         if (receipt.ProviderSubject != operation.Subject) return new(IdentityLinkStatus.AuthorityChanged, null);
         var identity = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.OperationId &&
-            x.AccountId == receipt.AccountId && x.Provider == "steam" && x.ProviderSubject == operation.Subject, cancellationToken);
+            x.AccountId == receipt.AccountId && x.Provider == StoreProviders.Steam && x.ProviderSubject == operation.Subject, cancellationToken);
         var root = await db.Accounts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == receipt.AccountId, cancellationToken);
         return identity is not null && root is { CredentialsVersion: 0, SessionEpoch: 1, Status: AccountStatus.Active } &&
                root.Username == operation.Account.Username && root.Email == operation.Account.Email &&

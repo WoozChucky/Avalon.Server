@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
@@ -78,7 +79,7 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
         FencingToken = checked(reservation.ExpectedFence + 1), ServerId = reservation.ServerId,
         WorldId = reservation.WorldId, Environment = reservation.Environment, State = GameSessionState.Pending,
         CredentialsVersion = reservation.CredentialsVersion, SessionEpoch = reservation.SessionEpoch,
-        CreatedAt = now, LeaseUntil = Earlier(now.AddSeconds(45), reservation.LicenseUntil), LicenseUntil = reservation.LicenseUntil,
+        CreatedAt = now, LeaseUntil = Earlier(now.Add(GameAuthPolicy.SessionLeaseLifetime), reservation.LicenseUntil), LicenseUntil = reservation.LicenseUntil,
         // An expired pending target never became the writer. Retain the last active ancestor for its save barrier.
         PreviousGameSessionId = previous?.State == GameSessionState.Pending ? previous.PreviousGameSessionId : previous?.GameSessionId,
         PreviousServerId = previous?.State == GameSessionState.Pending ? previous.PreviousServerId : previous?.ServerId,
@@ -92,7 +93,7 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
         // Read only to select the expected versions; the lock below refuses a changed account, and the
         // conditional session write refuses any superseding reservation. Fence barriers run before this call.
         var head = await db.GameSessions.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == accountId, cancellationToken);
-        if (head is null || leaseUntil <= now || leaseUntil > now.AddSeconds(45) || leaseUntil > head.LicenseUntil) return false;
+        if (head is null || leaseUntil <= now || leaseUntil > now.Add(GameAuthPolicy.SessionLeaseLifetime) || leaseUntil > head.LicenseUntil) return false;
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (!await AccountRepository.HoldGameAuthorityAsync(db, accountId, head.CredentialsVersion, head.SessionEpoch, now, cancellationToken))
             return false;

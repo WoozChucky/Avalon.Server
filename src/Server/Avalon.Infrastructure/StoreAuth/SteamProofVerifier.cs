@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -11,12 +12,12 @@ public sealed class SteamProofVerifier(HttpClient client, IOptions<StoreAuthenti
         var config = options.Value;
         config.Validate(string.Equals(config.Environment, "production", StringComparison.Ordinal));
         var prefix = config.SteamIdentityPrefix + ":";
-        if (string.IsNullOrEmpty(ticketHex) || ticketHex.Length > 5120 || ticketHex.Length % 2 != 0 ||
+        if (string.IsNullOrEmpty(ticketHex) || ticketHex.Length > GameAuthPolicy.MaximumSteamTicketHexCharacters || ticketHex.Length % 2 != 0 ||
             !ticketHex.All(Uri.IsHexDigit) || expectedIdentity is null ||
             !expectedIdentity.StartsWith(prefix, StringComparison.Ordinal) ||
             expectedIdentity.Length != prefix.Length + 32 || !expectedIdentity.AsSpan(prefix.Length).ToArray().All(Uri.IsHexDigit))
             return new(SteamProofStatus.InvalidProof);
-        var uri = SteamWebApi.Request("ISteamUserAuth/AuthenticateUserTicket/v1/", config,
+        var uri = SteamWebApi.Request(SteamWebApi.AuthenticateTicketPath, config,
             ("ticket", ticketHex), ("identity", expectedIdentity));
         var (available, document) = await SteamWebApi.GetAsync(client, uri, cancellationToken);
         using (document)

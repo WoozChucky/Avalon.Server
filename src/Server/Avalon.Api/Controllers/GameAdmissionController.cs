@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Contract;
@@ -12,7 +13,7 @@ namespace Avalon.Api.Controllers;
 
 [ApiController, AllowAnonymous, Route("game")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-[RequestSizeLimit(4096), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+[RequestSizeLimit(GameAuthPolicy.MaximumControlBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
 public sealed class GameAdmissionController(GameAuthorizationService authorization, JoinTicketStore tickets,
     IGameServerAllocator allocator) : ControllerBase
 {
@@ -20,15 +21,15 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
     [ProducesResponseType(typeof(IReadOnlyList<GameWorldDestination>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Worlds(GameContextCredentialRequest request, CancellationToken cancellationToken)
     {
-        if (!Request.IsHttps) return BadRequest(new GameJoinReply("HTTPS_REQUIRED"));
+        if (!Request.IsHttps) return BadRequest(new GameJoinReply(GameAuthErrors.HttpsRequired));
         try
         {
             var context = await authorization.GetContextAsync(request.GameContextCredential, false, cancellationToken);
-            if (context?.AccountId is null) return Unauthorized(new GameJoinReply("ACCOUNT_REQUIRED"));
+            if (context?.AccountId is null) return Unauthorized(new GameJoinReply(GameAuthErrors.AccountRequired));
             return Ok(await allocator.ListAsync(context, cancellationToken));
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, new GameJoinReply("SERVICE_UNAVAILABLE")); }
+        { return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable)); }
     }
 
     [HttpPost("join-tickets", Name = "CreateGameJoinTicket")]
@@ -43,19 +44,19 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
 
     private async Task<IActionResult> Issue(GameJoinRequest request, Guid requestId, bool reconnect, CancellationToken cancellationToken)
     {
-        if (!Request.IsHttps) return BadRequest(new GameJoinReply("HTTPS_REQUIRED"));
+        if (!Request.IsHttps) return BadRequest(new GameJoinReply(GameAuthErrors.HttpsRequired));
         try
         {
             var reply = await tickets.IssueAsync(request.GameContextCredential, request.WorldId, request.CharacterId,
                 requestId, request.ConfirmTakeover, reconnect, cancellationToken);
             return reply.Error switch
             {
-                null => Ok(reply), "INVALID_REQUEST" => BadRequest(reply),
-                "ACTIVE_GAME_SESSION" or "IDEMPOTENCY_CONFLICT" or "CONTEXT_CHANGED" => Conflict(reply),
-                "WORLD_UNAVAILABLE" => StatusCode(503, reply), _ => Unauthorized(reply),
+                null => Ok(reply), GameAuthErrors.InvalidRequest => BadRequest(reply),
+                GameAuthErrors.ActiveGameSession or GameAuthErrors.IdempotencyConflict or GameAuthErrors.ContextChanged => Conflict(reply),
+                GameAuthErrors.WorldUnavailable => StatusCode(503, reply), _ => Unauthorized(reply),
             };
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, new GameJoinReply("SERVICE_UNAVAILABLE")); }
+        { return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable)); }
     }
 }

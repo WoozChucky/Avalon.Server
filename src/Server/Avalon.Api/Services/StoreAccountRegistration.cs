@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Net;
 using Avalon.Api.Config;
 using Avalon.Database.Auth.Repositories;
@@ -26,7 +27,7 @@ public sealed class StoreAccountRegistration(IExternalIdentityRepository identit
             JoinDate = clock.GetUtcNow().UtcDateTime, LastIp = source.ToString(),
         };
         var operation = new StoreAccountCreationOperation(operationId, account, verifiedSteamId, proofExpiresAt);
-        var prior = await identities.FindAsync("steam", verifiedSteamId, cancellationToken);
+        var prior = await identities.FindAsync(StoreProviders.Steam, verifiedSteamId, cancellationToken);
         if (prior?.Id == operationId)
             return await identities.CreateAccountWithSteamLinkAsync(operation, clock.GetUtcNow().UtcDateTime, cancellationToken);
         var key = CacheKeys.AuthSourceAccountsCreated(RemoteAddress.SourceOf(source));

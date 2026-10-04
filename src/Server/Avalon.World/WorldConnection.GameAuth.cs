@@ -1,4 +1,6 @@
+using Avalon.Common.GameAuth;
 using Avalon.World.GameAuth;
+using Avalon.World.Persistence;
 
 namespace Avalon.World;
 
@@ -10,7 +12,9 @@ public partial class WorldConnection
     private GameSessionLease? _gameSessionLease;
     private Task<WorldAdmissionResult>? _admissionWork;
     private Task<SessionLeaseResponse>? _heartbeat;
+    private int _revalidateGameplayLease;
     private long _lastHeartbeatTicks;
+    public void RequestGameplayRevalidation() => Interlocked.Exchange(ref _revalidateGameplayLease, 1);
     private long _transportReadyTicks;
     private Task? _gameplayDrain;
     public bool IsTlsAuthenticated => _tlsAuthenticated;
@@ -44,7 +48,7 @@ public partial class WorldConnection
     {
         if (GameSessionLease is not { } lease)
         {
-            if (_tlsAuthenticated && TimeProvider.System.GetElapsedTime(_transportReadyTicks) >= TimeSpan.FromSeconds(15)) Close(false);
+            if (_tlsAuthenticated && TimeProvider.System.GetElapsedTime(_transportReadyTicks) >= GameAuthPolicy.AdmissionTimeout) Close(false);
             return;
         }
         if (_gameplayDrain is not null || IsClosing) return;
@@ -55,11 +59,11 @@ public partial class WorldConnection
             {
                 var reply = heartbeat.Result;
                 if (reply.Error is null) { if (!lease.TryRenew(reply)) lease.Revoke(); }
-                else if (reply.Error is not ("SERVICE_UNAVAILABLE" or "BARRIER_PENDING")) lease.Revoke();
+                else if (reply.Error is not (GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending)) lease.Revoke();
             }
         }
         // Leave time for the final save under the still-valid durable fence. No outage grants more time.
-        if (!lease.IsActive || lease.Remaining <= TimeSpan.FromSeconds(5))
+        if (!lease.IsActive || lease.Remaining <= GameAuthPolicy.SaveDrainMargin)
         {
             lease.Revoke();
             BlockForMaintenance();
@@ -68,10 +72,10 @@ public partial class WorldConnection
             Close(false);
             return;
         }
-        if (_heartbeat is null && TimeProvider.System.GetElapsedTime(_lastHeartbeatTicks) >= TimeSpan.FromSeconds(15))
+        if (_heartbeat is null && (TimeProvider.System.GetElapsedTime(_lastHeartbeatTicks) >= GameAuthPolicy.HeartbeatInterval || Interlocked.Exchange(ref _revalidateGameplayLease, 0) != 0))
         {
             _lastHeartbeatTicks = TimeProvider.System.GetTimestamp();
-            _heartbeat = Task.Run(() => ((WorldServer)Server).AdmissionClient.HeartbeatAsync(lease, CancellationToken.None));
+            _heartbeat = WorldDatabaseWork.Admission.Run(() => ((WorldServer)Server).AdmissionClient.HeartbeatAsync(lease, CancellationToken.None));
         }
     }
 

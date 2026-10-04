@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Globalization;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
@@ -34,7 +35,7 @@ public sealed class SteamWebLinkStore(IGameContextStore store, GameAuthCryptogra
                     ? new(id, crypto.UnprotectText(existing.CookieEnvelope, key)) : null;
             var cookie = GameAuthCryptography.NewToken();
             var record = new SteamWebLinkRecord(id, root.Id, GameAuthCryptography.Digest(browserSession), GameAuthCryptography.Digest(cookie),
-                crypto.ProtectText(cookie, key), root.CredentialsVersion, root.SessionEpoch, Now.AddMinutes(5));
+                crypto.ProtectText(cookie, key), root.CredentialsVersion, root.SessionEpoch, Now.Add(GameAuthPolicy.WebLinkLifetime));
             if (await store.CompareExchangeAsync([new(key, null, GameAuthJson.Serialize(record), record.ExpiresAt)], ct)) return new(id, cookie);
         }
         return null;
@@ -64,10 +65,10 @@ public sealed class SteamWebLinkStore(IGameContextStore store, GameAuthCryptogra
         var key = Key(id); var raw = await store.ReadAsync(key, ct);
         var record = GameAuthJson.Deserialize<SteamWebLinkRecord>(raw);
         if (record is null || record.State != "challenged" || record.ExpiresAt <= Now || !Cookie(record, cookie) || !Authority(record, currentRoot)) return false;
-        var deadline = new[] { record.ExpiresAt, Now.AddMinutes(2) }.Min();
+        var deadline = new[] { record.ExpiresAt, Now.Add(GameAuthPolicy.WebProofLifetime) }.Min();
         return await store.CompareExchangeAsync([
             new(key, raw, GameAuthJson.Serialize(record with { State = "verified", SteamSubject = subject, ProofExpiresAt = deadline }), record.ExpiresAt),
-            new("steam-web:nonce:" + GameAuthCryptography.Digest(nonce), null, "used", Now.AddMinutes(5))], ct);
+            new("steam-web:nonce:" + GameAuthCryptography.Digest(nonce), null, "used", Now.Add(GameAuthPolicy.WebLinkLifetime))], ct);
     }
     public async Task<SteamWebLinkRecord?> CommitAsync(Guid id, Account root, string browser, string cookie, Guid confirm, Guid? mfaId, CancellationToken ct, bool consolidationConsent = false)
     {
@@ -82,7 +83,7 @@ public sealed class SteamWebLinkStore(IGameContextStore store, GameAuthCryptogra
             if (record.State == "committing") return record.ConfirmationId == confirm && record.ConsolidationConsent == consolidationConsent ? record : null;
             if (record.State != "verified" || record.ProofExpiresAt <= Now || !Authority(record, root)) return null;
             var next = record with { State = "committing", ConfirmationId = confirm, ConfirmedMfaId = mfaId,
-                ConsolidationConsent = consolidationConsent, ExpiresAt = Now.AddHours(1) };
+                ConsolidationConsent = consolidationConsent, ExpiresAt = Now.Add(GameAuthPolicy.WebConfirmationLifetime) };
             if (await store.CompareExchangeAsync([new(key, raw, GameAuthJson.Serialize(next), next.ExpiresAt)], ct)) return next;
         }
         return null;
@@ -97,5 +98,5 @@ public sealed class SteamWebLinkStore(IGameContextStore store, GameAuthCryptogra
     }
     public static bool FreshNonce(string nonce, DateTime now) => nonce is { Length: > 20 and <= 256 } &&
         nonce.All(c => char.IsAscii(c) && !char.IsControl(c)) && DateTime.TryParseExact(nonce[..20], "yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture,
-            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var issued) && issued > now.AddMinutes(-2) && issued <= now.AddSeconds(30);
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var issued) && issued > now.Subtract(GameAuthPolicy.OpenIdNonceLifetime) && issued <= now.Add(GameAuthPolicy.OpenIdClockSkew);
 }

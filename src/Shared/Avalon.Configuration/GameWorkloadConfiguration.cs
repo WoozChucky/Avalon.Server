@@ -3,6 +3,7 @@ namespace Avalon.Configuration;
 /// <summary>Trusted deployment bindings. One world process per configured world in the initial admission protocol.</summary>
 public sealed class GameWorkloadConfiguration
 {
+    public const string ClientProtocolVersion = "0.2.0";
     public List<GameServerDefinition> Servers { get; set; } = [];
     public void Validate()
     {

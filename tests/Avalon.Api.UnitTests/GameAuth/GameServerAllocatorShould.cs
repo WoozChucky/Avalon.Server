@@ -25,8 +25,8 @@ public sealed class GameServerAllocatorShould
     private readonly IWorldRepositories _repositories = Substitute.For<IWorldRepositories>();
     private readonly ICharacterRepository _characters = Substitute.For<ICharacterRepository>();
     private readonly Account _account = new() { Id = new AccountId(7), Username = "PLAYER", Email = "p@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
-    private readonly Avalon.Domain.Auth.World _world = new() { Id = new WorldId(1), Name = "World", Host = "world.example.test", Port = 21000, MinVersion = "0.0.1", Version = "0.0.1", MaintenanceRevision = 1 };
-    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), AccountId = 7, ProtocolVersion = "1", Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
+    private readonly Avalon.Domain.Auth.World _world = new() { Id = new WorldId(1), Name = "World", Host = "world.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0", MaintenanceRevision = 1 };
+    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), AccountId = 7, ProtocolVersion = "0.2.0", Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
     private readonly GameServerAllocator _allocator;
     public GameServerAllocatorShould()
     {
@@ -48,7 +48,7 @@ public sealed class GameServerAllocatorShould
         Assert.Equal("world-1", destination!.ServerId);
         Assert.Equal("world.example.test", destination.TlsServerName);
         Assert.Equal(new string('A', 64), destination.TlsCertificateSha256);
-        Assert.Equal("0.0.1", destination.MinVersion);
+        Assert.Equal("0.2.0", destination.MinVersion);
         Assert.Single(await _allocator.ListAsync(_context, CancellationToken.None));
         Assert.Null(await _allocator.FindAsync(_context, 2, null, CancellationToken.None));
     }
@@ -56,6 +56,8 @@ public sealed class GameServerAllocatorShould
     public async Task Gate_current_account_world_access_readiness_protocol_and_database_availability()
     {
         Assert.Null(await Find(_context with { ProtocolVersion = "legacy" }));
+        Assert.Null(await Find(_context with { ProtocolVersion = "1" }));
+        Assert.Null(await Find(_context with { ProtocolVersion = "0.1.0" }));
         Assert.Null(await Find(_context with { SessionEpoch = 1 }));
         _account.Locked = true;
         Assert.Null(await Find());

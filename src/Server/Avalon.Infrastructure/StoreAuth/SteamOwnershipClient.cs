@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Globalization;
 using Avalon.Configuration;
 using Microsoft.Extensions.Options;
@@ -14,7 +15,7 @@ public sealed class SteamOwnershipClient(HttpClient client, IOptions<StoreAuthen
         config.Validate(string.Equals(config.Environment, "production", StringComparison.Ordinal));
         var observed = clock.GetUtcNow().UtcDateTime;
         if (!SteamWebApi.IsSteamId(verifiedSteamId)) return Unavailable(verifiedSteamId, observed);
-        var uri = SteamWebApi.Request("ISteamUser/CheckAppOwnership/v4/", config, ("steamid", verifiedSteamId));
+        var uri = SteamWebApi.Request(SteamWebApi.CheckOwnershipPath, config, ("steamid", verifiedSteamId));
         var (available, document) = await SteamWebApi.GetAsync(client, uri, cancellationToken);
         using (document)
         {
@@ -25,7 +26,7 @@ public sealed class SteamOwnershipClient(HttpClient client, IOptions<StoreAuthen
             if (!owns.Value) return new(SteamOwnershipStatus.NotOwned, verifiedSteamId, observed, observed);
             var expires = SteamWebApi.String(ownership, "timeexpires");
             if (!TryExpiry(expires, out var providerExpiry)) return Unavailable(verifiedSteamId, observed);
-            var until = observed.AddMinutes(5);
+            var until = observed.Add(GameAuthPolicy.OwnershipLifetime);
             if (providerExpiry is { } expiry && expiry < until) until = expiry;
             if (until <= observed) return new(SteamOwnershipStatus.NotOwned, verifiedSteamId, observed, observed, providerExpiry);
             var owner = SteamWebApi.String(ownership, "ownersteamid");

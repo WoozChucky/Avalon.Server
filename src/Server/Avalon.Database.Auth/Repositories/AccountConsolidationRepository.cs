@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Globalization;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
@@ -41,30 +42,30 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
             request.Worlds.Any(w => w.Value == 0) || request.Worlds.Select(w => w.Value).Distinct().Count() != request.Worlds.Count ||
             !ulong.TryParse(request.SteamSubject, NumberStyles.None, CultureInfo.InvariantCulture, out var subject) ||
             subject == 0 || subject.ToString(CultureInfo.InvariantCulture) != request.SteamSubject)
-            return new("INVALID_CONSOLIDATION");
+            return new(GameAuthErrors.InvalidConsolidation);
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var existing = await db.AccountConsolidations.AsNoTracking().Include(o => o.Worlds).SingleOrDefaultAsync(o => o.Id == request.OperationId, cancellationToken);
-        if (existing is not null) return Matches(existing, request) ? new(null, existing) : new("INVALID_CONSOLIDATION");
-        if (request.ProofExpiresAt.Kind != DateTimeKind.Utc || request.ProofExpiresAt <= Now || request.ProofExpiresAt > Now.AddMinutes(5)) return new("PROOF_EXPIRED");
-        var identity = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(i => i.Provider == "steam" && i.ProviderSubject == request.SteamSubject, cancellationToken);
-        if (identity is null || identity.AccountId == request.TargetAccountId) return new("CONSOLIDATION_NOT_REQUIRED");
+        if (existing is not null) return Matches(existing, request) ? new(null, existing) : new(GameAuthErrors.InvalidConsolidation);
+        if (request.ProofExpiresAt.Kind != DateTimeKind.Utc || request.ProofExpiresAt <= Now || request.ProofExpiresAt > Now.AddMinutes(5)) return new(GameAuthErrors.ProofExpired);
+        var identity = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(i => i.Provider == StoreProviders.Steam && i.ProviderSubject == request.SteamSubject, cancellationToken);
+        if (identity is null || identity.AccountId == request.TargetAccountId) return new(GameAuthErrors.ConsolidationNotRequired);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        if (!await LockRoots(db, identity.AccountId, request.TargetAccountId, cancellationToken)) return new("ACCOUNT_UNAVAILABLE");
+        if (!await LockRoots(db, identity.AccountId, request.TargetAccountId, cancellationToken)) return new(GameAuthErrors.AccountUnavailable);
         // An exact competing retry may have committed while this request waited on the roots.
         existing = await db.AccountConsolidations.AsNoTracking().Include(o => o.Worlds).SingleOrDefaultAsync(o => o.Id == request.OperationId, cancellationToken);
-        if (existing is not null) return Matches(existing, request) ? new(null, existing) : new("INVALID_CONSOLIDATION");
+        if (existing is not null) return Matches(existing, request) ? new(null, existing) : new(GameAuthErrors.InvalidConsolidation);
         var source = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == identity.AccountId, cancellationToken);
         var target = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == request.TargetAccountId, cancellationToken);
         if (!SourceEligible(source) || !Eligible(target) || source.GameplayConsolidationId is not null || target.GameplayConsolidationId is not null ||
             target.CredentialsVersion != request.CredentialsVersion || target.SessionEpoch != request.SessionEpoch ||
             source.CredentialsVersion == int.MaxValue || source.SessionEpoch >= long.MaxValue - 1 || target.SessionEpoch >= long.MaxValue - 1)
-            return new("ACCOUNT_UNAVAILABLE");
+            return new(GameAuthErrors.AccountUnavailable);
         var mfa = await db.MfaSetups.Where(m => m.AccountId == target.Id && m.Status == MfaSetupStatus.Confirmed).Select(m => (Guid?)m.Id).SingleOrDefaultAsync(cancellationToken);
-        if (mfa != request.ConfirmedMfaId) return new("AUTHORITY_CHANGED");
+        if (mfa != request.ConfirmedMfaId) return new(GameAuthErrors.AuthorityChanged);
         var links = await db.ExternalIdentities.AsNoTracking().Where(i => i.AccountId == source.Id || i.AccountId == target.Id).ToListAsync(cancellationToken);
         if (links.Count(i => i.AccountId == source.Id) != 1 || !links.Any(i => i.Id == identity.Id && i.AccountId == source.Id && i.ProviderSubject == request.SteamSubject) ||
-            links.Any(i => i.AccountId == target.Id && i.Provider == "steam")) return new("IDENTITY_CONFLICT");
-        if (request.ProofExpiresAt <= Now) return new("PROOF_EXPIRED");
+            links.Any(i => i.AccountId == target.Id && i.Provider == StoreProviders.Steam)) return new(GameAuthErrors.IdentityConflict);
+        if (request.ProofExpiresAt <= Now) return new(GameAuthErrors.ProofExpired);
         var operation = new AccountConsolidation { Id = request.OperationId, SourceAccountId = source.Id, TargetAccountId = target.Id,
             SteamSubject = request.SteamSubject, TargetCredentialsVersion = request.CredentialsVersion, TargetSessionEpoch = request.SessionEpoch,
             ConfirmedMfaId = request.ConfirmedMfaId, AuthorizedAt = Now,
@@ -75,7 +76,7 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
         await db.RefreshTokens.Where(t => t.AccountId == source.Id || (t.AccountId == target.Id && t.Client == SessionClient.Launcher))
             .ExecuteUpdateAsync(u => u.SetProperty(t => t.Revoked, true), cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
-        if (request.ProofExpiresAt <= Now) return new("PROOF_EXPIRED");
+        if (request.ProofExpiresAt <= Now) return new(GameAuthErrors.ProofExpired);
         await transaction.CommitAsync(cancellationToken);
         return new(null, operation);
     }
@@ -100,8 +101,8 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
         var target = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == operation.TargetAccountId, cancellationToken);
         if (!SourceEligible(source) || !Eligible(target) || source.GameplayConsolidationId != operationId || target.GameplayConsolidationId != operationId ||
             source.CredentialsVersion == int.MaxValue || source.SessionEpoch == long.MaxValue || target.SessionEpoch == long.MaxValue) return false;
-        var identity = await db.ExternalIdentities.SingleOrDefaultAsync(i => i.AccountId == source.Id && i.Provider == "steam" && i.ProviderSubject == operation.SteamSubject, cancellationToken);
-        if (identity is null || await db.ExternalIdentities.AnyAsync(i => (i.AccountId == target.Id && i.Provider == "steam") || (i.AccountId == source.Id && i.Id != identity.Id), cancellationToken)) return false;
+        var identity = await db.ExternalIdentities.SingleOrDefaultAsync(i => i.AccountId == source.Id && i.Provider == StoreProviders.Steam && i.ProviderSubject == operation.SteamSubject, cancellationToken);
+        if (identity is null || await db.ExternalIdentities.AnyAsync(i => (i.AccountId == target.Id && i.Provider == StoreProviders.Steam) || (i.AccountId == source.Id && i.Id != identity.Id), cancellationToken)) return false;
         identity.AccountId = target.Id;
         await db.Accounts.Where(a => a.Id == source.Id).ExecuteUpdateAsync(u => u.SetProperty(a => a.Status, AccountStatus.Deactivated)
             .SetProperty(a => a.SessionEpoch, a => a.SessionEpoch + 1).SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1)

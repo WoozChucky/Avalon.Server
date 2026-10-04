@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Microsoft.EntityFrameworkCore;
@@ -37,15 +38,15 @@ public sealed class CharacterConsolidationRepository(IDbContextFactory<Character
     }
     public async Task<CharacterConsolidationResult> TransferAsync(Guid operation, AccountId source, AccountId target, CancellationToken cancellationToken)
     {
-        if (!Valid(operation, source, target)) return new("INVALID_CONSOLIDATION");
+        if (!Valid(operation, source, target)) return new(GameAuthErrors.InvalidConsolidation);
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var guards = await LockRoots(db, source, target, cancellationToken);
         var receipt = await db.CharacterConsolidationReceipts.AsNoTracking().SingleOrDefaultAsync(r => r.Id == operation, cancellationToken);
-        if (receipt is not null) return Matches(receipt, source, target) ? new(null, receipt.TransferredCharacters) : new("INVALID_CONSOLIDATION");
-        if (guards.Any(g => g.ConsolidationId != operation)) return new("INVALID_CONSOLIDATION");
+        if (receipt is not null) return Matches(receipt, source, target) ? new(null, receipt.TransferredCharacters) : new(GameAuthErrors.InvalidConsolidation);
+        if (guards.Any(g => g.ConsolidationId != operation)) return new(GameAuthErrors.InvalidConsolidation);
         var now = await GameplayFenceRepository.NowAsync(db, clock, cancellationToken);
-        if (guards.Any(g => g.Mode == GameplayFenceMode.Draining && g.LeaseUntil > now)) return new("WAITING_FOR_SESSION");
+        if (guards.Any(g => g.Mode == GameplayFenceMode.Draining && g.LeaseUntil > now)) return new(GameAuthErrors.WaitingForSession);
         foreach (var guard in guards) { guard.Mode = GameplayFenceMode.Blocked; guard.LeaseUntil = now; }
         var count = await db.Characters.Where(c => c.AccountId == source)
             .ExecuteUpdateAsync(u => u.SetProperty(c => c.AccountId, target).SetProperty(c => c.Online, false), cancellationToken);

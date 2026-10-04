@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -64,7 +65,7 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
     public async Task<IdentityLinkResult> LinkWithAuthorityAsync(IdentityLinkOperation operation, DateTime now,
         CancellationToken cancellationToken = default)
     {
-        if (operation.OperationId == Guid.Empty || operation.Provider != "steam" ||
+        if (operation.OperationId == Guid.Empty || operation.Provider != StoreProviders.Steam ||
             !ulong.TryParse(operation.Subject, System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture, out var subjectId) || subjectId == 0 ||
             subjectId.ToString(System.Globalization.CultureInfo.InvariantCulture) != operation.Subject ||

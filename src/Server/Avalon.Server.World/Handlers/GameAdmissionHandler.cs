@@ -1,7 +1,9 @@
+using Avalon.Common.GameAuth;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Network.Packets.Auth;
 using Avalon.World;
 using Avalon.World.GameAuth;
+using Avalon.World.Persistence;
 
 namespace Avalon.Server.World.Handlers;
 
@@ -17,14 +19,14 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             return ctx.Connection.CloseAsync(false);
         }
         var publicKey = ctx.Packet.PublicKey.ToArray();
-        var result = Task.Run(() => admission.AdmitAsync(ctx.Packet.JoinTicket, connection.Id, Guid.NewGuid(), token), CancellationToken.None);
+        var result = WorldDatabaseWork.Admission.Run(() => admission.AdmitAsync(ctx.Packet.JoinTicket, connection.Id, Guid.NewGuid(), token));
         connection.TrackAdmission(result);
         connection.EnqueueContinuation(result, reply =>
         {
             if (!connection.IsConnected || connection.IsClosing) return;
             if (reply.Lease is null || !reply.Lease.IsActive)
             {
-                connection.Send(SGameAdmissionPacket.Create([], reply.Error == "SERVICE_UNAVAILABLE" || reply.Error == "BARRIER_PENDING"
+                connection.Send(SGameAdmissionPacket.Create([], reply.Error == GameAuthErrors.ServiceUnavailable || reply.Error == GameAuthErrors.BarrierPending
                     ? GameAdmissionResult.ServiceUnavailable : GameAdmissionResult.AuthorizationRequired));
 #pragma warning disable MA0045 // Tick continuations must not await socket cleanup.
                 connection.Close(false);

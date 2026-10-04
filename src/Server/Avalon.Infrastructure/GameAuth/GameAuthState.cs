@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Text.Json;
 
 namespace Avalon.Infrastructure.GameAuth;
@@ -20,7 +21,7 @@ public sealed record GameAuthReply
     public string? PendingLinkId { get; init; }
     public string? NextAction { get; init; }
     public override string ToString() => $"Game authentication state: {State}, error: {Error} (credentials redacted)";
-    public static GameAuthReply Failure(string error) => new() { State = "pending_identity", Error = error };
+    public static GameAuthReply Failure(string error) => new() { State = GameAuthStates.PendingIdentity, Error = error };
 }
 
 public sealed record GameContextRecord
@@ -29,8 +30,8 @@ public sealed record GameContextRecord
     public Guid ClientRunId { get; init; }
     public required string ProtocolVersion { get; init; }
     public required string Environment { get; init; }
-    public string Audience { get; init; } = "avalon.game-auth";
-    public string Product { get; init; } = "avalon.base";
+    public string Audience { get; init; } = GameAuthPolicy.ContextAudience;
+    public string Product { get; init; } = Avalon.Configuration.StoreAuthenticationConfiguration.Product;
     public required string State { get; init; }
     public long? AccountId { get; init; }
     public int CredentialsVersion { get; init; }
@@ -78,7 +79,7 @@ public sealed record AuthAttemptRecord
 
 public static class GameAuthJson
 {
-    private static readonly JsonSerializerOptions Options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, MaxDepth = 16 };
+    private static readonly JsonSerializerOptions Options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, MaxDepth = GameAuthPolicy.MaximumJsonDepth };
     public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);
     public static T? Deserialize<T>(string? value) where T : class => value is null ? null : JsonSerializer.Deserialize<T>(value, Options);
 }
