@@ -6,6 +6,9 @@ namespace Avalon.Infrastructure;
 /// </summary>
 public static class CacheKeys
 {
+    /// <summary>Game authority keys, isolated by trusted environment; bearer/proof identifiers are digests.</summary>
+    public static string GameAuth(string environment, string kind, string digest) => $"game-auth:{{{environment}}}:{kind}:{digest}";
+
     /// <summary>
     /// An account id with a credentials version, as <c>{accountId}:{version}</c> (#495): the value
     /// stored under <see cref="WorldKey"/> (the version of the connection that selected the world)

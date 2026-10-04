@@ -75,6 +75,11 @@ public static class ServiceRegistration
     {
         services.AddAuthDatabase();
         services.AddSteamStoreAuthentication();
+        services.AddSingleton(sp => new Avalon.Infrastructure.GameAuth.GameAuthCryptography(
+            sp.GetRequiredService<Microsoft.IdentityModel.Tokens.SymmetricSecurityKey>().Key));
+        services.AddSingleton<Avalon.Infrastructure.GameAuth.IGameContextStore, Avalon.Infrastructure.GameAuth.RedisGameContextStore>();
+        services.AddSingleton<Avalon.Infrastructure.GameAuth.AuthAttemptStore>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.GameAuthorizationService>();
         services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
         services.AddSingleton(PublicSiteSettings.Create(config.PublicSiteUrl));
         services.AddOptions<PreviewConfiguration>().BindConfiguration("Application:Previews");
