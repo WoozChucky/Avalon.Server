@@ -182,45 +182,4 @@ public sealed class OfflineWriteRaceShould : IDisposable
         Assert.Equal(100, stored.TotalTime);
     }
 
-    [Fact]
-    public async Task Keep_a_ban_and_a_lock_written_while_a_world_key_was_being_stored()
-    {
-        Account account = await OnlineAccountAsync();
-        var stale = new StaleAccountRepository(_accounts) { AfterRead = () => BanAndLockAsync(account.Id) };
-        IWorldRepository worlds = Substitute.For<IWorldRepository>();
-        worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new AvalonWorld
-        {
-            Id = new WorldId(1),
-            Name = "Test World",
-            Host = "localhost",
-            Port = 7001,
-            MinVersion = "0.0.1",
-            Version = "0.0.1",
-            AccessLevelRequired = AccountAccessLevel.Player,
-        });
-        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
-        cache.SetNxAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(true);
-        ISecureRandom random = Substitute.For<ISecureRandom>();
-        random.GetBytes(32).Returns(Enumerable.Repeat((byte)7, 32).ToArray());
-        IAuthConnection connection = Substitute.For<IAuthConnection>();
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.AccountId.Returns(account.Id);
-        connection.WorldSelects.Returns(new WorldSelectBudget());
-        var maintenance = Substitute.For<IWorldMaintenanceRepository>();
-        maintenance.ReadAsync(Arg.Any<WorldId>(), Arg.Any<CancellationToken>())
-            .Returns(new WorldMaintenanceState(false, 0, null));
-        var readiness = Substitute.For<IWorldReadiness>();
-        readiness.IsReadyAsync(Arg.Any<ushort>(), Arg.Any<CancellationToken>()).Returns(true);
-        var handler = new CWorldSelectHandler(NullLoggerFactory.Instance, cache, stale, worlds, random,
-            Options(), TimeProvider.System, maintenance, readiness);
-
-        await handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
-        {
-            Packet = new CWorldSelectPacket { WorldId = new WorldId(1) },
-            Connection = connection,
-        });
-
-        await AssertBanAndLockSurvivedAsync(account.Id);
-        Assert.Equal(Enumerable.Repeat((byte)7, 32).ToArray(), (await StoredAsync(account.Id)).SessionKey);
-    }
 }

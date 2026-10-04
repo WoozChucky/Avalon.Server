@@ -18,6 +18,7 @@ public interface IWorldConnection : IConnection
     /// </summary>
     public AccountId? AccountId { get; set; }
     GameplayWriteAuthority? GameplayAuthority => null;
+    bool IsGameplayAuthorized => false;
 
     /// <summary>
     ///     Gets or sets the character associated with the connection.

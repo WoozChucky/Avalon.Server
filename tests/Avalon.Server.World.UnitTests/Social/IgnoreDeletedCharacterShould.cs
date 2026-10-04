@@ -27,7 +27,7 @@ public class IgnoreDeletedCharacterShould
     private static readonly DateTime Now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void Take_a_deleted_character_off_every_loaded_list()
+    public async Task Take_a_deleted_character_off_every_loaded_list()
     {
         var w = new PartyTestWorld();
         PartyClient aren = w.Online(1, "Aren");
@@ -39,16 +39,18 @@ public class IgnoreDeletedCharacterShould
         var kaela = new Character { Id = new CharacterId(2), AccountId = new AccountId(5), Name = "Kaela" };
         characters.FindByIdAndAccountAsync(Arg.Any<CharacterId>(), Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(kaela);
-        characters.DeleteAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        characters.DeleteForGameplayAsync(Arg.Any<Avalon.Common.GameAuth.GameplayWriteAuthority>(), Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
 
         IWorldConnection deleter = Substitute.For<IWorldConnection>();
         deleter.AccountId.Returns(new AccountId(5));
+        deleter.GameplayAuthority.Returns(new Avalon.Common.GameAuth.GameplayWriteAuthority(new AccountId(5), Guid.NewGuid(), 1));
+        deleter.IsConnected.Returns(true);
         deleter.Character.Returns((ICharacter?)null);   // not in the world: a delete happens at character selection
         deleter.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        deleter.When(c => c.EnqueueContinuation(Arg.Any<Task<Character?>>(), Arg.Any<Action<Character?>>()))
-            .Do(ci => ci.Arg<Action<Character?>>()(ci.Arg<Task<Character?>>().Result));
-        deleter.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
-            .Do(ci => ci.Arg<Action>()());
+        Task<bool>? deleteTask = null;
+        Action<bool>? afterDelete = null;
+        deleter.When(c => c.EnqueueContinuation(Arg.Any<Task<bool>>(), Arg.Any<Action<bool>>()))
+            .Do(ci => { deleteTask = ci.Arg<Task<bool>>(); afterDelete = ci.Arg<Action<bool>>(); });
 
         // Selected and waiting on its load report: the list is loaded, the character not yet in the world.
         CharacterEntity selecting = Inventory.TestCharacters.New(4);
@@ -65,6 +67,9 @@ public class IgnoreDeletedCharacterShould
 
         new CharacterDeletetHandler(NullLogger<CharacterDeletetHandler>.Instance, characters, server)
             .Execute(deleter, new CCharacterDeletePacket { CharacterId = 2 });
+
+        Assert.NotNull(deleteTask);
+        afterDelete!(await deleteTask!);
 
         Assert.Empty(selecting.Ignores.Entries);
         Assert.Contains(pendingSent, p => p.Header.Type == NetworkPacketType.SMSG_IGNORE_LIST);

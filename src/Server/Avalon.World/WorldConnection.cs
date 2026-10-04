@@ -20,7 +20,7 @@ using Packet = Avalon.Network.Packets.Packet;
 
 namespace Avalon.World;
 
-public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable, ICharacterLeaveControl,
+public partial class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable, ICharacterLeaveControl,
     IMaintenanceBlockable
 {
     private readonly ConcurrentQueue<IContinuation> _continuationQueue = new();
@@ -64,7 +64,12 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
     public AccountId? AccountId
     {
         get => Volatile.Read(ref _accountId);
-        set => Volatile.Write(ref _accountId, value);
+        set
+        {
+            if (GameplayAuthority is { } authority && value != authority.AccountId)
+                throw new InvalidOperationException("An admitted connection cannot change account identity.");
+            Volatile.Write(ref _accountId, value);
+        }
     }
 
     /// <summary>Who this connection is, for its packets' spans and log scope.</summary>
@@ -240,7 +245,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
     /// </param>
     private void ProcessQueue(Func<WorldPacket, bool> predicate, bool dropStaleMapPackets)
     {
-        if (_maintenanceBlocked)
+        if (!IsGameplayAuthorized)
         {
             while (_receiveQueue.TryDequeue(out _)) { }
             return;
@@ -300,7 +305,12 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
     public AccountAccessLevel AccessLevel { get; private set; } = AccountAccessLevel.Player;
     public (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
 
-    public void AssignAccessLevel(AccountAccessLevel level) => AccessLevel = level;
+    public void AssignAccessLevel(AccountAccessLevel level)
+    {
+        if (GameSessionLease is { } lease && level != lease.AccessLevel)
+            throw new InvalidOperationException("An admitted connection cannot change its trusted role.");
+        AccessLevel = level;
+    }
 
     public override void Send(NetworkPacket packet)
     {
@@ -325,8 +335,14 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     protected override void OnHandshakeFinished() => Server.CallConnectionListener(this);
 
-    protected override Task<PacketStream> GetStream(TcpClient client) =>
-        Task.FromResult(new PacketStream(new NetworkStream(client.Client, true)));
+    protected override async Task<PacketStream> GetStream(TcpClient client)
+    {
+        var transport = ((WorldServer)Server).TlsTransport;
+        var stream = await GameAuth.WorldTlsTransport.AuthenticateAsync(new NetworkStream(client.Client, true), transport.Certificate);
+        _transportReadyTicks = TimeProvider.System.GetTimestamp();
+        _tlsAuthenticated = true;
+        return new PacketStream(stream);
+    }
 
     protected override async Task OnClose(bool expected = true)
     {
@@ -338,7 +354,12 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     protected override ValueTask OnReceive(NetworkPacketHeader header, Packet? payload)
     {
-        if (_maintenanceBlocked) return ValueTask.CompletedTask;
+        if (_maintenanceBlocked || IsClosing) return ValueTask.CompletedTask;
+        if (header.Type == NetworkPacketType.CMSG_GAME_ADMISSION)
+            return new ValueTask(Server.CallListener(this, header, payload));
+        if (header.Type == NetworkPacketType.CMSG_WORLD_HANDSHAKE && GameSessionLease?.IsActive == true)
+            return new ValueTask(Server.CallListener(this, header, payload));
+        if (!IsGameplayAuthorized) return ValueTask.CompletedTask;
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
             _receiveQueue.Enqueue(new WorldPacket(header.Type, payload, DateTime.UtcNow.Ticks));
@@ -370,6 +391,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     private interface IContinuation
     {
+        Task Work { get; }
         bool IsReady { get; }
         bool IsSuccess { get; }
         Exception? Error { get; }
@@ -387,6 +409,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
             _callback = callback;
         }
 
+        public Task Work => _task;
         public bool IsReady => _task.IsCompleted;
         public bool IsSuccess => _task.IsCompletedSuccessfully;
         public Exception? Error => _task.Exception;
@@ -404,6 +427,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
             _callback = callback;
         }
 
+        public Task Work => _task;
         public bool IsReady => _task.IsCompleted;
         public bool IsSuccess => _task.IsCompletedSuccessfully;
         public Exception? Error => _task.Exception;

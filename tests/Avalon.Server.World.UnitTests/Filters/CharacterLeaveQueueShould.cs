@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.GameAuth;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Common.ValueObjects;
@@ -53,6 +54,7 @@ public class CharacterLeaveQueueShould : IDisposable
 
         _connection = new TestConnection(
             server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
+        GameplayTestAdmission.Admit(_connection);
     }
 
     public void Dispose()

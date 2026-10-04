@@ -1,3 +1,5 @@
+using Avalon.Common.GameAuth;
+using Avalon.Server.World.UnitTests.GameAuth;
 using System.IO;
 using Avalon.Combat;
 using Avalon.Common;
@@ -91,9 +93,9 @@ public class CharacterSelectHandlerShould
         };
 
         var characterRepository = Substitute.For<ICharacterRepository>();
-        characterRepository.FindByIdAndAccountAsync(TheCharacter, TheAccount, Arg.Any<CancellationToken>())
+        characterRepository.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>())
             .Returns(row);
-        characterRepository.UpdateAsync(row, Arg.Any<CancellationToken>()).Returns(row);
+        characterRepository.UpdateForGameplayAsync(Arg.Any<GameplayWriteAuthority>(), row, Arg.Any<CancellationToken>()).Returns(row);
 
         var inventoryRepository = Substitute.For<ICharacterInventoryRepository>();
         inventoryRepository.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
@@ -175,7 +177,8 @@ public class CharacterSelectHandlerShould
             quests,
             questService,
             ignores,
-            auraRepository: auras);
+            auraRepository: auras,
+            databaseWork: InlineDatabaseWork.Instance);
 
         return new Fixture
         {
@@ -750,7 +753,7 @@ public class CharacterSelectHandlerShould
     /// continuation is ever reached.
     /// </summary>
     [Fact]
-    public void Assign_The_Accounts_Access_Level_On_Select()
+    public void Keep_the_admitted_role_when_the_locale_lookup_returns_a_different_role()
     {
         var account = new Account
         {
@@ -768,6 +771,8 @@ public class CharacterSelectHandlerShould
 
         IWorldConnection connection = Substitute.For<IWorldConnection, IAccessLevelAssignable>();
         connection.AccountId.Returns(TheAccount);
+        connection.GameplayAuthority.Returns(new GameplayWriteAuthority(TheAccount, Guid.NewGuid(), 1));
+        connection.IsConnected.Returns(true);
         connection.Character.Returns((ICharacter?)null);
         connection.PendingSpawn.Returns((PendingSpawn?)null);
         connection.SelectInProgress.Returns(false);
@@ -786,10 +791,11 @@ public class CharacterSelectHandlerShould
             Options.Create(new RegenConfiguration()),
             accountRepository,
             Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>());
+            Substitute.For<IWorldServer>(),
+            databaseWork: InlineDatabaseWork.Instance);
 
         handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 
-        ((IAccessLevelAssignable)connection).Received(1).AssignAccessLevel(AccountAccessLevel.GameMaster);
+        ((IAccessLevelAssignable)connection).DidNotReceiveWithAnyArgs().AssignAccessLevel(default);
     }
 }

@@ -1,74 +1,56 @@
 using Avalon.Common.Cryptography;
-using Avalon.Common.ValueObjects;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.World.Handlers;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
-using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 
-public class WorldHandshakeHandlerShould
+public sealed class WorldHandshakeHandlerShould
 {
-    private readonly IWorld _world = Substitute.For<IWorld>();
-    private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
-    private readonly WorldHandshakeHandler _handler;
-
-    public WorldHandshakeHandlerShould()
+    private static WorldHandshakeHandler Handler(string minimum = "0.0.1")
     {
-        _connection.CryptoSession.Returns(_cryptoSession);
-        _connection.AccountId.Returns(new AccountId(1L));
-        _world.MinVersion.Returns("0.0.1");
-        _world.CurrentVersion.Returns("1.0.0");
-        _handler = new WorldHandshakeHandler(NullLogger<WorldHandshakeHandler>.Instance, _world);
+        var world = Substitute.For<IWorld>(); world.MinVersion.Returns(minimum);
+        return new(NullLogger<WorldHandshakeHandler>.Instance, world);
     }
-
     [Fact]
-    public async Task SendHandshakeResult_WithAccountId()
+    public async Task Accept_supported_client_only_after_admission_and_request_the_initial_ping()
     {
-        var ctx = new WorldPacketContext<CWorldHandshakePacket>
-        {
-            Packet = new CWorldHandshakePacket { Version = "0.0.1" },
-            Connection = _connection
-        };
-
-        await _handler.ExecuteAsync(ctx);
-
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        using var connection = WorldAdmissionConnection.Create();
+        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
+        connection.PublishAdmission(WorldAdmissionConnection.Lease());
+        await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.2.0" } });
+        Assert.True(connection.IsGameplayAuthorized);
+        Assert.Single(connection.Sent);
+        Assert.True(connection.TakeInitialTimeSyncPingRequest());
+        Assert.False(connection.TakeInitialTimeSyncPingRequest());
     }
-
-    [Fact]
-    public async Task AskForAnInitialTimeSyncPing_RatherThanSendingOne()
+    [Theory]
+    [InlineData("0.1.0")]
+    [InlineData("invalid")]
+    [InlineData("")]
+    public async Task Reject_old_or_malformed_clients_even_when_their_account_was_admitted(string version)
     {
-        // Sending one here stamps its send time at the top of a tick and flushes it at the bottom,
-        // so the world update between them lands inside the first round trip a client is told.
-        var ctx = new WorldPacketContext<CWorldHandshakePacket>
-        {
-            Packet = new CWorldHandshakePacket { Version = "0.0.1" },
-            Connection = _connection
-        };
-
-        await _handler.ExecuteAsync(ctx);
-
-        _connection.Received(1).RequestInitialTimeSyncPing();
-        _connection.DidNotReceive().SendTimeSyncPing();
+        using var connection = WorldAdmissionConnection.Create();
+        connection.PublishAdmission(WorldAdmissionConnection.Lease());
+        await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = version } });
+        Assert.True(connection.IsClosing); Assert.False(connection.IsGameplayAuthorized);
+        Assert.False(connection.TakeInitialTimeSyncPingRequest());
     }
-
     [Fact]
-    public async Task ThrowInvalidOperationException_WhenAccountIdIsNull()
+    public async Task Reject_account_id_without_admitted_authority()
     {
-        _connection.AccountId.Returns((AccountId?)null);
-
-        var ctx = new WorldPacketContext<CWorldHandshakePacket>
-        {
-            Packet = new CWorldHandshakePacket { Version = "0.0.1" },
-            Connection = _connection
-        };
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => _handler.ExecuteAsync(ctx));
+        using var connection = WorldAdmissionConnection.Create(); connection.AccountId = 42;
+        await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.2.0" } });
+        Assert.True(connection.IsClosing); Assert.False(connection.IsGameplayAuthorized);
+    }
+    [Fact]
+    public async Task Preserve_a_worlds_higher_supported_version_boundary()
+    {
+        using var connection = WorldAdmissionConnection.Create(); connection.PublishAdmission(WorldAdmissionConnection.Lease());
+        await Handler("0.3.0").ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.2.0" } });
+        Assert.True(connection.IsClosing); Assert.False(connection.IsGameplayAuthorized);
     }
 }

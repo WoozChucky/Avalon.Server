@@ -294,12 +294,35 @@ public class WorldStartupValidationShould
         Assert.Equal(32, config.MaxAurasPerUnit);
     }
 
+    [Theory]
+    [InlineData("World:Admission:ApiUrl", "http://internal.example/")]
+    [InlineData("World:Admission:ApiUrl", "https://internal.example/path")]
+    [InlineData("World:Admission:ServerId", "")]
+    [InlineData("World:Admission:ClientCertificatePath", "")]
+    [InlineData("Hosting:Security:CertificatePath", "")]
+    public async Task Refuse_to_start_without_authenticated_admission_configuration(string setting, string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            [setting] = value,
+        });
+        await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+    }
+
     private static async Task<IHost> BuildAsync(Dictionary<string, string?> overrides)
     {
         string workingDirectory = Directory.GetCurrentDirectory();
         try
         {
             HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Hosting:Security:CertificatePath"] = "mounted-world.pfx",
+                ["World:Admission:ApiUrl"] = "https://internal.avalon.example/",
+                ["World:Admission:ServerId"] = "world-one",
+                ["World:Admission:ClientCertificatePath"] = "mounted-workload.pfx"
+            });
             builder.Configuration.AddInMemoryCollection(overrides);
             builder.Services
                 .AddWorldServices()

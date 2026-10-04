@@ -4,6 +4,7 @@ using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
+using Avalon.Common.GameAuth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
@@ -59,8 +60,10 @@ public class CharacterSelectHandler(
     ICharacterIgnoreRepository? ignoreRepository = null,
     TickThreadGuard? tickThread = null,
     IWorldEntryGate? entryGate = null,
-    ICharacterAuraRepository? auraRepository = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    ICharacterAuraRepository? auraRepository = null,
+    IWorldDatabaseWork? databaseWork = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
+    private readonly IWorldDatabaseWork _databaseWork = databaseWork ?? WorldDatabaseWork.ThreadPool;
     private Activity? _parentActivity;
 
     /// <summary>
@@ -86,7 +89,7 @@ public class CharacterSelectHandler(
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
         activity?.SetTag(nameof(packet.CharacterId), packet.CharacterId);
 
-        if (connection.AccountId == null)
+        if (connection.AccountId == null || connection.GameplayAuthority is null || connection.GameplayAuthority.AccountId != connection.AccountId)
         {
             logger.LogWarning(
                 "Connection tried to select a character from the character list without being authenticated");
@@ -184,7 +187,7 @@ public class CharacterSelectHandler(
         connection.BeginSelect(select);
 
         Step(connection, select,
-            FindAfterSavesAsync(packet.CharacterId, accountId, kickedWork),
+            _databaseWork.Run(() => FindAfterSavesAsync(packet.CharacterId, connection.GameplayAuthority!, kickedWork)),
             found =>
             {
                 if (found.SaveStillRunning)
@@ -202,7 +205,7 @@ public class CharacterSelectHandler(
         // dependency on the Auth database removed, but that is a 2.0 milestone and reading it here
         // is the sanctioned approach until then.
         connection.EnqueueContinuation(
-            accountRepository.FindByIdAsync(connection.AccountId!, false, CancellationToken.None),
+            _databaseWork.Run(() => accountRepository.FindByIdAsync(connection.AccountId!, false, CancellationToken.None)),
             (Account? account) =>
             {
                 if (account is null)
@@ -220,10 +223,6 @@ public class CharacterSelectHandler(
                 if ((connection.Character ?? connection.PendingSpawn?.Character) is CharacterEntity selected)
                     selected.Quests.Locale = account.Locale;
 
-                if (connection is IAccessLevelAssignable assignable)
-                {
-                    assignable.AssignAccessLevel(account.AccessLevel);
-                }
             });
 
         _parentActivity = activity;
@@ -308,7 +307,8 @@ public class CharacterSelectHandler(
     /// </summary>
     private bool OwnsSelect(IWorldConnection connection, long select)
     {
-        if (connection.IsConnected && !connection.IsClosing && connection.SelectStartedTicks == select)
+        if (connection.IsConnected && !connection.IsClosing && connection.SelectStartedTicks == select &&
+            (connection is not WorldConnection live || live.IsGameplayAuthorized))
             return true;
 
         logger.LogInformation(
@@ -348,7 +348,7 @@ public class CharacterSelectHandler(
     /// step that faulted has still finished, which is all that is waited for, so faults are ignored.
     /// </remarks>
     private async Task<(Character? Character, bool SaveStillRunning)> FindAfterSavesAsync(CharacterId id,
-        AccountId accountId, IReadOnlyList<Task> kickedWork)
+        GameplayWriteAuthority authority, IReadOnlyList<Task> kickedWork)
     {
         // Taken before the first await, on the tick, like the kicked characters' waits.
         Task idle = kickedWork.Count == 0
@@ -371,7 +371,7 @@ public class CharacterSelectHandler(
             }
         }
 
-        Character? character = await characterRepository.FindByIdAndAccountAsync(id, accountId, CancellationToken.None)
+        Character? character = await characterRepository.FindForGameplayAsync(authority, id, CancellationToken.None)
             .ConfigureAwait(false);
         return (character, false);
     }
@@ -389,6 +389,30 @@ public class CharacterSelectHandler(
             logger.LogWarning("Character not found for account {AccountId}", connection.AccountId);
             activity?.AddEvent(new ActivityEvent("CharacterNotFound"));
             connection.CancelSelect();
+            return;
+        }
+
+        // Only a guard-validated read proves that the selected character now belongs to this
+        // account. A guessed character ID must never disconnect another account's live session.
+        var ghosts = worldServer.SessionsHoldingCharacter(character.Id, connection)
+            .Where(other => other.AccountId != connection.AccountId).ToArray();
+        if (ghosts.Length > 0)
+        {
+            var draining = new List<Task>();
+            foreach (var other in ghosts)
+            {
+                other.CancelSelect();
+                draining.Add(world.DeSpawnPlayerAsync(other));
+#pragma warning disable MA0045 // Tick continuations must not await socket cleanup.
+                other.Close(false);
+#pragma warning restore MA0045
+            }
+            draining.Add(characterSaver.WhenIdle(character.Id));
+            Step(connection, select, _databaseWork.Run(async () =>
+            {
+                await Task.WhenAll(draining).ConfigureAwait(false);
+                return await characterRepository.FindForGameplayAsync(connection.GameplayAuthority!, character.Id, CancellationToken.None).ConfigureAwait(false);
+            }), fresh => OnCharacterReceived(connection, select, fresh));
             return;
         }
 
@@ -411,6 +435,7 @@ public class CharacterSelectHandler(
             RequiredExperience = requiredExperience
         };
 
+        entity.BindGameplayAuthority(connection.GameplayAuthority!);
         entity.CurrentHealth = entity.Health;
         entity.PowerType = ClassPowerType.Of(character.Class);
         // Fury starts empty (#526), even when the stats refresh below finds no row and changes nothing.
@@ -563,9 +588,9 @@ public class CharacterSelectHandler(
                 connection.CryptoSession.Encrypt));
         }
 
-        Step(connection, select, characterRepository.UpdateAsync(character, CancellationToken.None), _ =>
+        Step(connection, select, _databaseWork.Run(() => characterRepository.UpdateForGameplayAsync(entity.GameplayAuthority!, character, CancellationToken.None)), _ =>
         {
-            Step(connection, select, characterInventoryRepository.GetByCharacterIdAsync(character.Id, CancellationToken.None),
+            Step(connection, select, _databaseWork.Run(() => characterInventoryRepository.GetByCharacterIdAsync(character.Id, CancellationToken.None)),
                 items => OnInventoryReceived(connection, select, entity, instance, character, items));
         });
 
@@ -589,7 +614,7 @@ public class CharacterSelectHandler(
         // resolves template ids against the vendored item catalog. Joining 41 columns per carried
         // item would load rows nothing here reads.
         Step(connection, select,
-            itemInstanceRepository.GetByCharacterIdAsync(character.Id, CancellationToken.None),
+            _databaseWork.Run(() => itemInstanceRepository.GetByCharacterIdAsync(character.Id, CancellationToken.None)),
             instances => OnItemInstancesReceived(connection, select, entity, instance, character, items, instances));
 
         _parentActivity = activity;
@@ -632,7 +657,7 @@ public class CharacterSelectHandler(
 
         connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encrypt));
 
-        Step(connection, select, characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
+        Step(connection, select, _databaseWork.Run(() => characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None)),
             spells => OnSpellsReceived(connection, select, entity, instance, spells));
         _parentActivity = activity;
     }
@@ -714,7 +739,7 @@ public class CharacterSelectHandler(
             return;
         }
 
-        Step(connection, select, questRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        Step(connection, select, _databaseWork.Run(() => questRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None)), rows =>
         {
             entity.Quests.Load(rows);
             LoadIgnores(connection, select, entity, instance);
@@ -735,7 +760,7 @@ public class CharacterSelectHandler(
             return;
         }
 
-        Step(connection, select, ignoreRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        Step(connection, select, _databaseWork.Run(() => ignoreRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None)), rows =>
         {
             entity.Ignores.Load(rows);
             connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
@@ -756,7 +781,7 @@ public class CharacterSelectHandler(
             return;
         }
 
-        Step(connection, select, auraRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None), rows =>
+        Step(connection, select, _databaseWork.Run(() => auraRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None)), rows =>
         {
             StaticData? data = null;
             int maxAuras = 0;

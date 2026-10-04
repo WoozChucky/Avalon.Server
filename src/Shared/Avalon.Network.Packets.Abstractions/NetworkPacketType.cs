@@ -21,9 +21,8 @@ public enum NetworkPacketType : short
 
     // Worlds
     CMSG_WORLD_LIST = 0x201A,
-    CMSG_WORLD_SELECT = 0x201B,
-    CMSG_EXCHANGE_WORLD_KEY = 0x201C,
     CMSG_WORLD_HANDSHAKE = 0x201D,
+    CMSG_GAME_ADMISSION = 0x201E,
 
     // Audio
     CMSG_AUDIO_RECORD = 0x2050,
@@ -67,7 +66,6 @@ public enum NetworkPacketType : short
     CMSG_MFA_SETUP = 0x200C,
     CMSG_MFA_CONFIRM = 0x200D,
     CMSG_MFA_RESET = 0x200E,
-    CMSG_AUTH_GAME_TICKET = 0x200F,
 
     // Combat
     CMSG_CAST_ABILITY = 0x2101,
@@ -104,9 +102,8 @@ public enum NetworkPacketType : short
 
     // Worlds
     SMSG_WORLD_LIST = 0x301A,
-    SMSG_WORLD_SELECT = 0x301B,
-    SMSG_EXCHANGE_WORLD_KEY = 0x301C,
     SMSG_WORLD_HANDSHAKE = 0x301D,
+    SMSG_GAME_ADMISSION = 0x301E,
 
     // Audio
     SMSG_AUDIO_RECORD = 0x3050,

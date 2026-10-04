@@ -34,7 +34,6 @@ public sealed class PostLoginGuardShould
         _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         _connection.AccountId.Returns(new AccountId(1L));
         _connection.CredentialsVersion.Returns(3);
-        _connection.WorldSelects.Returns(new WorldSelectBudget());
         _worlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AvalonWorld> { World() });
         _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(World());
         _cache.SetNxAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(true);
@@ -59,7 +58,7 @@ public sealed class PostLoginGuardShould
             CredentialsVersion = credentialsVersion,
         });
 
-    public static TheoryData<string> Handlers => ["MFA setup", "MFA confirm", "MFA reset", "world list", "world select"];
+    public static TheoryData<string> Handlers => ["MFA setup", "MFA confirm", "MFA reset", "world list"];
 
     private Task RunAsync(string handler) => handler switch
     {
@@ -78,11 +77,6 @@ public sealed class PostLoginGuardShould
         "world list" => new CWorldListHandler(NullLoggerFactory.Instance, _worlds, _accounts,
                 Substitute.For<IWorldReadiness>())
             .ExecuteAsync(new AuthPacketContext<CWorldListPacket> { Packet = new CWorldListPacket(), Connection = _connection }),
-        "world select" => new CWorldSelectHandler(NullLoggerFactory.Instance, _cache, _accounts, _worlds, _random,
-                Options.Create(new AuthConfiguration()), TimeProvider.System,
-                Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<IWorldReadiness>())
-            .ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
-                { Packet = new CWorldSelectPacket { WorldId = new WorldId(1) }, Connection = _connection }),
         _ => throw new ArgumentOutOfRangeException(nameof(handler)),
     };
 

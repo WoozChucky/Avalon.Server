@@ -372,6 +372,8 @@ public class WorldServerStartupShould
 
         public object? GetService(Type serviceType)
         {
+            if (serviceType == typeof(Avalon.World.GameAuth.WorldTlsTransport))
+                return Avalon.Server.World.UnitTests.GameAuth.GameplayTestAdmission.TlsTransport();
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
 
             if (serviceType == typeof(ReloadRequestHandler))

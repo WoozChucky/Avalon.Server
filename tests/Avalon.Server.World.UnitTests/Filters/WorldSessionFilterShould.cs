@@ -17,6 +17,7 @@ public class WorldSessionFilterShould
     {
         var connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
+        connection.IsGameplayAuthorized.Returns(true);
         return new WorldSessionFilter(connection);
     }
 

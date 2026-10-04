@@ -1,3 +1,5 @@
+using Avalon.Common.GameAuth;
+using Avalon.Server.World.UnitTests.GameAuth;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Server.World.UnitTests.Instances;
@@ -115,7 +117,7 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         // The read records whether the old session's save had committed when it ran, then finds
         // nothing: what happens after the read is the rest of the select chain, covered elsewhere.
-        _characters.FindByIdAndAccountAsync(TheCharacter, TheAccount, Arg.Any<CancellationToken>())
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 _read.TrySetResult(Volatile.Read(ref _committed) == 1);
@@ -340,7 +342,7 @@ public class DuplicateCharacterSelectShould : IDisposable
         await DisconnectedAsync(kicked);
         Assert.True(winner.IsConnected, "the kicked session kicked back and disconnected the winner");
         await _read.Task.WaitAsync(Limit);
-        await _characters.DidNotReceive().FindByIdAndAccountAsync(AnotherCharacter, TheAccount, Arg.Any<CancellationToken>());
+        await _characters.DidNotReceive().FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), AnotherCharacter, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Every other session of the account ends, including one still at the character list.</summary>
@@ -531,6 +533,7 @@ public class DuplicateCharacterSelectShould : IDisposable
         {
             AccountId = account ?? TheAccount
         };
+        GameplayTestAdmission.Admit(connection);
         server.Add(connection);
         return connection;
     }
@@ -557,7 +560,8 @@ public class DuplicateCharacterSelectShould : IDisposable
             server,
             // Never advanced: the select's save wait ends only when the saves it waits on do, so a
             // slow runner cannot time it out while a test is still holding a save.
-            new ManualTimerClock());
+            new ManualTimerClock(),
+            databaseWork: InlineDatabaseWork.Instance);
 
         return (server, select);
     }

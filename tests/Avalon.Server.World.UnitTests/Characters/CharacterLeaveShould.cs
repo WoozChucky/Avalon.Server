@@ -1,3 +1,5 @@
+using Avalon.Common.GameAuth;
+using Avalon.Server.World.UnitTests.GameAuth;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Server.World.UnitTests.Instances;
@@ -102,7 +104,7 @@ public class CharacterLeaveShould : IDisposable
                 new() { Id = AnotherCharacter, AccountId = TheAccount, Name = "Tester8", Level = 1 },
             });
         // What happens after a select's read is the rest of the select chain, covered elsewhere.
-        _characters.FindByIdAndAccountAsync(Arg.Any<CharacterId>(), TheAccount, Arg.Any<CancellationToken>())
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 lock (_selectReads)
@@ -343,7 +345,8 @@ public class CharacterLeaveShould : IDisposable
             server,
             // Never advanced: the select's save wait ends only when the leave's save does, so a slow
             // runner cannot time it out while a test is still holding the save.
-            new ManualTimerClock());
+            new ManualTimerClock(),
+            databaseWork: InlineDatabaseWork.Instance);
 
         return (town, server, new Handlers(leave, list, select));
     }
@@ -360,6 +363,7 @@ public class CharacterLeaveShould : IDisposable
         _sockets.Add(serverSide);
 
         var connection = new RecordingConnection(server, clientSide) { AccountId = TheAccount };
+        GameplayTestAdmission.Admit(connection);
         server.Add(connection);
         return connection;
     }

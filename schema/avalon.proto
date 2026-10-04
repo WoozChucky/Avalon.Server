@@ -153,16 +153,9 @@ message CAuraCancelPacket {
    uint32 AuraId = 1;
    optional uint32 InstanceKey = 2;
 }
-message CAuthGameTicketPacket {
-   optional string Ticket = 1;
-}
 message CAuthPacket {
    optional string Username = 1;
    optional string Password = 2;
-}
-message CAuthPatchPacket {
-   int32 AccountId = 1;
-   optional bytes PublicKey = 2;
 }
 message CCastAbilityPacket {
    uint32 AbilityId = 1;
@@ -201,8 +194,8 @@ message CDialogueChoosePacket {
 message CEnterMapPacket {
    uint32 TargetMapId = 1;
 }
-message CExchangeWorldKeyPacket {
-   optional bytes WorldKey = 1;
+message CGameAdmissionPacket {
+   optional string JoinTicket = 1;
    optional bytes PublicKey = 2;
 }
 message CHandshakePacket {
@@ -328,9 +321,6 @@ message CWorldHandshakePacket {
 }
 message CWorldListPacket {
 }
-message CWorldSelectPacket {
-   uint32 WorldId = 1;
-}
 enum CastRejectReason {
    CastRejectReason_Unknown = 0;
    CastRejectReason_Gcd = 1;
@@ -395,6 +385,13 @@ enum DisconnectReason {
    DisconnectReason_SelectTimeout = 4;
    DisconnectReason_CharacterSaveFailed = 5;
    DisconnectReason_Maintenance = 6;
+}
+enum GameAdmissionResult {
+   GameAdmissionResult_Accepted = 0;
+   GameAdmissionResult_InvalidRequest = 1;
+   GameAdmissionResult_AuthorizationRequired = 2;
+   GameAdmissionResult_ServiceUnavailable = 3;
+   GameAdmissionResult_UnsupportedClient = 4;
 }
 enum HitResult {
    // this is a composite/flags enumeration
@@ -534,7 +531,6 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_CLIENT_INFO = 4097;
    NetworkPacketType_CMSG_CLIENT_HANDSHAKE = 4098;
    NetworkPacketType_CMSG_AUTH = 8192;
-   NetworkPacketType_CMSG_AUTH_PATCH = 8193;
    NetworkPacketType_CMSG_LOGOUT = 8194;
    NetworkPacketType_CMSG_REGISTER = 8195;
    NetworkPacketType_CMSG_PING = 8197;
@@ -544,7 +540,6 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_MFA_SETUP = 8204;
    NetworkPacketType_CMSG_MFA_CONFIRM = 8205;
    NetworkPacketType_CMSG_MFA_RESET = 8206;
-   NetworkPacketType_CMSG_AUTH_GAME_TICKET = 8207;
    NetworkPacketType_CMSG_CHARACTER_LIST = 8208;
    NetworkPacketType_CMSG_CHARACTER_CREATE = 8209;
    NetworkPacketType_CMSG_CHARACTER_DELETE = 8210;
@@ -552,9 +547,8 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_CHARACTER_LOADED = 8212;
    NetworkPacketType_CMSG_CHARACTER_LEAVE = 8214;
    NetworkPacketType_CMSG_WORLD_LIST = 8218;
-   NetworkPacketType_CMSG_WORLD_SELECT = 8219;
-   NetworkPacketType_CMSG_EXCHANGE_WORLD_KEY = 8220;
    NetworkPacketType_CMSG_WORLD_HANDSHAKE = 8221;
+   NetworkPacketType_CMSG_GAME_ADMISSION = 8222;
    NetworkPacketType_CMSG_ENTER_MAP = 8225;
    NetworkPacketType_CMSG_RESPAWN_AT_TOWN = 8226;
    NetworkPacketType_CMSG_INTERACT = 8240;
@@ -595,9 +589,8 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_MFA_CONFIRM = 12307;
    NetworkPacketType_SMSG_MFA_RESET = 12308;
    NetworkPacketType_SMSG_WORLD_LIST = 12314;
-   NetworkPacketType_SMSG_WORLD_SELECT = 12315;
-   NetworkPacketType_SMSG_EXCHANGE_WORLD_KEY = 12316;
    NetworkPacketType_SMSG_WORLD_HANDSHAKE = 12317;
+   NetworkPacketType_SMSG_GAME_ADMISSION = 12318;
    NetworkPacketType_SMSG_CHARACTER_CONNECTED = 12320;
    NetworkPacketType_SMSG_CHARACTER_DISCONNECTED = 12321;
    NetworkPacketType_SMSG_CHARACTER_LIST = 12323;
@@ -981,8 +974,9 @@ message SDisconnectPacket {
    optional string Reason = 1;
    DisconnectReason ReasonCode = 2;
 }
-message SExchangeWorldKeyPacket {
+message SGameAdmissionPacket {
    optional bytes PublicKey = 1;
+   GameAdmissionResult Result = 2;
 }
 message SHandshakePacket {
    optional bytes HandshakeData = 1;
@@ -1214,10 +1208,6 @@ message SWorldHandshakePacket {
 message SWorldListPacket {
    repeated WorldInfo Worlds = 1;
 }
-message SWorldSelectPacket {
-   optional bytes WorldKey = 1;
-   WorldSelectResult Result = 2;
-}
 enum ServerInfoResult {
    ServerInfoResult_Success = 0;
    ServerInfoResult_ClientVersionTooOld = 1;
@@ -1277,10 +1267,4 @@ message WorldInfo {
    optional string MinVersion = 7;
    optional string Version = 8;
    int32 Status = 9;
-}
-enum WorldSelectResult {
-   WorldSelectResult_Success = 0;
-   WorldSelectResult_DuplicateSession = 1;
-   WorldSelectResult_WorldUnavailable = 2;
-   WorldSelectResult_Maintenance = 3;
 }

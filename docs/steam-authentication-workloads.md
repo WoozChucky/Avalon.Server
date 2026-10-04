@@ -56,3 +56,34 @@ Heartbeat every 15 seconds and stop gameplay by the granted `LeaseUntil`, even w
 At load, bind the character entity to the immutable account/session/fence admitted by the world. Snapshots retain that authority through the save queue and despawn; replacement connections cannot relabel an old entity. Character saves acquire durable account guards inside their transaction, validate current ownership and lease expiry after lock acquisition, and recheck the deadline before commit. Multi-character transactions acquire account guards in ascending account order and fail atomically if any writer is stale.
 
 Flush authoritative state before ending the session. End blocks the matching Character-DB guard before ending the Auth-DB head and remains available after context revocation. An old end request cannot block or end a replacement session. Do not use the presence/online flag as gameplay authority.
+
+
+## World transport and coordinated protocol cutover
+
+The world host requires a current TLS leaf with its private key before it listens. Configure
+`Hosting:Security:CertificatePath` and its secret password. `World:Admission:ApiUrl` is the fixed
+HTTPS origin of the API's GameInternal listener; its server certificate must pass normal TLS
+validation. `World:Admission:ServerId` matches the API assignment for `Game:WorldId`.
+`World:Admission:ClientCertificatePath` and its secret password supply the pinned client-auth PFX.
+Never share the world TLS private key with clients; clients receive only the assigned leaf SHA-256
+pin and TLS server name from the authenticated join response.
+
+The world chart requires `server.transport.existingSecret`, `server.admission.apiUrl`, and
+`server.admission.serverId`. The transport Secret holds `world-tls.pfx` and `workload.pfx`; optional
+`world-tls-password` and `workload-password` keys provide their passwords. PFX files mount read-only
+under `/run/avalon-auth`. These are deployment credentials supplied outside source control.
+
+Updated clients use CGameAdmissionPacket/SGameAdmissionPacket (0x201E/0x301E) inside TLS, then the
+existing encrypted version handshake. Minimum supported gameplay client version is 0.2.0. Retired
+TCP handoff, world-select and world-key opcodes 0x200F, 0x201B/0x301B and 0x201C/0x301C are unassigned.
+The launcher handoff issuer and inherited-stdin contract remain; updated clients redeem the handoff
+through `/client/auth` for a restricted context and separately request licensed world admission.
+Roll out API, world, schema and supported client together; do not deploy this intermediate backend
+branch while clients still use the retired protocol.
+
+Provider calls, redemption, heartbeat and character persistence run outside the simulation tick.
+Connection identity, role, session and fence bind once from admission. Every queued gameplay packet
+is checked again at dispatch. A renewal outage grants no additional time: the world stops mutations
+five seconds before the lease deadline to flush final state, then ends the session. Character
+creation and its initial children commit atomically under the same durable account guard; select,
+update and delete also validate the current owner and lease inside their database transaction.

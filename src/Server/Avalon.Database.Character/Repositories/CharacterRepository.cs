@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.Character.Repositories;
 
-public interface ICharacterRepository : IRepository<Domain.Characters.Character, CharacterId>
+public partial interface ICharacterRepository : IRepository<Domain.Characters.Character, CharacterId>
 {
     /// <summary>
     /// The character with this name in any case, ignoring surrounding spaces, found by its key (#757), or none. Names
@@ -32,7 +32,7 @@ public interface ICharacterRepository : IRepository<Domain.Characters.Character,
     Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }
 
-public class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFactory)
+public partial class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFactory)
     : EntityFrameworkRepository<Domain.Characters.Character, CharacterId, CharacterDbContext>(contextFactory),
         ICharacterRepository
 {

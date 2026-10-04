@@ -29,6 +29,7 @@ using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Telemetry;
 using Avalon.World.Threading;
+using Avalon.World.GameAuth;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -67,6 +68,7 @@ public interface IWorldServer
     /// that is still live and has not queued its logout save.
     /// </summary>
     IReadOnlyList<IWorldConnection> SessionsOf(AccountId accountId, IWorldConnection except);
+    IReadOnlyList<IWorldConnection> SessionsHoldingCharacter(CharacterId id, IWorldConnection except);
 
     IWorld World { get; }
     Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
@@ -77,6 +79,21 @@ public interface IWorldServer
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 {
+    public IGameAdmissionClient AdmissionClient => _services.GetRequiredService<IGameAdmissionClient>();
+    public WorldTlsTransport TlsTransport => _services.GetRequiredService<WorldTlsTransport>();
+
+    // Invoked on the tick so despawn removes the entity before any further world simulation.
+    internal async Task DrainGameplayAsync(WorldConnection connection)
+    {
+        await _world.DeSpawnPlayerAsync(connection).ConfigureAwait(false);
+        try { await connection.WhenPendingOperationsIdle().ConfigureAwait(false); } catch (Exception) { }
+        var pendingAdmission = connection.AdmissionWork;
+        if (pendingAdmission is not null)
+            try { await pendingAdmission.ConfigureAwait(false); } catch (Exception) { }
+        var lease = connection.GameSessionLease ?? (pendingAdmission is { IsCompletedSuccessfully: true } ? pendingAdmission.Result.Lease : null);
+        if (lease is not null)
+            await Task.Run(() => AdmissionClient.EndAsync(lease, CancellationToken.None), CancellationToken.None).ConfigureAwait(false);
+    }
     #region Scheduling (Move to HighRes Timer class)
 
     [SupportedOSPlatform("windows")]
@@ -293,6 +310,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         return sessions;
     }
 
+    public IReadOnlyList<IWorldConnection> SessionsHoldingCharacter(CharacterId id, IWorldConnection except)
+    {
+        return Connections.Concat(_pendingDisconnects).Distinct(ReferenceEqualityComparer.Instance).Cast<IWorldConnection>()
+            .Where(c => !ReferenceEquals(c, except) &&
+                (c.Character ?? c.PendingSpawn?.Character) is Entities.CharacterEntity { Data: { } row } && row.Id == id).ToArray();
+    }
+
     public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
 
     /// <summary>The port opens at the end of the load in <see cref="ExecuteAsync" />, not at host start (#665).</summary>
@@ -300,6 +324,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Validate certificate loading and workload configuration before the port becomes ready.
+        var transport = TlsTransport;
+        var admission = AdmissionClient;
         await Task.Run(() => _scriptManager.Load(), stoppingToken);
 
         // The names this world accepts, for the admin app. Required, as the reload handler below is: a host that
@@ -411,7 +438,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             // above) must not cost the other characters their despawn saves, or skip the wait for saves below.
             try
             {
-                despawning.Add(_world.DeSpawnPlayerAsync(disconnected));
+                despawning.Add(disconnected.DrainGameplayAsync());
             }
             catch (Exception e)
             {
@@ -561,11 +588,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Process disconnects on the tick thread to avoid racing with MapInstance.Update
         while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
         {
-            _ = _world.DeSpawnPlayerAsync(disconnected);
+            _ = disconnected.DrainGameplayAsync();
         }
 
         // Cache once — both phases iterate the same set.
         ImmutableArray<IWorldConnection> conns = Connections;
+
+        // Revoked or expiring sessions leave their instance before packets and simulation run.
+        foreach (var connection in conns)
+            if (connection is WorldConnection admitted) admitted.AdvanceGameplayLease();
 
         // Before the session pass, so a cutoff blocks a non-Admin's queued packets on the tick it arrives. Applies a
         // state the notification or the reconciliation offered from off the tick. Contained: the tick goes on.

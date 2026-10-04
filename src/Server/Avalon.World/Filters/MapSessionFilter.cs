@@ -9,6 +9,7 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
 
     public override bool CanProcess(NetworkPacketType type)
     {
+        if (!connection.IsGameplayAuthorized) return false;
         if (connection.Character == null)
         {
             return false;
