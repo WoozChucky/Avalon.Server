@@ -123,8 +123,9 @@ rendering. No live Steam/provider verification or release deployment is claimed.
 
 The approved follow-up removed the hardcoded App ID default and equality allowlist from shared
 configuration. A missing/zero ID refuses startup with the named configuration field; the API Helm
-chart also refuses a missing/zero value. The application ID is trusted deployment input, never a
-client request field. API DI passes the same options to identity verification, ownership requests,
+chart also refuses a missing/zero value. Application IDs are trusted deployment input. An optional
+attempt selector is resolved against this configuration; proofs cannot change the bound identity.
+API DI passes the selected identity to verification, ownership requests,
 and both license-observation persistence paths. World/auth services consume the resulting admission
 authority and do not select a Steam application or make independent Steam verification calls.
 
@@ -142,3 +143,25 @@ Database, World, Auth, Shared, Combat, Balance and Balance Service were rebuilt 
 the deployment-owned App ID change. All seven passed. Together with the latest API run on the same
 implementation, all eight Avalon test projects have **8056 passed, 2 existing skips, 0 failures**.
 The skips remain the existing World and Shared cases. No runtime changes were needed for this gate.
+
+### Application-bound Steam Playtest access
+
+`storeAuthentication.steamPlaytest` defaults to disabled with AppID zero and no allowed worlds.
+Deployments may prepare a disabled profile with a distinct positive uint32 AppID and distinct
+positive uint16 `allowedWorldIds`; enabling it requires a nonempty restriction list. The chart
+renders `SteamPlaytest__Enabled`, `SteamPlaytest__AppId` and indexed `SteamPlaytest__AllowedWorldIds__N`
+under `Application__StoreAuthentication`, validating the same bounds as .NET startup.
+
+The optional attempt `steamAppId` selects only a configured, enabled application. Omission means
+the configured main app. A challenge binds this selection to proof, ownership evidence, linking,
+receipt replay and renewal; clients cannot switch AppIDs within a context. License observations
+are queried by the exact application as well as account/provider/product/environment. Apply migration
+`20261004200634_ScopeSteamLicenseObservationsByApplication` during the coordinated Server rollout.
+
+Restricted world access intersects existing eligibility, including for administrators and accounts
+owning both apps. Allocation, ticket issuance/redemption and actual-world session fences recheck
+current configuration. Disabling Playtest or removing an allowed world refuses the corresponding
+context/admission/renewal; main sessions retain their existing policy. Legacy contexts with AppID
+zero fail closed and require reauthentication. Homelab prepares Playtest 2514590 for PTR world 3,
+disabled until compatible chart/releases and controlled Steam grants are ready. Old chart pins
+ignore these values and must not be treated as deployment evidence.
