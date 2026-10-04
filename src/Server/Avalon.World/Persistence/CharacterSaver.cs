@@ -75,7 +75,7 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
     {
         var snapshots = new CharacterSaveSnapshot[characters.Count];
         for (int i = 0; i < characters.Count; i++)
-            snapshots[i] = CharacterSaveSnapshot.Take(characters[i].Character);
+            snapshots[i] = CharacterSaveSnapshot.Take(characters[i].Character, characters[i].Connection.GameplayAuthority);
 
         EnsureOneBatchPerCharacter(snapshots);
 

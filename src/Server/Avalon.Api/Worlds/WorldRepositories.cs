@@ -13,6 +13,7 @@ namespace Avalon.Api.Worlds;
 public interface IWorldRepositories
 {
     ICharacterRepository Characters(WorldId world);
+    IGameplayFenceRepository GameplayFences(WorldId world);
     IMapTemplateRepository MapTemplates(WorldId world);
     IProceduralMapConfigRepository ProceduralMapConfigs(WorldId world);
     IProceduralLayoutInputsResolver LayoutInputs(WorldId world);
@@ -20,6 +21,8 @@ public interface IWorldRepositories
 
 public sealed class WorldRepositories(IWorldDbContextFactory contexts) : IWorldRepositories
 {
+    public IGameplayFenceRepository GameplayFences(WorldId world) => new GameplayFenceRepository(contexts.ForCharacters(world));
+
     public ICharacterRepository Characters(WorldId world) => new CharacterRepository(contexts.ForCharacters(world));
 
     public IMapTemplateRepository MapTemplates(WorldId world) => new MapTemplateRepository(contexts.ForWorld(world));

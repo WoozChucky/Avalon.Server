@@ -4,6 +4,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Avalon.Api.Authentication.AV;
+using Avalon.Api.Authentication;
 using Avalon.Api.Config;
 using Avalon.Common.Telemetry;
 using Avalon.Infrastructure.Login;
@@ -59,6 +60,7 @@ public static class ApiRateLimiting
         Exempt,
         Anonymous,
         Authenticated,
+        Workload,
     }
 
     /// <summary>A limiter partition: the kind and, within it, the account id or the source.</summary>
@@ -75,6 +77,8 @@ public static class ApiRateLimiting
                 $"{Section}:{nameof(RateLimitingConfig.AuthenticatedPermitsPerMinute)} must be at least 1.")
             .Validate(c => c.ClientAuthPermitsPerMinute >= 1,
                 $"{Section}:{nameof(RateLimitingConfig.ClientAuthPermitsPerMinute)} must be at least 1.")
+            .Validate(c => c.WorkloadPermitsPerMinute >= 1,
+                $"{Section}:{nameof(RateLimitingConfig.WorkloadPermitsPerMinute)} must be at least 1.")
             .ValidateOnStart();
 
         services.AddSingleton<FailedPatLookups>();
@@ -219,6 +223,9 @@ public static class ApiRateLimiting
         if (!enabled || context.GetEndpoint()?.Metadata.GetMetadata<DisableRateLimitingAttribute>() is not null)
             return new Partition(PartitionKind.Exempt, "");
 
+        if (context.User.Identity?.IsAuthenticated == true && context.User.Identity.AuthenticationType == GameServerAuthHandler.Scheme &&
+            context.User.FindFirst(GameServerAuthHandler.ServerIdClaim)?.Value is { } serverId)
+            return new Partition(PartitionKind.Workload, serverId);
         string? accountId = context.User.Identity?.IsAuthenticated == true
             ? AccountIdOf(context.User)
             : context.Items[PatAccountItem] as string;
@@ -236,6 +243,7 @@ public static class ApiRateLimiting
         partition.Kind switch
         {
             PartitionKind.Authenticated => SlidingWindow(partition, limits.AuthenticatedPermitsPerMinute),
+            PartitionKind.Workload => SlidingWindow(partition, limits.WorkloadPermitsPerMinute),
             PartitionKind.Anonymous => SlidingWindow(partition, limits.AnonymousPermitsPerMinute),
             _ => RateLimitPartition.GetNoLimiter(partition),
         };
@@ -265,7 +273,7 @@ public static class ApiRateLimiting
         HttpContext context = rejected.HttpContext;
         PartitionKind kind = PartitionOf(context, enabled: true).Kind;
         Rejections.Add(1, new KeyValuePair<string, object?>("partition",
-            kind == PartitionKind.Authenticated ? "authenticated" : "anonymous"));
+            kind switch { PartitionKind.Workload => "workload", PartitionKind.Authenticated => "authenticated", _ => "anonymous" }));
 
         // The limiter's own hint when it gives one, otherwise one segment, the soonest any permit
         // comes back. Worked out the same way for either partition.

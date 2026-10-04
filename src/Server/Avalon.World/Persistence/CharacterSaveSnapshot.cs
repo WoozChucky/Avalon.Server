@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
@@ -24,10 +25,14 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
     public CharacterId CharacterId => Batch.Row.Id;
 
-    public static CharacterSaveSnapshot Take(CharacterEntity character)
+    public static CharacterSaveSnapshot Take(CharacterEntity character, GameplayWriteAuthority? connectionAuthority = null)
     {
         Character row = character.Data
             ?? throw new InvalidOperationException("A character without a row has nothing to save.");
+        var authority = character.GameplayAuthority;
+        if (connectionAuthority is not null && (authority is null || authority.AccountId != connectionAuthority.AccountId ||
+            authority.GameSessionId != connectionAuthority.GameSessionId || authority.FencingToken != connectionAuthority.FencingToken))
+            throw new InvalidOperationException("A save cannot be relabeled by a replacement connection.");
         SaveMarks marks = character.SaveState.TakeMarks();
         DateTime now = DateTime.UtcNow;
 
@@ -116,7 +121,7 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
         return new CharacterSaveSnapshot(
             new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats, quests,
-                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks)),
+                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks)) { Authority = authority },
             marks);
     }
 

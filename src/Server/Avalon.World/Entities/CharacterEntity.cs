@@ -27,7 +27,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
 
-public class CharacterEntity : ICharacter
+public partial class CharacterEntity : ICharacter
 {
     private readonly CharacterInventoryContainer _bag;
     private readonly CharacterInventoryContainer _bank;

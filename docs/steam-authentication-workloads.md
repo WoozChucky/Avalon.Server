@@ -44,3 +44,15 @@ Use a secret configuration provider for certificate passwords. Certificate pins 
 The internal endpoint ignores player/launcher JWTs and server IDs in headers or request bodies. Its authentication policy is separate from account role authorization. The pinned leaf is the deployment trust anchor, so private leaves can be used without installing a machine-wide trust root. TLS verifies private-key possession; the API also verifies pin, validity and EKU on every request.
 
 Kestrel listener configuration follows [Microsoft's endpoint documentation](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints?view=aspnetcore-10.0).
+
+## Session activation and durable save authority
+
+Redeeming a join ticket only reserves a pending session. The world must call `POST /internal/game/sessions/activate` over the workload mTLS connection and receive an `active` reply before accepting gameplay. Activation first advances the prior world's save barrier, then the target world's barrier, then activates the Auth-DB head and target guard. A failure leaves a resumable pending transition; retries retain the same session and fencing token.
+
+The activation, heartbeat (`POST /internal/game/sessions/heartbeat`) and end (`POST /internal/game/sessions/end`) bodies contain canonical string `AccountId`, GUID `GameSessionId` and canonical positive string `FencingToken`. The workload identity comes from the TLS certificate. No request body or player JWT chooses a server identity.
+
+Heartbeat every 15 seconds and stop gameplay by the granted `LeaseUntil`, even when a renewal request or response is lost. Renewal is capped at 45 seconds and the current ownership/proof/context deadlines. Both the Auth-DB session and Character-DB guard must renew before an active reply is returned. An expired guard cannot be resurrected by a heartbeat. The workload rate limit is separate from player limits (`Application:RateLimiting:WorkloadPermitsPerMinute`, default 16384); size it for four heartbeat requests per minute per concurrent player plus admission and cleanup traffic.
+
+At load, bind the character entity to the immutable account/session/fence admitted by the world. Snapshots retain that authority through the save queue and despawn; replacement connections cannot relabel an old entity. Character saves acquire durable account guards inside their transaction, validate current ownership and lease expiry after lock acquisition, and recheck the deadline before commit. Multi-character transactions acquire account guards in ascending account order and fail atomically if any writer is stale.
+
+Flush authoritative state before ending the session. End blocks the matching Character-DB guard before ending the Auth-DB head and remains available after context revocation. An old end request cannot block or end a replacement session. Do not use the presence/online flag as gameplay authority.

@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Common.GameAuth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
@@ -34,7 +35,10 @@ public sealed record CharacterSaveBatch(
     CharacterStats? Stats = null,
     CharacterQuestWrite? Quests = null,
     CharacterIgnoreWrite? Ignores = null,
-    CharacterAuraWrite? Auras = null);
+    CharacterAuraWrite? Auras = null)
+{
+    public GameplayWriteAuthority? Authority { get; init; }
+}
 
 public interface ICharacterSaveRepository
 {
@@ -62,11 +66,12 @@ public interface ICharacterSaveRepository
     Task WriteAsync(IReadOnlyList<CharacterSaveBatch> batches, CancellationToken cancellationToken = default);
 }
 
-public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> transactions) : ICharacterSaveRepository
+public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> transactions, TimeProvider? clock = null) : ICharacterSaveRepository
 {
     public Task WriteAsync(IReadOnlyList<CharacterSaveBatch> batches, CancellationToken cancellationToken = default) =>
         transactions.ExecuteAsync(async (context, token) =>
         {
+            var guards = await GuardAsync(context, batches, token);
             // Every delete, for every batch, before any upsert: a row one batch removes and another
             // adds (a trade) must end up present, whichever order the batches came in.
             foreach (CharacterSaveBatch batch in batches)
@@ -195,6 +200,7 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
 
             // One SaveChanges: EF orders the item inserts ahead of the slot inserts that reference them.
             await context.SaveChangesAsync(token);
+            await CheckDeadlineAsync(context, guards, token);
         }, cancellationToken);
 
     private static async Task DeleteIgnoresAsync(CharacterDbContext context, CharacterId owner, CharacterIgnoreWrite ignores,

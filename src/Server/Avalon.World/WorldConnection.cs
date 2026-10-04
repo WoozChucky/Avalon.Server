@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Avalon.Common.GameAuth;
 using System.Net.Sockets;
 using Avalon.Common;
 using Avalon.Common.Telemetry;
@@ -49,6 +50,16 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     // Identity is published after access is assigned at exchange. The volatile publication makes
     // the preceding access write visible to the tick that observes a non-null account ID.
+    private GameplayWriteAuthority? _gameplayAuthority;
+    public GameplayWriteAuthority? GameplayAuthority => Volatile.Read(ref _gameplayAuthority);
+    public void BindGameplayAuthority(GameplayWriteAuthority authority)
+    {
+        ArgumentNullException.ThrowIfNull(authority);
+        if (authority.GameSessionId == Guid.Empty || authority.FencingToken <= 0 || authority.AccountId.Value <= 0)
+            throw new InvalidOperationException("Invalid gameplay admission authority.");
+        if (Interlocked.CompareExchange(ref _gameplayAuthority, authority, null) is not null)
+            throw new InvalidOperationException("A connection can only be admitted once.");
+    }
     private AccountId? _accountId;
     public AccountId? AccountId
     {

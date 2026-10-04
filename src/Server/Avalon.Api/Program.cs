@@ -123,6 +123,7 @@ app.MapDefaultEndpoints();
     );
 
     app.UseAuthentication();
+    Avalon.Api.Authentication.GameWorkloadAuthentication.UseGameWorkloadAuthentication(app);
 
     // After authentication, so a signed-in request is counted against its account and a JWT's
     // account has been revalidated first; before the world routes and authorization, so a flood

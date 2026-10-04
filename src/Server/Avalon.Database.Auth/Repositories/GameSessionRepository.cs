@@ -19,10 +19,13 @@ public interface IGameSessionRepository
     Task<GameSession?> TryReserveAsync(GameSessionReservation reservation, DateTime now, CancellationToken cancellationToken = default);
     Task<bool> TryActivateAsync(AccountId accountId, Guid sessionId, long fence, DateTime now, DateTime leaseUntil,
         CancellationToken cancellationToken = default);
+    Task<bool> TryRenewAsync(AccountId accountId, Guid sessionId, long fence, string serverId,
+        int credentialsVersion, long sessionEpoch, DateTime now, DateTime leaseUntil, DateTime licenseUntil,
+        CancellationToken cancellationToken = default);
     Task<bool> TryEndAsync(AccountId accountId, Guid sessionId, long fence, DateTime now, CancellationToken cancellationToken = default);
 }
 
-public sealed class GameSessionRepository(IDbContextFactory<AuthDbContext> factory, TimeProvider? clock = null) : IGameSessionRepository
+public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContext> factory, TimeProvider? clock = null) : IGameSessionRepository
 {
     public async Task<GameSession?> FindAsync(AccountId accountId, CancellationToken cancellationToken = default)
     {
@@ -93,6 +96,10 @@ public sealed class GameSessionRepository(IDbContextFactory<AuthDbContext> facto
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (!await AccountRepository.HoldGameAuthorityAsync(db, accountId, head.CredentialsVersion, head.SessionEpoch, now, cancellationToken))
             return false;
+        await db.GameSessions.Where(h => h.AccountId == accountId)
+            .ExecuteUpdateAsync(u => u.SetProperty(h => h.FencingToken, h => h.FencingToken), cancellationToken);
+        now = clock?.GetUtcNow().UtcDateTime ?? now;
+        if (leaseUntil <= now) return false;
         var changed = await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId &&
             x.FencingToken == fence && x.State == GameSessionState.Pending && x.LeaseUntil > now && x.LicenseUntil >= leaseUntil)
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, GameSessionState.Active)

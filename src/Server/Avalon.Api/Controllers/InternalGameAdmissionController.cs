@@ -12,7 +12,7 @@ namespace Avalon.Api.Controllers;
 [ApiController, Route("internal/game")]
 [Authorize(AuthenticationSchemes = GameServerAuthHandler.Scheme, Policy = GameServerAuthHandler.Scheme)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None), RequestSizeLimit(4096)]
-public sealed class InternalGameAdmissionController(JoinTicketStore tickets) : ControllerBase
+public sealed partial class InternalGameAdmissionController(JoinTicketStore tickets) : ControllerBase
 {
     [HttpPost("join-tickets/redeem", Name = "RedeemGameJoinTicket")]
     [ProducesResponseType(typeof(JoinRedemptionReceipt), StatusCodes.Status200OK)]

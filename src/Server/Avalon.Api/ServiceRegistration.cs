@@ -82,6 +82,7 @@ public static class ServiceRegistration
         services.AddScoped<Avalon.Infrastructure.GameAuth.GameAuthorizationService>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.PendingLinkStore>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.JoinTicketStore>();
+        services.AddScoped<GameSessionFenceService>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.IGameServerAllocator, GameServerAllocator>();
         services.AddOptions<Avalon.Configuration.GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads")
             .Validate(c => { c.Validate(); return true; });
