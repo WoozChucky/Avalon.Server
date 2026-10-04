@@ -8,14 +8,14 @@ namespace Avalon.Infrastructure.StoreAuth;
 public sealed class SteamOwnershipClient(HttpClient client, IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock)
     : ISteamOwnershipClient
 {
-    public async Task<SteamOwnershipResult> CheckAsync(string verifiedSteamId, CancellationToken cancellationToken)
+    public async Task<SteamOwnershipResult> CheckAsync(uint appId, string verifiedSteamId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var config = options.Value;
         config.Validate(string.Equals(config.Environment, "production", StringComparison.Ordinal));
         var observed = clock.GetUtcNow().UtcDateTime;
-        if (!SteamWebApi.IsSteamId(verifiedSteamId)) return Unavailable(verifiedSteamId, observed);
-        var uri = SteamWebApi.Request(SteamWebApi.CheckOwnershipPath, config, ("steamid", verifiedSteamId));
+        if (config.ResolveSteamApplication(appId) is null || !SteamWebApi.IsSteamId(verifiedSteamId)) return Unavailable(verifiedSteamId, observed);
+        var uri = SteamWebApi.Request(SteamWebApi.CheckOwnershipPath, config, appId, ("steamid", verifiedSteamId));
         var (available, document) = await SteamWebApi.GetAsync(client, uri, cancellationToken);
         using (document)
         {

@@ -44,7 +44,7 @@ public sealed partial class GameAuthorizationService
             if (token is null || token.Kind != GameAuthTokenKinds.Credential || token.Spent || token.ContextId != consent.ContextId ||
                 token.Generation != consent.ContextGeneration || context is not { State: GameAuthStates.PendingLink } || context.Generation != token.Generation ||
                 context.PendingLinkId != pendingId || context.CredentialDigest != consent.CredentialDigest || context.CredentialExpiresAt <= Now ||
-                context.LinkProofExpiresAt <= Now || context.AbsoluteExpiresAt <= Now || context.Environment != options.Value.Environment ||
+                options.Value.ResolveSteamApplication(context.SteamAppId) is null || context.SteamAppId != consent.SteamAppId || context.LinkProofExpiresAt <= Now || context.AbsoluteExpiresAt <= Now || context.Environment != options.Value.Environment ||
                 context.Audience != GameAuthPolicy.ContextAudience || context.Product != StoreAuthenticationConfiguration.Product ||
                 context.Provider != StoreProviders.Steam || context.ProviderSubject != consent.ProviderSubject ||
                 (context.AccountId is { } accountId && accountId != consent.AccountId)) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
@@ -77,7 +77,7 @@ public sealed partial class GameAuthorizationService
             var account = await accounts.FindByIdAsync(resolvedAccountId, false, cancellationToken);
             if (!Eligible(account, resolvedAccountId.Value) || account!.CredentialsVersion != consent.CredentialsVersion ||
                 account.SessionEpoch != consent.SessionEpoch + 1) return GameAuthReply.Failure(GameAuthErrors.AccountUnavailable);
-            var license = await ownership.CheckAsync(consent.ProviderSubject, cancellationToken);
+            var license = await ownership.CheckAsync(context.SteamAppId, consent.ProviderSubject, cancellationToken);
             if (license.ProviderSubject != consent.ProviderSubject || license.AuthorizedUntil > license.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime))
                 return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
             Guid? observationId = null;
@@ -89,7 +89,7 @@ public sealed partial class GameAuthorizationService
                     Id = observationId.Value, AccountId = account.Id, Provider = StoreProviders.Steam, ProviderSubject = consent.ProviderSubject,
                     ProviderOwnerSubject = license.OwnerSubject, Permanent = license.Permanent,
                     OwnsProduct = license.Status == SteamOwnershipStatus.Owned, Environment = options.Value.Environment,
-                    Product = StoreAuthenticationConfiguration.Product, ProviderAppId = options.Value.SteamAppId.ToString(CultureInfo.InvariantCulture),
+                    Product = StoreAuthenticationConfiguration.Product, ProviderAppId = context.SteamAppId.ToString(CultureInfo.InvariantCulture),
                     ObservedAt = license.ObservedAt, AuthorizedUntil = license.AuthorizedUntil, ProviderExpiresAt = license.ProviderExpiresAt,
                     PolicyVersion = options.Value.PolicyVersion,
                 }, cancellationToken);

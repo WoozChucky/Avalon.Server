@@ -9,6 +9,7 @@ public sealed class GameAttemptRequest
 {
     [Required, StringLength(16)] public required string ChannelHint { get; init; }
     [Required, StringLength(32)] public required string ProtocolVersion { get; init; }
+    public uint? SteamAppId { get; init; }
     public Guid ClientRunId { get; init; }
     [Required, StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string LinkChallenge { get; init; }
     [StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public string? GameContextCredential { get; init; }

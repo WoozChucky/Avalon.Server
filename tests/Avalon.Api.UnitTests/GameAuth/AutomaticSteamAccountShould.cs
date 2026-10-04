@@ -31,8 +31,8 @@ public class AutomaticSteamAccountShould
         _service = new(_store, new AuthAttemptStore(_store, crypto, options, _clock), crypto, _accounts,
             Substitute.For<IRefreshTokenRepository>(), _identities, Substitute.For<ILicenseObservationRepository>(), _proof,
             _ownership, options, _clock, _registration);
-        _proof.VerifyAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, Subject));
-        _ownership.CheckAsync(Subject, Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
+        _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, Subject));
+        _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
         _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);
         _registration.CreateFromSteamAsync(Arg.Any<Guid>(), Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>())
             .Returns(call => {
@@ -45,7 +45,7 @@ public class AutomaticSteamAccountShould
     [Fact]
     public async Task Automatically_create_and_link_after_verification_without_browser_consent_and_recover_exact_retry()
     {
-        var attempt = (await _service.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, CancellationToken.None))!;
+        var attempt = (await _service.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, null, CancellationToken.None))!;
         var request = Guid.NewGuid();
         var result = await _service.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None, "127.0.0.1");
         Assert.Null(result.Error);
@@ -61,8 +61,8 @@ public class AutomaticSteamAccountShould
     [InlineData(SteamOwnershipStatus.ProviderUnavailable)]
     public async Task Never_create_an_account_without_a_fresh_verified_purchase(SteamOwnershipStatus status)
     {
-        _ownership.CheckAsync(Subject, Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(status, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime));
-        var attempt = (await _service.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, CancellationToken.None))!;
+        _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(status, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime));
+        var attempt = (await _service.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, null, CancellationToken.None))!;
         var result = await _service.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None, "127.0.0.1");
         Assert.NotNull(result.Error);
         await _registration.DidNotReceiveWithAnyArgs().CreateFromSteamAsync(default, default!, default, default!, default);
@@ -74,7 +74,7 @@ public class AutomaticSteamAccountShould
         _registration.CreateFromSteamAsync(Arg.Any<Guid>(), Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>()).Returns(new IdentityLinkResult(IdentityLinkStatus.SubjectTaken, null));
         _identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns((ExternalIdentity?)null,
             new ExternalIdentity { Id = Guid.NewGuid(), AccountId = _account.Id, Provider = "steam", ProviderSubject = Subject });
-        var attempt = (await _service.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, CancellationToken.None))!;
+        var attempt = (await _service.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, null, CancellationToken.None))!;
         var result = await _service.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None, "127.0.0.1");
         Assert.Equal("authorized", result.State);
         Assert.Equal("7", result.AccountId);

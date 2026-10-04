@@ -18,11 +18,11 @@ internal static class SteamWebApi
     private const string Origin = "https://partner.steam-api.com/";
     internal const string AuthenticateTicketPath = "ISteamUserAuth/AuthenticateUserTicket/v1/";
     internal const string CheckOwnershipPath = "ISteamUser/CheckAppOwnership/v4/";
-    internal static Uri Request(string endpoint, StoreAuthenticationConfiguration config, params (string Key, string Value)[] fields)
+    internal static Uri Request(string endpoint, StoreAuthenticationConfiguration config, uint appId, params (string Key, string Value)[] fields)
     {
         var parameters = new List<(string Key, string Value)>
         {
-            ("key", config.SteamPublisherKey), ("appid", config.SteamAppId.ToString(CultureInfo.InvariantCulture)),
+            ("key", config.SteamPublisherKey), ("appid", appId.ToString(CultureInfo.InvariantCulture)),
         };
         parameters.AddRange(fields);
         return new Uri(Origin + endpoint + "?" + string.Join("&", parameters.Select(

@@ -30,6 +30,7 @@ internal sealed record LinkConsentRecord
     public Guid BrowserRequestId { get; init; }
     public Guid PendingLinkId { get; init; }
     public Guid ContextId { get; init; }
+    public uint SteamAppId { get; init; }
     public int ContextGeneration { get; init; }
     public required string CredentialDigest { get; init; }
     public required string Challenge { get; init; }
@@ -103,7 +104,7 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
         var consent = new LinkConsentRecord
         {
             OperationId = Guid.NewGuid(), BrowserRequestId = requestId, PendingLinkId = id,
-            ContextId = context.Id, ContextGeneration = context.Generation, CredentialDigest = context.CredentialDigest,
+            ContextId = context.Id, SteamAppId = context.SteamAppId, ContextGeneration = context.Generation, CredentialDigest = context.CredentialDigest,
             Challenge = context.LinkChallenge!, ProviderSubject = context.ProviderSubject!, AccountId = accountId.Value,
             CredentialsVersion = credentialsVersion, SessionEpoch = sessionEpoch, ConfirmedMfaId = confirmedMfaId,
             Username = account.Username, CodeDigest = GameAuthCryptography.Digest(code),

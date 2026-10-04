@@ -109,8 +109,8 @@ internal sealed class JoinHarness
         var options = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-only" });
         accounts.FindByIdAsync(Account.Id, false, Arg.Any<CancellationToken>()).Returns(Account);
         identities.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns(new ExternalIdentity { Id = Guid.NewGuid(), AccountId = Account.Id, Provider = "steam", ProviderSubject = "76561198000000001" });
-        verifier.VerifyAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
-        ownership.CheckAsync("76561198000000001", Arg.Any<CancellationToken>()).Returns(call => new SteamOwnershipResult(SteamOwnershipStatus.Owned, "76561198000000001", Clock.GetUtcNow().UtcDateTime, Clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
+        verifier.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
+        ownership.CheckAsync(Arg.Any<uint>(), "76561198000000001", Arg.Any<CancellationToken>()).Returns(call => new SteamOwnershipResult(SteamOwnershipStatus.Owned, "76561198000000001", Clock.GetUtcNow().UtcDateTime, Clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
         Authorization = new(Store, new AuthAttemptStore(Store, crypto, options, Clock), crypto, accounts,
             Substitute.For<IRefreshTokenRepository>(), identities, Substitute.For<ILicenseObservationRepository>(), verifier, ownership, options, Clock);
         Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost", new string('A', 64), "0.0.1", "0.0.1"));
@@ -128,7 +128,7 @@ internal sealed class JoinHarness
     }
     public async Task<GameAuthReply> Authenticate()
     {
-        var attempt = (await Authorization.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, CancellationToken.None))!;
+        var attempt = (await Authorization.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, null, CancellationToken.None))!;
         return await Authorization.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
     }
 }

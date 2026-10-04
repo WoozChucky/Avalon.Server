@@ -9,16 +9,18 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
     IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock)
 {
     public async Task<AuthAttemptReply?> CreateAsync(string channel, string protocol, Guid runId, string challenge,
-        Guid? contextId, CancellationToken cancellationToken)
+        Guid? contextId, uint steamAppId, CancellationToken cancellationToken)
     {
         if (channel is not (GameLaunchChannels.Steam or GameLaunchChannels.Avalon) || string.IsNullOrWhiteSpace(protocol) || protocol.Length > GameAuthPolicy.MaximumProtocolVersionCharacters ||
             runId == Guid.Empty || !GameAuthCryptography.IsToken(challenge)) return null;
+        if (options.Value.ResolveSteamApplication(steamAppId) is null ||
+            (channel == GameLaunchChannels.Avalon && steamAppId != options.Value.SteamAppId)) return null;
         var now = clock.GetUtcNow().UtcDateTime;
         var credential = GameAuthCryptography.NewToken();
-        var identity = options.Value.SteamIdentityPrefix + ":" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
+        var identity = options.Value.SteamIdentityPrefix + ":" + steamAppId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
         var attempt = new AuthAttemptRecord
         {
-            Id = Guid.NewGuid(), ClientRunId = runId, Channel = channel, ProtocolVersion = protocol, ContextId = contextId,
+            Id = Guid.NewGuid(), ClientRunId = runId, SteamAppId = steamAppId, Channel = channel, ProtocolVersion = protocol, ContextId = contextId,
             LinkChallenge = challenge, CreatedAt = now, ExpiresAt = now.Add(GameAuthPolicy.AttemptLifetime), ExpectedSteamIdentity = identity,
         };
         return await store.CompareExchangeAsync([new(Key(credential), null, GameAuthJson.Serialize(attempt), attempt.ExpiresAt)], cancellationToken)

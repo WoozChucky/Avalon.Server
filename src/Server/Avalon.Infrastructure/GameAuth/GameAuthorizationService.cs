@@ -22,15 +22,17 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
     private string TokenKey(string secret) => Key("token", GameAuthCryptography.Digest(secret));
 
     public async Task<AuthAttemptReply?> CreateAttemptAsync(string channel, string protocolVersion, Guid clientRunId,
-        string linkChallenge, string? contextCredential, CancellationToken cancellationToken)
+        string linkChallenge, string? contextCredential, uint? steamAppId, CancellationToken cancellationToken)
     {
+        var selection = options.Value.ResolveSteamApplication(steamAppId);
+        if (selection is null || (channel == GameLaunchChannels.Avalon && selection.AppId != options.Value.SteamAppId)) return null;
         GameContextRecord? context = null;
         if (contextCredential is not null)
         {
             context = await GetContextAsync(contextCredential, false, cancellationToken);
-            if (context is null || context.ClientRunId != clientRunId || context.ProtocolVersion != protocolVersion) return null;
+            if (context is null || context.ClientRunId != clientRunId || context.ProtocolVersion != protocolVersion || context.SteamAppId != selection.AppId) return null;
         }
-        return await attempts.CreateAsync(channel, protocolVersion, clientRunId, linkChallenge, context?.Id, cancellationToken);
+        return await attempts.CreateAsync(channel, protocolVersion, clientRunId, linkChallenge, context?.Id, selection.AppId, cancellationToken);
     }
 
     public async Task<GameContextRecord?> GetContextAsync(string credential, bool requireLicense, CancellationToken cancellationToken)
@@ -56,7 +58,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
 
     private async Task<bool> IsCurrentAsync(GameContextRecord context, CancellationToken cancellationToken)
     {
-        if (context.Environment != options.Value.Environment || context.Audience != GameAuthPolicy.ContextAudience ||
+        if (options.Value.ResolveSteamApplication(context.SteamAppId) is null || context.Environment != options.Value.Environment || context.Audience != GameAuthPolicy.ContextAudience ||
             context.Product != StoreAuthenticationConfiguration.Product || context.State == GameAuthStates.Revoked || context.AbsoluteExpiresAt <= Now ||
             (context.State == GameAuthStates.PendingLink && context.LinkProofExpiresAt <= Now)) return false;
         if (context.AccountId is not { } id) return context.State == GameAuthStates.PendingLink;
@@ -84,7 +86,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         var (claim, prior) = await ClaimAsync(attemptCredential, binding, requestId, ticket, cancellationToken);
         if (prior is not null) return prior;
         if (claim is null) return GameAuthReply.Failure(GameAuthErrors.InvalidAttempt);
-        if (claim.Record.Channel != GameLaunchChannels.Avalon || claim.Record.ContextId is not null ||
+        if (claim.Record.SteamAppId != options.Value.SteamAppId || claim.Record.Channel != GameLaunchChannels.Avalon || claim.Record.ContextId is not null ||
             !RedisGameTicketStore.TryParseValue(claim.Record.HandoffGrant, true, out var grant))
             return await FinishErrorAsync(claim, GameAuthErrors.InvalidHandoff, cancellationToken);
         var account = await accounts.FindByIdAsync(grant!.AccountId, false, cancellationToken);
@@ -114,9 +116,9 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         if (claim.Record.ContextId is { } contextId)
         {
             existing = await GetContextByIdAsync(contextId, false, cancellationToken);
-            if (existing is null) return await FinishErrorAsync(claim, GameAuthErrors.ContextRevoked, cancellationToken);
+            if (existing is null || existing.SteamAppId != claim.Record.SteamAppId) return await FinishErrorAsync(claim, GameAuthErrors.ContextRevoked, cancellationToken);
         }
-        var proof = await verifier.VerifyAsync(ticketHex, claim.Record.ExpectedSteamIdentity, cancellationToken);
+        var proof = await verifier.VerifyAsync(claim.Record.SteamAppId, ticketHex, claim.Record.ExpectedSteamIdentity, cancellationToken);
         if (proof.Status == SteamProofStatus.ProviderUnavailable)
         {
             await store.CompareExchangeAsync([new(claim.Key, claim.Raw,
@@ -142,7 +144,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         SteamOwnershipResult? firstLicense = null;
         if (linked is null)
         {
-            firstLicense = await ownership.CheckAsync(proof.ProviderSubject, cancellationToken);
+            firstLicense = await ownership.CheckAsync(claim.Record.SteamAppId, proof.ProviderSubject, cancellationToken);
             if (firstLicense.Status != SteamOwnershipStatus.Owned || firstLicense.ProviderSubject != proof.ProviderSubject ||
                 firstLicense.AuthorizedUntil <= Now || firstLicense.AuthorizedUntil > firstLicense.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime))
                 return await FinishErrorAsync(claim, firstLicense.Status == SteamOwnershipStatus.NotOwned
@@ -161,7 +163,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         if (!Eligible(account, linked.AccountId.Value))
             return await FinishErrorAsync(claim, GameAuthErrors.AccountUnavailable, cancellationToken, proofDigest);
         context = context with { AccountId = account!.Id.Value, CredentialsVersion = account.CredentialsVersion, SessionEpoch = account.SessionEpoch };
-        var license = firstLicense ?? await ownership.CheckAsync(proof.ProviderSubject, cancellationToken);
+        var license = firstLicense ?? await ownership.CheckAsync(claim.Record.SteamAppId, proof.ProviderSubject, cancellationToken);
         if (license.ProviderSubject != proof.ProviderSubject || license.AuthorizedUntil > license.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime))
             return await FinishErrorAsync(claim, GameAuthErrors.ProviderUnavailable, cancellationToken, proofDigest);
         Guid? observationId = null;
@@ -173,7 +175,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                 Id = observationId.Value, AccountId = account.Id, Provider = StoreProviders.Steam, ProviderSubject = proof.ProviderSubject,
                 ProviderOwnerSubject = license.OwnerSubject, Permanent = license.Permanent, OwnsProduct = license.Status == SteamOwnershipStatus.Owned,
                 Environment = options.Value.Environment, Product = StoreAuthenticationConfiguration.Product,
-                ProviderAppId = options.Value.SteamAppId.ToString(CultureInfo.InvariantCulture), ObservedAt = license.ObservedAt,
+                ProviderAppId = claim.Record.SteamAppId.ToString(CultureInfo.InvariantCulture), ObservedAt = license.ObservedAt,
                 AuthorizedUntil = license.AuthorizedUntil, ProviderExpiresAt = license.ProviderExpiresAt, PolicyVersion = options.Value.PolicyVersion,
             }, cancellationToken);
             // The observation is durable even if a later Redis receipt write loses its race.
@@ -195,7 +197,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
 
     private GameContextRecord NewContext(AuthAttemptRecord attempt) => new()
     {
-        Id = Guid.NewGuid(), ClientRunId = attempt.ClientRunId, ProtocolVersion = attempt.ProtocolVersion,
+        Id = Guid.NewGuid(), ClientRunId = attempt.ClientRunId, SteamAppId = attempt.SteamAppId, ProtocolVersion = attempt.ProtocolVersion,
         Environment = options.Value.Environment, State = GameAuthStates.PendingIdentity, CreatedAt = Now, AbsoluteExpiresAt = Now.Add(GameAuthPolicy.AbsoluteContextLifetime),
         CredentialDigest = "", RefreshDigest = "",
     };
@@ -211,7 +213,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         {
             var raw = await store.ReadAsync(key, cancellationToken);
             var record = GameAuthJson.Deserialize<AuthAttemptRecord>(raw);
-            if (record is null || (record.Binding is not null && record.Binding != binding)) return (null, null);
+            if (record is null || options.Value.ResolveSteamApplication(record.SteamAppId) is null || (record.Binding is not null && record.Binding != binding)) return (null, null);
             var receipt = attempts.Receipt(record, key, binding);
             if (receipt is not null)
             {

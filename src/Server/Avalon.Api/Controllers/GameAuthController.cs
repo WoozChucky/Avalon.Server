@@ -27,7 +27,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization) :
         try
         {
             var reply = await authorization.CreateAttemptAsync(request.ChannelHint, request.ProtocolVersion,
-                request.ClientRunId, request.LinkChallenge, request.GameContextCredential, cancellationToken);
+                request.ClientRunId, request.LinkChallenge, request.GameContextCredential, request.SteamAppId, cancellationToken);
             return reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) : Ok(reply);
         }
         catch (RedisException) { return StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)); }
