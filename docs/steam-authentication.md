@@ -60,6 +60,9 @@ Real Steam smoke checks and coordinated staging remain pending; no live provider
 | World | 3716 | 1 |
 | Auth | 394 | 0 |
 | Shared | 1611 | 1 |
+| Combat | 192 | 0 |
+| Balance | 238 | 0 |
+| Balance Service | 93 | 0 |
 | Launcher core | 89 | 0 |
 | Launcher desktop | 66 | 0 |
 | Dashboard account/Steam linking (focused) | 8 | 0 |
@@ -131,3 +134,11 @@ explicit alternate IDs and assert their exact provider query values. Actual home
 confirmed the configured ID reaches the API environment, an alternate value is respected, and missing/zero
 values fail. A runtime/config/chart source scan found no game App ID literal or former constant.
 Helm initially formatted the large numeric ID in scientific notation; the corrected chart validates uint32 range and integral values and emits canonical decimal. Six missing/invalid inputs refuse rendering, and alternate/maximum uint32 values render correctly. Security review confirmed configured authority remains separate from client input, with no findings.
+
+
+### All Avalon test projects after the App ID follow-up
+
+Database, World, Auth, Shared, Combat, Balance and Balance Service were rebuilt and rerun after
+the deployment-owned App ID change. All seven passed. Together with the latest API run on the same
+implementation, all eight Avalon test projects have **8056 passed, 2 existing skips, 0 failures**.
+The skips remain the existing World and Shared cases. No runtime changes were needed for this gate.
