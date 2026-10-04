@@ -63,6 +63,7 @@ public sealed class VendorSaveRoundTripShould : IDisposable
         }
 
         character.Container(InventoryType.Bag).Load(items);
+        await AdmittedCharacter.BindAsync(_database, character);
         return character;
     }
 

@@ -17,6 +17,8 @@ builder.Host.UseDefaultServiceProvider((_, options) => AvalonServiceProvider.Con
 
 IConfiguration configuration = ApiConfiguration.Sources(builder);
 
+Avalon.Api.Authentication.GameWorkloadHosting.ConfigureGameWorkloadListener(builder);
+
 builder.AddLoggingAndServiceDefaults(configuration);
 
 IServiceCollection services = builder.Services;
@@ -112,15 +114,19 @@ app.MapDefaultEndpoints();
     app.UseCors(x => x
         .WithOrigins(
             "http://localhost:4200",
+            "https://localhost:4200",
             "http://localhost:5210",
+            "https://localhost:5210",
             "https://avalon.monster",
             "https://dashboard.avalon.monster"
         )
         .AllowAnyMethod()
-        .AllowAnyHeader()
+        .AllowAnyHeader().AllowCredentials()
     );
 
+    app.UseMiddleware<Avalon.Api.Authentication.SteamOpenIdCallbackMiddleware>();
     app.UseAuthentication();
+    Avalon.Api.Authentication.GameWorkloadAuthentication.UseGameWorkloadAuthentication(app);
 
     // After authentication, so a signed-in request is counted against its account and a JWT's
     // account has been revalidated first; before the world routes and authorization, so a flood

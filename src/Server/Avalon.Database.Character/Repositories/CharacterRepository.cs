@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.Character.Repositories;
 
-public interface ICharacterRepository : IRepository<Domain.Characters.Character, CharacterId>
+public partial interface ICharacterRepository : IRepository<Domain.Characters.Character, CharacterId>
 {
     /// <summary>
     /// The character with this name in any case, ignoring surrounding spaces, found by its key (#757), or none. Names
@@ -32,7 +32,7 @@ public interface ICharacterRepository : IRepository<Domain.Characters.Character,
     Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }
 
-public class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFactory)
+public partial class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFactory)
     : EntityFrameworkRepository<Domain.Characters.Character, CharacterId, CharacterDbContext>(contextFactory),
         ICharacterRepository
 {
@@ -50,6 +50,8 @@ public class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFa
     {
         string key = CharacterName.Key(name);
         await using var context = await CreateContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await context.GuardCharacterMutationAsync(id, cancellationToken);
 
         try
         {
@@ -58,7 +60,10 @@ public class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFa
                 .ExecuteUpdateAsync(u => u.SetProperty(c => c.Name, name).SetProperty(c => c.NameKey, key),
                     cancellationToken);
             if (written == 1)
+            {
+                await transaction.CommitAsync(cancellationToken);
                 return CharacterRename.Renamed;
+            }
         }
         catch (Exception ex) when (CharacterNameKeyViolation.Is(ex))
         {

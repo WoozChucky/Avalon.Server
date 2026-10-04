@@ -22,6 +22,10 @@ public static class ApiStartup
         // Builds WorldDatabases, which parses Database:Worlds and refuses it naming the setting,
         // before any database call; the migrator below reuses that instance.
         WorldDatabases worlds = services.GetRequiredService<WorldDatabases>();
+        // Like world/database validation, runtime-only: OpenAPI generation needs no publisher key.
+        _ = services.GetRequiredService<IOptions<Avalon.Configuration.StoreAuthenticationConfiguration>>().Value;
+
+        services.GetRequiredService<IOptions<Avalon.Api.Authentication.SteamWebLinkOptions>>().Value.Validate();
 
         await using AsyncServiceScope scope = services.CreateAsyncScope();
         logger.LogInformation("Migrating database if necessary...");

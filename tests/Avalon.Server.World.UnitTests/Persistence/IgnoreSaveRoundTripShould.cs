@@ -42,6 +42,7 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
         await using CharacterDbContext context = _database.CreateDbContext();
         context.Characters.Add(character.Data!);
         await context.SaveChangesAsync();
+        await AdmittedCharacter.BindAsync(_database, character);
         return character;
     }
 

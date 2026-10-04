@@ -23,8 +23,11 @@ public class Account : IDbEntity<AccountId>
     [Column("SessionKey")]
     public byte[] SessionKey { get; set; } = [];
 
-    [Required]
-    public required string Email { get; set; }
+    /// <summary>Absent until a Steam-only account adds recovery credentials.</summary>
+    public required string? Email { get; set; }
+
+    /// <summary>Root automatically provisioned by verified store authentication, eligible for consolidation.</summary>
+    public bool IsStoreGenerated { get; init; }
 
     [Required]
     public required DateTime JoinDate { get; init; } = DateTime.UtcNow;
@@ -81,6 +84,11 @@ public class Account : IDbEntity<AccountId>
     /// that proved them, and is refused once it no longer equals this.
     /// </summary>
     public int CredentialsVersion { get; set; }
+
+    /// <summary>Monotonic game-context revocation epoch, independent of password/MFA versioning.</summary>
+    public long SessionEpoch { get; set; }
+    /// <summary>Gameplay stays frozen while a durable store-account consolidation is incomplete.</summary>
+    public Guid? GameplayConsolidationId { get; set; }
 }
 
 public enum OperatingSystem : ushort

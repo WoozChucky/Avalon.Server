@@ -92,6 +92,12 @@ publicWorldId:
 # The public website's base URL (Application:PublicSiteUrl), e.g. https://avalon.example: the address link
 # previews name as a page's og:url. Left empty, previews leave og:url out and link relatively.
 publicSiteUrl: ""
+# Required runtime URLs for website Steam linking. Use the actual public HTTPS URLs,
+# including any API proxy prefix. These are addresses, never publisher secrets.
+steamWebLink:
+  callbackUrl: ""
+  siteUrl: ""
+
 
 # Email (Application:Email) is not set by the chart. The only sender so far, Pickup, writes .eml files
 # to local disk and the API refuses it outside Development, so a chart deployment has no sender and
@@ -183,3 +189,20 @@ distribution:
   region: garage
   accessKeyId: ""
   secretAccessKey: ""
+
+# Mandatory store verification credentials. Only a reference is accepted; Helm never holds the publisher key.
+storeAuthentication:
+  steamAppId: 0 # Required deployment configuration; zero refuses rendering/startup.
+  existingSecret: ""
+  publisherKeyKey: steam-publisher-key
+  environment: production
+  steamIdentityPrefix: avalon-auth-prod
+  policyVersion: 1
+
+# Direct mTLS listener, separate from public ingress. Pins are read from the binding Secret,
+# using <serverId>-tls-sha256 and <serverId>-client-sha256 keys. Supply one entry per served world.
+gameAdmission:
+  port: 9443
+  tlsExistingSecret: ""
+  bindingsExistingSecret: ""
+  servers: [] # {serverId: world-dev, worldId: 1, tlsServerName: dev.example.test}

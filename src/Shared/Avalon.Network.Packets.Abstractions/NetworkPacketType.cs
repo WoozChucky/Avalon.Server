@@ -16,15 +16,13 @@ public enum NetworkPacketType : short
 
     // Authentication
     CMSG_AUTH = 0x2000,
-    CMSG_AUTH_PATCH = 0x2001,
     CMSG_LOGOUT = 0x2002,
     CMSG_REGISTER = 0x2003,
 
     // Worlds
     CMSG_WORLD_LIST = 0x201A,
-    CMSG_WORLD_SELECT = 0x201B,
-    CMSG_EXCHANGE_WORLD_KEY = 0x201C,
     CMSG_WORLD_HANDSHAKE = 0x201D,
+    CMSG_GAME_ADMISSION = 0x201E,
 
     // Audio
     CMSG_AUDIO_RECORD = 0x2050,
@@ -35,11 +33,9 @@ public enum NetworkPacketType : short
     CMSG_CHARACTER_DELETE = 0x2012,
     CMSG_CHARACTER_SELECTED = 0x2013,
     CMSG_CHARACTER_LOADED = 0x2014,
-    // 0x2015 retired (CMSG_CHARACTER_RUN_WALK)
     CMSG_CHARACTER_LEAVE = 0x2016,
 
     // Map
-    // 0x2020 retired (CMSG_MAP_TELEPORT — admin teleport never wired)
     CMSG_ENTER_MAP    = 0x2021,
     CMSG_RESPAWN_AT_TOWN = 0x2022,
 
@@ -50,7 +46,7 @@ public enum NetworkPacketType : short
     // Loot
     CMSG_LOOT_PICKUP = 0x2070,
 
-    // Inventory requests (#463)
+    // Inventory requests
     CMSG_ITEM_MOVE = 0x2080,
     CMSG_ITEM_DESTROY = 0x2081,
     CMSG_ITEM_USE = 0x2082,
@@ -70,16 +66,14 @@ public enum NetworkPacketType : short
     CMSG_MFA_SETUP = 0x200C,
     CMSG_MFA_CONFIRM = 0x200D,
     CMSG_MFA_RESET = 0x200E,
-    CMSG_AUTH_GAME_TICKET = 0x200F,
 
     // Combat
-    // 0x2100 retired (CMSG_ATTACK — replaced by CMSG_CAST_ABILITY in V1 combat system)
     CMSG_CAST_ABILITY = 0x2101,
     CMSG_TARGET_UNIT  = 0x2102,
     CMSG_PVP_TOGGLE   = 0x2103,
     CMSG_AURA_CANCEL  = 0x2104,
 
-    // Parties (2026-09-30)
+    // Parties
     CMSG_PARTY_INVITE = 0x20B0,
     CMSG_PARTY_INVITE_RESPONSE = 0x20B1,
     CMSG_PARTY_LEAVE = 0x20B2,
@@ -87,7 +81,7 @@ public enum NetworkPacketType : short
     CMSG_PARTY_PROMOTE = 0x20B4,
     CMSG_PARTY_EXPERIENCE_MODE = 0x20B5,
 
-    // Quests (#433)
+    // Quests
     CMSG_QUEST_ACCEPT = 0x20C0,
     CMSG_QUEST_TURN_IN = 0x20C1,
     CMSG_QUEST_ABANDON = 0x20C2,
@@ -108,9 +102,8 @@ public enum NetworkPacketType : short
 
     // Worlds
     SMSG_WORLD_LIST = 0x301A,
-    SMSG_WORLD_SELECT = 0x301B,
-    SMSG_EXCHANGE_WORLD_KEY = 0x301C,
     SMSG_WORLD_HANDSHAKE = 0x301D,
+    SMSG_GAME_ADMISSION = 0x301E,
 
     // Audio
     SMSG_AUDIO_RECORD = 0x3050,
@@ -179,27 +172,27 @@ public enum NetworkPacketType : short
     SMSG_LOOT_DESPAWNED = 0x3081,
     SMSG_LOOT_PICKUP_RESULT = 0x3082,
 
-    // Inventory requests (#463)
+    // Inventory requests
     SMSG_ITEM_RESULT = 0x3090,
     SMSG_ITEM_USE_RESULT = 0x3091,
 
-    // Vendors (#432)
+    // Vendors
     SMSG_VENDOR_LIST = 0x30A0,
     SMSG_VENDOR_RESULT = 0x30A1,
 
-    // Parties (2026-09-30)
+    // Parties
     SMSG_PARTY_INVITE = 0x30B0,
     SMSG_PARTY_RESULT = 0x30B1,
     SMSG_PARTY_ROSTER = 0x30B2,
     SMSG_PARTY_MEMBER_STATUS = 0x30B3,
 
-    // Quests (#433)
+    // Quests
     SMSG_QUEST_OFFER = 0x30C0,
     SMSG_QUEST_RESULT = 0x30C1,
     SMSG_QUEST_LOG = 0x30C2,
     SMSG_QUEST_UPDATE = 0x30C3,
     SMSG_QUEST_MARKERS = 0x30C4,
 
-    // Ignore list (#723)
+    // Ignore list
     SMSG_IGNORE_LIST = 0x30D0,
 }

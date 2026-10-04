@@ -30,7 +30,7 @@ public class RequestLoggingMiddleware
             _logger.LogInformation("HTTP {Method} {Path}{Query} responded {StatusCode} in {Elapsed:0.0000} ms",
                 httpContext.Request.Method,
                 httpContext.Request.Path,
-                httpContext.Request.QueryString,
+                Avalon.Api.Authentication.SteamOpenIdCallbackMiddleware.IsCallback(httpContext.Request.Path) ? QueryString.Empty : httpContext.Request.QueryString,
                 httpContext.Response.StatusCode,
                 stopwatch.Elapsed.TotalMilliseconds
             );

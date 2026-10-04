@@ -38,15 +38,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_AUTH_PATCH",
-      "opcode": 8193,
-      "hex": "0x2001",
-      "message": "CAuthPatchPacket",
-      "direction": "ClientToServer",
-      "flags": null,
-      "flagNames": null
-    },
-    {
       "name": "CMSG_LOGOUT",
       "opcode": 8194,
       "hex": "0x2002",
@@ -128,15 +119,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_AUTH_GAME_TICKET",
-      "opcode": 8207,
-      "hex": "0x200F",
-      "message": "CAuthGameTicketPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
       "name": "CMSG_CHARACTER_LIST",
       "opcode": 8208,
       "hex": "0x2010",
@@ -200,24 +182,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_WORLD_SELECT",
-      "opcode": 8219,
-      "hex": "0x201B",
-      "message": "CWorldSelectPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "CMSG_EXCHANGE_WORLD_KEY",
-      "opcode": 8220,
-      "hex": "0x201C",
-      "message": "CExchangeWorldKeyPacket",
-      "direction": "ClientToServer",
-      "flags": 1,
-      "flagNames": "ClearText"
-    },
-    {
       "name": "CMSG_WORLD_HANDSHAKE",
       "opcode": 8221,
       "hex": "0x201D",
@@ -225,6 +189,15 @@
       "direction": "ClientToServer",
       "flags": 4,
       "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_GAME_ADMISSION",
+      "opcode": 8222,
+      "hex": "0x201E",
+      "message": "CGameAdmissionPacket",
+      "direction": "ClientToServer",
+      "flags": 1,
+      "flagNames": "ClearText"
     },
     {
       "name": "CMSG_ENTER_MAP",
@@ -587,24 +560,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "SMSG_WORLD_SELECT",
-      "opcode": 12315,
-      "hex": "0x301B",
-      "message": "SWorldSelectPacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_EXCHANGE_WORLD_KEY",
-      "opcode": 12316,
-      "hex": "0x301C",
-      "message": "SExchangeWorldKeyPacket",
-      "direction": "ServerToClient",
-      "flags": 1,
-      "flagNames": "ClearText"
-    },
-    {
       "name": "SMSG_WORLD_HANDSHAKE",
       "opcode": 12317,
       "hex": "0x301D",
@@ -612,6 +567,15 @@
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_GAME_ADMISSION",
+      "opcode": 12318,
+      "hex": "0x301E",
+      "message": "SGameAdmissionPacket",
+      "direction": "ServerToClient",
+      "flags": 1,
+      "flagNames": "ClearText"
     },
     {
       "name": "SMSG_CHARACTER_CONNECTED",

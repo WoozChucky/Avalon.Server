@@ -22,6 +22,31 @@ namespace Avalon.Database.Character.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Avalon.Domain.Characters.AccountGameplayFence", b =>
+                {
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("ConsolidationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("FencingToken")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("GameSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("integer");
+
+                    b.HasKey("AccountId");
+
+                    b.ToTable("AccountGameplayFences");
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.Character", b =>
                 {
                     b.Property<long>("Id")
@@ -232,6 +257,28 @@ namespace Avalon.Database.Character.Migrations
                     b.HasKey("CharacterId", "QuestId");
 
                     b.ToTable("CharacterCompletedQuests");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterConsolidationReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("SourceAccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TargetAccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("TransferredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TransferredCharacters")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CharacterConsolidationReceipts");
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterIgnore", b =>

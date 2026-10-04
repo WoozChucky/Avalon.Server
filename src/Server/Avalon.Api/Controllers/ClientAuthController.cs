@@ -1,3 +1,4 @@
+using Avalon.Common.GameAuth;
 using System.Security.Authentication;
 using System.Security.Claims;
 using Avalon.Api.Authentication;
@@ -49,6 +50,8 @@ public sealed class ClientAuthController : BaseController
     private readonly AuthenticationConfig _authConfig;
     private readonly IReplicatedCache _cache;
     private readonly IGameTicketStore _tickets;
+    private readonly Microsoft.Extensions.Options.IOptions<Avalon.Configuration.StoreAuthenticationConfiguration>? _storeOptions;
+    private readonly TimeProvider _clock;
     private readonly Microsoft.AspNetCore.Builder.ForwardedHeadersOptions _forwarded;
 
     public ClientAuthController(
@@ -61,7 +64,9 @@ public sealed class ClientAuthController : BaseController
         AuthenticationConfig authConfig,
         IReplicatedCache cache,
         IGameTicketStore tickets,
-        Microsoft.AspNetCore.Builder.ForwardedHeadersOptions forwarded)
+        Microsoft.AspNetCore.Builder.ForwardedHeadersOptions forwarded,
+        Microsoft.Extensions.Options.IOptions<Avalon.Configuration.StoreAuthenticationConfiguration>? storeOptions = null,
+        TimeProvider? clock = null)
     {
         _codes = codes;
         _refresh = refresh;
@@ -72,6 +77,8 @@ public sealed class ClientAuthController : BaseController
         _authConfig = authConfig;
         _cache = cache;
         _tickets = tickets;
+        _storeOptions = storeOptions;
+        _clock = clock ?? TimeProvider.System;
         _forwarded = forwarded;
     }
 
@@ -138,7 +145,7 @@ public sealed class ClientAuthController : BaseController
     /// Rotates the launcher's refresh token. Presenting a rotated one again (outside the grace a lost
     /// answer gets) ends the session and the account's world sessions, as the website's refresh does.
     /// </summary>
-    [HttpPost("refresh", Name = "RefreshLauncherSession")]
+    [HttpPost(GameAuthTokenKinds.Refresh, Name = "RefreshLauncherSession")]
     [AllowAnonymous]
     [EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
     [ProducesResponseType(typeof(ClientAuthTokens), StatusCodes.Status200OK)]
@@ -196,7 +203,7 @@ public sealed class ClientAuthController : BaseController
         Account account = Account ?? throw new InvalidOperationException("Account not loaded");
         if (!AccountAccessCheck.MayHoldSession(account) || !AccessLevels.Player.Allows(account.AccessLevel))
             return StatusCode(StatusCodes.Status403Forbidden);
-        if (!await _refreshTokens.IsLiveLauncherFamilyAsync(account.Id, familyId, DateTime.UtcNow, CancellationToken))
+        if (!await _refreshTokens.IsLiveLauncherFamilyAsync(account.Id, familyId, _clock.GetUtcNow().UtcDateTime, CancellationToken))
             return Unauthorized();
         long issues;
         try
@@ -213,7 +220,8 @@ public sealed class ClientAuthController : BaseController
         try
         {
             ticket = await _tickets.IssueAsync(
-                new GameTicketGrant(account.Id, familyId, account.CredentialsVersion), CancellationToken);
+                new GameTicketGrant(account.Id, familyId, account.CredentialsVersion, account.SessionEpoch,
+                    _storeOptions?.Value.Environment ?? "production"), CancellationToken);
         }
         catch (Exception exception) when (exception is RedisException or InvalidOperationException)
         {

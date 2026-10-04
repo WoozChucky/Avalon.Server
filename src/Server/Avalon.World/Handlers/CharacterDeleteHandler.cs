@@ -1,3 +1,4 @@
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
@@ -35,36 +36,24 @@ public class CharacterDeletetHandler(
             return;
         }
 
-        // because this is an async method, the executtion of this should run in a separate thread, and the result to be put somewhere
-        // so that this world connection when it calls 'ProcessQueryCallbacks()' it will get the result and react accordingly
-
-        connection.EnqueueContinuation(characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId, CancellationToken.None), character =>
+        if (connection.GameplayAuthority is not { } authority || authority.AccountId != connection.AccountId || connection.IsClosing)
+        { connection.Close(); return; }
+        var work = WorldDatabaseWork.ThreadPool.Run(async () =>
         {
-            OnCharacterFound(connection, character);
+            try { return await characterRepository.DeleteForGameplayAsync(authority, packet.CharacterId, CancellationToken.None); }
+            catch (Exception error)
+            {
+                logger.LogWarning(error, "Character delete failed for account {AccountId}", authority.AccountId);
+                return false;
+            }
+        });
+        connection.EnqueueContinuation(work, deleted =>
+        {
+            if (!connection.IsConnected || connection.IsClosing) return;
+            connection.Send(SCharacterDeletedPacket.Create(deleted ? SCharacterDeletedResult.Success : SCharacterDeletedResult.InternalError, connection.CryptoSession.Encrypt));
+            if (deleted) ForgetIgnored(packet.CharacterId);
         });
 
-    }
-
-    private void OnCharacterFound(IWorldConnection connection, Character? character)
-    {
-        if (character == null)
-        {
-            logger.LogWarning("Character not found for account {AccountId}", connection.AccountId);
-            connection.Send(SCharacterDeletedPacket.Create(SCharacterDeletedResult.InternalError, connection.CryptoSession.Encrypt));
-            return;
-        }
-
-        connection.EnqueueContinuation(characterRepository.DeleteAsync(character.Id, CancellationToken.None), () =>
-        {
-            OnCharacterDeleted(connection, character);
-        });
-    }
-
-    private void OnCharacterDeleted(IWorldConnection connection, Character character)
-    {
-        logger.LogInformation("Character {CharacterId} deleted for account {AccountId}", character.Id, connection.AccountId);
-        connection.Send(SCharacterDeletedPacket.Create(SCharacterDeletedResult.Success, connection.CryptoSession.Encrypt));
-        ForgetIgnored(character.Id.Value);
     }
 
     /// <summary>

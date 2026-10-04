@@ -34,6 +34,8 @@ internal static class PendingSpawnConnection
     {
         var connection = Substitute.For<IWorldConnection>();
         connection.AccountId.Returns(new AccountId(42L));
+        connection.GameplayAuthority.Returns(new Avalon.Common.GameAuth.GameplayWriteAuthority(new AccountId(42), Guid.NewGuid(), 1));
+        connection.IsGameplayAuthorized.Returns(true);
         // A bare substitute reports false, and the tick skips a connection that is not up -- so
         // without this the barrier sweep silently does nothing in every test that uses one.
         connection.IsConnected.Returns(true);

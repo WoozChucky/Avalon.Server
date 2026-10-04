@@ -24,4 +24,7 @@ public class RateLimitingConfig
     /// on top of the limits above (#591). At least 1.
     /// </summary>
     public int ClientAuthPermitsPerMinute { get; set; } = 20;
+
+    /// <summary>Requests a minute per authenticated game server, including each player's lease heartbeat. At least 1.</summary>
+    public int WorkloadPermitsPerMinute { get; set; } = 16384;
 }

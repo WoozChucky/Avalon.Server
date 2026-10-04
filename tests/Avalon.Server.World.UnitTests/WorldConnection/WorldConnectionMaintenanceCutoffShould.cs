@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.GameAuth;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Common.Accounts;
@@ -41,6 +42,7 @@ public sealed class WorldConnectionMaintenanceCutoffShould : IDisposable
         });
         _connection = new TestConnection(server, _client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
         _connection.AccountId = new AccountId(42);
+        GameplayTestAdmission.Admit(_connection);
         _connection.Character = new CharacterEntity
         {
             Data = new Character { Id = new CharacterId(7), Name = "Tester", Map = 1 }

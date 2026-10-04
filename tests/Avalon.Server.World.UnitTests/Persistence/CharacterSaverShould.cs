@@ -465,6 +465,7 @@ public sealed class CharacterSaverShould : IDisposable
         }
 
         character.Container(InventoryType.Bag).Load(held ?? stored);
+        await AdmittedCharacter.BindAsync(_db, character);
         return character;
     }
 

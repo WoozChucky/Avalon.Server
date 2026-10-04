@@ -35,6 +35,7 @@ public sealed class PvpSaveRoundTripShould : IDisposable
         await using CharacterDbContext context = _database.CreateDbContext();
         context.Characters.Add(character.Data!);
         await context.SaveChangesAsync();
+        await Avalon.Server.World.UnitTests.Persistence.AdmittedCharacter.BindAsync(_database, character);
         return character;
     }
 

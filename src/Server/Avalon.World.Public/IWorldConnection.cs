@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.Common.GameAuth;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
@@ -16,6 +17,8 @@ public interface IWorldConnection : IConnection
     ///     Gets or sets the account ID associated with the connection.
     /// </summary>
     public AccountId? AccountId { get; set; }
+    GameplayWriteAuthority? GameplayAuthority => null;
+    bool IsGameplayAuthorized => false;
 
     /// <summary>
     ///     Gets or sets the character associated with the connection.

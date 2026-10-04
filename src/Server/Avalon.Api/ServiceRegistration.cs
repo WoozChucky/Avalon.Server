@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
@@ -40,11 +40,59 @@ public static class ServiceRegistration
     {
         builder.Services.AddCustomLogging(configuration);
         builder.AddServiceDefaults();
+        builder.Services.AddSteamWebLinkSecretProtection();
     }
+
+    public static void AddSteamStoreAuthentication(this IServiceCollection services)
+    {
+        services.AddOptions<Avalon.Configuration.StoreAuthenticationConfiguration>()
+            .BindConfiguration("Application:StoreAuthentication");
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<Avalon.Configuration.StoreAuthenticationConfiguration>,
+            Config.StoreAuthenticationOptionsValidator>();
+        ConfigureSteamHttp(services.AddHttpClient<Avalon.Infrastructure.StoreAuth.ISteamProofVerifier,
+            Avalon.Infrastructure.StoreAuth.SteamProofVerifier>());
+        ConfigureSteamHttp(services.AddHttpClient<Avalon.Infrastructure.StoreAuth.ISteamOwnershipClient,
+            Avalon.Infrastructure.StoreAuth.SteamOwnershipClient>());
+    }
+
+#pragma warning disable EXTEXP0001 // Fixed-host provider transport owns its one-retry budget.
+    private static void ConfigureSteamHttp(IHttpClientBuilder http) => http
+        .RemoveAllLoggers().RemoveAllResilienceHandlers()
+        .ConfigureAdditionalHttpMessageHandlers((handlers, _) =>
+        {
+            // Drop default service discovery/resilience for the fixed Valve origin. URL-bearing loggers
+            // are removed above; suppress provider spans because Valve requires credentials in GET queries.
+            handlers.Clear();
+            handlers.Add(new Authentication.SteamSecretProtectionHandler());
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false, MaxConnectionsPerServer = 32,
+            ConnectTimeout = TimeSpan.FromSeconds(5), ActivityHeadersPropagator = null,
+        });
+#pragma warning restore EXTEXP0001
 
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
         services.AddAuthDatabase();
+        services.AddSteamStoreAuthentication();
+        services.AddSteamWebLink();
+        services.AddSingleton(sp => new Avalon.Infrastructure.GameAuth.GameAuthCryptography(
+            sp.GetRequiredService<Microsoft.IdentityModel.Tokens.SymmetricSecurityKey>().Key));
+        services.AddSingleton<Avalon.Infrastructure.GameAuth.IGameContextStore, Avalon.Infrastructure.GameAuth.RedisGameContextStore>();
+        services.AddSingleton<Avalon.Infrastructure.GameAuth.AuthAttemptStore>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.IGameContextRevocations, Avalon.Infrastructure.GameAuth.GameContextRevocations>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.GameAuthorizationService>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.PendingLinkStore>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.JoinTicketStore>();
+        services.AddScoped<GameSessionFenceService>();
+        services.AddScoped<AccountConsolidationService>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.IGameServerAllocator, GameServerAllocator>();
+        services.AddOptions<Avalon.Configuration.GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads")
+            .Validate(c => { c.Validate(); return true; });
+        services.AddScoped<AccountLinkReauthentication>();
+        services.AddScoped<StoreAccountRegistration>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.IGameAccountRegistration>(sp => sp.GetRequiredService<StoreAccountRegistration>());
         services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
         services.AddSingleton(PublicSiteSettings.Create(config.PublicSiteUrl));
         services.AddOptions<PreviewConfiguration>().BindConfiguration("Application:Previews");
@@ -169,7 +217,8 @@ public static class ServiceRegistration
                 AvalonAuthenticationSchemeOptions.SchemeName,
                 AvalonAuthenticationSchemeOptions.SchemeName,
                 options => { }
-            );
+            ).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, GameServerAuthHandler>(
+                GameServerAuthHandler.Scheme, _ => { });
     }
 
     private static Task ReadAccessToken(MessageReceivedContext context)
@@ -217,6 +266,9 @@ public static class ServiceRegistration
     {
         services.AddAuthorization(options =>
         {
+            options.AddPolicy(GameServerAuthHandler.Scheme, policy => policy
+                .AddAuthenticationSchemes(GameServerAuthHandler.Scheme).RequireAuthenticatedUser()
+                .RequireClaim(GameServerAuthHandler.ServerIdClaim));
             options.DefaultPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme,
                     AvalonAuthenticationSchemeOptions.SchemeName)
                 .RequireAuthenticatedUser()

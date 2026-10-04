@@ -30,7 +30,6 @@ public interface IAuthConnection : IConnection
     long LoggedInAt { get; set; }
 
     /// <summary>The world selects this connection has made in the current window (#574).</summary>
-    WorldSelectBudget WorldSelects { get; }
 
     AuthServer Server { get; }
 
@@ -56,7 +55,6 @@ public class AuthConnection : Connection, IAuthConnection
     public AccountId? AccountId { get; set; }
     public int CredentialsVersion { get; set; }
     public long LoggedInAt { get; set; }
-    public WorldSelectBudget WorldSelects { get; } = new();
     public new AuthServer Server { get; }
 
     public byte[] GenerateHandshakeData()

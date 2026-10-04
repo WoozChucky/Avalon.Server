@@ -80,6 +80,12 @@ public class AuthDbContext : DbContext
     }
 
     public DbSet<Account> Accounts { get; set; } = null!;
+    public DbSet<StoreAccountCreation> StoreAccountCreations { get; set; } = null!;
+    public DbSet<AccountConsolidation> AccountConsolidations { get; set; } = null!;
+    public DbSet<AccountConsolidationWorld> AccountConsolidationWorlds { get; set; } = null!;
+    public DbSet<ExternalIdentity> ExternalIdentities { get; set; } = null!;
+    public DbSet<LicenseObservation> LicenseObservations { get; set; } = null!;
+    public DbSet<GameSession> GameSessions { get; set; } = null!;
     public DbSet<Device> Devices { get; set; } = null!;
     public DbSet<MFASetup> MfaSetups { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
@@ -108,6 +114,8 @@ public class AuthDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         Configure(modelBuilder.Entity<Account>());
+        StoreAuthenticationModel.Configure(modelBuilder);
+        AccountConsolidationModel.Configure(modelBuilder);
         Configure(modelBuilder.Entity<Device>());
         Configure(modelBuilder.Entity<MFASetup>());
         Configure(modelBuilder.Entity<RefreshToken>());

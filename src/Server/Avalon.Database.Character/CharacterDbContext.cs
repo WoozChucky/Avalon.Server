@@ -41,7 +41,7 @@ public sealed class CharacterDbContextDesignTimeFactory : IDesignTimeDbContextFa
     }
 }
 
-public class CharacterDbContext : DbContext
+public partial class CharacterDbContext : DbContext
 {
     private readonly ILoggerFactory? _loggerFactory;
     private readonly string? _connectionString;
@@ -59,6 +59,7 @@ public class CharacterDbContext : DbContext
     {
     }
 
+    public DbSet<AccountGameplayFence> AccountGameplayFences { get; set; } = null!;
     public DbSet<Domain.Characters.Character> Characters { get; set; } = null!;
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
@@ -69,6 +70,7 @@ public class CharacterDbContext : DbContext
     public DbSet<CharacterCompletedQuest> CharacterCompletedQuests { get; set; } = null!;
     public DbSet<CharacterIgnore> CharacterIgnores { get; set; } = null!;
     public DbSet<CharacterAura> CharacterAuras { get; set; } = null!;
+    public DbSet<CharacterConsolidationReceipt> CharacterConsolidationReceipts { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -94,6 +96,9 @@ public class CharacterDbContext : DbContext
         // and its upper() folds ASCII only already. The model is cached per provider, so each gets its own.
         Configure(modelBuilder.Entity<Domain.Characters.Character>(), Database.IsNpgsql());
         Configure(modelBuilder.Entity<CharacterStats>());
+        var fence = modelBuilder.Entity<AccountGameplayFence>();
+        fence.HasKey(f => f.AccountId);
+        fence.Property(f => f.AccountId).HasConversion(v => v.Value, v => new AccountId(v)).ValueGeneratedNever();
         Configure(modelBuilder.Entity<CharacterInventory>());
         Configure(modelBuilder.Entity<CharacterAbility>());
         Configure(modelBuilder.Entity<ItemInstance>());
@@ -102,6 +107,11 @@ public class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterCompletedQuest>());
         Configure(modelBuilder.Entity<CharacterIgnore>());
         Configure(modelBuilder.Entity<CharacterAura>());
+        var receipt = modelBuilder.Entity<CharacterConsolidationReceipt>();
+        receipt.HasKey(r => r.Id);
+        receipt.Property(r => r.Id).ValueGeneratedNever();
+        receipt.Property(r => r.SourceAccountId).HasConversion(v => v.Value, v => new AccountId(v));
+        receipt.Property(r => r.TargetAccountId).HasConversion(v => v.Value, v => new AccountId(v));
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder, bool postgres)
@@ -135,6 +145,8 @@ public class CharacterDbContext : DbContext
         // over a rename, nor fail its saves on the unique index once another character has taken that older name.
         builder.Property(b => b.Name).Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
         builder.Property(b => b.NameKey).Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+        // Ownership changes use the guarded transfer operation, never a detached gameplay/admin row.
+        builder.Property(b => b.AccountId).Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
     }
 
     /// <summary>The unique index on <c>Characters.NameKey</c> (#757).</summary>

@@ -37,11 +37,16 @@ namespace Avalon.Database.Auth.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("FailedLogins")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("GameplayConsolidationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsStoreGenerated")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("JoinDate")
                         .HasColumnType("timestamp with time zone");
@@ -92,6 +97,9 @@ namespace Avalon.Database.Auth.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
+                    b.Property<long>("SessionEpoch")
+                        .HasColumnType("bigint");
+
                     b.Property<byte[]>("SessionKey")
                         .IsRequired()
                         .HasColumnType("bytea")
@@ -123,6 +131,8 @@ namespace Avalon.Database.Auth.Migrations
                         {
                             t.HasCheckConstraint("CK_Accounts_Email_Normalised", "\"Email\" = lower(trim(\"Email\"))");
 
+                            t.HasCheckConstraint("CK_Accounts_SessionEpoch", "\"SessionEpoch\" >= 0");
+
                             t.HasCheckConstraint("CK_Accounts_Username_Normalised", "\"Username\" = upper(trim(\"Username\"))");
                         });
 
@@ -134,6 +144,7 @@ namespace Avalon.Database.Auth.Migrations
                             CredentialsVersion = 0,
                             Email = "admin@avalon.monster",
                             FailedLogins = 0,
+                            IsStoreGenerated = false,
                             JoinDate = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             LastAttemptIp = "",
                             LastIp = "127.0.0.1",
@@ -145,12 +156,81 @@ namespace Avalon.Database.Auth.Migrations
                             Online = false,
                             Os = "Linux",
                             Salt = new byte[] { 36, 50, 97, 36, 49, 49, 36, 87, 99, 81, 111, 50, 73, 79, 51, 110, 69, 119, 75, 77, 78, 85, 98, 116, 110, 71, 88, 90, 46 },
+                            SessionEpoch = 0L,
                             SessionKey = new byte[0],
                             Status = (byte)0,
                             TotalTime = 0L,
                             Username = "ADMIN",
                             Verifier = new byte[] { 36, 50, 97, 36, 49, 49, 36, 87, 99, 81, 111, 50, 73, 79, 51, 110, 69, 119, 75, 77, 78, 85, 98, 116, 110, 71, 88, 90, 46, 54, 72, 106, 115, 116, 79, 46, 107, 82, 120, 110, 46, 80, 115, 80, 83, 85, 98, 55, 47, 70, 103, 116, 50, 69, 97, 119, 107, 53, 105, 54 }
                         });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.AccountConsolidation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AuthorizedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ConfirmedMfaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("FinalizedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("SourceAccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SteamSubject")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<long>("TargetAccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("TargetCredentialsVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("TargetSessionEpoch")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceAccountId");
+
+                    b.HasIndex("TargetAccountId");
+
+                    b.ToTable("AccountConsolidations");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.AccountConsolidationWorld", b =>
+                {
+                    b.Property<Guid>("ConsolidationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("WorldId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("GuardReleasedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("TransferredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TransferredCharacters")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ConsolidationId", "WorldId");
+
+                    b.ToTable("AccountConsolidationWorlds");
                 });
 
             modelBuilder.Entity("Avalon.Domain.Auth.AvalonToken", b =>
@@ -213,6 +293,167 @@ namespace Avalon.Database.Auth.Migrations
                     b.HasIndex("AccountId");
 
                     b.ToTable("Devices");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.ExternalIdentity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("LinkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId", "Provider")
+                        .IsUnique();
+
+                    b.HasIndex("Provider", "ProviderSubject")
+                        .IsUnique();
+
+                    b.ToTable("ExternalIdentities");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.GameSession", b =>
+                {
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CredentialsVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<long>("FencingToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("GameContextId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GameSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LicenseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("PreviousGameSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PreviousServerId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int?>("PreviousWorldId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ServerId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<long>("SessionEpoch")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WorldId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("AccountId");
+
+                    b.HasIndex("GameSessionId")
+                        .IsUnique();
+
+                    b.ToTable("GameSessions", t =>
+                        {
+                            t.HasCheckConstraint("CK_GameSessions_FencingToken", "\"FencingToken\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.LicenseObservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("AuthorizedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("ObservedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("OwnsProduct")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("Permanent")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("PolicyVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Product")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("ProviderAppId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime?>("ProviderExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderOwnerSubject")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId", "Provider", "ProviderSubject", "Environment", "Product", "ObservedAt");
+
+                    b.ToTable("LicenseObservations");
                 });
 
             modelBuilder.Entity("Avalon.Domain.Auth.MFASetup", b =>
@@ -376,6 +617,32 @@ namespace Avalon.Database.Auth.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Auth.StoreAccountCreation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ProofExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.ToTable("StoreAccountCreations");
+                });
+
             modelBuilder.Entity("Avalon.Domain.Auth.World", b =>
                 {
                     b.Property<int>("Id")
@@ -476,6 +743,15 @@ namespace Avalon.Database.Auth.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Auth.AccountConsolidationWorld", b =>
+                {
+                    b.HasOne("Avalon.Domain.Auth.AccountConsolidation", null)
+                        .WithMany("Worlds")
+                        .HasForeignKey("ConsolidationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.Auth.AvalonToken", b =>
                 {
                     b.HasOne("Avalon.Domain.Auth.Account", "Account")
@@ -496,6 +772,33 @@ namespace Avalon.Database.Auth.Migrations
                         .IsRequired();
 
                     b.Navigation("Account");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.ExternalIdentity", b =>
+                {
+                    b.HasOne("Avalon.Domain.Auth.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.GameSession", b =>
+                {
+                    b.HasOne("Avalon.Domain.Auth.Account", null)
+                        .WithOne()
+                        .HasForeignKey("Avalon.Domain.Auth.GameSession", "AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.LicenseObservation", b =>
+                {
+                    b.HasOne("Avalon.Domain.Auth.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Avalon.Domain.Auth.MFASetup", b =>
@@ -527,6 +830,11 @@ namespace Avalon.Database.Auth.Migrations
                         .IsRequired();
 
                     b.Navigation("Account");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.AccountConsolidation", b =>
+                {
+                    b.Navigation("Worlds");
                 });
 #pragma warning restore 612, 618
         }

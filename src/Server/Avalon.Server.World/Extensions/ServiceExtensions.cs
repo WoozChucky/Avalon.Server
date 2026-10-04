@@ -26,13 +26,14 @@ using Avalon.World.Reload;
 using Avalon.World.Respawn;
 using Avalon.World.Maintenance;
 using Avalon.Infrastructure.WorldMaintenance;
-using Avalon.World.Persistence;
 using Avalon.Database.Auth.Repositories;
 using Microsoft.Extensions.Options;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Social;
 using Avalon.World.Threading;
+using Avalon.World.GameAuth;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -45,6 +46,23 @@ public static class ServiceExtensions
 {
     public static IServiceCollection AddWorldServices(this IServiceCollection services)
     {
+        services.AddOptions<WorldHostingSecurity>().BindConfiguration("Hosting:Security")
+            .Validate(s => !string.IsNullOrWhiteSpace(s.CertificatePath), "A world TLS certificate is required.").ValidateOnStart();
+        services.AddOptions<GameAdmissionOptions>().BindConfiguration(GameAdmissionOptions.Section)
+            .PostConfigure<IConfiguration>((admission, config) => admission.WorldId = ushort.TryParse(config["Game:WorldId"], out var id) ? id : (ushort)0)
+            .Validate(a => a.IsValid(), "World admission requires a fixed HTTPS API origin, server identity, workload certificate and API certificate SHA-256 pin.").ValidateOnStart();
+        services.AddSingleton(sp => new WorldTlsTransport(sp.GetRequiredService<IOptions<WorldHostingSecurity>>().Value));
+        services.AddHttpClient("AvalonGameWorkload").ConfigurePrimaryHttpMessageHandler(sp =>
+        {
+            var admission = sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value;
+            var certificate = X509CertificateLoader.LoadPkcs12FromFile(admission.ClientCertificatePath, admission.ClientCertificatePassword);
+            if (!certificate.HasPrivateKey || certificate.NotBefore.ToUniversalTime() > DateTime.UtcNow || certificate.NotAfter.ToUniversalTime() <= DateTime.UtcNow)
+                throw new InvalidOperationException("A current workload client certificate with a private key is required.");
+            return new WorkloadHttpHandler(certificate, admission.ApiCertificateSha256, sp.GetRequiredService<TimeProvider>());
+        }).RemoveAllLoggers();
+        services.AddSingleton<IGameAdmissionClient>(sp => new GameAdmissionClient(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient("AvalonGameWorkload"),
+            sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value, sp.GetRequiredService<TimeProvider>()));
         services
             .AddOptions<GameConfiguration>()
             .BindConfiguration("Game")
@@ -109,6 +127,7 @@ public static class ServiceExtensions
         services.AddSingleton<ILootAllocator, PartyLootAllocator>();
         services.AddSingleton<ICharacterSaver, CharacterSaver>();
         services.AddSingleton<ICharacterSaveScheduler, CharacterSaveScheduler>();
+        services.AddSingleton<IWorldDatabaseWork, WorldDatabaseWork>();
         services.AddSingleton<PredefinedChunkLayoutSource>();
         services.AddSingleton<ProceduralChunkLayoutSource>();
         services.AddSingleton<IChunkLayoutSourceResolver, ChunkLayoutSourceResolver>();

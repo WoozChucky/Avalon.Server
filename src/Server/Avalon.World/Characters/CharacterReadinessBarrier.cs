@@ -1,3 +1,4 @@
+using Avalon.World.Persistence;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Public;
@@ -26,7 +27,7 @@ public static class CharacterReadinessBarrier
             connection.PendingSpawn is not { } pending || PendingChecks.TryGetValue(connection, out _))
             return;
 
-        Task<WorldEntryDecision> check = Task.Run(async () =>
+        Task<WorldEntryDecision> check = WorldDatabaseWork.ThreadPool.Run(async () =>
         {
             try
             {
@@ -37,7 +38,7 @@ public static class CharacterReadinessBarrier
             {
                 return default;
             }
-        }, CancellationToken.None);
+        });
         PendingChecks.Add(connection, check);
         connection.EnqueueContinuation(check, decision =>
         {

@@ -173,6 +173,12 @@ public sealed class PasswordLoginPolicy : LoginPolicy
             return new PasswordAttempt(PasswordCheck.Locked, source, usernameKey, taken, account);
         }
 
+        if (account.Verifier.Length == 0 || account.Salt.Length == 0)
+        {
+            // A store-only account has no password to check. Pay the same verify cost and always refuse.
+            _verifier.Verify(password, BCryptPasswordVerifier.UnknownAccountHash);
+            return new PasswordAttempt(PasswordCheck.WrongPassword, source, usernameKey, taken, account);
+        }
         bool right = _verifier.Verify(password, Encoding.UTF8.GetString(account.Verifier));
         return new PasswordAttempt(right ? PasswordCheck.Correct : PasswordCheck.WrongPassword, source, usernameKey,
             taken, account);

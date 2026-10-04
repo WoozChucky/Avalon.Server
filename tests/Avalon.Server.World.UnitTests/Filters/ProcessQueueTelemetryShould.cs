@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.GameAuth;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
@@ -72,6 +73,7 @@ public sealed class ProcessQueueTelemetryShould : IDisposable
             [NetworkPacketType.CMSG_PLAYER_INPUT] = new Recorder(NetworkPacketType.CMSG_PLAYER_INPUT, _dispatched),
         });
         _connection = new TestConnection(server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
+        GameplayTestAdmission.Admit(_connection);
         return _connection;
     }
 

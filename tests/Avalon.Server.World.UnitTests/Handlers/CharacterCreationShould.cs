@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
+using Avalon.Common.GameAuth;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World;
@@ -27,8 +28,8 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 
 /// <summary>
 /// Character creation driven end to end: the real handler, the real repositories, two real
-/// databases, and the continuation chain pumped the way the tick loop pumps it. The five writes
-/// each land on their own context, which is the condition the defect this covers needs.
+/// databases, and the continuation chain pumped the way the tick loop pumps it. Creation writes
+/// the root and its children in one guarded transaction.
 /// </summary>
 public class CharacterCreationShould : IDisposable
 {
@@ -119,31 +120,18 @@ public class CharacterCreationShould : IDisposable
         CharacterCreateInfo createInfo = data.CharacterCreateInfos.First();
 
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
-        characters.FindByAccountAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new List<Domain.Characters.Character>()));
-        characters.CreateAsync(Arg.Any<Domain.Characters.Character>(), Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                Domain.Characters.Character created = call.Arg<Domain.Characters.Character>();
-                created.Id = new CharacterId(1);
-                return Task.FromResult(created);
-            });
-
+        CharacterCreationBatch? captured = null;
+        characters.CreateForGameplayAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CharacterCreationBatch>(),
+            Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            captured = call.Arg<CharacterCreationBatch>();
+            captured.Row.Id = new CharacterId(1);
+            return Task.FromResult(new CharacterCreationReply(captured.Row));
+        });
         ICharacterStatsRepository stats = Substitute.For<ICharacterStatsRepository>();
-        stats.CreateAsync(Arg.Any<Domain.Characters.CharacterStats>(), Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult(call.Arg<Domain.Characters.CharacterStats>()));
-
         ICharacterAbilityRepository abilities = Substitute.For<ICharacterAbilityRepository>();
-        abilities.CreateAsync(Arg.Any<IList<Domain.Characters.CharacterAbility>>(), Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult(call.Arg<IList<Domain.Characters.CharacterAbility>>()));
-
         ICharacterInventoryRepository inventory = Substitute.For<ICharacterInventoryRepository>();
-        inventory.CreateAsync(Arg.Any<IList<Domain.Characters.CharacterInventory>>(), Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult(call.Arg<IList<Domain.Characters.CharacterInventory>>()));
-
         IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
-        items.CreateAsync(Arg.Any<List<ItemInstance>>(), Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult(call.Arg<List<ItemInstance>>()));
 
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = new(
@@ -158,21 +146,16 @@ public class CharacterCreationShould : IDisposable
 
         await PumpAsync(connection);
 
-        Domain.Characters.CharacterStats createdStats = (Domain.Characters.CharacterStats)stats.ReceivedCalls()
-            .Single(call => call.GetMethodInfo().Name == nameof(ICharacterStatsRepository.CreateAsync))
-            .GetArguments()[0]!;
-        Assert.Null(createdStats.Character);
-        Assert.NotEqual(default, createdStats.CharacterId);
-
-        List<ItemInstance> instances = (List<ItemInstance>)items.ReceivedCalls()
-            .Single(call => call.GetMethodInfo().Name == nameof(IItemInstanceRepository.CreateAsync))
-            .GetArguments()[0]!;
-        Assert.NotEmpty(instances);
-        Assert.All(instances, instance =>
+        Assert.NotNull(captured);
+        Assert.Null(captured.Stats.Character);
+        Assert.NotEmpty(captured.Items);
+        Assert.All(captured.Items, instance =>
         {
             Assert.NotEqual(Guid.Empty, instance.Id.Value);
             Assert.NotEqual(default, instance.TemplateId);
         });
+        Assert.All(captured.Abilities, ability => Assert.Null(ability.Character));
+        Assert.All(captured.Slots, slot => Assert.Null(slot.Character));
     }
 
     /// <summary>
@@ -348,14 +331,14 @@ public class CharacterCreationShould : IDisposable
     }
 
     /// <summary>
-    /// The duplicate check and the insert are not atomic: a character of the same name in another case can be created
-    /// in between, and the unique index on NameKey refuses this one. The player gets the answer the check would have
-    /// given, and nothing of the refused character is written.
+    /// A duplicate name is refused by the unique index in the creation transaction.
+    /// No initial child rows are left behind.
     /// </summary>
     [Fact]
-    public async Task Answer_name_already_exists_to_a_create_that_loses_the_race_to_the_index()
+    public async Task Answer_name_already_exists_without_leaving_initial_child_rows()
     {
         StaticData data = await LoadStaticDataAsync();
+        await StoreCharacterAsync("BOB", new AccountId(2));
         IWorldConnection connection = NewConnection();
 
         NewHandler(data).Execute(connection, new CCharacterCreatePacket
@@ -364,30 +347,26 @@ public class CharacterCreationShould : IDisposable
             Class = (int)data.CharacterCreateInfos.First().Class,
         });
 
-        // The second continuation is the duplicate lookup: once it has answered "free", another create lands first.
-        await PumpAsync(connection, beforeCallback: async index =>
-        {
-            if (index == 1)
-                await StoreCharacterAsync("BOB", new AccountId(2));
-        });
+        await PumpAsync(connection);
 
         Assert.Equal(SCharacterCreateResult.NameAlreadyExists, SentResult(connection));
         await using CharacterDbContext characterDb = _characters.CreateDbContext();
         Avalon.Domain.Characters.Character only = await characterDb.Characters.AsNoTracking().SingleAsync();
         Assert.Equal(new AccountId(2), only.AccountId);
         Assert.False(await characterDb.CharacterStats.AnyAsync());
+        Assert.Empty(await characterDb.CharacterAbilities.ToListAsync());
+        Assert.Empty(await characterDb.ItemInstances.ToListAsync());
     }
 
-    /// <summary>Only the unique violation on NameKey is answered NameAlreadyExists; any other failure is rethrown.</summary>
+    /// <summary>A storage failure is reported without granting successful creation.</summary>
     [Fact]
-    public async Task Rethrow_an_insert_failure_that_is_not_the_name_key()
+    public async Task Report_an_insert_failure_that_is_not_the_name_key()
     {
         StaticData data = await LoadStaticDataAsync();
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
-        characters.FindByAccountAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new List<Domain.Characters.Character>()));
-        characters.CreateAsync(Arg.Any<Domain.Characters.Character>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<Domain.Characters.Character>(new DbUpdateException("disk full")));
+        characters.CreateForGameplayAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CharacterCreationBatch>(),
+            Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<CharacterCreationReply>(new DbUpdateException("disk full")));
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = new(
             NullLogger<CharacterCreateHandler>.Instance, characters,
@@ -401,9 +380,8 @@ public class CharacterCreationShould : IDisposable
             Class = (int)data.CharacterCreateInfos.First().Class,
         });
 
-        await Assert.ThrowsAsync<DbUpdateException>(() => PumpAsync(connection));
-        Assert.DoesNotContain(connection.ReceivedCalls(),
-            call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send));
+        await PumpAsync(connection);
+        Assert.Equal(SCharacterCreateResult.InternalDatabaseError, SentResult(connection));
     }
 
     private async Task StoreCharacterAsync(string name, AccountId account)
@@ -483,10 +461,21 @@ public class CharacterCreationShould : IDisposable
         return world;
     }
 
-    private static IWorldConnection NewConnection()
+    private GameplayWriteAuthority? _authority;
+    private IWorldConnection NewConnection()
     {
+        if (_authority is null)
+        {
+            _authority = new(new AccountId(1), Guid.NewGuid(), 1);
+            var guards = new GameplayFenceRepository(_characters);
+            var until = DateTime.UtcNow.AddSeconds(44);
+            Assert.True(guards.AdvanceAsync(_authority, false, until, CancellationToken.None).GetAwaiter().GetResult());
+            Assert.True(guards.ActivateAsync(_authority, until, CancellationToken.None).GetAwaiter().GetResult());
+        }
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.AccountId.Returns(new AccountId(1));
+        connection.GameplayAuthority.Returns(_authority);
+        connection.IsConnected.Returns(true);
         // A substitute hands back a substitute for an interface-typed property, and a non-null
         // Character reads to the handler as "one is already selected".
         connection.Character.Returns((Avalon.World.Public.Characters.ICharacter?)null!);

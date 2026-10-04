@@ -1,0 +1,11 @@
+# Rendering-only test configuration: no real credentials or deployed resources.
+storeAuthentication:
+  steamAppId: 123456
+  existingSecret: test-steam-credentials
+gameAdmission:
+  tlsExistingSecret: test-api-tls
+  bindingsExistingSecret: test-workload-bindings
+  servers:
+    - serverId: world-test
+      worldId: 1
+      tlsServerName: world.example.test

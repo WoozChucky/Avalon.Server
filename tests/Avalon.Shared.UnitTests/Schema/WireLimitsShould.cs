@@ -28,23 +28,23 @@ namespace Avalon.Shared.UnitTests.Schema;
 public class WireLimitsShould
 {
     /// <summary>
-    /// The empty byte array in this test is not hypothetical: <c>CWorldSelectHandler</c> sends
-    /// it on every duplicate-session rejection, through the factory called here.
+    /// The empty byte array in this test is not hypothetical: <c>GameAdmissionHandler</c> sends
+    /// it on every admission rejection, through the factory called here.
     /// </summary>
     [Fact]
-    public void Carry_The_Empty_Byte_Array_A_World_Select_Rejection_Sends()
+    public void Carry_The_Empty_Byte_Array_An_Admission_Rejection_Sends()
     {
         Avalon.Network.Packets.Abstractions.NetworkPacket rejection =
-            SWorldSelectPacket.CreateError(WorldSelectResult.DuplicateSession, plaintext => plaintext.ToArray());
+            SGameAdmissionPacket.Create([], GameAdmissionResult.InvalidRequest);
 
-        // Field 1 is WorldKey, present and empty; field 2 is the result.
+        // Field 1 is PublicKey, present and empty; field 2 is the result.
         Assert.Equal(new byte[] { 0x0a, 0x00, 0x10, 0x01 }, rejection.Payload);
 
-        MessageDescriptor descriptor = ReferenceSchema.For(nameof(SWorldSelectPacket));
+        MessageDescriptor descriptor = ReferenceSchema.For(nameof(SGameAdmissionPacket));
         IMessage read = descriptor.Parser.ParseFrom(rejection.Payload);
 
         // The two leading bytes survive, so a client can still tell this from a packet that
-        // never carried a world key at all.
+        // never carried a public key at all.
         Assert.True(descriptor.FindFieldByNumber(1)!.Accessor.HasValue(read));
         Assert.Equal(new byte[] { 0x0a, 0x00, 0x10, 0x01 }, read.ToByteArray());
     }
@@ -68,7 +68,7 @@ public class WireLimitsShould
 
     /// <summary>
     /// An empty byte array is a present field of length zero, not an absent one, and the
-    /// server sends exactly this on every duplicate-session rejection.
+    /// server sends exactly this on every admission rejection.
     /// </summary>
     /// <remarks>
     /// No member of any contract is a <c>ReadOnlyMemory&lt;byte&gt;</c> any more, so the case
@@ -82,11 +82,11 @@ public class WireLimitsShould
     public void Carry_An_Empty_Byte_Array_As_A_Present_Field()
     {
         byte[] bytes = WireCorpus.Serialize(
-            new SWorldSelectPacket { WorldKey = Array.Empty<byte>(), Result = WorldSelectResult.Success });
+            new SGameAdmissionPacket { PublicKey = Array.Empty<byte>(), Result = GameAdmissionResult.Accepted });
 
         Assert.Equal(new byte[] { 0x0a, 0x00 }, bytes);
 
-        MessageDescriptor descriptor = ReferenceSchema.For(nameof(SWorldSelectPacket));
+        MessageDescriptor descriptor = ReferenceSchema.For(nameof(SGameAdmissionPacket));
 
         Assert.Equal(bytes, descriptor.Parser.ParseFrom(bytes).ToByteArray());
     }
