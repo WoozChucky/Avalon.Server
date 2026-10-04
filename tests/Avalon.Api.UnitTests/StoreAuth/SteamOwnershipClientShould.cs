@@ -17,7 +17,7 @@ public class SteamOwnershipClientShould
         using var handler = new RecordingSteamHandler { Body = "{\"appownership\":{\"ownsapp\":true,\"permanent\":false,\"ownersteamid\":\"76561198000000002\",\"timeexpires\":\"2026-10-04T12:02:00Z\"}}" };
         using var client = new HttpClient(handler);
         var result = await new SteamOwnershipClient(client, SteamProofVerifierShould.Configuration(appId), new FakeTimeProvider(Now))
-            .CheckAsync(SteamProofVerifierShould.SteamId, CancellationToken.None);
+            .CheckAsync(appId, SteamProofVerifierShould.SteamId, CancellationToken.None);
         Assert.Equal(SteamOwnershipStatus.Owned, result.Status);
         Assert.Equal(SteamProofVerifierShould.SteamId, result.ProviderSubject);
         Assert.Equal("76561198000000002", result.OwnerSubject);
@@ -34,7 +34,7 @@ public class SteamOwnershipClientShould
         using var handler = new RecordingSteamHandler { Body = "{\"appownership\":{\"ownsapp\":true,\"permanent\":true,\"timeexpires\":\"never\"}}" };
         using var client = new HttpClient(handler);
         var result = await new SteamOwnershipClient(client, SteamProofVerifierShould.Configuration(), new FakeTimeProvider(Now))
-            .CheckAsync(SteamProofVerifierShould.SteamId, CancellationToken.None);
+            .CheckAsync(StoreAuthenticationTestData.SteamAppId, SteamProofVerifierShould.SteamId, CancellationToken.None);
         Assert.Equal(SteamOwnershipStatus.Owned, result.Status);
         Assert.Equal(Now.UtcDateTime.AddMinutes(5), result.AuthorizedUntil);
     }
@@ -52,7 +52,7 @@ public class SteamOwnershipClientShould
         using var handler = new RecordingSteamHandler { Body = body };
         using var client = new HttpClient(handler);
         var result = await new SteamOwnershipClient(client, SteamProofVerifierShould.Configuration(), new FakeTimeProvider(Now))
-            .CheckAsync(SteamProofVerifierShould.SteamId, CancellationToken.None);
+            .CheckAsync(StoreAuthenticationTestData.SteamAppId, SteamProofVerifierShould.SteamId, CancellationToken.None);
         Assert.Equal(expected, result.Status);
         Assert.True(result.AuthorizedUntil <= Now.UtcDateTime);
     }
@@ -63,7 +63,7 @@ public class SteamOwnershipClientShould
         using var handler = new RecordingSteamHandler { Status = HttpStatusCode.TooManyRequests };
         using var client = new HttpClient(handler);
         var result = await new SteamOwnershipClient(client, SteamProofVerifierShould.Configuration(), new FakeTimeProvider(Now))
-            .CheckAsync(SteamProofVerifierShould.SteamId, CancellationToken.None);
+            .CheckAsync(StoreAuthenticationTestData.SteamAppId, SteamProofVerifierShould.SteamId, CancellationToken.None);
         Assert.Equal(SteamOwnershipStatus.ProviderUnavailable, result.Status);
         Assert.Equal(2, handler.Requests.Count);
     }

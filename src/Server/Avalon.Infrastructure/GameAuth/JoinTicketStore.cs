@@ -11,7 +11,7 @@ namespace Avalon.Infrastructure.GameAuth;
 /// <summary>Atomic Redis claims plus durable SQL reservation recovery, with no cross-store transaction assumption.</summary>
 public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptography crypto,
     GameAuthorizationService authorization, IGameSessionRepository sessions, IGameServerAllocator allocator,
-    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock)
+    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, GameApplicationAccessPolicy applications)
 {
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     private string Key(string kind, string id) => CacheKeys.GameAuth(options.Value.Environment, kind, id);
@@ -22,6 +22,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         if (requestId == Guid.Empty || worldId == 0 || characterId == 0) return new(GameAuthErrors.InvalidRequest);
         var context = await authorization.GetContextAsync(credential, true, cancellationToken);
         if (context?.AccountId is not { } accountId) return new(GameAuthErrors.AuthorizationRequired);
+        if (!applications.AllowsWorld(context.SteamAppId, worldId)) return new(GameAuthErrors.WorldUnavailable);
         var issueKey = Key("join-issue", context.Id.ToString("N") + ":" + requestId.ToString("N"));
         var binding = crypto.Binding("join-issue", requestId, GameAuthCryptography.Digest($"{context.Generation}:{worldId}:{characterId}:{confirmTakeover}:{reconnect}"));
         var prior = GameAuthJson.Deserialize<JoinIssueReceipt>(await store.ReadAsync(issueKey, cancellationToken));
@@ -75,6 +76,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             var context = await authorization.GetContextByIdAsync(grant.ContextId, true, cancellationToken);
             if (context is null || context.AccountId != grant.AccountId || context.CredentialsVersion != grant.CredentialsVersion ||
                 context.SessionEpoch != grant.SessionEpoch) return JoinRedemptionReceipt.Failure(GameAuthErrors.ContextRevoked);
+            if (!applications.AllowsWorld(context.SteamAppId, grant.WorldId)) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldUnavailable);
             if (grant.Receipt is not null)
             {
                 if (grant.ReceiptExpiresAt <= Now) return JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired);

@@ -30,16 +30,17 @@ public class PendingLinkStoreShould
     private readonly Account _account = new() { Id = new AccountId(7), Username = "PLAYER", Email = "player@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
     private readonly GameAuthorizationService _auth;
     private readonly PendingLinkStore _links;
+    private readonly StoreAuthenticationConfiguration _configuration = new() { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-secret", SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
 
     public PendingLinkStoreShould()
     {
         _families.IsLiveLauncherFamilyAsync(Arg.Any<AccountId>(), _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
         var crypto = new GameAuthCryptography(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray());
-        var options = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-secret" });
+        var options = Options.Create(_configuration);
         var proof = Substitute.For<ISteamProofVerifier>();
-        proof.VerifyAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, Subject));
+        proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, Subject));
         _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);
-        _ownership.CheckAsync(Subject, Arg.Any<CancellationToken>()).Returns(_ => new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
+        _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(_ => new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
         _auth = new(_store, new AuthAttemptStore(_store, crypto, options, _clock), crypto, _accounts,
             _families, _identities, Substitute.For<ILicenseObservationRepository>(), proof, _ownership, options, _clock, _registration);
         _links = new(_auth, _store, crypto, _accounts, _mfa, options, _clock);
@@ -57,12 +58,28 @@ public class PendingLinkStoreShould
     {
         var runId = Guid.NewGuid();
         var challenge = Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(_verifier))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        var handoffAttempt = (await _auth.CreateAttemptAsync("avalon", "1", runId, challenge, null, CancellationToken.None))!;
+        var handoffAttempt = (await _auth.CreateAttemptAsync("avalon", "1", runId, challenge, null, null, CancellationToken.None))!;
         var handoff = GameAuthCryptography.NewToken();
         _store.Seed(RedisGameTicketStore.Key(handoff), $"7|{_family:D}|0|0|production");
         var inherited = await _auth.RedeemHandoffAsync(handoffAttempt.AttemptCredential, handoff, Guid.NewGuid(), CancellationToken.None);
-        var attempt = (await _auth.CreateAttemptAsync("steam", "1", runId, challenge, inherited.GameContextCredential, CancellationToken.None))!;
+        var attempt = (await _auth.CreateAttemptAsync("steam", "1", runId, challenge, inherited.GameContextCredential, null, CancellationToken.None))!;
         return await _auth.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Linking_preserves_playtest_application()
+    {
+        var pending = await Pending();
+        var context = (await _auth.GetContextAsync(pending.GameContextCredential!, false, default))!;
+        // A pending Playtest context is a server-owned fixture, independent of launcher authority.
+        _store.Seed(Avalon.Infrastructure.CacheKeys.GameAuth("production", "context", context.Id.ToString("N")), GameAuthJson.Serialize(context with { SteamAppId = 2514590 }));
+        var id = Guid.ParseExact(pending.PendingLinkId!, "N");
+        await _links.ConfirmAsync(id, _account.Id, 0, 0, null, Guid.NewGuid(), default);
+        var proposal = await _links.ProposalAsync(pending.GameContextCredential!, _verifier, default);
+        var result = await _auth.CompleteAccountLinkAsync(_links, pending.GameContextCredential!, proposal.ConsentCode!, _verifier, Guid.NewGuid(), true, default);
+        Assert.Equal("authorized", result.State);
+        Assert.Equal(2514590u, (await _auth.GetContextAsync(result.GameContextCredential!, true, default))!.SteamAppId);
+        await _ownership.Received(1).CheckAsync(2514590, Subject, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -74,7 +91,7 @@ public class PendingLinkStoreShould
         var browser = await _links.ConfirmAsync(id, _account.Id, 0, 0, null, Guid.NewGuid(), CancellationToken.None);
         Assert.Equal("awaiting_game_confirmation", browser.State);
         await _identities.DidNotReceive().LinkWithAuthorityAsync(Arg.Any<IdentityLinkOperation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
-        await _ownership.DidNotReceive().CheckAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _ownership.DidNotReceive().CheckAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         var proposal = await _links.ProposalAsync(pending.GameContextCredential!, _verifier, CancellationToken.None);
         Assert.Equal("7", proposal.AccountId);
         Assert.Equal("PLAYER", proposal.Username);
@@ -123,11 +140,11 @@ public class PendingLinkStoreShould
         _families.IsLiveLauncherFamilyAsync(_account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
         var run = Guid.NewGuid();
         var challenge = Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(_verifier))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        var attempt = (await _auth.CreateAttemptAsync("avalon", "1", run, challenge, null, CancellationToken.None))!;
+        var attempt = (await _auth.CreateAttemptAsync("avalon", "1", run, challenge, null, null, CancellationToken.None))!;
         var handoff = GameAuthCryptography.NewToken();
         _store.Seed(RedisGameTicketStore.Key(handoff), $"7|{_family:D}|0|0|production");
         var restricted = await _auth.RedeemHandoffAsync(attempt.AttemptCredential, handoff, Guid.NewGuid(), CancellationToken.None);
-        var proofAttempt = (await _auth.CreateAttemptAsync("steam", "1", run, challenge, restricted.GameContextCredential, CancellationToken.None))!;
+        var proofAttempt = (await _auth.CreateAttemptAsync("steam", "1", run, challenge, restricted.GameContextCredential, null, CancellationToken.None))!;
         var pending = await _auth.AuthenticateSteamAsync(proofAttempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
         await _links.ConfirmAsync(Guid.ParseExact(pending.PendingLinkId!, "N"), _account.Id, 0, 0, null, Guid.NewGuid(), CancellationToken.None);
         var proposal = await _links.ProposalAsync(pending.GameContextCredential!, _verifier, CancellationToken.None);
@@ -143,11 +160,11 @@ public class PendingLinkStoreShould
         await _links.ConfirmAsync(Guid.ParseExact(pending.PendingLinkId!, "N"), _account.Id, 0, 0, null, Guid.NewGuid(), CancellationToken.None);
         var proposal = await _links.ProposalAsync(pending.GameContextCredential!, _verifier, CancellationToken.None);
         var requestId = Guid.NewGuid();
-        _ownership.CheckAsync(Subject, Arg.Any<CancellationToken>()).Returns(Task.FromException<SteamOwnershipResult>(new IOException("Simulated response loss")));
+        _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(Task.FromException<SteamOwnershipResult>(new IOException("Simulated response loss")));
         await Assert.ThrowsAsync<IOException>(() => _auth.CompleteAccountLinkAsync(_links, pending.GameContextCredential!, proposal.ConsentCode!, _verifier, requestId, true, CancellationToken.None));
         Assert.Equal(1, _account.SessionEpoch);
         _clock.Advance(TimeSpan.FromSeconds(16));
-        _ownership.CheckAsync(Subject, Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
+        _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
         var result = await _auth.CompleteAccountLinkAsync(_links, pending.GameContextCredential!, proposal.ConsentCode!, _verifier, requestId, true, CancellationToken.None);
         Assert.Equal("authorized", result.State);
         Assert.Equal(1, _account.SessionEpoch);

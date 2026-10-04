@@ -5,7 +5,7 @@ public sealed record SteamProofResult(SteamProofStatus Status, string? ProviderS
 
 public interface ISteamProofVerifier
 {
-    Task<SteamProofResult> VerifyAsync(string ticketHex, string expectedIdentity, CancellationToken cancellationToken);
+    Task<SteamProofResult> VerifyAsync(uint appId, string ticketHex, string expectedIdentity, CancellationToken cancellationToken);
 }
 
 public enum SteamOwnershipStatus { Owned, NotOwned, ProviderUnavailable }
@@ -14,5 +14,5 @@ public sealed record SteamOwnershipResult(SteamOwnershipStatus Status, string Pr
 
 public interface ISteamOwnershipClient
 {
-    Task<SteamOwnershipResult> CheckAsync(string verifiedSteamId, CancellationToken cancellationToken);
+    Task<SteamOwnershipResult> CheckAsync(uint appId, string verifiedSteamId, CancellationToken cancellationToken);
 }

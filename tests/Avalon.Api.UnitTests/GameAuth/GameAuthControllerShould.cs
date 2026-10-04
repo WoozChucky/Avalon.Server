@@ -16,6 +16,26 @@ namespace Avalon.Api.UnitTests.GameAuth;
 
 public class GameAuthControllerShould
 {
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData(0u, false)]
+    [InlineData(480u, true)]
+    [InlineData(2514590u, false)]
+    public async Task Omitted_selector_defaults_to_main_but_zero_and_disabled_apps_are_refused(uint? appId, bool accepted)
+    {
+        var store = new AtomicAuthStore();
+        var crypto = new GameAuthCryptography(new byte[32]);
+        var config = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 480, SteamPublisherKey = "test-secret" });
+        var service = new GameAuthorizationService(store, new AuthAttemptStore(store, crypto, config, TimeProvider.System), crypto,
+            Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
+            Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(), config, TimeProvider.System);
+        var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        controller.Request.Scheme = "https";
+        var result = await controller.Attempt(new GameAttemptRequest { ChannelHint = "steam", ProtocolVersion = "0.2.0", SteamAppId = appId, ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, default);
+        if (accepted) Assert.IsType<OkObjectResult>(result);
+        else { Assert.IsType<BadRequestObjectResult>(result); Assert.Empty(store.Entries); }
+    }
+
     [Fact]
     public async Task Refuse_plaintext_before_creating_an_attempt()
     {

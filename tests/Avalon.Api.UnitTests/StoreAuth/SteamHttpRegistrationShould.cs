@@ -34,8 +34,8 @@ public class SteamHttpRegistrationShould
         services.AddHttpClient<ISteamProofVerifier, SteamProofVerifier>().ConfigurePrimaryHttpMessageHandler(() => transport);
         using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<IOptions<Avalon.Configuration.StoreAuthenticationConfiguration>>().Value.Validate(production: true);
-        var result = await provider.GetRequiredService<ISteamProofVerifier>().VerifyAsync("ABCD",
-            SteamProofVerifierShould.Identity, CancellationToken.None);
+        var result = await provider.GetRequiredService<ISteamProofVerifier>().VerifyAsync(appId, "ABCD",
+            SteamProofVerifierShould.IdentityFor(appId), CancellationToken.None);
         Assert.Equal(SteamProofStatus.ProviderUnavailable, result.Status);
         Assert.True(transport.Suppressed);
         Assert.Equal(2, transport.Calls);

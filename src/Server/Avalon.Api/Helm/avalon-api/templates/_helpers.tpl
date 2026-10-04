@@ -62,6 +62,38 @@ templates/secret.yaml creates.
 {{- end }}
 {{- end }}
 
+{{/* Match trusted .NET Playtest configuration; disabled profiles may be prepared in advance. */}}
+{{- define "avalon-api.validateSteamPlaytest" -}}
+{{- $profile := .Values.storeAuthentication.steamPlaytest | default dict }}
+{{- if not (kindIs "map" $profile) }}{{ fail "storeAuthentication.steamPlaytest must be a map" }}{{ end }}
+{{- if and (hasKey $profile "enabled") (not (kindIs "bool" $profile.enabled)) }}
+{{- fail "storeAuthentication.steamPlaytest.enabled must be a boolean" }}
+{{- end }}
+{{- $configured := get $profile "appId" | default 0 }}
+{{- if and (hasKey $profile "appId") (or (kindIs "bool" $profile.appId) (and (kindIs "string" $profile.appId) (not (regexMatch "^[0-9]+$" $profile.appId)))) }}
+{{- fail "storeAuthentication.steamPlaytest.appId must be a uint32 integer" }}
+{{- end }}
+{{- $appId := int64 $configured }}
+{{- if or (lt $appId 0) (gt $appId 4294967295) (ne (float64 $configured) (float64 $appId)) (and (ne $appId 0) (eq $appId (int64 .Values.storeAuthentication.steamAppId))) }}
+{{- fail "storeAuthentication.steamPlaytest.appId must be a distinct uint32 integer" }}
+{{- end }}
+{{- if and (hasKey $profile "allowedWorldIds") (not (kindIs "slice" $profile.allowedWorldIds)) }}
+{{- fail "storeAuthentication.steamPlaytest.allowedWorldIds must be a list" }}
+{{- end }}
+{{- $worlds := get $profile "allowedWorldIds" | default list }}
+{{- if and $profile.enabled (or (eq $appId 0) (eq (len $worlds) 0)) }}
+{{- fail "enabled storeAuthentication.steamPlaytest requires a positive appId and nonempty allowedWorldIds" }}
+{{- end }}
+{{- $seen := dict }}
+{{- range $world := $worlds }}
+{{- $id := int64 $world }}
+{{- if or (kindIs "bool" $world) (and (kindIs "string" $world) (not (regexMatch "^[0-9]+$" $world))) (le $id 0) (gt $id 65535) (ne (float64 $world) (float64 $id)) (hasKey $seen (toString $id)) }}
+{{- fail "storeAuthentication.steamPlaytest.allowedWorldIds requires distinct positive uint16 integers" }}
+{{- end }}
+{{- $_ := set $seen (toString $id) true }}
+{{- end }}
+{{- end }}
+
 {{/*
 The Secret keys holding one world's connection strings (#523). Called with (list <id> <entry>).
 worldKey / charactersKey name them (existingSecret only, trimmed); blank or absent, they default to

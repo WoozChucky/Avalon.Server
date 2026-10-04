@@ -36,7 +36,8 @@ public sealed class GameSessionControlShould
         var h = new JoinHarness();
         var sessions = Substitute.For<IGameSessionRepository>();
         var service = new GameSessionFenceService(sessions, h.Authorization, Substitute.For<IWorldRepositories>(),
-            Substitute.For<IAccountRepository>(), Options.Create(new GameWorkloadConfiguration()), h.Clock);
+            Substitute.For<IAccountRepository>(), Options.Create(new GameWorkloadConfiguration()), h.Clock,
+            new Avalon.Infrastructure.GameAuth.GameApplicationAccessPolicy(Options.Create(h.Configuration)));
         var http = new DefaultHttpContext();
         http.Request.Scheme = https ? "https" : "http";
         if (server) http.User = new(new ClaimsIdentity([new Claim(GameServerAuthHandler.ServerIdClaim, "world-1")], GameServerAuthHandler.Scheme));

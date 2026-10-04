@@ -193,4 +193,22 @@ grep -A4 'name: Application__StoreAuthentication__SteamPublisherKey' <<<"$out" |
 grep -A4 'name: Application__GameWorkloads__Servers__0__ClientCertificateSha256' <<<"$out" | grep -q 'key: "world-test-client-sha256"' || { echo "client certificate binding must use its Secret key"; exit 1; }
 grep -q 'containerPort: 9443' <<<"$out" || { echo "internal HTTPS port missing"; exit 1; }
 
+# Separate Playtest authority, disabled by default, with indexed allowed world configuration.
+profile=(--set storeAuthentication.steamPlaytest.appId=2514590 --set-json 'storeAuthentication.steamPlaytest.allowedWorldIds=[3]')
+disabled=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" "${profile[@]}")
+grep -A1 'name: Application__StoreAuthentication__SteamPlaytest__Enabled' <<<"$disabled" | grep -q 'value: "false"' || { echo "Playtest must be disabled"; exit 1; }
+grep -A1 'name: Application__StoreAuthentication__SteamPlaytest__AppId' <<<"$disabled" | grep -q 'value: "2514590"' || { echo "Playtest AppID missing"; exit 1; }
+enabled=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" "${profile[@]}" --set storeAuthentication.steamPlaytest.enabled=true)
+grep -A1 'name: Application__StoreAuthentication__SteamPlaytest__Enabled' <<<"$enabled" | grep -q 'value: "true"' || { echo "Playtest enabled missing"; exit 1; }
+grep -A1 'name: Application__StoreAuthentication__SteamPlaytest__AllowedWorldIds__0' <<<"$enabled" | grep -q 'value: "3"' || { echo "PTR restriction missing"; exit 1; }
+! grep -q 'SteamPlaytest__AllowedWorldIds__1' <<<"$enabled" || { echo "unexpected extra world"; exit 1; }
+omitted=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json 'storeAuthentication.steamPlaytest=null')
+grep -A1 'name: Application__StoreAuthentication__SteamPlaytest__Enabled' <<<"$omitted" | grep -q 'value: "false"' || { echo "omitted profile must remain main-only"; exit 1; }
+for value in 0 -1 1.5 4294967296 invalid 123456; do
+  must_fail "invalid Playtest AppID $value must fail" --set existingSecret=x "${W1[@]}" "${profile[@]}" --set storeAuthentication.steamPlaytest.enabled=true --set-string "storeAuthentication.steamPlaytest.appId=$value"
+done
+for worlds in '[]' '[0]' '[3,3]' '[65536]' '[1.5]' '[true]'; do
+  must_fail "invalid Playtest worlds $worlds must fail" --set existingSecret=x "${W1[@]}" "${profile[@]}" --set storeAuthentication.steamPlaytest.enabled=true --set-json "storeAuthentication.steamPlaytest.allowedWorldIds=$worlds"
+done
+must_fail "invalid disabled profile must fail" --set existingSecret=x "${W1[@]}" --set storeAuthentication.steamPlaytest.appId=-1
 echo "avalon-api chart OK"

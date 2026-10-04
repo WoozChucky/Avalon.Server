@@ -36,7 +36,7 @@ internal static class StoreAuthenticationModel
         licenses.Property(x => x.Product).HasMaxLength(128);
         licenses.Property(x => x.ProviderAppId).HasMaxLength(128);
         licenses.Property(x => x.ProviderOwnerSubject).HasMaxLength(128);
-        licenses.HasIndex(x => new { x.AccountId, x.Provider, x.ProviderSubject, x.Environment, x.Product, x.ObservedAt });
+        licenses.HasIndex(x => new { x.AccountId, x.Provider, x.ProviderSubject, x.Environment, x.Product, x.ProviderAppId, x.ObservedAt });
         licenses.HasOne<Account>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
 
         var sessions = model.Entity<GameSession>();

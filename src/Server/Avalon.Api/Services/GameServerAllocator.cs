@@ -12,7 +12,8 @@ namespace Avalon.Api.Services;
 
 /// <summary>Uses current access, maintenance and readiness plus deployment certificate identity.</summary>
 public sealed class GameServerAllocator(IWorldRepository worlds, IAccountRepository accounts, IWorldDatabases databases,
-    IWorldReadiness readiness, IWorldRepositories repositories, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock) : IGameServerAllocator
+    IWorldReadiness readiness, IWorldRepositories repositories, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock,
+    GameApplicationAccessPolicy applications) : IGameServerAllocator
 {
     public async Task<IReadOnlyList<GameWorldDestination>> ListAsync(GameContextRecord context, CancellationToken cancellationToken)
     {
@@ -26,7 +27,7 @@ public sealed class GameServerAllocator(IWorldRepository worlds, IAccountReposit
     }
     public async Task<GameWorldDestination?> FindAsync(GameContextRecord context, ushort worldId, uint? characterId, CancellationToken cancellationToken)
     {
-        if (context.AccountId is not { } id || context.ProtocolVersion != GameWorkloadConfiguration.ClientProtocolVersion || characterId == 0) return null;
+        if (!applications.AllowsWorld(context.SteamAppId, worldId) || context.AccountId is not { } id || context.ProtocolVersion != GameWorkloadConfiguration.ClientProtocolVersion || characterId == 0) return null;
         var server = workloads.Value.Servers.SingleOrDefault(s => s.WorldId == worldId);
         if (server is null || !databases.IsAvailable(new WorldId(worldId))) return null;
         var root = await accounts.FindByIdAsync(new AccountId(id), false, cancellationToken);

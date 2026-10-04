@@ -16,6 +16,36 @@ public sealed class JoinTicketStoreShould
     private readonly JoinHarness _h = new();
 
     [Fact]
+    public async Task Playtest_cannot_issue_other_worlds_or_replay_receipts_after_restriction_changes()
+    {
+        _h.Account.AccessLevel |= Avalon.Common.Accounts.AccountAccessLevel.Admin;
+        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 3, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(new GameWorldDestination(3, "world-3", "PTR", "localhost", 21000, "localhost", new string('A', 64), "0.2.0", "0.2.0"));
+        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 2, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(new GameWorldDestination(2, "world-2", "Asthoria", "localhost", 21000, "localhost", new string('A', 64), "0.2.0", "0.2.0"));
+        var auth = await _h.Authenticate(2514590);
+        foreach (ushort world in new ushort[] { 1, 2 })
+            Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, world, null, Guid.NewGuid(), false, false, default)).Error);
+        var request = Guid.NewGuid();
+        var issued = await _h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default);
+        Assert.Null(issued.Error);
+        Assert.Equal(issued, await _h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default));
+        _h.Configuration.SteamPlaytest.AllowedWorldIds = [1];
+        Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default)).Error);
+        Assert.NotNull((await _h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", Guid.NewGuid(), Guid.NewGuid(), default)).Error);
+        await _h.Sessions.DidNotReceive().TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        _h.Configuration.SteamPlaytest.AllowedWorldIds = [3];
+        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid();
+        var receipt = await _h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", connection, redemption, default);
+        Assert.Null(receipt.Error);
+        Assert.Equal(receipt, await _h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", connection, redemption, default));
+        _h.Configuration.SteamPlaytest.AllowedWorldIds = [1];
+        Assert.NotNull((await _h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", connection, redemption, default)).Error);
+        _h.Configuration.SteamPlaytest.AllowedWorldIds = [3];
+        _h.Configuration.SteamPlaytest.Enabled = false;
+        Assert.NotNull((await _h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", connection, redemption, default)).Error);
+        Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default)).Error);
+    }
+
+    [Fact]
     public async Task Cap_a_one_use_ticket_to_credentials_context_and_license_and_recover_issuance()
     {
         var auth = await _h.Authenticate();
@@ -99,6 +129,7 @@ internal sealed class JoinHarness
     public IGameServerAllocator Allocator { get; } = Substitute.For<IGameServerAllocator>();
     public GameAuthorizationService Authorization { get; }
     public JoinTicketStore Tickets { get; }
+    public StoreAuthenticationConfiguration Configuration { get; } = new() { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-only", SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
     public JoinHarness()
     {
         var accounts = Substitute.For<IAccountRepository>();
@@ -106,11 +137,11 @@ internal sealed class JoinHarness
         var verifier = Substitute.For<ISteamProofVerifier>();
         var ownership = Substitute.For<ISteamOwnershipClient>();
         var crypto = new GameAuthCryptography(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray());
-        var options = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-only" });
+        var options = Options.Create(Configuration);
         accounts.FindByIdAsync(Account.Id, false, Arg.Any<CancellationToken>()).Returns(Account);
         identities.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns(new ExternalIdentity { Id = Guid.NewGuid(), AccountId = Account.Id, Provider = "steam", ProviderSubject = "76561198000000001" });
-        verifier.VerifyAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
-        ownership.CheckAsync("76561198000000001", Arg.Any<CancellationToken>()).Returns(call => new SteamOwnershipResult(SteamOwnershipStatus.Owned, "76561198000000001", Clock.GetUtcNow().UtcDateTime, Clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
+        verifier.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
+        ownership.CheckAsync(Arg.Any<uint>(), "76561198000000001", Arg.Any<CancellationToken>()).Returns(call => new SteamOwnershipResult(SteamOwnershipStatus.Owned, "76561198000000001", Clock.GetUtcNow().UtcDateTime, Clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
         Authorization = new(Store, new AuthAttemptStore(Store, crypto, options, Clock), crypto, accounts,
             Substitute.For<IRefreshTokenRepository>(), identities, Substitute.For<ILicenseObservationRepository>(), verifier, ownership, options, Clock);
         Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost", new string('A', 64), "0.0.1", "0.0.1"));
@@ -124,11 +155,11 @@ internal sealed class JoinHarness
             Sessions.FindAsync(Account.Id, Arg.Any<CancellationToken>()).Returns(head);
             return head;
         });
-        Tickets = new(Store, crypto, Authorization, Sessions, Allocator, options, Clock);
+        Tickets = new(Store, crypto, Authorization, Sessions, Allocator, options, Clock, new GameApplicationAccessPolicy(options));
     }
-    public async Task<GameAuthReply> Authenticate()
+    public async Task<GameAuthReply> Authenticate(uint? appId = null)
     {
-        var attempt = (await Authorization.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, CancellationToken.None))!;
+        var attempt = (await Authorization.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, appId, CancellationToken.None))!;
         return await Authorization.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
     }
 }

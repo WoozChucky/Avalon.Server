@@ -1,3 +1,4 @@
+using Avalon.Infrastructure;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
@@ -32,12 +33,12 @@ public class GameContextStoreShould
     {
         _accounts.FindByIdAsync(Arg.Any<AccountId>(), false, Arg.Any<CancellationToken>()).Returns(_account);
         _families.IsLiveLauncherFamilyAsync(Arg.Any<AccountId>(), _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
-        _proof.VerifyAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
+        _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
         _links.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns(new ExternalIdentity
         {
             Id = Guid.NewGuid(), AccountId = _account.Id, Provider = "steam", ProviderSubject = "76561198000000001",
         });
-        _ownership.CheckAsync("76561198000000001", Arg.Any<CancellationToken>()).Returns(call => new SteamOwnershipResult(
+        _ownership.CheckAsync(Arg.Any<uint>(), "76561198000000001", Arg.Any<CancellationToken>()).Returns(call => new SteamOwnershipResult(
             SteamOwnershipStatus.Owned, "76561198000000001", _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
     }
 
@@ -45,8 +46,68 @@ public class GameContextStoreShould
         new AuthAttemptStore(customStore ?? _store, _crypto, _config, _clock), _crypto,
         _accounts, _families, _links, _licenses, _proof, _ownership, _config, _clock, revocations: _revocations);
 
-    private Task<AuthAttemptReply?> Attempt(string channel, string? context = null) =>
-        Service().CreateAttemptAsync(channel, "1", Guid.Parse("11111111-1111-1111-1111-111111111111"), new string('A', 43), context, CancellationToken.None);
+    private Task<AuthAttemptReply?> Attempt(string channel, string? context = null, uint? appId = null) =>
+        Service().CreateAttemptAsync(channel, "1", Guid.Parse("11111111-1111-1111-1111-111111111111"), new string('A', 43), context, appId, CancellationToken.None);
+
+    [Theory]
+    [InlineData(2499460u)]
+    [InlineData(2514590u)]
+    public async Task Selected_application_is_bound_to_challenge_context_and_both_provider_calls(uint appId)
+    {
+        _config.Value.SteamAppId = 2499460;
+        _config.Value.SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] };
+        _proof.VerifyAsync(appId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
+        _ownership.CheckAsync(appId, "76561198000000001", Arg.Any<CancellationToken>())
+            .Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, "76561198000000001", _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
+        var attempt = (await Attempt("steam", appId: appId))!;
+        Assert.StartsWith($"avalon-auth-prod:{appId}:", attempt.ExpectedSteamIdentity);
+        var stored = GameAuthJson.Deserialize<AuthAttemptRecord>(await _store.ReadAsync(new AuthAttemptStore(_store, _crypto, _config, _clock).Key(attempt.AttemptCredential), default))!;
+        Assert.Equal(appId, stored.SteamAppId);
+        var reply = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), default);
+        var context = (await Service().GetContextAsync(reply.GameContextCredential!, true, default))!;
+        Assert.Equal(appId, context.SteamAppId);
+        await _proof.Received(1).VerifyAsync(appId, "ABCD", attempt.ExpectedSteamIdentity, Arg.Any<CancellationToken>());
+        await _ownership.Received(1).CheckAsync(appId, "76561198000000001", Arg.Any<CancellationToken>());
+        Assert.Null(await Attempt("steam", reply.GameContextCredential, appId == 2499460 ? 2514590u : 2499460u));
+        var refreshed = await Service().RefreshAsync(reply.GameContextRefreshToken!, Guid.NewGuid(), default);
+        Assert.Equal(appId, (await Service().GetContextAsync(refreshed.GameContextCredential!, true, default))!.SteamAppId);
+        var key = CacheKeys.GameAuth("production", "context", context.Id.ToString("N"));
+        var current = (await Service().GetContextAsync(refreshed.GameContextCredential!, true, default))!;
+        _store.Seed(key, GameAuthJson.Serialize(current with { SteamAppId = 0 }));
+        Assert.Null(await Service().GetContextAsync(refreshed.GameContextCredential!, true, default));
+    }
+
+    [Theory]
+    [InlineData("steam", 0u)]
+    [InlineData("steam", 480u)]
+    [InlineData("avalon", 2514590u)]
+    public async Task Invalid_selector_or_playtest_handoff_creates_no_attempt(string channel, uint appId)
+    {
+        _config.Value.SteamAppId = 2499460;
+        _config.Value.SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] };
+        Assert.Null(await Attempt(channel, appId: appId));
+        Assert.Empty(_store.Entries);
+    }
+
+    [Theory]
+    [InlineData(2499460u, 2514590u)]
+    [InlineData(2514590u, 2499460u)]
+    public async Task Negative_observation_revokes_only_the_context_for_its_application(uint revokedApp, uint unaffectedApp)
+    {
+        _config.Value.SteamAppId = 2499460;
+        _config.Value.SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] };
+        var revokedAttempt = (await Attempt("steam", appId: revokedApp))!;
+        var otherAttempt = (await Attempt("steam", appId: unaffectedApp))!;
+        var revoked = await Service().AuthenticateSteamAsync(revokedAttempt.AttemptCredential, "ABCD", Guid.NewGuid(), default);
+        var unaffected = await Service().AuthenticateSteamAsync(otherAttempt.AttemptCredential, "DCBA", Guid.NewGuid(), default);
+        Assert.NotNull(await Service().GetContextAsync(revoked.GameContextCredential!, true, default));
+        _licenses.HasNegativeSinceAsync(_account.Id, "steam", "76561198000000001", "production", "avalon.base", revokedApp.ToString(System.Globalization.CultureInfo.InvariantCulture), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+        Assert.Null(await Service().GetContextAsync(revoked.GameContextCredential!, true, default));
+        Assert.NotNull(await Service().GetContextAsync(unaffected.GameContextCredential!, true, default));
+        _links.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns((ExternalIdentity?)null);
+        Assert.Null(await Service().GetContextAsync(unaffected.GameContextCredential!, true, default));
+    }
 
     private string Handoff()
     {
@@ -87,7 +148,7 @@ public class GameContextStoreShould
         var granted = await Service().AuthenticateSteamAsync(first.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
         var context = (await Service().GetContextAsync(granted.GameContextCredential!, true, CancellationToken.None))!;
         _clock.Advance(TimeSpan.FromMinutes(4));
-        _ownership.CheckAsync("76561198000000001", Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(
+        _ownership.CheckAsync(Arg.Any<uint>(), "76561198000000001", Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(
             status, "76561198000000001", _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime));
         var renewal = (await Attempt("steam", granted.GameContextCredential))!;
         var result = await Service().AuthenticateSteamAsync(renewal.AttemptCredential, "DCBA", Guid.NewGuid(), CancellationToken.None);
@@ -113,7 +174,7 @@ public class GameContextStoreShould
         var attempt = (await Attempt("steam"))!;
         var result = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
         var current = (await Service().GetContextAsync(result.GameContextCredential!, true, CancellationToken.None))!;
-        _licenses.HasNegativeSinceAsync(_account.Id, "steam", "76561198000000001", "production", "avalon.base", current.IdentityVerifiedAt!.Value, Arg.Any<CancellationToken>()).Returns(true);
+        _licenses.HasNegativeSinceAsync(_account.Id, "steam", "76561198000000001", "production", "avalon.base", "480", current.IdentityVerifiedAt!.Value, Arg.Any<CancellationToken>()).Returns(true);
         Assert.Null(await Service().GetContextByIdAsync(current.Id, true, CancellationToken.None));
         Assert.Equal("CONTEXT_REVOKED", (await Service().RefreshAsync(result.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None)).Error);
     }
@@ -187,7 +248,7 @@ public class GameContextStoreShould
     public async Task Create_one_authorized_context_and_keep_the_original_license_deadline_on_refresh()
     {
         var attempt = (await Attempt("steam"))!;
-        Assert.Matches("^avalon-auth-prod:[a-f0-9]{32}$", attempt.ExpectedSteamIdentity);
+        Assert.Matches("^avalon-auth-prod:480:[a-f0-9]{32}$", attempt.ExpectedSteamIdentity);
         var request = Guid.NewGuid();
         var result = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None);
         Assert.Equal("authorized", result.State);

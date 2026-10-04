@@ -31,7 +31,8 @@ public sealed record GameSessionLeaseReply
 
 /// <summary>Resumes durable pending transitions; no cross-database transaction is assumed.</summary>
 public sealed class GameSessionFenceService(IGameSessionRepository sessions, GameAuthorizationService authorization,
-    IWorldRepositories worlds, IAccountRepository accounts, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock)
+    IWorldRepositories worlds, IAccountRepository accounts, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock,
+    GameApplicationAccessPolicy applications)
 {
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     public async Task<GameSessionLeaseReply> HeartbeatAsync(string serverId, AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken)
@@ -101,7 +102,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         if (head is null || head.GameSessionId != sessionId || head.FencingToken != fence || head.ServerId != serverId ||
             head.WorldId != definition.WorldId || head.State == GameSessionState.Ended || head.LeaseUntil <= Now || head.LicenseUntil <= Now) return null;
         var context = await authorization.GetContextByIdAsync(head.GameContextId, true, cancellationToken);
-        if (context is null || context.AccountId != accountId.Value || context.Environment != head.Environment ||
+        if (context is null || !applications.AllowsWorld(context.SteamAppId, head.WorldId) || context.AccountId != accountId.Value || context.Environment != head.Environment ||
             context.CredentialsVersion != head.CredentialsVersion || context.SessionEpoch != head.SessionEpoch || Deadline(context) <= Now) return null;
         var root = await accounts.FindByIdAsync(accountId, false, cancellationToken);
         if (root is null || root.Status != AccountStatus.Active || root.GameplayConsolidationId is not null || root.IsLockedAt(Now) ||
