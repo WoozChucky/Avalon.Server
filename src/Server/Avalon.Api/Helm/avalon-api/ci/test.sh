@@ -2,6 +2,9 @@
 # Renders the chart the way homelab and the release use it and asserts on the output.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# Supply mandatory authentication settings for renders and unrelated refusal checks.
+AUTHENTICATION=(--values ci/authentication-values.yaml)
 KEY=$(printf 'k%.0s' $(seq 1 64))
 CACHE="--set cache.host=redis:6379"
 # The auth string a chart-managed Secret needs (#564).
@@ -9,10 +12,10 @@ AUTH=(--set database.auth.connectionString=a1)
 # One world whose strings live in a Secret the operator manages, under keys the values name (#523).
 W1=(--set worlds.1.worldKey=world-one --set worlds.1.charactersKey=characters-one)
 
-helm lint . $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" \
+helm lint . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" \
   --set worlds.1.world.connectionString=w1 --set worlds.1.characters.connectionString=c1
 
-out=$(helm template t . $CACHE --set existingSecret=avalon-api "${W1[@]}")
+out=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}")
 grep -q "kind: Deployment" <<<"$out"                                   || { echo "not a Deployment"; exit 1; }
 ! grep -q "kind: StatefulSet" <<<"$out"                                || { echo "still a StatefulSet"; exit 1; }
 ! grep -q "kind: HorizontalPodAutoscaler" <<<"$out"                    || { echo "HPA on by default"; exit 1; }
@@ -24,12 +27,12 @@ grep -A1 "ASPNETCORE_ENVIRONMENT" <<<"$out" | grep -q 'Production'    || { echo 
 
 # The public tooltips' default world: only when set, so the API's fallback applies otherwise.
 ! grep -q "Application__PublicWorldId" <<<"$out"                       || { echo "publicWorldId must not render unset"; exit 1; }
-pw=$(helm template t . $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicWorldId=2)
+pw=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicWorldId=2)
 grep -A1 "name: Application__PublicWorldId" <<<"$pw" | grep -q 'value: "2"' || { echo "publicWorldId must render as Application__PublicWorldId"; exit 1; }
 
 # The link previews' public site URL: only when set, so previews leave og:url out otherwise.
 ! grep -q "Application__PublicSiteUrl" <<<"$out"                       || { echo "publicSiteUrl must not render unset"; exit 1; }
-ps=$(helm template t . $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicSiteUrl=https://avalon.example)
+ps=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicSiteUrl=https://avalon.example)
 grep -A1 "name: Application__PublicSiteUrl" <<<"$ps" | grep -q 'value: "https://avalon.example"' || { echo "publicSiteUrl must render as Application__PublicSiteUrl"; exit 1; }
 
 # Worlds (#523): one world, its keys as named, and no single World/Characters pair any more.
@@ -38,7 +41,7 @@ grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$out" | g
 ! grep -Eq "name: Database__(World|Characters)__ConnectionString" <<<"$out"                                  || { echo "the single world pair must be gone"; exit 1; }
 
 # Several worlds, chart-managed Secret, default keys.
-many=$(helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" \
+many=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" \
   --set worlds.1.world.connectionString=w1 --set worlds.1.characters.connectionString=c1 \
   --set worlds.3.world.connectionString=w3 --set worlds.3.characters.connectionString=c3)
 for id in 1 3; do
@@ -50,7 +53,7 @@ grep -q 'database-characters-1-connection-string: "c1"' <<<"$many"     || { echo
 ! grep -q "Database__Worlds__2__" <<<"$many"                           || { echo "rendered a world nobody configured"; exit 1; }
 
 # Every refusal below renders with a cache host, so it fails for its own reason.
-must_fail() { local why=$1; shift; if helm template t . $CACHE "$@" >/dev/null 2>&1; then echo "$why"; exit 1; fi; }
+must_fail() { local why=$1; shift; if helm template t . "${AUTHENTICATION[@]}" $CACHE "$@" >/dev/null 2>&1; then echo "$why"; exit 1; fi; }
 must_fail "no world must fail"                        --set existingSecret=x
 must_fail "world id 0 must fail"                      --set existingSecret=x --set worlds.0.worldKey=a --set worlds.0.charactersKey=b
 must_fail "a non-numeric world id must fail"          --set existingSecret=x --set worlds.abc.worldKey=a --set worlds.abc.charactersKey=b
@@ -59,7 +62,7 @@ must_fail "a world id above 65535 must fail"          --set existingSecret=x --s
 must_fail "half a pair must fail"                     --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" --set worlds.1.world.connectionString=w1
 must_fail "existingSecret + inline world string must fail" --set existingSecret=x --set worlds.1.world.connectionString=leak
 must_fail "the old single pair must fail"             --set existingSecret=x "${W1[@]}" --set database.world.connectionString=old
-msg=$(helm template t . $CACHE --set existingSecret=x 2>&1 || true)
+msg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x 2>&1 || true)
 grep -q "worlds lists no world" <<<"$msg"                              || { echo "the no-world refusal must say why"; exit 1; }
 
 # Secret key names (#523): the chart-managed Secret names its own keys, and no two settings may read one key.
@@ -74,13 +77,13 @@ must_fail "two worlds sharing a key must fail"             --set existingSecret=
 must_fail "a key reusing another world's default must fail" --set existingSecret=x --set worlds.1.worldKey= --set worlds.2.worldKey=database-world-1-connection-string --set worlds.2.charactersKey=characters-two
 must_fail "a key with a slash must fail"                   --set existingSecret=x --set worlds.1.worldKey=bad/key --set worlds.1.charactersKey=characters-one
 must_fail "a key with a space must fail"                   --set existingSecret=x --set 'worlds.1.worldKey=bad key' --set worlds.1.charactersKey=characters-one
-msg=$(helm template t . $CACHE --set existingSecret=x --set worlds.1.worldKey=jwt-signing-key --set worlds.1.charactersKey=characters-one 2>&1 || true)
+msg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set worlds.1.worldKey=jwt-signing-key --set worlds.1.charactersKey=characters-one 2>&1 || true)
 grep -q "authentication.issuerSigningKey" <<<"$msg"                    || { echo "the key collision must name what already reads the key"; exit 1; }
-blank=$(helm template t . $CACHE --set existingSecret=x --set 'worlds.1.worldKey=  ' --set worlds.1.charactersKey=' characters-one ')
+blank=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set 'worlds.1.worldKey=  ' --set worlds.1.charactersKey=' characters-one ')
 grep -A4 "name: Database__Worlds__1__World__ConnectionString" <<<"$blank" | grep -q 'key: "database-world-1-connection-string"' || { echo "a blank worldKey must mean the default key"; exit 1; }
 grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$blank" | grep -q 'key: "characters-one"$'            || { echo "a key must be trimmed"; exit 1; }
 
-num=$(helm template t . $CACHE --set existingSecret=x --set worlds.1.worldKey=123 --set worlds.1.charactersKey=true)
+num=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set worlds.1.worldKey=123 --set worlds.1.charactersKey=true)
 grep -A4 "name: Database__Worlds__1__World__ConnectionString" <<<"$num" | grep -q 'key: "123"'        || { echo "a numeric key must render as a string"; exit 1; }
 grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$num" | grep -q 'key: "true"' || { echo "a key that reads as a boolean must render as a string"; exit 1; }
 
@@ -88,33 +91,33 @@ grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$num" | g
 # with existingSecret only its key is referenced, so no inline string is needed ($out above).
 must_fail "a chart-managed Secret without the auth string must fail" --set authentication.issuerSigningKey="$KEY" "${CS1[@]}"
 must_fail "a whitespace-only auth string must fail"                  --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" --set 'database.auth.connectionString=  '
-msg=$(helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" 2>&1 || true)
+msg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" 2>&1 || true)
 grep -q "database.auth.connectionString is required" <<<"$msg"         || { echo "the missing auth string refusal must name the value"; exit 1; }
-auth=$(helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" --set 'database.auth.connectionString= a1 ')
+auth=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" --set 'database.auth.connectionString= a1 ')
 grep -q 'database-auth-connection-string: "a1"$' <<<"$auth"            || { echo "the auth string must reach the Secret, trimmed"; exit 1; }
 grep -A4 "name: Database__Auth__ConnectionString" <<<"$out" | grep -q "key: database-auth-connection-string" || { echo "existingSecret must reference the auth key"; exit 1; }
 
 # A changed world string restarts the pods: the checksum annotation follows the chart-managed Secret.
-sum() { helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "$@" | grep "checksum/secret:"; }
+sum() { helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "$@" | grep "checksum/secret:"; }
 a=$(sum "${CS1[@]}"); b=$(sum --set worlds.1.world.connectionString=w1-rotated --set worlds.1.characters.connectionString=c1)
 [ -n "$a" ] && [ "$a" != "$b" ]                                        || { echo "a changed world string must change the checksum"; exit 1; }
 
-hpa=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set autoscaling.enabled=true)
+hpa=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set autoscaling.enabled=true)
 grep -A2 "scaleTargetRef" <<<"$hpa" | grep -q "kind: Deployment"       || { echo "HPA must target the Deployment"; exit 1; }
 
 must_fail "existingSecret + inline secret must fail" --set existingSecret=x "${W1[@]}" --set cache.password=leak
-ot=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set otel.endpoint=http://otel-collector:4317 --set 'otel.resourceAttributes.deployment\.environment=production')
+ot=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set otel.endpoint=http://otel-collector:4317 --set 'otel.resourceAttributes.deployment\.environment=production')
 grep -A1 "name: OTEL_EXPORTER_OTLP_ENDPOINT" <<<"$ot" | grep -q "http://otel-collector:4317" || { echo "otel endpoint missing"; exit 1; }
 grep -A1 "name: OTEL_SERVICE_NAME" <<<"$ot" | grep -q '"t-avalon-api"'                                  || { echo "service name must default to the fullname"; exit 1; }
 grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$ot" | grep -q '"deployment.environment=production"'          || { echo "resource attributes missing"; exit 1; }
 ! grep -q "OTEL_" <<<"$out"                                                                              || { echo "otel env rendered without an endpoint"; exit 1; }
 grep -A1 "name: Application__Cache__Host" <<<"$out" | grep -q '"redis:6379"'              || { echo "cache host missing"; exit 1; }
 # With a world configured, so the cache host is the only thing missing (#543).
-if helm template t . --set existingSecret=x "${W1[@]}" >/dev/null 2>&1; then
+if helm template t . "${AUTHENTICATION[@]}" --set existingSecret=x "${W1[@]}" >/dev/null 2>&1; then
   echo "rendering without cache.host must fail"; exit 1
 fi
 ! grep -q "Application__Distribution__" <<<"$out"                                              || { echo "distribution env rendered without an endpoint"; exit 1; }
-dist=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set distribution.endpoint=http://garage.distribution.svc:3900 --set distribution.publicUrl=https://dist.example --set distribution.accessKeyId=GKabc)
+dist=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set distribution.endpoint=http://garage.distribution.svc:3900 --set distribution.publicUrl=https://dist.example --set distribution.accessKeyId=GKabc)
 grep -A1 "name: Application__Distribution__Endpoint" <<<"$dist" | grep -q "http://garage.distribution.svc:3900" || { echo "distribution endpoint missing"; exit 1; }
 grep -A1 "name: Application__Distribution__PublicUrl" <<<"$dist" | grep -q "https://dist.example"                || { echo "distribution public url missing"; exit 1; }
 grep -A1 "name: Application__Distribution__Bucket" <<<"$dist" | grep -q '"avalon-dist"'                            || { echo "distribution bucket missing"; exit 1; }
@@ -122,20 +125,20 @@ grep -A1 "name: Application__Distribution__Region" <<<"$dist" | grep -q '"garage
 grep -A1 "name: Application__Distribution__AccessKeyId" <<<"$dist" | grep -q '"GKabc"'                             || { echo "distribution key id missing"; exit 1; }
 grep -A4 "name: Application__Distribution__SecretAccessKey" <<<"$dist" | grep -q "key: distribution-secret-key"    || { echo "distribution secret must come from the Secret"; exit 1; }
 # With a world configured, so the inline secret is the only thing refused.
-if helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set distribution.secretAccessKey=leak >/dev/null 2>&1; then
+if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set distribution.secretAccessKey=leak >/dev/null 2>&1; then
   echo "existingSecret + inline distribution.secretAccessKey must fail"; exit 1
 fi
 # Rate limiting (#561): nothing rendered by default, so the API's defaults apply; each value when set,
 # false and 0 included (the API refuses a limit below 1 itself, naming the setting).
 ! grep -q "Application__RateLimiting__" <<<"$out"                                          || { echo "rate limiting env rendered without a value"; exit 1; }
-rl=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=false \
+rl=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=false \
   --set rateLimiting.anonymousPermitsPerMinute=0 --set rateLimiting.authenticatedPermitsPerMinute=600 \
   --set rateLimiting.clientAuthPermitsPerMinute=7)
 grep -A1 "name: Application__RateLimiting__Enabled" <<<"$rl" | grep -q '"false"'                       || { echo "rateLimiting.enabled=false missing"; exit 1; }
 grep -A1 "name: Application__RateLimiting__AnonymousPermitsPerMinute" <<<"$rl" | grep -q '"0"'         || { echo "rateLimiting.anonymousPermitsPerMinute missing"; exit 1; }
 grep -A1 "name: Application__RateLimiting__AuthenticatedPermitsPerMinute" <<<"$rl" | grep -q '"600"'   || { echo "rateLimiting.authenticatedPermitsPerMinute missing"; exit 1; }
 grep -A1 "name: Application__RateLimiting__ClientAuthPermitsPerMinute" <<<"$rl" | grep -q '"7"'        || { echo "rateLimiting.clientAuthPermitsPerMinute missing"; exit 1; }
-on=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=true)
+on=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=true)
 grep -A1 "name: Application__RateLimiting__Enabled" <<<"$on" | grep -q '"true"'                        || { echo "rateLimiting.enabled=true missing"; exit 1; }
 ! grep -q "Application__RateLimiting__AnonymousPermitsPerMinute" <<<"$on"                             || { echo "an unset limit must not render"; exit 1; }
 # Balance service (admin /balance proxy): the URL renders only when set; the secret is always a
@@ -143,18 +146,51 @@ grep -A1 "name: Application__RateLimiting__Enabled" <<<"$on" | grep -q '"true"' 
 ! grep -q "Application__Balance__Url" <<<"$out"                                                || { echo "balance url rendered without a value"; exit 1; }
 grep -A4 "name: Application__Balance__SharedSecret" <<<"$out" | grep -q "key: balance-shared-secret" || { echo "balance secret must come from the Secret"; exit 1; }
 grep -A5 "name: Application__Balance__SharedSecret" <<<"$out" | grep -q "optional: true"       || { echo "balance secret must be optional"; exit 1; }
-bal=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set balance.url=http://balance-avalon-balance:8080)
+bal=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set balance.url=http://balance-avalon-balance:8080)
 grep -A1 "name: Application__Balance__Url" <<<"$bal" | grep -q '"http://balance-avalon-balance:8080"' || { echo "balance url missing"; exit 1; }
 must_fail "existingSecret + inline balance.sharedSecret must fail" --set existingSecret=x "${W1[@]}" --set balance.sharedSecret=leak
-balsec=$(helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set balance.sharedSecret=s3cret)
+balsec=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set balance.sharedSecret=s3cret)
 grep -q 'balance-shared-secret: "s3cret"' <<<"$balsec"                                         || { echo "balance secret must reach the chart-managed Secret"; exit 1; }
 # Live template editing: the editable worlds (indexed env) and the reload timeout render only when set.
 ! grep -q "Application__Templates__" <<<"$out"                                                 || { echo "templates env rendered without a value"; exit 1; }
-tpl=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set 'templates.editableWorlds={2,5}' --set templates.reloadTimeout=00:00:20)
+tpl=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set 'templates.editableWorlds={2,5}' --set templates.reloadTimeout=00:00:20)
 grep -A1 "name: Application__Templates__EditableWorlds__0" <<<"$tpl" | grep -q '"2"'           || { echo "editableWorlds[0] missing"; exit 1; }
 grep -A1 "name: Application__Templates__EditableWorlds__1" <<<"$tpl" | grep -q '"5"'           || { echo "editableWorlds[1] missing"; exit 1; }
 ! grep -q "Application__Templates__EditableWorlds__2" <<<"$tpl"                                || { echo "rendered an extra editable world"; exit 1; }
 grep -A1 "name: Application__Templates__ReloadTimeout" <<<"$tpl" | grep -q '"00:00:20"'        || { echo "reloadTimeout missing"; exit 1; }
-tpo=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set templates.reloadTimeout=00:00:20)
+tpo=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set templates.reloadTimeout=00:00:20)
 ! grep -q "Application__Templates__EditableWorlds" <<<"$tpo"                                   || { echo "empty editableWorlds must not render"; exit 1; }
+
+# Authentication values cannot be omitted, even when all other configuration is valid.
+must_refuse_authentication() {
+  local setting=$1 expected=$2 message
+  if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-string "$setting=" 2>&1); then
+    echo "missing $setting must fail"; exit 1
+  fi
+  grep -Fq "$expected" <<<"$message" || { echo "missing $setting must name the setting"; exit 1; }
+}
+for setting in storeAuthentication.steamAppId storeAuthentication.existingSecret storeAuthentication.publisherKeyKey gameAdmission.tlsExistingSecret gameAdmission.bindingsExistingSecret; do
+  must_refuse_authentication "$setting" "$setting is required"
+done
+for field in serverId worldId tlsServerName; do
+  must_refuse_authentication "gameAdmission.servers[0].$field" "gameAdmission $field is required"
+done
+if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json 'gameAdmission.servers=[]' 2>&1); then
+  echo "empty workload bindings must fail"; exit 1
+fi
+grep -Fq 'gameAdmission.servers is required' <<<"$message" || { echo "empty workload bindings must name the setting"; exit 1; }
+for value in 0 -1 1.5 4294967296 invalid; do
+  if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-string "storeAuthentication.steamAppId=$value" 2>&1); then
+    echo "invalid Steam application ID $value must fail"; exit 1
+  fi
+  grep -Fq 'storeAuthentication.steamAppId' <<<"$message" || { echo "invalid application ID must name the setting"; exit 1; }
+done
+for value in 123456 2499461 4294967295; do
+  configured=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set "storeAuthentication.steamAppId=$value")
+  grep -A1 'name: Application__StoreAuthentication__SteamAppId' <<<"$configured" | grep -Fq "value: \"$value\"" || { echo "application ID must render as canonical decimal"; exit 1; }
+done
+grep -A4 'name: Application__StoreAuthentication__SteamPublisherKey' <<<"$out" | grep -q 'name: "test-steam-credentials"' || { echo "publisher key must use its Secret reference"; exit 1; }
+grep -A4 'name: Application__GameWorkloads__Servers__0__ClientCertificateSha256' <<<"$out" | grep -q 'key: "world-test-client-sha256"' || { echo "client certificate binding must use its Secret key"; exit 1; }
+grep -q 'containerPort: 9443' <<<"$out" || { echo "internal HTTPS port missing"; exit 1; }
+
 echo "avalon-api chart OK"
