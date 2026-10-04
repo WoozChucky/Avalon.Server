@@ -13,8 +13,10 @@ namespace Avalon.Api.UnitTests.StoreAuth;
 
 public class SteamHttpRegistrationShould
 {
-    [Fact]
-    public async Task Suppress_query_spans_and_logs_on_the_registered_provider_pipeline()
+    [Theory]
+    [InlineData(StoreAuthenticationTestData.SteamAppId)]
+    [InlineData(123456)]
+    public async Task Suppress_query_spans_and_logs_on_the_registered_provider_pipeline(uint appId)
     {
         var environment = Substitute.For<IHostEnvironment>();
         environment.EnvironmentName.Returns(Environments.Production);
@@ -24,6 +26,7 @@ public class SteamHttpRegistrationShould
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Application:StoreAuthentication:SteamPublisherKey"] = SteamProofVerifierShould.Key,
+            ["Application:StoreAuthentication:SteamAppId"] = appId.ToString(System.Globalization.CultureInfo.InvariantCulture),
         }).Build());
         services.AddSingleton(environment);
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
@@ -36,6 +39,7 @@ public class SteamHttpRegistrationShould
         Assert.Equal(SteamProofStatus.ProviderUnavailable, result.Status);
         Assert.True(transport.Suppressed);
         Assert.Equal(2, transport.Calls);
+        Assert.All(transport.Requests, request => Assert.Contains("appid=" + appId.ToString(System.Globalization.CultureInfo.InvariantCulture), request.Query, StringComparison.Ordinal));
         Assert.DoesNotContain(SteamProofVerifierShould.Key, string.Join("\n", logs.Messages), StringComparison.Ordinal);
         Assert.DoesNotContain("ABCD", string.Join("\n", logs.Messages), StringComparison.Ordinal);
         Assert.DoesNotContain("key=", string.Join("\n", logs.Messages), StringComparison.Ordinal);
@@ -45,9 +49,11 @@ public class SteamHttpRegistrationShould
     {
         public bool Suppressed { get; private set; } = true;
         public int Calls { get; private set; }
+        public List<Uri> Requests { get; } = [];
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls++;
+            Requests.Add(request.RequestUri!);
             Suppressed &= Sdk.SuppressInstrumentation;
             throw new HttpRequestException(request.RequestUri!.ToString());
         }

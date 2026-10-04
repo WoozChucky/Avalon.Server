@@ -106,7 +106,7 @@ internal sealed class JoinHarness
         var verifier = Substitute.For<ISteamProofVerifier>();
         var ownership = Substitute.For<ISteamOwnershipClient>();
         var crypto = new GameAuthCryptography(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray());
-        var options = Options.Create(new StoreAuthenticationConfiguration { SteamPublisherKey = "test-only" });
+        var options = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-only" });
         accounts.FindByIdAsync(Account.Id, false, Arg.Any<CancellationToken>()).Returns(Account);
         identities.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns(new ExternalIdentity { Id = Guid.NewGuid(), AccountId = Account.Id, Provider = "steam", ProviderSubject = "76561198000000001" });
         verifier.VerifyAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));

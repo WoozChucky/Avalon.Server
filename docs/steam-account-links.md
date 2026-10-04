@@ -1,6 +1,6 @@
 # Steam account linking and consolidation
 
-The game creates a store-generated Avalon account and its Steam link atomically on the first verified Steam launch. Store-generated accounts have no invented email address or password. Game access independently requires a current ownership check for application 2499460.
+The game creates a store-generated Avalon account and its Steam link atomically on the first verified Steam launch. Store-generated accounts have no invented email address or password. Game access independently requires a current ownership check for the deployment-configured Steam application (`Application:StoreAuthentication:SteamAppId`).
 
 Website linking keeps the currently authenticated Avalon account. When Steam already belongs to an eligible store-generated account, all of that account's characters move to the website account. Character IDs, inventory, quests and other child records stay attached to the same characters. The website account keeps its credentials and permissions; the automatic source account is deactivated. Existing characters are retained even when their combined count exceeds the creation limit.
 

@@ -35,7 +35,7 @@ public class PendingLinkStoreShould
     {
         _families.IsLiveLauncherFamilyAsync(Arg.Any<AccountId>(), _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
         var crypto = new GameAuthCryptography(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray());
-        var options = Options.Create(new StoreAuthenticationConfiguration { SteamPublisherKey = "test-secret" });
+        var options = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-secret" });
         var proof = Substitute.For<ISteamProofVerifier>();
         proof.VerifyAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, Subject));
         _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);

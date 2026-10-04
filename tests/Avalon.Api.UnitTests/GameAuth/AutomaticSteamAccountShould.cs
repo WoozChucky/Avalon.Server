@@ -27,7 +27,7 @@ public class AutomaticSteamAccountShould
     public AutomaticSteamAccountShould()
     {
         var crypto = new GameAuthCryptography(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray());
-        var options = Options.Create(new StoreAuthenticationConfiguration { SteamPublisherKey = "test-only" });
+        var options = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-only" });
         _service = new(_store, new AuthAttemptStore(_store, crypto, options, _clock), crypto, _accounts,
             Substitute.For<IRefreshTokenRepository>(), _identities, Substitute.For<ILicenseObservationRepository>(), _proof,
             _ownership, options, _clock, _registration);

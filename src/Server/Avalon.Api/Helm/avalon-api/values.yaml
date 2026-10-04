@@ -192,6 +192,7 @@ distribution:
 
 # Mandatory store verification credentials. Only a reference is accepted; Helm never holds the publisher key.
 storeAuthentication:
+  steamAppId: 0 # Required deployment configuration; zero refuses rendering/startup.
   existingSecret: ""
   publisherKeyKey: steam-publisher-key
   environment: production

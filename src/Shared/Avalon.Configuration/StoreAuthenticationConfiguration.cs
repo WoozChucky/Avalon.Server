@@ -4,8 +4,8 @@ namespace Avalon.Configuration;
 public sealed class StoreAuthenticationConfiguration
 {
     public const string Product = "avalon.base";
-    public const uint AvalonSteamAppId = 2499460;
-    public uint SteamAppId { get; set; } = AvalonSteamAppId;
+    /// <summary>Required deployment-owned application identity; there is no built-in App ID.</summary>
+    public uint SteamAppId { get; set; }
     /// <summary>Injected through backend secret configuration, never source-controlled or returned to a client.</summary>
     public string SteamPublisherKey { get; set; } = string.Empty;
     public string Environment { get; set; } = "production";
@@ -15,7 +15,9 @@ public sealed class StoreAuthenticationConfiguration
 
     public void Validate(bool production)
     {
-        if (SteamAppId != AvalonSteamAppId || string.IsNullOrWhiteSpace(SteamPublisherKey) ||
+        if (SteamAppId == 0)
+            throw new InvalidOperationException("Application:StoreAuthentication:SteamAppId is required and must be greater than zero.");
+        if (string.IsNullOrWhiteSpace(SteamPublisherKey) ||
             SteamPublisherKey != SteamPublisherKey.Trim() || PolicyVersion < 1 || DirectGrantsEnabled ||
             (Environment != "production" && Environment != "development") ||
             (Environment == "production" && SteamIdentityPrefix != "avalon-auth-prod") ||

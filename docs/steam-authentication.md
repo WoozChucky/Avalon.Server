@@ -1,6 +1,6 @@
 # Steam authentication and controlled rollout
 
-Avalon uses Steam App ID **2499460**. Steam is integrated in the game runtime; the engine has no Steam account or licensing dependency. A Steam launch uses `--channel steam`; the Avalon launcher uses `--channel avalon` and passes its short-lived account handoff through child stdin. Epic is explicitly unsupported in this build.
+The Steam App ID is required deployment configuration (`Application:StoreAuthentication:SteamAppId`), supplied by homelab. There is no runtime App ID default in the .NET stack. Steam is integrated in the game runtime; the engine has no Steam account or licensing dependency. A Steam launch uses `--channel steam`; the Avalon launcher uses `--channel avalon` and passes its short-lived account handoff through child stdin. Epic is explicitly unsupported in this build.
 
 ## Account behavior
 
@@ -22,7 +22,7 @@ Account recovery, bans/deactivation, role changes and consolidation remain enfor
 
 ## Private deployment configuration
 
-Supply `Application:StoreAuthentication:SteamPublisherKey` through the backend's private secret provider (`Application__StoreAuthentication__SteamPublisherKey` for environment injection). Do not put its plaintext in appsettings, source control, chat, client packages or CI logs. Homelab stores only a SOPS-encrypted Secret using its existing age recipient. Keep the App ID 2499460 and environment/product settings consistent. The supplied publisher key is configured in the encrypted homelab Secret; controlled Steam accounts and actual publisher authorization still require live provider verification.
+Supply `Application:StoreAuthentication:SteamPublisherKey` through the backend's private secret provider (`Application__StoreAuthentication__SteamPublisherKey` for environment injection). Do not put its plaintext in appsettings, source control, chat, client packages or CI logs. Homelab stores only a SOPS-encrypted Secret using its existing age recipient. Set `Application:StoreAuthentication:SteamAppId` explicitly and keep it consistent with the game/depot identity and environment/product settings. The API chart requires `storeAuthentication.steamAppId`; homelab owns its actual value. The supplied publisher key is configured in the encrypted homelab Secret; controlled Steam accounts and actual publisher authorization still require live provider verification.
 
 Configure the workload client certificate, world TLS private key and API certificate bindings described in [game server admission configuration](steam-authentication-workloads.md). Required certificate secrets are mounted read-only. Client `netconfig.json` supplies the trusted HTTPS API and website locations; a local override is excluded from packages. Steam depots use `--channel steam`, contain the Steam runtime DLL and exclude `steam_appid.txt`. Avalon packages use `--channel avalon` and omit the Steam DLL; the runtime delay-loads it only on the Steam route.
 
@@ -55,7 +55,7 @@ Real Steam smoke checks and coordinated staging remain pending; no live provider
 
 | Suite | Passed | Existing skips |
 |---|---:|---:|
-| API | 1521 | 0 |
+| API | 1529 | 0 |
 | Database | 283 | 0 |
 | World | 3716 | 1 |
 | Auth | 394 | 0 |
@@ -114,3 +114,20 @@ gap; its regression failed with no exception before the fix, and the same lifeti
 both synchronous and asynchronous sends. The full World suite then passed 3716 tests with one existing
 skip. All four actual HelmRelease value documents rendered; six missing-pin Secret/key cases refused
 rendering. No live Steam/provider verification or release deployment is claimed.
+
+
+### Deployment-owned Steam application identity
+
+The approved follow-up removed the hardcoded App ID default and equality allowlist from shared
+configuration. A missing/zero ID refuses startup with the named configuration field; the API Helm
+chart also refuses a missing/zero value. The application ID is trusted deployment input, never a
+client request field. API DI passes the same options to identity verification, ownership requests,
+and both license-observation persistence paths. World/auth services consume the resulting admission
+authority and do not select a Steam application or make independent Steam verification calls.
+
+Three regression cases failed before the change: a built-in default was present and alternate configured
+positive IDs were rejected. The full API suite then passed 1529 tests. Mocked provider and DI tests use
+explicit alternate IDs and assert their exact provider query values. Actual homelab Helm rendering
+confirmed the configured ID reaches the API environment, an alternate value is respected, and missing/zero
+values fail. A runtime/config/chart source scan found no game App ID literal or former constant.
+Helm initially formatted the large numeric ID in scientific notation; the corrected chart validates uint32 range and integral values and emits canonical decimal. Six missing/invalid inputs refuse rendering, and alternate/maximum uint32 values render correctly. Security review confirmed configured authority remains separate from client input, with no findings.

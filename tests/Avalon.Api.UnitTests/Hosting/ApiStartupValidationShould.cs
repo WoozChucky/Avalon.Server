@@ -33,6 +33,18 @@ public class ApiStartupValidationShould
         Assert.DoesNotContain("private-test-publisher-key", refused.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("0")]
+    public async Task Refuse_missing_or_zero_Steam_app_id_before_any_database_call(string? appId)
+    {
+        await using var provider = Build("localhost:6379", ("Application:StoreAuthentication:SteamAppId", appId));
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
+        Assert.Contains("Application:StoreAuthentication:SteamAppId", refused.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-test-publisher-key", refused.Message, StringComparison.Ordinal);
+    }
+
     private const string Unreachable = "Host=127.0.0.1;Port=1;Timeout=1;Database=none;Username=none;Password=none";
 
     [Fact]
@@ -214,6 +226,7 @@ public class ApiStartupValidationShould
         {
             ["Database:Auth:ConnectionString"] = Unreachable,
             ["Application:StoreAuthentication:SteamPublisherKey"] = "private-test-publisher-key",
+            ["Application:StoreAuthentication:SteamAppId"] = StoreAuthenticationTestData.SteamAppId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["Application:SteamWebLink:CallbackUrl"] = "https://api.example.test/account/links/steam/callback",
             ["Application:SteamWebLink:SiteUrl"] = "https://web.example.test",
             // appsettings.json's default; the options check refuses a host without one.

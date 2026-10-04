@@ -52,19 +52,21 @@ public class SteamProofVerifierShould
         Assert.Single(handler.Requests);
     }
 
-    [Fact]
-    public async Task Use_only_the_verified_subject_and_fixed_application_and_attempt_identity()
+    [Theory]
+    [InlineData(StoreAuthenticationTestData.SteamAppId)]
+    [InlineData(123456)]
+    public async Task Use_only_the_verified_subject_and_configured_application_and_attempt_identity(uint appId)
     {
         using var handler = new RecordingSteamHandler { Body = "{\"response\":{\"params\":{\"result\":\"OK\",\"steamid\":\"76561198000000001\",\"ownersteamid\":\"76561198000000002\"}}}" };
         using var client = new HttpClient(handler);
-        var result = await new SteamProofVerifier(client, Configuration()).VerifyAsync("aB01", Identity, CancellationToken.None);
+        var result = await new SteamProofVerifier(client, Configuration(appId)).VerifyAsync("aB01", Identity, CancellationToken.None);
         Assert.Equal(SteamProofStatus.Verified, result.Status);
         Assert.Equal(SteamId, result.ProviderSubject);
         var uri = Assert.Single(handler.Requests);
         Assert.Equal("https", uri.Scheme);
         Assert.Equal("partner.steam-api.com", uri.Host);
         Assert.Equal("/ISteamUserAuth/AuthenticateUserTicket/v1/", uri.AbsolutePath);
-        Assert.Contains("appid=2499460", uri.Query, StringComparison.Ordinal);
+        Assert.Contains("appid=" + appId.ToString(System.Globalization.CultureInfo.InvariantCulture), uri.Query, StringComparison.Ordinal);
         Assert.Contains("identity=" + Uri.EscapeDataString(Identity), uri.Query, StringComparison.Ordinal);
     }
 
@@ -107,8 +109,8 @@ public class SteamProofVerifierShould
             .VerifyAsync("ABCD", Identity, cancelled.Token));
     }
 
-    internal static IOptions<StoreAuthenticationConfiguration> Configuration() =>
-        Options.Create(new StoreAuthenticationConfiguration { SteamPublisherKey = Key });
+    internal static IOptions<StoreAuthenticationConfiguration> Configuration(uint appId = StoreAuthenticationTestData.SteamAppId) =>
+        Options.Create(new StoreAuthenticationConfiguration { SteamAppId = appId, SteamPublisherKey = Key });
 }
 
 internal sealed class RecordingSteamHandler : HttpMessageHandler

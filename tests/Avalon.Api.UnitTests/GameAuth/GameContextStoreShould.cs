@@ -24,7 +24,7 @@ public class GameContextStoreShould
     private readonly ISteamProofVerifier _proof = Substitute.For<ISteamProofVerifier>();
     private readonly ISteamOwnershipClient _ownership = Substitute.For<ISteamOwnershipClient>();
     private readonly GameAuthCryptography _crypto = new(new byte[32].Select((_, i) => (byte)(i + 1)).ToArray());
-    private readonly IOptions<StoreAuthenticationConfiguration> _config = Options.Create(new StoreAuthenticationConfiguration { SteamPublisherKey = "test-secret" });
+    private readonly IOptions<StoreAuthenticationConfiguration> _config = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-secret" });
     private readonly Account _account = new() { Id = new AccountId(7), Username = "PLAYER", Email = "player@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
     private readonly Guid _family = Guid.NewGuid();
 

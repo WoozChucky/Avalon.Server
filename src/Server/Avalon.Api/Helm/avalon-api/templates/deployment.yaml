@@ -1,4 +1,10 @@
 {{- include "avalon-api.validateWorlds" . }}
+{{- $configuredSteamAppId := required "storeAuthentication.steamAppId is required" .Values.storeAuthentication.steamAppId }}
+{{- $steamAppId := int64 $configuredSteamAppId }}
+{{- /* Emit canonical decimal, even when YAML decodes a large App ID as float64; never truncate a fraction. */}}
+{{- if or (le $steamAppId 0) (gt $steamAppId 4294967295) (ne (float64 $configuredSteamAppId) (float64 $steamAppId)) }}
+{{- fail "storeAuthentication.steamAppId is required and must be a positive 32-bit integer" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,6 +44,8 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            - name: Application__StoreAuthentication__SteamAppId
+              value: {{ $steamAppId | quote }}
             - name: Application__StoreAuthentication__SteamPublisherKey
               valueFrom:
                 secretKeyRef:
