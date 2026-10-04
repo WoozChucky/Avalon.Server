@@ -25,6 +25,8 @@ public static class ApiStartup
         // Like world/database validation, runtime-only: OpenAPI generation needs no publisher key.
         _ = services.GetRequiredService<IOptions<Avalon.Configuration.StoreAuthenticationConfiguration>>().Value;
 
+        services.GetRequiredService<IOptions<Avalon.Api.Authentication.SteamWebLinkOptions>>().Value.Validate();
+
         await using AsyncServiceScope scope = services.CreateAsyncScope();
         logger.LogInformation("Migrating database if necessary...");
         // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.

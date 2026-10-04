@@ -50,6 +50,8 @@ public class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFa
     {
         string key = CharacterName.Key(name);
         await using var context = await CreateContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await context.GuardCharacterMutationAsync(id, cancellationToken);
 
         try
         {
@@ -58,7 +60,10 @@ public class CharacterRepository(IDbContextFactory<CharacterDbContext> contextFa
                 .ExecuteUpdateAsync(u => u.SetProperty(c => c.Name, name).SetProperty(c => c.NameKey, key),
                     cancellationToken);
             if (written == 1)
+            {
+                await transaction.CommitAsync(cancellationToken);
                 return CharacterRename.Renamed;
+            }
         }
         catch (Exception ex) when (CharacterNameKeyViolation.Is(ex))
         {

@@ -66,7 +66,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             await refreshTokens.IsLiveLauncherFamilyAsync(account.Id, family, Now, cancellationToken);
     }
 
-    private bool Eligible(Account? account, long id) => account is { Status: AccountStatus.Active } &&
+    private bool Eligible(Account? account, long id) => account is { Status: AccountStatus.Active, GameplayConsolidationId: null } &&
         account.Id.Value == id && (account.AccessLevel & AccountAccessLevel.Player) != 0 && !account.IsLockedAt(Now);
 
     public async Task<GameAuthReply> RedeemHandoffAsync(string attemptCredential, string ticket, Guid requestId, CancellationToken cancellationToken)

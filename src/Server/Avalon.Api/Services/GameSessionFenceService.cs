@@ -104,7 +104,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         if (context is null || context.AccountId != accountId.Value || context.Environment != head.Environment ||
             context.CredentialsVersion != head.CredentialsVersion || context.SessionEpoch != head.SessionEpoch || Deadline(context) <= Now) return null;
         var root = await accounts.FindByIdAsync(accountId, false, cancellationToken);
-        if (root is null || root.Status != AccountStatus.Active || root.IsLockedAt(Now) ||
+        if (root is null || root.Status != AccountStatus.Active || root.GameplayConsolidationId is not null || root.IsLockedAt(Now) ||
             (root.AccessLevel & AccountAccessLevel.Player) == 0 || root.CredentialsVersion != head.CredentialsVersion || root.SessionEpoch != head.SessionEpoch) return null;
         return (head, context, root);
     }

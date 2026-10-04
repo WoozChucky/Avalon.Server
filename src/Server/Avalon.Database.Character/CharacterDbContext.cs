@@ -41,7 +41,7 @@ public sealed class CharacterDbContextDesignTimeFactory : IDesignTimeDbContextFa
     }
 }
 
-public class CharacterDbContext : DbContext
+public partial class CharacterDbContext : DbContext
 {
     private readonly ILoggerFactory? _loggerFactory;
     private readonly string? _connectionString;
@@ -70,6 +70,7 @@ public class CharacterDbContext : DbContext
     public DbSet<CharacterCompletedQuest> CharacterCompletedQuests { get; set; } = null!;
     public DbSet<CharacterIgnore> CharacterIgnores { get; set; } = null!;
     public DbSet<CharacterAura> CharacterAuras { get; set; } = null!;
+    public DbSet<CharacterConsolidationReceipt> CharacterConsolidationReceipts { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -106,6 +107,11 @@ public class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterCompletedQuest>());
         Configure(modelBuilder.Entity<CharacterIgnore>());
         Configure(modelBuilder.Entity<CharacterAura>());
+        var receipt = modelBuilder.Entity<CharacterConsolidationReceipt>();
+        receipt.HasKey(r => r.Id);
+        receipt.Property(r => r.Id).ValueGeneratedNever();
+        receipt.Property(r => r.SourceAccountId).HasConversion(v => v.Value, v => new AccountId(v));
+        receipt.Property(r => r.TargetAccountId).HasConversion(v => v.Value, v => new AccountId(v));
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder, bool postgres)

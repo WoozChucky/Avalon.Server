@@ -114,14 +114,17 @@ app.MapDefaultEndpoints();
     app.UseCors(x => x
         .WithOrigins(
             "http://localhost:4200",
+            "https://localhost:4200",
             "http://localhost:5210",
+            "https://localhost:5210",
             "https://avalon.monster",
             "https://dashboard.avalon.monster"
         )
         .AllowAnyMethod()
-        .AllowAnyHeader()
+        .AllowAnyHeader().AllowCredentials()
     );
 
+    app.UseMiddleware<Avalon.Api.Authentication.SteamOpenIdCallbackMiddleware>();
     app.UseAuthentication();
     Avalon.Api.Authentication.GameWorkloadAuthentication.UseGameWorkloadAuthentication(app);
 

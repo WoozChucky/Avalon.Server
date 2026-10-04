@@ -214,6 +214,8 @@ public class ApiStartupValidationShould
         {
             ["Database:Auth:ConnectionString"] = Unreachable,
             ["Application:StoreAuthentication:SteamPublisherKey"] = "private-test-publisher-key",
+            ["Application:SteamWebLink:CallbackUrl"] = "https://api.example.test/account/links/steam/callback",
+            ["Application:SteamWebLink:SiteUrl"] = "https://web.example.test",
             // appsettings.json's default; the options check refuses a host without one.
             ["Application:Templates:ReloadTimeout"] = "00:00:10",
             ["Database:Worlds:1:World:ConnectionString"] = Unreachable,

@@ -72,6 +72,7 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
         transactions.ExecuteAsync(async (context, token) =>
         {
             var guards = await GuardAsync(context, batches, token);
+            context.ValidatedGameplaySave = true;
             // Every delete, for every batch, before any upsert: a row one batch removes and another
             // adds (a trade) must end up present, whichever order the batches came in.
             foreach (CharacterSaveBatch batch in batches)

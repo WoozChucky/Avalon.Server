@@ -145,6 +145,15 @@ spec:
             - name: Application__Templates__ReloadTimeout
               value: {{ . | quote }}
             {{- end }}
+            {{- $steamWebLink := .Values.steamWebLink | default dict }}
+            {{- with $steamWebLink.callbackUrl }}
+            - name: Application__SteamWebLink__CallbackUrl
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with $steamWebLink.siteUrl }}
+            - name: Application__SteamWebLink__SiteUrl
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.publicSiteUrl }}
             - name: Application__PublicSiteUrl
               value: {{ . | quote }}

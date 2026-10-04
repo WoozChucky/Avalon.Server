@@ -87,6 +87,8 @@ public class Account : IDbEntity<AccountId>
 
     /// <summary>Monotonic game-context revocation epoch, independent of password/MFA versioning.</summary>
     public long SessionEpoch { get; set; }
+    /// <summary>Gameplay stays frozen while a durable store-account consolidation is incomplete.</summary>
+    public Guid? GameplayConsolidationId { get; set; }
 }
 
 public enum OperatingSystem : ushort

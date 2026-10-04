@@ -162,11 +162,10 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         };
         await using CharacterDbContext context = _database.CreateDbContext();
         context.Characters.Add(row);
-        if (!await context.AccountGameplayFences.AnyAsync(f => f.AccountId == row.AccountId))
-            context.AccountGameplayFences.Add(new AccountGameplayFence
-            { AccountId = row.AccountId, GameSessionId = Authority.GameSessionId, FencingToken = 1,
-              Mode = GameplayFenceMode.Active, LeaseUntil = DateTime.UtcNow.AddSeconds(45) });
         await context.SaveChangesAsync();
+        var fences = new GameplayFenceRepository(_database);
+        Assert.True(await fences.AdvanceAsync(Authority, false, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
+        Assert.True(await fences.ActivateAsync(Authority, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
         context.Entry(row).State = EntityState.Detached;
         return row;
     }

@@ -80,7 +80,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     internal static async Task<bool> HoldGameAuthorityAsync(AuthDbContext db, AccountId accountId,
         int credentialsVersion, long sessionEpoch, DateTime now, CancellationToken cancellationToken) =>
         await db.Accounts.Where(a => a.Id == accountId && a.CredentialsVersion == credentialsVersion &&
-            a.SessionEpoch == sessionEpoch && a.Status == AccountStatus.Active &&
+            a.SessionEpoch == sessionEpoch && a.Status == AccountStatus.Active && a.GameplayConsolidationId == null &&
             (a.AccessLevel & AccountAccessLevel.Player) == AccountAccessLevel.Player &&
             (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
             .ExecuteUpdateAsync(u => u.SetProperty(a => a.SessionEpoch, a => a.SessionEpoch), cancellationToken) == 1;
