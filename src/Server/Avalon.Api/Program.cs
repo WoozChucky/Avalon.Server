@@ -17,6 +17,8 @@ builder.Host.UseDefaultServiceProvider((_, options) => AvalonServiceProvider.Con
 
 IConfiguration configuration = ApiConfiguration.Sources(builder);
 
+Avalon.Api.Authentication.GameWorkloadHosting.ConfigureGameWorkloadListener(builder);
+
 builder.AddLoggingAndServiceDefaults(configuration);
 
 IServiceCollection services = builder.Services;

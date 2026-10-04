@@ -81,6 +81,10 @@ public static class ServiceRegistration
         services.AddSingleton<Avalon.Infrastructure.GameAuth.AuthAttemptStore>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.GameAuthorizationService>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.PendingLinkStore>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.JoinTicketStore>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.IGameServerAllocator, GameServerAllocator>();
+        services.AddOptions<Avalon.Configuration.GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads")
+            .Validate(c => { c.Validate(); return true; });
         services.AddScoped<AccountLinkReauthentication>();
         services.AddScoped<StoreAccountRegistration>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.IGameAccountRegistration>(sp => sp.GetRequiredService<StoreAccountRegistration>());
@@ -208,7 +212,8 @@ public static class ServiceRegistration
                 AvalonAuthenticationSchemeOptions.SchemeName,
                 AvalonAuthenticationSchemeOptions.SchemeName,
                 options => { }
-            );
+            ).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, GameServerAuthHandler>(
+                GameServerAuthHandler.Scheme, _ => { });
     }
 
     private static Task ReadAccessToken(MessageReceivedContext context)
@@ -256,6 +261,9 @@ public static class ServiceRegistration
     {
         services.AddAuthorization(options =>
         {
+            options.AddPolicy(GameServerAuthHandler.Scheme, policy => policy
+                .AddAuthenticationSchemes(GameServerAuthHandler.Scheme).RequireAuthenticatedUser()
+                .RequireClaim(GameServerAuthHandler.ServerIdClaim));
             options.DefaultPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme,
                     AvalonAuthenticationSchemeOptions.SchemeName)
                 .RequireAuthenticatedUser()

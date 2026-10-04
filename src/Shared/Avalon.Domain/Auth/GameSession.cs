@@ -9,6 +9,7 @@ public sealed class GameSession
 {
     public AccountId AccountId { get; set; } = null!;
     public Guid GameSessionId { get; set; }
+    public Guid GameContextId { get; set; }
     public long FencingToken { get; set; }
     public required string ServerId { get; set; }
     public ushort WorldId { get; set; }
