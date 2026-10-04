@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
@@ -42,9 +42,39 @@ public static class ServiceRegistration
         builder.AddServiceDefaults();
     }
 
+    public static void AddSteamStoreAuthentication(this IServiceCollection services)
+    {
+        services.AddOptions<Avalon.Configuration.StoreAuthenticationConfiguration>()
+            .BindConfiguration("Application:StoreAuthentication");
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<Avalon.Configuration.StoreAuthenticationConfiguration>,
+            Config.StoreAuthenticationOptionsValidator>();
+        ConfigureSteamHttp(services.AddHttpClient<Avalon.Infrastructure.StoreAuth.ISteamProofVerifier,
+            Avalon.Infrastructure.StoreAuth.SteamProofVerifier>());
+        ConfigureSteamHttp(services.AddHttpClient<Avalon.Infrastructure.StoreAuth.ISteamOwnershipClient,
+            Avalon.Infrastructure.StoreAuth.SteamOwnershipClient>());
+    }
+
+#pragma warning disable EXTEXP0001 // Fixed-host provider transport owns its one-retry budget.
+    private static void ConfigureSteamHttp(IHttpClientBuilder http) => http
+        .RemoveAllLoggers().RemoveAllResilienceHandlers()
+        .ConfigureAdditionalHttpMessageHandlers((handlers, _) =>
+        {
+            // Drop default service discovery/resilience for the fixed Valve origin. URL-bearing loggers
+            // are removed above; suppress provider spans because Valve requires credentials in GET queries.
+            handlers.Clear();
+            handlers.Add(new Authentication.SteamSecretProtectionHandler());
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false, MaxConnectionsPerServer = 32,
+            ConnectTimeout = TimeSpan.FromSeconds(5), ActivityHeadersPropagator = null,
+        });
+#pragma warning restore EXTEXP0001
+
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
         services.AddAuthDatabase();
+        services.AddSteamStoreAuthentication();
         services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
         services.AddSingleton(PublicSiteSettings.Create(config.PublicSiteUrl));
         services.AddOptions<PreviewConfiguration>().BindConfiguration("Application:Previews");

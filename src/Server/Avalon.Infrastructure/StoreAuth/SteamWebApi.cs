@@ -1,0 +1,85 @@
+using System.Globalization;
+using System.Net;
+using System.Text.Json;
+using Avalon.Configuration;
+
+namespace Avalon.Infrastructure.StoreAuth;
+
+/// <summary>Fixed-host, bounded transport. Never log an HTTP exception, URL or provider body containing credentials.</summary>
+internal static class SteamWebApi
+{
+    private const int MaxResponseBytes = 16384;
+    internal static Uri Request(string endpoint, StoreAuthenticationConfiguration config, params (string Key, string Value)[] fields)
+    {
+        var parameters = new List<(string Key, string Value)>
+        {
+            ("key", config.SteamPublisherKey), ("appid", config.SteamAppId.ToString(CultureInfo.InvariantCulture)),
+        };
+        parameters.AddRange(fields);
+        return new Uri("https://partner.steam-api.com/" + endpoint + "?" + string.Join("&", parameters.Select(
+            x => Uri.EscapeDataString(x.Key) + "=" + Uri.EscapeDataString(x.Value))));
+    }
+
+    internal static bool IsSteamId(string? value) => value is { Length: > 0 and <= 20 } &&
+        ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id != 0 &&
+        string.Equals(id.ToString(CultureInfo.InvariantCulture), value, StringComparison.Ordinal);
+
+    internal static async Task<(bool Available, JsonDocument? Document)> GetAsync(HttpClient client, Uri uri,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            bounded.CancelAfter(TimeSpan.FromSeconds(5));
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, bounded.Token);
+                if (response.StatusCode == HttpStatusCode.OK)
+                    return (true, await ReadDocumentAsync(response, bounded.Token));
+                if ((response.StatusCode != HttpStatusCode.TooManyRequests && response.StatusCode != HttpStatusCode.RequestTimeout &&
+                     (int)response.StatusCode < 500) || attempt == 1)
+                    return (false, null);
+            }
+            catch (OperationCanceledException)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (attempt == 1) return (false, null);
+            }
+            catch (HttpRequestException) { if (attempt == 1) return (false, null); }
+            catch (IOException) { if (attempt == 1) return (false, null); }
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
+        }
+        return (false, null);
+    }
+
+    private static async Task<JsonDocument?> ReadDocumentAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.Content.Headers.ContentLength > MaxResponseBytes) return null;
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var buffer = new byte[MaxResponseBytes + 1];
+        var used = 0;
+        while (used < buffer.Length)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(used), cancellationToken);
+            if (read == 0) break;
+            used += read;
+        }
+        if (used == 0 || used > MaxResponseBytes) return null;
+        try { return JsonDocument.Parse(buffer.AsMemory(0, used), new JsonDocumentOptions { MaxDepth = 8 }); }
+        catch (JsonException) { return null; }
+    }
+
+    internal static bool Object(JsonElement element, string name, out JsonElement result)
+    {
+        result = default;
+        return element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out result) && result.ValueKind == JsonValueKind.Object;
+    }
+
+    internal static string? String(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    internal static bool? Boolean(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : null;
+}

@@ -23,6 +23,16 @@ namespace Avalon.Api.UnitTests.Hosting;
 /// </summary>
 public class ApiStartupValidationShould
 {
+    [Fact]
+    public async Task Refuse_missing_store_secret_before_any_database_call()
+    {
+        await using var provider = Build("localhost:6379", ("Application:StoreAuthentication:SteamPublisherKey", null));
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
+        Assert.Contains("Application:StoreAuthentication", refused.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-test-publisher-key", refused.Message, StringComparison.Ordinal);
+    }
+
     private const string Unreachable = "Host=127.0.0.1;Port=1;Timeout=1;Database=none;Username=none;Password=none";
 
     [Fact]
@@ -203,6 +213,7 @@ public class ApiStartupValidationShould
         var settings = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Application:StoreAuthentication:SteamPublisherKey"] = "private-test-publisher-key",
             // appsettings.json's default; the options check refuses a host without one.
             ["Application:Templates:ReloadTimeout"] = "00:00:10",
             ["Database:Worlds:1:World:ConnectionString"] = Unreachable,
