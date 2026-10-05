@@ -1,6 +1,6 @@
 using Avalon.Common.GameAuth;
-using System.Security.Cryptography;
 using Avalon.Configuration;
+using Avalon.Infrastructure.StoreAuth;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Infrastructure.GameAuth;
@@ -17,7 +17,7 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
             (channel == GameLaunchChannels.Avalon && steamAppId != options.Value.SteamAppId)) return null;
         var now = clock.GetUtcNow().UtcDateTime;
         var credential = GameAuthCryptography.NewToken();
-        var identity = options.Value.SteamIdentityPrefix + ":" + steamAppId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
+        var identity = SteamTicketIdentity.Create(options.Value, steamAppId);
         var attempt = new AuthAttemptRecord
         {
             Id = Guid.NewGuid(), ClientRunId = runId, SteamAppId = steamAppId, Channel = channel, ProtocolVersion = protocol, ContextId = contextId,

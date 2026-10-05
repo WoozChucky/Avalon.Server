@@ -9,16 +9,15 @@ namespace Avalon.Api.UnitTests.StoreAuth;
 
 public class SteamProofVerifierShould
 {
-    internal const string Identity = "avalon-auth-prod:480:00112233445566778899aabbccddeeff";
-    internal static string IdentityFor(uint appId) => $"avalon-auth-prod:{appId}:00112233445566778899aabbccddeeff";
+    internal const string Identity = "pmaaisem2ekvthpcezvk54zxpo74";
     internal const string SteamId = "76561198000000001";
     internal const string Key = "never-log-this-test-publisher-key";
 
     [Theory]
-    [InlineData(2514590u, "avalon-auth-prod:2499460:00112233445566778899aabbccddeeff")]
-    [InlineData(2499460u, "avalon-auth-prod:2514590:00112233445566778899aabbccddeeff")]
-    [InlineData(0u, "avalon-auth-prod:0:00112233445566778899aabbccddeeff")]
-    [InlineData(480u, "avalon-auth-prod:480:00112233445566778899aabbccddeeff")]
+    [InlineData(2514590u, Identity)]
+    [InlineData(2499460u, "ptaaisem2ekvthpcezvk54zxpo74")]
+    [InlineData(0u, Identity)]
+    [InlineData(480u, Identity)]
     public async Task Reject_unknown_or_wrong_application_challenges_before_transport(uint appId, string identity)
     {
         using var handler = new RecordingSteamHandler { Body = "{\"response\":{\"params\":{\"result\":\"OK\",\"steamid\":\"76561198000000001\"}}}" };
@@ -49,7 +48,7 @@ public class SteamProofVerifierShould
         using var client = new HttpClient(handler);
         var verifier = new SteamProofVerifier(client, Configuration());
         Assert.Equal(SteamProofStatus.InvalidProof, (await verifier.VerifyAsync(StoreAuthenticationTestData.SteamAppId, new string('A', 5122), Identity, CancellationToken.None)).Status);
-        Assert.Equal(SteamProofStatus.InvalidProof, (await verifier.VerifyAsync(StoreAuthenticationTestData.SteamAppId, "ABCD", "avalon-auth-dev:480:00112233445566778899aabbccddeeff", CancellationToken.None)).Status);
+        Assert.Equal(SteamProofStatus.InvalidProof, (await verifier.VerifyAsync(StoreAuthenticationTestData.SteamAppId, "ABCD", "dmaaisem2ekvthpcezvk54zxpo74", CancellationToken.None)).Status);
         Assert.Empty(handler.Requests);
     }
 
@@ -75,7 +74,7 @@ public class SteamProofVerifierShould
     {
         using var handler = new RecordingSteamHandler { Body = "{\"response\":{\"params\":{\"result\":\"OK\",\"steamid\":\"76561198000000001\",\"ownersteamid\":\"76561198000000002\"}}}" };
         using var client = new HttpClient(handler);
-        var result = await new SteamProofVerifier(client, Configuration(appId)).VerifyAsync(appId, "aB01", IdentityFor(appId), CancellationToken.None);
+        var result = await new SteamProofVerifier(client, Configuration(appId)).VerifyAsync(appId, "aB01", Identity, CancellationToken.None);
         Assert.Equal(SteamProofStatus.Verified, result.Status);
         Assert.Equal(SteamId, result.ProviderSubject);
         var uri = Assert.Single(handler.Requests);
@@ -83,7 +82,7 @@ public class SteamProofVerifierShould
         Assert.Equal("partner.steam-api.com", uri.Host);
         Assert.Equal("/ISteamUserAuth/AuthenticateUserTicket/v1/", uri.AbsolutePath);
         Assert.Contains("appid=" + appId.ToString(System.Globalization.CultureInfo.InvariantCulture), uri.Query, StringComparison.Ordinal);
-        Assert.Contains("identity=" + Uri.EscapeDataString(IdentityFor(appId)), uri.Query, StringComparison.Ordinal);
+        Assert.Contains("identity=" + Uri.EscapeDataString(Identity), uri.Query, StringComparison.Ordinal);
     }
 
     [Theory]
