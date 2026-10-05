@@ -43,6 +43,22 @@ public sealed class GameGenericProviderShould
         Assert.Equal(context.LicenseId, Assert.Single(licenses.Rows).Id);
         var refreshed = await service.RefreshAsync(result.GameContextRefreshToken!, Guid.NewGuid(), default);
         Assert.Equal(result.AuthorizationValidUntil, refreshed.AuthorizationValidUntil);
+        var sessions = Substitute.For<IGameSessionRepository>();
+        var allocator = Substitute.For<IGameServerAllocator>();
+        allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, null, Arg.Any<CancellationToken>())
+            .Returns(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost", new string('A', 64), "1", "1"));
+        sessions.TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var reservation = call.Arg<GameSessionReservation>();
+            return new GameSession { AccountId = reservation.AccountId, GameSessionId = reservation.GameSessionId,
+                GameContextId = reservation.GameContextId, FencingToken = 1, ServerId = "world-1", WorldId = 1,
+                Environment = "production", CreatedAt = clock.GetUtcNow().UtcDateTime, LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(30),
+                LicenseUntil = reservation.LicenseUntil };
+        });
+        var tickets = new JoinTicketStore(store, crypto, service, sessions, allocator, config, clock, new(config));
+        var issued = await tickets.IssueAsync(refreshed.GameContextCredential!, 1, null, Guid.NewGuid(), false, false, default);
+        Assert.Null(issued.Error);
+        Assert.Null((await tickets.RedeemAsync(issued.JoinTicket!, "world-1", Guid.NewGuid(), Guid.NewGuid(), default)).Error);
     }
     private sealed class Provider(TimeProvider clock) : IGameIdentityProvider, IGameLicenseProvider
     {

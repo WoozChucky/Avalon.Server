@@ -16,6 +16,7 @@ public sealed class GameApplicationSelection
     public string Environment { get; }
     public IReadOnlyList<ushort> AllowedWorldIds { get; }
     public bool Restricted { get; }
+    public bool AllowsWorld(ushort worldId) => worldId > 0 && (!Restricted || AllowedWorldIds.Contains(worldId));
 }
 
 public sealed class GameProviderApplicationConfiguration

@@ -106,6 +106,14 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
             source.CredentialsVersion == int.MaxValue || source.SessionEpoch == long.MaxValue || target.SessionEpoch == long.MaxValue) return false;
         var identity = await db.ExternalIdentities.SingleOrDefaultAsync(i => i.AccountId == source.Id && i.Provider == operation.Provider && i.ProviderSubject == operation.ProviderSubject, cancellationToken);
         if (identity is null || await db.ExternalIdentities.AnyAsync(i => (i.AccountId == target.Id && i.Provider == operation.Provider) || (i.AccountId == source.Id && i.Id != identity.Id), cancellationToken)) return false;
+        var licenses = await db.GameLicenses.Where(x => x.AccountId == source.Id).ToListAsync(cancellationToken);
+        if (licenses.Any(x => x.AuthorityRevision == long.MaxValue)) return false;
+        foreach (var license in licenses)
+        {
+            license.AccountId = target.Id;
+            license.AuthorityRevision++;
+            license.VerifiedUntil = null;
+        }
         identity.AccountId = target.Id;
         await db.Accounts.Where(a => a.Id == source.Id).ExecuteUpdateAsync(u => u.SetProperty(a => a.Status, AccountStatus.Deactivated)
             .SetProperty(a => a.SessionEpoch, a => a.SessionEpoch + 1).SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1)

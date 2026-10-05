@@ -26,7 +26,7 @@ public sealed class GameServerAllocatorShould
     private readonly ICharacterRepository _characters = Substitute.For<ICharacterRepository>();
     private readonly Account _account = new() { Id = new AccountId(7), Username = "PLAYER", Email = "p@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
     private readonly Avalon.Domain.Auth.World _world = new() { Id = new WorldId(1), Name = "World", Host = "world.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0", MaintenanceRevision = 1 };
-    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), SteamAppId = 480, AccountId = 7, ProtocolVersion = "0.2.0", Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
+    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), SteamAppId = 480, ApplicationKey = "steam.main", AccountId = 7, ProtocolVersion = "0.2.0", Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
     private readonly GameServerAllocator _allocator;
 
     [Fact]
@@ -39,12 +39,12 @@ public sealed class GameServerAllocatorShould
         var workload = Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] });
         var config = new StoreAuthenticationConfiguration { SteamAppId = 480, SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
         var allocator = new GameServerAllocator(_worlds, _accounts, _databases, _readiness, _repositories, workload, _clock, new GameApplicationAccessPolicy(Options.Create(config)));
-        var context = _context with { SteamAppId = 2514590 };
+        var context = _context with { SteamAppId = 2514590, ApplicationKey = "steam.playtest" };
         _account.AccessLevel |= AccountAccessLevel.Admin;
         Assert.Equal((ushort)3, Assert.Single(await allocator.ListAsync(context, default)).WorldId);
         Assert.Null(await allocator.FindAsync(context, 1, null, default));
         Assert.Null(await allocator.FindAsync(context, 2, null, default));
-        Assert.NotNull(await allocator.FindAsync(context with { SteamAppId = 480 }, 1, null, default));
+        Assert.NotNull(await allocator.FindAsync(context with { SteamAppId = 480, ApplicationKey = "steam.main" }, 1, null, default));
         _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(false);
         Assert.Empty(await allocator.ListAsync(context, default));
         _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
@@ -57,9 +57,9 @@ public sealed class GameServerAllocatorShould
         ptr.MaintenanceEnabled = false;
         Assert.NotNull(await allocator.FindAsync(context, 3, null, default));
         Assert.Equal(AccountAccessLevel.Player, _account.AccessLevel);
-        Assert.Null(await allocator.FindAsync(context with { SteamAppId = 480 }, 3, null, default));
-        Assert.Null(await allocator.FindAsync(context with { SteamAppId = 0 }, 3, null, default));
-        Assert.Null(await allocator.FindAsync(context with { SteamAppId = 999 }, 3, null, default));
+        Assert.Null(await allocator.FindAsync(context with { SteamAppId = 480, ApplicationKey = "steam.main" }, 3, null, default));
+        Assert.Null(await allocator.FindAsync(context with { SteamAppId = 0, ApplicationKey = null }, 3, null, default));
+        Assert.Null(await allocator.FindAsync(context with { SteamAppId = 999, ApplicationKey = "unknown" }, 3, null, default));
         foreach (var required in new[] { AccountAccessLevel.GameMaster, AccountAccessLevel.Admin, AccountAccessLevel.Console, AccountAccessLevel.Tournament, (AccountAccessLevel)0 })
         {
             ptr.AccessLevelRequired = required;

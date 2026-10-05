@@ -22,7 +22,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         if (requestId == Guid.Empty || worldId == 0 || characterId == 0) return new(GameAuthErrors.InvalidRequest);
         var context = await authorization.GetContextAsync(credential, true, cancellationToken);
         if (context?.AccountId is not { } accountId) return new(GameAuthErrors.AuthorizationRequired);
-        if (!applications.AllowsWorld(context.SteamAppId, worldId)) return new(GameAuthErrors.WorldUnavailable);
+        if (!applications.AllowsWorld(context.ApplicationKey, worldId)) return new(GameAuthErrors.WorldUnavailable);
         var issueKey = Key("join-issue", context.Id.ToString("N") + ":" + requestId.ToString("N"));
         var binding = crypto.Binding("join-issue", requestId, GameAuthCryptography.Digest($"{context.Generation}:{worldId}:{characterId}:{confirmTakeover}:{reconnect}"));
         var prior = GameAuthJson.Deserialize<JoinIssueReceipt>(await store.ReadAsync(issueKey, cancellationToken));
@@ -39,7 +39,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         if (head?.LeaseUntil > Now && head.State != GameSessionState.Ended &&
             (head.State == GameSessionState.Pending || (!confirmTakeover && !reconnect))) return new(GameAuthErrors.ActiveGameSession);
         if (head?.FencingToken == long.MaxValue) return new(GameAuthErrors.AccountUnavailable);
-        var until = Min(context.AuthorizationValidUntil!.Value, context.AbsoluteExpiresAt, context.IdentityVerifiedAt!.Value.Add(GameAuthPolicy.IdentityLifetime));
+        var until = GameContextAuthorizationWindow.Deadline(context)!.Value;
         var expires = Min(Now.Add(GameAuthPolicy.JoinTicketLifetime), context.CredentialExpiresAt, until);
         if (expires <= Now) return new(GameAuthErrors.AuthorizationRequired);
         var ticket = GameAuthCryptography.NewToken();
@@ -76,7 +76,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             var context = await authorization.GetContextByIdAsync(grant.ContextId, true, cancellationToken);
             if (context is null || context.AccountId != grant.AccountId || context.CredentialsVersion != grant.CredentialsVersion ||
                 context.SessionEpoch != grant.SessionEpoch) return JoinRedemptionReceipt.Failure(GameAuthErrors.ContextRevoked);
-            if (!applications.AllowsWorld(context.SteamAppId, grant.WorldId)) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldUnavailable);
+            if (!applications.AllowsWorld(context.ApplicationKey, grant.WorldId)) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldUnavailable);
             if (grant.Receipt is not null)
             {
                 if (grant.ReceiptExpiresAt <= Now) return JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired);

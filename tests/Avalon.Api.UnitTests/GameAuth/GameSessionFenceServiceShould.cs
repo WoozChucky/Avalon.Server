@@ -21,9 +21,9 @@ public sealed class GameSessionFenceServiceShould
     private readonly List<string> _order = [];
     private GameSession _head = null!;
     private GameSessionFenceService _service = null!;
-    private async Task Arrange(uint? appId = null, ushort worldId = 1)
+    private async Task Arrange(uint? appId = null, ushort worldId = 1, bool native = false)
     {
-        var auth = await _h.Authenticate(appId);
+        var auth = native ? await _h.AuthenticateAvalon() : await _h.Authenticate(appId);
         var context = (await _h.Authorization.GetContextAsync(auth.GameContextCredential!, true, CancellationToken.None))!;
         var now = _h.Clock.GetUtcNow().UtcDateTime;
         _head = new GameSession { AccountId = _h.Account.Id, GameSessionId = Guid.NewGuid(), GameContextId = context.Id,
@@ -67,6 +67,20 @@ public sealed class GameSessionFenceServiceShould
         Assert.NotNull((await Activate("world-3")).Error);
     }
     private Task<GameSessionLeaseReply> Activate(string server = "world-1") => _service.ActivateAsync(server, _head.AccountId, _head.GameSessionId, 2, CancellationToken.None);
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Shared_license_revocation_refuses_heartbeat_without_extending_the_lease(bool native)
+    {
+        await Arrange(native: native);
+        Assert.Null((await Activate()).Error);
+        var until = _head.LeaseUntil;
+        _h.RevokeLicense();
+        Assert.Equal(GameAuthErrors.SessionRevoked, (await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, default)).Error);
+        Assert.Equal(until, _head.LeaseUntil);
+        await _h.Sessions.DidNotReceive().TryRenewAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await _target.DidNotReceive().RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
     [Fact]
     public async Task Advance_both_character_database_barriers_before_publishing_active_authority()
     {

@@ -32,13 +32,17 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 license.AuthorityRevision != request.BoundRevision || license.RevokedAt is not null)) return Unlicensed;
             var evidence = verifiedEvidence ?? await provider.CheckAsync(request, ct);
             if (evidence.Status == GameLicenseCheckStatus.Unavailable) return Unavailable;
+            if (evidence.Status == GameLicenseCheckStatus.Unlicensed && request.BoundLicenseId is null &&
+                evidence.LicenseId is null && string.IsNullOrEmpty(evidence.LicenseReference)) return Unlicensed;
             if (!ValidEvidence(evidence, request, provider.AuthorityKind)) return Unavailable;
             license ??= await licenses.FindAsync(request.Account, request.Application.Provider, request.Application.Environment, evidence.LicenseReference, ct);
             if (evidence.LicenseId is { } selected && license?.Id != selected) return Unavailable;
             if (license is not null && (!Matches(license, request, provider.AuthorityKind) || license.LicenseReference != evidence.LicenseReference)) return Unavailable;
             var owns = evidence.Status == GameLicenseCheckStatus.Licensed;
+            // Expiry of a fulfilled grant is not a new revocation. Revocation is stored by fulfillment.
+            if (!owns && provider.AuthorityKind == LicenseAuthorityKind.StoredGrant) return Unlicensed;
             var end = owns ? Earlier(evidence.AuthorizedUntil, evidence.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime)) : evidence.ObservedAt;
-            if (owns && evidence.ProviderExpiresAt is { } expiry) end = Earlier(end, expiry);
+            if (evidence.ProviderExpiresAt is { } expiry) end = Earlier(end, expiry);
             if (owns && request.Identity is { } identity) end = Earlier(end, identity.ValidUntil);
             if (owns && end <= request.Now) return Unavailable;
             if (license is null)

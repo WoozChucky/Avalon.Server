@@ -77,6 +77,7 @@ public static class GameAuthStates
 public static class StoreProviders
 {
     public const string Steam = "steam";
+    public const string Avalon = "avalon";
 }
 
 public static class GameLaunchChannels

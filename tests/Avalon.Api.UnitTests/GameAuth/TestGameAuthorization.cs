@@ -21,16 +21,9 @@ internal static class TestGameAuthorization
         IGameContextRevocations? revocations = null, MemoryGameLicenses? gameLicenses = null)
     {
         var registry = new GameProviderRegistry([new SteamIdentityProvider(proof, options, clock)],
-            [new SteamLicenseProvider(ownership), new PendingNativeProvider()]);
+            [new SteamLicenseProvider(ownership), new AvalonLicenseProvider(gameLicenses ?? Licenses(store))]);
         return new(store, attempts, crypto, accounts, families, identities, registry,
             new GameLicenseAuthorityService(registry, gameLicenses ?? Licenses(store), observations, options), options, clock, registration, revocations);
-    }
-    private sealed class PendingNativeProvider : IGameLicenseProvider
-    {
-        public string Provider => "avalon";
-        public LicenseAuthorityKind AuthorityKind => LicenseAuthorityKind.StoredGrant;
-        public Task<GameLicenseCheckResult> CheckAsync(GameLicenseCheckRequest request, CancellationToken ct) =>
-            Task.FromResult(new GameLicenseCheckResult(GameLicenseCheckStatus.Unlicensed, string.Empty, request.Now, request.Now));
     }
 }
 

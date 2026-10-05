@@ -87,6 +87,7 @@ public static class ServiceRegistration
         services.AddScoped<Avalon.Infrastructure.GameAuth.GameAuthorizationService>();
         services.AddScoped<Avalon.Infrastructure.StoreAuth.GameProviderRegistry>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.GameLicenseAuthorityService>();
+        services.AddScoped<Avalon.Infrastructure.StoreAuth.IGameLicenseProvider, Avalon.Infrastructure.StoreAuth.AvalonLicenseProvider>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.PendingLinkStore>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.JoinTicketStore>();
         services.AddSingleton<Avalon.Infrastructure.GameAuth.GameApplicationAccessPolicy>();

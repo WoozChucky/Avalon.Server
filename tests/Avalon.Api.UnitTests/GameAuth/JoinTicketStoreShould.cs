@@ -15,6 +15,23 @@ public sealed class JoinTicketStoreShould
 {
     private readonly JoinHarness _h = new();
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Shared_revocation_refuses_exact_join_issue_and_redemption_receipts(bool native)
+    {
+        var auth = native ? await _h.AuthenticateAvalon() : await _h.Authenticate();
+        var request = Guid.NewGuid(); var connection = Guid.NewGuid(); var redemption = Guid.NewGuid();
+        var issued = await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, request, false, false, default);
+        Assert.Null(issued.Error);
+        var receipt = await _h.Tickets.RedeemAsync(issued.JoinTicket!, "world-1", connection, redemption, default);
+        Assert.Null(receipt.Error);
+        _h.RevokeLicense();
+        Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, request, false, false, default)).Error);
+        Assert.NotNull((await _h.Tickets.RedeemAsync(issued.JoinTicket!, "world-1", connection, redemption, default)).Error);
+        await _h.Sessions.Received(1).TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task Playtest_cannot_issue_other_worlds_or_replay_receipts_after_restriction_changes()
     {
@@ -122,6 +139,7 @@ public sealed class JoinTicketStoreShould
 
 internal sealed class JoinHarness
 {
+    private readonly Guid _family = Guid.NewGuid();
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero));
     public AtomicAuthStore Store { get; } = new();
     public Account Account { get; } = new() { Id = new AccountId(7), Username = "PLAYER", Email = "player@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
@@ -142,8 +160,10 @@ internal sealed class JoinHarness
         identities.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns(new ExternalIdentity { Id = Guid.NewGuid(), AccountId = Account.Id, Provider = "steam", ProviderSubject = "76561198000000001" });
         verifier.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
         ownership.CheckAsync(Arg.Any<uint>(), "76561198000000001", Arg.Any<CancellationToken>()).Returns(call => new SteamOwnershipResult(SteamOwnershipStatus.Owned, "76561198000000001", Clock.GetUtcNow().UtcDateTime, Clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
+        var families = Substitute.For<IRefreshTokenRepository>();
+        families.IsLiveLauncherFamilyAsync(Account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
         Authorization = TestGameAuthorization.Create(Store, new AuthAttemptStore(Store, crypto, options, Clock), crypto, accounts,
-            Substitute.For<IRefreshTokenRepository>(), identities, Substitute.For<ILicenseObservationRepository>(), verifier, ownership, options, Clock);
+            families, identities, Substitute.For<ILicenseObservationRepository>(), verifier, ownership, options, Clock);
         Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost", new string('A', 64), "0.0.1", "0.0.1"));
         Sessions.TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
@@ -161,5 +181,21 @@ internal sealed class JoinHarness
     {
         var attempt = (await Authorization.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, appId, CancellationToken.None))!;
         return await Authorization.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
+    }
+    public async Task<GameAuthReply> AuthenticateAvalon()
+    {
+        TestGameAuthorization.Licenses(Store).Rows.Add(new GameLicense { Id = Guid.NewGuid(), AccountId = Account.Id,
+            Provider = "avalon", Environment = "production", Product = StoreAuthenticationConfiguration.Product, ProviderProductId = "base",
+            LicenseReference = "native-test-grant", AuthorityKind = Avalon.Common.GameAuth.LicenseAuthorityKind.StoredGrant,
+            GrantedAt = Clock.GetUtcNow().UtcDateTime });
+        var attempt = (await Authorization.CreateAttemptAsync("avalon", "1", Guid.NewGuid(), new string('A', 43), null, null, default))!;
+        var ticket = GameAuthCryptography.NewToken();
+        Store.Seed(Avalon.Infrastructure.GameTickets.RedisGameTicketStore.Key(ticket), $"7|{_family:D}|0|0|production");
+        return await Authorization.RedeemHandoffAsync(attempt.AttemptCredential, ticket, Guid.NewGuid(), default);
+    }
+    public void RevokeLicense()
+    {
+        var row = Assert.Single(TestGameAuthorization.Licenses(Store).Rows);
+        row.RevokedAt = Clock.GetUtcNow().UtcDateTime; row.AuthorityRevision++;
     }
 }
