@@ -85,6 +85,7 @@ public class AuthDbContext : DbContext
     public DbSet<AccountConsolidationWorld> AccountConsolidationWorlds { get; set; } = null!;
     public DbSet<ExternalIdentity> ExternalIdentities { get; set; } = null!;
     public DbSet<LicenseObservation> LicenseObservations { get; set; } = null!;
+    public DbSet<GameLicense> GameLicenses { get; set; } = null!;
     public DbSet<GameSession> GameSessions { get; set; } = null!;
     public DbSet<Device> Devices { get; set; } = null!;
     public DbSet<MFASetup> MfaSetups { get; set; } = null!;
@@ -115,6 +116,7 @@ public class AuthDbContext : DbContext
     {
         Configure(modelBuilder.Entity<Account>());
         StoreAuthenticationModel.Configure(modelBuilder);
+        GameLicenseModel.Configure(modelBuilder);
         AccountConsolidationModel.Configure(modelBuilder);
         Configure(modelBuilder.Entity<Device>());
         Configure(modelBuilder.Entity<MFASetup>());

@@ -28,15 +28,16 @@ internal static class StoreAuthenticationModel
 
         var licenses = model.Entity<LicenseObservation>();
         licenses.HasKey(x => x.Id);
+        licenses.HasOne<GameLicense>().WithMany().HasForeignKey(x => x.LicenseId).OnDelete(DeleteBehavior.Restrict);
         licenses.Property(x => x.Id).ValueGeneratedNever();
         licenses.Property(x => x.AccountId).HasConversion(v => v.Value, v => new AccountId(v));
         licenses.Property(x => x.Provider).HasMaxLength(16);
         licenses.Property(x => x.ProviderSubject).HasMaxLength(128);
         licenses.Property(x => x.Environment).HasMaxLength(32);
         licenses.Property(x => x.Product).HasMaxLength(128);
-        licenses.Property(x => x.ProviderAppId).HasMaxLength(128);
+        licenses.Property(x => x.ProviderProductId).HasMaxLength(128);
         licenses.Property(x => x.ProviderOwnerSubject).HasMaxLength(128);
-        licenses.HasIndex(x => new { x.AccountId, x.Provider, x.ProviderSubject, x.Environment, x.Product, x.ProviderAppId, x.ObservedAt });
+        licenses.HasIndex(x => new { x.AccountId, x.Provider, x.ProviderSubject, x.Environment, x.Product, x.ProviderProductId, x.ObservedAt });
         licenses.HasOne<Account>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
 
         var sessions = model.Entity<GameSession>();

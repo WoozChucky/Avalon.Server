@@ -40,7 +40,7 @@ public class StoreAuthenticationModelShould
             Id = Guid.NewGuid(), AccountId = account.Id, Provider = "steam", ProviderSubject = "76561198000000001",
             Environment = "production", Product = "avalon.base", OwnsProduct = true,
             ObservedAt = Now.AddMinutes(-6), AuthorizedUntil = Now.AddMinutes(-1), PolicyVersion = 1,
-            ProviderAppId = "2499460", ProviderOwnerSubject = "76561198000000002", Permanent = false,
+            ProviderProductId = "2499460", ProviderOwnerSubject = "76561198000000002", Permanent = false,
         };
         await licenses.RecordAsync(observed);
         Assert.False(observed.Authorizes("production", "avalon.base", Now));

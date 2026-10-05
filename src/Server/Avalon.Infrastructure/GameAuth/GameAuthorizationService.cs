@@ -175,7 +175,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                 Id = observationId.Value, AccountId = account.Id, Provider = StoreProviders.Steam, ProviderSubject = proof.ProviderSubject,
                 ProviderOwnerSubject = license.OwnerSubject, Permanent = license.Permanent, OwnsProduct = license.Status == SteamOwnershipStatus.Owned,
                 Environment = options.Value.Environment, Product = StoreAuthenticationConfiguration.Product,
-                ProviderAppId = claim.Record.SteamAppId.ToString(CultureInfo.InvariantCulture), ObservedAt = license.ObservedAt,
+                ProviderProductId = claim.Record.SteamAppId.ToString(CultureInfo.InvariantCulture), ObservedAt = license.ObservedAt,
                 AuthorizedUntil = license.AuthorizedUntil, ProviderExpiresAt = license.ProviderExpiresAt, PolicyVersion = options.Value.PolicyVersion,
             }, cancellationToken);
             // The observation is durable even if a later Redis receipt write loses its race.

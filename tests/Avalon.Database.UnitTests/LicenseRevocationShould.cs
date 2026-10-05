@@ -22,7 +22,7 @@ public sealed class LicenseRevocationShould
         Assert.True(await repo.HasNegativeSinceAsync(root.Id, "steam", "76561198000000001", "production", "avalon.base", other, now));
         var latest = (await repo.FindLatestAsync(root.Id, "steam", "76561198000000001", "production", "avalon.base", active))!;
         Assert.True(latest.OwnsProduct);
-        Assert.Equal(active, latest.ProviderAppId);
+        Assert.Equal(active, latest.ProviderProductId);
         await repo.RecordAsync(Observation(root.Id, true, now.AddMinutes(2), other));
         Assert.True(await repo.HasNegativeSinceAsync(root.Id, "steam", "76561198000000001", "production", "avalon.base", other, now));
     }
@@ -48,7 +48,7 @@ public sealed class LicenseRevocationShould
     private static LicenseObservation Observation(AccountId account, bool owned, DateTime at, string appId = "2499460") => new()
     {
         Id = Guid.NewGuid(), AccountId = account, Provider = "steam", ProviderSubject = "76561198000000001",
-        Environment = "production", Product = "avalon.base", ProviderAppId = appId, OwnsProduct = owned,
+        Environment = "production", Product = "avalon.base", ProviderProductId = appId, OwnsProduct = owned,
         ObservedAt = at, AuthorizedUntil = owned ? at.AddMinutes(5) : at, PolicyVersion = 1
     };
 }

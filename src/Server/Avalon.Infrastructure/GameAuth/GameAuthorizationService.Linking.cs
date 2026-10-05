@@ -89,7 +89,7 @@ public sealed partial class GameAuthorizationService
                     Id = observationId.Value, AccountId = account.Id, Provider = StoreProviders.Steam, ProviderSubject = consent.ProviderSubject,
                     ProviderOwnerSubject = license.OwnerSubject, Permanent = license.Permanent,
                     OwnsProduct = license.Status == SteamOwnershipStatus.Owned, Environment = options.Value.Environment,
-                    Product = StoreAuthenticationConfiguration.Product, ProviderAppId = context.SteamAppId.ToString(CultureInfo.InvariantCulture),
+                    Product = StoreAuthenticationConfiguration.Product, ProviderProductId = context.SteamAppId.ToString(CultureInfo.InvariantCulture),
                     ObservedAt = license.ObservedAt, AuthorizedUntil = license.AuthorizedUntil, ProviderExpiresAt = license.ProviderExpiresAt,
                     PolicyVersion = options.Value.PolicyVersion,
                 }, cancellationToken);

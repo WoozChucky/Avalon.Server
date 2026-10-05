@@ -27,6 +27,7 @@ public static class ServiceExtensions
             .AddSingleton<Repositories.IExternalIdentityRepository, Repositories.ExternalIdentityRepository>()
             .AddSingleton<Repositories.IAccountConsolidationRepository, Repositories.AccountConsolidationRepository>()
             .AddSingleton<Repositories.ILicenseObservationRepository, Repositories.LicenseObservationRepository>()
+            .AddSingleton<Repositories.IGameLicenseRepository, Repositories.GameLicenseRepository>()
             .AddSingleton<Repositories.IGameSessionRepository, Repositories.GameSessionRepository>()
             .AddSingleton<Repositories.IAccountRepository, Repositories.AccountRepository>()
             .AddSingleton<Repositories.IMfaSetupRepository, Repositories.MfaSetupRepository>()
