@@ -53,6 +53,8 @@ public static class ServiceRegistration
             Avalon.Infrastructure.StoreAuth.SteamProofVerifier>());
         ConfigureSteamHttp(services.AddHttpClient<Avalon.Infrastructure.StoreAuth.ISteamOwnershipClient,
             Avalon.Infrastructure.StoreAuth.SteamOwnershipClient>());
+        services.AddScoped<Avalon.Infrastructure.StoreAuth.IGameIdentityProvider, Avalon.Infrastructure.StoreAuth.SteamIdentityProvider>();
+        services.AddScoped<Avalon.Infrastructure.StoreAuth.IGameLicenseProvider, Avalon.Infrastructure.StoreAuth.SteamLicenseProvider>();
     }
 
 #pragma warning disable EXTEXP0001 // Fixed-host provider transport owns its one-retry budget.
@@ -83,6 +85,9 @@ public static class ServiceRegistration
         services.AddSingleton<Avalon.Infrastructure.GameAuth.AuthAttemptStore>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.IGameContextRevocations, Avalon.Infrastructure.GameAuth.GameContextRevocations>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.GameAuthorizationService>();
+        services.AddScoped<Avalon.Infrastructure.StoreAuth.GameProviderRegistry>();
+        services.AddScoped<Avalon.Infrastructure.GameAuth.GameLicenseAuthorityService>();
+        services.AddScoped<Avalon.Infrastructure.StoreAuth.IGameLicenseProvider, Avalon.Infrastructure.StoreAuth.AvalonLicenseProvider>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.PendingLinkStore>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.JoinTicketStore>();
         services.AddSingleton<Avalon.Infrastructure.GameAuth.GameApplicationAccessPolicy>();

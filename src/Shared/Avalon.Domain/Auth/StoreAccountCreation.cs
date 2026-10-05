@@ -8,6 +8,7 @@ public sealed class StoreAccountCreation
     public Guid Id { get; init; }
     public AccountId AccountId { get; init; }
     public required string ProviderSubject { get; init; }
+    public string Provider { get; init; } = "steam";
     public DateTime CreatedAt { get; init; }
     public DateTime ProofExpiresAt { get; init; }
 }

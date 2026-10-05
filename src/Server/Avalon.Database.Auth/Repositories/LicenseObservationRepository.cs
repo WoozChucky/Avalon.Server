@@ -20,7 +20,7 @@ public sealed class LicenseObservationRepository(IDbContextFactory<AuthDbContext
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.LicenseObservations.AnyAsync(x => x.AccountId == accountId && x.Provider == provider &&
-            x.ProviderSubject == subject && x.Environment == environment && x.Product == product && x.ProviderAppId == providerAppId && !x.OwnsProduct && x.ObservedAt >= since,
+            x.ProviderSubject == subject && x.Environment == environment && x.Product == product && x.ProviderProductId == providerAppId && !x.OwnsProduct && x.ObservedAt >= since,
             cancellationToken);
     }
     public async Task RecordAsync(LicenseObservation observation, CancellationToken cancellationToken = default)
@@ -39,7 +39,7 @@ public sealed class LicenseObservationRepository(IDbContextFactory<AuthDbContext
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.LicenseObservations.AsNoTracking().Where(x => x.AccountId == accountId &&
-            x.Provider == provider && x.ProviderSubject == subject && x.Environment == environment && x.Product == product && x.ProviderAppId == providerAppId)
+            x.Provider == provider && x.ProviderSubject == subject && x.Environment == environment && x.Product == product && x.ProviderProductId == providerAppId)
             .OrderByDescending(x => x.ObservedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(cancellationToken);
     }
 }

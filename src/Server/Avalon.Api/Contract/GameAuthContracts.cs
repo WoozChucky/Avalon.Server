@@ -5,14 +5,25 @@ using System.Text.Json.Serialization;
 namespace Avalon.Api.Contract;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class GameAttemptRequest
+public sealed class GameProviderAttemptRequest
 {
-    [Required, StringLength(16)] public required string ChannelHint { get; init; }
+    [Required, StringLength(128)] public required string ApplicationKey { get; init; }
     [Required, StringLength(32)] public required string ProtocolVersion { get; init; }
-    public uint? SteamAppId { get; init; }
     public Guid ClientRunId { get; init; }
     [Required, StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string LinkChallenge { get; init; }
     [StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public string? GameContextCredential { get; init; }
+}
+public sealed record ProviderAuthAttemptReply(string AttemptCredential, string ExpectedChallenge, DateTime ExpiresAt)
+{
+    public override string ToString() => "Provider authentication attempt (credential redacted)";
+}
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class GameProviderProofRequest
+{
+    [Required, StringLength(32)] public required string Provider { get; init; }
+    [Required, StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string AttemptCredential { get; init; }
+    [Required, StringLength(GameAuthPolicy.MaximumBodyBytes / 2)] public required string Proof { get; init; }
+    public override string ToString() => "Provider authentication proof (credentials redacted)";
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -20,13 +31,6 @@ public sealed class GameHandoffRequest
 {
     [Required, StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string AttemptCredential { get; init; }
     [Required, StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string HandoffTicket { get; init; }
-}
-
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class SteamGameProofRequest
-{
-    [Required, StringLength(GameAuthPolicy.TokenCharacters, MinimumLength = GameAuthPolicy.TokenCharacters)] public required string AttemptCredential { get; init; }
-    [Required, StringLength(GameAuthPolicy.MaximumSteamTicketHexCharacters, MinimumLength = 2)] public required string TicketHex { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

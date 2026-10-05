@@ -15,7 +15,8 @@ internal static class AccountConsolidationModel
         operation.Property(o => o.Id).ValueGeneratedNever();
         operation.Property(o => o.SourceAccountId).HasConversion(v => v.Value, v => new AccountId(v));
         operation.Property(o => o.TargetAccountId).HasConversion(v => v.Value, v => new AccountId(v));
-        operation.Property(o => o.SteamSubject).HasMaxLength(128);
+        operation.Property(o => o.Provider).HasMaxLength(32);
+        operation.Property(o => o.ProviderSubject).HasMaxLength(128);
         operation.HasIndex(o => o.SourceAccountId);
         operation.HasIndex(o => o.TargetAccountId);
         operation.HasMany(o => o.Worlds).WithOne().HasForeignKey(w => w.ConsolidationId).OnDelete(DeleteBehavior.Cascade);

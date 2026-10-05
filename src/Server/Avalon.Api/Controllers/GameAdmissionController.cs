@@ -26,7 +26,7 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
         {
             var context = await authorization.GetContextAsync(request.GameContextCredential, false, cancellationToken);
             if (context?.AccountId is null) return Unauthorized(new GameJoinReply(GameAuthErrors.AccountRequired));
-            if (applications.RequiresLicenseForWorldListing(context.SteamAppId))
+            if (applications.RequiresLicenseForWorldListing(context.ApplicationKey))
             {
                 context = await authorization.GetContextAsync(request.GameContextCredential, true, cancellationToken);
                 if (context is null) return Unauthorized(new GameJoinReply(GameAuthErrors.AuthorizationRequired));

@@ -6,12 +6,14 @@ namespace Avalon.Domain.Auth;
 public sealed class LicenseObservation
 {
     public Guid Id { get; set; }
+    public Guid? LicenseId { get; set; }
+    public long? AuthorityRevision { get; set; }
     public AccountId AccountId { get; set; } = null!;
     public required string Provider { get; set; }
     public required string ProviderSubject { get; set; }
     public required string Environment { get; set; }
     public required string Product { get; set; }
-    public required string ProviderAppId { get; set; }
+    public required string ProviderProductId { get; set; }
     public string? ProviderOwnerSubject { get; set; }
     public bool OwnsProduct { get; set; }
     public bool? Permanent { get; set; }

@@ -44,9 +44,9 @@ public sealed partial class GameAuthorizationService
             if (token is null || token.Kind != GameAuthTokenKinds.Credential || token.Spent || token.ContextId != consent.ContextId ||
                 token.Generation != consent.ContextGeneration || context is not { State: GameAuthStates.PendingLink } || context.Generation != token.Generation ||
                 context.PendingLinkId != pendingId || context.CredentialDigest != consent.CredentialDigest || context.CredentialExpiresAt <= Now ||
-                options.Value.ResolveSteamApplication(context.SteamAppId) is null || context.SteamAppId != consent.SteamAppId || context.LinkProofExpiresAt <= Now || context.AbsoluteExpiresAt <= Now || context.Environment != options.Value.Environment ||
+                options.Value.ResolveApplication(context.ApplicationKey) is null || context.ApplicationKey != consent.ApplicationKey || context.LinkProofExpiresAt <= Now || context.AbsoluteExpiresAt <= Now || context.Environment != options.Value.Environment ||
                 context.Audience != GameAuthPolicy.ContextAudience || context.Product != StoreAuthenticationConfiguration.Product ||
-                context.Provider != StoreProviders.Steam || context.ProviderSubject != consent.ProviderSubject ||
+                context.Provider != consent.Provider || context.ProviderSubject != consent.ProviderSubject ||
                 (context.AccountId is { } accountId && accountId != consent.AccountId)) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
             if (context.LauncherFamilyId is { } family &&
                 !await refreshTokens.IsLiveLauncherFamilyAsync(new AccountId(consent.AccountId), family, Now, cancellationToken))
@@ -56,7 +56,7 @@ public sealed partial class GameAuthorizationService
             var claimed = consent with { Binding = binding, WorkerUntil = Earlier(Now.Add(GameAuthPolicy.MutationClaimLifetime), consent.ProofExpiresAt) };
             var claimedRaw = GameAuthJson.Serialize(claimed);
             if (!await store.CompareExchangeAsync([new(key, raw, claimedRaw, consent.ProofExpiresAt)], cancellationToken)) continue;
-            var operation = new IdentityLinkOperation(consent.OperationId, new AccountId(consent.AccountId), StoreProviders.Steam,
+            var operation = new IdentityLinkOperation(consent.OperationId, new AccountId(consent.AccountId), consent.Provider,
                 consent.ProviderSubject, consent.CredentialsVersion, consent.SessionEpoch, consent.ConfirmedMfaId)
                 { ProofExpiresAt = consent.ProofExpiresAt };
             var result = await identities.LinkWithAuthorityAsync(operation, Now, cancellationToken);
@@ -77,22 +77,14 @@ public sealed partial class GameAuthorizationService
             var account = await accounts.FindByIdAsync(resolvedAccountId, false, cancellationToken);
             if (!Eligible(account, resolvedAccountId.Value) || account!.CredentialsVersion != consent.CredentialsVersion ||
                 account.SessionEpoch != consent.SessionEpoch + 1) return GameAuthReply.Failure(GameAuthErrors.AccountUnavailable);
-            var license = await ownership.CheckAsync(context.SteamAppId, consent.ProviderSubject, cancellationToken);
-            if (license.ProviderSubject != consent.ProviderSubject || license.AuthorizedUntil > license.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime))
-                return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
-            Guid? observationId = null;
-            if (license.Status != SteamOwnershipStatus.ProviderUnavailable)
+            var application = options.Value.ResolveApplication(context.ApplicationKey)!;
+            var license = await licenseAuthority.VerifyAsync(new(account.Id, application,
+                new(consent.ProviderSubject, context.IdentityVerifiedAt!.Value, context.IdentityValidUntil!.Value),
+                null, null, Now), cancellationToken);
+            if (license.Status == GameLicenseCheckStatus.Unavailable)
             {
-                observationId = Guid.NewGuid();
-                await observations.RecordAsync(new LicenseObservation
-                {
-                    Id = observationId.Value, AccountId = account.Id, Provider = StoreProviders.Steam, ProviderSubject = consent.ProviderSubject,
-                    ProviderOwnerSubject = license.OwnerSubject, Permanent = license.Permanent,
-                    OwnsProduct = license.Status == SteamOwnershipStatus.Owned, Environment = options.Value.Environment,
-                    Product = StoreAuthenticationConfiguration.Product, ProviderAppId = context.SteamAppId.ToString(CultureInfo.InvariantCulture),
-                    ObservedAt = license.ObservedAt, AuthorizedUntil = license.AuthorizedUntil, ProviderExpiresAt = license.ProviderExpiresAt,
-                    PolicyVersion = options.Value.PolicyVersion,
-                }, cancellationToken);
+                await store.CompareExchangeAsync([new(key, claimedRaw, GameAuthJson.Serialize(claimed with { WorkerUntil = Now }), consent.ProofExpiresAt)], cancellationToken);
+                return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
             }
             if (consent.ProofExpiresAt <= Now) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
             var nextCredential = GameAuthCryptography.NewToken();
@@ -100,14 +92,14 @@ public sealed partial class GameAuthorizationService
             var next = context with
             {
                 AccountId = account.Id.Value, CredentialsVersion = account.CredentialsVersion, SessionEpoch = account.SessionEpoch,
-                State = license.Status == SteamOwnershipStatus.Owned && license.AuthorizedUntil > Now ? GameAuthStates.Authorized : GameAuthStates.PendingLicense,
-                AuthorizationValidUntil = license.Status == SteamOwnershipStatus.Owned ? license.AuthorizedUntil : null,
-                LicenseObservationId = observationId, PendingLinkId = null, LinkChallenge = null, LinkProofExpiresAt = null,
+                State = license.Status == GameLicenseCheckStatus.Licensed && license.AuthorizedUntil > Now ? GameAuthStates.Authorized : GameAuthStates.PendingLicense,
+                AuthorizationValidUntil = license.Status == GameLicenseCheckStatus.Licensed ? license.AuthorizedUntil : null,
+                LicenseObservationId = license.ObservationId, LicenseId = license.LicenseId, LicenseRevision = license.Revision, PendingLinkId = null, LinkChallenge = null, LinkProofExpiresAt = null,
                 CredentialDigest = GameAuthCryptography.Digest(nextCredential), RefreshDigest = GameAuthCryptography.Digest(nextRefresh),
                 CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt), Generation = context.Generation + 1,
             };
             var reply = Response(next, nextCredential, nextRefresh,
-                license.Status == SteamOwnershipStatus.ProviderUnavailable ? GameAuthErrors.ProviderUnavailable : null);
+                license.Status == GameLicenseCheckStatus.Unavailable ? GameAuthErrors.ProviderUnavailable : null);
             var oldRefreshKey = Key("token", context.RefreshDigest);
             var oldRefreshRaw = await store.ReadAsync(oldRefreshKey, cancellationToken);
             var oldRefresh = GameAuthJson.Deserialize<GameAuthTokenRecord>(oldRefreshRaw);

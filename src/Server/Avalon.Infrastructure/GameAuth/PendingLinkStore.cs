@@ -31,6 +31,8 @@ internal sealed record LinkConsentRecord
     public Guid PendingLinkId { get; init; }
     public Guid ContextId { get; init; }
     public uint SteamAppId { get; init; }
+    public string? ApplicationKey { get; init; }
+    public string Provider { get; init; } = string.Empty;
     public int ContextGeneration { get; init; }
     public required string CredentialDigest { get; init; }
     public required string Challenge { get; init; }
@@ -66,7 +68,7 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
         var value = await store.ReadAsync(PendingKey(id), cancellationToken);
         if (!Guid.TryParseExact(value, "N", out var contextId)) return null;
         var context = await authorization.GetContextByIdAsync(contextId, false, cancellationToken);
-        return context is { State: GameAuthStates.PendingLink, Provider: StoreProviders.Steam, ProviderSubject: not null } &&
+        return context is { State: GameAuthStates.PendingLink, ProviderSubject: not null } && options.Value.ResolveApplication(context.ApplicationKey) is not null &&
                context.PendingLinkId == id && context.LinkProofExpiresAt > Now ? context : null;
     }
 
@@ -104,7 +106,7 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
         var consent = new LinkConsentRecord
         {
             OperationId = Guid.NewGuid(), BrowserRequestId = requestId, PendingLinkId = id,
-            ContextId = context.Id, SteamAppId = context.SteamAppId, ContextGeneration = context.Generation, CredentialDigest = context.CredentialDigest,
+            ContextId = context.Id, SteamAppId = context.SteamAppId, ApplicationKey = context.ApplicationKey, Provider = context.Provider!, ContextGeneration = context.Generation, CredentialDigest = context.CredentialDigest,
             Challenge = context.LinkChallenge!, ProviderSubject = context.ProviderSubject!, AccountId = accountId.Value,
             CredentialsVersion = credentialsVersion, SessionEpoch = sessionEpoch, ConfirmedMfaId = confirmedMfaId,
             Username = account.Username, CodeDigest = GameAuthCryptography.Digest(code),

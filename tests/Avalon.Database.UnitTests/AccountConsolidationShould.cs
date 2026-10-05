@@ -18,6 +18,54 @@ public sealed class AccountConsolidationShould
     }
 
     private const string SteamId = "76561198000000001";
+
+    [Fact]
+    public async Task Transfer_all_shared_licenses_once_preserving_sources_and_invalidating_prior_authority()
+    {
+        using var database = SqliteDatabase.Auth();
+        var (source, target, request) = await Seed(database);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        await using (var db = database.CreateDbContext())
+        {
+            foreach (var provider in new[] { "steam", "avalon", "test-store" })
+                db.GameLicenses.Add(new GameLicense { Id = Guid.NewGuid(), AccountId = source.Id, Provider = provider,
+                    Product = "avalon.base", Environment = "production", ProviderProductId = "base",
+                    LicenseReference = provider + "-grant", GrantedAt = now,
+                    AuthorityKind = provider == "avalon" ? Avalon.Common.GameAuth.LicenseAuthorityKind.StoredGrant : Avalon.Common.GameAuth.LicenseAuthorityKind.VerifiedOwnership,
+                    LastObservedAt = now, VerifiedUntil = now.AddMinutes(5) });
+            await db.SaveChangesAsync();
+        }
+        var repository = new AccountConsolidationRepository(database, _clock);
+        Assert.Null((await repository.BeginAsync(request, default)).Error);
+        foreach (var world in request.Worlds) Assert.True(await repository.RecordTransferAsync(request.OperationId, world, 0, default));
+        Assert.True(await repository.FinalizeAsync(request.OperationId, default));
+        Assert.True(await repository.FinalizeAsync(request.OperationId, default));
+        await using var read = database.CreateDbContext();
+        var rows = await read.GameLicenses.OrderBy(x => x.Provider).ToListAsync();
+        Assert.Equal(3, rows.Count);
+        Assert.All(rows, row => { Assert.Equal(target.Id, row.AccountId); Assert.Equal(2, row.AuthorityRevision);
+            Assert.Equal(row.Provider + "-grant", row.LicenseReference); Assert.Null(row.VerifiedUntil); Assert.Null(row.RevokedAt); });
+        Assert.True(rows.Single(x => x.Provider == "avalon").Authorizes(target.Id, "avalon.base", "production", now));
+        Assert.False(rows.Single(x => x.Provider == "steam").Authorizes(target.Id, "avalon.base", "production", now));
+    }
+
+    [Fact]
+    public async Task Consolidation_records_the_verified_provider_and_subject()
+    {
+        using var database = SqliteDatabase.Auth();
+        var (source, target, request) = await Seed(database);
+        await using (var db = database.CreateDbContext())
+        {
+            var identity = await db.ExternalIdentities.SingleAsync();
+            identity.Provider = "test-store"; identity.ProviderSubject = "opaque-subject";
+            await db.SaveChangesAsync();
+        }
+        var result = await new AccountConsolidationRepository(database, _clock).BeginAsync(request with
+        { Provider = "test-store", ProviderSubject = "opaque-subject" }, default);
+        Assert.Null(result.Error);
+        Assert.Equal("test-store", result.Operation!.Provider);
+        Assert.Equal("opaque-subject", result.Operation.ProviderSubject);
+    }
     private readonly ManualClock _clock = new(DateTimeOffset.UtcNow);
     private async Task<(Account Source, Account Target, AccountConsolidationRequest Request)> Seed(SqliteDatabase<Avalon.Database.Auth.AuthDbContext> database)
     {

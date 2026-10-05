@@ -102,14 +102,14 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         if (head is null || head.GameSessionId != sessionId || head.FencingToken != fence || head.ServerId != serverId ||
             head.WorldId != definition.WorldId || head.State == GameSessionState.Ended || head.LeaseUntil <= Now || head.LicenseUntil <= Now) return null;
         var context = await authorization.GetContextByIdAsync(head.GameContextId, true, cancellationToken);
-        if (context is null || !applications.AllowsWorld(context.SteamAppId, head.WorldId) || context.AccountId != accountId.Value || context.Environment != head.Environment ||
+        if (context is null || !applications.AllowsWorld(context.ApplicationKey, head.WorldId) || context.AccountId != accountId.Value || context.Environment != head.Environment ||
             context.CredentialsVersion != head.CredentialsVersion || context.SessionEpoch != head.SessionEpoch || Deadline(context) <= Now) return null;
         var root = await accounts.FindByIdAsync(accountId, false, cancellationToken);
         if (root is null || root.Status != AccountStatus.Active || root.GameplayConsolidationId is not null || root.IsLockedAt(Now) ||
             (root.AccessLevel & AccountAccessLevel.Player) == 0 || root.CredentialsVersion != head.CredentialsVersion || root.SessionEpoch != head.SessionEpoch) return null;
         return (head, context, root);
     }
-    private static DateTime Deadline(GameContextRecord context) => Min(context.AuthorizationValidUntil!.Value, context.AbsoluteExpiresAt, context.IdentityVerifiedAt!.Value.Add(GameAuthPolicy.IdentityLifetime));
+    private static DateTime Deadline(GameContextRecord context) => GameContextAuthorizationWindow.Deadline(context)!.Value;
     private static DateTime Min(params DateTime[] values) => values.Min();
     private static GameSessionLeaseReply Reply(GameSession head, Account root) => new()
     {

@@ -182,16 +182,21 @@ namespace Avalon.Database.Auth.Migrations
                     b.Property<DateTime?>("FinalizedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<long>("SourceAccountId")
                         .HasColumnType("bigint");
 
                     b.Property<int>("State")
                         .HasColumnType("integer");
-
-                    b.Property<string>("SteamSubject")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
 
                     b.Property<long>("TargetAccountId")
                         .HasColumnType("bigint");
@@ -308,8 +313,8 @@ namespace Avalon.Database.Auth.Migrations
 
                     b.Property<string>("Provider")
                         .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("ProviderSubject")
                         .IsRequired()
@@ -325,6 +330,85 @@ namespace Avalon.Database.Auth.Migrations
                         .IsUnique();
 
                     b.ToTable("ExternalIdentities");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Auth.GameLicense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AuthorityKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<long>("AuthorityRevision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("GrantedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastObservedAt")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LicenseReference")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Product")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("ProviderProductId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ProviderSubject")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("VerifiedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Provider", "Environment", "LicenseReference")
+                        .IsUnique();
+
+                    b.HasIndex("AccountId", "Product", "Provider", "Environment");
+
+                    b.ToTable("GameLicenses", t =>
+                        {
+                            t.HasCheckConstraint("CK_GameLicenses_Interval", "(\"ExpiresAt\" IS NULL OR \"ExpiresAt\" > \"GrantedAt\") AND (\"RevokedAt\" IS NULL OR \"RevokedAt\" >= \"GrantedAt\")");
+
+                            t.HasCheckConstraint("CK_GameLicenses_Reference", "length(trim(\"LicenseReference\")) > 0 AND \"LicenseReference\" = trim(\"LicenseReference\")");
+
+                            t.HasCheckConstraint("CK_GameLicenses_Revision", "\"AuthorityRevision\" > 0 AND \"AccountId\" > 0");
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.Auth.GameSession", b =>
@@ -402,6 +486,9 @@ namespace Avalon.Database.Auth.Migrations
                     b.Property<long>("AccountId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AuthorityRevision")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTime>("AuthorizedUntil")
                         .HasColumnType("timestamp with time zone");
 
@@ -409,6 +496,9 @@ namespace Avalon.Database.Auth.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("LicenseId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("ObservedAt")
                         .HasColumnType("timestamp with time zone");
@@ -429,18 +519,18 @@ namespace Avalon.Database.Auth.Migrations
 
                     b.Property<string>("Provider")
                         .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<string>("ProviderAppId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<DateTime?>("ProviderExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ProviderOwnerSubject")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ProviderProductId")
+                        .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
@@ -451,7 +541,9 @@ namespace Avalon.Database.Auth.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AccountId", "Provider", "ProviderSubject", "Environment", "Product", "ProviderAppId", "ObservedAt");
+                    b.HasIndex("LicenseId");
+
+                    b.HasIndex("AccountId", "Provider", "ProviderSubject", "Environment", "Product", "ProviderProductId", "ObservedAt");
 
                     b.ToTable("LicenseObservations");
                 });
@@ -631,6 +723,11 @@ namespace Avalon.Database.Auth.Migrations
                     b.Property<DateTime>("ProofExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("ProviderSubject")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -783,6 +880,15 @@ namespace Avalon.Database.Auth.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Auth.GameLicense", b =>
+                {
+                    b.HasOne("Avalon.Domain.Auth.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.Auth.GameSession", b =>
                 {
                     b.HasOne("Avalon.Domain.Auth.Account", null)
@@ -799,6 +905,11 @@ namespace Avalon.Database.Auth.Migrations
                         .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Avalon.Domain.Auth.GameLicense", null)
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Avalon.Domain.Auth.MFASetup", b =>

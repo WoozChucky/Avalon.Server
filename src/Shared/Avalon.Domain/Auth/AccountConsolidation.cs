@@ -10,7 +10,8 @@ public sealed class AccountConsolidation
     public Guid Id { get; set; }
     public AccountId SourceAccountId { get; set; } = null!;
     public AccountId TargetAccountId { get; set; } = null!;
-    public required string SteamSubject { get; set; }
+    public string Provider { get; set; } = "steam";
+    public required string ProviderSubject { get; set; }
     public int TargetCredentialsVersion { get; set; }
     public long TargetSessionEpoch { get; set; }
     public Guid? ConfirmedMfaId { get; set; }

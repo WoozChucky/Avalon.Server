@@ -41,7 +41,7 @@ public class PendingLinkStoreShould
         proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, Subject));
         _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);
         _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(_ => new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
-        _auth = new(_store, new AuthAttemptStore(_store, crypto, options, _clock), crypto, _accounts,
+        _auth = TestGameAuthorization.Create(_store, new AuthAttemptStore(_store, crypto, options, _clock), crypto, _accounts,
             _families, _identities, Substitute.For<ILicenseObservationRepository>(), proof, _ownership, options, _clock, _registration);
         _links = new(_auth, _store, crypto, _accounts, _mfa, options, _clock);
         _identities.LinkWithAuthorityAsync(Arg.Any<IdentityLinkOperation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
@@ -72,7 +72,7 @@ public class PendingLinkStoreShould
         var pending = await Pending();
         var context = (await _auth.GetContextAsync(pending.GameContextCredential!, false, default))!;
         // A pending Playtest context is a server-owned fixture, independent of launcher authority.
-        _store.Seed(Avalon.Infrastructure.CacheKeys.GameAuth("production", "context", context.Id.ToString("N")), GameAuthJson.Serialize(context with { SteamAppId = 2514590 }));
+        _store.Seed(Avalon.Infrastructure.CacheKeys.GameAuth("production", "context", context.Id.ToString("N")), GameAuthJson.Serialize(context with { SteamAppId = 2514590, ApplicationKey = "steam.playtest" }));
         var id = Guid.ParseExact(pending.PendingLinkId!, "N");
         await _links.ConfirmAsync(id, _account.Id, 0, 0, null, Guid.NewGuid(), default);
         var proposal = await _links.ProposalAsync(pending.GameContextCredential!, _verifier, default);
@@ -161,7 +161,7 @@ public class PendingLinkStoreShould
         var proposal = await _links.ProposalAsync(pending.GameContextCredential!, _verifier, CancellationToken.None);
         var requestId = Guid.NewGuid();
         _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(Task.FromException<SteamOwnershipResult>(new IOException("Simulated response loss")));
-        await Assert.ThrowsAsync<IOException>(() => _auth.CompleteAccountLinkAsync(_links, pending.GameContextCredential!, proposal.ConsentCode!, _verifier, requestId, true, CancellationToken.None));
+        Assert.Equal("PROVIDER_UNAVAILABLE", (await _auth.CompleteAccountLinkAsync(_links, pending.GameContextCredential!, proposal.ConsentCode!, _verifier, requestId, true, CancellationToken.None)).Error);
         Assert.Equal(1, _account.SessionEpoch);
         _clock.Advance(TimeSpan.FromSeconds(16));
         _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));

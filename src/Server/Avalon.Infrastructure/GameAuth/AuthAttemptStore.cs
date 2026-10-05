@@ -17,10 +17,12 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
             (channel == GameLaunchChannels.Avalon && steamAppId != options.Value.SteamAppId)) return null;
         var now = clock.GetUtcNow().UtcDateTime;
         var credential = GameAuthCryptography.NewToken();
-        var identity = SteamTicketIdentity.Create(options.Value, steamAppId);
+        var identity = channel == GameLaunchChannels.Avalon ? GameAuthCryptography.NewToken() : SteamTicketIdentity.Create(options.Value, steamAppId);
+        var application = channel == GameLaunchChannels.Avalon ? "avalon.base" :
+            options.Value.ResolveSteamApplication(steamAppId)!.Restricted ? "steam.playtest" : "steam.main";
         var attempt = new AuthAttemptRecord
         {
-            Id = Guid.NewGuid(), ClientRunId = runId, SteamAppId = steamAppId, Channel = channel, ProtocolVersion = protocol, ContextId = contextId,
+            Id = Guid.NewGuid(), ClientRunId = runId, SteamAppId = steamAppId, ApplicationKey = application, ProviderChallenge = identity, Channel = channel, ProtocolVersion = protocol, ContextId = contextId,
             LinkChallenge = challenge, CreatedAt = now, ExpiresAt = now.Add(GameAuthPolicy.AttemptLifetime), ExpectedSteamIdentity = identity,
         };
         return await store.CompareExchangeAsync([new(Key(credential), null, GameAuthJson.Serialize(attempt), attempt.ExpiresAt)], cancellationToken)
@@ -28,6 +30,23 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
     }
 
     public string Key(string credential) => CacheKeys.GameAuth(options.Value.Environment, "attempt", GameAuthCryptography.Digest(credential));
+    public async Task<AuthAttemptReply?> CreateAsync(GameApplicationSelection application, string protocol, Guid runId, string challenge,
+        Guid? contextId, uint legacySteamAppId, string providerChallenge, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(protocol) || protocol.Length > GameAuthPolicy.MaximumProtocolVersionCharacters ||
+            runId == Guid.Empty || !GameAuthCryptography.IsToken(challenge)) return null;
+        var now = clock.GetUtcNow().UtcDateTime;
+        var credential = GameAuthCryptography.NewToken();
+        var attempt = new AuthAttemptRecord
+        {
+            Id = Guid.NewGuid(), ClientRunId = runId, SteamAppId = legacySteamAppId, ApplicationKey = application.Key,
+            Channel = application.Provider, ProtocolVersion = protocol, ContextId = contextId, LinkChallenge = challenge,
+            CreatedAt = now, ExpiresAt = now.Add(GameAuthPolicy.AttemptLifetime), ExpectedSteamIdentity = providerChallenge,
+            ProviderChallenge = providerChallenge,
+        };
+        return await store.CompareExchangeAsync([new(Key(credential), null, GameAuthJson.Serialize(attempt), attempt.ExpiresAt)], ct)
+            ? new(credential, providerChallenge, attempt.ExpiresAt) : null;
+    }
     public string ReceiptBinding(string key, string requestBinding) => key + ":" + requestBinding;
     public GameAuthReply? Receipt(AuthAttemptRecord record, string key, string binding) =>
         record.Binding == binding && record.Receipt is not null && record.ReceiptExpiresAt > clock.GetUtcNow().UtcDateTime

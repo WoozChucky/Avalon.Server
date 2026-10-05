@@ -9,11 +9,14 @@ using Avalon.Infrastructure.Login;
 
 namespace Avalon.Api.Services;
 
-/// <summary>Creates a Steam-only Avalon root and identity in one transaction, after provider verification.</summary>
+/// <summary>Creates a store-backed Avalon root and identity in one transaction, after provider verification.</summary>
 public sealed class StoreAccountRegistration(IExternalIdentityRepository identities, IReplicatedCache cache,
     AuthenticationConfig config, TimeProvider clock) : IGameAccountRegistration
 {
-    public async Task<IdentityLinkResult> CreateFromSteamAsync(Guid operationId, string verifiedSteamId,
+    public Task<IdentityLinkResult> CreateFromSteamAsync(Guid id, string subject, DateTime end, string address, CancellationToken ct) =>
+        CreateFromStoreAsync(id, StoreProviders.Steam, subject, end, address, ct);
+
+    public async Task<IdentityLinkResult> CreateFromStoreAsync(Guid operationId, string provider, string verifiedSubject,
         DateTime proofExpiresAt, string sourceAddress, CancellationToken cancellationToken)
     {
         if (operationId == Guid.Empty || !IPAddress.TryParse(sourceAddress, out var source) ||
@@ -26,10 +29,10 @@ public sealed class StoreAccountRegistration(IExternalIdentityRepository identit
             Email = null, Salt = [], Verifier = [], IsStoreGenerated = true,
             JoinDate = clock.GetUtcNow().UtcDateTime, LastIp = source.ToString(),
         };
-        var operation = new StoreAccountCreationOperation(operationId, account, verifiedSteamId, proofExpiresAt);
-        var prior = await identities.FindAsync(StoreProviders.Steam, verifiedSteamId, cancellationToken);
+        var operation = new StoreAccountCreationOperation(operationId, account, verifiedSubject, proofExpiresAt) { Provider = provider };
+        var prior = await identities.FindAsync(provider, verifiedSubject, cancellationToken);
         if (prior?.Id == operationId)
-            return await identities.CreateAccountWithSteamLinkAsync(operation, clock.GetUtcNow().UtcDateTime, cancellationToken);
+            return await identities.CreateAccountWithStoreLinkAsync(operation, clock.GetUtcNow().UtcDateTime, cancellationToken);
         var key = CacheKeys.AuthSourceAccountsCreated(RemoteAddress.SourceOf(source));
         var taken = await AttemptBudget.TakeAsync(cache, key, TimeSpan.FromMinutes(config.AccountCreationWindowMinutes));
         if (taken > config.MaxAccountsCreatedPerSource)
@@ -38,7 +41,7 @@ public sealed class StoreAccountRegistration(IExternalIdentityRepository identit
             return new(IdentityLinkStatus.CreationRefused, null);
         }
         // An uncertain DB outcome keeps its reservation. The durable operation receipt recovers retries.
-        var result = await identities.CreateAccountWithSteamLinkAsync(operation, clock.GetUtcNow().UtcDateTime, cancellationToken);
+        var result = await identities.CreateAccountWithStoreLinkAsync(operation, clock.GetUtcNow().UtcDateTime, cancellationToken);
         if (result.Status != IdentityLinkStatus.Linked) await AttemptBudget.GiveBackAsync(cache, key);
         return result;
     }

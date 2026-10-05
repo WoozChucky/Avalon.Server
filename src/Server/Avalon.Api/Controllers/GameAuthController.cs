@@ -18,33 +18,34 @@ namespace Avalon.Api.Controllers;
 [RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
 public sealed class GameAuthController(GameAuthorizationService authorization, ILogger<GameAuthController>? authLogger = null) : ControllerBase
 {
-    [HttpPost("attempts", Name = "CreateGameAuthAttempt")]
-    [ProducesResponseType(typeof(AuthAttemptReply), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Attempt(GameAttemptRequest request, CancellationToken cancellationToken)
+    [HttpPost("provider-attempts", Name = "CreateProviderGameAuthAttempt")]
+    [ProducesResponseType(typeof(ProviderAuthAttemptReply), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ProviderAttempt(GameProviderAttemptRequest request, CancellationToken cancellationToken)
     {
-        if (!Request.IsHttps) return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired)), nameof(Attempt));
+        if (!Request.IsHttps) return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired)), nameof(ProviderAttempt));
         if (request.ProtocolVersion != GameWorkloadConfiguration.ClientProtocolVersion)
-            return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol)), nameof(Attempt));
+            return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol)), nameof(ProviderAttempt));
         try
         {
-            var reply = await authorization.CreateAttemptAsync(request.ChannelHint, request.ProtocolVersion,
-                request.ClientRunId, request.LinkChallenge, request.GameContextCredential, request.SteamAppId, cancellationToken);
-            return LogResult(reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) : Ok(reply), nameof(Attempt));
+            var reply = await authorization.CreateProviderAttemptAsync(request.ApplicationKey, request.ProtocolVersion,
+                request.ClientRunId, request.LinkChallenge, request.GameContextCredential, 0, cancellationToken);
+            return LogResult(reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) :
+                Ok(new ProviderAuthAttemptReply(reply.AttemptCredential, reply.ExpectedSteamIdentity, reply.ExpiresAt)), nameof(ProviderAttempt));
         }
-        catch (RedisException) { return LogResult(StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)), nameof(Attempt)); }
+        catch (RedisException) { return LogResult(StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)), nameof(ProviderAttempt)); }
     }
+
+    [HttpPost("store/proof", Name = "AuthenticateProviderGame")]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    public Task<IActionResult> ProviderProof(GameProviderProofRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
+        CancellationToken cancellationToken) => Execute(() => authorization.AuthenticateProviderAsync(request.Provider,
+            request.AttemptCredential, request.Proof, requestId, cancellationToken, HttpContext.Connection.RemoteIpAddress?.ToString()));
 
     [HttpPost("handoffs/redeem", Name = "RedeemGameAuthHandoff")]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
     public Task<IActionResult> Handoff(GameHandoffRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(() => authorization.RedeemHandoffAsync(
             request.AttemptCredential, request.HandoffTicket, requestId, cancellationToken));
-
-    [HttpPost("store/steam", Name = "AuthenticateSteamGame")]
-    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
-    public Task<IActionResult> Steam(SteamGameProofRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
-        CancellationToken cancellationToken) => Execute(() => authorization.AuthenticateSteamAsync(
-            request.AttemptCredential, request.TicketHex, requestId, cancellationToken, HttpContext.Connection.RemoteIpAddress?.ToString()));
 
     [HttpPost("game-context/refresh", Name = "RefreshGameAuthContext")]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]

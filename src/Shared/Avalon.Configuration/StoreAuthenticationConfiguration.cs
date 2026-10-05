@@ -13,6 +13,27 @@ public sealed class StoreAuthenticationConfiguration
     public string SteamIdentityPrefix { get; set; } = "avalon-auth-prod";
     public int PolicyVersion { get; set; } = 1;
     public bool DirectGrantsEnabled { get; set; }
+    public Dictionary<string, GameProviderApplicationConfiguration> AdditionalApplications { get; set; } = new(StringComparer.Ordinal);
+
+    public GameApplicationSelection? ResolveApplication(string? key)
+    {
+        if (key == "avalon.base") return new(key, "avalon", "base", Product, Environment, Array.Empty<ushort>(), false);
+        if (key is "steam.main" or "steam.playtest")
+        {
+            var app = ResolveSteamApplication(key == "steam.main" ? SteamAppId : SteamPlaytest.AppId);
+            if (app is null || (key == "steam.playtest" && !app.Restricted)) return null;
+            return new(key, "steam", app.AppId.ToString(System.Globalization.CultureInfo.InvariantCulture), Product,
+                Environment, app.AllowedWorldIds, app.Restricted);
+        }
+        if (key is null || !AdditionalApplications.TryGetValue(key, out var configured) || configured is not { Enabled: true } ||
+            !SourceText(key, 128) || !SourceText(configured.Provider, 32) || !SourceText(configured.ProviderProductId, 128) ||
+            configured.Provider is "steam" or "avalon" || configured.AllowedWorldIds is null ||
+            configured.AllowedWorldIds.Contains((ushort)0) || configured.AllowedWorldIds.Distinct().Count() != configured.AllowedWorldIds.Length ||
+            (configured.Restricted && configured.AllowedWorldIds.Length == 0)) return null;
+        return new(key, configured.Provider, configured.ProviderProductId, Product, Environment, configured.AllowedWorldIds, configured.Restricted);
+    }
+
+    private static bool SourceText(string value, int maximum) => !string.IsNullOrWhiteSpace(value) && value == value.Trim() && value.Length <= maximum;
 
     public SteamApplicationSelection? ResolveSteamApplication(uint? appId)
     {

@@ -29,6 +29,10 @@ public sealed record GameContextRecord
     public Guid Id { get; init; }
     public Guid ClientRunId { get; init; }
     public uint SteamAppId { get; init; }
+    public string? ApplicationKey { get; init; }
+    public Guid? LicenseId { get; init; }
+    public long? LicenseRevision { get; init; }
+    public DateTime? IdentityValidUntil { get; init; }
     public required string ProtocolVersion { get; init; }
     public required string Environment { get; init; }
     public string Audience { get; init; } = GameAuthPolicy.ContextAudience;
@@ -63,6 +67,8 @@ public sealed record AuthAttemptRecord
     public Guid Id { get; init; }
     public Guid ClientRunId { get; init; }
     public uint SteamAppId { get; init; }
+    public string? ApplicationKey { get; init; }
+    public string? ProviderChallenge { get; init; }
     public required string Channel { get; init; }
     public required string ProtocolVersion { get; init; }
     public required string ExpectedSteamIdentity { get; init; }
