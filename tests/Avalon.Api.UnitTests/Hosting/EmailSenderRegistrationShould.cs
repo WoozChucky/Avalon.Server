@@ -18,6 +18,31 @@ namespace Avalon.Api.UnitTests.Hosting;
 public class EmailSenderRegistrationShould
 {
     [Theory]
+    [InlineData("http://example.test")]
+    [InlineData("https://example.test/path")]
+    [InlineData("https://user@example.test")]
+    [InlineData("https://example.test?query=secret")]
+    [InlineData("https://example.test#fragment")]
+    [InlineData("")]
+    public void Refuse_unsafe_verification_origins(string origin)
+    {
+        var config = Bind(new Dictionary<string, string?> { ["Application:Email:VerificationSiteOrigin"] = origin });
+        var ex = Assert.Throws<InvalidOperationException>(() => Registered(config, Environments.Production));
+        Assert.Contains("Application:Email:VerificationSiteOrigin", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("Application:Email:VerificationCooldownSeconds")]
+    [InlineData("Application:Email:MaxVerificationSendsPerAccount")]
+    [InlineData("Application:Email:MaxVerificationSendsPerSource")]
+    public void Refuse_zero_verification_budgets(string setting)
+    {
+        var config = Bind(new Dictionary<string, string?> { [setting] = "0" });
+        var ex = Assert.Throws<InvalidOperationException>(() => Registered(config, Environments.Production));
+        Assert.Contains(setting, ex.Message);
+    }
+
+    [Theory]
     [InlineData("Application:Email:ResendApiKey", "")]
     [InlineData("Application:Email:From", "bad-address")]
     [InlineData("Application:Email:FromName", "Avalon\r\nBcc: thief@example.test")]
