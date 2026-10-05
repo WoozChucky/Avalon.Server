@@ -13,6 +13,7 @@ internal static class StoreAuthenticationModel
         creations.Property(x => x.Id).ValueGeneratedNever();
         creations.Property(x => x.AccountId).HasConversion(v => v.Value, v => new AccountId(v));
         creations.Property(x => x.ProviderSubject).HasMaxLength(128);
+        creations.Property(x => x.Provider).HasMaxLength(32);
         // An audit/idempotency receipt, not a dependent account row: deletion must not erase it.
         creations.HasIndex(x => x.AccountId);
 
@@ -20,7 +21,7 @@ internal static class StoreAuthenticationModel
         identities.HasKey(x => x.Id);
         identities.Property(x => x.Id).ValueGeneratedNever();
         identities.Property(x => x.AccountId).HasConversion(v => v.Value, v => new AccountId(v));
-        identities.Property(x => x.Provider).HasMaxLength(16);
+        identities.Property(x => x.Provider).HasMaxLength(32);
         identities.Property(x => x.ProviderSubject).HasMaxLength(128);
         identities.HasIndex(x => new { x.Provider, x.ProviderSubject }).IsUnique();
         identities.HasIndex(x => new { x.AccountId, x.Provider }).IsUnique();
@@ -31,7 +32,7 @@ internal static class StoreAuthenticationModel
         licenses.HasOne<GameLicense>().WithMany().HasForeignKey(x => x.LicenseId).OnDelete(DeleteBehavior.Restrict);
         licenses.Property(x => x.Id).ValueGeneratedNever();
         licenses.Property(x => x.AccountId).HasConversion(v => v.Value, v => new AccountId(v));
-        licenses.Property(x => x.Provider).HasMaxLength(16);
+        licenses.Property(x => x.Provider).HasMaxLength(32);
         licenses.Property(x => x.ProviderSubject).HasMaxLength(128);
         licenses.Property(x => x.Environment).HasMaxLength(32);
         licenses.Property(x => x.Product).HasMaxLength(128);

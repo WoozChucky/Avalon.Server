@@ -120,7 +120,7 @@ public sealed class PlaytestWorldAdmissionShould
         Assert.Null(reconnect.Error);
 
         if (disableApplication) h.Configuration.SteamPlaytest.Enabled = false;
-        else h.NegativePlaytestObservation = true;
+        else await h.RevokePlaytestAuthority();
 
         Assert.NotNull((await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default)).Error);
         Assert.NotNull((await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, true, default)).Error);
@@ -145,7 +145,12 @@ public sealed class PlaytestWorldAdmissionShould
             SteamAppId = 2499460, SteamPublisherKey = "test-only",
             SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] },
         };
-        public bool NegativePlaytestObservation { get; set; }
+        private MemoryGameLicenses _licenses = null!;
+        public async Task RevokePlaytestAuthority()
+        {
+            foreach (var license in _licenses.Rows.Where(x => x.ProviderProductId == "2514590"))
+                await _licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision, new(false, Now, Now));
+        }
         public bool OwnsApplication { get; set; } = true;
         public TimeSpan LicenseLifetime { get; set; } = TimeSpan.FromMinutes(5);
         public GameAuthorizationService Authorization { get; }
@@ -168,7 +173,7 @@ public sealed class PlaytestWorldAdmissionShould
             var identities = Substitute.For<IExternalIdentityRepository>();
             identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns(_ => linked);
             var registration = Substitute.For<IGameAccountRegistration>();
-            registration.CreateFromSteamAsync(Arg.Any<Guid>(), Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>())
+            registration.CreateFromStoreAsync(Arg.Any<Guid>(), "steam", Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>())
                 .Returns(_ => { linked = identity; return new IdentityLinkResult(IdentityLinkStatus.Linked, identity); });
             var proof = Substitute.For<ISteamProofVerifier>();
             proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -178,13 +183,12 @@ public sealed class PlaytestWorldAdmissionShould
                 .Returns(_ => new SteamOwnershipResult(OwnsApplication ? SteamOwnershipStatus.Owned : SteamOwnershipStatus.NotOwned,
                     Subject, Now, OwnsApplication ? Now.Add(LicenseLifetime) : Now));
             var observations = Substitute.For<ILicenseObservationRepository>();
-            observations.HasNegativeSinceAsync(Account.Id, "steam", Subject, "production", StoreAuthenticationConfiguration.Product,
-                "2514590", Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(_ => NegativePlaytestObservation);
             var store = new AtomicAuthStore();
+            _licenses = TestGameAuthorization.Licenses(store);
             var crypto = new GameAuthCryptography(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray());
             var options = Options.Create(Configuration);
             var applications = new GameApplicationAccessPolicy(options);
-            Authorization = new(store, new AuthAttemptStore(store, crypto, options, _clock), crypto, accounts,
+            Authorization = TestGameAuthorization.Create(store, new AuthAttemptStore(store, crypto, options, _clock), crypto, accounts,
                 Substitute.For<IRefreshTokenRepository>(), identities, observations, proof, ownership, options, _clock, registration);
 
             var world = new Avalon.Domain.Auth.World

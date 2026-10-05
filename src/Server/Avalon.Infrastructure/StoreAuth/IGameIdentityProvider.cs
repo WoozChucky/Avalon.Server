@@ -13,6 +13,7 @@ public sealed record GameIdentityProofResult(GameIdentityProofStatus Status, Ver
 public interface IGameIdentityProvider
 {
     string Provider { get; }
+    string CanonicalProof(string proof) => proof;
     string CreateChallenge(GameApplicationSelection application);
     Task<GameIdentityProofResult> VerifyAsync(GameIdentityProofRequest request, CancellationToken ct);
 }

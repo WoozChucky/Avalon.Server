@@ -18,6 +18,24 @@ public sealed class AccountConsolidationShould
     }
 
     private const string SteamId = "76561198000000001";
+
+    [Fact]
+    public async Task Consolidation_records_the_verified_provider_and_subject()
+    {
+        using var database = SqliteDatabase.Auth();
+        var (source, target, request) = await Seed(database);
+        await using (var db = database.CreateDbContext())
+        {
+            var identity = await db.ExternalIdentities.SingleAsync();
+            identity.Provider = "test-store"; identity.ProviderSubject = "opaque-subject";
+            await db.SaveChangesAsync();
+        }
+        var result = await new AccountConsolidationRepository(database, _clock).BeginAsync(request with
+        { Provider = "test-store", ProviderSubject = "opaque-subject" }, default);
+        Assert.Null(result.Error);
+        Assert.Equal("test-store", result.Operation!.Provider);
+        Assert.Equal("opaque-subject", result.Operation.ProviderSubject);
+    }
     private readonly ManualClock _clock = new(DateTimeOffset.UtcNow);
     private async Task<(Account Source, Account Target, AccountConsolidationRequest Request)> Seed(SqliteDatabase<Avalon.Database.Auth.AuthDbContext> database)
     {

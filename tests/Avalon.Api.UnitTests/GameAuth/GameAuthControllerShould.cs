@@ -26,7 +26,7 @@ public class GameAuthControllerShould
         var store = new AtomicAuthStore();
         var crypto = new GameAuthCryptography(new byte[32]);
         var config = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 480, SteamPublisherKey = "test-secret" });
-        var service = new GameAuthorizationService(store, new AuthAttemptStore(store, crypto, config, TimeProvider.System), crypto,
+        var service = TestGameAuthorization.Create(store, new AuthAttemptStore(store, crypto, config, TimeProvider.System), crypto,
             Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
             Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(), config, TimeProvider.System);
         var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
@@ -42,7 +42,7 @@ public class GameAuthControllerShould
         var store = new AtomicAuthStore();
         var crypto = new GameAuthCryptography(new byte[32]);
         var config = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-secret" });
-        var service = new GameAuthorizationService(store, new AuthAttemptStore(store, crypto, config, TimeProvider.System), crypto,
+        var service = TestGameAuthorization.Create(store, new AuthAttemptStore(store, crypto, config, TimeProvider.System), crypto,
             Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
             Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(),
             config, TimeProvider.System);
@@ -64,7 +64,7 @@ public class GameAuthControllerShould
         var store = new AtomicAuthStore();
         var crypto = new GameAuthCryptography(new byte[32]);
         var config = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-secret" });
-        var service = new GameAuthorizationService(store, new AuthAttemptStore(store, crypto, config, TimeProvider.System), crypto,
+        var service = TestGameAuthorization.Create(store, new AuthAttemptStore(store, crypto, config, TimeProvider.System), crypto,
             Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
             Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(),
             config, TimeProvider.System);

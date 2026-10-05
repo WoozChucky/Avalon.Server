@@ -17,6 +17,7 @@ public sealed record IdentityLinkOperation(Guid OperationId, AccountId AccountId
 
 public interface IExternalIdentityRepository
 {
+    Task<IdentityLinkResult> CreateAccountWithStoreLinkAsync(StoreAccountCreationOperation operation, DateTime now, CancellationToken cancellationToken = default);
     Task<IdentityLinkResult> CreateAccountWithSteamLinkAsync(StoreAccountCreationOperation operation, DateTime now, CancellationToken cancellationToken = default);
     Task<IdentityLinkResult> LinkWithAuthorityAsync(IdentityLinkOperation operation, DateTime now, CancellationToken cancellationToken = default);
     Task<ExternalIdentity?> FindAsync(string provider, string subject, CancellationToken cancellationToken = default);
@@ -36,7 +37,7 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
     public async Task<IdentityLinkResult> LinkAsync(AccountId accountId, string provider, string subject, DateTime now,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(provider) || provider.Length > 16 ||
+        if (string.IsNullOrWhiteSpace(provider) || provider.Length > 32 ||
             string.IsNullOrWhiteSpace(subject) || subject.Length > 128)
             throw new ArgumentException("Invalid provider identity shape.");
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
@@ -65,10 +66,8 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
     public async Task<IdentityLinkResult> LinkWithAuthorityAsync(IdentityLinkOperation operation, DateTime now,
         CancellationToken cancellationToken = default)
     {
-        if (operation.OperationId == Guid.Empty || operation.Provider != StoreProviders.Steam ||
-            !ulong.TryParse(operation.Subject, System.Globalization.NumberStyles.None,
-                System.Globalization.CultureInfo.InvariantCulture, out var subjectId) || subjectId == 0 ||
-            subjectId.ToString(System.Globalization.CultureInfo.InvariantCulture) != operation.Subject ||
+        if (operation.OperationId == Guid.Empty || string.IsNullOrWhiteSpace(operation.Provider) || operation.Provider.Length > 32 ||
+            operation.Provider != operation.Provider.Trim() || string.IsNullOrWhiteSpace(operation.Subject) || operation.Subject.Length > 128 || operation.Subject != operation.Subject.Trim() ||
             operation.SessionEpoch < 0 || operation.SessionEpoch == long.MaxValue)
             throw new ArgumentException("Invalid identity link operation.");
         await using var db = await factory.CreateDbContextAsync(cancellationToken);

@@ -23,6 +23,8 @@ public sealed class GameAuthCryptography
     public static bool IsToken(string? value) => value is { Length: GameAuthPolicy.TokenCharacters } && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
     public static string Digest(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     public string ProofDigest(string hex) => Convert.ToHexStringLower(HMACSHA256.HashData(_proofKey, Convert.FromHexString(hex)));
+    public string ProviderProofDigest(string provider, string proof) =>
+        Convert.ToHexStringLower(HMACSHA256.HashData(_proofKey, Encoding.UTF8.GetBytes(provider + "\0" + proof)));
     public string Binding(string operation, Guid requestId, string digest) => Digest($"{operation}:{requestId:N}:{digest}");
 
     public string Protect(GameAuthReply reply, string binding) => ProtectText(GameAuthJson.Serialize(reply), binding);

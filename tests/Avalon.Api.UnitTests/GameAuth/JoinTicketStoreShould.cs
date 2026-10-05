@@ -142,7 +142,7 @@ internal sealed class JoinHarness
         identities.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns(new ExternalIdentity { Id = Guid.NewGuid(), AccountId = Account.Id, Provider = "steam", ProviderSubject = "76561198000000001" });
         verifier.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
         ownership.CheckAsync(Arg.Any<uint>(), "76561198000000001", Arg.Any<CancellationToken>()).Returns(call => new SteamOwnershipResult(SteamOwnershipStatus.Owned, "76561198000000001", Clock.GetUtcNow().UtcDateTime, Clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
-        Authorization = new(Store, new AuthAttemptStore(Store, crypto, options, Clock), crypto, accounts,
+        Authorization = TestGameAuthorization.Create(Store, new AuthAttemptStore(Store, crypto, options, Clock), crypto, accounts,
             Substitute.For<IRefreshTokenRepository>(), identities, Substitute.For<ILicenseObservationRepository>(), verifier, ownership, options, Clock);
         Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost", new string('A', 64), "0.0.1", "0.0.1"));
         Sessions.TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>

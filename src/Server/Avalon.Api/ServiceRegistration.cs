@@ -53,6 +53,8 @@ public static class ServiceRegistration
             Avalon.Infrastructure.StoreAuth.SteamProofVerifier>());
         ConfigureSteamHttp(services.AddHttpClient<Avalon.Infrastructure.StoreAuth.ISteamOwnershipClient,
             Avalon.Infrastructure.StoreAuth.SteamOwnershipClient>());
+        services.AddScoped<Avalon.Infrastructure.StoreAuth.IGameIdentityProvider, Avalon.Infrastructure.StoreAuth.SteamIdentityProvider>();
+        services.AddScoped<Avalon.Infrastructure.StoreAuth.IGameLicenseProvider, Avalon.Infrastructure.StoreAuth.SteamLicenseProvider>();
     }
 
 #pragma warning disable EXTEXP0001 // Fixed-host provider transport owns its one-retry budget.

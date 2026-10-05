@@ -18,7 +18,8 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
     private static GameLicenseAuthorityResult Unavailable => new(GameLicenseCheckStatus.Unavailable);
     private static GameLicenseAuthorityResult Unlicensed => new(GameLicenseCheckStatus.Unlicensed);
 
-    public async Task<GameLicenseAuthorityResult> VerifyAsync(GameLicenseCheckRequest request, CancellationToken ct)
+    public async Task<GameLicenseAuthorityResult> VerifyAsync(GameLicenseCheckRequest request, CancellationToken ct,
+        GameLicenseCheckResult? verifiedEvidence = null)
     {
         if (!Trusted(request.Application) || request.Account is null || request.Account.Value <= 0 ||
             request.Now.Kind != DateTimeKind.Utc || (request.BoundLicenseId is null) != (request.BoundRevision is null)) return Unavailable;
@@ -29,7 +30,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
             GameLicense? license = request.BoundLicenseId is { } bound ? await licenses.FindAsync(bound, ct) : null;
             if (request.BoundLicenseId is not null && (license is null || !Matches(license, request, provider.AuthorityKind) ||
                 license.AuthorityRevision != request.BoundRevision || license.RevokedAt is not null)) return Unlicensed;
-            var evidence = await provider.CheckAsync(request, ct);
+            var evidence = verifiedEvidence ?? await provider.CheckAsync(request, ct);
             if (evidence.Status == GameLicenseCheckStatus.Unavailable) return Unavailable;
             if (!ValidEvidence(evidence, request, provider.AuthorityKind)) return Unavailable;
             license ??= await licenses.FindAsync(request.Account, request.Application.Provider, request.Application.Environment, evidence.LicenseReference, ct);
@@ -89,6 +90,23 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
             return license is not null && license.AuthorityRevision == revision && license.Provider == application.Provider &&
                 license.ProviderProductId == application.ProviderProductId && license.AuthorityKind == provider.AuthorityKind &&
                 license.Authorizes(account, application.Product, application.Environment, now);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception) { return false; }
+    }
+
+    public async Task<bool> ValidateBindingAsync(Guid licenseId, long revision, AccountId account,
+        GameApplicationSelection application, string? subject, CancellationToken ct)
+    {
+        var provider = providers.License(application.Provider);
+        if (!Trusted(application) || provider is null || revision <= 0) return false;
+        try
+        {
+            var row = await licenses.FindAsync(licenseId, ct);
+            return row is not null && row.Id == licenseId && row.AuthorityRevision == revision && row.RevokedAt is null &&
+                row.AccountId == account && row.Product == application.Product && row.Environment == application.Environment &&
+                row.Provider == application.Provider && row.ProviderProductId == application.ProviderProductId &&
+                row.ProviderSubject == subject && row.AuthorityKind == provider.AuthorityKind;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception) { return false; }

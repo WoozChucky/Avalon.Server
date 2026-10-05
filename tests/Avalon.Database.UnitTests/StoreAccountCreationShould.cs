@@ -10,6 +10,32 @@ public class StoreAccountCreationShould
     private static readonly DateTime Now = new(2026, 10, 4, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public void Provenance_migration_preserves_existing_Steam_receipts_without_granting_licenses()
+    {
+        var operations = new Avalon.Database.Auth.Migrations.SharedStoreProvenance().UpOperations;
+        var providers = operations.OfType<Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation>()
+            .Where(x => x.Name == "Provider").ToList();
+        Assert.Equal(2, providers.Count);
+        Assert.All(providers, x => Assert.Equal("steam", x.DefaultValue));
+        Assert.DoesNotContain(operations, x => x is Microsoft.EntityFrameworkCore.Migrations.Operations.InsertDataOperation);
+    }
+
+    [Fact]
+    public async Task Shared_creation_receipts_keep_provider_and_allow_non_Steam_subjects()
+    {
+        using var database = SqliteDatabase.Auth();
+        var repo = new ExternalIdentityRepository(database, new FixedClock(Now));
+        var operation = new StoreAccountCreationOperation(Guid.NewGuid(), StoreAuthenticationModelShould.Account("FUTURE"), "opaque-subject", Now.AddMinutes(5)) { Provider = "test-store" };
+        var created = await repo.CreateAccountWithStoreLinkAsync(operation, Now);
+        Assert.Equal(IdentityLinkStatus.Linked, created.Status);
+        Assert.Equal("test-store", created.Identity!.Provider);
+        Assert.Equal(IdentityLinkStatus.AlreadyLinked, (await repo.CreateAccountWithStoreLinkAsync(operation, Now)).Status);
+        Assert.Equal(IdentityLinkStatus.AuthorityChanged, (await repo.CreateAccountWithStoreLinkAsync(operation with { Provider = "another-store" }, Now)).Status);
+        await using var db = database.CreateDbContext();
+        Assert.Equal("test-store", (await db.StoreAccountCreations.SingleAsync()).Provider);
+    }
+
+    [Fact]
     public async Task Create_account_and_link_together_and_recover_the_original_operation_once()
     {
         using var database = SqliteDatabase.Auth();

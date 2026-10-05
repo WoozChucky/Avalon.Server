@@ -28,13 +28,13 @@ public class AutomaticSteamAccountShould
     {
         var crypto = new GameAuthCryptography(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray());
         var options = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-only" });
-        _service = new(_store, new AuthAttemptStore(_store, crypto, options, _clock), crypto, _accounts,
+        _service = TestGameAuthorization.Create(_store, new AuthAttemptStore(_store, crypto, options, _clock), crypto, _accounts,
             Substitute.For<IRefreshTokenRepository>(), _identities, Substitute.For<ILicenseObservationRepository>(), _proof,
             _ownership, options, _clock, _registration);
         _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, Subject));
         _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
         _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);
-        _registration.CreateFromSteamAsync(Arg.Any<Guid>(), Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>())
+        _registration.CreateFromStoreAsync(Arg.Any<Guid>(), "steam", Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>())
             .Returns(call => {
                 var identity = new ExternalIdentity { Id = call.ArgAt<Guid>(0), AccountId = _account.Id, Provider = "steam", ProviderSubject = Subject };
                 _identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns(identity);
@@ -53,7 +53,7 @@ public class AutomaticSteamAccountShould
         Assert.Equal("7", result.AccountId);
         Assert.Null(result.PendingLinkId);
         Assert.Equal(result, await _service.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None, "127.0.0.1"));
-        await _registration.Received(1).CreateFromSteamAsync(Arg.Any<Guid>(), Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>());
+        await _registration.Received(1).CreateFromStoreAsync(Arg.Any<Guid>(), "steam", Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -65,13 +65,13 @@ public class AutomaticSteamAccountShould
         var attempt = (await _service.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, null, CancellationToken.None))!;
         var result = await _service.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None, "127.0.0.1");
         Assert.NotNull(result.Error);
-        await _registration.DidNotReceiveWithAnyArgs().CreateFromSteamAsync(default, default!, default, default!, default);
+        await _registration.DidNotReceiveWithAnyArgs().CreateFromStoreAsync(default, default!, default!, default, default!, default);
     }
 
     [Fact]
     public async Task Adopt_the_single_race_winner_instead_of_creating_a_duplicate_root()
     {
-        _registration.CreateFromSteamAsync(Arg.Any<Guid>(), Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>()).Returns(new IdentityLinkResult(IdentityLinkStatus.SubjectTaken, null));
+        _registration.CreateFromStoreAsync(Arg.Any<Guid>(), "steam", Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>()).Returns(new IdentityLinkResult(IdentityLinkStatus.SubjectTaken, null));
         _identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns((ExternalIdentity?)null,
             new ExternalIdentity { Id = Guid.NewGuid(), AccountId = _account.Id, Provider = "steam", ProviderSubject = Subject });
         var attempt = (await _service.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, null, CancellationToken.None))!;
