@@ -44,6 +44,21 @@ public sealed class EmailChangeShould : IDisposable
         Assert.NotNull((await StoredAsync(account.Id)).EmailVerifiedAt);
     }
 
+    [Fact]
+    public async Task Send_a_website_confirmation_link_instead_of_API_instructions()
+    {
+        Account account = await AccountAsync();
+        await StartWithAsync(account, "new@avalon.monster");
+
+        string body = Assert.Single(_mail.To("new@avalon.monster")).TextBody;
+        string token = TokenIn(body);
+        Assert.Contains($"https://avalon.example.test/account/email/confirm#token={token}", body);
+        Assert.Contains("Confirm email", body);
+        Assert.Contains("15 minutes", body);
+        Assert.DoesNotContain("POST", body);
+        Assert.DoesNotContain("?token=", body);
+    }
+
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
@@ -119,7 +134,7 @@ public sealed class EmailChangeShould : IDisposable
         new DeviceRepository(_database), cache ?? _cache, new SecureRandom(),
         new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
         TestLogin.Password(_accounts, cache ?? _cache), TestLogin.Reauthentication(_accounts, cache ?? _cache),
-        sender ?? _mail);
+        sender ?? _mail, new EmailConfig { VerificationSiteOrigin = "https://avalon.example.test/" });
 
     /// <summary>The confirm token in an email-change confirmation, as a player would copy it.</summary>
     internal static string TokenIn(string body)
