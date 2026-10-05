@@ -13,11 +13,12 @@ public sealed class SteamProofVerifier(HttpClient client, IOptions<StoreAuthenti
         cancellationToken.ThrowIfCancellationRequested();
         var config = options.Value;
         config.Validate(string.Equals(config.Environment, "production", StringComparison.Ordinal));
-        var prefix = config.SteamIdentityPrefix + ":" + appId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":";
-        if (config.ResolveSteamApplication(appId) is null || string.IsNullOrEmpty(ticketHex) || ticketHex.Length > GameAuthPolicy.MaximumSteamTicketHexCharacters || ticketHex.Length % 2 != 0 ||
+        var prefix = SteamTicketIdentity.Prefix(config, appId);
+        if (prefix is null || string.IsNullOrEmpty(ticketHex) || ticketHex.Length > GameAuthPolicy.MaximumSteamTicketHexCharacters || ticketHex.Length % 2 != 0 ||
             !ticketHex.All(Uri.IsHexDigit) || expectedIdentity is null ||
             !expectedIdentity.StartsWith(prefix, StringComparison.Ordinal) ||
-            expectedIdentity.Length != prefix.Length + 32 || !expectedIdentity.AsSpan(prefix.Length).ToArray().All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
+            expectedIdentity.Length != prefix.Length + SteamTicketIdentity.NonceCharacters ||
+            !expectedIdentity.AsSpan(prefix.Length).ToArray().All(c => c is >= 'a' and <= 'z' or >= '2' and <= '7'))
             return Rejected(appId, "invalid_input");
         var uri = SteamWebApi.Request(SteamWebApi.AuthenticateTicketPath, config, appId,
             ("ticket", ticketHex), ("identity", expectedIdentity));

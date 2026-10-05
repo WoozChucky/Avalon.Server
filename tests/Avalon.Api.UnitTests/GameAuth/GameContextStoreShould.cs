@@ -50,6 +50,38 @@ public class GameContextStoreShould
         Service().CreateAttemptAsync(channel, "1", Guid.Parse("11111111-1111-1111-1111-111111111111"), new string('A', 43), context, appId, CancellationToken.None);
 
     [Theory]
+    [InlineData(2499460u, false, "production")]
+    [InlineData(2514590u, true, "production")]
+    [InlineData(uint.MaxValue, false, "production")]
+    [InlineData(2499460u, false, "development")]
+    public async Task Create_native_compatible_unique_128_bit_identities_that_reach_the_selected_provider(uint appId, bool playtest, string environment)
+    {
+        _config.Value.SteamAppId = playtest ? 2499460 : appId;
+        _config.Value.SteamPlaytest = new() { Enabled = playtest, AppId = playtest ? appId : 0, AllowedWorldIds = playtest ? [3] : [] };
+        _config.Value.Environment = environment;
+        _config.Value.SteamIdentityPrefix = environment == "production" ? "avalon-auth-prod" : "avalon-auth-dev";
+        var attempt = (await Attempt("steam", appId: appId))!;
+        var another = (await Attempt("steam", appId: appId))!;
+        Assert.InRange(attempt.ExpectedSteamIdentity.Length, 1, 31);
+        Assert.Matches("^[a-z2-7]{28}$", attempt.ExpectedSteamIdentity);
+        Assert.DoesNotContain(':', attempt.ExpectedSteamIdentity);
+        Assert.NotEqual(attempt.ExpectedSteamIdentity, another.ExpectedSteamIdentity);
+        var prefix = (environment == "production" ? "p" : "d") + (playtest ? "t" : "m");
+        Assert.StartsWith(prefix, attempt.ExpectedSteamIdentity);
+        Assert.Equal(16, OtpNet.Base32Encoding.ToBytes(attempt.ExpectedSteamIdentity[prefix.Length..]).Length);
+        using var handler = new Avalon.Api.UnitTests.StoreAuth.RecordingSteamHandler
+        {
+            Body = "{\"response\":{\"params\":{\"result\":\"OK\",\"steamid\":\"76561198000000001\"}}}",
+        };
+        using var client = new HttpClient(handler);
+        var result = await new SteamProofVerifier(client, _config).VerifyAsync(appId, "ABCD", attempt.ExpectedSteamIdentity, default);
+        Assert.Equal(SteamProofStatus.Verified, result.Status);
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains("appid=" + appId.ToString(System.Globalization.CultureInfo.InvariantCulture), request.Query, StringComparison.Ordinal);
+        Assert.Contains("identity=" + Uri.EscapeDataString(attempt.ExpectedSteamIdentity), request.Query, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData(2499460u)]
     [InlineData(2514590u)]
     public async Task Selected_application_is_bound_to_challenge_context_and_both_provider_calls(uint appId)
@@ -61,7 +93,7 @@ public class GameContextStoreShould
         _ownership.CheckAsync(appId, "76561198000000001", Arg.Any<CancellationToken>())
             .Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, "76561198000000001", _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
         var attempt = (await Attempt("steam", appId: appId))!;
-        Assert.StartsWith($"avalon-auth-prod:{appId}:", attempt.ExpectedSteamIdentity);
+        Assert.StartsWith(appId == 2514590 ? "pt" : "pm", attempt.ExpectedSteamIdentity);
         var stored = GameAuthJson.Deserialize<AuthAttemptRecord>(await _store.ReadAsync(new AuthAttemptStore(_store, _crypto, _config, _clock).Key(attempt.AttemptCredential), default))!;
         Assert.Equal(appId, stored.SteamAppId);
         var reply = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), default);
@@ -248,7 +280,7 @@ public class GameContextStoreShould
     public async Task Create_one_authorized_context_and_keep_the_original_license_deadline_on_refresh()
     {
         var attempt = (await Attempt("steam"))!;
-        Assert.Matches("^avalon-auth-prod:480:[a-f0-9]{32}$", attempt.ExpectedSteamIdentity);
+        Assert.Matches("^pm[a-z2-7]{26}$", attempt.ExpectedSteamIdentity);
         var request = Guid.NewGuid();
         var result = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None);
         Assert.Equal("authorized", result.State);
