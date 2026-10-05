@@ -23,7 +23,7 @@ internal static class TestGameAuthorization
         var registry = new GameProviderRegistry([new SteamIdentityProvider(proof, options, clock)],
             [new SteamLicenseProvider(ownership), new AvalonLicenseProvider(gameLicenses ?? Licenses(store))]);
         return new(store, attempts, crypto, accounts, families, identities, registry,
-            new GameLicenseAuthorityService(registry, gameLicenses ?? Licenses(store), observations, options), options, clock, registration, revocations);
+            new GameLicenseAuthorityService(registry, gameLicenses ?? Licenses(store), observations, options, clock), options, clock, registration, revocations);
     }
 }
 

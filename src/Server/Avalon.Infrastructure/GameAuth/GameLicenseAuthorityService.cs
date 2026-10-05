@@ -13,7 +13,7 @@ public sealed record GameLicenseAuthorityResult(GameLicenseCheckStatus Status, G
 
 /// <summary>Owns common source/revision binding and bounded authority; adapters cannot issue game contexts.</summary>
 public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, IGameLicenseRepository licenses,
-    ILicenseObservationRepository observations, IOptions<StoreAuthenticationConfiguration> options)
+    ILicenseObservationRepository observations, IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock)
 {
     private static GameLicenseAuthorityResult Unavailable => new(GameLicenseCheckStatus.Unavailable);
     private static GameLicenseAuthorityResult Unlicensed => new(GameLicenseCheckStatus.Unlicensed);
@@ -34,7 +34,9 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
             if (evidence.Status == GameLicenseCheckStatus.Unavailable) return Unavailable;
             if (evidence.Status == GameLicenseCheckStatus.Unlicensed && request.BoundLicenseId is null &&
                 evidence.LicenseId is null && string.IsNullOrEmpty(evidence.LicenseReference)) return Unlicensed;
-            if (!ValidEvidence(evidence, request, provider.AuthorityKind)) return Unavailable;
+            var completedAt = clock.GetUtcNow().UtcDateTime;
+            if (completedAt < request.Now || !ValidIdentity(provider.AuthorityKind, request.Identity, completedAt) ||
+                !ValidEvidence(evidence, request, completedAt)) return Unavailable;
             license ??= await licenses.FindAsync(request.Account, request.Application.Provider, request.Application.Environment, evidence.LicenseReference, ct);
             if (evidence.LicenseId is { } selected && license?.Id != selected) return Unavailable;
             if (license is not null && (!Matches(license, request, provider.AuthorityKind) || license.LicenseReference != evidence.LicenseReference)) return Unavailable;
@@ -44,7 +46,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
             var end = owns ? Earlier(evidence.AuthorizedUntil, evidence.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime)) : evidence.ObservedAt;
             if (evidence.ProviderExpiresAt is { } expiry) end = Earlier(end, expiry);
             if (owns && request.Identity is { } identity) end = Earlier(end, identity.ValidUntil);
-            if (owns && end <= request.Now) return Unavailable;
+            if (owns && end <= completedAt) return Unavailable;
             if (license is null)
             {
                 // Stored grants come only from fulfillment; identity proof cannot manufacture one.
@@ -60,8 +62,9 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 if (!Matches(license, request, provider.AuthorityKind)) return Unavailable;
             }
             if (owns && license.AuthorityKind == LicenseAuthorityKind.StoredGrant && !license.Authorizes(request.Account,
-                request.Application.Product, request.Application.Environment, request.Now)) return Unlicensed;
+                request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;
             if (owns && license.ExpiresAt is { } storedExpiry && license.AuthorityKind == LicenseAuthorityKind.StoredGrant) end = Earlier(end, storedExpiry);
+            if (owns && end <= completedAt) return Unavailable;
             var applied = await licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision,
                 new(owns, evidence.ObservedAt, end, evidence.ProviderExpiresAt,
                     Reestablish: request.BoundLicenseId is null && provider.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership), ct);
@@ -127,10 +130,10 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
         kind == LicenseAuthorityKind.StoredGrant ? identity is null : identity is not null && Text(identity.ProviderSubject, 128) &&
             identity.VerifiedAt.Kind == DateTimeKind.Utc && identity.ValidUntil.Kind == DateTimeKind.Utc && identity.VerifiedAt <= now &&
             identity.ValidUntil > now && identity.ValidUntil <= identity.VerifiedAt.Add(GameAuthPolicy.IdentityLifetime);
-    private static bool ValidEvidence(GameLicenseCheckResult evidence, GameLicenseCheckRequest request, LicenseAuthorityKind kind) =>
+    private static bool ValidEvidence(GameLicenseCheckResult evidence, GameLicenseCheckRequest request, DateTime completedAt) =>
         evidence.Status is GameLicenseCheckStatus.Licensed or GameLicenseCheckStatus.Unlicensed && Text(evidence.LicenseReference, 256) &&
         evidence.ProviderProductId == request.Application.ProviderProductId && evidence.ProviderSubject == request.Identity?.ProviderSubject &&
-        evidence.ObservedAt.Kind == DateTimeKind.Utc && evidence.ObservedAt <= request.Now &&
+        evidence.ObservedAt.Kind == DateTimeKind.Utc && evidence.ObservedAt <= completedAt &&
         evidence.AuthorizedUntil.Kind == DateTimeKind.Utc && (evidence.ProviderExpiresAt is null || evidence.ProviderExpiresAt.Value.Kind == DateTimeKind.Utc) &&
         (evidence.Status != GameLicenseCheckStatus.Licensed || evidence.AuthorizedUntil > evidence.ObservedAt);
     private static bool Matches(GameLicense row, GameLicenseCheckRequest request, LicenseAuthorityKind kind) =>

@@ -19,14 +19,15 @@ fulfillment to add its first grant without replaying the spent handoff. Revoked 
 a fresh context. Steam main `2499460` retains account/world-role checks; Playtest `2514590` remains
 restricted to PTR world 3 without permanently promoting the account's role.
 
-Release the server before the updated client. The generated Auth migrations are
+Coordinate the updated server/client cutover; older store HTTP formats are not supported. The generated Auth migrations are
 `20261005143248_SharedGameLicenses` and `20261005151122_SharedStoreProvenance`. They preserve historical
 observations and label existing store account/consolidation provenance `steam`; they do not create
 licenses from historical ownership. Review and apply them through the normal user-controlled
 rollout before testing. API startup applies migrations, so do not launch this branch against
 production merely to inspect it. Old cached contexts missing the shared binding require sign-in;
-fresh Steam verification establishes bounded evidence. Existing Steam endpoints and launcher stdin
-handoff remain compatible. New automatic store accounts still receive the Player role, which is
+fresh Steam verification establishes bounded evidence. Retire `/client/auth/attempts` and
+`/client/auth/store/steam`; every route uses `provider-attempts`, followed by common `store/proof` or
+native `handoffs/redeem`. Launcher stdin handoff is preserved. New automatic store accounts still receive the Player role, which is
 not a license or general development-world access grant.
 
 Later live acceptance requires explicit test grants and a coordinated server rollout: verify the
@@ -37,7 +38,7 @@ production migrations and performs no deployment or Steam upload.
 
 Adding a store requires registered identity/license adapters, trusted application configuration and
 client SDK/proof packaging, not another license table. Generic `provider-attempts` and `store/proof`
-endpoints share orchestration with the legacy Steam wrappers. Epic SDK/ownership verification and
+endpoints are the only store wire format; there are no legacy Steam wrappers. Epic SDK/ownership verification and
 Stripe checkout/webhooks remain deferred. Stripe fulfillment will create `avalon` stored grants;
 Stripe is not a game identity provider.
 

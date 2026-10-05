@@ -1,7 +1,10 @@
 using Avalon.Common.GameAuth;
+using Avalon.Api.Services;
+using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.GameTickets;
@@ -38,7 +41,7 @@ public sealed class AvalonGameAuthorizationShould
         var licenses = repository ?? _licenses;
         var registry = new GameProviderRegistry([], [new AvalonLicenseProvider(licenses)]);
         return new(_store, new(_store, _crypto, _options, _clock), _crypto, _accounts, _families, _identities,
-            registry, new(registry, licenses, _observations, _options), _options, _clock);
+            registry, new(registry, licenses, _observations, _options, _clock), _options, _clock);
     }
     private GameLicense Grant(DateTime? expires = null, string provider = "avalon")
     {
@@ -55,6 +58,52 @@ public sealed class AvalonGameAuthorizationShould
         _store.Seed(RedisGameTicketStore.Key(ticket), $"7|{_family:D}|0|0|production");
         return (await service.RedeemHandoffAsync(attempt.AttemptCredential, ticket, request, default), attempt.AttemptCredential, ticket, request);
     }
+    [Fact]
+    public async Task Changing_to_Steam_retires_the_original_context_without_rebinding_its_world_session()
+    {
+        var grant = Grant();
+        var initial = (await Handoff()).Reply;
+        var original = (await Service().GetContextAsync(initial.GameContextCredential!, true, default))!;
+        var worldSession = new GameSession { GameContextId = original.Id, AccountId = _account.Id, ServerId = "world-1", Environment = "production",
+            GameSessionId = Guid.NewGuid(), WorldId = 1, FencingToken = 1, State = GameSessionState.Active,
+            LeaseUntil = Now.AddSeconds(30), LicenseUntil = original.AuthorizationValidUntil!.Value };
+        var sessions = Substitute.For<IGameSessionRepository>();
+        sessions.FindAsync(_account.Id, Arg.Any<CancellationToken>()).Returns(worldSession);
+        sessions.TryRenewAsync(_account.Id, worldSession.GameSessionId, 1, "world-1", 0, 0,
+            Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+        var worlds = Substitute.For<IWorldRepositories>();
+        var fence = Substitute.For<IGameplayFenceRepository>();
+        worlds.GameplayFences(new WorldId(1)).Returns(fence);
+        fence.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+        var heartbeats = new GameSessionFenceService(sessions, Service(), worlds, _accounts,
+            Options.Create(new GameWorkloadConfiguration { Servers = [new() { ServerId = "world-1", WorldId = 1 }] }),
+            _clock, new(_options));
+        Assert.Null((await heartbeats.HeartbeatAsync("world-1", _account.Id, worldSession.GameSessionId, 1, default)).Error);
+        const string subject = "76561198000000001";
+        _identities.FindAsync("steam", subject, Arg.Any<CancellationToken>()).Returns(new ExternalIdentity
+        { Id = Guid.NewGuid(), AccountId = _account.Id, Provider = "steam", ProviderSubject = subject });
+        var proof = Substitute.For<ISteamProofVerifier>();
+        proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new SteamProofResult(SteamProofStatus.Verified, subject));
+        var ownership = Substitute.For<ISteamOwnershipClient>();
+        ownership.CheckAsync(2499460, subject, Arg.Any<CancellationToken>())
+            .Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, subject, Now, Now.AddMinutes(5)));
+        var service = TestGameAuthorization.Create(_store, new(_store, _crypto, _options, _clock), _crypto,
+            _accounts, _families, _identities, _observations, proof, ownership, _options, _clock, gameLicenses: _licenses);
+        var attempt = (await service.CreateProviderAttemptAsync("steam.main", "1", _run, new string('A', 43),
+            initial.GameContextCredential, 2499460, default))!;
+        var switched = await service.AuthenticateProviderAsync("steam", attempt.AttemptCredential, "ABCD", Guid.NewGuid(), default);
+        var replacement = (await service.GetContextAsync(switched.GameContextCredential!, true, default))!;
+        Assert.NotEqual(worldSession.GameContextId, replacement.Id);
+        Assert.Equal(_family, replacement.LauncherFamilyId);
+        Assert.Null(await service.GetContextByIdAsync(worldSession.GameContextId, true, default));
+        Assert.Null(await service.GetContextAsync(initial.GameContextCredential!, false, default));
+        Assert.Equal(GameAuthErrors.SessionRevoked, (await heartbeats.HeartbeatAsync("world-1", _account.Id, worldSession.GameSessionId, 1, default)).Error);
+        grant.RevokedAt = Now; grant.AuthorityRevision++;
+        Assert.NotNull(await service.GetContextAsync(switched.GameContextCredential!, true, default));
+        Assert.Null(await service.GetContextByIdAsync(worldSession.GameContextId, true, default));
+    }
+
     [Fact]
     public async Task Licensed_handoff_preserves_account_family_and_binds_only_its_Avalon_grant()
     {
@@ -132,7 +181,7 @@ public sealed class AvalonGameAuthorizationShould
     {
         var registry = new GameProviderRegistry([], []);
         var service = new GameAuthorizationService(_store, new(_store, _crypto, _options, _clock), _crypto, _accounts, _families, _identities,
-            registry, new(registry, _licenses, _observations, _options), _options, _clock);
+            registry, new(registry, _licenses, _observations, _options, _clock), _options, _clock);
         Assert.Null(await service.CreateProviderAttemptAsync("avalon.base", "1", _run, new string('A', 43), null, 0, default));
     }
 }

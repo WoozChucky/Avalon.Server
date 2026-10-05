@@ -6,6 +6,8 @@ using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.StoreAuth;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
+using Avalon.Api.UnitTests.StoreAuth;
 using NSubstitute;
 using Xunit;
 
@@ -14,6 +16,38 @@ namespace Avalon.Api.UnitTests.GameAuth;
 public sealed class GameLicenseProviderContractShould
 {
     private static readonly DateTime Now = new(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Steam_evidence_observed_during_verification_is_accepted_only_if_still_live(bool expiresDuringCall)
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(Now));
+        var options = SteamProofVerifierShould.Configuration(2499460);
+        var request = new GameLicenseCheckRequest(new AccountId(7), options.Value.ResolveApplication("steam.main")!,
+            new(SteamProofVerifierShould.SteamId, Now, Now.AddMinutes(30)), null, null, Now);
+        clock.Advance(TimeSpan.FromSeconds(1)); // Request capture precedes the provider's observation.
+        using var handler = new DelayedOwnershipHandler(clock, expiresDuringCall);
+        using var http = new HttpClient(handler);
+        var registry = new GameProviderRegistry([], [new SteamLicenseProvider(new SteamOwnershipClient(http, options, clock))]);
+        var licenses = new MemoryGameLicenses();
+        var service = new GameLicenseAuthorityService(registry, licenses, Substitute.For<ILicenseObservationRepository>(), options, clock);
+        var result = await service.VerifyAsync(request, default);
+        Assert.Equal(expiresDuringCall ? GameLicenseCheckStatus.Unavailable : GameLicenseCheckStatus.Licensed, result.Status);
+        if (!expiresDuringCall) Assert.Equal(Now.AddSeconds(301), result.AuthorizedUntil);
+        else Assert.Empty(licenses.Rows);
+    }
+
+    private sealed class DelayedOwnershipHandler(FakeTimeProvider clock, bool expires) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            clock.Advance(TimeSpan.FromSeconds(2));
+            var expiry = expires ? "2026-10-05T12:00:02Z" : "never";
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            { Content = new StringContent($"{{\"appownership\":{{\"ownsapp\":true,\"timeexpires\":\"{expiry}\"}}}}") });
+        }
+    }
 
     [Theory]
     [InlineData("steam", LicenseAuthorityKind.VerifiedOwnership)]
@@ -129,7 +163,7 @@ public sealed class GameLicenseProviderContractShould
             });
             Provider = new(provider, kind, new(GameLicenseCheckStatus.Licensed, "same-reference", Now, Now.AddHours(1),
                 ProviderProductId: providerProduct, ProviderSubject: Request.Identity?.ProviderSubject));
-            Service = new(new GameProviderRegistry([], [Provider]), Licenses, Observations, Options.Create(config));
+            Service = new(new GameProviderRegistry([], [Provider]), Licenses, Observations, Options.Create(config), new FakeTimeProvider(new DateTimeOffset(Now)));
         }
     }
 

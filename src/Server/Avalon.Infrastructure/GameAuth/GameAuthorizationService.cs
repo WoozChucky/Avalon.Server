@@ -175,7 +175,11 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         if (linked is not null && existing?.AccountId is { } expected && linked.AccountId.Value != expected)
             return await FinishErrorAsync(claim, GameAuthErrors.AccountMismatch, cancellationToken, proofDigest);
         var sameSource = existing?.ApplicationKey == application.Key && existing.ProviderSubject == identity.ProviderSubject;
-        var context = (existing ?? NewContext(claim.Record)) with
+        var context = (sameSource ? existing! : NewContext(claim.Record) with
+        {
+            AccountId = existing?.AccountId, CredentialsVersion = existing?.CredentialsVersion ?? 0,
+            SessionEpoch = existing?.SessionEpoch ?? 0, LauncherFamilyId = existing?.LauncherFamilyId,
+        }) with
         {
             ApplicationKey = application.Key, Provider = provider, ProviderSubject = identity.ProviderSubject,
             IdentityVerifiedAt = identity.VerifiedAt, IdentityValidUntil = identity.ValidUntil,
@@ -318,11 +322,14 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         context = context with
         {
             CredentialDigest = GameAuthCryptography.Digest(credential), RefreshDigest = GameAuthCryptography.Digest(refresh),
-            CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt), Generation = (previous?.Generation ?? 0) + 1,
+            CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt),
+            Generation = (previous?.Id == context.Id ? previous.Generation : 0) + 1,
         };
         var contextKey = ContextKey(context.Id);
         var current = await store.ReadAsync(contextKey, cancellationToken);
-        if ((previous is null && current is not null) || (previous is not null && current != GameAuthJson.Serialize(previous)))
+        var replacing = previous is not null && previous.Id != context.Id;
+        if (((previous is null || replacing) && current is not null) ||
+            (previous is not null && !replacing && current != GameAuthJson.Serialize(previous)))
             return GameAuthReply.Failure(GameAuthErrors.ContextChanged);
         var reply = Response(context, credential, refresh, error);
         var changes = new List<GameAuthMutation>
@@ -336,6 +343,9 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             changes.Add(new(Key("pending-link", pending.ToString("N")), null, context.Id.ToString("N"), context.LinkProofExpiresAt!.Value));
         if (previous is not null)
         {
+            if (replacing)
+                changes.Add(new(ContextKey(previous.Id), GameAuthJson.Serialize(previous),
+                    GameAuthJson.Serialize(previous with { State = GameAuthStates.Revoked }), previous.AbsoluteExpiresAt));
             var oldKey = Key("token", previous.RefreshDigest);
             var old = await store.ReadAsync(oldKey, cancellationToken);
             if (old is null) return GameAuthReply.Failure(GameAuthErrors.ContextChanged);
@@ -343,6 +353,8 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             changes.Add(new(oldKey, old, GameAuthJson.Serialize(retired), context.AbsoluteExpiresAt));
         }
         if (!await store.CompareExchangeAsync(changes, cancellationToken)) return GameAuthReply.Failure(GameAuthErrors.ContextChanged);
+        if (replacing && previous!.AccountId is { } oldAccount)
+            await PublishRevocationAsync(new AccountId(oldAccount), previous.Id);
         return reply;
     }
 

@@ -32,7 +32,7 @@ public sealed class GameGenericProviderShould
         var store = new AtomicAuthStore();
         var crypto = new GameAuthCryptography(new byte[32]);
         var service = new GameAuthorizationService(store, new(store, crypto, config, clock), crypto, accounts,
-            Substitute.For<IRefreshTokenRepository>(), links, registry, new(registry, licenses, Substitute.For<ILicenseObservationRepository>(), config), config, clock);
+            Substitute.For<IRefreshTokenRepository>(), links, registry, new(registry, licenses, Substitute.For<ILicenseObservationRepository>(), config, clock), config, clock);
         var attempt = (await service.CreateProviderAttemptAsync("future.main", "1", Guid.NewGuid(), new string('A', 43), null, 0, default))!;
         Assert.Equal("future-challenge", attempt.ExpectedSteamIdentity);
         var result = await service.AuthenticateProviderAsync("test-store", attempt.AttemptCredential, "opaque-proof", Guid.NewGuid(), default);
