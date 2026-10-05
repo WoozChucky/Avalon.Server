@@ -32,7 +32,7 @@ public sealed class GameServerAllocatorShould
     [Fact]
     public async Task Playtest_lists_only_PTR_and_rejects_direct_other_worlds_even_for_admins()
     {
-        var ptr = new Avalon.Domain.Auth.World { Id = new WorldId(3), Name = "PTR", Host = "ptr.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0" };
+        var ptr = new Avalon.Domain.Auth.World { Id = new WorldId(3), Name = "PTR", Host = "ptr.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0", AccessLevelRequired = AccountAccessLevel.PTR };
         _worlds.FindByIdAsync(ptr.Id, false, Arg.Any<CancellationToken>()).Returns(ptr);
         _databases.IsAvailable(ptr.Id).Returns(true);
         _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
@@ -55,6 +55,17 @@ public sealed class GameServerAllocatorShould
         _account.AccessLevel &= ~AccountAccessLevel.Admin;
         Assert.Null(await allocator.FindAsync(context, 3, null, default));
         ptr.MaintenanceEnabled = false;
+        Assert.NotNull(await allocator.FindAsync(context, 3, null, default));
+        Assert.Equal(AccountAccessLevel.Player, _account.AccessLevel);
+        Assert.Null(await allocator.FindAsync(context with { SteamAppId = 480 }, 3, null, default));
+        Assert.Null(await allocator.FindAsync(context with { SteamAppId = 0 }, 3, null, default));
+        Assert.Null(await allocator.FindAsync(context with { SteamAppId = 999 }, 3, null, default));
+        foreach (var required in new[] { AccountAccessLevel.GameMaster, AccountAccessLevel.Admin, AccountAccessLevel.Console, AccountAccessLevel.Tournament, (AccountAccessLevel)0 })
+        {
+            ptr.AccessLevelRequired = required;
+            Assert.Null(await allocator.FindAsync(context, 3, null, default));
+        }
+        ptr.AccessLevelRequired = AccountAccessLevel.PTR;
         Assert.NotNull(await allocator.FindAsync(context, 3, null, default));
         config.SteamPlaytest.Enabled = false;
         Assert.Empty(await allocator.ListAsync(context, default));

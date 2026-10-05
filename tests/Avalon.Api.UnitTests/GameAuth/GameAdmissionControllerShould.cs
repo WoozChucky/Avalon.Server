@@ -3,9 +3,11 @@ using System.Text.Json;
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
+using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.GameAuth;
@@ -32,7 +34,7 @@ public sealed class GameAdmissionControllerShould
     public async Task Reject_plain_http_before_ticket_creation_or_world_listing()
     {
         var h = new JoinHarness();
-        var controller = new GameAdmissionController(h.Authorization, h.Tickets, h.Allocator) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        var controller = new GameAdmissionController(h.Authorization, h.Tickets, h.Allocator, new GameApplicationAccessPolicy(Options.Create(h.Configuration))) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         Assert.IsType<BadRequestObjectResult>(await controller.Join(new GameJoinRequest { GameContextCredential = new string('A', 43), WorldId = 1 }, Guid.NewGuid(), CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await controller.Worlds(new GameContextCredentialRequest { GameContextCredential = new string('A', 43) }, CancellationToken.None));
         Assert.Empty(h.Store.Entries);

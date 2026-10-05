@@ -158,10 +158,19 @@ receipt replay and renewal; clients cannot switch AppIDs within a context. Licen
 are queried by the exact application as well as account/provider/product/environment. Apply migration
 `20261004200634_ScopeSteamLicenseObservationsByApplication` during the coordinated Server rollout.
 
-Restricted world access intersects existing eligibility, including for administrators and accounts
-owning both apps. Allocation, ticket issuance/redemption and actual-world session fences recheck
-current configuration. Disabling Playtest or removing an allowed world refuses the corresponding
-context/admission/renewal; main sessions retain their existing policy. Legacy contexts with AppID
+Verified Playtest ownership supplies the PTR permission only while evaluating a licensed Playtest
+context's world eligibility. It applies to the configured allowed worlds and to both newly generated
+and previously linked Avalon accounts, without changing stored account roles or the access level
+sent to a world server. Main-app and Avalon-launcher contexts keep their existing account permissions;
+the Playtest entitlement grants no staff or tournament permissions and cannot enter an unlisted world,
+even for administrators or accounts owning both apps. Readiness, maintenance, protocol, account state,
+character ownership and session checks still apply; only actual account privileges bypass maintenance.
+Playtest world listing also requires current licensed authority, so pending or expired ownership cannot
+expose PTR eligibility. Main-app and Avalon-launcher world listing retain their existing account-based behavior.
+
+Allocation, ticket issuance/redemption and actual-world session fences recheck current configuration
+and licensed context authority. Disabling Playtest, removing an allowed world or losing the verified
+license refuses the corresponding context/admission/renewal. Legacy contexts with AppID
 zero fail closed and require reauthentication. Homelab prepares Playtest 2514590 for PTR world 3,
 disabled until compatible chart/releases and controlled Steam grants are ready. Old chart pins
 ignore these values and must not be treated as deployment evidence.

@@ -15,7 +15,7 @@ namespace Avalon.Api.Controllers;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [RequestSizeLimit(GameAuthPolicy.MaximumControlBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
 public sealed class GameAdmissionController(GameAuthorizationService authorization, JoinTicketStore tickets,
-    IGameServerAllocator allocator) : ControllerBase
+    IGameServerAllocator allocator, GameApplicationAccessPolicy applications) : ControllerBase
 {
     [HttpPost("worlds", Name = "GetGameWorlds")]
     [ProducesResponseType(typeof(IReadOnlyList<GameWorldDestination>), StatusCodes.Status200OK)]
@@ -26,6 +26,11 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
         {
             var context = await authorization.GetContextAsync(request.GameContextCredential, false, cancellationToken);
             if (context?.AccountId is null) return Unauthorized(new GameJoinReply(GameAuthErrors.AccountRequired));
+            if (applications.RequiresLicenseForWorldListing(context.SteamAppId))
+            {
+                context = await authorization.GetContextAsync(request.GameContextCredential, true, cancellationToken);
+                if (context is null) return Unauthorized(new GameJoinReply(GameAuthErrors.AuthorizationRequired));
+            }
             return Ok(await allocator.ListAsync(context, cancellationToken));
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
