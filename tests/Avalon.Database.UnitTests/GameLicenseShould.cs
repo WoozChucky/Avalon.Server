@@ -82,6 +82,30 @@ public sealed class GameLicenseShould
         Assert.Equal(3, (await repo.FindAsync(grant.Id, default))!.AuthorityRevision);
     }
 
+    [Fact]
+    public async Task Negative_provider_evidence_can_revoke_after_its_reported_expiry_predates_the_grant()
+    {
+        using var db = SqliteDatabase.Auth();
+        var account = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("EXPIREDSTORE"));
+        var repo = new GameLicenseRepository(db);
+        var grant = Grant(account.Id, "test-store");
+        grant.AuthorityKind = LicenseAuthorityKind.VerifiedOwnership;
+        grant.ExpiresAt = Now.AddDays(1);
+        await repo.RecordGrantAsync(grant);
+
+        var providerExpiry = grant.GrantedAt.AddDays(-1);
+        var revoked = await repo.ApplyDecisionAsync(grant.Id, 1,
+            new(false, Now, providerExpiry, ProviderExpiresAt: providerExpiry));
+
+        Assert.NotNull(revoked);
+        Assert.Equal(2, revoked.AuthorityRevision);
+        Assert.Equal(Now, revoked.RevokedAt);
+        Assert.Equal(Now.AddDays(1), revoked.ExpiresAt);
+        Assert.Null(revoked.VerifiedUntil);
+        Assert.False(revoked.Authorizes(account.Id, "avalon.base", "production", Now));
+        Assert.Equal(2, (await repo.FindAsync(grant.Id))!.AuthorityRevision);
+    }
+
     private static GameLicense Grant(Avalon.Common.ValueObjects.AccountId account, string provider) => new()
     {
         Id = Guid.NewGuid(), AccountId = account, Provider = provider, Environment = "production", Product = "avalon.base",

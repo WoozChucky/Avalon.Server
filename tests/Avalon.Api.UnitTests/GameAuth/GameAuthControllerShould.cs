@@ -17,6 +17,34 @@ namespace Avalon.Api.UnitTests.GameAuth;
 public class GameAuthControllerShould
 {
     [Theory]
+    [InlineData("https", "steam.main", true)]
+    [InlineData("http", "steam.main", false)]
+    [InlineData("https", "unregistered.main", false)]
+    public async Task Generic_attempt_transport_resolves_only_registered_configured_authority(string scheme, string application, bool accepted)
+    {
+        var store = new AtomicAuthStore(); var crypto = new GameAuthCryptography(new byte[32]);
+        var config = Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 2499460 });
+        var service = TestGameAuthorization.Create(store, new(store, crypto, config, TimeProvider.System), crypto,
+            Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
+            Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(), config, TimeProvider.System);
+        var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        controller.Request.Scheme = scheme;
+        var result = await controller.ProviderAttempt(new GameProviderAttemptRequest { ApplicationKey = application, ProtocolVersion = "0.2.0",
+            ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, default);
+        if (accepted)
+        {
+            var reply = Assert.IsType<ProviderAuthAttemptReply>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.InRange(reply.ExpectedChallenge.Length, 1, 31);
+        }
+        else { Assert.IsType<BadRequestObjectResult>(result); Assert.Empty(store.Entries); }
+    }
+    [Fact]
+    public void Generic_proof_contract_carries_no_client_selected_product_or_account_authority()
+    {
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<GameProviderProofRequest>("{\"Provider\":\"test-store\",\"Proof\":\"opaque\",\"AccountId\":7}"));
+        Assert.DoesNotContain("private-proof", new GameProviderProofRequest { Provider = "test-store", AttemptCredential = "private-attempt", Proof = "private-proof" }.ToString());
+    }
+    [Theory]
     [InlineData(null, true)]
     [InlineData(0u, false)]
     [InlineData(480u, true)]

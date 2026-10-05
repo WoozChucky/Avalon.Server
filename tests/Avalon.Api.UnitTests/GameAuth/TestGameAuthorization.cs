@@ -57,7 +57,7 @@ internal sealed class MemoryGameLicenses : IGameLicenseRepository
         }
         else if (!decision.OwnsProduct && row.RevokedAt is null) { row.RevokedAt = decision.ObservedAt; row.AuthorityRevision++; }
         row.LastObservedAt = decision.ObservedAt; row.VerifiedUntil = decision.OwnsProduct ? decision.AuthorizedUntil : null;
-        if (row.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership) row.ExpiresAt = decision.ProviderExpiresAt;
+        if (decision.OwnsProduct && row.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership) row.ExpiresAt = decision.ProviderExpiresAt;
         return Task.FromResult<GameLicense?>(row);
     }
 }

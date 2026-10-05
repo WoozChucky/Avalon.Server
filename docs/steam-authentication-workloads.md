@@ -1,6 +1,45 @@
 # Game server admission configuration
 
-The game admission API accepts an opaque game context for world listing and issues a server-specific join ticket only while Steam ownership and identity proof remain current. Tickets last at most 30 seconds, are bound to the selected world and context, and may be redeemed by one authenticated server/connection. Exact retries recover the original receipt; a pending receipt cannot admit gameplay until the durable save barriers are advanced.
+The game admission API accepts an opaque game context for world listing and issues a server-specific join ticket only while its source-bound game license remains current. Store contexts also require current verified identity evidence. Tickets last at most 30 seconds, are bound to the selected world and context, and may be redeemed by one authenticated server/connection. Exact retries recover the original receipt; a pending receipt cannot admit gameplay until the durable save barriers are advanced.
+
+## Shared licensing and rollout
+
+Steam ownership and stored Avalon grants use the same `GameLicenses`, `ExternalIdentities` and
+`LicenseObservations` model. Provider identifiers are registered strings. Contexts bind the trusted
+application key, license ID and authority revision; a role, linked identity or historical ownership
+observation cannot grant gameplay. Authorization lasts at most five minutes, bounded further by
+license expiry, store identity validity and absolute context expiry. Revocation invalidates the
+revision, including identical cached handoff/refresh/join retries. An unavailable provider or
+database cannot extend authorization or substitute another source.
+
+The Avalon route redeems the existing one-use launcher handoff and keeps that account and launcher
+refresh family. An active `avalon` stored grant authorizes it without a Steam SDK/API call. Otherwise
+the context stays `PendingLicense`; `Check again` refreshes that same context, allowing trusted
+fulfillment to add its first grant without replaying the spent handoff. Revoked bound grants require
+a fresh context. Steam main `2499460` retains account/world-role checks; Playtest `2514590` remains
+restricted to PTR world 3 without permanently promoting the account's role.
+
+Release the server before the updated client. The generated Auth migrations are
+`20261005143248_SharedGameLicenses` and `20261005151122_SharedStoreProvenance`. They preserve historical
+observations and label existing store account/consolidation provenance `steam`; they do not create
+licenses from historical ownership. Review and apply them through the normal user-controlled
+rollout before testing. API startup applies migrations, so do not launch this branch against
+production merely to inspect it. Old cached contexts missing the shared binding require sign-in;
+fresh Steam verification establishes bounded evidence. Existing Steam endpoints and launcher stdin
+handoff remain compatible. New automatic store accounts still receive the Player role, which is
+not a license or general development-world access grant.
+
+Later live acceptance requires explicit test grants and a coordinated server rollout: verify the
+launcher enters the same account's worlds, missing license blocks admission, `Check again` detects
+fulfillment, revocation blocks retries and heartbeat renewal, provider outages add no time, and
+Playtest remains PTR-only. Unit tests use fixtures; this slice creates no live grants, applies no
+production migrations and performs no deployment or Steam upload.
+
+Adding a store requires registered identity/license adapters, trusted application configuration and
+client SDK/proof packaging, not another license table. Generic `provider-attempts` and `store/proof`
+endpoints share orchestration with the legacy Steam wrappers. Epic SDK/ownership verification and
+Stripe checkout/webhooks remain deferred. Stripe fulfillment will create `avalon` stored grants;
+Stripe is not a game identity provider.
 
 ## Deployment bindings
 

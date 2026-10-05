@@ -86,7 +86,10 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
             decision.AuthorizedUntil != license.VerifiedUntil) return null;
         license.LastObservedAt = decision.ObservedAt;
         license.VerifiedUntil = decision.OwnsProduct ? decision.AuthorizedUntil : null;
-        if (license.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership) license.ExpiresAt = decision.ProviderExpiresAt;
+        // Negative evidence invalidates the revision; its expiry remains audit evidence and
+        // must not rewrite the original grant interval (it may predate that grant).
+        if (decision.OwnsProduct && license.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership)
+            license.ExpiresAt = decision.ProviderExpiresAt;
         try { await db.SaveChangesAsync(ct); return license; }
         catch (DbUpdateConcurrencyException) { return null; }
     }
