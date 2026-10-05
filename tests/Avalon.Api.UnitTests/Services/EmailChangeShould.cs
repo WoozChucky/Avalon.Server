@@ -36,6 +36,14 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class EmailChangeShould : IDisposable
 {
+    [Fact]
+    public async Task ConfirmedEmailChangeVerifiesTheNewAddress()
+    {
+        var account = await AccountAsync();
+        await ChangeAsync(account.Id, "verified@avalon.monster");
+        Assert.NotNull((await StoredAsync(account.Id)).EmailVerifiedAt);
+    }
+
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();

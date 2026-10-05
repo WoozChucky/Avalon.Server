@@ -11,4 +11,7 @@ public enum EmailSenderKind
     /// <see cref="EmailConfig.PickupDirectory"/>. Startup refuses it in any other environment.
     /// </summary>
     Pickup = 1,
+
+    /// <summary>Deliver plain-text account mail through Resend.</summary>
+    Resend = 2,
 }

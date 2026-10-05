@@ -1,0 +1,8 @@
+# Rendering only; a reference, never a provider credential.
+email:
+  sender: Resend
+  from: noreply@avalon.nunolevezinho.xyz
+  fromName: Avalon
+  verificationSiteOrigin: https://avalon.nunolevezinho.xyz
+  existingSecret: test-email-credentials
+  resendApiKeyKey: resend-api-key

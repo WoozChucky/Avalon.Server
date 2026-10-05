@@ -157,3 +157,34 @@ one key would silently read one value.
 {{- end }}
 {{- end }}
 {{- end }}
+{{- define "avalon-api.validateEmail" -}}
+{{- $email := .Values.email -}}
+{{- if hasKey $email "resendApiKey" -}}
+{{- fail "email.resendApiKey is forbidden; use email.existingSecret and email.resendApiKeyKey" -}}
+{{- end -}}
+{{- if not (has $email.sender (list "None" "Resend")) -}}
+{{- fail "email.sender must be None or Resend" -}}
+{{- end -}}
+{{- range $field := list "verificationCooldownSeconds" "maxVerificationSendsPerAccount" "maxVerificationSendsPerSource" -}}
+{{- $value := get $email $field | toString -}}
+{{- if or (not (regexMatch "^[1-9][0-9]{0,9}$" $value)) (gt (int64 $value) 2147483647) -}}
+{{- fail (printf "email.%s must be a positive int32" $field) -}}
+{{- end -}}
+{{- end -}}
+{{- if eq $email.sender "Resend" -}}
+{{- range $field := list "from" "verificationSiteOrigin" "existingSecret" "resendApiKeyKey" -}}
+{{- if not (get $email $field | toString | trim) -}}
+{{- fail (printf "email.%s is required for Resend" $field) -}}
+{{- end -}}
+{{- end -}}
+{{- if not (regexMatch "^[^@[:space:]<>]+@[^@[:space:]<>]+$" $email.from) -}}
+{{- fail "email.from must be a bare email address" -}}
+{{- end -}}
+{{- if not (regexMatch "^[-._a-zA-Z0-9]+$" $email.resendApiKeyKey) -}}
+{{- fail "email.resendApiKeyKey must be a Kubernetes Secret key" -}}
+{{- end -}}
+{{- end -}}
+{{- if and $email.verificationSiteOrigin (not (regexMatch "^https://([A-Za-z0-9.-]+|\\[[a-fA-F0-9:]+\\])(:[0-9]+)?/?$" $email.verificationSiteOrigin)) -}}
+{{- fail "email.verificationSiteOrigin must be an HTTPS origin without path, userinfo, query or fragment" -}}
+{{- end -}}
+{{- end -}}

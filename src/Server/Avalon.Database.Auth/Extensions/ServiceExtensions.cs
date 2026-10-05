@@ -30,6 +30,7 @@ public static class ServiceExtensions
             .AddSingleton<Repositories.IGameLicenseRepository, Repositories.GameLicenseRepository>()
             .AddSingleton<Repositories.IGameSessionRepository, Repositories.GameSessionRepository>()
             .AddSingleton<Repositories.IAccountRepository, Repositories.AccountRepository>()
+            .AddSingleton<Repositories.IAccountEmailVerificationRepository, Repositories.AccountEmailVerificationRepository>()
             .AddSingleton<Repositories.IMfaSetupRepository, Repositories.MfaSetupRepository>()
             .AddSingleton<Repositories.IDeviceRepository, Repositories.DeviceRepository>()
             .AddSingleton<Repositories.IWorldRepository, Repositories.WorldRepository>()

@@ -327,9 +327,30 @@ public static class ServiceRegistration
     public static void AddEmail(this IServiceCollection services, EmailConfig? config, IHostEnvironment environment)
     {
         config ??= new EmailConfig();
+        ValidateEmailVerification(config, environment);
+        services.AddSingleton(config);
+        services.AddScoped<IAccountEmailVerificationService, AccountEmailVerificationService>();
         switch (config.Sender)
         {
             case EmailSenderKind.None:
+                return;
+            case EmailSenderKind.Resend:
+                if (!IsBareAddress(config.From))
+                    throw new InvalidOperationException($"{EmailConfig.Section}:From must be a bare email address.");
+                if (config.FromName is not null && (config.FromName.Any(char.IsControl) || config.FromName.IndexOfAny(['<', '>', '"']) >= 0))
+                    throw new InvalidOperationException($"{EmailConfig.Section}:FromName contains invalid header characters.");
+                if (string.IsNullOrWhiteSpace(config.ResendApiKey) || config.ResendApiKey.Any(char.IsWhiteSpace))
+                    throw new InvalidOperationException($"{EmailConfig.Section}:ResendApiKey must contain a server API key.");
+#pragma warning disable EXTEXP0001 // A send with an unknown outcome must not be retried.
+                services.AddHttpClient<ResendEmailSender>(http =>
+                    {
+                        http.Timeout = TimeSpan.FromSeconds(30);
+                        http.MaxResponseContentBufferSize = 16 * 1024;
+                    })
+                    .RemoveAllLoggers().RemoveAllResilienceHandlers()
+                    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+#pragma warning restore EXTEXP0001
+                services.AddTransient<IEmailSender>(sp => sp.GetRequiredService<ResendEmailSender>());
                 return;
             case EmailSenderKind.Pickup:
                 if (!environment.IsDevelopment())
@@ -349,8 +370,24 @@ public static class ServiceRegistration
                 return;
             default:
                 throw new InvalidOperationException(
-                    $"{EmailConfig.Section}:Sender '{config.Sender}' is not a known sender; use None or Pickup.");
+                    $"{EmailConfig.Section}:Sender '{config.Sender}' is not a known sender; use None, Pickup or Resend.");
         }
+    }
+
+    private static void ValidateEmailVerification(EmailConfig config, IHostEnvironment environment)
+    {
+        foreach (var (name, value) in new[] {
+            (nameof(config.VerificationCooldownSeconds), config.VerificationCooldownSeconds),
+            (nameof(config.MaxVerificationSendsPerAccount), config.MaxVerificationSendsPerAccount),
+            (nameof(config.MaxVerificationSendsPerSource), config.MaxVerificationSendsPerSource) })
+            if (value < 1) throw new InvalidOperationException($"{EmailConfig.Section}:{name} must be at least 1.");
+        // Omitting the origin disables current-address verification without disabling existing email change.
+        if (config.VerificationSiteOrigin is null) return;
+        string origin = config.VerificationSiteOrigin;
+        if (origin != origin.Trim() || !Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttps && !(environment.IsDevelopment() && uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback))
+            || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0 || uri.AbsolutePath != "/")
+            throw new InvalidOperationException($"{EmailConfig.Section}:VerificationSiteOrigin must be an HTTPS origin.");
     }
 
     /// <summary>A bare address, as it goes into a From header: printable ASCII, one '@', no padding, no display name.</summary>

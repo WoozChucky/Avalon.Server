@@ -605,7 +605,7 @@ public class AccountService : IAccountService
             {
                 // By column (#478), and the version raised in the same statement, the first of the
                 // transaction, so its row lock orders it against a concurrent credential issue.
-                if (await AccountRepository.SetEmailAsync(context, accountId, newEmail, version, ct) == 0)
+                if (await AccountRepository.SetConfirmedEmailAsync(context, accountId, newEmail, version, DateTime.UtcNow, ct) == 0)
                     return false;
 
                 await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, ct);

@@ -1,8 +1,7 @@
 namespace Avalon.Api.Config;
 
 /// <summary>
-/// How the api sends email (#510), bound from <c>Application:Email</c>. The one feature that needs
-/// it today is email change, which is on only while a sender is configured.
+/// Account email delivery and current-address verification, bound from <c>Application:Email</c>.
 /// </summary>
 public class EmailConfig
 {
@@ -20,4 +19,12 @@ public class EmailConfig
 
     /// <summary>The address every email is sent from. Required, and a bare address, when a sender is set.</summary>
     public string? From { get; set; }
+    public string? FromName { get; set; }
+    /// <summary>Server secret; never logged or emitted into browser configuration.</summary>
+    public string? ResendApiKey { get; set; }
+    /// <summary>Explicit website origin; null leaves current-address verification unavailable.</summary>
+    public string? VerificationSiteOrigin { get; set; }
+    public int VerificationCooldownSeconds { get; set; } = 60;
+    public int MaxVerificationSendsPerAccount { get; set; } = 5;
+    public int MaxVerificationSendsPerSource { get; set; } = 20;
 }

@@ -87,6 +87,8 @@ public class ExceptionHandlerMiddleware
             // and domain only; this exception carries nothing more.
             EmailDeliveryException => WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable,
                 "ServiceUnavailable", "Service unavailable", exception.Message),
+            Services.Email.EmailVerificationUnavailableException => WriteProblemAsync(context, StatusCodes.Status501NotImplemented,
+                "NotImplemented", "Email delivery unavailable", exception.Message),
             // Game distribution: no store configured, or a published build that is not there.
             Distribution.DistributionUnavailableException => WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable,
                 "ServiceUnavailable", "Service unavailable", exception.Message),

@@ -17,6 +17,50 @@ namespace Avalon.Api.UnitTests.Hosting;
 /// </summary>
 public class EmailSenderRegistrationShould
 {
+    [Theory]
+    [InlineData("http://example.test")]
+    [InlineData("https://example.test/path")]
+    [InlineData("https://user@example.test")]
+    [InlineData("https://example.test?query=secret")]
+    [InlineData("https://example.test#fragment")]
+    [InlineData("")]
+    public void Refuse_unsafe_verification_origins(string origin)
+    {
+        var config = Bind(new Dictionary<string, string?> { ["Application:Email:VerificationSiteOrigin"] = origin });
+        var ex = Assert.Throws<InvalidOperationException>(() => Registered(config, Environments.Production));
+        Assert.Contains("Application:Email:VerificationSiteOrigin", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("Application:Email:VerificationCooldownSeconds")]
+    [InlineData("Application:Email:MaxVerificationSendsPerAccount")]
+    [InlineData("Application:Email:MaxVerificationSendsPerSource")]
+    public void Refuse_zero_verification_budgets(string setting)
+    {
+        var config = Bind(new Dictionary<string, string?> { [setting] = "0" });
+        var ex = Assert.Throws<InvalidOperationException>(() => Registered(config, Environments.Production));
+        Assert.Contains(setting, ex.Message);
+    }
+
+    [Theory]
+    [InlineData("Application:Email:ResendApiKey", "")]
+    [InlineData("Application:Email:From", "bad-address")]
+    [InlineData("Application:Email:FromName", "Avalon\r\nBcc: thief@example.test")]
+    public void Refuse_invalid_resend_settings_without_exposing_credentials(string setting, string value)
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["Application:Email:Sender"] = "2",
+            ["Application:Email:From"] = "noreply@example.test",
+            ["Application:Email:FromName"] = "Avalon",
+            ["Application:Email:ResendApiKey"] = "test-only-key",
+        };
+        settings[setting] = value;
+        var ex = Assert.Throws<InvalidOperationException>(() => Registered(Bind(settings), Environments.Production));
+        Assert.Contains(setting, ex.Message);
+        Assert.DoesNotContain("test-only-key", ex.Message);
+    }
+
     private static IHostEnvironment Environment(string name)
     {
         IHostEnvironment environment = Substitute.For<IHostEnvironment>();

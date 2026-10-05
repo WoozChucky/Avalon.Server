@@ -159,6 +159,19 @@ autoscaling:
 # ASP.NET Core environment. Health endpoints are mapped in every environment.
 environment: Production
 
+# Provider credentials are references only. None leaves account verification/email changes off.
+# Pickup is a local Development sender; this deployment chart accepts None or Resend.
+email:
+  sender: None
+  from: ""
+  fromName: Avalon
+  verificationSiteOrigin: ""
+  existingSecret: ""
+  resendApiKeyKey: resend-api-key
+  verificationCooldownSeconds: 60
+  maxVerificationSendsPerAccount: 5
+  maxVerificationSendsPerSource: 20
+
 mapAssets:
   # Where the image keeps the World chunk assets (see Avalon.Api.csproj).
   chunkAssetRoot: /app/Maps

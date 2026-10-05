@@ -1,4 +1,5 @@
 {{- include "avalon-api.validateWorlds" . }}
+{{- include "avalon-api.validateEmail" . }}
 {{- $configuredSteamAppId := required "storeAuthentication.steamAppId is required" .Values.storeAuthentication.steamAppId }}
 {{- $steamAppId := int64 $configuredSteamAppId }}
 {{- /* Emit canonical decimal, even when YAML decodes a large App ID as float64; never truncate a fraction. */}}
@@ -69,6 +70,33 @@ spec:
               value: {{ .Values.storeAuthentication.policyVersion | quote }}
             - name: Kestrel__Endpoints__Public__Url
               value: {{ printf "http://0.0.0.0:%v" .Values.service.port | quote }}
+            - name: Application__Email__Sender
+              value: {{ .Values.email.sender | quote }}
+            - name: Application__Email__VerificationCooldownSeconds
+              value: {{ .Values.email.verificationCooldownSeconds | quote }}
+            - name: Application__Email__MaxVerificationSendsPerAccount
+              value: {{ .Values.email.maxVerificationSendsPerAccount | quote }}
+            - name: Application__Email__MaxVerificationSendsPerSource
+              value: {{ .Values.email.maxVerificationSendsPerSource | quote }}
+            {{- with .Values.email.from }}
+            - name: Application__Email__From
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.email.fromName }}
+            - name: Application__Email__FromName
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.email.verificationSiteOrigin }}
+            - name: Application__Email__VerificationSiteOrigin
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if eq .Values.email.sender "Resend" }}
+            - name: Application__Email__ResendApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.email.existingSecret | quote }}
+                  key: {{ .Values.email.resendApiKeyKey | quote }}
+            {{- end }}
             - name: Kestrel__Endpoints__GameInternal__Url
               value: {{ printf "https://0.0.0.0:%v" .Values.gameAdmission.port | quote }}
             - name: Kestrel__Endpoints__GameInternal__Certificate__Path

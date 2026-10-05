@@ -20,6 +20,28 @@ public sealed class AccountConsolidationShould
     private const string SteamId = "76561198000000001";
 
     [Fact]
+    public async Task RetainsTargetEmailProofAndInvalidatesSourceChallenges()
+    {
+        using var database = SqliteDatabase.Auth();
+        var (source, target, request) = await Seed(database);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        await using (var db = database.CreateDbContext())
+        {
+            await db.Accounts.Where(a => a.Id == target.Id).ExecuteUpdateAsync(u => u.SetProperty(a => a.EmailVerifiedAt, (DateTime?)now));
+            db.AccountEmailVerifications.Add(new AccountEmailVerification { AccountId = source.Id,
+                TokenHash = new string('a', 64), Email = "prior@example.test", IssuedAt = now, ExpiresAt = now.AddMinutes(30) });
+            await db.SaveChangesAsync();
+        }
+        var repository = new AccountConsolidationRepository(database, _clock);
+        Assert.Null((await repository.BeginAsync(request, default)).Error);
+        foreach (var world in request.Worlds) Assert.True(await repository.RecordTransferAsync(request.OperationId, world, 0, default));
+        Assert.True(await repository.FinalizeAsync(request.OperationId, default));
+        await using var read = database.CreateDbContext();
+        Assert.Equal(now, (await read.Accounts.SingleAsync(a => a.Id == target.Id)).EmailVerifiedAt);
+        Assert.NotNull((await read.AccountEmailVerifications.SingleAsync()).InvalidatedAt);
+    }
+
+    [Fact]
     public async Task Transfer_all_shared_licenses_once_preserving_sources_and_invalidating_prior_authority()
     {
         using var database = SqliteDatabase.Auth();

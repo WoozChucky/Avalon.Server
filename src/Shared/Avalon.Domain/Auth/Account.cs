@@ -25,6 +25,8 @@ public class Account : IDbEntity<AccountId>
 
     /// <summary>Absent until a Steam-only account adds recovery credentials.</summary>
     public required string? Email { get; set; }
+    /// <summary>Proof of control of the current normalized email; cleared on unproved replacement.</summary>
+    public DateTime? EmailVerifiedAt { get; set; }
 
     /// <summary>Root automatically provisioned by verified store authentication, eligible for consolidation.</summary>
     public bool IsStoreGenerated { get; init; }
