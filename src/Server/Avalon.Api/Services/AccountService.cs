@@ -65,9 +65,10 @@ public class AccountService : IAccountService
     private readonly PasswordLoginPolicy _loginPolicy;
     private readonly IReauthentication _reauthentication;
     private readonly IEmailSender? _emailSender;
+    private readonly EmailConfig? _emailConfig;
 
     /// <summary>What precedes the token in an email-change confirmation, on a line of its own (#510).</summary>
-    public const string EmailChangeTokenLabel = "Confirmation token: ";
+    public const string EmailChangeTokenLabel = "Confirmation code: ";
 
     public AccountService(ILoggerFactory loggerFactory,
         IAccountRepository accountRepository,
@@ -81,9 +82,11 @@ public class AccountService : IAccountService
         AuthenticationConfig authConfig,
         PasswordLoginPolicy loginPolicy,
         IReauthentication reauthentication,
-        IEmailSender? emailSender = null)
+        IEmailSender? emailSender = null,
+        EmailConfig? emailConfig = null)
     {
         _emailSender = emailSender;
+        _emailConfig = emailConfig;
         _logger = loggerFactory.CreateLogger<AccountService>();
         _accountRepository = accountRepository;
         _jwtUtils = jwtUtils;
@@ -506,15 +509,26 @@ public class AccountService : IAccountService
     private const string EmailChangeConfirmSubject = "Confirm your new Avalon email address";
     private const string EmailChangeNoticeSubject = "Your Avalon email address is being changed";
 
-    private static string EmailChangeConfirmBody(string token) => string.Join('\n',
-        "A change of your Avalon account's email address to this address was requested.",
-        "",
-        "To confirm it, submit this token to POST /account/email/confirm within "
-        + $"{(int)EmailChangeLifetime.TotalMinutes} minutes:",
-        "",
-        EmailChangeTokenLabel + token,
-        "",
-        "If you did not ask for this, ignore this email: nothing changes unless the token is used.");
+    private string EmailChangeConfirmBody(string token)
+    {
+        string? origin = _emailConfig?.VerificationSiteOrigin;
+        string instructions = origin is not null
+            ? "Open this link and choose Confirm email to use this address for your Avalon account:\n\n"
+              + $"{origin.TrimEnd('/')}/account/email/confirm#token={token}\n\n"
+              + "If the link does not open, enter the code below on Avalon's email confirmation page."
+            : "Open Avalon's email confirmation page and enter the code below to use this address for your account.";
+
+        return string.Join('\n',
+            "Confirm your new email address",
+            "",
+            instructions,
+            "",
+            EmailChangeTokenLabel + token,
+            "",
+            $"This confirmation expires in {(int)EmailChangeLifetime.TotalMinutes} minutes.",
+            "",
+            "If you did not request this change, ignore this email. Your current email address will stay unchanged.");
+    }
 
     private static string EmailChangeNoticeBody(string newEmail) => string.Join('\n',
         $"A change of your Avalon account's email address to {newEmail} was requested.",

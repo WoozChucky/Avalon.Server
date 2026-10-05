@@ -22,7 +22,7 @@ public class EmailConfig
     public string? FromName { get; set; }
     /// <summary>Server secret; never logged or emitted into browser configuration.</summary>
     public string? ResendApiKey { get; set; }
-    /// <summary>Explicit website origin; null leaves current-address verification unavailable.</summary>
+    /// <summary>Website origin for verification and email-change links; null leaves current-address verification unavailable.</summary>
     public string? VerificationSiteOrigin { get; set; }
     public int VerificationCooldownSeconds { get; set; } = 60;
     public int MaxVerificationSendsPerAccount { get; set; } = 5;
