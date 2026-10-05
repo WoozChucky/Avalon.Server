@@ -1,4 +1,5 @@
 using Avalon.Common.GameAuth;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Contract;
@@ -15,22 +16,22 @@ namespace Avalon.Api.Controllers;
 [ApiController, AllowAnonymous, Route("client/auth")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
-public sealed class GameAuthController(GameAuthorizationService authorization) : ControllerBase
+public sealed class GameAuthController(GameAuthorizationService authorization, ILogger<GameAuthController>? authLogger = null) : ControllerBase
 {
     [HttpPost("attempts", Name = "CreateGameAuthAttempt")]
     [ProducesResponseType(typeof(AuthAttemptReply), StatusCodes.Status200OK)]
     public async Task<IActionResult> Attempt(GameAttemptRequest request, CancellationToken cancellationToken)
     {
-        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired));
+        if (!Request.IsHttps) return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired)), nameof(Attempt));
         if (request.ProtocolVersion != GameWorkloadConfiguration.ClientProtocolVersion)
-            return BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol));
+            return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol)), nameof(Attempt));
         try
         {
             var reply = await authorization.CreateAttemptAsync(request.ChannelHint, request.ProtocolVersion,
                 request.ClientRunId, request.LinkChallenge, request.GameContextCredential, request.SteamAppId, cancellationToken);
-            return reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) : Ok(reply);
+            return LogResult(reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) : Ok(reply), nameof(Attempt));
         }
-        catch (RedisException) { return StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)); }
+        catch (RedisException) { return LogResult(StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)), nameof(Attempt)); }
     }
 
     [HttpPost("handoffs/redeem", Name = "RedeemGameAuthHandoff")]
@@ -90,20 +91,27 @@ public sealed class GameAuthController(GameAuthorizationService authorization) :
         return reply;
     });
 
-    private async Task<IActionResult> Execute(Func<Task<GameAuthReply>> action)
+    private async Task<IActionResult> Execute(Func<Task<GameAuthReply>> action, [CallerMemberName] string operation = "")
     {
-        if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired));
+        if (!Request.IsHttps) return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired)), operation);
         try
         {
             var reply = await action();
-            if (reply.GameContextCredential is not null || reply.Error is null) return Ok(reply);
-            return reply.Error switch
+            if (reply.GameContextCredential is not null || reply.Error is null) return LogResult(Ok(reply), operation);
+            return LogResult(reply.Error switch
             {
                 GameAuthErrors.InProgress => StatusCode(409, reply), GameAuthErrors.ProviderUnavailable => StatusCode(503, reply),
                 GameAuthErrors.AccountMismatch => Conflict(reply), _ => Unauthorized(reply),
-            };
+            }, operation);
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)); }
+        { return LogResult(StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)), operation); }
+    }
+
+    private ObjectResult LogResult(ObjectResult result, string operation)
+    {
+        authLogger?.LogInformation("Game authentication {Operation} responded {StatusCode} with {ErrorCode}",
+            operation, result.StatusCode, (result.Value as GameAuthReply)?.Error ?? "none");
+        return result;
     }
 }
