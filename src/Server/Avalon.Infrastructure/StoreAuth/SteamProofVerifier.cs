@@ -1,10 +1,12 @@
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Infrastructure.StoreAuth;
 
-public sealed class SteamProofVerifier(HttpClient client, IOptions<StoreAuthenticationConfiguration> options) : ISteamProofVerifier
+public sealed class SteamProofVerifier(HttpClient client, IOptions<StoreAuthenticationConfiguration> options,
+    ILogger<SteamProofVerifier>? logger = null) : ISteamProofVerifier
 {
     public async Task<SteamProofResult> VerifyAsync(uint appId, string ticketHex, string expectedIdentity, CancellationToken cancellationToken)
     {
@@ -16,19 +18,34 @@ public sealed class SteamProofVerifier(HttpClient client, IOptions<StoreAuthenti
             !ticketHex.All(Uri.IsHexDigit) || expectedIdentity is null ||
             !expectedIdentity.StartsWith(prefix, StringComparison.Ordinal) ||
             expectedIdentity.Length != prefix.Length + 32 || !expectedIdentity.AsSpan(prefix.Length).ToArray().All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
-            return new(SteamProofStatus.InvalidProof);
+            return Rejected(appId, "invalid_input");
         var uri = SteamWebApi.Request(SteamWebApi.AuthenticateTicketPath, config, appId,
             ("ticket", ticketHex), ("identity", expectedIdentity));
         var (available, document) = await SteamWebApi.GetAsync(client, uri, cancellationToken);
         using (document)
         {
             if (!available) return new(SteamProofStatus.ProviderUnavailable);
-            if (document is null || !SteamWebApi.Object(document.RootElement, "response", out var response) ||
-                response.TryGetProperty("error", out _) || !SteamWebApi.Object(response, "params", out var parameters) ||
+            if (document is null || !SteamWebApi.Object(document.RootElement, "response", out var response))
+                return Rejected(appId, "invalid_response");
+            if (response.TryGetProperty("error", out var error))
+            {
+                int? errorCode = error.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                    error.TryGetProperty("errorcode", out var code) && code.ValueKind == System.Text.Json.JsonValueKind.Number &&
+                    code.TryGetInt32(out var number) ? number : null;
+                return Rejected(appId, "provider_error", errorCode);
+            }
+            if (!SteamWebApi.Object(response, "params", out var parameters) ||
                 !string.Equals(SteamWebApi.String(parameters, "result"), "OK", StringComparison.Ordinal))
-                return new(SteamProofStatus.InvalidProof);
+                return Rejected(appId, "unexpected_result");
             var subject = SteamWebApi.String(parameters, "steamid");
-            return SteamWebApi.IsSteamId(subject) ? new(SteamProofStatus.Verified, subject) : new(SteamProofStatus.InvalidProof);
+            return SteamWebApi.IsSteamId(subject) ? new(SteamProofStatus.Verified, subject) : Rejected(appId, "invalid_steam_id");
         }
+    }
+
+    private SteamProofResult Rejected(uint appId, string reason, int? providerErrorCode = null)
+    {
+        logger?.LogInformation("Steam proof rejected for app {AppId}: {Reason}; provider error {ProviderErrorCode}",
+            appId, reason, providerErrorCode);
+        return new(SteamProofStatus.InvalidProof);
     }
 }
