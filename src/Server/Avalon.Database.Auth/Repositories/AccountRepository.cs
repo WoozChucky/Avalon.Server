@@ -218,8 +218,16 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .Where(a => a.Id == id && a.CredentialsVersion == expectedVersion)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.Email, email)
+                .SetProperty(a => a.EmailVerifiedAt, (DateTime?)null)
                 .SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1), cancellationToken);
     }
+
+    /// <summary>Only an email-change confirmation may establish proof for the replacement address.</summary>
+    public static Task<int> SetConfirmedEmailAsync(AuthDbContext context, AccountId id, string email, int expectedVersion,
+        DateTime verifiedAt, CancellationToken cancellationToken = default) => context.Accounts
+        .Where(a => a.Id == id && a.CredentialsVersion == expectedVersion)
+        .ExecuteUpdateAsync(s => s.SetProperty(a => a.Email, email).SetProperty(a => a.EmailVerifiedAt, (DateTime?)verifiedAt)
+            .SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1), cancellationToken);
 
     /// <summary>
     /// Sets the password's salt and verifier, and raises <c>CredentialsVersion</c> by one (#495),

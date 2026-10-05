@@ -7,6 +7,7 @@ public class AccountDto
     public long Id { get; set; }
     public string Username { get; set; }
     public string Email { get; set; }
+    public DateTime? EmailVerifiedAt { get; set; }
     public DateTime JoinDate { get; set; }
     public string LastIp { get; set; }
     public bool Locked { get; set; }

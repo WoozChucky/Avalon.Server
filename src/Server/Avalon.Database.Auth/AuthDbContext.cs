@@ -80,6 +80,7 @@ public class AuthDbContext : DbContext
     }
 
     public DbSet<Account> Accounts { get; set; } = null!;
+    public DbSet<AccountEmailVerification> AccountEmailVerifications { get; set; } = null!;
     public DbSet<StoreAccountCreation> StoreAccountCreations { get; set; } = null!;
     public DbSet<AccountConsolidation> AccountConsolidations { get; set; } = null!;
     public DbSet<AccountConsolidationWorld> AccountConsolidationWorlds { get; set; } = null!;
@@ -115,6 +116,13 @@ public class AuthDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         Configure(modelBuilder.Entity<Account>());
+        var verification = modelBuilder.Entity<AccountEmailVerification>();
+        verification.HasKey(x => x.AccountId);
+        verification.Property(x => x.AccountId).HasConversion(x => x.Value, x => new AccountId(x)).ValueGeneratedNever();
+        verification.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+        verification.Property(x => x.Email).HasMaxLength(254).IsRequired();
+        verification.HasOne<Account>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+        verification.ToTable(t => t.HasCheckConstraint("CK_AccountEmailVerifications_Interval", "\"ExpiresAt\" > \"IssuedAt\" AND length(\"TokenHash\") = 64"));
         StoreAuthenticationModel.Configure(modelBuilder);
         GameLicenseModel.Configure(modelBuilder);
         AccountConsolidationModel.Configure(modelBuilder);

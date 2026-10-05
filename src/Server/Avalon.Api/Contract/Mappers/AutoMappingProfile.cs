@@ -11,6 +11,7 @@ public static class MappingExtensions
         Id = account.Id,
         Username = account.Username,
         Email = account.Email,
+        EmailVerifiedAt = account.EmailVerifiedAt,
         JoinDate = account.JoinDate,
         LastIp = account.LastIp,
         Locked = account.Locked,

@@ -74,6 +74,8 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
             ConfirmedMfaId = request.ConfirmedMfaId, AuthorizedAt = Now,
             Worlds = request.Worlds.OrderBy(w => w.Value).Select(w => new AccountConsolidationWorld { ConsolidationId = request.OperationId, WorldId = w.Value }).ToList() };
         db.AccountConsolidations.Add(operation);
+        await db.AccountEmailVerifications.Where(v => v.AccountId == source.Id && v.InvalidatedAt == null && v.ConsumedAt == null)
+            .ExecuteUpdateAsync(u => u.SetProperty(v => v.InvalidatedAt, (DateTime?)Now), cancellationToken);
         await db.Accounts.Where(a => a.Id == source.Id || a.Id == target.Id).ExecuteUpdateAsync(u =>
             u.SetProperty(a => a.GameplayConsolidationId, (Guid?)operation.Id).SetProperty(a => a.SessionEpoch, a => a.SessionEpoch + 1), cancellationToken);
         await db.RefreshTokens.Where(t => t.AccountId == source.Id || (t.AccountId == target.Id && t.Client == SessionClient.Launcher))
