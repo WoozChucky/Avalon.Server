@@ -34,7 +34,7 @@ public sealed class GameServerAllocator(IWorldRepository worlds, IAccountReposit
         if (root is null || root.Status != AccountStatus.Active || root.IsLockedAt(clock.GetUtcNow().UtcDateTime) ||
             root.CredentialsVersion != context.CredentialsVersion || root.SessionEpoch != context.SessionEpoch) return null;
         var world = await worlds.FindByIdAsync(new WorldId(worldId), false, cancellationToken);
-        if (world is null || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(root.AccessLevel) ||
+        if (world is null || !applications.AllowsWorldAccess(context.SteamAppId, worldId, world.AccessLevelRequired, root.AccessLevel) ||
             world.Port is < 1 or > 65535 || Uri.CheckHostName(world.Host) == UriHostNameType.Unknown ||
             !await readiness.IsReadyAsync(worldId, cancellationToken)) return null;
         if (new WorldMaintenanceState(world.MaintenanceEnabled, world.MaintenanceRevision, world.MaintenanceDeadlineUtc)
