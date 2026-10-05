@@ -20,4 +20,7 @@ public class EmailConfig
 
     /// <summary>The address every email is sent from. Required, and a bare address, when a sender is set.</summary>
     public string? From { get; set; }
+    public string? FromName { get; set; }
+    /// <summary>Server secret; never logged or emitted into browser configuration.</summary>
+    public string? ResendApiKey { get; set; }
 }

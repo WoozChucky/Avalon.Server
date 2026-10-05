@@ -331,6 +331,25 @@ public static class ServiceRegistration
         {
             case EmailSenderKind.None:
                 return;
+            case EmailSenderKind.Resend:
+                if (!IsBareAddress(config.From))
+                    throw new InvalidOperationException($"{EmailConfig.Section}:From must be a bare email address.");
+                if (config.FromName is not null && (config.FromName.Any(char.IsControl) || config.FromName.IndexOfAny(['<', '>', '"']) >= 0))
+                    throw new InvalidOperationException($"{EmailConfig.Section}:FromName contains invalid header characters.");
+                if (string.IsNullOrWhiteSpace(config.ResendApiKey) || config.ResendApiKey.Any(char.IsWhiteSpace))
+                    throw new InvalidOperationException($"{EmailConfig.Section}:ResendApiKey must contain a server API key.");
+                services.AddSingleton(config);
+#pragma warning disable EXTEXP0001 // A send with an unknown outcome must not be retried.
+                services.AddHttpClient<ResendEmailSender>(http =>
+                    {
+                        http.Timeout = TimeSpan.FromSeconds(30);
+                        http.MaxResponseContentBufferSize = 16 * 1024;
+                    })
+                    .RemoveAllLoggers().RemoveAllResilienceHandlers()
+                    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+#pragma warning restore EXTEXP0001
+                services.AddTransient<IEmailSender>(sp => sp.GetRequiredService<ResendEmailSender>());
+                return;
             case EmailSenderKind.Pickup:
                 if (!environment.IsDevelopment())
                     throw new InvalidOperationException(
@@ -349,7 +368,7 @@ public static class ServiceRegistration
                 return;
             default:
                 throw new InvalidOperationException(
-                    $"{EmailConfig.Section}:Sender '{config.Sender}' is not a known sender; use None or Pickup.");
+                    $"{EmailConfig.Section}:Sender '{config.Sender}' is not a known sender; use None, Pickup or Resend.");
         }
     }
 

@@ -17,6 +17,25 @@ namespace Avalon.Api.UnitTests.Hosting;
 /// </summary>
 public class EmailSenderRegistrationShould
 {
+    [Theory]
+    [InlineData("Application:Email:ResendApiKey", "")]
+    [InlineData("Application:Email:From", "bad-address")]
+    [InlineData("Application:Email:FromName", "Avalon\r\nBcc: thief@example.test")]
+    public void Refuse_invalid_resend_settings_without_exposing_credentials(string setting, string value)
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["Application:Email:Sender"] = "2",
+            ["Application:Email:From"] = "noreply@example.test",
+            ["Application:Email:FromName"] = "Avalon",
+            ["Application:Email:ResendApiKey"] = "test-only-key",
+        };
+        settings[setting] = value;
+        var ex = Assert.Throws<InvalidOperationException>(() => Registered(Bind(settings), Environments.Production));
+        Assert.Contains(setting, ex.Message);
+        Assert.DoesNotContain("test-only-key", ex.Message);
+    }
+
     private static IHostEnvironment Environment(string name)
     {
         IHostEnvironment environment = Substitute.For<IHostEnvironment>();
