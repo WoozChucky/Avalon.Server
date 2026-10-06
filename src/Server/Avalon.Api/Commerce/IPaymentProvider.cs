@@ -1,3 +1,5 @@
+using Avalon.Domain.Commerce;
+
 namespace Avalon.Api.Commerce;
 
 public interface IPaymentProvider

@@ -26,6 +26,7 @@ public sealed class PaymentAttempt
     public DateTime? ExpiresAt { get; set; }
     public DateTime? FirstDispatchedAt { get; set; }
     public DateTime? ReplayDeadline { get; set; }
+    public DateTime? LastReconciledAt { get; set; }
     public Guid? LeaseId { get; set; }
     public DateTime? LeaseUntil { get; set; }
     public long Version { get; set; } = 1;

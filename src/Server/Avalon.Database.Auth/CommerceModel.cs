@@ -78,6 +78,8 @@ internal static class CommerceModel
         notification.Property(x => x.ExternalReference).HasMaxLength(256);
         notification.Property(x => x.Type).HasMaxLength(128);
         notification.Property(x => x.ResourceReference).HasMaxLength(256);
+        notification.Property(x => x.ResourceKind).HasMaxLength(32);
+        notification.Property(x => x.PaymentReference).HasMaxLength(256);
         notification.Property(x => x.FailureCode).HasMaxLength(64);
         notification.HasIndex(x => new { x.Provider, x.ProviderAccountId, x.Environment, x.ExternalReference }).IsUnique();
         notification.HasIndex(x => new { x.State, x.NextAttemptAt });

@@ -17,6 +17,7 @@ public sealed record CheckoutBinding(string CheckoutReference, string CheckoutUr
 public sealed record PaymentEventClaim(PaymentEvent Event, Guid LeaseId, DateTime LeaseUntil, long Version);
 public sealed record PaymentAttemptClaim(PaymentAttempt Attempt, Guid LeaseId, DateTime LeaseUntil, long Version);
 public sealed record PaymentProcessingResult(bool Completed, string? FailureCode = null, bool NeedsReview = false);
+public sealed record PaymentQueueStats(long Pending, long Retry, long NeedsReview, DateTime? OldestPending);
 
 public interface IPurchaseRepository
 {
@@ -33,11 +34,19 @@ public interface IPurchaseRepository
     Task<PurchaseAccountStatus> GetAccountStatusAsync(AccountId account, string product, string environment, CancellationToken ct = default);
     Task<PaymentAttemptClaim?> BeginDispatchAsync(PaymentAttemptClaim claim, CancellationToken ct = default);
     Task<bool> RecordUnknownAsync(PaymentAttemptClaim claim, bool needsReview, CancellationToken ct = default);
+    Task<PurchaseOrder?> FindOrderAsync(Guid id, CancellationToken ct = default);
+    Task<PaymentAttempt?> ResolveAttemptAsync(string provider, string merchant, string environment, Guid? order, Guid? attempt,
+        string? checkout, string? payment, CancellationToken ct = default);
+    Task<PurchaseReconciliationResult> ApplySnapshotAsync(PurchaseReconciliationCommand command, CancellationToken ct = default);
+    Task<IReadOnlyList<PaymentAttempt>> FindSweepCandidatesAsync(int count, CancellationToken ct = default);
+    Task<PaymentQueueStats> ReadQueueStatsAsync(CancellationToken ct = default);
+    Task<bool> TouchReconciliationAsync(Guid attemptId, Guid leaseId, CancellationToken ct = default);
 }
 
 /// <summary>Short local transactions only. Provider requests happen after durable reservation.</summary>
-public sealed class PurchaseRepository(IDbContextFactory<AuthDbContext> factory, TimeProvider clock) : IPurchaseRepository
+public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> factory, TimeProvider clock) : IPurchaseRepository
 {
+    private IDbContextFactory<AuthDbContext> Factory => factory;
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
 
     public async Task<PurchaseReservationResult> ReserveAsync(PurchaseReservation reservation, CancellationToken ct = default)
@@ -178,6 +187,7 @@ public sealed class PurchaseRepository(IDbContextFactory<AuthDbContext> factory,
         if (notification.Id == Guid.Empty || !Text(notification.Provider, 32) || !Text(notification.ProviderAccountId, 128) ||
             !Text(notification.Environment, 32) || !Text(notification.ExternalReference, 256) || !Text(notification.Type, 128) ||
             !Text(notification.ResourceReference, 256) || notification.CreatedAt.Kind != DateTimeKind.Utc ||
+            notification.ResourceKind is not (PaymentResourceKinds.Checkout or PaymentResourceKinds.Refund or PaymentResourceKinds.Dispute) ||
             notification.NextAttemptAt.Kind != DateTimeKind.Utc || notification.State != PaymentEventState.Pending ||
             notification.Version != 1 || notification.LeaseId is not null || notification.LeaseUntil is not null || notification.RetryCount != 0)
             throw new ArgumentException("Invalid normalized notification.", nameof(notification));
@@ -221,11 +231,14 @@ public sealed class PurchaseRepository(IDbContextFactory<AuthDbContext> factory,
             throw new ArgumentException("Failure must use a safe reason code.", nameof(result));
         await using var db = await factory.CreateDbContextAsync(ct);
         var state = result.NeedsReview ? PaymentEventState.NeedsReview : result.Completed ? PaymentEventState.Completed : PaymentEventState.Pending;
-        return await db.PaymentEvents.Where(x => x.Id == eventId && x.LeaseId == leaseId && x.LeaseUntil > Now &&
+        var row = await db.PaymentEvents.AsNoTracking().SingleOrDefaultAsync(x => x.Id == eventId && x.LeaseId == leaseId && x.LeaseUntil > Now, ct);
+        if (row is null) return false;
+        var delay = TimeSpan.FromSeconds(Math.Min(300, 5 * (1 << Math.Min(row.RetryCount, 6))));
+        return await db.PaymentEvents.Where(x => x.Id == eventId && x.Version == row.Version && x.LeaseId == leaseId && x.LeaseUntil > Now &&
                 x.State == PaymentEventState.Processing && x.Version < long.MaxValue && x.RetryCount < int.MaxValue)
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, state).SetProperty(x => x.FailureCode, result.FailureCode)
                 .SetProperty(x => x.LeaseId, (Guid?)null).SetProperty(x => x.LeaseUntil, (DateTime?)null)
-                .SetProperty(x => x.NextAttemptAt, Now.AddSeconds(5)).SetProperty(x => x.RetryCount, x => x.RetryCount + 1)
+                .SetProperty(x => x.NextAttemptAt, Now.Add(delay)).SetProperty(x => x.RetryCount, x => x.RetryCount + 1)
                 .SetProperty(x => x.Version, x => x.Version + 1), ct) == 1;
     }
 

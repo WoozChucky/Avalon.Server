@@ -109,6 +109,24 @@ public sealed class PurchaseRepositoryShould
     internal static PurchaseReservation Reservation(AccountId account) => new(account, 0, "avalon.base", "base", "price-test", 800, "eur",
         "stripe", "merchant-test", "sandbox", "development", "https://avalon.example.test", "purchaser@example.test", "catalog", "card", Now.AddMinutes(30));
 
+    [Fact]
+    public async Task Retry_backoff_grows_without_losing_fencing()
+    {
+        using var database = SqliteDatabase.Auth();
+        var repo = new PurchaseRepository(database, _clock);
+        var row = Event("retry");
+        await repo.AcceptEventAsync(row);
+        var first = Assert.Single(await repo.ClaimEventsAsync(Now, 10, TimeSpan.FromMinutes(2)));
+        await repo.CompleteEventAsync(row.Id, first.LeaseId, new(false, "PROVIDER_UNAVAILABLE"));
+        _clock.Now = Now.AddSeconds(5);
+        var second = Assert.Single(await repo.ClaimEventsAsync(_clock.Now, 10, TimeSpan.FromMinutes(2)));
+        await repo.CompleteEventAsync(row.Id, second.LeaseId, new(false, "PROVIDER_UNAVAILABLE"));
+        _clock.Now = Now.AddSeconds(14);
+        Assert.Empty(await repo.ClaimEventsAsync(_clock.Now, 10, TimeSpan.FromMinutes(2)));
+        _clock.Now = Now.AddSeconds(15);
+        Assert.Single(await repo.ClaimEventsAsync(_clock.Now, 10, TimeSpan.FromMinutes(2)));
+    }
+
     private static PaymentEvent Event(string reference) => new() { Id = Guid.NewGuid(), Provider = "stripe", ProviderAccountId = "merchant-test",
         Environment = "sandbox", ExternalReference = reference, Type = "checkout", ResourceReference = "checkout-one", CreatedAt = Now, NextAttemptAt = Now };
 

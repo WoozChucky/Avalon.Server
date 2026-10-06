@@ -10,6 +10,8 @@ public sealed class PaymentEvent
     public required string ExternalReference { get; set; }
     public required string Type { get; set; }
     public required string ResourceReference { get; set; }
+    public string ResourceKind { get; set; } = PaymentResourceKinds.Checkout;
+    public string? PaymentReference { get; set; }
     public Guid? OrderId { get; set; }
     public Guid? PaymentAttemptId { get; set; }
     public DateTime CreatedAt { get; set; }

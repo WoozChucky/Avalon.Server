@@ -35,5 +35,9 @@ public static class CommerceServiceRegistration
         services.AddSingleton<Commerce.PaymentProviderRegistry>();
         services.AddSingleton<Commerce.ICheckoutBudget, Commerce.CheckoutBudget>();
         services.AddSingleton<Commerce.IPurchaseService, Commerce.PurchaseService>();
+        services.AddSingleton<Commerce.IPaymentNotificationService, Commerce.PaymentNotificationService>();
+        services.AddSingleton<Commerce.IPaymentReconciliationService, Commerce.PaymentReconciliationService>();
+        if (!string.Equals(Environment.GetEnvironmentVariable("AVALON_OPENAPI_GENERATION_ONLY"), "true", StringComparison.OrdinalIgnoreCase))
+            services.AddHostedService<Commerce.PaymentReconciliationWorker>();
     }
 }

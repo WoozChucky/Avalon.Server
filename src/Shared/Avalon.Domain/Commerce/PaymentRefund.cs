@@ -10,7 +10,8 @@ public sealed class PaymentRefund
     public required string ProviderAccountId { get; set; }
     public required string Environment { get; set; }
     public required string OperationKey { get; set; }
-    public AccountId RequestedBy { get; set; } = null!;
+    /// <summary>Null for externally observed reversals; never attribute them to an administrator.</summary>
+    public AccountId? RequestedBy { get; set; }
     public required string Reason { get; set; }
     public long AmountMinor { get; set; }
     public string? ExternalReference { get; set; }

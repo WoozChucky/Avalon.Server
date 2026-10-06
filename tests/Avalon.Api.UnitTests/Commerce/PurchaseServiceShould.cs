@@ -216,6 +216,7 @@ public sealed class PurchaseServiceShould
     {
         public string Provider => "alternate";
         public bool Unavailable;
+        public PaymentSnapshot? Snapshot;
         public List<CheckoutCreateCommand> Commands { get; } = [];
         public Task<CheckoutProviderResult> CreateCheckoutAsync(CheckoutCreateCommand command, CancellationToken ct)
         {
@@ -223,7 +224,8 @@ public sealed class PurchaseServiceShould
             if (Unavailable) throw new PaymentProviderException("PAYMENT_PROVIDER_UNAVAILABLE");
             return Task.FromResult(new CheckoutProviderResult("checkout", "https://pay.example.test/checkout", command.ExpiresAt));
         }
-        public Task<PaymentSnapshot> GetCheckoutAsync(PaymentLookup lookup, CancellationToken ct) => throw new PaymentProviderException("PAYMENT_PROVIDER_UNAVAILABLE");
+        public Task<PaymentSnapshot> GetCheckoutAsync(PaymentLookup lookup, CancellationToken ct) => Snapshot is { } value
+            ? Task.FromResult(value) : throw new PaymentProviderException("PAYMENT_PROVIDER_UNAVAILABLE");
         public VerifiedPaymentNotification VerifyNotification(ReadOnlyMemory<byte> body, IReadOnlyDictionary<string, string> headers, DateTime now) => throw new NotSupportedException();
         public Task<RefundProviderResult> RequestFullRefundAsync(FullRefundCommand command, CancellationToken ct) => throw new NotSupportedException();
     }
