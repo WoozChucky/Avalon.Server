@@ -50,6 +50,8 @@ spec:
           env:
             - name: Application__Commerce__Enabled
               value: {{ .Values.commerce.enabled | quote }}
+            - name: Application__Commerce__AllowExistingAccountSandbox
+              value: {{ .Values.commerce.allowExistingAccountSandbox | quote }}
             {{- if .Values.commerce.enabled }}
             {{- range $name, $value := dict "Provider" .Values.commerce.provider "PaymentEnvironment" .Values.commerce.paymentEnvironment "LicenseEnvironment" .Values.commerce.licenseEnvironment "AmountMinor" .Values.commerce.amountMinor "Currency" .Values.commerce.currency "Quantity" .Values.commerce.quantity "Product" .Values.commerce.product "ProviderProduct" .Values.commerce.providerProduct "PublicSiteOrigin" .Values.commerce.publicSiteOrigin "OfferId" .Values.commerce.offerId "ProviderPriceId" .Values.commerce.providerPriceId "ProviderCatalogProductId" .Values.commerce.providerCatalogProductId "ProviderAccountId" .Values.commerce.providerAccountId }}
             - name: Application__Commerce__{{ $name }}

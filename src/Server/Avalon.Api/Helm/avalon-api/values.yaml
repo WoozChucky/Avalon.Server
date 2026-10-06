@@ -162,6 +162,9 @@ environment: Production
 # Website checkout is off on existing deployments. Enable only on separately isolated sandbox storage.
 commerce:
   enabled: false
+  # Opt in to sandbox payments granting licenses to the existing production account environment.
+  # Payment credentials and provider evidence must still be test-mode only.
+  allowExistingAccountSandbox: false
   provider: stripe
   paymentEnvironment: sandbox
   licenseEnvironment: development
