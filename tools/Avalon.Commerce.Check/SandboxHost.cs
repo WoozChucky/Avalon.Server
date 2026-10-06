@@ -67,9 +67,11 @@ internal static class SandboxHost
             return result == NotificationAcceptance.Accepted ? Results.Ok() : Results.BadRequest();
         });
         api.MapGet("/account/email/verification", () => new { emailVerifiedAt = actor.EmailVerifiedAt, deliveryAvailable = false, resendAvailableAt = (DateTime?)null }).RequireAuthorization();
-        api.MapGet("/account/links/steam/consolidations/pending", () => new { state = "none" }).RequireAuthorization();
-        api.MapGet("/account/pat", () => Array.Empty<object>()).RequireAuthorization();
-        api.MapGet("/account/launcher/sessions", () => Array.Empty<object>()).RequireAuthorization();
+        api.MapGet("/account/links/steam/consolidations/pending", () => new { consolidation = (object?)null }).RequireAuthorization();
+        api.MapGet("/pat", () => Array.Empty<object>()).RequireAuthorization();
+        api.MapGet("/client/auth/sessions", () => Array.Empty<object>()).RequireAuthorization();
+        api.MapGet("/mfa/status", () => new { enrolled = false }).RequireAuthorization();
+        api.MapMethods("/{**unsupported}", ["GET", "POST", "PUT", "PATCH", "DELETE"], () => Results.NotFound());
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "tools", "Avalon.Commerce.Check"))) root = root.Parent;
         var publicDist = root is null ? "" : Path.GetFullPath(Path.Combine(root.FullName, "..", "Avalon.Dashboard", "apps", "public", "dist"));

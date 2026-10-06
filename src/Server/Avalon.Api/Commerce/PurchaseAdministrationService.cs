@@ -60,14 +60,21 @@ public sealed class PurchaseAdministrationService(IPurchaseRepository purchases,
                 snapshot.CatalogProductReference != attempt.ProviderCatalogProductId || snapshot.Quantity != CommercePolicy.GameLicenseQuantity ||
                 snapshot.Disputes.Any(x => x.State is PaymentDisputeState.Open or PaymentDisputeState.UnderReview)) throw new PurchaseException(PurchaseFailureCodes.NeedsReview);
             // Only a known local operation can explain an observed provider refund; never reserve a new request over one.
-            if (snapshot.Refunds.Count > 0 && !detail.Refunds.Any(x => x.PaymentAttemptId == attemptId && x.ExternalReference is not null &&
-                snapshot.Refunds.Any(observed => observed.RefundReference == x.ExternalReference))) throw new PurchaseException(PurchaseFailureCodes.NeedsReview);
+            if (snapshot.Refunds.Any(observed => !detail.Refunds.Any(x => x.PaymentAttemptId == attemptId && x.ExternalReference == observed.RefundReference)))
+                throw new PurchaseException(PurchaseFailureCodes.NeedsReview);
+            // Reject a new operation before reserving it when fresh evidence has a blocking reversal.
+            // A known pending/successful operation may still be returned without any new dispatch.
+            if (snapshot.Refunds.Any(observed => observed.State is not (PaymentRefundState.Failed or PaymentRefundState.Canceled)) &&
+                !detail.Refunds.Any(x => x.PaymentAttemptId == attemptId && x.ExternalReference is not null &&
+                    (x.Unresolved || x.State == PaymentRefundState.Succeeded) && snapshot.Refunds.Any(observed => observed.RefundReference == x.ExternalReference)))
+                throw new PurchaseException(PurchaseFailureCodes.NeedsReview);
             var reserved = await purchases.ReserveRefundAsync(admin, orderId, order.Version, claim, reason, ct);
             if (reserved.Error is { } error) throw new PurchaseException(error);
             var refund = reserved.Refund!;
             if (refund.ExternalReference is not null) return Reply(refund);
             // An externally observed reversal cannot be guessed to be this unknown administrator operation.
-            if (snapshot.Refunds.Count > 0) throw new PurchaseException(PurchaseFailureCodes.NeedsReview);
+            if (snapshot.Refunds.Any(x => x.State is not (PaymentRefundState.Failed or PaymentRefundState.Canceled)))
+                throw new PurchaseException(PurchaseFailureCodes.NeedsReview);
             refund = await purchases.BeginRefundDispatchAsync(refund.Id, refund.Version, claim, ct) ?? throw new PurchaseException(PurchaseFailureCodes.NeedsReview);
             try
             {

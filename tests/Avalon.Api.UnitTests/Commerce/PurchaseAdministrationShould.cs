@@ -178,6 +178,48 @@ public sealed class PurchaseAdministrationShould
         Assert.Equal(f.Provider.Commands[0].OperationKey, f.Provider.Commands[1].OperationKey);
     }
 
+    [Theory]
+    [InlineData(PaymentRefundState.Failed)]
+    [InlineData(PaymentRefundState.Canceled)]
+    public async Task Known_unsuccessful_refund_history_allows_a_new_full_refund(PaymentRefundState state)
+    {
+        using var f = await Ready();
+        var snapshot = f.Provider.Snapshot!;
+        await using (var db = f.Db.CreateDbContext())
+        {
+            db.PaymentRefunds.Add(new PaymentRefund { Id = Guid.NewGuid(), PaymentAttemptId = snapshot.AttemptId, Provider = "alternate",
+                ProviderAccountId = "merchant", Environment = "sandbox", OperationKey = "prior-key", RequestedBy = f.Account.Id,
+                Reason = "Prior request", AmountMinor = 800, ExternalReference = "prior-refund", State = state, Unresolved = false, RequestedAt = f.Clock.Now });
+            await db.SaveChangesAsync();
+        }
+        f.Provider.Snapshot = snapshot with { Refunds = [new("prior-refund", "payment", 800, "eur", state)] };
+        var reply = await Service(f).RequestFullRefundAsync(f.Account.Id, snapshot.OrderId, snapshot.AttemptId, "New request");
+        Assert.Equal("Pending", reply.State);
+        Assert.NotEqual("prior-key", Assert.Single(f.Provider.RefundCommands).OperationKey);
+        await using var read = f.Db.CreateDbContext();
+        Assert.Equal(2, await read.PaymentRefunds.CountAsync());
+        Assert.Equal("admin-refund", (await read.PaymentRefunds.SingleAsync(x => x.Id == reply.RefundId)).ExternalReference);
+    }
+
+    [Fact]
+    public async Task Blocking_fresh_refund_state_does_not_reserve_an_undeliverable_operation()
+    {
+        using var f = await Ready();
+        var snapshot = f.Provider.Snapshot!;
+        await using (var db = f.Db.CreateDbContext())
+        {
+            db.PaymentRefunds.Add(new PaymentRefund { Id = Guid.NewGuid(), PaymentAttemptId = snapshot.AttemptId, Provider = "alternate",
+                ProviderAccountId = "merchant", Environment = "sandbox", OperationKey = "prior-key", RequestedBy = f.Account.Id,
+                Reason = "Prior request", AmountMinor = 800, ExternalReference = "prior-refund", State = PaymentRefundState.Failed, Unresolved = false, RequestedAt = f.Clock.Now });
+            await db.SaveChangesAsync();
+        }
+        f.Provider.Snapshot = snapshot with { Refunds = [new("prior-refund", "payment", 800, "eur", PaymentRefundState.Pending)] };
+        await Assert.ThrowsAsync<PurchaseException>(() => Service(f).RequestFullRefundAsync(f.Account.Id, snapshot.OrderId, snapshot.AttemptId, "New request"));
+        Assert.Empty(f.Provider.RefundCommands);
+        await using var read = f.Db.CreateDbContext();
+        Assert.Equal(1, await read.PaymentRefunds.CountAsync());
+    }
+
     private static async Task<PurchaseServiceShould.Fixture> Ready()
     {
         var f = await PaymentReconciliationShould.Setup();

@@ -109,12 +109,15 @@ public sealed class PaymentReconciliationShould
         f.Provider.Snapshot = f.Provider.Snapshot! with { Refunds = [Refund(PaymentRefundState.Succeeded)] };
         await Process(f);
         f.Provider.Snapshot = f.Provider.Snapshot with { Refunds = [Refund(PaymentRefundState.Failed)] };
-        await Process(f);
+        var result = await Process(f);
         await using var db = f.Db.CreateDbContext();
         var grant = await db.GameLicenses.SingleAsync();
         Assert.NotNull(grant.RevokedAt);
         Assert.Equal(2, grant.AuthorityRevision);
         Assert.Equal(PaymentRefundState.Succeeded, (await db.PaymentRefunds.SingleAsync()).State);
+        Assert.True(result.NeedsReview);
+        Assert.Equal("REFUND_SUCCESS_CONTRADICTION", (await db.PurchaseOrders.SingleAsync()).ReconciliationIssue);
+        Assert.Equal("REFUND_SUCCESS_REPORTED_FAILED", (await db.PaymentRefunds.SingleAsync()).FailureCode);
     }
 
     [Theory]
@@ -164,6 +167,27 @@ public sealed class PaymentReconciliationShould
         await using var db = f.Db.CreateDbContext();
         Assert.NotNull((await db.PurchaseOrders.SingleAsync()).ReconciliationIssue);
         Assert.Null((await db.GameLicenses.SingleAsync()).RevokedAt);
+    }
+
+    [Fact]
+    public async Task Worker_recovery_preserves_open_checkout_url_under_the_original_operation()
+    {
+        using var f = await Setup();
+        var s = f.Provider.Snapshot!;
+        f.Provider.Snapshot = s with { Paid = false, PaymentReference = null, State = PaymentAttemptState.CheckoutOpen };
+        await using (var db = f.Db.CreateDbContext())
+            await db.PaymentAttempts.ExecuteUpdateAsync(u => u.SetProperty(x => x.CheckoutReference, (string?)null)
+                .SetProperty(x => x.CheckoutUrl, (string?)null).SetProperty(x => x.State, PaymentAttemptState.ProviderUnknown));
+        var repo = new PurchaseRepository(f.Db, f.Clock);
+        var before = (await repo.FindLatestAttemptAsync(s.OrderId))!;
+        Assert.True((await new PaymentReconciliationService(repo, new PaymentProviderRegistry([f.Provider]), Options.Create(f.Config), f.Clock)
+            .SweepAsync(before, CancellationToken.None)).Completed);
+        var resumed = await f.Service.CreateCheckoutAsync(f.Account.Id, 0, "test-source");
+        Assert.Equal("https://pay.example.test/checkout", resumed.CheckoutUrl);
+        Assert.Equivalent(f.Provider.Commands[0], f.Provider.Commands[1]);
+        Assert.Equal(2, f.Provider.Commands.Count);
+        Assert.Equal(1, f.Budget.Calls);
+        Assert.Equal(before.RequestedExpiresAt, (await repo.FindLatestAttemptAsync(s.OrderId))!.RequestedExpiresAt);
     }
 
     internal static async Task<PurchaseServiceShould.Fixture> Setup()

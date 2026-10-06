@@ -104,6 +104,12 @@ public sealed partial class PurchaseRepository
                     AmountMinor = evidence.AmountMinor, ExternalReference = evidence.RefundReference, State = evidence.State, Unresolved = false, RequestedAt = Now };
                 db.PaymentRefunds.Add(refund); refunds.Add(refund);
             }
+            else if (refund.State == PaymentRefundState.Succeeded && evidence.State != PaymentRefundState.Succeeded)
+            {
+                // Terminal revocation stands; retain the contradictory observation for manual reconciliation.
+                refund.FailureCode = "REFUND_SUCCESS_REPORTED_" + evidence.State.ToString().ToUpperInvariant();
+                refund.Version++;
+            }
             else if (refund.State != PaymentRefundState.Succeeded && refund.State != evidence.State) { refund.State = evidence.State; refund.Version++; }
             refund.ObservedAt = Now;
             if (refund.State is PaymentRefundState.Succeeded or PaymentRefundState.Failed or PaymentRefundState.Canceled) refund.Unresolved = false;
@@ -124,8 +130,10 @@ public sealed partial class PurchaseRepository
         }
         var refunded = refunds.Where(x => x.State == PaymentRefundState.Succeeded).Sum(x => (decimal)x.AmountMinor) >= order.AmountMinor;
         var lost = disputes.Any(x => x.State is PaymentDisputeState.Lost or PaymentDisputeState.Accepted);
-        var needsReview = refunds.Any(x => x.AmountMinor != order.AmountMinor) || disputes.Any(x => x.State == PaymentDisputeState.Inquiry);
-        if (needsReview) order.ReconciliationIssue = refunds.Any(x => x.AmountMinor != order.AmountMinor) ? "UNSUPPORTED_PARTIAL_REFUND" : "DISPUTE_INQUIRY";
+        var contradictoryRefund = refunds.Any(x => x.FailureCode?.StartsWith("REFUND_SUCCESS_REPORTED_", StringComparison.Ordinal) == true);
+        var needsReview = contradictoryRefund || refunds.Any(x => x.AmountMinor != order.AmountMinor) || disputes.Any(x => x.State == PaymentDisputeState.Inquiry);
+        if (needsReview) order.ReconciliationIssue = contradictoryRefund ? "REFUND_SUCCESS_CONTRADICTION" :
+            refunds.Any(x => x.AmountMinor != order.AmountMinor) ? "UNSUPPORTED_PARTIAL_REFUND" : "DISPUTE_INQUIRY";
         var funding = order.FundingAttemptId == attempt.Id;
         GameLicense? license = order.LicenseId is { } licenseId ? await db.GameLicenses.SingleAsync(x => x.Id == licenseId, ct) : null;
         if (license is not null && (license.AccountId != order.AccountId || license.LicenseReference != PurchaseLicense.Reference(order.Id) ||

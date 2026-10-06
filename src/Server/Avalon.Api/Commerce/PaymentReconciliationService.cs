@@ -76,6 +76,10 @@ public sealed class PaymentReconciliationService(IPurchaseRepository purchases, 
                 var recovered = await provider.CreateCheckoutAsync(new(order.Id, a.Id, a.OperationKey, a.ProviderPriceId, a.ProviderCatalogProductId,
                     order.AmountMinor, order.Currency, CommercePolicy.GameLicenseQuantity, a.CheckoutEmail, a.SuccessUrl, a.CancelUrl,
                     DateTime.SpecifyKind(a.RequestedExpiresAt, DateTimeKind.Utc), a.PaymentMethods.Split(',')), ct);
+                if (!await purchases.RecordCheckoutAsync(a.Id, claim.Version, new(recovered.CheckoutReference, recovered.CheckoutUrl, recovered.ExpiresAt), ct))
+                    return new(false, "STALE_ATTEMPT");
+                // Recording the recovered binding increments the fence; the same lease still owns reconciliation.
+                claim = claim with { Version = claim.Version + 1 };
                 lookup = new(recovered.CheckoutReference, null);
             }
             var snapshot = await provider.GetCheckoutAsync(lookup, ct);
