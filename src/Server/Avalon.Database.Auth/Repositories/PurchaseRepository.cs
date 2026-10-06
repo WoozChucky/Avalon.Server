@@ -1,4 +1,5 @@
 using Avalon.Common.Accounts;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Commerce;
@@ -8,7 +9,9 @@ namespace Avalon.Database.Auth.Repositories;
 
 public sealed record PurchaseReservation(AccountId AccountId, int CredentialsVersion, string Product, string OfferId,
     string ProviderPriceId, long AmountMinor, string Currency, string Provider, string ProviderAccountId,
-    string PaymentEnvironment, string LicenseEnvironment, string PublicSiteOrigin, string CheckoutEmail);
+    string PaymentEnvironment, string LicenseEnvironment, string PublicSiteOrigin, string CheckoutEmail,
+    string ProviderCatalogProductId, string PaymentMethods, DateTime RequestedExpiresAt);
+public sealed record PurchaseAccountStatus(bool EmailVerified, GameLicense? License, bool HasStoreLicense);
 public sealed record PurchaseReservationResult(string? Error, PurchaseOrder? Order = null, PaymentAttempt? Attempt = null);
 public sealed record CheckoutBinding(string CheckoutReference, string CheckoutUrl, DateTime ExpiresAt);
 public sealed record PaymentEventClaim(PaymentEvent Event, Guid LeaseId, DateTime LeaseUntil, long Version);
@@ -26,6 +29,10 @@ public interface IPurchaseRepository
     Task<bool> CompleteEventAsync(Guid eventId, Guid leaseId, PaymentProcessingResult result, CancellationToken ct = default);
     Task<PaymentAttemptClaim?> ClaimAttemptAsync(Guid attemptId, DateTime now, TimeSpan lease, CancellationToken ct = default);
     Task<bool> ReleaseAttemptAsync(Guid attemptId, Guid leaseId, CancellationToken ct = default);
+    Task<PaymentAttempt?> FindLatestAttemptAsync(Guid orderId, CancellationToken ct = default);
+    Task<PurchaseAccountStatus> GetAccountStatusAsync(AccountId account, string product, string environment, CancellationToken ct = default);
+    Task<PaymentAttemptClaim?> BeginDispatchAsync(PaymentAttemptClaim claim, CancellationToken ct = default);
+    Task<bool> RecordUnknownAsync(PaymentAttemptClaim claim, bool needsReview, CancellationToken ct = default);
 }
 
 /// <summary>Short local transactions only. Provider requests happen after durable reservation.</summary>
@@ -41,36 +48,101 @@ public sealed class PurchaseRepository(IDbContextFactory<AuthDbContext> factory,
         // This root lock serializes with consolidation and subsequent payment fulfillment.
         if (await db.Accounts.Where(a => a.Id == reservation.AccountId)
             .ExecuteUpdateAsync(u => u.SetProperty(a => a.SessionEpoch, a => a.SessionEpoch), ct) != 1)
-            return new("ACCOUNT_UNAVAILABLE");
+            return new(PurchaseFailureCodes.AccountUnavailable);
         var account = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == reservation.AccountId, ct);
         if (account.Status != AccountStatus.Active || (account.AccessLevel & AccountAccessLevel.Player) == 0 ||
             account.IsLockedAt(Now) || account.GameplayConsolidationId is not null || account.CredentialsVersion != reservation.CredentialsVersion)
-            return new("ACCOUNT_UNAVAILABLE");
-        if (account.EmailVerifiedAt is null || string.IsNullOrWhiteSpace(account.Email)) return new("EMAIL_NOT_VERIFIED");
+            return new(PurchaseFailureCodes.AccountUnavailable);
+        if (account.EmailVerifiedAt is null || string.IsNullOrWhiteSpace(account.Email)) return new(PurchaseFailureCodes.EmailNotVerified);
+        if (await db.GameLicenses.AnyAsync(x => x.AccountId == account.Id && x.Product == reservation.Product && x.Environment == reservation.LicenseEnvironment &&
+            x.AuthorityKind == LicenseAuthorityKind.StoredGrant && x.Provider == "avalon" && x.RevokedAt == null && x.GrantedAt <= Now &&
+            (x.ExpiresAt == null || x.ExpiresAt > Now), ct)) return new(PurchaseFailureCodes.LicenseAlreadyOwned);
         var order = await db.PurchaseOrders.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == account.Id &&
             x.Product == reservation.Product && x.LicenseEnvironment == reservation.LicenseEnvironment && x.Unresolved, ct);
+        PaymentAttempt? previous = null;
         if (order is not null)
         {
             var existing = await db.PaymentAttempts.AsNoTracking().Where(x => x.OrderId == order.Id)
-                .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstAsync(ct);
-            await transaction.CommitAsync(ct);
-            return new(null, order, existing);
+                .OrderByDescending(x => x.Sequence).FirstAsync(ct);
+            if (existing.State == PaymentAttemptState.Reserved && existing.FirstDispatchedAt is null && existing.RequestedExpiresAt <= Now &&
+                (existing.LeaseUntil is null || existing.LeaseUntil <= Now))
+            {
+                // No provider request ever began. Fence a racing claimant before replacing this locally expired reservation.
+                if (await db.PaymentAttempts.Where(x => x.Id == existing.Id && x.Version == existing.Version && x.Version < long.MaxValue &&
+                    x.State == PaymentAttemptState.Reserved && x.FirstDispatchedAt == null && (x.LeaseUntil == null || x.LeaseUntil <= Now))
+                    .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, PaymentAttemptState.Expired).SetProperty(x => x.Version, x => x.Version + 1), ct) == 1)
+                    existing.State = PaymentAttemptState.Expired;
+            }
+            if (order.ReconciliationIssue is not null || existing.State == PaymentAttemptState.NeedsReview) return new(PurchaseFailureCodes.NeedsReview);
+            if (existing.State is not (PaymentAttemptState.Failed or PaymentAttemptState.Expired or PaymentAttemptState.Canceled))
+            {
+                await transaction.CommitAsync(ct);
+                return new(null, order, existing);
+            }
+            previous = existing;
+            if (previous.Sequence == int.MaxValue) return new(PurchaseFailureCodes.NeedsReview);
         }
         var now = Now;
-        order = new PurchaseOrder { Id = Guid.NewGuid(), AccountId = account.Id, OriginalPurchaserAccountId = account.Id,
+        order ??= new PurchaseOrder { Id = Guid.NewGuid(), AccountId = account.Id, OriginalPurchaserAccountId = account.Id,
             Product = reservation.Product, OfferId = reservation.OfferId, AmountMinor = reservation.AmountMinor, Currency = reservation.Currency,
             Provider = reservation.Provider, ProviderAccountId = reservation.ProviderAccountId, PaymentEnvironment = reservation.PaymentEnvironment,
             LicenseEnvironment = reservation.LicenseEnvironment, CreatedAt = now };
         var returnUrl = reservation.PublicSiteOrigin.TrimEnd('/') + $"/account/purchases/{order.Id:D}";
-        var attempt = new PaymentAttempt { Id = Guid.NewGuid(), OrderId = order.Id, Provider = order.Provider,
+        var attempt = new PaymentAttempt { Id = Guid.NewGuid(), OrderId = order.Id, Sequence = (previous?.Sequence ?? 0) + 1, Provider = order.Provider,
             ProviderAccountId = order.ProviderAccountId, Environment = order.PaymentEnvironment, OperationKey = Guid.NewGuid().ToString("N"),
-            ProviderPriceId = reservation.ProviderPriceId, CheckoutEmail = account.Email,
+            ProviderPriceId = previous?.ProviderPriceId ?? reservation.ProviderPriceId,
+            ProviderCatalogProductId = previous?.ProviderCatalogProductId ?? reservation.ProviderCatalogProductId,
+            PaymentMethods = previous?.PaymentMethods ?? reservation.PaymentMethods,
+            RequestedExpiresAt = DateTimeOffset.FromUnixTimeSeconds(new DateTimeOffset(reservation.RequestedExpiresAt).ToUnixTimeSeconds()).UtcDateTime,
+            CheckoutEmail = account.Email,
             SuccessUrl = returnUrl, CancelUrl = returnUrl + "?canceled=true", CreatedAt = now };
-        db.PurchaseOrders.Add(order);
+        if (previous is null) db.PurchaseOrders.Add(order);
         db.PaymentAttempts.Add(attempt);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return new(null, order, attempt);
+    }
+
+    public async Task<PaymentAttempt?> FindLatestAttemptAsync(Guid orderId, CancellationToken ct = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        return await db.PaymentAttempts.AsNoTracking().Where(x => x.OrderId == orderId)
+            .OrderByDescending(x => x.Sequence).FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<PurchaseAccountStatus> GetAccountStatusAsync(AccountId account, string product, string environment, CancellationToken ct = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var verified = await db.Accounts.AnyAsync(x => x.Id == account && x.EmailVerifiedAt != null && x.Email != null, ct);
+        var grants = await db.GameLicenses.AsNoTracking().Where(x => x.AccountId == account && x.Product == product && x.Environment == environment &&
+            x.Provider == "avalon" && x.AuthorityKind == LicenseAuthorityKind.StoredGrant).OrderByDescending(x => x.GrantedAt).ToListAsync(ct);
+        var current = grants.Where(x => x.RevokedAt == null && x.GrantedAt <= Now && (x.ExpiresAt == null || x.ExpiresAt > Now))
+            .OrderBy(x => x.SuspendedAt != null).FirstOrDefault() ?? grants.FirstOrDefault();
+        var store = await db.GameLicenses.AnyAsync(x => x.AccountId == account && x.Product == product && x.Environment == environment && x.Provider != "avalon", ct);
+        return new(verified, current, store);
+    }
+
+    public async Task<PaymentAttemptClaim?> BeginDispatchAsync(PaymentAttemptClaim claim, CancellationToken ct = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var now = Now;
+        if (await db.PaymentAttempts.Where(x => x.Id == claim.Attempt.Id && x.Version == claim.Version && x.Version < long.MaxValue &&
+            x.LeaseId == claim.LeaseId && x.LeaseUntil > now && (x.ReplayDeadline == null || x.ReplayDeadline > now) &&
+            (x.State == PaymentAttemptState.Reserved || x.State == PaymentAttemptState.ProviderUnknown))
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.FirstDispatchedAt, x => x.FirstDispatchedAt ?? now)
+                .SetProperty(x => x.ReplayDeadline, x => x.ReplayDeadline ?? now.AddHours(23))
+                .SetProperty(x => x.State, PaymentAttemptState.ProviderUnknown).SetProperty(x => x.Version, x => x.Version + 1), ct) != 1) return null;
+        var row = await db.PaymentAttempts.AsNoTracking().SingleAsync(x => x.Id == claim.Attempt.Id, ct);
+        return row.LeaseId == claim.LeaseId ? new(row, claim.LeaseId, claim.LeaseUntil, row.Version) : null;
+    }
+
+    public async Task<bool> RecordUnknownAsync(PaymentAttemptClaim claim, bool needsReview, CancellationToken ct = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        return await db.PaymentAttempts.Where(x => x.Id == claim.Attempt.Id && x.Version == claim.Version && x.Version < long.MaxValue &&
+            x.LeaseId == claim.LeaseId && x.LeaseUntil > Now && (x.State == PaymentAttemptState.Reserved || x.State == PaymentAttemptState.ProviderUnknown))
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, needsReview ? PaymentAttemptState.NeedsReview : PaymentAttemptState.ProviderUnknown)
+                .SetProperty(x => x.Version, x => x.Version + 1), ct) == 1;
     }
 
     public async Task<PurchaseOrder?> FindForAccountAsync(AccountId account, Guid id, CancellationToken ct = default)
@@ -90,14 +162,15 @@ public sealed class PurchaseRepository(IDbContextFactory<AuthDbContext> factory,
     {
         if (!Text(binding.CheckoutReference, 256) || !Uri.TryCreate(binding.CheckoutUrl, UriKind.Absolute, out var url) ||
             url.Scheme != "https" || url.UserInfo.Length != 0 || !url.IsDefaultPort || binding.CheckoutUrl.Length > 2048 ||
-            binding.ExpiresAt.Kind != DateTimeKind.Utc || binding.ExpiresAt <= Now) throw new ArgumentException("Invalid checkout binding.", nameof(binding));
+            binding.ExpiresAt.Kind != DateTimeKind.Utc || binding.ExpiresAt <= DateTime.UnixEpoch) throw new ArgumentException("Invalid checkout binding.", nameof(binding));
         await using var db = await factory.CreateDbContextAsync(ct);
         return await db.PaymentAttempts.Where(x => x.Id == attemptId && x.Version == expectedVersion && x.Version < long.MaxValue &&
                 (x.LeaseUntil == null || x.LeaseUntil > Now) && (x.CheckoutReference == null || x.CheckoutReference == binding.CheckoutReference) &&
                 (x.State == PaymentAttemptState.Reserved || x.State == PaymentAttemptState.ProviderUnknown || x.State == PaymentAttemptState.CheckoutOpen))
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.CheckoutReference, binding.CheckoutReference)
-                .SetProperty(x => x.CheckoutUrl, binding.CheckoutUrl).SetProperty(x => x.ExpiresAt, binding.ExpiresAt)
-                .SetProperty(x => x.State, PaymentAttemptState.CheckoutOpen).SetProperty(x => x.Version, x => x.Version + 1), ct) == 1;
+                .SetProperty(x => x.CheckoutUrl, binding.ExpiresAt > Now ? binding.CheckoutUrl : null).SetProperty(x => x.ExpiresAt, binding.ExpiresAt)
+                .SetProperty(x => x.State, binding.ExpiresAt > Now ? PaymentAttemptState.CheckoutOpen : PaymentAttemptState.ProviderUnknown)
+                .SetProperty(x => x.Version, x => x.Version + 1), ct) == 1;
     }
 
     public async Task<bool> AcceptEventAsync(PaymentEvent notification, CancellationToken ct = default)
@@ -192,6 +265,9 @@ public sealed class PurchaseRepository(IDbContextFactory<AuthDbContext> factory,
             reservation.AmountMinor <= 0 || reservation.Currency.Length != 3 || reservation.Currency.Any(c => !char.IsAsciiLetterLower(c)) ||
             !Text(reservation.Provider, 32) || !Text(reservation.ProviderAccountId, 128) || !Text(reservation.PaymentEnvironment, 32) ||
             !Text(reservation.LicenseEnvironment, 32) || !Uri.TryCreate(reservation.PublicSiteOrigin, UriKind.Absolute, out var origin) ||
+            !Text(reservation.ProviderCatalogProductId, 256) || !Text(reservation.PaymentMethods, 512) ||
+            reservation.PaymentMethods.Split(',').Any(x => !Text(x, 32) || x.Any(c => !char.IsAsciiLetterLower(c) && c != '_')) ||
+            reservation.RequestedExpiresAt.Kind != DateTimeKind.Utc || reservation.RequestedExpiresAt <= DateTime.UnixEpoch ||
             origin.Scheme != "https" || origin.UserInfo.Length != 0 || origin.Query.Length != 0 || origin.Fragment.Length != 0 || origin.AbsolutePath != "/")
             throw new ArgumentException("Invalid trusted purchase reservation.", nameof(reservation));
     }

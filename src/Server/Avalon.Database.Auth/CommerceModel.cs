@@ -36,6 +36,8 @@ internal static class CommerceModel
         attempt.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
         attempt.Property(x => x.OperationKey).HasMaxLength(128);
         attempt.Property(x => x.ProviderPriceId).HasMaxLength(128);
+        attempt.Property(x => x.ProviderCatalogProductId).HasMaxLength(256);
+        attempt.Property(x => x.PaymentMethods).HasMaxLength(512);
         attempt.Property(x => x.CheckoutEmail).HasMaxLength(254);
         attempt.Property(x => x.SuccessUrl).HasMaxLength(2048);
         attempt.Property(x => x.CancelUrl).HasMaxLength(2048);
@@ -45,6 +47,7 @@ internal static class CommerceModel
         attempt.HasIndex(x => new { x.Provider, x.ProviderAccountId, x.Environment, x.CheckoutReference }).IsUnique();
         attempt.HasIndex(x => new { x.Provider, x.ProviderAccountId, x.Environment, x.PaymentReference }).IsUnique();
         attempt.HasIndex(x => new { x.Provider, x.ProviderAccountId, x.Environment, x.OperationKey }).IsUnique();
+        attempt.HasIndex(x => new { x.OrderId, x.Sequence }).IsUnique();
         attempt.HasOne<PurchaseOrder>().WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
 
         var refund = model.Entity<PaymentRefund>();

@@ -107,7 +107,7 @@ public sealed class PurchaseRepositoryShould
     }
 
     internal static PurchaseReservation Reservation(AccountId account) => new(account, 0, "avalon.base", "base", "price-test", 800, "eur",
-        "stripe", "merchant-test", "sandbox", "development", "https://avalon.example.test", "purchaser@example.test");
+        "stripe", "merchant-test", "sandbox", "development", "https://avalon.example.test", "purchaser@example.test", "catalog", "card", Now.AddMinutes(30));
 
     private static PaymentEvent Event(string reference) => new() { Id = Guid.NewGuid(), Provider = "stripe", ProviderAccountId = "merchant-test",
         Environment = "sandbox", ExternalReference = reference, Type = "checkout", ResourceReference = "checkout-one", CreatedAt = Now, NextAttemptAt = Now };

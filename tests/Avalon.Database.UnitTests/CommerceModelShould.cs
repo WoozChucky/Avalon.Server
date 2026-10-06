@@ -17,15 +17,16 @@ public sealed class CommerceModelShould
         var original = await db.PaymentAttempts.SingleAsync();
         original.CheckoutReference = "checkout-shared";
         await db.SaveChangesAsync();
+        var sequence = 2;
         foreach (var scope in new[] { ("alternate", "sandbox"), ("stripe", "other-sandbox") })
         {
-            db.PaymentAttempts.Add(new PaymentAttempt { Id = Guid.NewGuid(), OrderId = result.Order!.Id, Provider = scope.Item1,
+            db.PaymentAttempts.Add(new PaymentAttempt { Id = Guid.NewGuid(), OrderId = result.Order!.Id, Sequence = sequence++, Provider = scope.Item1,
                 ProviderAccountId = "merchant-test", Environment = scope.Item2, OperationKey = Guid.NewGuid().ToString("N"),
                 ProviderPriceId = "price-test", CheckoutEmail = "test@example.test", SuccessUrl = "https://example.test", CancelUrl = "https://example.test",
                 CheckoutReference = "checkout-shared", CreatedAt = DateTime.UtcNow });
         }
         await db.SaveChangesAsync();
-        db.PaymentAttempts.Add(new PaymentAttempt { Id = Guid.NewGuid(), OrderId = result.Order!.Id, Provider = "stripe", ProviderAccountId = "merchant-test",
+        db.PaymentAttempts.Add(new PaymentAttempt { Id = Guid.NewGuid(), OrderId = result.Order!.Id, Sequence = sequence, Provider = "stripe", ProviderAccountId = "merchant-test",
             Environment = "sandbox", OperationKey = Guid.NewGuid().ToString("N"), ProviderPriceId = "price-test", CheckoutEmail = "test@example.test",
             SuccessUrl = "https://example.test", CancelUrl = "https://example.test", CheckoutReference = "checkout-shared", CreatedAt = DateTime.UtcNow });
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());

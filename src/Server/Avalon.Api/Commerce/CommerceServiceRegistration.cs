@@ -33,5 +33,7 @@ public static class CommerceServiceRegistration
         });
         services.AddSingleton<Commerce.IPaymentProvider, Commerce.StripePaymentProvider>();
         services.AddSingleton<Commerce.PaymentProviderRegistry>();
+        services.AddSingleton<Commerce.ICheckoutBudget, Commerce.CheckoutBudget>();
+        services.AddSingleton<Commerce.IPurchaseService, Commerce.PurchaseService>();
     }
 }
