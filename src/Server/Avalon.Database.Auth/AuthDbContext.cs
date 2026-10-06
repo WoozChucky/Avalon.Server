@@ -88,6 +88,7 @@ public class AuthDbContext : DbContext
     public DbSet<ExternalIdentity> ExternalIdentities { get; set; } = null!;
     public DbSet<LicenseObservation> LicenseObservations { get; set; } = null!;
     public DbSet<GameLicense> GameLicenses { get; set; } = null!;
+    public DbSet<LicenseHold> LicenseHolds { get; set; } = null!;
     public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
     public DbSet<PaymentAttempt> PaymentAttempts { get; set; } = null!;
     public DbSet<PaymentRefund> PaymentRefunds { get; set; } = null!;

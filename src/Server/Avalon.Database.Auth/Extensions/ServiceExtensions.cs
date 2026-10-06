@@ -29,6 +29,7 @@ public static class ServiceExtensions
             .AddSingleton<Repositories.ILicenseObservationRepository, Repositories.LicenseObservationRepository>()
             .AddSingleton<Repositories.IGameLicenseRepository, Repositories.GameLicenseRepository>()
             .AddSingleton<Repositories.IPurchaseRepository, Repositories.PurchaseRepository>()
+            .AddSingleton<Repositories.ILicenseHoldRepository, Repositories.LicenseHoldRepository>()
             .AddSingleton<Repositories.IGameSessionRepository, Repositories.GameSessionRepository>()
             .AddSingleton<Repositories.IAccountRepository, Repositories.AccountRepository>()
             .AddSingleton<Repositories.IAccountEmailVerificationRepository, Repositories.AccountEmailVerificationRepository>()

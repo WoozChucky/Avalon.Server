@@ -29,7 +29,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
         {
             GameLicense? license = request.BoundLicenseId is { } bound ? await licenses.FindAsync(bound, ct) : null;
             if (request.BoundLicenseId is not null && (license is null || !Matches(license, request, provider.AuthorityKind) ||
-                license.AuthorityRevision != request.BoundRevision || license.RevokedAt is not null)) return Unlicensed;
+                license.AuthorityRevision != request.BoundRevision || license.RevokedAt is not null || license.SuspendedAt is not null)) return Unlicensed;
             var evidence = verifiedEvidence ?? await provider.CheckAsync(request, ct);
             if (evidence.Status == GameLicenseCheckStatus.Unavailable) return Unavailable;
             if (evidence.Status == GameLicenseCheckStatus.Unlicensed && request.BoundLicenseId is null &&
@@ -61,6 +61,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 }, ct);
                 if (!Matches(license, request, provider.AuthorityKind)) return Unavailable;
             }
+            if (owns && license.SuspendedAt is not null) return Unlicensed;
             if (owns && license.AuthorityKind == LicenseAuthorityKind.StoredGrant && !license.Authorizes(request.Account,
                 request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;
             if (owns && license.ExpiresAt is { } storedExpiry && license.AuthorityKind == LicenseAuthorityKind.StoredGrant) end = Earlier(end, storedExpiry);
@@ -70,6 +71,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                     Reestablish: request.BoundLicenseId is null && provider.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership), ct);
             if (applied is null) return Unlicensed;
             if (!Matches(applied, request, provider.AuthorityKind)) return Unavailable;
+            if (owns && !applied.Authorizes(request.Account, request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;
             var observation = new LicenseObservation
             {
                 Id = Guid.NewGuid(), LicenseId = applied.Id, AuthorityRevision = applied.AuthorityRevision,
@@ -110,7 +112,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
         try
         {
             var row = await licenses.FindAsync(licenseId, ct);
-            return row is not null && row.Id == licenseId && row.AuthorityRevision == revision && row.RevokedAt is null &&
+            return row is not null && row.Id == licenseId && row.AuthorityRevision == revision && row.RevokedAt is null && row.SuspendedAt is null &&
                 row.AccountId == account && row.Product == application.Product && row.Environment == application.Environment &&
                 row.Provider == application.Provider && row.ProviderProductId == application.ProviderProductId &&
                 row.ProviderSubject == subject && row.AuthorityKind == provider.AuthorityKind;

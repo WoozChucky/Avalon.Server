@@ -18,13 +18,14 @@ public sealed class GameLicense
     public DateTime GrantedAt { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public DateTime? RevokedAt { get; set; }
+    public DateTime? SuspendedAt { get; set; }
     public long AuthorityRevision { get; set; } = 1;
     public DateTime? LastObservedAt { get; set; }
     public DateTime? VerifiedUntil { get; set; }
 
     public bool Authorizes(AccountId account, string product, string environment, DateTime now) =>
         AccountId == account && Product == product && Environment == environment && AuthorityRevision > 0 &&
-        GrantedAt <= now && RevokedAt is null && (ExpiresAt is null || ExpiresAt > now) &&
+        GrantedAt <= now && RevokedAt is null && SuspendedAt is null && (ExpiresAt is null || ExpiresAt > now) &&
         (AuthorityKind == LicenseAuthorityKind.StoredGrant ||
          (AuthorityKind == LicenseAuthorityKind.VerifiedOwnership && LastObservedAt <= now &&
           VerifiedUntil > now && VerifiedUntil <= LastObservedAt.Value.AddMinutes(5)));
