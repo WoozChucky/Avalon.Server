@@ -3,6 +3,7 @@ namespace Avalon.Api.Commerce;
 public sealed class CommerceConfiguration
 {
     public bool Enabled { get; set; }
+    public bool AllowExistingAccountSandbox { get; set; }
     public string Provider { get; set; } = StripePaymentProvider.ProviderName;
     public string PaymentEnvironment { get; set; } = CommerceEnvironments.Sandbox;
     public string LicenseEnvironment { get; set; } = CommerceEnvironments.DevelopmentLicense;

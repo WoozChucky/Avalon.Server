@@ -194,8 +194,10 @@ one key would silently read one value.
 {{- if hasKey $commerce "apiKey" -}}{{- fail "commerce.apiKey is forbidden; use an existing Secret reference" -}}{{- end -}}
 {{- if hasKey $commerce "webhookSecret" -}}{{- fail "commerce.webhookSecret is forbidden; use an existing Secret reference" -}}{{- end -}}
 {{- if $commerce.enabled -}}
-{{- if or (ne .Values.environment "Development") (ne .Values.storeAuthentication.environment "development") (ne .Values.storeAuthentication.steamIdentityPrefix "avalon-auth-dev") (ne $commerce.paymentEnvironment "sandbox") (ne $commerce.licenseEnvironment "development") -}}
-{{- fail "commerce requires an isolated Development sandbox with development store authentication" -}}
+{{- $isolated := and (eq .Values.environment "Development") (eq .Values.storeAuthentication.environment "development") (eq .Values.storeAuthentication.steamIdentityPrefix "avalon-auth-dev") (eq $commerce.licenseEnvironment "development") -}}
+{{- $existingAccounts := and $commerce.allowExistingAccountSandbox (eq .Values.environment "Production") (eq .Values.storeAuthentication.environment "production") (eq $commerce.licenseEnvironment "production") -}}
+{{- if or (not (or $isolated $existingAccounts)) (ne $commerce.paymentEnvironment "sandbox") -}}
+{{- fail "commerce requires an isolated Development sandbox or explicit existing-account sandbox opt-in; live payments remain disabled" -}}
 {{- end -}}
 {{- range $field := list "provider" "publicSiteOrigin" "offerId" "providerPriceId" "providerCatalogProductId" "providerAccountId" "existingSecret" "apiKeyKey" "webhookSecretKey" -}}
 {{- if not (get $commerce $field | toString | trim) -}}{{- fail (printf "commerce.%s is required" $field) -}}{{- end -}}

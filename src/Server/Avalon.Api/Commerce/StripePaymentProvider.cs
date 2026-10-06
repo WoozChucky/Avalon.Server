@@ -158,7 +158,10 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
 
     private void Enabled()
     {
-        if (!Configuration.Enabled || Configuration.Provider != ProviderName || Configuration.PaymentEnvironment != CommerceEnvironments.Sandbox || Configuration.LicenseEnvironment != CommerceEnvironments.DevelopmentLicense)
+        var permittedLicense = Configuration.LicenseEnvironment == CommerceEnvironments.DevelopmentLicense ||
+            Configuration.AllowExistingAccountSandbox && Configuration.LicenseEnvironment == CommerceEnvironments.ProductionLicense;
+        if (!Configuration.Enabled || Configuration.Provider != ProviderName || Configuration.PaymentEnvironment != CommerceEnvironments.Sandbox ||
+            !permittedLicense || !Registration.SettingsAreValid(Configuration))
             throw new PaymentProviderException("PAYMENT_PROVIDER_DISABLED");
     }
     private async Task Merchant(CancellationToken ct)

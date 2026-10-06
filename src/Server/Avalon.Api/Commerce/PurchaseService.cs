@@ -28,7 +28,8 @@ public sealed class PurchaseService(IPurchaseRepository purchases, PaymentProvid
         var state = license is null ? "None" : license.RevokedAt is not null || license.ExpiresAt <= Now ? "Revoked" :
             license.SuspendedAt is not null ? "Suspended" : "Active";
         var order = await purchases.FindCurrentAsync(account, StoreAuthenticationConfiguration.Product, authentication.Value.Environment, ct);
-        return new(state, status.EmailVerified, status.HasStoreLicense, Config.Enabled, Config.AmountMinor, Config.Currency, order?.Id);
+        return new(state, status.EmailVerified, status.HasStoreLicense, Config.Enabled, Config.AmountMinor, Config.Currency, order?.Id,
+            Config.Enabled && Config.PaymentEnvironment == CommerceEnvironments.Sandbox);
     }
 
     public async Task<PurchaseOrderDto> GetOrderAsync(AccountId account, Guid orderId, CancellationToken ct = default)

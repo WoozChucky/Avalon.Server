@@ -12,5 +12,6 @@ public static class CommerceEnvironments
 {
     public const string Sandbox = "sandbox";
     public const string DevelopmentLicense = "development";
+    public const string ProductionLicense = "production";
     public const string DevelopmentIdentityPrefix = "avalon-auth-dev";
 }
