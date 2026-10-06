@@ -65,6 +65,7 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
             return new(GameAuthErrors.AccountUnavailable);
         var mfa = await db.MfaSetups.Where(m => m.AccountId == target.Id && m.Status == MfaSetupStatus.Confirmed).Select(m => (Guid?)m.Id).SingleOrDefaultAsync(cancellationToken);
         if (mfa != request.ConfirmedMfaId) return new(GameAuthErrors.AuthorityChanged);
+        if (await ConflictingPurchases(db, source.Id, target.Id, cancellationToken)) return new(GameAuthErrors.AccountUnavailable);
         var links = await db.ExternalIdentities.AsNoTracking().Where(i => i.AccountId == source.Id || i.AccountId == target.Id).ToListAsync(cancellationToken);
         if (links.Count(i => i.AccountId == source.Id) != 1 || !links.Any(i => i.Id == identity.Id && i.AccountId == source.Id && i.ProviderSubject == request.ProviderSubject) ||
             links.Any(i => i.AccountId == target.Id && i.Provider == request.Provider)) return new(GameAuthErrors.IdentityConflict);
@@ -110,6 +111,15 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
         if (identity is null || await db.ExternalIdentities.AnyAsync(i => (i.AccountId == target.Id && i.Provider == operation.Provider) || (i.AccountId == source.Id && i.Id != identity.Id), cancellationToken)) return false;
         var licenses = await db.GameLicenses.Where(x => x.AccountId == source.Id).ToListAsync(cancellationToken);
         if (licenses.Any(x => x.AuthorityRevision == long.MaxValue)) return false;
+        if (await ConflictingPurchases(db, source.Id, target.Id, cancellationToken)) return false;
+        // Move trusted beneficiaries with the same root locks; retain immutable financial provenance.
+        var purchases = await db.PurchaseOrders.Where(x => x.AccountId == source.Id).ToListAsync(cancellationToken);
+        if (purchases.Any(x => x.Version == long.MaxValue)) return false;
+        foreach (var purchase in purchases)
+        {
+            purchase.AccountId = target.Id;
+            purchase.Version++;
+        }
         foreach (var license in licenses)
         {
             license.AccountId = target.Id;
@@ -142,6 +152,9 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
             .ExecuteUpdateAsync(u => u.SetProperty(o => o.State, AccountConsolidationState.Completed).SetProperty(o => o.CompletedAt, (DateTime?)Now), cancellationToken) == 1 ||
             await db.AccountConsolidations.AnyAsync(o => o.Id == operationId && o.State == AccountConsolidationState.Completed, cancellationToken);
     }
+    private static Task<bool> ConflictingPurchases(AuthDbContext db, AccountId source, AccountId target, CancellationToken ct) =>
+        db.PurchaseOrders.AnyAsync(x => x.AccountId == source && x.Unresolved &&
+            db.PurchaseOrders.Any(y => y.AccountId == target && y.Unresolved && y.Product == x.Product && y.LicenseEnvironment == x.LicenseEnvironment), ct);
     private bool Eligible(Account account) => account.Status == AccountStatus.Active && (account.AccessLevel & AccountAccessLevel.Player) != 0 && !account.IsLockedAt(Now);
     private bool SourceEligible(Account account) => Eligible(account) && account.AccessLevel == AccountAccessLevel.Player && account.IsStoreGenerated;
     private static bool Matches(AccountConsolidation operation, AccountConsolidationRequest request) => operation.TargetAccountId == request.TargetAccountId &&

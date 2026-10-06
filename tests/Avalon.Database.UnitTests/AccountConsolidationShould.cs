@@ -1,4 +1,5 @@
 using Avalon.Common.Accounts;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,55 @@ namespace Avalon.Database.UnitTests;
 
 public sealed class AccountConsolidationShould
 {
+    [Fact]
+    public async Task Consolidation_moves_beneficiary_and_preserves_original_purchaser()
+    {
+        using var database = SqliteDatabase.Auth();
+        var (source, target, request) = await Seed(database);
+        await VerifyPurchaseAccounts(database, source.Id, target.Id);
+        var purchases = new PurchaseRepository(database, _clock);
+        var purchase = await purchases.ReserveAsync(PurchaseRepositoryShould.Reservation(source.Id));
+        var operationKey = purchase.Attempt!.OperationKey;
+        var repository = new AccountConsolidationRepository(database, _clock);
+        Assert.Null((await repository.BeginAsync(request, default)).Error);
+        foreach (var world in request.Worlds) Assert.True(await repository.RecordTransferAsync(request.OperationId, world, 0, default));
+        Assert.True(await repository.FinalizeAsync(request.OperationId, default));
+        Assert.Null(await purchases.FindForAccountAsync(source.Id, purchase.Order!.Id));
+        var moved = await purchases.FindForAccountAsync(target.Id, purchase.Order.Id);
+        Assert.Equal(source.Id, moved!.OriginalPurchaserAccountId);
+        Assert.Equal(target.Id, moved.AccountId);
+        Assert.Equal(800, moved.AmountMinor);
+        Assert.Equal("eur", moved.Currency);
+        await using var read = database.CreateDbContext();
+        Assert.Equal(operationKey, (await read.PaymentAttempts.SingleAsync()).OperationKey);
+    }
+
+    [Fact]
+    public async Task Conflicting_unresolved_orders_block_consolidation_before_character_transfers()
+    {
+        using var database = SqliteDatabase.Auth();
+        var (source, target, request) = await Seed(database);
+        await VerifyPurchaseAccounts(database, source.Id, target.Id);
+        var purchases = new PurchaseRepository(database, _clock);
+        Assert.Null((await purchases.ReserveAsync(PurchaseRepositoryShould.Reservation(source.Id))).Error);
+        Assert.Null((await purchases.ReserveAsync(PurchaseRepositoryShould.Reservation(target.Id))).Error);
+        var result = await new AccountConsolidationRepository(database, _clock).BeginAsync(request, default);
+        Assert.NotNull(result.Error);
+        await using var db = database.CreateDbContext();
+        Assert.Empty(await db.AccountConsolidations.ToListAsync());
+        Assert.All(await db.Accounts.Where(x => x.Id == source.Id || x.Id == target.Id).ToListAsync(), x => Assert.Null(x.GameplayConsolidationId));
+    }
+
+    private async Task VerifyPurchaseAccounts(SqliteDatabase<Avalon.Database.Auth.AuthDbContext> database, AccountId source, AccountId target)
+    {
+        await using var db = database.CreateDbContext();
+        var sourceRow = await db.Accounts.SingleAsync(x => x.Id == source);
+        sourceRow.Email = "store-purchase@example.test";
+        sourceRow.EmailVerifiedAt = _clock.GetUtcNow().UtcDateTime;
+        var targetRow = await db.Accounts.SingleAsync(x => x.Id == target);
+        targetRow.EmailVerifiedAt = _clock.GetUtcNow().UtcDateTime;
+        await db.SaveChangesAsync();
+    }
     [Fact]
     public void Add_consolidation_schema_without_recreating_existing_accounts()
     {
