@@ -78,6 +78,7 @@ public static class ServiceRegistration
     {
         services.AddAuthDatabase();
         services.AddSteamStoreAuthentication();
+        services.AddCommerce();
         services.AddSteamWebLink();
         services.AddSingleton(sp => new Avalon.Infrastructure.GameAuth.GameAuthCryptography(
             sp.GetRequiredService<Microsoft.IdentityModel.Tokens.SymmetricSecurityKey>().Key));

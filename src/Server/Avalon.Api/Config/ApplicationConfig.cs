@@ -20,4 +20,5 @@ public class ApplicationConfig
     public EmailConfig? Email { get; set; }
     public Distribution.DistributionConfiguration? Distribution { get; set; }
     public Balance.BalanceConfiguration? Balance { get; set; }
+    public Commerce.CommerceConfiguration? Commerce { get; set; }
 }
