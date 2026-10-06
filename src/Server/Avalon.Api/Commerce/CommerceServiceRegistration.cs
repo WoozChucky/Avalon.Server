@@ -9,6 +9,13 @@ public static class CommerceServiceRegistration
     {
         services.AddOptions<Commerce.CommerceConfiguration>().BindConfiguration("Application:Commerce").ValidateOnStart();
         services.AddSingleton<IValidateOptions<Commerce.CommerceConfiguration>, Commerce.CommerceOptionsValidator>();
+        // Checkout URLs, buyer email and financial bindings must never enter EF parameter diagnostics.
+        services.AddSingleton<IPostConfigureOptions<Avalon.Configuration.DatabaseConfiguration>>(sp =>
+            new PostConfigureOptions<Avalon.Configuration.DatabaseConfiguration>(null, database =>
+            {
+                if (sp.GetRequiredService<IOptions<Commerce.CommerceConfiguration>>().Value.Enabled)
+                    database.EnableSensitiveDataLogging = false;
+            }));
         services.AddSingleton(Commerce.StripePaymentProvider.Registration);
 #pragma warning disable EXTEXP0001 // Durable operation keys own replay; transport retries and body-bearing diagnostics are suppressed.
         services.AddHttpClient("avalon-commerce", http =>

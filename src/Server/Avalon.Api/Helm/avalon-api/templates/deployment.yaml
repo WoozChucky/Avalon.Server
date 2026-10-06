@@ -1,5 +1,6 @@
 {{- include "avalon-api.validateWorlds" . }}
 {{- include "avalon-api.validateEmail" . }}
+{{- include "avalon-api.validateCommerce" . }}
 {{- $configuredSteamAppId := required "storeAuthentication.steamAppId is required" .Values.storeAuthentication.steamAppId }}
 {{- $steamAppId := int64 $configuredSteamAppId }}
 {{- /* Emit canonical decimal, even when YAML decodes a large App ID as float64; never truncate a fraction. */}}
@@ -47,6 +48,28 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            - name: Application__Commerce__Enabled
+              value: {{ .Values.commerce.enabled | quote }}
+            {{- if .Values.commerce.enabled }}
+            {{- range $name, $value := dict "Provider" .Values.commerce.provider "PaymentEnvironment" .Values.commerce.paymentEnvironment "LicenseEnvironment" .Values.commerce.licenseEnvironment "AmountMinor" .Values.commerce.amountMinor "Currency" .Values.commerce.currency "Quantity" .Values.commerce.quantity "Product" .Values.commerce.product "ProviderProduct" .Values.commerce.providerProduct "PublicSiteOrigin" .Values.commerce.publicSiteOrigin "OfferId" .Values.commerce.offerId "ProviderPriceId" .Values.commerce.providerPriceId "ProviderCatalogProductId" .Values.commerce.providerCatalogProductId "ProviderAccountId" .Values.commerce.providerAccountId }}
+            - name: Application__Commerce__{{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- range $i, $method := .Values.commerce.paymentMethods }}
+            - name: Application__Commerce__PaymentMethods__{{ $i }}
+              value: {{ $method | quote }}
+            {{- end }}
+            - name: Application__Commerce__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.commerce.existingSecret | quote }}
+                  key: {{ .Values.commerce.apiKeyKey | quote }}
+            - name: Application__Commerce__WebhookSecret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.commerce.existingSecret | quote }}
+                  key: {{ .Values.commerce.webhookSecretKey | quote }}
+            {{- end }}
             - name: Application__StoreAuthentication__SteamAppId
               value: {{ $steamAppId | quote }}
             - name: Application__StoreAuthentication__SteamPlaytest__Enabled
