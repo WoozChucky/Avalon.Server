@@ -21,6 +21,12 @@ internal static class SandboxHost
 {
     public static async Task RunAsync(IDbContextFactory<AuthDbContext> factory, IReplicatedCache cache, TimeProvider clock)
     {
+        while (await RunHostAsync(factory, cache, clock))
+            Console.WriteLine("Restarting the isolated fixture host and payment worker; disposable storage is retained.");
+    }
+
+    private static async Task<bool> RunHostAsync(IDbContextFactory<AuthDbContext> factory, IReplicatedCache cache, TimeProvider clock)
+    {
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Development" });
         builder.WebHost.UseKestrelHttpsConfiguration();
         builder.Configuration.Sources.Clear();
@@ -41,13 +47,24 @@ internal static class SandboxHost
         builder.Services.AddCommerce();
         builder.Services.AddAuthentication("Fixture").AddScheme<AuthenticationSchemeOptions, FixtureAuthentication>("Fixture", _ => { });
         builder.Services.AddAuthorization();
-        var actor = await new AccountRepository(factory).CreateAsync(new Account { Username = "COMMERCEBUYER", Email = "buyer@example.test", EmailVerifiedAt = clock.GetUtcNow().UtcDateTime,
+        var accounts = new AccountRepository(factory);
+        var actor = await accounts.FindByUserNameAsync("COMMERCEBUYER") ?? await accounts.CreateAsync(new Account { Username = "COMMERCEBUYER", Email = "buyer@example.test", EmailVerifiedAt = clock.GetUtcNow().UtcDateTime,
             Salt = [1], Verifier = [2], JoinDate = clock.GetUtcNow().UtcDateTime, AccessLevel = AccountAccessLevel.Player | AccountAccessLevel.Admin });
-        var app = builder.Build();
+        await using var app = builder.Build();
+        var restart = false;
         app.UseMiddleware<ExceptionHandlerMiddleware>();
         app.Use(async (ctx, next) => { ctx.Response.Headers.CacheControl = "no-store"; await next(); });
         app.UseAuthentication(); app.UseAuthorization();
         var api = app.MapGroup("/api");
+        // Fixture-only recovery control; never registered by the application API.
+        api.MapPost("/__fixture/restart", (HttpContext ctx, IHostApplicationLifetime lifetime) =>
+        {
+            if (ctx.Connection.RemoteIpAddress is not { } address || !System.Net.IPAddress.IsLoopback(address))
+                return Results.NotFound();
+            restart = true;
+            ctx.Response.OnCompleted(() => { lifetime.StopApplication(); return Task.CompletedTask; });
+            return Results.Accepted();
+        }).RequireAuthorization();
         AuthenticateResponse Reply() => new() { Token = FixtureAuthentication.Token, ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(), Status = Avalon.Api.Contract.AuthenticationResponseStatus.Success };
         api.MapPost("/account/authenticate", (HttpContext ctx) => { ctx.Response.Cookies.Append(FixtureAuthentication.Cookie, "fixture", new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Path = "/api" }); return Reply(); });
         api.MapPost("/account/refresh", (HttpContext ctx) => ctx.Request.Cookies[FixtureAuthentication.Cookie] == "fixture" ? Results.Ok(Reply()) : Results.Unauthorized());
@@ -82,6 +99,7 @@ internal static class SandboxHost
         Console.WriteLine("Local Stripe fixture: https://localhost. Sign in with the COMMERCEBUYER dummy fixture; no real account password is used.");
         Console.WriteLine("Forward sandbox Stripe notifications to http://127.0.0.1:5216/payments/notifications/stripe. This host does not test native SRP, launcher handoff or map entry.");
         await app.RunAsync();
+        return restart;
     }
 }
 internal sealed class FixtureAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
