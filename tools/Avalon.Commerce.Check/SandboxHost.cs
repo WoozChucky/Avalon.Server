@@ -22,6 +22,7 @@ internal static class SandboxHost
     public static async Task RunAsync(IDbContextFactory<AuthDbContext> factory, IReplicatedCache cache, TimeProvider clock)
     {
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Development" });
+        builder.WebHost.UseKestrelHttpsConfiguration();
         builder.Configuration.Sources.Clear();
         builder.Configuration.AddEnvironmentVariables("AVALON_COMMERCE_SANDBOX_");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {

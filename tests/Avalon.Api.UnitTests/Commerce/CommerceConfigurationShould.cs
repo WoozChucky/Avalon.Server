@@ -1,8 +1,10 @@
 using Avalon.Api.Commerce;
 using Avalon.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using System.Text.Json;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Commerce;
@@ -16,6 +18,21 @@ public sealed class CommerceConfigurationShould
     public void Allow_only_the_isolated_development_sandbox() => Assert.True(Validator(true).Validate(null, Valid()).Succeeded);
 
     [Theory]
+    [InlineData("card")]
+    [InlineData("multibanco")]
+    public void Bind_exactly_the_configured_payment_methods_without_appending_defaults(string method)
+    {
+        var configured = Valid();
+        configured.PaymentMethods = [method];
+        using var json = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(configured));
+        var configuration = new ConfigurationBuilder().AddJsonStream(json).Build();
+        var bound = configuration.Get<CommerceConfiguration>()!;
+
+        Assert.Equal(new[] { method }, bound.PaymentMethods);
+        Assert.True(Validator(true).Validate(null, bound).Succeeded);
+    }
+
+    [Theory]
     [InlineData("live")]
     [InlineData("production")]
     [InlineData("price")]
@@ -23,6 +40,7 @@ public sealed class CommerceConfigurationShould
     [InlineData("currency")]
     [InlineData("quantity")]
     [InlineData("methods")]
+    [InlineData("duplicate-methods")]
     [InlineData("origin")]
     [InlineData("key")]
     public void Reject_unsafe_enabled_configuration_without_echoing_secrets(string defect)
@@ -37,6 +55,7 @@ public sealed class CommerceConfigurationShould
             case "currency": config.Currency = "US dollars"; break;
             case "quantity": config.Quantity = 2; break;
             case "methods": config.PaymentMethods = []; break;
+            case "duplicate-methods": config.PaymentMethods = ["card", "card"]; break;
             case "origin": config.PublicSiteOrigin = "https://example.test/?secret=test"; break;
             case "key": config.ApiKey = "sk_live_private"; break;
         }
@@ -84,6 +103,7 @@ public sealed class CommerceConfigurationShould
         Enabled = true, PublicSiteOrigin = "https://example.test", OfferId = "base-eur",
         ProviderPriceId = "price_test", ProviderCatalogProductId = "prod_test", ProviderAccountId = "acct_test",
         ApiKey = "sk_test_private", WebhookSecret = "whsec_private",
+        PaymentMethods = ["card"],
     };
 
     private static CommerceOptionsValidator Validator(bool development)

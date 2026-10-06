@@ -16,7 +16,8 @@ public sealed class CommerceConfiguration
     public string ProviderPriceId { get; set; } = "";
     public string ProviderCatalogProductId { get; set; } = "";
     public string ProviderAccountId { get; set; } = "";
-    public string[] PaymentMethods { get; set; } = ["card"];
+    // Configuration binding appends array entries; the configured list must be exact.
+    public string[] PaymentMethods { get; set; } = [];
     public string ApiKey { get; set; } = "";
     public string WebhookSecret { get; set; } = "";
 }

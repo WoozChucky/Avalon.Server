@@ -35,7 +35,7 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
         var metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["order_id"] = command.OrderId.ToString("D"), ["attempt_id"] = command.AttemptId.ToString("D") };
         var session = await client.V1.Checkout.Sessions.CreateAsync(new SessionCreateOptions
         {
-            Mode = "payment", UiMode = "hosted", LineItems = [new() { Price = command.PriceReference, Quantity = command.Quantity }],
+            Mode = "payment", UiMode = "hosted_page", LineItems = [new() { Price = command.PriceReference, Quantity = command.Quantity }],
             CustomerEmail = command.Email, SuccessUrl = command.SuccessUrl, CancelUrl = command.CancelUrl,
             ClientReferenceId = command.OrderId.ToString("D"), Metadata = metadata, PaymentIntentData = new() { Metadata = metadata },
             AutomaticTax = new() { Enabled = true }, AllowedPaymentMethodTypes = command.PaymentMethods.ToList(),

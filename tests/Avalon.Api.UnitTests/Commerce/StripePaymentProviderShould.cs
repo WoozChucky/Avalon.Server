@@ -13,6 +13,12 @@ namespace Avalon.Api.UnitTests.Commerce;
 
 public sealed class StripePaymentProviderShould
 {
+    [Fact]
+    public async Task Create_checkout_uses_the_hosted_page_mode_required_by_the_pinned_API()
+    {
+        var http = new Transport { RequireHostedPageMode = true };
+        Assert.Equal("cs_test", (await Provider(http).CreateCheckoutAsync(Command(), default)).CheckoutReference);
+    }
     internal static readonly DateTime Now = new(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
     internal static readonly Guid Order = Guid.NewGuid();
     internal static readonly Guid Attempt = Guid.NewGuid();
@@ -171,6 +177,7 @@ public sealed class StripePaymentProviderShould
 
     internal sealed class Transport : HttpMessageHandler
     {
+        public bool RequireHostedPageMode { get; init; }
         public string TaxBehavior { get; init; } = "inclusive";
         public string Account { get; init; } = "acct_test";
         public bool Live { get; init; }
@@ -212,6 +219,8 @@ public sealed class StripePaymentProviderShould
                     Body = await request.Content!.ReadAsStringAsync(ct);
                     Key = request.Headers.GetValues("Idempotency-Key").Single();
                     if (Timeout) throw new TaskCanceledException("private transport details");
+                    if (RequireHostedPageMode && !Uri.UnescapeDataString(Body).Split('&').Contains("ui_mode=hosted_page", StringComparer.Ordinal))
+                        return new(HttpStatusCode.BadRequest) { Content = new StringContent("{\"error\":{\"message\":\"Use hosted_page for this API version.\",\"param\":\"ui_mode\",\"type\":\"invalid_request_error\"}}", Encoding.UTF8, "application/json") };
                 }
                 payload = new { id = "cs_test", @object = "checkout.session", livemode = false, url = Url, mode = "payment", status = "complete", payment_status = Paid ? "paid" : "unpaid",
                     payment_intent = "pi_test", expires_at = new DateTimeOffset(Now.AddMinutes(30)).ToUnixTimeSeconds(), amount_total = Gross, amount_subtotal = Gross, currency = Currency,

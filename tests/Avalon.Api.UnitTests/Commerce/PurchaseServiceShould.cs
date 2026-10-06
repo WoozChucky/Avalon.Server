@@ -183,7 +183,7 @@ public sealed class PurchaseServiceShould
         public FakeProvider Provider { get; } = new();
         public FakeBudget Budget { get; } = new();
         public CommerceConfiguration Config { get; } = new() { Enabled = true, Provider = "alternate", ProviderAccountId = "merchant", OfferId = "base",
-            ProviderPriceId = "price", ProviderCatalogProductId = "catalog", PublicSiteOrigin = "https://avalon.example.test" };
+            ProviderPriceId = "price", ProviderCatalogProductId = "catalog", PublicSiteOrigin = "https://avalon.example.test", PaymentMethods = ["card"] };
         public Account Account { get; private set; } = null!;
         public PurchaseService Service => new(new PurchaseRepository(Db, Clock), new PaymentProviderRegistry([Provider]), Options.Create(Config),
             Options.Create(new StoreAuthenticationConfiguration { Environment = "development" }), Budget, Clock);
