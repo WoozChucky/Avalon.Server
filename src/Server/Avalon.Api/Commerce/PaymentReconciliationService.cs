@@ -33,6 +33,8 @@ public sealed class PaymentReconciliationService(IPurchaseRepository purchases, 
                 attempt = await purchases.ResolveAttemptAsync(row.Provider, row.ProviderAccountId, row.Environment, locator.OrderId, locator.AttemptId, null, null, ct);
             }
             if (attempt is null) return new(false, "UNKNOWN_PAYMENT", true);
+            if (row.ResourceKind == PaymentResourceKinds.Reconciliation)
+                lookup = new(attempt.CheckoutReference, attempt.PaymentReference);
             return await Reconcile(attempt, lookup, provider, claim, ct);
         }
         catch (PaymentProviderException) { return new(false, "PROVIDER_UNAVAILABLE"); }

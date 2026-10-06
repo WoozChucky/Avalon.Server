@@ -41,6 +41,13 @@ public interface IPurchaseRepository
     Task<IReadOnlyList<PaymentAttempt>> FindSweepCandidatesAsync(int count, CancellationToken ct = default);
     Task<PaymentQueueStats> ReadQueueStatsAsync(CancellationToken ct = default);
     Task<bool> TouchReconciliationAsync(Guid attemptId, Guid leaseId, CancellationToken ct = default);
+    Task<bool> IsAdministratorAsync(AccountId admin, CancellationToken ct = default);
+    Task<PagedResult<PurchaseOrder>> SearchOrdersAsync(PurchaseSearchFilter filter, CancellationToken ct = default);
+    Task<PurchaseDetails?> FindDetailsAsync(Guid id, CancellationToken ct = default);
+    Task<RefundReservationResult> ReserveRefundAsync(AccountId admin, Guid orderId, long orderVersion, PaymentAttemptClaim claim, string reason, CancellationToken ct = default);
+    Task<PaymentRefund?> BeginRefundDispatchAsync(Guid refundId, long version, PaymentAttemptClaim claim, CancellationToken ct = default);
+    Task<bool> RecordRefundOutcomeAsync(PaymentRefund operation, PaymentAttemptClaim claim, RefundProviderResult? result, CancellationToken ct = default);
+    Task<bool> ScheduleReconciliationAsync(AccountId admin, Guid orderId, CancellationToken ct = default);
 }
 
 /// <summary>Short local transactions only. Provider requests happen after durable reservation.</summary>

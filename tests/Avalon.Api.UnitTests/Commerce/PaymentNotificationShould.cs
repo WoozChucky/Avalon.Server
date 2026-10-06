@@ -28,6 +28,15 @@ public sealed class PaymentNotificationShould
     }
 
     [Fact]
+    public async Task External_notification_cannot_request_an_internal_operation_replay()
+    {
+        var repository = Substitute.For<IPurchaseRepository>();
+        var provider = new NotificationProvider { ResourceKind = "reconciliation" };
+        Assert.Equal(NotificationAcceptance.Invalid, await Service(repository, provider).AcceptAsync("alternate", "payload"u8.ToArray(), new Dictionary<string, string>(), CancellationToken.None));
+        await repository.DidNotReceiveWithAnyArgs().AcceptEventAsync(default!, default);
+    }
+
+    [Fact]
     public async Task Database_failure_never_acknowledges_event()
     {
         var repository = Substitute.For<IPurchaseRepository>();
@@ -63,11 +72,12 @@ public sealed class PaymentNotificationShould
         public string Provider => "alternate";
         public bool Invalid;
         public int Calls;
+        public string ResourceKind = "checkout";
         public VerifiedPaymentNotification VerifyNotification(ReadOnlyMemory<byte> body, IReadOnlyDictionary<string, string> headers, DateTime now)
         {
             Calls++;
             if (Invalid) throw new PaymentProviderException("INVALID_NOTIFICATION");
-            return new("alternate", "merchant", "sandbox", "event", "paid", "checkout", "checkout", null, null, null, now);
+            return new("alternate", "merchant", "sandbox", "event", "paid", ResourceKind, "checkout", null, null, null, now);
         }
         public Task<CheckoutProviderResult> CreateCheckoutAsync(CheckoutCreateCommand command, CancellationToken ct) => throw new NotSupportedException();
         public Task<PaymentSnapshot> GetCheckoutAsync(PaymentLookup lookup, CancellationToken ct) => throw new NotSupportedException();

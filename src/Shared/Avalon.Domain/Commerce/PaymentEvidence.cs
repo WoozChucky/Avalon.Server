@@ -13,6 +13,7 @@ public static class PaymentResourceKinds
     public const string Checkout = "checkout";
     public const string Refund = "refund";
     public const string Dispute = "dispute";
+    public const string Reconciliation = "reconciliation";
 }
 
 public static class PurchaseLicense

@@ -19,6 +19,7 @@ public sealed class PurchaseException(string code) : Exception("The purchase req
         PurchaseFailureCodes.NotFound => StatusCodes.Status404NotFound,
         PurchaseFailureCodes.Disabled => StatusCodes.Status501NotImplemented,
         PurchaseFailureCodes.TooManyAttempts => StatusCodes.Status429TooManyRequests,
+        PurchaseFailureCodes.InvalidRequest => StatusCodes.Status400BadRequest,
         _ => StatusCodes.Status503ServiceUnavailable,
     };
 }

@@ -11,4 +11,5 @@ public static class PurchaseFailureCodes
     public const string NotFound = "PURCHASE_NOT_FOUND";
     public const string ProviderUnavailable = "PAYMENT_PROVIDER_UNAVAILABLE";
     public const string TooManyAttempts = "TOO_MANY_PURCHASE_ATTEMPTS";
+    public const string InvalidRequest = "INVALID_PURCHASE_REQUEST";
 }

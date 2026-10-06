@@ -21,7 +21,8 @@ public sealed class PaymentNotificationService(IPurchaseRepository purchases, Pa
         try { proof = provider.VerifyNotification(body, headers, clock.GetUtcNow().UtcDateTime); }
         catch (PaymentProviderException) { return NotificationAcceptance.Invalid; }
         if (proof.Provider != config.Provider || proof.ProviderAccountId != config.ProviderAccountId || proof.PaymentEnvironment != config.PaymentEnvironment ||
-            proof.CreatedAt.Kind != DateTimeKind.Utc) return NotificationAcceptance.Invalid;
+            proof.CreatedAt.Kind != DateTimeKind.Utc || proof.ResourceKind is not (PaymentResourceKinds.Checkout or PaymentResourceKinds.Refund or PaymentResourceKinds.Dispute))
+            return NotificationAcceptance.Invalid;
         var attempt = await purchases.ResolveAttemptAsync(proof.Provider, proof.ProviderAccountId, proof.PaymentEnvironment, proof.OrderId, proof.AttemptId,
             proof.ResourceKind == PaymentResourceKinds.Checkout ? proof.ResourceReference : null, proof.PaymentReference, ct);
         var now = clock.GetUtcNow().UtcDateTime;
