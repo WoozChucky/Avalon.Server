@@ -4,6 +4,7 @@ namespace Avalon.Configuration;
 public sealed class StoreAuthenticationConfiguration
 {
     public const string Product = "avalon.base";
+    public const string NativeProviderProduct = "base";
     /// <summary>Required deployment-owned application identity; there is no built-in App ID.</summary>
     public uint SteamAppId { get; set; }
     public SteamPlaytestConfiguration SteamPlaytest { get; set; } = new();
@@ -17,7 +18,7 @@ public sealed class StoreAuthenticationConfiguration
 
     public GameApplicationSelection? ResolveApplication(string? key)
     {
-        if (key == "avalon.base") return new(key, "avalon", "base", Product, Environment, Array.Empty<ushort>(), false);
+        if (key == Product) return new(key, "avalon", NativeProviderProduct, Product, Environment, Array.Empty<ushort>(), false);
         if (key is "steam.main" or "steam.playtest")
         {
             var app = ResolveSteamApplication(key == "steam.main" ? SteamAppId : SteamPlaytest.AppId);

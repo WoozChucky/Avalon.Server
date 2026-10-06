@@ -159,6 +159,27 @@ autoscaling:
 # ASP.NET Core environment. Health endpoints are mapped in every environment.
 environment: Production
 
+# Website checkout is off on existing deployments. Enable only on separately isolated sandbox storage.
+commerce:
+  enabled: false
+  provider: stripe
+  paymentEnvironment: sandbox
+  licenseEnvironment: development
+  amountMinor: 800
+  currency: eur
+  quantity: 1
+  product: avalon.base
+  providerProduct: base
+  publicSiteOrigin: ""
+  offerId: ""
+  providerPriceId: ""
+  providerCatalogProductId: ""
+  providerAccountId: ""
+  paymentMethods: [card]
+  existingSecret: ""
+  apiKeyKey: stripe-api-key
+  webhookSecretKey: stripe-webhook-secret
+
 # Provider credentials are references only. None leaves account verification/email changes off.
 # Pickup is a local Development sender; this deployment chart accepts None or Resend.
 email:

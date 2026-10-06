@@ -188,3 +188,26 @@ one key would silently read one value.
 {{- fail "email.verificationSiteOrigin must be an HTTPS origin without path, userinfo, query or fragment" -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "avalon-api.validateCommerce" -}}
+{{- $commerce := .Values.commerce -}}
+{{- if hasKey $commerce "apiKey" -}}{{- fail "commerce.apiKey is forbidden; use an existing Secret reference" -}}{{- end -}}
+{{- if hasKey $commerce "webhookSecret" -}}{{- fail "commerce.webhookSecret is forbidden; use an existing Secret reference" -}}{{- end -}}
+{{- if $commerce.enabled -}}
+{{- if or (ne .Values.environment "Development") (ne .Values.storeAuthentication.environment "development") (ne .Values.storeAuthentication.steamIdentityPrefix "avalon-auth-dev") (ne $commerce.paymentEnvironment "sandbox") (ne $commerce.licenseEnvironment "development") -}}
+{{- fail "commerce requires an isolated Development sandbox with development store authentication" -}}
+{{- end -}}
+{{- range $field := list "provider" "publicSiteOrigin" "offerId" "providerPriceId" "providerCatalogProductId" "providerAccountId" "existingSecret" "apiKeyKey" "webhookSecretKey" -}}
+{{- if not (get $commerce $field | toString | trim) -}}{{- fail (printf "commerce.%s is required" $field) -}}{{- end -}}
+{{- end -}}
+{{- if or (not (regexMatch "^[1-9][0-9]*$" (toString $commerce.amountMinor))) (ne (int $commerce.quantity) 1) (not (regexMatch "^[a-z]{3}$" $commerce.currency)) (not $commerce.paymentMethods) -}}
+{{- fail "commerce requires a positive minor-unit amount, currency, one license and payment methods" -}}
+{{- end -}}
+{{- if not (regexMatch "^https://([A-Za-z0-9.-]+|\\[[a-fA-F0-9:]+\\])/?$" $commerce.publicSiteOrigin) -}}
+{{- fail "commerce.publicSiteOrigin must be a bare HTTPS origin" -}}
+{{- end -}}
+{{- if or (not (regexMatch "^[-._a-zA-Z0-9]+$" $commerce.apiKeyKey)) (not (regexMatch "^[-._a-zA-Z0-9]+$" $commerce.webhookSecretKey)) (eq $commerce.apiKeyKey $commerce.webhookSecretKey) -}}
+{{- fail "commerce secret keys must be valid and distinct" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

@@ -70,6 +70,7 @@ public class ExceptionHandlerMiddleware
 
         await (exception switch
         {
+            Commerce.PurchaseException purchase => WriteProblemAsync(context, purchase.StatusCode, purchase.Code, "Purchase unavailable", purchase.Message),
             // A refresh that lost a race (#543). The refresh endpoint answers it itself; should it
             // ever get this far it is still that endpoint's 401, not a 500.
             RefreshAlreadyRotatedException => WriteClientErrorAsync(context, (int)HttpStatusCode.Unauthorized),

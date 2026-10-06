@@ -184,4 +184,28 @@ public sealed class AvalonGameAuthorizationShould
             registry, new(registry, _licenses, _observations, _options, _clock), _options, _clock);
         Assert.Null(await service.CreateProviderAttemptAsync("avalon.base", "1", _run, new string('A', 43), null, 0, default));
     }
+
+    [Fact]
+    public async Task Suspension_blocks_native_refresh_and_cached_handoff_even_before_revision_changes()
+    {
+        var grant = Grant();
+        var initial = await Handoff();
+        grant.SuspendedAt = Now;
+        Assert.Null(await Service().GetContextAsync(initial.Reply.GameContextCredential!, false, default));
+        Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(initial.Reply.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
+        Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RedeemHandoffAsync(initial.Attempt, initial.Ticket, initial.Request, default)).Error);
+    }
+
+    [Fact]
+    public async Task Restoration_requires_fresh_context_and_never_revives_old_receipts()
+    {
+        var grant = Grant();
+        var initial = await Handoff();
+        grant.SuspendedAt = Now; grant.AuthorityRevision++;
+        Assert.Null(await Service().GetContextAsync(initial.Reply.GameContextCredential!, true, default));
+        grant.SuspendedAt = null; grant.AuthorityRevision++;
+        Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(initial.Reply.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
+        Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RedeemHandoffAsync(initial.Attempt, initial.Ticket, initial.Request, default)).Error);
+        Assert.Equal(GameAuthStates.Authorized, (await Handoff()).Reply.State);
+    }
 }

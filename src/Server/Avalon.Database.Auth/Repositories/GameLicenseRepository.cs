@@ -35,7 +35,7 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
         await using var db = await factory.CreateDbContextAsync(ct);
         var rows = await db.GameLicenses.AsNoTracking().Where(x => x.AccountId == account && x.Provider == provider &&
             x.Environment == environment && x.Product == product && x.ProviderProductId == providerProductId &&
-            x.RevokedAt == null && x.GrantedAt <= now && (x.ExpiresAt == null || x.ExpiresAt > now))
+            x.RevokedAt == null && x.SuspendedAt == null && x.GrantedAt <= now && (x.ExpiresAt == null || x.ExpiresAt > now))
             .OrderBy(x => x.GrantedAt).ThenBy(x => x.Id).ToListAsync(ct);
         return rows.FirstOrDefault(x => x.Authorizes(account, product, environment, now));
     }

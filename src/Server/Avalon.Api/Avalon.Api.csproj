@@ -33,6 +33,7 @@
     <PackageReference Include="Serilog.Extensions.Logging"/>
     <PackageReference Include="Serilog.Sinks.Console"/>
     <PackageReference Include="StackExchange.Redis"/>
+    <PackageReference Include="Stripe.net" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt"/>
     <PackageReference Include="BCrypt.Net-Next"/>
     <PackageReference Include="WebPush"/>

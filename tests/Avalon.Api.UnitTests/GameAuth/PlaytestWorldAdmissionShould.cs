@@ -131,6 +131,38 @@ public sealed class PlaytestWorldAdmissionShould
         Assert.Equal(AccountAccessLevel.Player, h.Account.AccessLevel);
     }
 
+    [Fact]
+    public async Task Suspension_refuses_fresh_Steam_proof_cached_admission_and_session_renewal()
+    {
+        var h = new Harness(false);
+        var auth = await h.Authenticate(2514590);
+        var request = Guid.NewGuid();
+        var issued = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default);
+        Assert.Null(issued.Error);
+        var connection = Guid.NewGuid();
+        var redemption = Guid.NewGuid();
+        Assert.Null((await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", connection, redemption, default)).Error);
+        Assert.Null((await h.Activate()).Error);
+        Assert.Null((await h.Heartbeat()).Error);
+        var reconnect = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, true, default);
+        Assert.Null(reconnect.Error);
+
+        h.SetPlaytestSuspension(true);
+        await h.Authenticate(2514590, GameAuthStates.PendingLicense);
+        Assert.NotNull((await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default)).Error);
+        Assert.NotNull((await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, true, default)).Error);
+        Assert.NotNull((await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", connection, redemption, default)).Error);
+        Assert.NotNull((await h.Tickets.RedeemAsync(reconnect.JoinTicket!, "world-3", Guid.NewGuid(), Guid.NewGuid(), default)).Error);
+        Assert.NotNull((await h.Heartbeat()).Error);
+        Assert.NotNull((await h.Activate()).Error);
+
+        h.SetPlaytestSuspension(false);
+        Assert.Null(await h.Authorization.GetContextAsync(auth.GameContextCredential!, true, default));
+        var fresh = await h.Authenticate(2514590);
+        Assert.NotNull(await h.Authorization.GetContextAsync(fresh.GameContextCredential!, true, default));
+        Assert.Equal(AccountAccessLevel.Player, h.Account.AccessLevel);
+    }
+
     private sealed class Harness
     {
         private const string Subject = "76561198000000001";
@@ -146,6 +178,14 @@ public sealed class PlaytestWorldAdmissionShould
             SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] },
         };
         private MemoryGameLicenses _licenses = null!;
+        public void SetPlaytestSuspension(bool active)
+        {
+            foreach (var license in _licenses.Rows.Where(x => x.ProviderProductId == "2514590"))
+            {
+                license.SuspendedAt = active ? Now : null;
+                license.AuthorityRevision++;
+            }
+        }
         public async Task RevokePlaytestAuthority()
         {
             foreach (var license in _licenses.Rows.Where(x => x.ProviderProductId == "2514590"))

@@ -28,9 +28,10 @@ public interface IWorldDbContextFactory
 public sealed class ConfiguredWorldDbContextFactory(
     IWorldDatabases worlds,
     ILoggerFactory loggerFactory,
-    IHostEnvironment? environment = null) : IWorldDbContextFactory
+    IHostEnvironment? environment = null,
+    IOptions<DatabaseConfiguration>? database = null) : IWorldDbContextFactory
 {
-    private readonly bool _sensitiveDataLogging = DatabaseRegistration.SensitiveDataLoggingAllowed(environment);
+    private readonly bool _sensitiveDataLogging = DatabaseRegistration.SensitiveDataLoggingAllowed(environment) && (database?.Value.EnableSensitiveDataLogging ?? true);
 
     public WorldDbContext CreateWorld(WorldId world) =>
         new(loggerFactory, Options.Create(new DatabaseConfiguration

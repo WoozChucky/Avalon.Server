@@ -2,6 +2,7 @@ using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Domain.Auth;
+using Avalon.Domain.Commerce;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -87,6 +88,12 @@ public class AuthDbContext : DbContext
     public DbSet<ExternalIdentity> ExternalIdentities { get; set; } = null!;
     public DbSet<LicenseObservation> LicenseObservations { get; set; } = null!;
     public DbSet<GameLicense> GameLicenses { get; set; } = null!;
+    public DbSet<LicenseHold> LicenseHolds { get; set; } = null!;
+    public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
+    public DbSet<PaymentAttempt> PaymentAttempts { get; set; } = null!;
+    public DbSet<PaymentRefund> PaymentRefunds { get; set; } = null!;
+    public DbSet<PaymentDispute> PaymentDisputes { get; set; } = null!;
+    public DbSet<PaymentEvent> PaymentEvents { get; set; } = null!;
     public DbSet<GameSession> GameSessions { get; set; } = null!;
     public DbSet<Device> Devices { get; set; } = null!;
     public DbSet<MFASetup> MfaSetups { get; set; } = null!;
@@ -125,6 +132,7 @@ public class AuthDbContext : DbContext
         verification.ToTable(t => t.HasCheckConstraint("CK_AccountEmailVerifications_Interval", "\"ExpiresAt\" > \"IssuedAt\" AND length(\"TokenHash\") = 64"));
         StoreAuthenticationModel.Configure(modelBuilder);
         GameLicenseModel.Configure(modelBuilder);
+        CommerceModel.Configure(modelBuilder);
         AccountConsolidationModel.Configure(modelBuilder);
         Configure(modelBuilder.Entity<Device>());
         Configure(modelBuilder.Entity<MFASetup>());

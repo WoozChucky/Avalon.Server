@@ -30,5 +30,13 @@ internal static class GameLicenseModel
             t.HasCheckConstraint("CK_GameLicenses_Reference", "length(trim(\"LicenseReference\")) > 0 AND \"LicenseReference\" = trim(\"LicenseReference\")");
             t.HasCheckConstraint("CK_GameLicenses_Interval", "(\"ExpiresAt\" IS NULL OR \"ExpiresAt\" > \"GrantedAt\") AND (\"RevokedAt\" IS NULL OR \"RevokedAt\" >= \"GrantedAt\")");
         });
+        var hold = model.Entity<LicenseHold>();
+        hold.HasKey(x => x.Id);
+        hold.Property(x => x.Id).ValueGeneratedNever();
+        hold.Property(x => x.CauseKind).HasMaxLength(32);
+        hold.Property(x => x.CauseReference).HasMaxLength(256);
+        hold.HasIndex(x => new { x.LicenseId, x.CauseKind, x.CauseReference }).IsUnique();
+        hold.HasOne<GameLicense>().WithMany().HasForeignKey(x => x.LicenseId).OnDelete(DeleteBehavior.Restrict);
+        hold.ToTable(t => t.HasCheckConstraint("CK_LicenseHolds_Interval", "\"ReleasedAt\" IS NULL OR \"ReleasedAt\" >= \"StartedAt\""));
     }
 }
