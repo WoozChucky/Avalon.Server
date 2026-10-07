@@ -6,36 +6,42 @@ This document covers all configuration keys for the Avalon server.
 
 ## Overview
 
-Avalon uses strongly-typed configuration classes bound from `appsettings.json` (or environment variables / secrets manager in production). The TCP servers read them through `IOptions<T>`. The REST API binds most of its settings once, as one `ApplicationConfig` object under `Application`, and registers the parts as plain singletons; only the rows below marked `IOptions<T>` go through the options system there. The classes live next to the code that reads them: `src/Shared/Avalon.Configuration` holds the database and hosting ones, and the rest sit in their host or library project.
+Avalon uses strongly-typed configuration classes bound from `appsettings.json` (or environment variables / secrets manager in production). The TCP servers read them through `IOptions<T>`. The REST API runs as up to four services from one binary ([API services](api-services.md)), and a process binds only the sections of the services it runs (see [REST API Services](#rest-api-services)): identity binds `Application` once as `ApplicationConfig` and the worlds service as `WorldsConfig`, each registering the parts as plain singletons, the shared hosting reads the token validation and forwarded-headers settings directly, and only the rows below marked `IOptions<T>` go through the options system there. The classes live next to the code that reads them: `src/Shared/Avalon.Configuration` holds the database and hosting ones, and the rest sit in their host or library project.
 
 ---
 
 ## Configuration Classes
 
-Hosts: **API** is `Avalon.Api`, **Auth** the auth server, **World** the world server.
+Hosts: **API** is `Avalon.Api`, with the API services that read the class in parentheses; **Auth** the auth server, **World** the world server.
 
 | Class                       | Namespace                          | Bound from | Hosts | Validated |
 |-----------------------------|------------------------------------|------------|-------|-----------|
 | `DatabaseConfiguration`     | `Avalon.Configuration`             | `Database` (`Database:Auth`, `Database:Characters`, `Database:World`, each with a `ConnectionString`) | API, Auth, World | At startup by `DatabaseConnectionsValidation`: Auth needs `Database:Auth`, World all three, the API `Database:Auth` only. See [Startup Validation](#startup-validation) |
-| _(no class)_                | `Avalon.Api.Worlds`                | `Database:Worlds:<id>:World` and `Database:Worlds:<id>:Characters`, read by `WorldDatabaseSettings` | API | By hand in `ApiStartup`, right after the options. See [REST API Worlds](#rest-api-worlds) |
-| `CacheConfiguration`        | `Avalon.Infrastructure.Configuration` | `Cache` (Auth, World); `Application:Cache` (API) | API, Auth, World | `ValidateOnStart` (`Host` required) in all three |
+| _(no class)_                | `Avalon.Api.Hosting`               | `Application:Services`, read by `ApiServiceSelection` | API (every process) | When the host is built: an empty list or an unknown name stops it. See [REST API Services](#rest-api-services) |
+| _(no class)_                | `Avalon.Api.Hosting`               | `Application:Startup:AuthSchemaWaitSeconds`, read by `AuthSchemaGate` | API (every process; only one without identity waits) | At startup: anything but a whole number of at least 1 stops it |
+| _(no class)_                | `Avalon.Api.Hosting.Worlds`        | `Database:Worlds:<id>:World` and `Database:Worlds:<id>:Characters`, read by `WorldDatabaseSettings` for the parts a process reads | API (worlds both, identity Characters) | By hand in `ApiStartup`, right after the options. See [REST API Worlds](#rest-api-worlds) |
+| `CacheConfiguration`        | `Avalon.Infrastructure.Configuration` | `Cache` (Auth, World); `Application:Cache` (API) | API (identity, worlds, commerce), Auth, World | `ValidateOnStart` (`Host` required) in all three hosts; in the API only in a process whose services need Redis |
 | `HostingConfiguration`      | `Avalon.Configuration`             | `Hosting` (with `Hosting:ProxyProtocol` and `Hosting:Telemetry`) | Auth, World | `ValidateOnStart` on its own properties. The nested `ProxyProtocol` is not annotation-checked: a trusted network that is not valid CIDR throws when the TCP server is built |
 | `HostingSecurity`           | `Avalon.Server.Auth.Configuration` | `Hosting:Security` | Auth | `ValidateOnStart` (`CertificatePath` required) |
 | `AuthConfiguration`         | `Avalon.Server.Auth.Configuration` | `Application` | Auth | `ValidateOnStart` |
 | `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
 | `RegenConfiguration`        | `Avalon.World.Configuration`       | `Regen` | World | `ValidateOnStart` |
 | `WorldShutdownConfiguration` | `Avalon.World.Configuration`     | `World:Shutdown` | World | `ValidateOnStart` (both required; `DrainTime` 0 to 1 h, `SaveMargin` 21 s to 1 h). See [World Shutdown Drain](#world-shutdown-drain) |
-| `ApplicationConfig`         | `Avalon.Api.Config`                | `Application` | API | Not as a whole; its sections below |
-| `AuthenticationConfig`      | `Avalon.Api.Config`                | `Application:Authentication` | API | By hand in `ServiceRegistration`: the signing key (`JwtSigningKey.Create`), the login limits (`LoginLimitsValidation.Validate`), the account-creation cap and the email-change send caps |
-| `ForwardedHeadersConfig`    | `Avalon.Api.Config`                | `Application:ForwardedHeaders` | API | By hand in `ServiceRegistration` (`ForwardedHeadersSetup.BuildOptions`) |
-| `EmailConfig`               | `Avalon.Api.Config`                | `Application:Email` | API | By hand in `AddEmail` |
-| `RateLimitingConfig`        | `Avalon.Api.Config`                | `Application:RateLimiting`, as `IOptions<RateLimitingConfig>` only | API | `ValidateOnStart` (each limit at least 1) |
-| `MapAssetConfig`            | `Avalon.Api.Config`                | `Application:MapAssets`, as `IOptions<MapAssetConfig>` | API | Not validated |
-| `NotificationConfig`        | `Avalon.Api.Config`                | `Application:Notification` | API | Not validated |
-| `EnvironmentConfig`         | `Avalon.Api.Config`                | `Application:Environment` | API | Not validated |
-| `DistributionConfiguration` | `Avalon.Api.Distribution`          | `Application:Distribution` | API | Not validated; left incomplete, the `/client` endpoints answer 503 |
-| `BalanceConfiguration`      | `Avalon.Api.Balance`               | `Application:Balance` | API | Not validated; left incomplete, the admin `/balance` endpoints answer 503 |
-| `TemplateEditingOptions`    | `Avalon.Api.Templates`             | `Application:Templates` | API | `ValidateOnStart` (`ReloadTimeout` greater than zero). See `Application:Templates` below |
+| `TokenValidationConfig`     | `Avalon.Api.Hosting.Config`        | `Application:Authentication`: `IssuerSigningKey`, `Issuer`, `Audience`, `ValidateIssuer`, `ValidateAudience`, `ClockSkewInMinutes` | API (every service) | By hand in `AddApiAuthentication`: the signing key (`JwtSigningKey.Create`) |
+| `ApplicationConfig`         | `Avalon.Api.Identity.Config`       | `Application` | API (identity) | Not as a whole; its sections below |
+| `AuthenticationConfig`      | `Avalon.Api.Identity.Config`       | `Application:Authentication`, all of it (it extends `TokenValidationConfig`) | API (identity) | By hand in `AddIdentity` (`IdentityServiceRegistration`): the login limits (`LoginLimitsValidation.Validate`), the account-creation cap and the email-change send caps |
+| `ForwardedHeadersConfig`    | `Avalon.Api.Hosting.Config`        | `Application:ForwardedHeaders` | API (every service) | By hand in `AddApiHosting` (`ForwardedHeadersSetup.BuildOptions`) |
+| `EmailConfig`               | `Avalon.Api.Identity.Config`       | `Application:Email` | API (identity) | By hand in `AddEmail` |
+| `RateLimitingConfig`        | `Avalon.Api.Hosting.Config`        | `Application:RateLimiting`, as `IOptions<RateLimitingConfig>` only | API (every service) | `ValidateOnStart` (each limit at least 1) |
+| `MapAssetConfig`            | `Avalon.Api.Worlds.Config`         | `Application:MapAssets`, as `IOptions<MapAssetConfig>` | API (worlds) | Not validated |
+| `NotificationConfig`        | `Avalon.Api.Identity.Config`       | `Application:Notification` | API (identity) | Not validated |
+| `EnvironmentConfig`         | `Avalon.Api.Hosting.Config`        | `Application:Environment` | API (identity) | Not validated |
+| `WorldsConfig`              | `Avalon.Api.Worlds.Config`         | `Application`: `PublicWorldId`, `PublicSiteUrl`, `Balance` | API (worlds) | `PublicSiteUrl` by hand (`PublicSiteSettings.Create`); see [REST API Worlds](#rest-api-worlds) |
+| `PreviewConfiguration`      | `Avalon.Api.Worlds.Previews`       | `Application:Previews`, as `IOptions<PreviewConfiguration>` | API (worlds) | Not validated; a bad colour only leaves `theme-color` out |
+| `DistributionConfiguration` | `Avalon.Api.Distribution`          | `Application:Distribution` | API (distribution) | Not validated; left incomplete, the `/client` endpoints answer 503 |
+| `BalanceConfiguration`      | `Avalon.Api.Worlds.Balance`        | `Application:Balance` | API (worlds) | Not validated; left incomplete, the admin `/balance` endpoints answer 503 |
+| `TemplateEditingOptions`    | `Avalon.Api.Worlds.Templates`      | `Application:Templates` | API (worlds) | `ValidateOnStart` (`ReloadTimeout` greater than zero). See `Application:Templates` below |
+| `CommerceConfiguration`     | `Avalon.Api.Commerce`              | `Application:Commerce`, as `IOptions<CommerceConfiguration>` | API (commerce) | `ValidateOnStart` (`CommerceOptionsValidator`, only while `Enabled`). See [Commerce](commerce-configuration.md) |
 | `BalanceServiceOptions`     | `Avalon.Balance.Service`           | `Balance` | Balance service | `ValidateOnStart` (`SharedSecret` required, 32 characters or more). See [Balance Service](#balance-service) |
 
 The API's `Cache` settings are therefore under `Application:Cache` (`Application__Cache__Host`), not `Cache`,
@@ -260,6 +266,50 @@ The slot count is bounded by the ring's circumference. At radius `1.5` there are
 
 ---
 
+## REST API Services
+
+The REST API is one binary that runs the API services `Application:Services` names (#794,
+[API services](api-services.md)). Production still runs all four in one process until the rollout (#802).
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `Application:Services` | string[], or one string | unset: all four | The services this process runs, any of `identity`, `worlds`, `commerce` and `distribution`, without regard to case; they run in that order whatever the order given. Unset, the process runs all four. An empty list or an unknown name stops startup, naming the setting. Helm `services`, rendered as `Application__Services__<n>` only when given |
+| `Application:Startup:AuthSchemaWaitSeconds` | int | `300` | How long a process without identity waits at startup until the auth database has no migration its build knows of pending (identity migrates it), checking every 5 s, before it fails, naming the setting. Whole seconds, at least 1. Helm `startup.authSchemaWaitSeconds`, rendered only for a release without identity, together with a `startupProbe` that allows the wait and a minute more |
+
+```bash
+Application__Services__0=worlds
+Application__Startup__AuthSchemaWaitSeconds=300
+```
+
+What each service reads. A process reads the union for the services it runs, and nothing it does not read is required
+of it; `appsettings.json` keeps every service's non-secret defaults.
+
+| Setting | identity | worlds | commerce | distribution |
+|---|:-:|:-:|:-:|:-:|
+| `Application:Services` | yes | yes | yes | yes |
+| `Database:Auth:ConnectionString` | yes | yes | yes | yes |
+| `Database:Worlds:<id>:Characters:ConnectionString` | yes | yes | | |
+| `Database:Worlds:<id>:World:ConnectionString` | | yes | | |
+| `Application:Cache:{Host,Password}` | yes | yes | yes | |
+| `Application:Authentication:{IssuerSigningKey,Issuer,Audience,ValidateIssuer,ValidateAudience,ClockSkewInMinutes}` (token validation) | yes | yes | yes | yes |
+| The rest of `Application:Authentication` (token lifetimes, the refresh cookie, the login, registration and email-change limits) | yes | | | |
+| `Application:StoreAuthentication:*`, `Application:SteamWebLink:*`, `Application:GameWorkloads:*`, `Kestrel:Endpoints:GameInternal:*`, `Application:Email:*`, `Application:Notification:*` | yes | | | |
+| `Application:StoreAuthentication:{Environment,SteamIdentityPrefix}` | yes | | yes | |
+| `Application:Templates:*`, `Application:MapAssets:*`, `Application:PublicWorldId`, `Application:PublicSiteUrl`, `Application:Previews:*`, `Application:Balance:*` | | yes | | |
+| `Application:Commerce:*` | | | yes | |
+| `Application:Distribution:*` | | | | yes |
+| `Application:ForwardedHeaders:*`, `Application:RateLimiting:{Enabled,AnonymousPermitsPerMinute,AuthenticatedPermitsPerMinute}` | yes | yes | yes | yes |
+| `Application:RateLimiting:{ClientAuthPermitsPerMinute,WorkloadPermitsPerMinute}` | yes | | | |
+| `Application:Startup:AuthSchemaWaitSeconds` | | yes | yes | yes |
+
+Commerce binds `Application:StoreAuthentication` without identity's validator, since it reads only those two keys
+(purchases and licences are scoped by them); a process running both binds the section once. The Helm chart renders a
+service's values only into a release that runs it, and a chart-managed Secret holds only that release's keys
+([API services](api-services.md#deploying-with-the-chart)); its `ci/test.sh` checks that a release of each service
+alone renders exactly the settings of that service's column the chart sets.
+
+---
+
 ## REST API Worlds
 
 The API serves any number of worlds, one per `Worlds` row in the auth database (#523). Each world has its own world database (content) and characters database; only the auth database and Redis are shared. Adding a world is a configuration change only. The world servers are unchanged: each serves one world, from its own `Database:World` and `Database:Characters`.
@@ -270,7 +320,7 @@ The API serves any number of worlds, one per `Worlds` row in the auth database (
 | `Database:Worlds:<id>:World:ConnectionString` | World `<id>`'s content database |
 | `Database:Worlds:<id>:Characters:ConnectionString` | World `<id>`'s characters database |
 
-`<id>` is the world's id in the auth `Worlds` table. The environment form is `Database__Worlds__2__World__ConnectionString`.
+`<id>` is the world's id in the auth `Worlds` table. The environment form is `Database__Worlds__2__World__ConnectionString`. A process reads only the strings of the databases its services read: both for worlds, the Characters string for identity, none for commerce or distribution.
 
 ```json
 "Database": {
@@ -282,20 +332,22 @@ The API serves any number of worlds, one per `Worlds` row in the auth database (
 }
 ```
 
-**Startup refuses to run**, naming the setting (never its value), when there is no world, a world id is not a positive integer up to 65535 written without leading zeros or sign, a world has only one of its two strings, or a string is blank. The check runs right after the other startup validations (see [Startup Validation](#startup-validation)), before any migration. It is not an options validation, so OpenAPI generation, which skips that startup work, needs no world configured.
+**Startup refuses to run**, in a process that reads a world database, naming the setting (never its value), when there is no world, a world id is not a positive integer up to 65535 written without leading zeros or sign, a world lacks a string the process reads, or a string is blank. The check runs right after the other startup validations (see [Startup Validation](#startup-validation)), before any database call. It is not an options validation, so OpenAPI generation, which skips that startup work, needs no world configured.
 
-**At startup** the API migrates the auth database (a failure stops it), then each world's two databases. A world whose migration fails is logged with its id and the exception type and answers 503 until the next restart; the other worlds serve. There is no retry. Every unreachable world adds the driver's connect timeout to startup.
+**At startup** a process running identity migrates the auth database (a failure stops it), and any other waits for it ([REST API Services](#rest-api-services)). Then each process checks the world databases it reads, without migrating them: each world server migrates its own. A world that cannot be reached is logged with its id and the exception type and answers 503 until the next restart; the other worlds serve. There is no retry. Every unreachable world adds the driver's connect timeout to startup.
 
 **Routes:** world content and characters are under `/world/{worldId}/...`. A world this API is not configured for, or that the caller may not enter, answers 404 (the same 404 either way); an unavailable world answers 503. `GET /character` lists the caller's characters on every world, with `unavailableWorlds`; `GET /world` says for each world whether it is `configured` and `available`. The anonymous `/public/...` routes are `GET /public/world`, `GET /public/world/{worldId}/item/{id}` and `GET /public/world/{worldId}/ability/{id}`: they serve only worlds every player may enter unless the caller is signed in and may enter more, the list omits unavailable worlds, and any other world answers the same 404 (503 when its databases failed). Character ids are unique only within one world, so a consumer keys a character by `(worldId, id)`. The Redis presence keys name the world too (`presence:world:{worldId}:character:{id}`, #556), and one character's presence is `GET /world/{worldId}/observability/character/{id}`, under the same 404/503 world check; `GET /observability/online` and `GET /observability/instance/{instanceId}` stay cross-world.
 
-**Helm:** a `worlds` map, keyed by world id.
+**Helm:** a `worlds` map, keyed by world id. A release renders the strings of the parts its services read; one that runs only commerce or distribution ignores it.
 
 - Chart-managed Secret (no `existingSecret`): give `worlds.<id>.world.connectionString` and `worlds.<id>.characters.connectionString`, from files (`--set-file`). The chart's Secret holds them under `database-world-<id>-connection-string` and `database-characters-<id>-connection-string`.
 - `existingSecret`: give no strings. Your Secret holds each world's two keys, under those default names or the names you set in `worlds.<id>.worldKey` / `worlds.<id>.charactersKey` (custom names are accepted only with `existingSecret`). A world with no custom names is still listed, for example `--set worlds.2.worldKey=`. Add the keys to the Secret before upgrading.
 - The auth string, `database.auth.connectionString`, is required with a chart-managed Secret (from a file, `--set-file`; trimmed, so a blank one is refused too) and must be left empty with `existingSecret`, whose Secret holds it under `database-auth-connection-string` (#564).
 - The chart refuses to render with no world, a world id the API would refuse, a world missing one of its strings (chart-managed), a string given inline with `existingSecret`, a key that is not a valid Secret key name, a key two settings would read (the chart's own keys included), and the removed `database.world` / `database.characters` values.
 
-The API's `appsettings.json` lists no world, so the published image ships none. Local development gets world 1 (the docker compose databases) from `appsettings.Development.json`, which only the Development environment loads, and the Aspire AppHost sets the same pair. Every other environment has exactly the worlds its environment variables or Helm values give it, and the API refuses to start with none.
+The API's `appsettings.json` lists no world, so the published image ships none. Local development gets world 1 (the docker compose databases) from `appsettings.Development.json`, which only the Development environment loads, and the Aspire AppHost sets the same pair. Every other environment has exactly the worlds its environment variables or Helm values give it, and a process that reads a world database refuses to start with none.
+
+The settings below are the worlds service's.
 
 **`Application:PublicWorldId`** (optional `ushort`): the world `GET /public/world` names as `defaultWorldId`. It falls back to the first world the caller may read when unset, or when that world is unavailable or not readable by the caller, so set it to the live world in a deployment.
 
@@ -317,7 +369,7 @@ Maintenance is stored per world in the shared auth database (`MaintenanceEnabled
 
 Admin operators can use `POST /world/{id}/maintenance` with optional JSON `{"graceMinutes": 5}`, `DELETE /world/{id}/maintenance`, and `GET /world/{id}/maintenance`. The grace defaults to five minutes and accepts whole minutes from 1 to 60. An Admin already in that world can also use `/maintenance on [minutes]`, `/maintenance off`, and `/maintenance status`. Repeating `on` preserves the first deadline; `off` cancels the remaining warnings and advances the revision.
 
-The public `WorldStatus` is derived: an active cutoff gives `Maintenance`; before the deadline a fresh ready heartbeat gives `Online`, and no heartbeat gives `Offline`. The world refreshes a five-second Redis heartbeat each second only while its listener is open and simulation ticks complete. The API's `WorldDto.Ready` reports that heartbeat separately from `Available`, which still means the API has configured and migrated that world's databases. World create and general update requests cannot set status.
+The public `WorldStatus` is derived: an active cutoff gives `Maintenance`; before the deadline a fresh ready heartbeat gives `Online`, and no heartbeat gives `Offline`. The world refreshes a five-second Redis heartbeat each second only while its listener is open and simulation ticks complete. The API's `WorldDto.Ready` reports that heartbeat separately from `Available`, which means the API process serving the request has that world configured and reached its databases at startup. World create and general update requests cannot set status.
 
 At enable, the world broadcasts a System chat warning. It warns again at three minutes, one minute, thirty seconds, and every second from ten through zero that falls within the grace. At zero it sends the warning before a maintenance disconnect, stops processing authenticated non-Admin packets, then runs the normal despawn and save path. Admin sessions remain connected. Auth selection, world key exchange, character select, and final spawn enforce the deadline; if the authoritative maintenance row cannot be read, a new entry is refused.
 
@@ -340,15 +392,18 @@ The host's stop timeout is `DrainTime + SaveMargin` (30 s with the shipped value
 
 ## REST API JWT Signing Key
 
-Section: `Application:Authentication` in `Avalon.Api` (**never committed to source control**, #482)
+Section: `Application:Authentication`, read by every API service (**never committed to source control**, #482)
 
 | Key                | Type   | Default      | Description                                                    |
 |--------------------|--------|--------------|----------------------------------------------------------------|
-| `IssuerSigningKey` | string | _(required)_ | HMAC-SHA256 key that signs and validates the API's access JWTs |
+| `IssuerSigningKey` | string | _(required)_ | HMAC-SHA256 key: identity signs the API's access JWTs with it, and every API service validates them with it |
 
-`JwtSigningKey.Create` runs when `AddAuth` registers authentication, so the API refuses to start, naming the
-setting, when the key is missing, has leading or trailing whitespace, is shorter than 32 bytes in UTF-8, or is
-the value once committed to `appsettings.json` (public now). The key is deliberately absent from `appsettings.json`.
+`JwtSigningKey.Create` runs when `AddApiAuthentication` (`Avalon.Api.Hosting`) registers the token validation, in
+every API process whatever its services, so a process refuses to start, naming the setting, when the key is missing,
+has leading or trailing whitespace, is shorter than 32 bytes in UTF-8, or is the value once committed to
+`appsettings.json` (public now). The key is deliberately absent from `appsettings.json`. Since a key that validates
+HS256 tokens can also sign them, any process holding it could mint a token; #801 replaces it with an ES256 key pair
+whose private half only identity holds.
 
 ```bash
 # Development: user-secrets (the Avalon.Api project has a UserSecretsId)
@@ -367,7 +422,7 @@ is gone: the signing key is always validated.
 
 ## REST API Login Limits
 
-Section: `Application:Authentication` in `Avalon.Api` (#478)
+Section: `Application:Authentication`, read by identity (#478)
 
 | Key                              | Type | Default | Description |
 |----------------------------------|------|---------|-------------|
@@ -381,14 +436,14 @@ The REST login, MFA verify and the current-password checks (password change, `PO
 `POST /pat`, `POST /pat/admin`) run the Auth server's login policy over **the same Redis keys**, so these
 must equal the Auth server's `Application:*` values of the same names: a key counted against two
 different limits locks at whichever is lower. The defaults match. The section is bound without validated
-options, so `AddInfrastructure` refuses a value below `1` at startup, naming the setting.
+options, so identity's registration (`AddIdentity`) refuses a value below `1` at startup, naming the setting.
 
 ```bash
 Application__Authentication__MaxFailedLoginAttempts=5
 ```
 
-Each host logs its five limits at Information when it starts (the Auth server as `Application`, the API
-as `Application:Authentication`), so the two lines can be compared.
+Each host logs its five limits at Information when it starts (the Auth server as `Application`, an API
+process running identity as `Application:Authentication`), so the two lines can be compared.
 
 The per-source budget keys on the caller's address after the forwarded headers are applied, so behind a
 proxy it needs [REST API Forwarded Headers](#rest-api-forwarded-headers) set up.
@@ -397,7 +452,7 @@ proxy it needs [REST API Forwarded Headers](#rest-api-forwarded-headers) set up.
 
 ## REST API Forwarded Headers
 
-Section: `Application:ForwardedHeaders` in `Avalon.Api` (#478 review)
+Section: `Application:ForwardedHeaders`, read by every API service (#478 review)
 
 | Key             | Type     | Default | Description |
 |-----------------|----------|---------|-------------|
@@ -440,17 +495,20 @@ A caller with no peer address at all is refused with 400 on the endpoints that s
 
 ## REST API Rate Limiting
 
-Section: `Application:RateLimiting` in `Avalon.Api` (#561)
+Section: `Application:RateLimiting`, read by every API service (#561)
 
 | Key                             | Type | Default | Description |
 |---------------------------------|------|---------|-------------|
 | `Enabled`                       | bool | `true`  | When false, nothing is limited |
 | `AnonymousPermitsPerMinute`     | int  | `60`    | Requests a minute per source for a caller that is not signed in |
 | `AuthenticatedPermitsPerMinute` | int  | `300`   | Requests a minute per account for a caller with a valid access token or personal access token |
-| `ClientAuthPermitsPerMinute`    | int  | `20`    | Launcher sign-in requests (`client/auth`: code, token, refresh, revoke) a minute per source, on top of the above (#591) |
+| `ClientAuthPermitsPerMinute`    | int  | `20`    | Identity: launcher sign-in requests (`client/auth`: code, token, refresh, revoke) a minute per source, on top of the above (#591) |
+| `WorkloadPermitsPerMinute`      | int  | `16384` | Identity: requests a minute per authenticated game server on the game workload listener, every player's lease heartbeat included, counted instead of the limits above ([game server admission](steam-authentication-workloads.md)) |
 
 Every request counts, whatever the endpoint, in a sliding window of one minute in six segments, held in
-memory (the API runs as one replica; each replica would count on its own). A request with a valid access
+memory: each API process counts the requests it serves, and each replica on its own. While one process runs
+every service that is one budget; once the services run apart, a caller has one budget per service process
+([API services](api-services.md#authentication-across-services)). A request with a valid access
 token or personal access token is counted against its account, after the account has been revalidated;
 any other, a request whose token is not valid included, against its source: the login budgets' rule, the
 IPv4 address or the IPv6 /64, after the [forwarded headers](#rest-api-forwarded-headers) are applied.
@@ -467,7 +525,7 @@ A refused request gets 429 ProblemDetails with `Detail` `LOCKED` and a `Retry-Af
 same whichever partition refused it. `Retry-After` is a lower bound: the limiter's own hint when it gives
 one, otherwise one segment (10 s), the soonest a permit can come back; a request sent then may still be
 refused if the permits spent in older segments have not left the window yet. A refusal also increments the counter `avalon.api.rate_limit.rejections` (meter
-`avalon-api`), tagged `partition=anonymous` or `partition=authenticated`.
+`avalon-api`), tagged `partition=anonymous`, `partition=authenticated` or `partition=workload`.
 
 The section is bound as `IOptions<RateLimitingConfig>` and validated at startup: a limit below `1` stops
 the API, naming the setting.
@@ -479,8 +537,9 @@ Application__RateLimiting__ClientAuthPermitsPerMinute=20
 ```
 
 The Helm chart passes `rateLimiting.enabled`, `rateLimiting.anonymousPermitsPerMinute`,
-`rateLimiting.authenticatedPermitsPerMinute` and `rateLimiting.clientAuthPermitsPerMinute`, each only when
-set; empty, the API's defaults apply.
+`rateLimiting.authenticatedPermitsPerMinute` and `rateLimiting.clientAuthPermitsPerMinute` (the last only to a
+release that runs identity), each only when set; empty, the API's defaults apply. `WorkloadPermitsPerMinute` has no
+chart value.
 
 The launcher sign-in endpoints (`client/auth/*`, #591) also carry the named policy `client-auth`: a
 separate sliding window per source (the same source rule), counted in addition to the limits above, so a
@@ -490,13 +549,19 @@ signed-in caller is held to it too. It answers with the same 429.
 
 ## REST API Email
 
-Section: `Application:Email` in `Avalon.Api` (#510)
+Section: `Application:Email`, read by identity (#510)
 
 | Key               | Type   | Default                                   | Description |
 |-------------------|--------|-------------------------------------------|-------------|
-| `Sender`          | enum   | `None`                                    | `None` or `Pickup`. Which email sender the API uses |
+| `Sender`          | enum   | `None`                                    | `None`, `Pickup` or `Resend`. Which email sender the API uses |
 | `PickupDirectory` | string | `avalon-mail` under `Environment.SpecialFolder.LocalApplicationData` | Where `Pickup` writes its `.eml` files; created when missing, with mode 0700 on Unix |
-| `From`            | string | none                                      | The address every email is sent from. Required, as a bare address (`noreply@example.com`, no display name), when `Sender` is `Pickup` |
+| `From`            | string | none                                      | The address every email is sent from. Required, as a bare address (`noreply@example.com`, no display name), when `Sender` is `Pickup` or `Resend` |
+| `FromName`        | string | none                                      | `Resend`: the display name of the `From` header; no control characters, `<`, `>` or `"` |
+| `ResendApiKey`    | string | none                                      | `Resend`: its server API key, required, without whitespace. A secret: never logged; Helm reads it from `email.existingSecret` (key `email.resendApiKeyKey`, default `resend-api-key`) |
+| `VerificationSiteOrigin` | string | none                               | The website origin the verification links (and the email-change confirm link) open: an HTTPS origin with no path, query, fragment or user info (in Development an http loopback origin too). Unset, current-address verification is off |
+| `VerificationCooldownSeconds` | int | `60`                              | The least time between two verification emails to one account |
+| `MaxVerificationSendsPerAccount` | int | `5`                            | Verification emails one account may request an hour |
+| `MaxVerificationSendsPerSource` | int | `20`                            | Verification emails one source may request an hour |
 
 Email change (`POST /account/email/change` and `/account/email/confirm`) is on only while a sender is
 configured:
@@ -506,6 +571,13 @@ configured:
 - `Pickup` writes each email as an RFC 5322 `.eml` file (plain text, UTF-8) into `PickupDirectory`, which
   any mail client opens. Nothing leaves the machine. The files hold the confirm tokens, so it is
   **Development only**.
+- `Resend` sends each email once through Resend's HTTP API, plain text, with a 30 s timeout and no retry: a send
+  whose outcome is unknown is never repeated.
+
+Current-address verification (`GET`, `POST /account/email/verification` and `POST /account/email/verification/confirm`)
+needs a sender and `VerificationSiteOrigin`; without either, a request for a verification email answers 501. A
+verification link lasts 30 minutes; a request within the cooldown, or past either hourly budget, is answered 429
+`LOCKED`.
 
 With a sender, starting a change sends the confirm token to the new address and a notice with no token to
 the old one, and answers 202 with no body. If the confirmation cannot be sent, the pending change is
@@ -525,9 +597,11 @@ only the latest token confirms. Each email is sent with its own 30 s timeout, ne
 | `EmailChangeSendWindowMinutes`  | int  | `60`    | The window, fixed from the first send |
 
 - Startup refuses, naming the setting:
-  - any of the three send-budget values above below 1;
+  - any of the three send-budget values above below 1, or any of the three verification values;
+  - a `VerificationSiteOrigin` that is not such an origin;
   - `Sender` `Pickup` outside Development (`Application:Email:Sender`);
-  - `Sender` `Pickup` with a missing or invalid `From` (`Application:Email:From`).
+  - `Sender` `Pickup` or `Resend` with a missing or invalid `From` (`Application:Email:From`);
+  - `Sender` `Resend` without a valid `ResendApiKey`, or with a `FromName` it refuses.
 - At startup the API logs the sender and whether email change is on.
 
 ```bash
@@ -536,23 +610,24 @@ dotnet user-secrets set "Application:Email:Sender" "Pickup" --project src/Server
 dotnet user-secrets set "Application:Email:From" "noreply@avalon.monster" --project src/Server/Avalon.Api
 ```
 
-A real provider (SMTP or HTTP) is not implemented yet; it will sit behind the same `IEmailSender`, and its
-credentials will load from user-secrets or the environment, like the JWT signing key.
+The Helm chart renders `email` only into a release that runs identity: `email.sender` (`None` or `Resend`; it
+refuses `Pickup`), `email.from`, `email.fromName`, `email.verificationSiteOrigin`, the three verification values,
+and, with `Resend`, the key's Secret reference, which it requires together with `from` and `verificationSiteOrigin`.
 
 ---
 
 ## REST API Personal Access Tokens
 
 The `Authorization: Avalon avp_...` scheme takes no configuration and there is no shared secret. Each
-token belongs to one account; only its SHA-256 hash is stored, and `AvalonAuthenticationHandler` looks
-it up per request. See [Security — Session Management](security-session-management.md#rest-api-authentication).
+token belongs to one account and is minted by identity; only its SHA-256 hash is stored, and
+`AvalonAuthenticationHandler` (`Avalon.Api.Hosting`) looks it up per request in every API service. See [Security — Session Management](security-session-management.md#rest-api-authentication).
 
 ---
 
 ## Balance Service
 
-The balance service (`Avalon.Balance.Service`) is reached only from inside the cluster, by `Avalon.Api`. Both sides
-hold the same shared secret.
+The balance service (`Avalon.Balance.Service`) is reached only from inside the cluster, by the API's worlds service.
+Both sides hold the same shared secret.
 
 **Service** (`Balance`, as `Balance__<Name>` in the environment):
 
@@ -571,7 +646,7 @@ hold the same shared secret.
 Exports branch from the commit in the assembly's informational version (`+<sha>`), which CI sets with
 `-p:SourceRevisionId="$(git rev-parse HEAD)"` (the checked-out commit; `github.sha` is main's head on a manual release); a build without it answers exports with 503.
 
-**API** (`Application:Balance`):
+**API** (`Application:Balance`, read by the worlds service):
 
 | Setting | Meaning |
 |---------|---------|
@@ -579,8 +654,9 @@ Exports branch from the commit in the assembly's informational version (`+<sha>`
 | `SharedSecret` | Sent as `X-Balance-Secret`; the same value as the service's `Balance:SharedSecret` |
 
 Both are needed: with either empty the admin `/balance/*` endpoints answer 503 and nothing else changes. In the
-Helm charts the secret is the key `balance-shared-secret` of the Secret, for both charts; the api chart's
-`balance.url` renders `Application__Balance__Url` only when set.
+Helm charts the secret is the key `balance-shared-secret` of the Secret, for both charts; the api chart renders the
+secret's reference and, only when set, `balance.url` as `Application__Balance__Url`, both only into a release that runs
+worlds.
 
 ---
 
@@ -673,8 +749,8 @@ These configuration classes (`GameConfiguration`, `RegenConfiguration`,
 (`ValidateDatabasesOnStart` in `Avalon.Database`) rather than by annotations, because the databases a
 host needs differ: the auth server needs `Database:Auth:ConnectionString`, the world server that and
 `Database:Characters:ConnectionString` and `Database:World:ConnectionString`, and the REST API
-`Database:Auth:ConnectionString`. The API then checks `Database:Worlds` right after these checks, in
-`ApiStartup` (`WorldDatabaseSettings`, see [REST API Worlds](#rest-api-worlds)), rather than as an
+`Database:Auth:ConnectionString`. An API process that reads a world database then checks `Database:Worlds` right
+after these checks, in `ApiStartup` (`WorldDatabaseSettings`, see [REST API Worlds](#rest-api-worlds)), rather than as an
 options validation, because OpenAPI generation starts the host with no world configured. The message
 names the missing or malformed setting.
 
@@ -685,13 +761,15 @@ its cache connection (`AuthStartup`, `WorldStartup`, `ApiStartup`), because `Val
 would run them only when the host starts, after that work had already failed on the missing value.
 The API skips them, with the migrations, when `AVALON_OPENAPI_GENERATION_ONLY` is set.
 
-The REST API's `Application:*` classes (`ApplicationConfig` and the sections under it) do not use
-`ValidateOnStart`, except `Application:Cache`, which is also bound as `IOptions<CacheConfiguration>`
-and validated at startup like the servers' `Cache`, and `Application:RateLimiting`, bound only as
-`IOptions<RateLimitingConfig>` and validated the same way (see
-[REST API Rate Limiting](#rest-api-rate-limiting)). They are bound directly rather than through `IOptions<T>`, and `ServiceRegistration`
-checks them by hand at startup: the signing key (`JwtSigningKey.Create`, see
-[REST API JWT Signing Key](#rest-api-jwt-signing-key)), the login limits (`LoginLimitsValidation.Validate`),
-the account-creation cap, the email-change send caps, the forwarded-headers entries
-(`ForwardedHeadersSetup.BuildOptions`) and the email sender (`AddEmail`). Each check throws
+The REST API's `Application:*` settings are bound directly, by the services that read them, rather than through
+`IOptions<T>`, and do not use `ValidateOnStart`, except `Application:Cache`, bound as `IOptions<CacheConfiguration>` in
+a process whose services need Redis and validated at startup like the servers' `Cache`, `Application:RateLimiting`,
+bound only as `IOptions<RateLimitingConfig>` and validated the same way (see
+[REST API Rate Limiting](#rest-api-rate-limiting)), and the worlds service's `Application:Templates` and commerce's
+`Application:Commerce`, validated the same way. The rest are checked by hand while the host is built: in every
+process `Application:Services` (`ApiServiceSelection`), the signing key (`JwtSigningKey.Create` in
+`AddApiAuthentication`, see [REST API JWT Signing Key](#rest-api-jwt-signing-key)) and the forwarded-headers entries
+(`ForwardedHeadersSetup.BuildOptions` in `AddApiHosting`); in identity the login limits
+(`LoginLimitsValidation.Validate`), the account-creation cap, the email-change send caps and the email sender
+(`AddIdentity`, `AddEmail`); in worlds the public site URL (`PublicSiteSettings.Create`). Each check throws
 `InvalidOperationException`, and its message names the setting.

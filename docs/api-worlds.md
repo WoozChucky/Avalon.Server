@@ -2,36 +2,41 @@
 
 A deployment runs any number of world servers, one per row of the auth `Worlds` table, and every world has its own
 world database (content: templates, maps, chunks, quests) and characters database; only the auth database and Redis
-are shared (#523). One `Avalon.Api` process serves all of them. World content and characters live under
-`/world/{worldId}/...`: `WorldRouteMiddleware` decides, before authorization, whether this API can serve that world
-to this caller and selects it for the request, and the API's ordinary repositories then open that world's databases.
-Views that span worlds (an account's characters, the world list, live presence) read each world by name. Adding a
-world is configuration only. The world servers are unchanged: each serves one world from its own `Database:World` and
-`Database:Characters`, and each migrates its own databases; the API migrates only the auth database and checks the
-worlds' databases once, at startup.
+are shared (#523). The API serves all of them: world content and characters are the worlds service's
+(`Avalon.Api.Worlds`), and identity reads each world's Characters database for game admission and account
+consolidation ([API services](api-services.md)). World content and characters live under `/world/{worldId}/...`:
+`WorldRouteMiddleware` decides, before authorization, whether this API can serve that world to this caller and selects
+it for the request, and the ordinary repositories then open that world's databases. Views that span worlds (an
+account's characters, the world list, live presence) read each world by name. Adding a world is configuration only.
+The world servers are unchanged: each serves one world from its own `Database:World` and `Database:Characters`, and
+each migrates its own databases; the API never migrates them, and each API process checks the world databases it
+reads once, at startup.
 
 ## Where the code lives
 
-Paths are under `src/Server/Avalon.Api/` unless given in full.
+The world database plumbing is shared hosting, under `src/Server/Avalon.Api.Hosting/Worlds/` (namespace
+`Avalon.Api.Hosting.Worlds`), so every service that reads a world uses the same code; the world controllers, previews
+and services are the worlds service's, under `src/Server/Avalon.Api.Worlds/`. Paths below are under `src/Server/`.
 
 | Type | File | Role |
 |---|---|---|
-| `WorldDatabaseSettings` | `Worlds/WorldDatabaseSettings.cs` | Parses `Database:Worlds`. `TryParseWorldId` is the one parse of a world id, for the configuration keys and the route alike |
-| `ConfiguredWorld`, `WorldDatabaseStatus` | `Worlds/ConfiguredWorld.cs`, `Worlds/WorldDatabaseStatus.cs` | One configured world: its id, its two connection strings and its status (`Available`, `Unavailable`). A class, not a record, and its `ToString` prints only the id and status, so no generated member can print a connection string |
-| `IWorldDatabases`, `WorldDatabases` | `Worlds/IWorldDatabases.cs`, `Worlds/WorldDatabases.cs` | The configured worlds in id order. `IsAvailable(world)` is the one test of "this API can serve that world" |
-| `ApiDatabaseMigrator` | `Worlds/ApiDatabaseMigrator.cs` | Startup: migrates auth, then checks each world's two databases |
-| `WorldRouteMiddleware` | `Worlds/WorldRouteMiddleware.cs` | Selects the request's world on `[WorldScoped]` and `[PublicWorldScoped]` endpoints |
-| `WorldScopedAttribute`, `PublicWorldScopedAttribute` | `Worlds/WorldScopedAttribute.cs`, `Worlds/PublicWorldScopedAttribute.cs` | The controller markers the middleware acts on (route value `worldId`) |
-| `ICurrentWorld`, `CurrentWorld` | `Worlds/CurrentWorld.cs` | Scoped: the request's world id and its auth row's name. Selected at most once; a second `Select` throws |
-| `CurrentWorldDbContextFactory<TContext>` | `Worlds/CurrentWorldDbContextFactory.cs` | The API's `IDbContextFactory<WorldDbContext>` and `IDbContextFactory<CharacterDbContext>`: opens the request's world, throws when none is selected |
-| `IWorldDbContextFactory`, `ConfiguredWorldDbContextFactory` | `Worlds/WorldDbContextFactory.cs` | Opens a named world's contexts (the caller disposes them). `ForWorld`/`ForCharacters` fix a factory to one world |
-| `IWorldRepositories`, `WorldRepositories` | `Worlds/WorldRepositories.cs` | Repositories over one named world, for cross-world work; each call builds a fresh repository |
-| `WorldDatabaseRegistration` | `Worlds/WorldDatabaseRegistration.cs` | `AddWorldDatabases`, called by `AddInfrastructure` in `ServiceRegistration.cs` |
-| `PublicCaller`, `PublicWorlds` | `Worlds/PublicCaller.cs`, `Worlds/PublicWorlds.cs` | Who a public request comes from; which worlds it may read, and the default one |
-| `PublicController`, `PublicWorldController`, `PublicPreviewController` | `Controllers/` | Item and ability tooltips, the public world list, link previews |
-| `LinkPreviewPage`, `LinkPreviewText`, `PreviewConfiguration`, `PublicSiteSettings` | `Previews/` | Link preview HTML, its one-line description and its settings |
-| `AccountCharactersService`, `WorldService`, `ObservabilityService` | `Services/` | The cross-world views |
-| `ApiStartup` | `ApiStartup.cs` | The startup order (validation, world parse, migration) |
+| `WorldDatabaseSettings` | `Avalon.Api.Hosting/Worlds/WorldDatabaseSettings.cs` | Parses `Database:Worlds`, for the parts a process reads. `TryParseWorldId` is the one parse of a world id, for the configuration keys and the route alike |
+| `WorldDatabaseParts` | `Avalon.Api.Hosting/Worlds/WorldDatabaseParts.cs` | Which of a world's databases a process reads: both for worlds, only the Characters database for identity, none for commerce and distribution (a process reads the union for its services) |
+| `ConfiguredWorld`, `WorldDatabaseStatus` | `Avalon.Api.Hosting/Worlds/ConfiguredWorld.cs`, `WorldDatabaseStatus.cs` | One configured world: its id, the connection strings the process reads and its status (`Available`, `Unavailable`). A class, not a record, and its `ToString` prints only the id and status, so no generated member can print a connection string |
+| `IWorldDatabases`, `WorldDatabases` | `Avalon.Api.Hosting/Worlds/IWorldDatabases.cs`, `WorldDatabases.cs` | The configured worlds in id order. `IsAvailable(world)` is the one test of "this API process can serve that world" |
+| `ApiDatabaseMigrator` | `Avalon.Api.Hosting/Worlds/ApiDatabaseMigrator.cs` | Startup: migrates the auth database for the process that owns its schema (identity), and checks the world databases the process reads |
+| `WorldRouteMiddleware` | `Avalon.Api.Hosting/Worlds/WorldRouteMiddleware.cs` | Selects the request's world on `[WorldScoped]` and `[PublicWorldScoped]` endpoints; in the pipeline only where a running service declares world routes (worlds) |
+| `WorldScopedAttribute`, `PublicWorldScopedAttribute` | `Avalon.Api.Hosting/Worlds/WorldScopedAttribute.cs`, `PublicWorldScopedAttribute.cs` | The controller markers the middleware acts on (route value `worldId`) |
+| `ICurrentWorld`, `CurrentWorld` | `Avalon.Api.Hosting/Worlds/CurrentWorld.cs` | Scoped: the request's world id and its auth row's name. Selected at most once; a second `Select` throws |
+| `CurrentWorldDbContextFactory<TContext>` | `Avalon.Api.Hosting/Worlds/CurrentWorldDbContextFactory.cs` | The API's `IDbContextFactory<WorldDbContext>` and `IDbContextFactory<CharacterDbContext>`: opens the request's world, throws when none is selected |
+| `IWorldDbContextFactory`, `ConfiguredWorldDbContextFactory` | `Avalon.Api.Hosting/Worlds/WorldDbContextFactory.cs` | Opens a named world's contexts (the caller disposes them). `ForWorld`/`ForCharacters` fix a factory to one world |
+| `IWorldRepositories`, `WorldRepositories` | `Avalon.Api.Hosting/Worlds/WorldRepositories.cs` | Repositories over one named world, for cross-world work; each call builds a fresh repository |
+| `WorldDatabaseRegistration` | `Avalon.Api.Hosting/Worlds/WorldDatabaseRegistration.cs` | `AddWorldDatabases`, called by `AddApiHosting` (`Avalon.Api.Hosting/ApiHostingRegistration.cs`) with the parts the running services read |
+| `PublicCaller`, `PublicWorlds` | `Avalon.Api.Hosting/Worlds/PublicCaller.cs`, `PublicWorlds.cs` | Who a public request comes from; which worlds it may read, and the default one |
+| `PublicController`, `PublicWorldController`, `PublicPreviewController` | `Avalon.Api.Worlds/Controllers/` | Item and ability tooltips, the public world list, link previews |
+| `LinkPreviewPage`, `LinkPreviewText`, `PreviewConfiguration`, `PublicSiteSettings` | `Avalon.Api.Worlds/Previews/` | Link preview HTML, its one-line description and its settings |
+| `AccountCharactersService`, `WorldService`, `ObservabilityService` | `Avalon.Api.Worlds/Services/` | The cross-world views |
+| `ApiStartup` | `Avalon.Api.Hosting/ApiStartup.cs` | The startup order (validation, world parse, startup checks, auth schema, world checks) |
 
 The repositories themselves are the shared ones (`AddWorldRepositories`, `AddCharacterRepositories`), registered as
 singletons as in every host. Only their context factories differ in the API, which is what makes them per world; see
@@ -78,10 +83,12 @@ singletons as in every host. Only their context factories differ in the API, whi
 
 ## How a request reaches its world
 
-The pipeline (`Program.cs`) runs `UseRouting`, CORS, `UseAuthentication`, the game workload authentication, the
-request rate limiter (`UseApiRateLimiting`, #561), then `WorldRouteMiddleware`, then `UseAuthorization`. The world
-check sits behind the rate limiter, so a flood of refused world requests is limited too, and before authorization, so
-an unknown world is a 404 whatever the endpoint's role policy.
+The pipeline every API process runs (`ApiPipeline`) has `UseRouting`, CORS, `UseAuthentication`, the services' hooks
+after it (in a process running identity, the game workload authentication), the request rate limiter
+(`UseApiRateLimiting`, #561), then `WorldRouteMiddleware`, then `UseAuthorization`. The world middleware is added only
+in a process that runs a service with world routes, which only worlds has. The world check sits behind the rate
+limiter, so a flood of refused world requests is limited too, and before authorization, so an unknown world is a 404
+whatever the endpoint's role policy.
 
 On a `[WorldScoped]` endpoint the middleware does, in order:
 
@@ -108,21 +115,26 @@ Behind the selection, `CurrentWorldDbContextFactory<T>` reads `ICurrentWorld` fr
 `IHttpContextAccessor` and opens that world's context through `IWorldDbContextFactory`, so concurrent requests on
 different worlds each read their own (`CurrentWorldContextsShould.Keep_concurrent_requests_in_their_own_worlds`).
 The per-world contexts follow the rule every context follows for sensitive data logging (#558): on only when the host
-environment is Development, never turned on by configuration, and off for every context when checkout is enabled
-(the commerce registration post-configures `DatabaseConfiguration`).
+environment is Development, never turned on by configuration, and off for every context of a process that runs
+commerce with checkout enabled (the commerce registration post-configures `DatabaseConfiguration`).
 
 ## Startup and availability
 
 `ApiStartup.ValidateAndMigrateAsync` runs, in order:
 
 1. `IStartupValidator.Validate()`: the options validations, `Database:Auth:ConnectionString` among them
-   (`ValidateDatabasesOnStart(DatabaseConnections.Auth)`), and `Application:Templates`.
-2. It resolves `WorldDatabases`, which parses `Database:Worlds` and stops startup, naming the setting and never its
-   value, for no world, an id not in canonical form, a world with only one of its two strings, or a blank string.
-3. The store authentication and Steam web link checks (other features).
-4. `ApiDatabaseMigrator.MigrateAsync`: the auth database is migrated, and a failure stops the API. Then, for each
-   configured world in id order, its World database is checked with `Database.CanConnectAsync`, and its Characters
-   database only when the World database answered. A world that cannot be reached, or whose check throws, is marked
+   (`ValidateDatabasesOnStart(DatabaseConnections.Auth)`), and, where worlds runs, `Application:Templates`.
+2. In a process that reads a world database, it resolves `WorldDatabases`, which parses `Database:Worlds` for the
+   parts the process reads and stops startup, naming the setting and never its value, for no world, an id not in
+   canonical form, a world missing a string the process reads, or a blank string. A process running worlds needs both
+   strings of every world and one running identity without worlds only the Characters strings; a string the process
+   does not read is ignored, and a process running only commerce or distribution reads no `Database:Worlds` at all.
+3. The services' startup checks (`IApiStartupCheck`; identity's are the store authentication and the Steam web link).
+4. The auth schema (`AuthSchemaGate`): a process running identity migrates the auth database, and a failure stops it;
+   any other waits until no migration its build knows of is pending ([API services](api-services.md#the-auth-schema)).
+5. `ApiDatabaseMigrator.CheckWorldsAsync`: for each configured world in id order, its World database is checked with
+   `Database.CanConnectAsync` where the process reads it, and its Characters database where the process reads it and
+   the World database answered (or was not read). A world that cannot be reached, or whose check throws, is marked
    `Unavailable` and logged at Error with its id (and the exception's type, when one was thrown). Every world's status
    is then logged at Information.
 
@@ -142,8 +154,9 @@ What follows from it:
 
 ## Routes
 
-World-scoped routes (`[WorldScoped]`). Character reads admit the owner or a game master (`CharacterReadHandler`),
-character writes the owner or an admin (`CharacterWriteHandler`).
+World-scoped routes (`[WorldScoped]`). They, and every other route on this page, are the worlds service's. Character
+reads admit the owner or a game master (`CharacterReadHandler`), character writes the owner or an admin
+(`CharacterWriteHandler`).
 
 | Route | Verbs | Policy | Notes |
 |---|---|---|---|
@@ -157,7 +170,7 @@ character writes the owner or an admin (`CharacterWriteHandler`).
 | `/world/{worldId}/item-template/{id}` (and ability, creature, aura) | PUT | Admin | [Live Template Editing](live-template-editing.md) |
 | `/world/{worldId}/quest-template`, `/{id}` | GET | GameMaster | Read-only |
 | `/world/{worldId}/observability/character/{id}` | GET | GameMaster | One character's live presence, from that world's keys only |
-| `/world/{worldId}/scripts` | GET | GameMaster | The script names the world has published (`world:{id}:scripts`); see [Live Template Editing](live-template-editing.md#the-script-catalog) |
+| `/world/{worldId}/scripts` | GET | GameMaster | The script names the world has published (`world:{id}:scripts`); see [Live Template Editing](live-template-editing.md) |
 
 The map, item, ability, creature, aura and quest template lists are paged with `page` (below 1 reads as 1) and
 `pageSize` (outside 1 to 50 reads as 50). In the OpenAPI document `worldId` is a required path parameter
@@ -248,9 +261,11 @@ whole answer.
 - **One character's presence** is `GET /world/{worldId}/observability/character/{id}` (`WorldObservabilityController`),
   behind the world check. It reads only that world's index key and snapshot and treats an index entry naming another
   world as absent. Its 404 means "not in this world now", not "no such character".
-- **Game sessions** also read worlds by name: `GameServerAllocator` offers no destination on a world whose databases
-  this API marked unavailable; `GameSessionFenceService` writes gameplay fences into the named world's characters
-  database (`IWorldRepositories.GameplayFences`); and `AccountConsolidationService` runs across every configured world,
+- **Game sessions** (identity's) also read worlds by name, through their Characters databases:
+  `GameServerAllocator` offers no destination on a world this process marked unavailable (in a process running
+  identity without worlds, one whose Characters database did not answer at startup); `GameSessionFenceService` writes
+  gameplay fences into the named world's characters database (`IWorldRepositories.GameplayFences`); and
+  `AccountConsolidationService` runs across every configured world,
   refusing with `WorldConfigIncomplete` while any auth `Worlds` row is missing from `Database:Worlds` and with
   `WorldUnavailable` while any configured world is unavailable. It includes configured worlds whose auth row is gone,
   so a retired world stays configured while it still holds characters.
@@ -265,7 +280,8 @@ whole answer.
 | `Database:Worlds:<id>:Characters:ConnectionString` | World `<id>`'s characters database |
 
 `<id>` is the world's id in the auth `Worlds` table, in canonical form. The environment form is
-`Database__Worlds__2__World__ConnectionString`.
+`Database__Worlds__2__World__ConnectionString`. A process reads only the strings of the databases its services read
+(`WorldDatabaseParts`): both for worlds, the Characters string for identity, none for commerce or distribution.
 
 ```json
 "Database": {
@@ -284,7 +300,8 @@ The API's `appsettings.json` lists no world, so the published image ships none a
 ### Helm (`avalon-api` chart)
 
 A `worlds` map keyed by world id; every connection string reaches the pod through the Secret (`secretKeyRef`), never
-as a plain value.
+as a plain value. A release renders the strings of the parts its services read, as above; one that runs only commerce
+or distribution ignores `worlds`, and the checks below apply to the parts a release renders.
 
 - **Chart-managed Secret** (no `existingSecret`): give `worlds.<id>.world.connectionString` and
   `worlds.<id>.characters.connectionString`, from files (`--set-file`; a trailing newline is trimmed). The Secret holds
@@ -328,27 +345,29 @@ The preview colours mirror the Dashboard's `rarity.ts` and the public site's pri
   `IWorldDbContextFactory`, and contain each world's failure: log the world id and exception type, report the world
   as unavailable, never fail the whole view.
 - **Adding a world**: an auth `Worlds` row, a `Database:Worlds:<id>` pair (Helm `worlds.<id>`) pointing at that world
-  server's databases, and the same id as the world server's `Game:WorldId`; then restart the API, which reads the
-  configuration and checks the databases only at startup.
+  server's databases, and the same id as the world server's `Game:WorldId`; then restart the API processes that read
+  worlds (those running worlds or identity), which read the configuration and check the databases only at startup.
 
 ## Tests
 
-In `tests/Avalon.Api.UnitTests` unless noted.
+The shared plumbing's tests are in `tests/Avalon.Api.Hosting.UnitTests`, the worlds service's in
+`tests/Avalon.Api.Worlds.UnitTests`, and the host-level ones in `tests/Avalon.Api.UnitTests`.
 
-| Test | Guards |
-|---|---|
-| `Worlds/WorldDatabaseSettingsShould` | Parsing, canonical ids, refusals, connection strings kept out of `ToString`, statuses |
-| `Hosting/ApiStartupValidationShould` | `Database:Worlds` refused at startup before any database call, the options checks passing without a world, one world's failed check leaving the others available |
-| `Worlds/ApiDatabaseMigratorShould` | Auth migrated and worlds only checked, a failed world marked and logged by type, the 503 for it |
-| `Hosting/ApiHostGraphShould` | The context factories are the per-request ones |
-| `Worlds/CurrentWorldContextsShould` | The selected world's database, refusal with no world or no request, concurrent requests, named-world reads |
-| `Worlds/WorldContextSensitiveLoggingShould` | Sensitive data logging follows the host environment for every world |
-| `Worlds/WorldRouteShould` | The middleware's order: 404 cases alike, auth row before configuration, 404 before 503, 401, personal access tokens, a mid-request database failure as 503 |
-| `Worlds/WorldScopedEndpointsShould` | Marker and route agree; no anonymous world endpoint; public endpoints GET only |
-| `Worlds/WorldScopedDataShould` | The same route reads each world's own rows |
-| `Worlds/WorldRoutesOpenApiShould` | `worldId` a required path parameter; no world content outside a world; cross-world routes unscoped |
-| `Worlds/PublicRouteShould`, `Worlds/PublicWorldListShould`, `Worlds/PublicRoutesOpenApiShould` | Public tooltips, caching, the default world |
-| `Worlds/LinkPreviewShould` | Preview tags, encoding, the 200-character cap, `og:url`, colours, world selection |
-| `Worlds/WorldObservabilityRouteShould`, `Services/ObservabilityServiceShould` | Presence per world (#556) and the cross-world views |
-| `Services/AccountCharactersServiceShould` | `GET /character` across worlds with `unavailableWorlds` |
-| `Worlds/QuestTemplateRouteShould`, `Worlds/WorldScriptCatalogRouteShould` | Two world-scoped routes behind the world check |
+| Test | Project | Guards |
+|---|---|---|
+| `Worlds/WorldDatabaseSettingsShould` | Hosting | Parsing, canonical ids, refusals, connection strings kept out of `ToString`, statuses |
+| `Worlds/WorldDatabasePartsShould` | Hosting | A process reads, requires and opens only the world databases its services need |
+| `Hosting/ApiStartupValidationShould` | Hosting | `Database:Worlds` refused at startup before any database call, the options checks passing without a world, one world's failed check leaving the others available |
+| `Worlds/ApiDatabaseMigratorShould` | Worlds | Auth migrated and worlds only checked, a failed world marked and logged by type, the 503 for it |
+| `Hosting/ApiHostGraphShould` | Host | Each service's real host opens the request's world through the per-request context factories |
+| `Worlds/CurrentWorldContextsShould` | Hosting | The selected world's database, refusal with no world or no request, concurrent requests, named-world reads |
+| `Worlds/WorldContextSensitiveLoggingShould` | Hosting | Sensitive data logging follows the host environment for every world |
+| `Worlds/WorldRouteShould` | Worlds | The middleware's order: 404 cases alike, auth row before configuration, 404 before 503, 401, personal access tokens, a mid-request database failure as 503 |
+| `Worlds/WorldScopedEndpointsShould` | Worlds | Marker and route agree; no anonymous world endpoint; public endpoints GET only |
+| `Worlds/WorldScopedDataShould` | Worlds | The same route reads each world's own rows |
+| `Worlds/WorldRoutesOpenApiShould` | Worlds | `worldId` a required path parameter; no world content outside a world; cross-world routes unscoped |
+| `Worlds/PublicRouteShould`, `Worlds/PublicWorldListShould`, `Worlds/PublicRoutesOpenApiShould` | Worlds | Public tooltips, caching, the default world |
+| `Worlds/LinkPreviewShould` | Worlds | Preview tags, encoding, the 200-character cap, `og:url`, colours, world selection |
+| `Worlds/WorldObservabilityRouteShould`, `Services/ObservabilityServiceShould` | Worlds | Presence per world (#556) and the cross-world views |
+| `Services/AccountCharactersServiceShould` | Worlds | `GET /character` across worlds with `unavailableWorlds` |
+| `Worlds/QuestTemplateRouteShould`, `Worlds/WorldScriptCatalogRouteShould` | Worlds | Two world-scoped routes behind the world check |

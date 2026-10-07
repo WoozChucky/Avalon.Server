@@ -48,7 +48,7 @@ Configure one workload for each served world under `Application:GameWorkloads:Se
 
 The world process holds the private key for its client certificate. Its leaf must be current and have the TLS client authentication EKU (`1.3.6.1.5.5.7.3.2`). The API maps its pinned leaf to exactly one server ID. Never distribute a workload private key or publisher key to the game client.
 
-Configure `Kestrel:Endpoints:GameInternal:Url` as a direct HTTPS listener, with its API server certificate supplied through the usual Kestrel certificate configuration/secret mount. It requires a TLS client certificate during the handshake. Keep this port reachable by world servers through direct TLS or TLS passthrough. Also configure the public API listener explicitly: named Kestrel endpoints replace `ASPNETCORE_URLS`. Preserve its existing HTTPS/ingress setup. A TLS-terminating proxy and forwarded certificate headers cannot authenticate a workload.
+Game admission and this listener are the REST API's identity service (`Avalon.Api.Identity`, [API services](api-services.md)): a process without identity maps no `/internal/game/*` route, and the chart renders the listener's settings only into a release that runs identity. In a process that runs identity, `/internal/game/*` exists on this listener only: a request for it that arrives on any other port, the public one behind the ingress included, is answered 404 before it is authenticated, judged by the port the connection was accepted on (`GameInternalRoutes`). Configure `Kestrel:Endpoints:GameInternal:Url` as a direct HTTPS listener, with its API server certificate supplied through the usual Kestrel certificate configuration/secret mount. It requires a TLS client certificate during the handshake. Keep this port reachable by world servers through direct TLS or TLS passthrough. Also configure the public API listener explicitly: named Kestrel endpoints replace `ASPNETCORE_URLS`. Preserve its existing HTTPS/ingress setup. A TLS-terminating proxy and forwarded certificate headers cannot authenticate a workload.
 
 Example structure (replace every placeholder through deployment configuration):
 
@@ -79,7 +79,7 @@ Example structure (replace every placeholder through deployment configuration):
 }
 ```
 
-Use a secret configuration provider for certificate passwords. Certificate pins and server assignments are a startup snapshot; deploy new assignments and restart the API for rotation. An empty workload assignment grants no world allocation or internal authentication. It is not a bypass or an optional authentication mode.
+Use a secret configuration provider for certificate passwords. Certificate pins and server assignments are a startup snapshot; deploy new assignments and restart the API process that runs identity for rotation. An empty workload assignment grants no world allocation or internal authentication. It is not a bypass or an optional authentication mode.
 
 The internal endpoint ignores player/launcher JWTs and server IDs in headers or request bodies. Its authentication policy is separate from account role authorization. The pinned leaf is the deployment trust anchor, so private leaves can be used without installing a machine-wide trust root. TLS verifies private-key possession; the API also verifies pin, validity and EKU on every request.
 
@@ -137,9 +137,10 @@ update and delete also validate the current owner and lease inside their databas
 
 ## API chart and homelab configuration
 
-The API chart requires `storeAuthentication.existingSecret` (key `steam-publisher-key` by default),
+A release of the API chart that runs identity (one that names no `services` runs all four) requires
+`storeAuthentication.existingSecret` (key `steam-publisher-key` by default),
 `gameAdmission.tlsExistingSecret` (`tls.pfx`, optional `tls-password`), and
-`gameAdmission.bindingsExistingSecret`. `gameAdmission.servers` supplies each `serverId`, `worldId`
+`gameAdmission.bindingsExistingSecret`; a release without identity renders none of them, and no port 9443. `gameAdmission.servers` supplies each `serverId`, `worldId`
 and `tlsServerName`; the binding Secret has `<serverId>-tls-sha256` and `<serverId>-client-sha256`.
 The chart mounts the API PFX read-only and exposes a separate direct mTLS service port (default 9443).
 Publisher keys are only Secret references; there is no plaintext Helm publisher-key setting.

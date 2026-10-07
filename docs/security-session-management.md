@@ -164,15 +164,16 @@ Client               Auth Server           Redis
 
 ## REST API Authentication
 
-`Avalon.Api` accepts two credentials. The CLAUDE.md "REST API Auth" section has the full rules.
+Every API service accepts two credentials, which only identity issues ([API services](api-services.md)).
+[REST API authentication](api-authentication.md) has the full rules.
 
 - **Access JWT:** sent as `Authorization: Bearer <jwt>` or in the `AVToken` cookie. `JwtUtils` mints it at
   login, MFA verify and refresh. The bearer handler checks the signature (HS256 only), issuer, audience and
   lifetime (`AccessTokenLifetimeMinutes`, default 15, plus `ClockSkewInMinutes`). An expired JWT gets a
   401, and the client renews it with `POST /account/refresh`.
 - **Personal access token (PAT):** sent as `Authorization: Avalon avp_...`. `AvalonAuthenticationHandler`
-  (`src/Server/Avalon.Api/Authentication/AV/`) reads it, looks up the token by its SHA-256 hash, and refuses
-  it if it is revoked or expired.
+  (`src/Server/Avalon.Api.Hosting/Authentication/AV/`, in every API service) reads it, looks up the token by
+  its SHA-256 hash, and refuses it if it is revoked or expired.
 
 Neither credential is trusted on its own (#451, #480). On every request both go through
 `AccountAccessCheck`. It reloads the account and refuses a missing or non-Active one with 401. The request
@@ -232,7 +233,7 @@ Information when it starts, so a drift shows by comparing the two lines.
 
 ### Re-authentication for sensitive actions
 
-`IReauthentication.RequireCurrentPasswordAsync` (`Avalon.Api/Services/Reauthentication.cs`) runs the
+`IReauthentication.RequireCurrentPasswordAsync` (`Avalon.Api.Identity/Services/Reauthentication.cs`) runs the
 password step against the signed-in account, so a wrong current password is a failed login in every respect:
 both budgets, the row's count, and the lock in the last slot. It guards:
 
@@ -268,8 +269,8 @@ No key is committed (#482). In development it comes from `dotnet user-secrets`; 
 from the environment variable `Application__Authentication__IssuerSigningKey`, which the Helm chart fills
 from a Kubernetes Secret rather than a plain value in the pod spec.
 
-`JwtSigningKey.Create` runs when `AddAuth` registers authentication, so the API refuses to start, with an
-error naming the setting, when the key is:
+`JwtSigningKey.Create` runs when `AddApiAuthentication` registers the token validation, in every API process, so
+the API refuses to start, with an error naming the setting, when the key is:
 - missing;
 - padded with leading or trailing whitespace, such as a key file's newline;
 - under 32 bytes in UTF-8;

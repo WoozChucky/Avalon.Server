@@ -13,9 +13,16 @@ is not displayed; the notes below are for whoever edits the page next.
 
 The document it reads, `api/openapi.json`, is emitted by `Avalon.Api`'s own build
 (`Microsoft.Extensions.ApiDescription.Server`) and copied into the site by
-`.github/workflows/docs.yml`. No server, database or cache is involved. It differs
-from the document a running instance serves at `/openapi/v1.json` only in having no
-`servers` block, because at build time there is no address to report.
+`.github/workflows/docs.yml`. No server, database or cache is involved
+(`AVALON_OPENAPI_GENERATION_ONLY=true`). The build sets no `Application:Services`, so
+the host runs all four API services (identity, worlds, commerce and distribution, see
+`api-services.md`) and the document is the whole contract. A running process serves at
+`/openapi/v1.json` only the routes of the services it runs; the one that runs all four
+serves this document, which differs only in having no `servers` block, because at build
+time there is no address to report.
 
 That URL is stable, and it is what the `Avalon.Dashboard` repository's client
-generator checks itself against.
+generator checks itself against. A push to `main` that touches the API host or any of
+its libraries (`src/Server/Avalon.Api*/**`) republishes it, as one to the docs does. Until the split
+is rolled out, `ContractGoldenShould` fails on any difference from the document
+published before the split (`tests/Avalon.Api.UnitTests/Contracts/openapi.pre-split.json`).

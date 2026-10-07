@@ -48,9 +48,9 @@ projectile travel time, continuous combat, wind-ups always land).
 ## Balance Service
 
 `Avalon.Balance.Service` (`src/Server/`) is an in-cluster ASP.NET service that runs the simulator for the workbench.
-It is never exposed outside the cluster: a ClusterIP Service, no ingress. `Avalon.Api` proxies the admin
-`/balance/*` calls to it (`catalog`, `runs` POST / GET `{id}` / DELETE `{id}`, `exports`), each behind
-`[Authorize(Policy = AvalonRoles.Admin)]`.
+It is never exposed outside the cluster: a ClusterIP Service, no ingress. The REST API's worlds service
+(`Avalon.Api.Worlds/Balance`, [API services](api-services.md)) proxies the admin `/balance/*` calls to it (`catalog`,
+`runs` POST / GET `{id}` / DELETE `{id}`, `exports`), each behind `[Authorize(Policy = AvalonRoles.Admin)]`.
 
 - **Endpoints:** `/catalog`, `/runs` (POST, GET `{id}`, DELETE `{id}`), `/exports`, plus `/health` and `/alive`.
   Only the last two skip the `X-Balance-Secret` check; every other request needs the header equal to
@@ -67,14 +67,16 @@ It is never exposed outside the cluster: a ClusterIP Service, no ingress. `Avalo
   `-p:SourceRevisionId="$(git rev-parse HEAD)"` (the checked-out commit, not `github.sha`, which is main's head on a manual release) on a publish that builds (no `--no-build`); without it exports answer 503.
 - **Seed data:** read from `WorldDbContext`'s design-time model (`HasData`, no database); the `balance/*.json`
   files are copied next to the binary (`/app/balance` in the image) by the csproj.
-- **API side:** `Application:Balance:Url` and `Application:Balance:SharedSecret`. Unconfigured (either empty) the
+- **API side:** `Application:Balance:Url` and `Application:Balance:SharedSecret`, read by the worlds service only, so
+  only a process that runs worlds holds the secret. Unconfigured (either empty) the
   `/balance/*` endpoints answer 503 ProblemDetails (`BalanceUnavailableException`) and the rest of the API is
   unaffected. The typed client removes the standard resilience handler, retries only GET (10 s an attempt) and gives
   POST and DELETE a single 60 s attempt with no retry, so a run or an export is never started twice. A 401 from the
   service maps to 502: it is our misconfiguration, not the caller's.
 - **Deploy:** chart `avalon-balance` (image `ghcr.io/woozchucky/avalon-server/balance`), secret keys
   `balance-shared-secret` and optional `github-token`; the api chart takes `balance.url` and the same
-  `balance-shared-secret` key. The homelab wiring is a separate change.
+  `balance-shared-secret` key, both rendered only into a release that runs worlds. The homelab wiring is a separate
+  change.
 - **Local dev:** the Aspire AppHost (`src/Server/Avalon`) adds `balance` with a generated, persisted `balance-secret`
   parameter passed to both the service and the api, and sets the api's `Application__Balance__Url` from the
   service's endpoint (`http://localhost:5220`). Running the service alone needs `Balance__SharedSecret` (32+

@@ -193,6 +193,65 @@ public void Dispose()
 
 ---
 
+## ADR-006 — Splitting the REST API into services
+
+**Status:** Implemented in code (#794); not yet deployed apart. Production runs all four services in the one
+`avalon-api` deployment until the rollout (#802). ES256 access tokens (#801) and the hardening questions (#803) are
+tracked on their own.
+
+### Context
+
+`Avalon.Api` was one process that served everything over HTTP: accounts and credentials, MFA, tokens, launcher sign-in
+and game admission, world content and characters for every world, public tooltips, commerce and its payment webhooks,
+and client distribution. Every deployment of it held every secret (the signing key, every world's connection strings,
+the build store's key, the balance service's secret), connected to every database, and restarted the process that
+renews game sessions for a change to any of them. An internet-facing webhook ran beside the key that signs Admin
+tokens, and a launcher update depended on the health of everything else.
+
+### Decision
+
+- **Four services, cut along state**: `identity` (accounts, credentials, tokens, store and Steam sign-in, links and
+  consolidation, game admission and its workload listener), `worlds` (the world registry, world content, characters,
+  presence, public tooltips, the balance proxy), `commerce` (checkout, purchases, payment notifications, the
+  reconciliation worker) and `distribution` (launcher updates, releases, the changelog, channels). Each owns its
+  tables, secrets and providers; what shares state tightly stays together (game admission with identity, the public
+  tooltips with world content).
+- **One binary, one image, one chart.** Each service is a library (`Avalon.Api.Identity`, `.Worlds`, `.Commerce`,
+  `.Distribution`) on a shared hosting library (`Avalon.Api.Hosting`) and the contract (`Avalon.Api.Contract`). The
+  host, `Avalon.Api`, runs the services `Application:Services` names, all four when it is unset. A deployment's
+  secrets, not its code, carry its privilege. No service library references another.
+- **No calls between services at request time.** Every service validates tokens and reloads accounts from the auth
+  database itself. Identity alone mints tokens and migrates the auth schema; the other services wait for it at
+  startup.
+- **One route manifest** (`files/routes.json` in the chart) says which service owns each path. The chart renders a
+  Traefik `IngressRoute` from it, and the tests check every endpoint against it. Public paths, base URLs and the
+  published OpenAPI document do not change.
+- **Rollout beside the running process**, route group by route group, dev world and channel first, each step one values
+  change from its rollback, then `avalon-api` shrinks to identity.
+
+### Consequences
+
+- Without configuration the host behaves as before the split; the homelab release renders unchanged, which the chart's
+  test pins.
+- Each process counts its own requests against the in-memory rate limits; the security budgets stay in Redis, shared.
+- Until #801 every service needs the HS256 signing key, which can also mint tokens; least privilege for tokens needs
+  ES256 first.
+- A new endpoint needs an owner decided in `RouteOwnershipShould`'s table, and a new first path segment of a service
+  other than identity needs a manifest rule.
+
+### Alternatives considered
+
+| Alternative | Why not |
+|---|---|
+| One image and chart per service | Three more images and charts to build, promote and clean up for the same code; the libraries leave the door open |
+| Splitting identity into accounts and game access | Both halves would hold the signing key or the game-auth key and share the same records |
+| Keeping HS256 and sharing the key | Every service could mint an Admin token |
+| A gateway process in the cluster, or calls between services | An extra hop and a runtime dependency; Traefik already routes by path |
+
+The details, the route table and the deployment are in [API services](api-services.md).
+
+---
+
 ## Component Boundary Map
 
 ```
@@ -216,8 +275,8 @@ public void Dispose()
                         pub/sub)             └──────────────────────┘
 
          ┌─────────────────────────────────────────────┐
-         │              REST API                        │
-         │  (account mgmt, OpenAPI, JWT issuance)       │
+         │              REST API (one binary)           │
+         │  identity · worlds · commerce · distribution │
          └──────────────┬──────────────────────────────┘
                         │ EF Core + Redis
                         ▼

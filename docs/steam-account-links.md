@@ -10,7 +10,7 @@ The player starts from **Account → Steam → Link Steam account**. Steam verif
 
 Transactions bind the target account, credentials version, session epoch, original website JWT session and a Secure/HttpOnly browser cookie. Provider state is authenticated and encrypted. Steam identifiers and provider endpoints must be canonical; signed nonces must be fresh and can be consumed once across transactions. Provider replies are bounded to 16 KiB and five seconds. Discovery, profile lookup and redirects are disabled. Callback query strings, provider payload logs and callback/provider traces are suppressed.
 
-Set these runtime settings before starting the API:
+Linking runs in the REST API's identity service (`Avalon.Api.Identity`, [API services](api-services.md)), which also answers the callback path ahead of every endpoint; the route manifest gives `/account/links/...` to identity. Set these runtime settings before starting the API process that runs identity:
 
 ```text
 Application__SteamWebLink__CallbackUrl=https://avalon.example/api/account/links/steam/callback
@@ -25,7 +25,7 @@ For local testing, the existing API HTTPS launch profile uses `https://localhost
 
 Authorization commits one durable operation in the Auth database and freezes gameplay for both roots. Source game families and target launcher families are revoked, and both session epochs advance. The target website session remains available to manage and resume the operation.
 
-Every configured world, including historical worlds, belongs to the persisted manifest. Missing configuration or an unavailable world prevents starting or completing a transfer. Each Character database first places both account guards into drain mode. Existing admitted writers may finish saving until end acknowledgment or their original lease expires; new admission and ordinary character mutations are blocked. Final saves retain their original immutable authority. A world then blocks both guards, changes each source character's account ID in one local transaction, and commits a durable transfer receipt.
+Every configured world, including historical worlds, belongs to the persisted manifest. Missing configuration or an unavailable world prevents starting or completing a transfer. Identity reads each world through its Characters database alone (`Database:Worlds:<id>:Characters:ConnectionString`), so the process that runs identity must list every world, historical ones included, and a world whose databases did not answer at that process's startup counts as unavailable. Each Character database first places both account guards into drain mode. Existing admitted writers may finish saving until end acknowledgment or their original lease expires; new admission and ordinary character mutations are blocked. Final saves retain their original immutable authority. A world then blocks both guards, changes each source character's account ID in one local transaction, and commits a durable transfer receipt.
 
 After every world has committed, the Auth database moves the Steam identity and deactivates the source. Only then are target guards released. The source guards remain blocked. Admission still needs a new valid game context, ownership verification and a new session fence.
 

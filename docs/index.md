@@ -14,7 +14,7 @@ For a project overview, see the [README](https://github.com/WoozChucky/Avalon.Se
 
 | Component | Role |
 |---|---|
-| **REST API** | HTTPS/JWT accounts, MFA, tokens, client auth and game admission, commerce, world content administration, public tooltips; OpenAPI |
+| **REST API** | HTTPS/JWT accounts, MFA, tokens, client auth and game admission, commerce, world content administration, public tooltips; OpenAPI. Four services from one binary ([API Services](api-services.md)) |
 | **Auth Server** | TCP login flow, MFA, world list and select, world-key issuance |
 | **World Server** | Tick loop, connections, packet dispatch, world lifecycle |
 | **Core World** | Instances, creatures and AI, abilities and combat, parties, quests, auras, items, chat |
@@ -23,7 +23,7 @@ For a project overview, see the [README](https://github.com/WoozChucky/Avalon.Se
 
 - [Development Setup](development-setup.md) and the [Configuration Reference](configuration-reference.md)
 - [World Simulation](world-simulation.md), [Instanced Maps](instanced-maps.md), [Map Generation](map-generation.md)
-- [Auth Server](auth-server.md) and [REST API Authentication](api-authentication.md)
+- [Auth Server](auth-server.md), [API Services](api-services.md) and [REST API Authentication](api-authentication.md)
 - [Packet Protocol](networking-packet-protocol.md) and [Packet Handlers](packet-handlers.md)
 - Gameplay: [Parties](parties.md), [Quests](quests.md), [Auras](auras.md), [Inventory and Saves](inventory-and-saves.md), [Item Use](item-use.md), [Chat and Commands](chat-and-commands.md)
 - [Contributing](contributing.md)

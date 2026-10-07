@@ -4,13 +4,21 @@ Bootstrap sequence for each server component.
 
 ## API
 
-1. Build `WebApplicationBuilder`
-2. Bind `ApplicationConfig`
-3. Register JSON options + converters (`ValueObjectJsonConverterFactory` + `JsonStringEnumConverter`)
-4. Configure OpenAPI + schema transformations (ValueObject → scalar)
-5. Add Auth and Infrastructure services (databases, Redis, workers)
-6. Build / apply EF migrations / start workers / connect Redis
-7. Expose OpenAPI (`MapOpenApi` + Scalar UI at `/scalar`)
+`Avalon.Api`'s `Program.cs` is `AvalonApiHost.RunAsync(args, [.. ApiServices.All])`: one host for the API services
+`Application:Services` selects, all four when it is unset ([API services](api-services.md)).
+
+1. `AvalonApiHost.CreateBuilder`: the configuration sources (`ApiConfiguration.Sources`), the selected services, each
+   service's builder settings (identity: the game workload listener), Serilog then the service defaults (with the
+   `avalon.api.services` resource attribute), CORS, the selected services' controllers only (camelCase JSON, no
+   value-object converter), the OpenAPI document, the token validation, the shared hosting for the services' needs,
+   then each service's own registrations
+2. Build, then the one pipeline (`ApiPipeline`) and its endpoints: `/health`, `/alive`, `/openapi/v1.json`, Scalar at
+   `/scalar`, the controllers
+3. Log the services it runs; then, unless `AVALON_OPENAPI_GENERATION_ONLY` is set, `ApiStartup` (the options,
+   `Database:Worlds`, the services' checks, the auth schema, migrated by identity and awaited by any other process, and
+   the reachability of the world databases the process reads), each service's `StartAsync`, and the Redis connection
+   when a service needs it
+4. Run; commerce's reconciliation worker is a hosted service
 
 ## Auth Server & World Server
 
