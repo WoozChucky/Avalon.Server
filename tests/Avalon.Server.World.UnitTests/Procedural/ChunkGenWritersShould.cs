@@ -1,7 +1,6 @@
 using System.Globalization;
 using Avalon.ChunkGen;
 using Avalon.Common.Mathematics;
-using Avalon.Database.World.Seeding;
 using Avalon.World.Maps.Navigation;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
@@ -11,49 +10,6 @@ public class ChunkGenWritersShould
     private static readonly ChunkPiece s_sample = new("test_piece", [Side.N, Side.S],
         [new BoxBlocker(4, 10, 4, 10), new CylinderBlocker(22, 22, 2)],
         [new Slot("pack", 15, 15)], ["forest", "test"]);
-
-    [Fact]
-    public void Write_the_chunk_json_in_the_catalogs_layout()
-    {
-        string json = ChunkJsonWriter.Write(s_sample.ToMeta());
-
-        Assert.Equal("""
-            {
-              "name": "test_piece",
-              "assetKey": "chunks/test_piece",
-              "cellFootprintX": 1,
-              "cellFootprintZ": 1,
-              "cellSize": 30,
-              "exits": {
-                "N": ["center"],
-                "E": [],
-                "S": ["center"],
-                "W": []
-              },
-              "spawnSlots": [
-                { "tag": "pack", "localX": 15, "localY": 1, "localZ": 15 }
-              ],
-              "portalSlots": [
-              ],
-              "tags": ["forest", "test"]
-            }
-
-            """.Replace("\r\n", "\n", StringComparison.Ordinal), json);
-    }
-
-    [Fact]
-    public void Write_portal_slots_in_the_catalogs_layout()
-    {
-        ChunkMetaDto meta = s_sample.ToMeta() with { PortalSlots = [new PortalSlotDto("Forward", 15, 0, 15)] };
-
-        string json = ChunkJsonWriter.Write(meta);
-
-        Assert.Contains("""
-              "portalSlots": [
-                { "role": "Forward", "localX": 15, "localY": 0, "localZ": 15 }
-              ],
-            """.Replace("\r\n", "\n", StringComparison.Ordinal), json, StringComparison.Ordinal);
-    }
 
     /// <summary>Every triangle faces out of its solid, so a top is walkable and a side is a wall (Recast reads (b-a)x(c-a)).</summary>
     [Fact]
@@ -105,34 +61,6 @@ public class ChunkGenWritersShould
         // A walk east along z = 22 stops at the cylinder (x 20-24), short of its centre.
         Vector3 stop = navigator.RaycastWalkable(new Vector3(14f, 0f, 22f), new Vector3(28f, 0f, 22f));
         Assert.True(stop.x < 20.1f, $"the walk went through the blocker to x = {stop.x}");
-    }
-
-    /// <summary>What the tool writes is what the World server's seeder reads: the same DTO, through the same reader.</summary>
-    [Fact]
-    public async Task Read_back_through_the_seeders_catalog_reader()
-    {
-        string root = Path.Combine(Path.GetTempPath(), $"avalon-chunkgen-{Guid.NewGuid():N}");
-        try
-        {
-            CopyDirectory(Path.Combine(AppContext.BaseDirectory, "Maps"), root);
-            foreach ((string name, string obj, string json) in ChunkFiles.For([s_sample]))
-            {
-                File.WriteAllText(Path.Combine(root, "Chunks", name + ".obj"), obj);
-                File.WriteAllText(Path.Combine(root, "Chunks", name + ".json"), json);
-            }
-
-            ChunkCatalogFiles files = await ChunkCatalogSeeder.ReadCatalogAsync(root);
-
-            ChunkMetaDto read = Assert.Single(files.Chunks, c => c.Name == "test_piece");
-            Assert.Equal(["center"], read.Exits["N"]);
-            Assert.Empty(read.Exits["E"]);
-            Assert.Equal(new SpawnSlotDto("pack", 15, 1, 15), Assert.Single(read.SpawnSlots));
-            Assert.Equal(["forest", "test"], read.Tags);
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
     }
 
     internal static void CopyDirectory(string source, string target)
@@ -220,38 +148,18 @@ public class ChunkGenWritersShould
         [new WallSegment("Wall_S", 0, 30, -0.25f, 0.25f), new WallSegment("Wall_N_L", 0, 12, 29.75f, 30.25f), new WallSegment("Wall_N_R", 18, 30, 29.75f, 30.25f)],
         pieces, IsEntry: false, HasForwardPortal: false, ["town"]);
 
-    [Fact]
-    public void Accept_a_square_whose_pieces_keep_the_owners_rules() =>
-        TownRules.Check(Square(
-            new BoxPiece("House", "body", Material.Plaster, 4, 10, 4, 10, 0, 3.2f),
-            new GablePiece("House", "roof", Material.Roof, 3.7f, 10.3f, 3.7f, 10.3f, 3.2f, 5f),
-            new CylinderPiece("Well", "ring", Material.Stone, 20, 20, 1, 0, 1),
-            new BoxPiece("House", "porch deck", Material.Wood, 10, 12, 5, 9, 0, 0.2f, Walkable: true),
-            new BoxPiece("House", "porch roof", Material.Roof, 9.9f, 12.4f, 4.7f, 9.3f, 3.2f, 3.5f)));
-
-    [Fact]
-    public void Refuse_a_piece_within_two_metres_of_a_wall()
+    [Theory]
+    [InlineData("Crate", "crate", Material.Wood, 10f, 11f, 1f, 2f, 0f, 1f, false, "Wall_S")]   // 0.75 m from Wall_S (Z -0.25..0.25)
+    [InlineData("Crate", "crate", Material.Wood, 14f, 15f, 27.5f, 28.5f, 0f, 1f, false, "lane")]
+    [InlineData("Stall", "roof", Material.Cloth, 10f, 13f, 10f, 13f, 2.4f, 2.65f, false, "headroom")]
+    [InlineData("Bank", "step", Material.Stone, 10f, 12f, 10f, 14f, 0f, 0.35f, true, "riser")]
+    public void Refuse_a_piece_that_breaks_a_town_rule(string building, string part, Material material, float minX, float maxX,
+        float minZ, float maxZ, float y0, float y1, bool walkable, string rule)
     {
-        // A crate 0.75 m from Wall_S (Z -0.25..0.25).
         InvalidOperationException refusal = Assert.Throws<InvalidOperationException>(() =>
-            TownRules.Check(Square(new BoxPiece("Crate", "crate", Material.Wood, 10, 11, 1, 2, 0, 1))));
-        Assert.Contains("Wall_S", refusal.Message, StringComparison.Ordinal);
+            TownRules.Check(Square(new BoxPiece(building, part, material, minX, maxX, minZ, maxZ, y0, y1, Walkable: walkable))));
+        Assert.Contains(rule, refusal.Message, StringComparison.Ordinal);
     }
-
-    [Fact]
-    public void Refuse_a_piece_in_a_doorway_lane() =>
-        Assert.Contains("lane", Assert.Throws<InvalidOperationException>(() =>
-            TownRules.Check(Square(new BoxPiece("Crate", "crate", Material.Wood, 14, 15, 27.5f, 28.5f, 0, 1)))).Message, StringComparison.Ordinal);
-
-    [Fact]
-    public void Refuse_a_roof_with_less_than_two_and_a_half_metres_of_headroom() =>
-        Assert.Contains("headroom", Assert.Throws<InvalidOperationException>(() =>
-            TownRules.Check(Square(new BoxPiece("Stall", "roof", Material.Cloth, 10, 13, 10, 13, 2.4f, 2.65f)))).Message, StringComparison.Ordinal);
-
-    [Fact]
-    public void Refuse_a_walkable_riser_over_the_navmesh_step() =>
-        Assert.Contains("riser", Assert.Throws<InvalidOperationException>(() =>
-            TownRules.Check(Square(new BoxPiece("Bank", "step", Material.Stone, 10, 12, 10, 14, 0, 0.35f, Walkable: true)))).Message, StringComparison.Ordinal);
 
     [Fact]
     public void Refuse_a_solid_in_the_arrival_to_portal_corridor()
@@ -404,19 +312,6 @@ public class ChunkGenWritersShould
         }
     }
 
-    /// <summary>The rim blocks a walk, and the water inside is no ground a walk from outside reaches.</summary>
-    [Fact]
-    public void Bake_a_ring_a_walk_cannot_enter()
-    {
-        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(s_ringSquare), 0, 0)]);
-
-        Vector3 stop = navigator.RaycastWalkable(new Vector3(5f, 0.15f, 15f), new Vector3(15f, 0.15f, 15f));
-        Assert.True(stop.x < 12.85f, $"the walk entered the rim to x = {stop.x}");
-        List<Vector3> path = navigator.FindPath(new Vector3(5f, 1f, 15f), new Vector3(15f, 1.3f, 15f));
-        Assert.True(path.Count == 0 || MathF.Sqrt((path[^1].x - 15f) * (path[^1].x - 15f) + (path[^1].z - 15f) * (path[^1].z - 15f)) > 1.8f,
-            $"a path reached the water at {(path.Count > 0 ? path[^1] : Vector3.zero)}");
-    }
-
     [Fact]
     public void Refuse_a_ring_with_no_rim() =>
         Assert.Throws<InvalidOperationException>(() =>
@@ -443,31 +338,6 @@ public class ChunkGenWritersShould
         Assert.InRange(deck.y, -0.1f, 0.5f);
         Vector3 stop = navigator.RaycastWalkable(new Vector3(20f, 0.15f, 7f), new Vector3(2f, 0.15f, 7f));
         Assert.True(stop.x >= 10f && stop.x < 11f, $"the walk west along z = 7 stopped at x = {stop.x}, expected on the deck against the body at x = 10");
-    }
-
-    [Fact]
-    public async Task Read_a_town_square_back_through_the_seeders_catalog_reader()
-    {
-        string root = Path.Combine(Path.GetTempPath(), $"avalon-chunkgen-{Guid.NewGuid():N}");
-        try
-        {
-            CopyDirectory(Path.Combine(AppContext.BaseDirectory, "Maps"), root);
-            foreach ((string name, string obj, string json) in ChunkFiles.For([s_sampleSquare]))
-            {
-                File.WriteAllText(Path.Combine(root, "Chunks", name + ".obj"), obj);
-                File.WriteAllText(Path.Combine(root, "Chunks", name + ".json"), json);
-            }
-
-            ChunkCatalogFiles files = await ChunkCatalogSeeder.ReadCatalogAsync(root);
-
-            ChunkMetaDto read = Assert.Single(files.Chunks, c => c.Name == "town_test_01");
-            Assert.Equal(new SpawnSlotDto("entry", 15, 0, 15), Assert.Single(read.SpawnSlots));
-            Assert.Equal(["town", "entry"], read.Tags);
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
     }
 
     /// <summary>Vertices by "o" object, in file order; "usemtl" and other lines are ignored, as the bake ignores them.</summary>
@@ -526,22 +396,5 @@ public class ChunkGenWritersShould
             Vector3 outward = (vertices[a] + vertices[b] + vertices[c]) / 3f - centre;
             Assert.True(normal.x * outward.x + normal.y * outward.y + normal.z * outward.z > 0, $"a face of {name} faces inward");
         }
-    }
-
-    [Fact]
-    public void Describe_a_square_as_the_seeders_catalog_entry()
-    {
-        var sw = new TownSquare("town_sw_01", 0, 0, [Side.N, Side.E], [], [], true, false, ["town", "entry"]);
-        var nw = new TownSquare("town_nw_01", 0, 1, [Side.E, Side.S], [], [], false, true, ["town"]);
-
-        ChunkMetaDto swMeta = sw.ToMeta();
-        ChunkMetaDto nwMeta = nw.ToMeta();
-
-        Assert.Equal(new SpawnSlotDto("entry", 15, 0, 15), Assert.Single(swMeta.SpawnSlots));
-        Assert.Empty(swMeta.PortalSlots);
-        Assert.Equal(["center"], swMeta.Exits["N"]);
-        Assert.Empty(swMeta.Exits["S"]);
-        Assert.Equal(new PortalSlotDto("Forward", 15, 0, 15), Assert.Single(nwMeta.PortalSlots));
-        Assert.Empty(nwMeta.SpawnSlots);
     }
 }

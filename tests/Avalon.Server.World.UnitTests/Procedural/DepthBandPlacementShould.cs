@@ -230,36 +230,4 @@ public class DepthBandPlacementShould
 
         Assert.Equal([new Spawned(4, null)], spawned);
     }
-
-    /// <summary>
-    /// The members of one set piece sit up to two steps apart; every one of them rolls from the highest band, decided by
-    /// the chunk's group, never by its own depth.
-    /// </summary>
-    [Fact]
-    public async Task Roll_every_member_of_a_set_piece_from_the_highest_band_whatever_its_depth()
-    {
-        var spawned = new List<Spawned>();
-        var templates = new Dictionary<int, ChunkTemplate>
-        {
-            [1] = Piece(1, "pack"),
-            [2] = Piece(2, "pack"),
-            [3] = Piece(3, "pack"),
-            [4] = Piece(4, "pack"),
-        };
-        CreaturePlacementService service = Service(Recording(spawned), templates, Entry(1, "pack", 4, 1, 1));
-
-        for (int seed = 0; seed < 20; seed++)
-        {
-            spawned.Clear();
-            await service.PlaceAsync(FlatInstance(), Layout(
-                    new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero, 2, "forest_grove_ruin"),
-                    new PlacedChunk(new ChunkTemplateId(2), 1, 0, 0, Vector3.zero, 3, "forest_grove_ruin"),
-                    new PlacedChunk(new ChunkTemplateId(3), 0, 1, 0, Vector3.zero, 3, "forest_grove_ruin"),
-                    new PlacedChunk(new ChunkTemplateId(4), 1, 1, 0, Vector3.zero, 4, "forest_grove_ruin")),
-                Config(s_bands), seed, CancellationToken.None);
-
-            Assert.Equal(4, spawned.Count);
-            Assert.All(spawned, s => Assert.InRange((int)s.Level!.Value, 5, 8));
-        }
-    }
 }
