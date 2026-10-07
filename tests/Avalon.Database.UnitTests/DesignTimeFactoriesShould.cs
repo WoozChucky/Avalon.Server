@@ -33,23 +33,16 @@ public class DesignTimeFactoriesShould
 
     private static IConfiguration Empty() => new ConfigurationBuilder().Build();
 
-    [Fact]
-    public void Refuse_the_world_context_without_its_connection_string()
+    [Theory]
+    [InlineData("World")]
+    [InlineData("Characters")]
+    public void Refuse_a_context_without_its_connection_string(string database)
     {
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
-            new WorldDbContextDesignTimeFactory().CreateDbContext(Empty()));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => database == "World"
+            ? (DbContext)new WorldDbContextDesignTimeFactory().CreateDbContext(Empty())
+            : new CharacterDbContextDesignTimeFactory().CreateDbContext(Empty()));
 
-        Assert.Equal("set Database__World__ConnectionString (or user-secrets) to run dotnet ef against a database",
-            ex.Message);
-    }
-
-    [Fact]
-    public void Refuse_the_characters_context_without_its_connection_string()
-    {
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
-            new CharacterDbContextDesignTimeFactory().CreateDbContext(Empty()));
-
-        Assert.Equal("set Database__Characters__ConnectionString (or user-secrets) to run dotnet ef against a database",
+        Assert.Equal($"set Database__{database}__ConnectionString (or user-secrets) to run dotnet ef against a database",
             ex.Message);
     }
 
@@ -64,24 +57,6 @@ public class DesignTimeFactoriesShould
     public void Not_take_the_characters_string_for_the_world_context() =>
         Assert.Throws<InvalidOperationException>(() =>
             new WorldDbContextDesignTimeFactory().CreateDbContext(With("Database:Characters:ConnectionString", Probe)));
-
-    [Fact]
-    public void Use_the_world_connection_string_it_is_given()
-    {
-        using WorldDbContext context = new WorldDbContextDesignTimeFactory()
-            .CreateDbContext(With("Database:World:ConnectionString", Probe));
-
-        Assert.Equal(Probe, context.Database.GetConnectionString());
-    }
-
-    [Fact]
-    public void Use_the_characters_connection_string_it_is_given()
-    {
-        using CharacterDbContext context = new CharacterDbContextDesignTimeFactory()
-            .CreateDbContext(With("Database:Characters:ConnectionString", Probe));
-
-        Assert.Equal(Probe, context.Database.GetConnectionString());
-    }
 
     /// <summary>Find is Require without the refusal, for a caller that skips instead (#557).</summary>
     [Theory]

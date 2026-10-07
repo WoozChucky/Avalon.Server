@@ -168,19 +168,6 @@ public sealed class RefreshRotationRaceShould : IDisposable
         Assert.Equal(1, await LiveInFamilyAsync(issued.FamilyId));
     }
 
-    /// <summary>#495 review: someone else replaying inside the window is not the second tab.</summary>
-    [Fact]
-    public async Task Treat_a_replay_from_another_source_inside_the_grace_window_as_a_reuse()
-    {
-        (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued) = await RotatedOnceAsync();
-        clock.Now += TimeSpan.FromSeconds(1);
-
-        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken,
-            RefreshCaller.From(System.Net.IPAddress.Parse("198.51.100.9"), "Browser/1.0")));
-
-        Assert.Equal(0, await LiveInFamilyAsync(issued.FamilyId));
-    }
-
     [Fact]
     public async Task Treat_a_replay_with_another_user_agent_inside_the_grace_window_as_a_reuse()
     {

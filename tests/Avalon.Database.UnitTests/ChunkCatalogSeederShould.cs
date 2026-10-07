@@ -260,36 +260,50 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         return error;
     }
 
-    [Fact]
-    public async Task Refuse_a_group_defined_twice()
+    public static TheoryData<string, string> BadGroups => new()
     {
-        string root = CopyOfCommittedMaps();
-        WriteGroupMembers(root, "g");
-        WriteGroupMembers(root, "h");
-        WriteGroupsFile(root, """
+        {
+            """
             { "test_pool": [
                 { "name": "twice", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "g_se", "cellX": 1, "cellZ": 0 } ] },
                 { "name": "twice", "members": [ { "chunk": "h_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "h_se", "cellX": 1, "cellZ": 0 } ] } ] }
-            """);
+            """,
+            "defined twice"
+        },
+        {
+            """
+            { "test_pool": [
+                { "name": "first", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "g_se", "cellX": 1, "cellZ": 0 } ] },
+                { "name": "second", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "h_se", "cellX": 1, "cellZ": 0 } ] } ] }
+            """,
+            "'g_sw' is in two groups"
+        },
+        {
+            """{ "test_pool": [ { "name": "alone", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 } ] } ] }""",
+            "at least two members"
+        },
+        {
+            """
+            { "test_pool": [ { "name": "negative", "members": [
+                { "chunk": "g_sw", "cellX": -1, "cellZ": 0 }, { "chunk": "g_se", "cellX": 0, "cellZ": 0 } ] } ] }
+            """,
+            "'g_sw' has a negative cell"
+        },
+        { """{ "test_pool": [ { "name": "empty" } ] }""", "'empty'" },
+    };
 
-        InvalidDataException error = await RefuseAndWriteNothing(root);
-        Assert.Contains("defined twice", error.Message);
-    }
-
-    [Fact]
-    public async Task Refuse_a_chunk_in_two_groups()
+    /// <summary>A group defined twice, a chunk in two groups, a group of one, a negative cell, a group without members.</summary>
+    [Theory]
+    [MemberData(nameof(BadGroups))]
+    public async Task Refuse_a_bad_group_naming_the_file_and_the_fault(string groupsJson, string fault)
     {
         string root = CopyOfCommittedMaps();
         WriteGroupMembers(root, "g");
         WriteGroupMembers(root, "h");
-        WriteGroupsFile(root, """
-            { "test_pool": [
-                { "name": "first", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "g_se", "cellX": 1, "cellZ": 0 } ] },
-                { "name": "second", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 }, { "chunk": "h_se", "cellX": 1, "cellZ": 0 } ] } ] }
-            """);
+        WriteGroupsFile(root, groupsJson);
 
         InvalidDataException error = await RefuseAndWriteNothing(root);
-        Assert.Contains("'g_sw' is in two groups", error.Message);
+        Assert.Contains(fault, error.Message);
     }
 
     [Fact]
@@ -307,41 +321,6 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
         InvalidDataException error = await RefuseAndWriteNothing(root);
         Assert.Contains("'g_wide' is not 1x1", error.Message);
-    }
-
-    [Fact]
-    public async Task Refuse_a_group_of_one()
-    {
-        string root = CopyOfCommittedMaps();
-        WriteGroupMembers(root, "g");
-        WriteGroupsFile(root, """{ "test_pool": [ { "name": "alone", "members": [ { "chunk": "g_sw", "cellX": 0, "cellZ": 0 } ] } ] }""");
-
-        InvalidDataException error = await RefuseAndWriteNothing(root);
-        Assert.Contains("at least two members", error.Message);
-    }
-
-    [Fact]
-    public async Task Refuse_a_negative_cell()
-    {
-        string root = CopyOfCommittedMaps();
-        WriteGroupMembers(root, "g");
-        WriteGroupsFile(root, """
-            { "test_pool": [ { "name": "negative", "members": [
-                { "chunk": "g_sw", "cellX": -1, "cellZ": 0 }, { "chunk": "g_se", "cellX": 0, "cellZ": 0 } ] } ] }
-            """);
-
-        InvalidDataException error = await RefuseAndWriteNothing(root);
-        Assert.Contains("'g_sw' has a negative cell", error.Message);
-    }
-
-    [Fact]
-    public async Task Refuse_a_group_without_members_naming_the_file()
-    {
-        string root = CopyOfCommittedMaps();
-        WriteGroupsFile(root, """{ "test_pool": [ { "name": "empty" } ] }""");
-
-        InvalidDataException error = await RefuseAndWriteNothing(root);
-        Assert.Contains("'empty'", error.Message);
     }
 
     [Fact]

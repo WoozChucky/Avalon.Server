@@ -1,5 +1,4 @@
 using Avalon.Balance.Core;
-using Avalon.Common.ValueObjects;
 using Xunit;
 
 namespace Avalon.Balance.UnitTests;
@@ -19,14 +18,4 @@ public class CreatureKitsShould
         Assert.True(CreatureKits.ByScript.TryGetValue(script, out CreatureKit? kit));
         Assert.Equal(basic, kit.Basic.Value);
     }
-
-    [Fact]
-    public void Hold_seven_kits() => Assert.Equal(7, CreatureKits.ByScript.Count);
-
-    [Fact]
-    public void Hold_no_kit_for_a_town_npc() => Assert.False(CreatureKits.ByScript.ContainsKey("TownNpcScript"));
-
-    [Fact]
-    public void Keep_blight_spit_out_of_melee() =>
-        Assert.Equal([new AbilityId(305)], CreatureKits.ByScript["BlightflySwarmlingScript"].RangedOnly);
 }

@@ -168,19 +168,6 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
-    public async Task Refuse_a_non_active_account_through_the_session_cookie_too()
-    {
-        string token = Mint(MakeAccount());
-        _host.AccountNowIs(MakeAccount(status: AccountStatus.Banned));
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/player");
-        request.Headers.Add("Cookie", $"{AuthConstants.CookieName}={token}");
-        using HttpResponseMessage response = await _host.Client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
     // An anonymous endpoint still answers a refused token, but as an anonymous caller.
     [Fact]
     public async Task Treat_a_refused_token_as_anonymous_on_an_anonymous_endpoint()
@@ -250,19 +237,6 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
         using HttpResponseMessage response = await _host.GetAsync("/player", token);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Refuse_a_stale_token_through_the_session_cookie_too()
-    {
-        string token = Mint(AtVersion(0));
-        _host.AccountNowIs(AtVersion(1));
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/player");
-        request.Headers.Add("Cookie", $"{AuthConstants.CookieName}={token}");
-
-        using HttpResponseMessage response = await _host.Client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Theory]

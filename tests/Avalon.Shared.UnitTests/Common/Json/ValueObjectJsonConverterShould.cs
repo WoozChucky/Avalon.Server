@@ -14,43 +14,16 @@ public class ValueObjectJsonConverterShould
         Converters = { new ValueObjectJsonConverterFactory() }
     };
 
+    /// <summary>A value object over a wider or narrower primitive than the bare-scalar cases below.</summary>
     [Fact]
-    public void SerializeAndDeserializeCharacterId()
+    public void Round_trip_value_objects_over_other_primitives()
     {
         JsonSerializerOptions options = BuildOptions();
-        var original = new CharacterId(123U);
+        var account = new AccountId(9876543210L);
+        var map = new MapId(5);
 
-        string json = JsonSerializer.Serialize(original, options);
-        CharacterId? deserialized = JsonSerializer.Deserialize<CharacterId>(json, options);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal(original, deserialized);
-    }
-
-    [Fact]
-    public void SerializeAndDeserializeAccountId()
-    {
-        JsonSerializerOptions options = BuildOptions();
-        var original = new AccountId(9876543210L);
-
-        string json = JsonSerializer.Serialize(original, options);
-        AccountId? deserialized = JsonSerializer.Deserialize<AccountId>(json, options);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal(original, deserialized);
-    }
-
-    [Fact]
-    public void SerializeAndDeserializeMapId()
-    {
-        JsonSerializerOptions options = BuildOptions();
-        var original = new MapId(5);
-
-        string json = JsonSerializer.Serialize(original, options);
-        MapId? deserialized = JsonSerializer.Deserialize<MapId>(json, options);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal(original, deserialized);
+        Assert.Equal(account, JsonSerializer.Deserialize<AccountId>(JsonSerializer.Serialize(account, options), options));
+        Assert.Equal(map, JsonSerializer.Deserialize<MapId>(JsonSerializer.Serialize(map, options), options));
     }
 
     /// <summary>

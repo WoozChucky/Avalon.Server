@@ -44,6 +44,8 @@ public class CharacterSheetAndHealPacketsShould
             BlockPct = 2.25f,
             WeaponMin = 4,
             WeaponMax = 9,
+            HastePct = 3f,
+            MovementSpeed = 4.4f,
         };
 
         NetworkPacket packet = SCharacterStatsPacket.Create(sheet, Plain);
@@ -53,17 +55,8 @@ public class CharacterSheetAndHealPacketsShould
         Assert.Equal((22u, 23u, 20u, 21u, 8u, 50u, 12u), (read.Stamina, read.Strength, read.Agility, read.Intellect,
             read.Armor, read.AttackDamage, read.AbilityDamage));
         Assert.Equal((5.5f, 30f, 2.25f, 4u, 9u), (read.CritPct, read.DodgePct, read.BlockPct, read.WeaponMin, read.WeaponMax));
-    }
-
-    /// <summary>#627: haste and movement speed on the next free field numbers, 13 and 14.</summary>
-    [Fact]
-    public void Round_trip_the_haste_and_the_movement_speed()
-    {
-        var sheet = new SCharacterStatsPacket { Strength = 23, HastePct = 3f, MovementSpeed = 4.4f };
-
-        SCharacterStatsPacket read = Read<SCharacterStatsPacket>(SCharacterStatsPacket.Create(sheet, Plain));
-
-        Assert.Equal((23u, 3f, 4.4f), (read.Strength, read.HastePct, read.MovementSpeed));
+        // #627: haste and movement speed, on fields 13 and 14.
+        Assert.Equal((3f, 4.4f), (read.HastePct, read.MovementSpeed));
     }
 
     /// <summary>The sheet as it was before #627, fields 1 to 12 only.</summary>

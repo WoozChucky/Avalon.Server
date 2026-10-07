@@ -115,14 +115,17 @@ public sealed class ForwardedHeadersShould
         Assert.Empty(host.Logs.Warnings);
     }
 
-    [Fact]
-    public async Task Take_the_source_from_a_proxy_on_a_trusted_network()
+    [Theory]
+    [InlineData("10.1.0.0/16", "10.1.4.5", "198.51.100.7")]
+    [InlineData("fd00:1::/48", "fd00:1::5", "2001:db8:aa::7")]
+    public async Task Take_the_source_from_a_proxy_on_a_trusted_network(string network, string peer, string client)
     {
-        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownNetworks = ["10.1.0.0/16"] });
+        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownNetworks = [network] });
 
-        string source = await host.SourceAsync(peer: "10.1.4.5", forwardedFor: "198.51.100.7");
+        string source = await host.SourceAsync(peer: peer, forwardedFor: client);
 
-        Assert.Equal(LoginSource.FromAddress(IPAddress.Parse("198.51.100.7")).Key, source);
+        Assert.Equal(LoginSource.FromAddress(IPAddress.Parse(client)).Key, source);
+        Assert.Empty(host.Logs.Warnings);
     }
 
     /// <summary>A caller cannot pick its own source by sending the header itself.</summary>
@@ -141,17 +144,6 @@ public sealed class ForwardedHeadersShould
         host.Clock.Advance(UntrustedForwardedHeaderLog.Interval);
         await host.SourceAsync(peer: "203.0.113.9", forwardedFor: "198.51.100.7");
         Assert.Equal(2, host.Logs.Warnings.Count);
-    }
-
-    [Fact]
-    public async Task Take_the_source_from_a_proxy_on_a_trusted_ipv6_network()
-    {
-        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownNetworks = ["fd00:1::/48"] });
-
-        string source = await host.SourceAsync(peer: "fd00:1::5", forwardedFor: "2001:db8:aa::7");
-
-        Assert.Equal(LoginSource.FromAddress(IPAddress.Parse("2001:db8:aa::7")).Key, source);
-        Assert.Empty(host.Logs.Warnings);
     }
 
     /// <summary>

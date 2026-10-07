@@ -36,19 +36,11 @@ public class CharacterWriteHandlerShould
         return ctx.HasSucceeded;
     }
 
-    [Fact]
-    public async Task Succeed_WhenCallerIsOwner() =>
-        Assert.True(await Run(User(7, AvalonRoles.Player), MakeCharacter(7)));
-
-    [Fact]
-    public async Task Succeed_WhenCallerIsAdmin() =>
-        Assert.True(await Run(User(99, AvalonRoles.Admin), MakeCharacter(7)));
-
-    [Fact]
-    public async Task Fail_WhenCallerIsGameMasterAndNotOwner() =>
-        Assert.False(await Run(User(99, AvalonRoles.GameMaster), MakeCharacter(7)));
-
-    [Fact]
-    public async Task Fail_WhenCallerIsPlayerAndNotOwner() =>
-        Assert.False(await Run(User(99, AvalonRoles.Player), MakeCharacter(7)));
+    [Theory]
+    [InlineData(7, AvalonRoles.Player, true)]
+    [InlineData(99, AvalonRoles.Admin, true)]
+    [InlineData(99, AvalonRoles.GameMaster, false)]
+    [InlineData(99, AvalonRoles.Player, false)]
+    public async Task Let_the_owner_and_admins_write(long caller, string role, bool allowed) =>
+        Assert.Equal(allowed, await Run(User(caller, role), MakeCharacter(7)));
 }

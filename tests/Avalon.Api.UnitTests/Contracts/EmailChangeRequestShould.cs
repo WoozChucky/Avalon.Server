@@ -19,13 +19,10 @@ public class EmailChangeRequestShould
     }
 
     [Theory]
-    [InlineData("x")]
-    [InlineData("üser@avalon.monster")]
-    [InlineData("player@exämple.com")]
-    public void Refuse_a_new_email_that_is_not_an_ascii_address(string newEmail) => Assert.False(IsValid(newEmail));
-
-    [Theory]
-    [InlineData("player@avalon.monster")]
-    [InlineData("Mixed.Case+tag@Avalon.Monster")]
-    public void Accept_an_ascii_address(string newEmail) => Assert.True(IsValid(newEmail));
+    [InlineData("x", false)]
+    [InlineData("üser@avalon.monster", false)]
+    [InlineData("player@exämple.com", false)]
+    [InlineData("player@avalon.monster", true)]
+    [InlineData("Mixed.Case+tag@Avalon.Monster", true)]
+    public void Accept_only_an_ascii_address(string newEmail, bool valid) => Assert.Equal(valid, IsValid(newEmail));
 }

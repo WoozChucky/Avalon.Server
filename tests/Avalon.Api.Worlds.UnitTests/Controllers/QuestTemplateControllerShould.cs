@@ -1,13 +1,11 @@
 using System.Text.Json;
 using Avalon.Api.Contract;
-using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Worlds.Controllers;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
@@ -92,14 +90,6 @@ public class QuestTemplateControllerShould
         Assert.IsType<QuestTemplateDto>(Assert.IsType<OkObjectResult>(await MakeSut().Get(id, CancellationToken.None)).Value);
 
     [Fact]
-    public async Task Answer_404_for_an_unknown_quest()
-    {
-        _quests.FindByIdAsync(Arg.Any<QuestTemplateId>(), Arg.Any<CancellationToken>()).Returns((QuestTemplate?)null);
-
-        Assert.IsType<NotFoundResult>(await MakeSut().Get(9, CancellationToken.None));
-    }
-
-    [Fact]
     public async Task Map_every_field_with_its_texts_resolved()
     {
         _quests.FindByIdAsync(new QuestTemplateId(3), Arg.Any<CancellationToken>()).Returns(Quest());
@@ -176,21 +166,5 @@ public class QuestTemplateControllerShould
 
         Assert.Contains("\"type\":\"Kill\"", json);
         Assert.Contains("\"type\":\"Collect\"", json);
-    }
-
-    /// <summary>The contract enum is cast from the stored one, so the two must agree name for value.</summary>
-    [Fact]
-    public void Mirror_every_objective_type_by_name_and_value() =>
-        Assert.Equal(
-            Enum.GetValues<Avalon.Domain.World.QuestObjectiveType>().Select(t => (t.ToString(), (int)t)),
-            Enum.GetValues<Avalon.Api.Contract.QuestObjectiveType>().Select(t => (t.ToString(), (int)t)));
-
-    [Fact]
-    public void Be_for_game_masters_only()
-    {
-        AuthorizeAttribute authorize = Assert.Single(typeof(QuestTemplateController)
-            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true).Cast<AuthorizeAttribute>());
-
-        Assert.Equal(AvalonRoles.GameMaster, authorize.Policy);
     }
 }

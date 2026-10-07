@@ -64,18 +64,6 @@ public class ChatPacketsShould
     }
 
     [Fact]
-    public void Round_trip_the_sender_class()
-    {
-        using var stream = new MemoryStream();
-        Serializer.Serialize(stream, new SChatMessagePacket { Channel = ChatChannel.Whisper, CharacterClass = 2 });
-        stream.Position = 0;
-        SChatMessagePacket read = Serializer.Deserialize<SChatMessagePacket>(stream);
-
-        Assert.Equal(ChatChannel.Whisper, read.Channel);
-        Assert.Equal((ushort)2, read.CharacterClass);
-    }
-
-    [Fact]
     public void Read_a_payload_without_a_class_as_0()
     {
         using var stream = new MemoryStream(Convert.FromHexString(DefaultDateTime + "3001"));

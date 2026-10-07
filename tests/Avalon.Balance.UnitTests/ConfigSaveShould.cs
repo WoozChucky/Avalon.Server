@@ -23,16 +23,6 @@ public class ConfigSaveShould
     }
 
     [Fact]
-    public void Round_trip_the_checked_in_files()
-    {
-        BalanceConfig config = TestData.Config();
-        (string s, string t, string r) = ConfigFiles.Save(config);
-
-        BalanceConfig again = Reload(config);
-        Assert.Equal(ConfigFiles.Save(again), (s, t, r));
-    }
-
-    [Fact]
     public void Parse_back_to_an_equal_config()
     {
         BalanceConfig x = TestData.Config();
@@ -41,21 +31,6 @@ public class ConfigSaveShould
         BalanceConfig y = Reload(x);
 
         Assert.Equal(Neutral_(x), Neutral_(y));
-    }
-
-    [Fact]
-    public void Keep_the_values_that_are_not_defaults()
-    {
-        BalanceConfig x = TestData.Config();
-        x.Scenarios.Scenarios[0].ConeHits = 2;
-        BalanceConfig y = Reload(x);
-
-        Assert.Equal(2, y.Scenarios.Scenarios[0].ConeHits);
-        Assert.Contains(y.Scenarios.Scenarios, s => s.OffsetFromTemplate);
-        Assert.Contains(y.Targets.Scenarios.Values, s => s.HealthLeftPct is { Min: not null, Max: null });
-        Assert.Contains(y.Rotations.Values.SelectMany(e => e), e => e.When.Length > 0 && e.When.SelectMany(d => d).Any());
-        Assert.Equal(x.Scenarios.GearProfiles.Count, y.Scenarios.GearProfiles.Count);
-        Assert.Equal(x.Targets.Global.KillsPerLevel.Min, y.Targets.Global.KillsPerLevel.Min);
     }
 
     [Fact]

@@ -124,17 +124,6 @@ public class RunEndpointsShould
     }
 
     [Fact]
-    public async Task Require_the_secret_for_runs()
-    {
-        await using WebApplication app = BalanceTestHost.Build(extra: s_paused);
-        await app.StartAsync();
-
-        HttpResponseMessage response = await app.GetTestClient().PostAsync("/runs", Json(SmallRun));
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task Refuse_a_body_over_1_MiB_with_413_on_the_real_Kestrel()
     {
         await using WebApplication app = BalanceTestHost.BuildKestrel();

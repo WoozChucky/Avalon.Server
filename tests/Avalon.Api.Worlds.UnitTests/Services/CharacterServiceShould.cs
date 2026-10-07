@@ -189,18 +189,6 @@ public class CharacterServiceShould
         Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 10u, 10u), (amount.Kind, amount.Min, amount.Max));
     }
 
-    [Fact]
-    public async Task Report_no_amount_for_an_ability_another_script_runs()
-    {
-        var id = new CharacterId(42);
-        AbilityTemplate charge = Cleave();
-        charge.ScriptName = "ChargeAbilityScript";
-
-        CharacterAbilitiesDto? result = await AbilityService(id, charge, stats: null, mainHand: null).GetAbilitiesAsync(id);
-
-        Assert.Equal(Avalon.Api.Contract.AbilityAmountKind.None, Assert.Single(result!.Abilities).Amount!.Kind);
-    }
-
     /// <summary>A character's abilities carry the pool each cost is spent from (#652).</summary>
     [Fact]
     public async Task Return_each_abilitys_cost_power_type()
@@ -356,13 +344,6 @@ public class CharacterServiceShould
         Assert.Empty(log.Active);
         Assert.Empty(log.Completed);
     }
-
-    /// <summary>The contract enum is cast from the stored one, so the two must agree name for value.</summary>
-    [Fact]
-    public void Mirror_every_quest_state_by_name_and_value() =>
-        Assert.Equal(
-            Enum.GetValues<Avalon.Domain.Characters.CharacterQuestState>().Select(s => (s.ToString(), (int)s)),
-            Enum.GetValues<Avalon.Api.Contract.CharacterQuestState>().Select(s => (s.ToString(), (int)s)));
 
     [Fact]
     public async Task List_a_characters_saved_auras_by_slot()

@@ -1,26 +1,16 @@
-
 namespace Avalon.Combat.UnitTests;
 
 /// <summary>A heal never raises health past the maximum, and never lowers health already above it (#548).</summary>
 public class HealRulesShould
 {
-    [Fact]
-    public void Add_the_heal_below_the_maximum()
+    [Theory]
+    [InlineData(50u, 100u, 40u, 90u)]                                         // below the maximum: added
+    [InlineData(95u, 100u, 40u, 100u)]                                        // stops at the maximum
+    [InlineData(uint.MaxValue - 1, uint.MaxValue, uint.MaxValue, uint.MaxValue)] // without overflowing
+    [InlineData(100u, 100u, 40u, 100u)]                                       // at the maximum: as it is
+    [InlineData(130u, 100u, 40u, 130u)]                                       // above it: as it is
+    public void Heal_up_to_the_maximum_and_never_lower_health(uint before, uint max, uint amount, uint after)
     {
-        Assert.Equal(90u, HealRules.After(before: 50, max: 100, amount: 40));
-    }
-
-    [Fact]
-    public void Stop_at_the_maximum()
-    {
-        Assert.Equal(100u, HealRules.After(before: 95, max: 100, amount: 40));
-        Assert.Equal(uint.MaxValue, HealRules.After(uint.MaxValue - 1, uint.MaxValue, uint.MaxValue));
-    }
-
-    [Fact]
-    public void Leave_health_at_or_above_the_maximum_as_it_is()
-    {
-        Assert.Equal(100u, HealRules.After(before: 100, max: 100, amount: 40));
-        Assert.Equal(130u, HealRules.After(before: 130, max: 100, amount: 40));
+        Assert.Equal(after, HealRules.After(before, max, amount));
     }
 }

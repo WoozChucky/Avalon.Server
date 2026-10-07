@@ -22,12 +22,9 @@ public class AccountPaginateFiltersShould
     };
 
     [Theory]
-    [InlineData("player@avalon.monster")]
-    [InlineData(" Player@Avalon.MONSTER ")]
-    public void Match_an_email_in_any_case(string email) =>
-        Assert.True(new AccountPaginateFilters { Email = email }.GetFilter().Compile()(s_stored));
-
-    [Fact]
-    public void Not_match_another_email() =>
-        Assert.False(new AccountPaginateFilters { Email = "other@avalon.monster" }.GetFilter().Compile()(s_stored));
+    [InlineData("player@avalon.monster", true)]
+    [InlineData(" Player@Avalon.MONSTER ", true)]
+    [InlineData("other@avalon.monster", false)]
+    public void Match_an_email_in_any_case_and_no_other(string email, bool matches) =>
+        Assert.Equal(matches, new AccountPaginateFilters { Email = email }.GetFilter().Compile()(s_stored));
 }

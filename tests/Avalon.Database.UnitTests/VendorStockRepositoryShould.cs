@@ -56,79 +56,44 @@ public class VendorStockRepositoryShould
         Assert.Empty(gatedRead.Costs);
     }
 
-    [Fact]
-    public async Task Refuse_A_Limited_Row_With_No_Restock_Timer()
-    {
-        using var database = SqliteDatabase.World();
-        await using WorldDbContext write = database.CreateDbContext();
-
-        VendorStock row = Row(900, 1);
-        row.MaxStock = 2;
-        write.VendorStocks.Add(row);
-
-        await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
-    }
-
-    [Fact]
-    public async Task Refuse_A_Restock_Timer_On_An_Unlimited_Row()
-    {
-        using var database = SqliteDatabase.World();
-        await using WorldDbContext write = database.CreateDbContext();
-
-        VendorStock row = Row(900, 1);
-        row.RestockSeconds = 60;
-        write.VendorStocks.Add(row);
-
-        await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
-    }
-
-    [Fact]
-    public async Task Refuse_A_Max_Stock_Of_Zero()
-    {
-        using var database = SqliteDatabase.World();
-        await using WorldDbContext write = database.CreateDbContext();
-
-        VendorStock row = Row(900, 1);
-        row.MaxStock = 0;
-        row.RestockSeconds = 60;
-        write.VendorStocks.Add(row);
-
-        await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
-    }
-
-    [Fact]
-    public async Task Refuse_A_Quest_Id_Without_A_State()
-    {
-        using var database = SqliteDatabase.World();
-        await using WorldDbContext write = database.CreateDbContext();
-
-        VendorStock row = Row(900, 1);
-        row.RequiredQuestId = 7;
-        write.VendorStocks.Add(row);
-
-        await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
-    }
-
-    [Fact]
-    public async Task Refuse_A_Cost_Count_Of_Zero()
+    /// <summary>The check constraints pair the optional columns and refuse a zero count; one vendor uses a sequence once.</summary>
+    [Theory]
+    [InlineData("a limited row with no restock timer")]
+    [InlineData("a restock timer on an unlimited row")]
+    [InlineData("a max stock of zero")]
+    [InlineData("a quest id without a state")]
+    [InlineData("a cost count of zero")]
+    [InlineData("two rows with one sequence for one vendor")]
+    public async Task Refuse_a_row_the_schema_forbids(string defect)
     {
         using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
 
         VendorStock row = Row(900, 1, item: 2);
-        row.Costs = [new VendorStockCost { ItemTemplateId = new ItemTemplateId(1), Count = 0 }];
+        switch (defect)
+        {
+            case "a limited row with no restock timer":
+                row.MaxStock = 2;
+                break;
+            case "a restock timer on an unlimited row":
+                row.RestockSeconds = 60;
+                break;
+            case "a max stock of zero":
+                row.MaxStock = 0;
+                row.RestockSeconds = 60;
+                break;
+            case "a quest id without a state":
+                row.RequiredQuestId = 7;
+                break;
+            case "a cost count of zero":
+                row.Costs = [new VendorStockCost { ItemTemplateId = new ItemTemplateId(1), Count = 0 }];
+                break;
+            default:
+                write.VendorStocks.Add(Row(901, 1));
+                break;
+        }
+
         write.VendorStocks.Add(row);
-
-        await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
-    }
-
-    [Fact]
-    public async Task Refuse_Two_Rows_With_One_Sequence_For_One_Vendor()
-    {
-        using var database = SqliteDatabase.World();
-        await using WorldDbContext write = database.CreateDbContext();
-
-        write.VendorStocks.AddRange(Row(900, 1), Row(901, 1, item: 2));
 
         await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
     }

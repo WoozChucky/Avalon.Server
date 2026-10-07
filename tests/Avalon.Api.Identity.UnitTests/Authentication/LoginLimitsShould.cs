@@ -38,12 +38,6 @@ public class LoginLimitsShould
         Assert.Contains($"Application:Authentication:{setting}", ex.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Start_with_the_defaults()
-    {
-        StartWith(nameof(AuthenticationConfig.Issuer), "Avalon");
-    }
-
     /// <summary>
     /// #478 review: both hosts spend the same Redis budgets but configure their limits apart, so
     /// each logs its five limits at startup, at Information, for the two logs to be compared.

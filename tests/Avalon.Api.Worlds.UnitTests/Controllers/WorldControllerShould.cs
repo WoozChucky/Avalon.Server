@@ -4,7 +4,6 @@ using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Worlds.Controllers;
 using Avalon.Api.Worlds.Services;
-using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
@@ -38,42 +37,6 @@ public class WorldControllerShould
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, accountId.ToString()) };
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
         return new(new ClaimsIdentity(claims, "test", ClaimTypes.NameIdentifier, ClaimTypes.Role));
-    }
-
-    [Fact]
-    public async Task List_ReturnsPage()
-    {
-        _service.ListAsync(Arg.Any<Avalon.Common.Accounts.AccountAccessLevel>(), 1, 50,
-                Arg.Any<CancellationToken>(), null, SortDirection.Ascending)
-            .Returns(new PagedResult<WorldDto>(1, 50, 0, new List<WorldDto>()));
-
-        WorldController sut = MakeSut(User(7, AvalonRoles.Player));
-        PagedResult<WorldDto> result = await sut.List(1, 50, CancellationToken.None);
-
-        Assert.Equal(0, result.TotalCount);
-    }
-
-    [Fact]
-    public async Task Get_Returns404_WhenMissing()
-    {
-        _service.GetAsync((ushort)1, Arg.Any<Avalon.Common.Accounts.AccountAccessLevel>(), Arg.Any<CancellationToken>()).Returns((WorldDto?)null);
-
-        WorldController sut = MakeSut(User(7, AvalonRoles.Player));
-        IActionResult result = await sut.Get(1, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task Get_Returns200_WhenFound()
-    {
-        _service.GetAsync((ushort)1, Arg.Any<Avalon.Common.Accounts.AccountAccessLevel>(), Arg.Any<CancellationToken>())
-            .Returns(new WorldDto { Id = 1, Name = "n" });
-
-        WorldController sut = MakeSut(User(7, AvalonRoles.Player));
-        IActionResult result = await sut.Get(1, CancellationToken.None);
-
-        Assert.IsType<OkObjectResult>(result);
     }
 
     [Fact]

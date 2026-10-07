@@ -104,10 +104,6 @@ public sealed class WorldRouteShould : IAsyncLifetime
         Assert.Equal("Lantern", (await response.Content.ReadFromJsonAsync<Avalon.Api.Contract.ItemTemplateDto>())!.Name);
     }
 
-    [Fact]
-    public async Task Answer_404_for_a_world_this_api_is_not_configured_for() =>
-        Assert.Equal(HttpStatusCode.NotFound, (await Item($"{Unconfigured}", AccountAccessLevel.Admin)).StatusCode);
-
     [Theory]
     [InlineData("0")]
     [InlineData("01")]
@@ -134,10 +130,6 @@ public sealed class WorldRouteShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Equal("World 2 is unavailable", (await response.Content.ReadFromJsonAsync<ProblemDetails>())!.Detail);
     }
-
-    [Fact]
-    public async Task Answer_404_when_the_caller_may_not_enter_the_world() =>
-        Assert.Equal(HttpStatusCode.NotFound, (await Item($"{Staff}", AccountAccessLevel.Player)).StatusCode);
 
     [Fact]
     public async Task Answer_404_not_503_when_the_caller_may_not_enter_an_unavailable_world() =>

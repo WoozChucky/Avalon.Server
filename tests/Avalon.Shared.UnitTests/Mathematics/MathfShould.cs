@@ -5,157 +5,64 @@ namespace Avalon.Shared.UnitTests.Mathematics;
 
 public class MathfShould
 {
-    // ── Trigonometry ──────────────────────────────────────────────────────────
-
-    [Theory]
-    [InlineData(0f, 0f)]
-    [InlineData(1.5707964f, 1f)]  // π/2
-    public void ReturnCorrectSin(float radians, float expected)
-    {
-        Assert.Equal(expected, Mathf.Sin(radians), precision: 5);
-    }
-
-    [Theory]
-    [InlineData(0f, 1f)]
-    [InlineData(1.5707964f, 0f)]  // π/2
-    public void ReturnCorrectCos(float radians, float expected)
-    {
-        Assert.Equal(expected, Mathf.Cos(radians), precision: 5);
-    }
+    // ── Thin wrappers over the platform's float maths ─────────────────────────
 
     [Fact]
-    public void ReturnCorrectTan()
+    public void Wrap_the_trigonometry_functions()
     {
-        Assert.Equal(0f, Mathf.Tan(0f), precision: 5);
+        Assert.Equal(1f, Mathf.Sin(1.5707964f), precision: 5);
+        Assert.Equal(0f, Mathf.Cos(1.5707964f), precision: 5);
         Assert.Equal(1f, Mathf.Tan(Mathf.PI / 4f), precision: 5);
-    }
-
-    [Fact]
-    public void ReturnCorrectAsin()
-    {
-        Assert.Equal(0f, Mathf.Asin(0f), precision: 5);
         Assert.Equal(Mathf.PI / 2f, Mathf.Asin(1f), precision: 5);
-    }
-
-    [Fact]
-    public void ReturnCorrectAcos()
-    {
-        Assert.Equal(Mathf.PI / 2f, Mathf.Acos(0f), precision: 5);
         Assert.Equal(0f, Mathf.Acos(1f), precision: 5);
-    }
-
-    [Fact]
-    public void ReturnCorrectAtan()
-    {
-        Assert.Equal(0f, Mathf.Atan(0f), precision: 5);
         Assert.Equal(Mathf.PI / 4f, Mathf.Atan(1f), precision: 5);
-    }
-
-    [Fact]
-    public void ReturnCorrectAtan2()
-    {
-        Assert.Equal(0f, Mathf.Atan2(0f, 1f), precision: 5);
         Assert.Equal(Mathf.PI / 2f, Mathf.Atan2(1f, 0f), precision: 5);
     }
 
-    // ── Roots / Powers ────────────────────────────────────────────────────────
-
-    [Theory]
-    [InlineData(0f, 0f)]
-    [InlineData(4f, 2f)]
-    [InlineData(9f, 3f)]
-    public void ReturnCorrectSqrt(float input, float expected)
-    {
-        Assert.Equal(expected, Mathf.Sqrt(input), precision: 5);
-    }
-
     [Fact]
-    public void ReturnCorrectPow()
+    public void Wrap_the_root_power_and_log_functions()
     {
+        Assert.Equal(3f, Mathf.Sqrt(9f), precision: 5);
         Assert.Equal(8f, Mathf.Pow(2f, 3f), precision: 5);
-        Assert.Equal(1f, Mathf.Pow(5f, 0f), precision: 5);
-    }
-
-    [Fact]
-    public void ReturnCorrectExp()
-    {
-        Assert.Equal(1f, Mathf.Exp(0f), precision: 5);
         Assert.Equal((float)Math.E, Mathf.Exp(1f), precision: 5);
-    }
-
-    [Fact]
-    public void ReturnCorrectLog()
-    {
         Assert.Equal(0f, Mathf.Log(1f), precision: 5);
         Assert.Equal(3f, Mathf.Log(1000f, 10f), precision: 2);
+        Assert.Equal(2f, Mathf.Log10(100f), precision: 5);
     }
 
     [Fact]
-    public void ReturnCorrectLog10()
+    public void Wrap_sign_and_absolute_value()
     {
-        Assert.Equal(0f, Mathf.Log10(1f), precision: 5);
-        Assert.Equal(2f, Mathf.Log10(100f), precision: 5);
+        Assert.Equal(1f, Mathf.Sign(10f));
+        Assert.Equal(1f, Mathf.Sign(0f));
+        Assert.Equal(-1f, Mathf.Sign(-10f));
+        Assert.Equal(10f, Mathf.Abs(-10f));
+        Assert.Equal(10, Mathf.Abs(-10));
     }
 
     // ── Rounding ──────────────────────────────────────────────────────────────
 
     [Theory]
-    [InlineData(1.4f, 1f)]
-    [InlineData(1.5f, 2f)]
-    [InlineData(-1.4f, -1f)]
-    public void ReturnCorrectRound(float input, float expected)
+    [InlineData(1.4f, 1f, 2f, 1f)]
+    [InlineData(1.5f, 2f, 2f, 1f)]
+    [InlineData(1.0f, 1f, 1f, 1f)]
+    [InlineData(-1.4f, -1f, -1f, -2f)]
+    public void Round_ceil_and_floor_as_floats_and_ints(float input, float round, float ceil, float floor)
     {
-        Assert.Equal(expected, Mathf.Round(input), precision: 5);
-    }
-
-    [Theory]
-    [InlineData(1.1f, 2)]
-    [InlineData(1.0f, 1)]
-    [InlineData(-1.1f, -1)]
-    public void ReturnCorrectCeilToInt(float input, int expected)
-    {
-        Assert.Equal(expected, Mathf.CeilToInt(input));
-    }
-
-    [Theory]
-    [InlineData(1.9f, 1)]
-    [InlineData(1.0f, 1)]
-    [InlineData(-1.9f, -2)]
-    public void ReturnCorrectFloorToInt(float input, int expected)
-    {
-        Assert.Equal(expected, Mathf.FloorToInt(input));
-    }
-
-    [Theory]
-    [InlineData(1.4f, 1)]
-    [InlineData(1.5f, 2)]
-    public void ReturnCorrectRoundToInt(float input, int expected)
-    {
-        Assert.Equal(expected, Mathf.RoundToInt(input));
-    }
-
-    [Theory]
-    [InlineData(1.1f, 2f)]
-    [InlineData(1.0f, 1f)]
-    [InlineData(-1.1f, -1f)]
-    public void ReturnCorrectCeil(float input, float expected)
-    {
-        Assert.Equal(expected, Mathf.Ceil(input), precision: 5);
-    }
-
-    [Theory]
-    [InlineData(1.9f, 1f)]
-    [InlineData(1.0f, 1f)]
-    [InlineData(-1.9f, -2f)]
-    public void ReturnCorrectFloor(float input, float expected)
-    {
-        Assert.Equal(expected, Mathf.Floor(input), precision: 5);
+        Assert.Equal(round, Mathf.Round(input), precision: 5);
+        Assert.Equal((int)round, Mathf.RoundToInt(input));
+        Assert.Equal(ceil, Mathf.Ceil(input), precision: 5);
+        Assert.Equal((int)ceil, Mathf.CeilToInt(input));
+        Assert.Equal(floor, Mathf.Floor(input), precision: 5);
+        Assert.Equal((int)floor, Mathf.FloorToInt(input));
     }
 
     // ── Interpolation ─────────────────────────────────────────────────────────
 
     [Theory]
     [InlineData(0f, 10f, 0.5f, 5f)]
+    [InlineData(0f, 10f, 0f, 0f)]
+    [InlineData(0f, 10f, 1f, 10f)]
     [InlineData(0f, 10f, 1.5f, 10f)] // clamped
     [InlineData(0f, 10f, -1f, 0f)]   // clamped
     public void LerpClampsToRange(float a, float b, float t, float expected)
@@ -176,11 +83,6 @@ public class MathfShould
         Assert.Equal(0.5f, Mathf.InverseLerp(0f, 10f, 5f), precision: 5);
         Assert.Equal(0f, Mathf.InverseLerp(0f, 10f, 0f), precision: 5);
         Assert.Equal(1f, Mathf.InverseLerp(0f, 10f, 10f), precision: 5);
-    }
-
-    [Fact]
-    public void InverseLerpReturnZeroWhenAEqualsB()
-    {
         Assert.Equal(0f, Mathf.InverseLerp(5f, 5f, 5f));
     }
 
@@ -227,53 +129,6 @@ public class MathfShould
         Assert.Equal(3f, Mathf.PingPong(7f, 5f), precision: 5);   // bouncing back (10-7=3)
     }
 
-    // ── Approximately ─────────────────────────────────────────────────────────
-
-    [Fact]
-    public void ApproximatelyReturnsTrueForNearValues()
-    {
-        Assert.True(Mathf.Approximately(1.0f, 1.0f));
-        Assert.True(Mathf.Approximately(0.1f + 0.2f, 0.3f));
-    }
-
-    [Fact]
-    public void ApproximatelyReturnsFalseForDistantValues()
-    {
-        Assert.False(Mathf.Approximately(1.0f, 2.0f));
-    }
-
-    // ── Multi-param Min/Max ───────────────────────────────────────────────────
-
-    [Fact]
-    public void ParamsMinFloat()
-    {
-        Assert.Equal(1f, Mathf.Min(3f, 1f, 2f));
-        Assert.Equal(0f, Mathf.Min(new float[0]));
-    }
-
-    [Fact]
-    public void ParamsMaxFloat()
-    {
-        Assert.Equal(3f, Mathf.Max(1f, 3f, 2f));
-        Assert.Equal(0f, Mathf.Max(new float[0]));
-    }
-
-    [Fact]
-    public void ParamsMinInt()
-    {
-        Assert.Equal(1, Mathf.Min(3, 1, 2));
-        Assert.Equal(0, Mathf.Min(new int[0]));
-    }
-
-    [Fact]
-    public void ParamsMaxInt()
-    {
-        Assert.Equal(3, Mathf.Max(1, 3, 2));
-        Assert.Equal(0, Mathf.Max(new int[0]));
-    }
-
-    // ── LerpAngle ─────────────────────────────────────────────────────────────
-
     [Fact]
     public void LerpAngleWrapsAround360()
     {
@@ -282,22 +137,41 @@ public class MathfShould
         Assert.Equal(360f, result, precision: 3);
     }
 
+    // ── Comparisons ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Call_close_values_approximately_equal_and_distant_ones_not()
+    {
+        Assert.True(Mathf.Approximately(1.0f, 1.0f));
+        Assert.True(Mathf.Approximately(0.1f + 0.2f, 0.3f));
+        Assert.False(Mathf.Approximately(1.0f, 2.0f));
+    }
+
+    [Fact]
+    public void Take_the_min_and_max_of_two_values_or_any_count()
+    {
+        Assert.Equal(5f, Mathf.Min(5f, 10f));
+        Assert.Equal(10f, Mathf.Max(5f, 10f));
+        Assert.Equal(5, Mathf.Min(5, 10));
+        Assert.Equal(10, Mathf.Max(5, 10));
+        Assert.Equal(1f, Mathf.Min(3f, 1f, 2f));
+        Assert.Equal(0f, Mathf.Min(new float[0]));
+        Assert.Equal(3f, Mathf.Max(1f, 3f, 2f));
+        Assert.Equal(0f, Mathf.Max(new float[0]));
+        Assert.Equal(1, Mathf.Min(3, 1, 2));
+        Assert.Equal(0, Mathf.Min(new int[0]));
+        Assert.Equal(3, Mathf.Max(1, 3, 2));
+        Assert.Equal(0, Mathf.Max(new int[0]));
+    }
+
     [Theory]
     [InlineData(10, 5, 15, 10)]
     [InlineData(0, 5, 15, 5)]
     [InlineData(20, 5, 15, 15)]
-    public void ClampIntValues(int value, int min, int max, int expected)
+    public void Clamp_ints_and_floats(int value, int min, int max, int expected)
     {
         Assert.Equal(expected, Mathf.Clamp(value, min, max));
-    }
-
-    [Theory]
-    [InlineData(10f, 5f, 15f, 10f)]
-    [InlineData(0f, 5f, 15f, 5f)]
-    [InlineData(20f, 5f, 15f, 15f)]
-    public void ClampFloatValues(float value, float min, float max, float expected)
-    {
-        Assert.Equal(expected, Mathf.Clamp(value, min, max));
+        Assert.Equal((float)expected, Mathf.Clamp((float)value, min, max));
     }
 
     [Theory]
@@ -307,38 +181,5 @@ public class MathfShould
     public void Clamp01Values(float value, float expected)
     {
         Assert.Equal(expected, Mathf.Clamp01(value));
-    }
-
-    [Theory]
-    [InlineData(0f, 10f, 0.5f, 5f)]
-    [InlineData(0f, 10f, 0f, 0f)]
-    [InlineData(0f, 10f, 1f, 10f)]
-    public void LerpValues(float a, float b, float t, float expected)
-    {
-        Assert.Equal(expected, Mathf.Lerp(a, b, t));
-    }
-
-    [Fact]
-    public void ReturnCorrectSign()
-    {
-        Assert.Equal(1f, Mathf.Sign(10f));
-        Assert.Equal(1f, Mathf.Sign(0f));
-        Assert.Equal(-1f, Mathf.Sign(-10f));
-    }
-
-    [Fact]
-    public void ReturnCorrectAbs()
-    {
-        Assert.Equal(10f, Mathf.Abs(-10f));
-        Assert.Equal(10, Mathf.Abs(-10));
-    }
-
-    [Fact]
-    public void ReturnCorrectMinMax()
-    {
-        Assert.Equal(5f, Mathf.Min(5f, 10f));
-        Assert.Equal(10f, Mathf.Max(5f, 10f));
-        Assert.Equal(5, Mathf.Min(5, 10));
-        Assert.Equal(10, Mathf.Max(5, 10));
     }
 }

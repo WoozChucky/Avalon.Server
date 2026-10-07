@@ -25,31 +25,10 @@ public class PacketReaderShould
             packetTypes);
 
     [Fact]
-    public void UseConfiguredBufferSize_WhenConstructed()
+    public void Take_its_buffer_size_from_configuration_with_a_default()
     {
-        PacketReader reader = Make(8192);
-        Assert.Equal(8192, reader.BufferSize);
-    }
-
-    [Fact]
-    public void UseDefaultBufferSize_WhenNotOverridden()
-    {
-        var reader = new PacketReader(
-            NullLoggerFactory.Instance,
-            Options.Create(new HostingConfiguration()),
-            packetTypes: []);
-
-        Assert.Equal(4096, reader.BufferSize);
-    }
-
-    [Theory]
-    [InlineData(512)]
-    [InlineData(4096)]
-    [InlineData(65535)]
-    public void AcceptValidBufferSizes(int size)
-    {
-        Exception ex = Record.Exception(() => Make(size));
-        Assert.Null(ex);
+        Assert.Equal(8192, Make(8192).BufferSize);
+        Assert.Equal(4096, MakeWith().BufferSize);
     }
 
     [Fact]

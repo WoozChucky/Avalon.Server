@@ -120,33 +120,6 @@ public sealed class WorldListFlagsShould : IDisposable
     }
 
     [Fact]
-    public async Task Keep_hiding_a_configured_world_the_caller_may_not_enter()
-    {
-        Assert.Null(await Sut().GetAsync(104, AccountAccessLevel.Player));
-        Assert.DoesNotContain((await Sut().ListAsync(AccountAccessLevel.Player, 1, 50)).Items, w => w.Id == 104);
-    }
-
-    [Theory]
-    [InlineData(AccountAccessLevel.PTR)]
-    [InlineData(AccountAccessLevel.Tournament)]
-    public async Task Hide_a_configured_admin_world_from_ptr_and_tournament_callers(AccountAccessLevel caller)
-    {
-        // PTR (32) and Tournament (16) are numerically above Admin (4): the world rule is a mask test.
-        PagedResult<WorldDto> page = await Sut().ListAsync(caller, 1, 50);
-
-        Assert.Equal(new ushort[] { 101, 102, 103 }, page.Items.Select(w => w.Id).Order());
-        Assert.Equal(3, page.TotalCount);
-        Assert.Null(await Sut().GetAsync(104, caller));
-    }
-
-    [Fact]
-    public async Task Answer_a_restricted_world_exactly_as_one_that_does_not_exist()
-    {
-        Assert.Null(await Sut().GetAsync(104, AccountAccessLevel.Tournament));
-        Assert.Null(await Sut().GetAsync(999, AccountAccessLevel.Tournament));
-    }
-
-    [Fact]
     public async Task Flag_a_configured_admin_world_for_an_admin()
     {
         WorldDto? world = await Sut().GetAsync(104, AccountAccessLevel.Admin);

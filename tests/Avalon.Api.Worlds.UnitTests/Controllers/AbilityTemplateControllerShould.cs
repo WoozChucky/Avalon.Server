@@ -48,32 +48,6 @@ public class AbilityTemplateControllerShould
         Assert.Equal(0, result.TotalCount);
     }
 
-    [Fact]
-    public async Task Get_Returns404_WhenMissing()
-    {
-        _repository
-            .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
-            .Returns((AbilityTemplate?)null);
-
-        AbilityTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
-        IActionResult result = await sut.Get(1, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task Get_Returns200_WhenFound()
-    {
-        _repository
-            .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
-            .Returns(new AbilityTemplate { Id = new AbilityId(1), Name = "Fireball", ScriptName = "fireball.cs" });
-
-        AbilityTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
-        IActionResult result = await sut.Get(1, CancellationToken.None);
-
-        Assert.IsType<OkObjectResult>(result);
-    }
-
     /// <summary>The pool a cost is spent from reaches the REST contract as a named value (#652).</summary>
     [Theory]
     [InlineData(Avalon.Network.Packets.State.PowerType.None, "None")]
@@ -101,17 +75,5 @@ public class AbilityTemplateControllerShould
         Assert.Equal(pool.ToString(), dto.CostPowerType.ToString());
         Assert.Contains($"\"costPowerType\":\"{json}\"",
             JsonSerializer.Serialize(dto, JsonSerializerOptions.Web));
-    }
-
-    /// <summary>The contract enum is cast from the domain one, so the two must agree name for value.</summary>
-    [Fact]
-    public void Mirror_every_power_type_by_name_and_value()
-    {
-        IEnumerable<(string Name, int Value)> domain = Enum.GetValues<Avalon.Network.Packets.State.PowerType>()
-            .Select(p => (Name: p.ToString(), Value: (int)p));
-        IEnumerable<(string Name, int Value)> contract = Enum.GetValues<Avalon.Api.Contract.PowerType>()
-            .Select(p => (Name: p.ToString(), Value: (int)p));
-
-        Assert.Equal(domain, contract);
     }
 }

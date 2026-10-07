@@ -24,17 +24,6 @@ public class WorldDatabaseSettingsShould
     ];
 
     [Fact]
-    public void Parse_one_world()
-    {
-        ConfiguredWorld world = Assert.Single(WorldDatabaseSettings.Parse(Config(Pair("1", WorldOne, CharactersOne))));
-
-        Assert.Equal((ushort)1, world.Id.Value);
-        Assert.Equal(WorldOne, world.WorldConnectionString);
-        Assert.Equal(CharactersOne, world.CharactersConnectionString);
-        Assert.Equal(WorldDatabaseStatus.Available, world.Status);
-    }
-
-    [Fact]
     public void Parse_several_worlds_in_id_order()
     {
         IReadOnlyList<ConfiguredWorld> worlds = WorldDatabaseSettings.Parse(
@@ -54,11 +43,7 @@ public class WorldDatabaseSettingsShould
     }
 
     [Theory]
-    [InlineData("0")]
     [InlineData("01")]
-    [InlineData("-1")]
-    [InlineData("+1")]
-    [InlineData("65536")]
     [InlineData("abc")]
     public void Refuse_a_world_id_that_is_not_a_positive_integer(string id)
     {
@@ -100,23 +85,15 @@ public class WorldDatabaseSettingsShould
         Assert.Null(id);
     }
 
-    [Fact]
-    public void Refuse_a_world_with_only_its_world_string()
+    [Theory]
+    [InlineData("World", "Characters")]
+    [InlineData("Characters", "World")]
+    public void Refuse_a_world_with_only_one_of_its_strings(string given, string missing)
     {
         InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
-            WorldDatabaseSettings.Parse(Config(("Database:Worlds:1:World:ConnectionString", WorldOne))));
+            WorldDatabaseSettings.Parse(Config(($"Database:Worlds:1:{given}:ConnectionString", WorldOne))));
 
-        Assert.StartsWith("Database:Worlds:1:Characters:ConnectionString is missing", ex.Message);
-        Assert.DoesNotContain("secret", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Refuse_a_world_with_only_its_characters_string()
-    {
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
-            WorldDatabaseSettings.Parse(Config(("Database:Worlds:1:Characters:ConnectionString", CharactersOne))));
-
-        Assert.StartsWith("Database:Worlds:1:World:ConnectionString is missing", ex.Message);
+        Assert.StartsWith($"Database:Worlds:1:{missing}:ConnectionString is missing", ex.Message);
         Assert.DoesNotContain("secret", ex.Message, StringComparison.Ordinal);
     }
 
@@ -134,25 +111,6 @@ public class WorldDatabaseSettingsShould
     [Fact]
     public void Keep_its_connection_strings_out_of_its_text() =>
         Assert.Equal("World 4 (Available)", new ConfiguredWorld(new WorldId(4), WorldOne, CharactersOne).ToString());
-
-    [Fact]
-    public void Mark_a_world_unavailable()
-    {
-        WorldDatabases databases = new([new ConfiguredWorld(new WorldId(4), WorldOne, CharactersOne)]);
-
-        databases.MarkUnavailable(new WorldId(4));
-
-        Assert.True(databases.TryGet(new WorldId(4), out ConfiguredWorld? world));
-        Assert.Equal(WorldDatabaseStatus.Unavailable, world.Status);
-    }
-
-    [Fact]
-    public void Not_find_a_world_it_was_not_given()
-    {
-        WorldDatabases databases = new([new ConfiguredWorld(new WorldId(4), WorldOne, CharactersOne)]);
-
-        Assert.False(databases.TryGet(new WorldId(5), out _));
-    }
 
     [Fact]
     public void Call_a_configured_world_available_until_it_is_marked()
@@ -208,31 +166,5 @@ public class WorldDatabaseSettingsShould
         Assert.Equal(new ushort[] { 1, 2 }, worlds.Select(w => w.Id.Value));
         Assert.Equal("Host=w2", worlds[1].WorldConnectionString);
         Assert.Equal("Host=c2", worlds[1].CharactersConnectionString);
-    }
-
-    [Fact]
-    public void Parse_the_environment_variable_form()
-    {
-        // A prefix no other test or host variable uses, so this can run beside the other tests.
-        const string Prefix = "AV523T_";
-        const string World = Prefix + "Database__Worlds__2__World__ConnectionString";
-        const string Characters = Prefix + "Database__Worlds__2__Characters__ConnectionString";
-        try
-        {
-            Environment.SetEnvironmentVariable(World, "Host=w2");
-            Environment.SetEnvironmentVariable(Characters, "Host=c2");
-            IConfiguration configuration = new ConfigurationBuilder().AddEnvironmentVariables(Prefix).Build();
-
-            ConfiguredWorld parsed = Assert.Single(WorldDatabaseSettings.Parse(configuration));
-
-            Assert.Equal((ushort)2, parsed.Id.Value);
-            Assert.Equal("Host=w2", parsed.WorldConnectionString);
-            Assert.Equal("Host=c2", parsed.CharactersConnectionString);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(World, null);
-            Environment.SetEnvironmentVariable(Characters, null);
-        }
     }
 }

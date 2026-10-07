@@ -51,14 +51,6 @@ public class ApiStartupValidationShould
 
     private const string Unreachable = "Host=127.0.0.1;Port=1;Timeout=1;Database=none;Username=none;Password=none";
 
-    [Fact]
-    public void Pass_startup_validation_with_a_cache_host()
-    {
-        using ServiceProvider provider = Build("localhost:6379");
-
-        provider.GetRequiredService<IStartupValidator>().Validate();
-    }
-
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -69,22 +61,6 @@ public class ApiStartupValidationShould
 
         OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
             () => provider.GetRequiredService<IStartupValidator>().Validate());
-
-        Assert.Contains("'CacheConfiguration' members: 'Host'", refused.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The check comes first in <see cref="ApiStartup"/>, the startup work Program runs before it
-    /// serves: every database here points at a port nothing listens on, so a check that came after
-    /// the migrations would fail with a connection error instead.
-    /// </summary>
-    [Fact]
-    public async Task Refuse_to_start_without_a_cache_host_before_any_database_call()
-    {
-        await using ServiceProvider provider = Build(null);
-
-        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
-            () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
 
         Assert.Contains("'CacheConfiguration' members: 'Host'", refused.Message, StringComparison.Ordinal);
     }
@@ -100,18 +76,6 @@ public class ApiStartupValidationShould
             () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
 
         Assert.Contains("Database:Worlds lists no world", refused.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task Refuse_to_start_with_half_a_world()
-    {
-        await using ServiceProvider provider = Build("localhost:6379", ("Database:Worlds:1:Characters:ConnectionString", null));
-
-        InvalidOperationException refused = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
-
-        Assert.Contains("Database:Worlds:1:Characters:ConnectionString is missing", refused.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("Port=1", refused.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

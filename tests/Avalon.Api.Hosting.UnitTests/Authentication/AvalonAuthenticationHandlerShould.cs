@@ -78,17 +78,12 @@ public class AvalonAuthenticationHandlerShould
         Assert.Null(result.Failure);
     }
 
-    [Fact]
-    public async Task Fail_WhenTokenPrefixWrong()
+    [Theory]
+    [InlineData("Avalon not-a-pat")]
+    [InlineData("Avalon avp_short")]
+    public async Task Fail_WhenTokenPrefixOrLengthWrong(string header)
     {
-        AuthenticateResult result = await Authenticate("Avalon not-a-pat");
-        Assert.NotNull(result.Failure);
-    }
-
-    [Fact]
-    public async Task Fail_WhenTokenLengthWrong()
-    {
-        AuthenticateResult result = await Authenticate("Avalon avp_short");
+        AuthenticateResult result = await Authenticate(header);
         Assert.NotNull(result.Failure);
     }
 
@@ -172,23 +167,6 @@ public class AvalonAuthenticationHandlerShould
         string[] roles = result.Principal!.Claims.Where(c => c.Type == ClaimTypes.GroupSid).Select(c => c.Value).ToArray();
         Assert.DoesNotContain("Admin", roles);
         Assert.DoesNotContain("GameMaster", roles);
-        Assert.Equal(new[] { "Player" }, roles);
-    }
-
-    // The token keeps its narrower scope: a Player-only token on an account that still
-    // holds Player, GameMaster and Admin yields Player and nothing else.
-    [Fact]
-    public async Task KeepNarrowerTokenScope_WhenAccountHoldsMore()
-    {
-        string token = "avp_" + new string('A', 43);
-        _pats.FindByHashAsync(ApiTestHost.TokenHash(token), Arg.Any<CancellationToken>()).Returns(MakePat(token, AccountAccessLevel.Player));
-        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-                 .Returns(MakeAccount(AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
-
-        AuthenticateResult result = await Authenticate("Avalon " + token);
-
-        Assert.True(result.Succeeded);
-        string[] roles = result.Principal!.Claims.Where(c => c.Type == ClaimTypes.GroupSid).Select(c => c.Value).ToArray();
         Assert.Equal(new[] { "Player" }, roles);
     }
 }

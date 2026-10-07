@@ -6,99 +6,32 @@ namespace Avalon.Shared.UnitTests.Common.Utils;
 public class TimeUtilsShould
 {
     [Fact]
-    public void GetApplicationStartTimeReturnsPositiveElapsed()
+    public void Read_the_clocks()
     {
-        TimeSpan elapsed = TimeUtils.GetApplicationStartTime();
-        Assert.True(elapsed >= TimeSpan.Zero);
+        Assert.True(TimeUtils.GetApplicationStartTime() >= TimeSpan.Zero);
+        Assert.True(TimeUtils.GetTimeMs() >= TimeSpan.Zero);
+        // After Jan 1 2020.
+        Assert.True(TimeUtils.GetEpochTime() > 1577836800L);
+        Assert.True(TimeUtils.GetMsTimeDiffToNow(TimeUtils.GetMsTime()) < 60_000U);
+        Assert.True(TimeUtils.GetMsTimeDiffToNow(TimeUtils.GetTimeMs()) < TimeSpan.FromMinutes(1));
     }
 
-    [Fact]
-    public void GetTimeMsReturnsPositiveValue()
+    /// <summary>An old time past the new one is a millisecond counter that wrapped.</summary>
+    [Theory]
+    [InlineData(100U, 200U, 100U)]
+    [InlineData(0xFFFFFFF0U, 10U, 0xFFFFFFFFU - 0xFFFFFFF0U + 10U)]
+    public void Diff_millisecond_counters_across_a_wrap(uint oldMs, uint newMs, uint expected)
     {
-        TimeSpan time = TimeUtils.GetTimeMs();
-        Assert.True(time >= TimeSpan.Zero);
+        Assert.Equal(expected, TimeUtils.GetMsTimeDiff(oldMs, newMs));
+        Assert.Equal(expected, TimeUtils.GetMsTimeDiff(oldMs, TimeSpan.FromMilliseconds(newMs)));
     }
 
-    [Fact]
-    public void GetMsTimeReturnsPositiveUInt()
+    [Theory]
+    [InlineData(100, 300, 200)]
+    [InlineData(500, 100, 400)]
+    public void Diff_time_spans_either_way_round(int oldMs, int newMs, int expected)
     {
-        uint ms = TimeUtils.GetMsTime();
-        Assert.True(ms > 0U);
-    }
-
-    [Fact]
-    public void GetMsTimeDiffUIntSimpleDifference()
-    {
-        uint diff = TimeUtils.GetMsTimeDiff(100U, 200U);
-        Assert.Equal(100U, diff);
-    }
-
-    [Fact]
-    public void GetMsTimeDiffUIntHandlesOverflow()
-    {
-        uint oldMs = 0xFFFFFFF0U;
-        uint newMs = 10U;
-        uint diff = TimeUtils.GetMsTimeDiff(oldMs, newMs);
-
-        Assert.Equal(0xFFFFFFFF - oldMs + newMs, diff);
-    }
-
-    [Fact]
-    public void GetMsTimeDiffTimeSpanSimpleDifference()
-    {
-        var old = TimeSpan.FromMilliseconds(100);
-        var now = TimeSpan.FromMilliseconds(300);
-
-        TimeSpan diff = TimeUtils.GetMsTimeDiff(old, now);
-        Assert.Equal(TimeSpan.FromMilliseconds(200), diff);
-    }
-
-    [Fact]
-    public void GetMsTimeDiffTimeSpanHandlesOldGreaterThanNew()
-    {
-        var old = TimeSpan.FromMilliseconds(500);
-        var now = TimeSpan.FromMilliseconds(100);
-
-        TimeSpan diff = TimeUtils.GetMsTimeDiff(old, now);
-        Assert.Equal(TimeSpan.FromMilliseconds(400), diff);
-    }
-
-    [Fact]
-    public void GetMsTimeDiffToNowReturnsDifference()
-    {
-        uint start = TimeUtils.GetMsTime();
-        Thread.Sleep(5);
-        uint diff = TimeUtils.GetMsTimeDiffToNow(start);
-
-        Assert.True(diff >= 0U);
-    }
-
-    [Fact]
-    public void GetMsTimeDiffToNowTimeSpanReturnsDifference()
-    {
-        TimeSpan start = TimeUtils.GetTimeMs();
-        Thread.Sleep(5);
-        TimeSpan diff = TimeUtils.GetMsTimeDiffToNow(start);
-
-        Assert.True(diff >= TimeSpan.Zero);
-    }
-
-    [Fact]
-    public void GetEpochTimeReturnsReasonableValue()
-    {
-        long epoch = TimeUtils.GetEpochTime();
-        // Should be after Jan 1 2020
-        Assert.True(epoch > 1577836800L);
-    }
-
-    [Fact]
-    public void GetMsTimeDiffWithTimeSpanNewTimeDelegates()
-    {
-        uint oldMs = 100U;
-        var newTime = TimeSpan.FromMilliseconds(300);
-
-        uint diff = TimeUtils.GetMsTimeDiff(oldMs, newTime);
-
-        Assert.Equal(200U, diff);
+        Assert.Equal(TimeSpan.FromMilliseconds(expected),
+            TimeUtils.GetMsTimeDiff(TimeSpan.FromMilliseconds(oldMs), TimeSpan.FromMilliseconds(newMs)));
     }
 }

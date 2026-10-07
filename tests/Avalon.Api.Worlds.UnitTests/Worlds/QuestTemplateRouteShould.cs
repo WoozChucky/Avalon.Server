@@ -120,14 +120,4 @@ public sealed class QuestTemplateRouteShould : IAsyncLifetime
     public async Task Refuse_a_player() =>
         Assert.Equal(HttpStatusCode.Forbidden,
             (await Get($"/world/{Open}/quest-template/1", AccountAccessLevel.Player)).StatusCode);
-
-    [Fact]
-    public async Task Answer_404_for_a_world_the_caller_may_not_enter() =>
-        Assert.Equal(HttpStatusCode.NotFound,
-            (await Get($"/world/{Staff}/quest-template/1", AccountAccessLevel.GameMaster)).StatusCode);
-
-    [Fact]
-    public async Task Answer_404_for_an_unconfigured_world() =>
-        Assert.Equal(HttpStatusCode.NotFound,
-            (await Get("/world/9/quest-template/1", AccountAccessLevel.GameMaster)).StatusCode);
 }

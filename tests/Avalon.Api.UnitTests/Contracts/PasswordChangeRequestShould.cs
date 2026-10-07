@@ -19,26 +19,17 @@ public class PasswordChangeRequestShould
     }
 
     // Built at run time, so no source line holds a password-looking literal.
-    public static TheoryData<string> TooShort => new()
+    public static TheoryData<string, bool> Passwords => new()
     {
-        "   " + TestPasswords.OfLength(3) + "    ",
-        "        ",
-        " " + TestPasswords.OfLength(7) + " ",
-    };
-
-    public static TheoryData<string> LongEnough => new()
-    {
-        TestPasswords.OfLength(8),
-        "  " + TestPasswords.Valid + "  ",
+        { "   " + TestPasswords.OfLength(3) + "    ", false },
+        { "        ", false },
+        { " " + TestPasswords.OfLength(7) + " ", false },
+        { TestPasswords.OfLength(8), true },
+        { "  " + TestPasswords.Valid + "  ", true },
     };
 
     [Theory]
-    [MemberData(nameof(TooShort))]
-    public void Refuse_a_new_password_shorter_than_eight_once_trimmed(string newPassword) =>
-        Assert.False(IsValid(newPassword));
-
-    [Theory]
-    [MemberData(nameof(LongEnough))]
-    public void Accept_a_new_password_of_eight_or_more_once_trimmed(string newPassword) =>
-        Assert.True(IsValid(newPassword));
+    [MemberData(nameof(Passwords))]
+    public void Accept_a_new_password_only_of_eight_or_more_once_trimmed(string newPassword, bool valid) =>
+        Assert.Equal(valid, IsValid(newPassword));
 }
