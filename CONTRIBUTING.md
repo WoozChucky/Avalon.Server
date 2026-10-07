@@ -66,21 +66,31 @@ set it once per machine (step 4 of [Local Setup](#local-setup)). Specifically:
    dotnet build --no-restore
    ```
 
-4. **Set the REST API signing key** (once per machine). `Avalon.Api` needs a random key of at least 32 bytes,
-   and none is committed. Run one of these from the repository root; each generates a key and stores it in
-   your user-secrets.
+4. **Set the REST API signing keys** (once per machine, #801). `Avalon.Api` needs an ES256 key pair, which
+   signs and checks access tokens, and a game-auth host key, and none is committed. The Aspire AppHost
+   (`src/Server/Avalon`) makes its own; for a plain `dotnet run`, run these from the repository root to store
+   them in your user-secrets.
 
    bash (needs `openssl`, which Git Bash, macOS and most Linux distributions include):
    ```bash
-   dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
+   openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt -out jwt-es256.pem
+   dotnet user-secrets set "Application:Authentication:SigningKey" "$(cat jwt-es256.pem)" --project src/Server/Avalon.Api
+   dotnet user-secrets set "Application:Authentication:SigningKeyId" "dev" --project src/Server/Avalon.Api
+   dotnet user-secrets set "Application:Authentication:ValidationKeys:dev" "$(openssl pkey -in jwt-es256.pem -pubout -outform DER | base64 -w0)" --project src/Server/Avalon.Api
+   dotnet user-secrets set "Application:GameAuth:HostKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
+   rm jwt-es256.pem
    ```
-   PowerShell (Windows PowerShell or PowerShell 7, no `openssl` needed):
+   PowerShell 7 (no `openssl` needed):
    ```powershell
-   $b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api
+   $k = [Security.Cryptography.ECDsa]::Create([Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+   dotnet user-secrets set "Application:Authentication:SigningKey" ([Convert]::ToBase64String($k.ExportPkcs8PrivateKey())) --project src/Server/Avalon.Api
+   dotnet user-secrets set "Application:Authentication:SigningKeyId" "dev" --project src/Server/Avalon.Api
+   dotnet user-secrets set "Application:Authentication:ValidationKeys:dev" ([Convert]::ToBase64String($k.ExportSubjectPublicKeyInfo())) --project src/Server/Avalon.Api
+   dotnet user-secrets set "Application:GameAuth:HostKey" ([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))) --project src/Server/Avalon.Api
    ```
-   If you skip this, `Avalon.Api` exits at startup with `System.InvalidOperationException: The JWT signing key
-   is not set.`, followed by the setting's name and these commands. Only the API needs the key; the Auth and
-   World servers start without it.
+   If you skip this, `Avalon.Api` exits at startup with `System.InvalidOperationException:
+   Application:Authentication:SigningKey is not set`, followed by what it needs. Only the API needs the keys;
+   the Auth and World servers start without them. See [docs/development-setup.md](docs/development-setup.md#rest-api-signing-key).
 
 5. **Run the servers** (separate terminals):
    ```bash

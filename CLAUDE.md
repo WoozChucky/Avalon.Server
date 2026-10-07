@@ -17,7 +17,7 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
 
 # Infrastructure (Redis + Postgres; compose password 123), then the servers
 docker compose up -d redis postgres
-dotnet run --project src/Server/Avalon.Api          # all four API services; needs a JWT signing key, see below
+dotnet run --project src/Server/Avalon.Api          # all four API services; needs its signing keys, see below
 dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
 dotnet run --project src/Server/Avalon             # Aspire AppHost: everything at once
@@ -42,7 +42,7 @@ Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_on
   --startup-project src/Server/Avalon.Api --context WorldDbContext
 ```
 
-Target framework: .NET 10 (`global.json`). The long notes — every EF design-time rule, seed-migration ordering, ChunkGen details, publish commands, and setting the REST API's JWT signing key (`Application:Authentication:IssuerSigningKey`, required, at least 32 bytes, never committed; user-secrets locally, a Kubernetes Secret in Helm) — are in [docs/development-setup.md](docs/development-setup.md).
+Target framework: .NET 10 (`global.json`). The long notes — every EF design-time rule, seed-migration ordering, ChunkGen details, publish commands, and setting the REST API's signing keys (#801: identity's ES256 private key `Application:Authentication:SigningKey` with its `SigningKeyId`, which no other service may hold; the public keys every service checks tokens with, `ValidationKeys`; the game-auth host key `Application:GameAuth:HostKey`; never committed: user-secrets, or the AppHost's own, locally, a Kubernetes Secret in Helm) — are in [docs/development-setup.md](docs/development-setup.md).
 
 ## Architecture
 

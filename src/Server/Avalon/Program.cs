@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Projects;
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
@@ -30,8 +31,27 @@ IResourceBuilder<ProjectResource> balanceService = builder
 // whose templates admins may edit live (Application:Templates:EditableWorlds). Production worlds stay out of it.
 const int DevWorldId = 1;
 
+// The access tokens' ES256 key pair (#801), made afresh on every run, so no user secret is needed: the private half goes
+// to the api, which runs identity, the one service that signs, and the public half is listed for every service under
+// the key id. A token from an earlier run is refused, and the client refreshes.
+const string JwtKeyId = "apphost";
+using var jwtKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+
+// The game-auth cryptography's host key (#801): generated once and kept in the AppHost's user secrets (persist), so the
+// receipts, proofs and Steam OpenID states it protects survive a restart.
+IResourceBuilder<ParameterResource> gameAuthHostKey = builder.AddParameter(
+    "game-auth-host-key",
+    new GenerateParameterDefault { MinLength = 48, Special = false },
+    secret: true,
+    persist: true);
+
 IResourceBuilder<ProjectResource> apiProject = builder
     .AddProject<Avalon_Api>("api")
+    .WithEnvironment("Application__Authentication__SigningKey", Convert.ToBase64String(jwtKey.ExportPkcs8PrivateKey()))
+    .WithEnvironment("Application__Authentication__SigningKeyId", JwtKeyId)
+    .WithEnvironment($"Application__Authentication__ValidationKeys__{JwtKeyId}",
+        Convert.ToBase64String(jwtKey.ExportSubjectPublicKeyInfo()))
+    .WithEnvironment("Application__GameAuth__HostKey", gameAuthHostKey)
     // The Development world, the same local databases the api's appsettings.Development.json names.
     .WithEnvironment($"Database__Worlds__{DevWorldId}__World__ConnectionString",
         "Server=localhost;Port=5432;Database=world;User Id=postgres;Password=123;")

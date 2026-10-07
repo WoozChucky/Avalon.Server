@@ -10,8 +10,9 @@ Bootstrap sequence for each server component.
 1. `AvalonApiHost.CreateBuilder`: the configuration sources (`ApiConfiguration.Sources`), the selected services, each
    service's builder settings (identity: the game workload listener), Serilog then the service defaults (with the
    `avalon.api.services` resource attribute), CORS, the selected services' controllers only (camelCase JSON, no
-   value-object converter), the OpenAPI document, the token validation, the shared hosting for the services' needs,
-   then each service's own registrations
+   value-object converter), the OpenAPI document, the token validation (`JwtKeys.Create`, which stops startup on an
+   unusable key or a private key in a process without identity, #801; a throwaway key when only generating the OpenAPI
+   document), the shared hosting for the services' needs, then each service's own registrations
 2. Build, then the one pipeline (`ApiPipeline`) and its endpoints: `/health`, `/alive`, `/openapi/v1.json`, Scalar at
    `/scalar`, the controllers
 3. Log the services it runs; then, unless `AVALON_OPENAPI_GENERATION_ONLY` is set, `ApiStartup` (the options,

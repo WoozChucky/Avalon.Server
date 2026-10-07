@@ -226,8 +226,8 @@ tokens, and a launcher update depended on the health of everything else.
 - Without configuration the host behaves as before the split; the homelab release renders unchanged, which the chart's
   test pins.
 - Each process counts its own requests against the in-memory rate limits; the security budgets stay in Redis, shared.
-- Until #801 every service needs the HS256 signing key, which can also mint tokens; least privilege for tokens needs
-  ES256 first.
+- Least privilege for tokens needed ES256 first: since #801 only identity holds the private key that mints them, and
+  every other service holds the public keys alone (it refuses to start with the private key).
 - A new endpoint needs an owner decided in `RouteOwnershipShould`'s table, and a new first path segment of a service
   other than identity needs a manifest rule.
 

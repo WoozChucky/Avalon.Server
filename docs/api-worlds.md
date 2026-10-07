@@ -314,8 +314,9 @@ or distribution ignores `worlds`, and the checks below apply to the parts a rele
 - **The chart refuses to render** with no world; a world id that is not `^[1-9][0-9]{0,4}$` up to 65535; with a
   chart-managed Secret, a world missing either string or naming a key; with `existingSecret`, any inline string; a
   key that is not a valid Secret key name (letters, digits, `-`, `_`, `.`); a key two settings would read (two worlds,
-  a world's own two keys, or one of the chart's keys `jwt-signing-key`, `database-auth-connection-string`,
-  `cache-password`, `notification-private-key` and `distribution-secret-key`); and the removed `database.world` /
+  a world's own two keys, or one of the chart's keys `jwt-signing-key`, `jwt-signing-private-key`,
+  `game-auth-host-key`, `database-auth-connection-string`, `cache-password`, `notification-private-key` and
+  `distribution-secret-key`); and the removed `database.world` /
   `database.characters` values. `src/Server/Avalon.Api/Helm/avalon-api/ci/test.sh` pins each refusal.
 
 ### Public routes and previews

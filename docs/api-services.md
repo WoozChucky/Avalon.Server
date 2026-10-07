@@ -9,8 +9,8 @@ run one service per process, each with only its own settings, secrets, database 
     The code, the chart and the tests support the split, but production has not moved: the homelab still runs every
     service in the one `avalon-api` deployment. That release names no `services`, so the chart renders it exactly as
     before the split and the process runs all four. Deploying the services apart is the rollout tracked in #802 (see
-    [Rollout](#rollout)). Access tokens are still HS256, so every service holds a key that could also mint one; the
-    move to ES256, after which only identity can mint, is #801. Database roles, Redis users and network policies per
+    [Rollout](#rollout)). Access tokens are ES256 (#801): only identity holds the private key that mints them, and
+    the other services hold the public keys alone. Database roles, Redis users and network policies per
     service are the hardening questions of #803.
 
 ## The services
@@ -132,11 +132,15 @@ each world server migrates its own.
   by identity. Every service validates a JWT or a personal access token itself and reloads its account from the auth
   database on every request (status, the access mask, the credentials version), exactly as before the split
   ([REST API authentication](api-authentication.md)). No service asks another whether a caller is signed in.
-- **One key for now.** Tokens are HS256 with `Application:Authentication:IssuerSigningKey`, so every process needs that
-  key, and any process that holds it could also sign a token. #801 moves the signing to an ES256 private key held by
-  identity alone, the other services holding only public keys; the rollout is planned to follow it.
-- **Identity's own keys**: the game-auth cryptography (proofs, replay receipts, the Steam OpenID state) is still
-  derived from the signing key, in identity only; #801 plans a setting of its own for it, holding the same bytes.
+- **Only identity can sign (#801).** Access tokens are ES256: identity signs them with a private key under a key id
+  (`Application:Authentication:SigningKey`, `SigningKeyId`), and every service checks them with the public keys it is
+  given by key id (`Application:Authentication:ValidationKeys`), which are not secret. A process that does not run
+  identity refuses to start while it holds the private key, and one with no public key refuses too. For the release
+  that moves to ES256, the HS256 key (`IssuerSigningKey`) is still accepted while it is set, so the tokens issued
+  before run out; the next release refuses HS256 ([REST API authentication](api-authentication.md)).
+- **Identity's own keys**: the game-auth cryptography (proofs, replay receipts, the Steam OpenID state) derives its
+  keys from `Application:GameAuth:HostKey`, read by identity alone, which holds the value the HS256 key held, so what
+  was protected before stays readable; for the release that moves to ES256 it falls back to the HS256 key.
 - **Rate limits are per process.** The request rate limiter is in memory, so each process counts the requests it
   serves: a caller spreading requests over services gets one budget per process. The budgets that matter for
   security (logins, MFA codes, registration, email sends, checkout) are in Redis and shared by every process.
@@ -236,7 +240,8 @@ change made meanwhile has to update the golden with it.
 ## Configuration per service
 
 A process reads the settings of the services it runs and nothing else is required of it. Every service reads the auth
-connection string, the token validation settings (the signing key among them), the forwarded headers and the general
+connection string, the token validation settings (the public keys among them; only identity reads the private key and
+the game-auth host key), the forwarded headers and the general
 rate limits; identity, worlds and commerce read `Application:Cache`; the world connection strings are read by worlds
 (both) and identity (Characters); the rest belongs to one service each (identity's store, Steam, workload, email and
 notification settings, worlds' templates, map assets, public site and balance settings, `Application:Commerce`,
@@ -254,20 +259,24 @@ nightly and registry workflows did not change. The chart's values that decide th
   `ci/test.sh` pins that its values render exactly what the chart rendered before #794 (`ci/homelab-render.txt`).
   An empty list is accepted only in routes mode; an unknown name, or one listed twice, refuses to render.
 - **Values per service**: a service's values reach the pod only when the release runs it, so a release per service
-  holds only its own settings and Secret references. Identity's are `storeAuthentication` (with the publisher key's
+  holds only its own settings and Secret references. Identity's are `authentication.signingKeyId` and the Secret
+  references of its private key and game-auth host key (#801), `storeAuthentication` (with the publisher key's
   Secret reference), `email`, `notification`, `steamWebLink`, `gameAdmission` (port 9443 on the container and the
   Service, the certificate volume, the world bindings) and `rateLimiting.clientAuthPermitsPerMinute`; worlds' are
   `templates`, `mapAssets`, `publicWorldId`, `publicSiteUrl` and `balance`; commerce's `commerce`; distribution's
   `distribution`. `storeAuthentication.environment` and `steamIdentityPrefix` reach identity and commerce, `cache`
   every service but distribution, and the world connection strings the services that read them (characters for
   identity and worlds, world for worlds). Every release reads `existingSecret`, `database.auth`,
-  `authentication.issuerSigningKey`, `forwardedHeaders`, the other `rateLimiting` values, `otel`, `environment` and
-  `resources`.
-- **Secret keys per service**, in a chart-managed Secret or the one `existingSecret` names:
+  `authentication.validationKeys` (the public keys, plain values), `authentication.legacyIssuerSigningKey` (with it,
+  the HS256 key), `forwardedHeaders`, the other `rateLimiting` values, `otel`, `environment` and `resources`. A
+  release given none of the ES256 values renders the HS256 key alone, as before #801, which the API refuses to start
+  with ([REST API signing key](development-setup.md#rest-api-signing-key)).
+- **Secret keys per service**, in a chart-managed Secret or the one `existingSecret` names (`jwt-signing-key`, the HS256
+  key, only with `authentication.legacyIssuerSigningKey`):
 
     | Service | Keys |
     |---|---|
-    | identity | `database-auth-connection-string`, `jwt-signing-key`, `cache-password`, `notification-private-key`, `database-characters-<id>-connection-string` per world; plus the Secrets `storeAuthentication`, `gameAdmission` and (with Resend) `email` name |
+    | identity | `database-auth-connection-string`, `jwt-signing-private-key`, `game-auth-host-key`, `jwt-signing-key`, `cache-password`, `notification-private-key`, `database-characters-<id>-connection-string` per world; plus the Secrets `storeAuthentication`, `gameAdmission` and (with Resend) `email` name |
     | worlds | `database-auth-connection-string`, `jwt-signing-key`, `cache-password`, `balance-shared-secret`, `database-world-<id>-connection-string` and `database-characters-<id>-connection-string` per world |
     | commerce | `database-auth-connection-string`, `jwt-signing-key`, `cache-password`; plus the Stripe keys in the Secret `commerce.existingSecret` names |
     | distribution | `database-auth-connection-string`, `jwt-signing-key`, `distribution-secret-key` |
@@ -289,8 +298,9 @@ go. `ci/test.sh` has a case for each mode (see [Guards](#guards)).
 
 The rollout is #802, and none of it has happened. The plan, from the design of #794:
 
-1. **Signing first** (#801): identity signs with an ES256 private key, the other services hold the public keys, and
-   one release accepts both algorithms, so no session is lost.
+1. **Signing first** (#801, in the code): identity signs with an ES256 private key, the other services hold the public
+   keys, and one release accepts both algorithms (`authentication.legacyIssuerSigningKey`), so no session is lost; the
+   next refuses HS256.
 2. **The split-capable release**: `avalon-api` keeps running all four services, now naming them in `services`, and
    behaves as before.
 3. **Routes in place**: a routes release (`avalon-api-routes`) takes over `/api` with every backend still
@@ -314,14 +324,15 @@ homelab repository holds the values.
 ## Local development
 
 `dotnet run --project src/Server/Avalon.Api`, or the Aspire AppHost's `api` resource, runs all four services on
-`http://localhost:5210`, the address the Dashboard's development servers proxy to. Every process needs the signing
-key; one user-secret serves them all, since they are one project ([Development setup](development-setup.md#rest-api-signing-key)).
+`http://localhost:5210`, the address the Dashboard's development servers proxy to. The AppHost makes the signing key
+pair itself; a plain `dotnet run` reads the keys from user-secrets, which serve every process, since the services are
+one project ([Development setup](development-setup.md#rest-api-signing-key)).
 
-To run one service, name it:
+To run one service, name it. Without identity the process must not hold the private key, so blank the user-secret on
+its command line (it keeps the public key):
 
 ```bash
-Application__Services__0=worlds dotnet run --project src/Server/Avalon.Api   # bash
-$env:Application__Services__0 = "worlds"; dotnet run --project src/Server/Avalon.Api   # PowerShell
+dotnet run --project src/Server/Avalon.Api -- --Application:Services:0=worlds --Application:Authentication:SigningKey=
 ```
 
 It then maps only that service's routes (any other path answers 404). Without identity it waits for the auth schema,
@@ -383,11 +394,12 @@ BASE=http://127.0.0.1:18080 tools/api-smoke/smoke.sh   # after kubectl port-forw
 | `RouteOwnershipShould` | `Avalon.Api.UnitTests` | An endpoint has no owner in the table, a service's process maps another's endpoint or misses one of its own, the manifest sends an endpoint elsewhere, or a manifest rule decides nothing |
 | `EveryRouteReachableShould` | `Avalon.Api.UnitTests` | An endpoint's sample request, as the ingress delivers it, is not routed in its owner's process, or is routed in another's |
 | `SmokeCoverageShould` | `Avalon.Api.UnitTests` | A manifest rule has no smoke request, or a request is in another service's group |
-| `CrossServiceAuthenticationShould` | `Avalon.Api.UnitTests` | A token identity minted is refused by another service, or a token signed with another key or past its lifetime is accepted there |
+| `CrossServiceAuthenticationShould` | `Avalon.Api.UnitTests` | A token identity minted is refused by another service, holding only the public key, or a token signed with another key under the same key id or past its lifetime is accepted there |
+| `JwtSigningKeyShould` | `Avalon.Api.Identity.UnitTests` | A process starts with a key it cannot use, without a key to validate with, or holding identity's private key without running identity (#801) |
 | `ApiHostGraphShould` | `Avalon.Api.UnitTests` | A service's real host, run alone, does not build under the container validation, maps another service's controllers, or cannot build one of its own |
 | `ApiServiceBoundariesShould` | `Avalon.Api.UnitTests` | A service library references another, directly or through a project, or Hosting or the contract references a service |
 | `MonolithCompositionShould` | `Avalon.Api.UnitTests` | The all-in-one process differs from `Avalon.Api` before the split: its exception mappers, the game servers' rate-limit partition, the Steam callback's query kept out of the request log, the startup checks, the store settings bound once, the auth schema owned, the middleware order |
 | `ContractGoldenShould` | `Avalon.Api.UnitTests` | The all-in-one document differs from the one published before the split (removed after the rollout) |
 | `ApiServiceSelectionShould`, `PipelineOrderShould`, `AuthSchemaGateShould`, `WorldDatabasePartsShould`, `RouteTableShould`, `OpenApiOrderShould` | `Avalon.Api.Hosting.UnitTests` | The selection rules, the pipeline order, the schema gate, the world parts a process reads, the manifest reader, or the ordinal order of a document's paths, tags and schemas change |
 | `InternalEndpointsShould` | `Avalon.Api.Identity.UnitTests` | `/internal/game/*` answers on a port other than the workload listener's |
-| `ci/test.sh` | the chart | The homelab values render differently from before the split, a service alone renders a setting or Secret key that is not its own, the routes release's rules, priorities or refusals change, or the NetworkPolicy renders without its peers |
+| `ci/test.sh` | the chart | The homelab values render differently from before the split, the ES256 values (#801) add anything but identity's keys and the public keys, a service alone renders a setting or Secret key that is not its own, the routes release's rules, priorities or refusals change, or the NetworkPolicy renders without its peers |

@@ -1,0 +1,8 @@
+# Rendering only: the ES256 values (#801) of the release that moves access tokens to ES256, over the
+# homelab's (homelab-values.yaml): identity's key id, the HS256 key still accepted for that release,
+# and a public key made for this file (its private key was thrown away).
+authentication:
+  signingKeyId: "2026-10"
+  legacyIssuerSigningKey: true
+  validationKeys:
+    "2026-10": MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcNiZzBqacm/Ab3jkvqpj2CrbM6swvAqefzjRdR42P7jfnItCIn+d8Ib+b6aRJPAXeVhCD3wgNrQjgj7P8knbrg==

@@ -259,6 +259,7 @@ owners() {
   case "$1" in
     Application__StoreAuthentication__Environment|Application__StoreAuthentication__SteamIdentityPrefix) echo "identity commerce" ;;
     Application__StoreAuthentication__*|Application__Email__*|Application__Notification__*|Application__SteamWebLink__*|Application__GameWorkloads__*|Kestrel__Endpoints__GameInternal__*|Application__RateLimiting__ClientAuthPermitsPerMinute) echo identity ;;
+    Application__Authentication__SigningKey|Application__Authentication__SigningKeyId|Application__GameAuth__*) echo identity ;;
     Database__Worlds__*__Characters__*) echo "identity worlds" ;;
     Database__Worlds__*__World__*|Application__Templates__*|Application__MapAssets__*|Application__Balance__*|Application__PublicWorldId|Application__PublicSiteUrl) echo worlds ;;
     Application__Commerce__*) echo commerce ;;
@@ -267,6 +268,7 @@ owners() {
     Database__Auth__*|Application__Authentication__*|Application__ForwardedHeaders__*|Application__RateLimiting__*|Kestrel__Endpoints__Public__*|ASPNETCORE_ENVIRONMENT|DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE|OTEL_*) echo "identity worlds commerce distribution" ;;
   esac
 }
+# What $1 alone reads of the one process's render $2.
 expected_for() {
   local service=$1 line rest
   while IFS= read -r line; do
@@ -275,21 +277,47 @@ expected_for() {
       "port game-internal "*|"service-port game-internal "*|"mount "*|"volume "*) [ "$service" = identity ] && echo "$line" ;;
       *) echo "$line" ;;
     esac
-  done <<<"$EXPECTED"
+  done <<<"$2"
   echo "env Application__Services__0=\"$service\""
   if [ "$service" != identity ]; then
     echo 'env Application__Startup__AuthSchemaWaitSeconds="300"'
     echo "probe startupProbe /alive 72"
   fi
 }
-union=""
-for service in identity worlds commerce distribution; do
-  alone=$(render "${HOMELAB[@]}" --set-json "services=[\"$service\"]")
-  diff <(shape <<<"$alone") <(expected_for "$service" | LC_ALL=C sort) || { echo "$service alone must read exactly its own settings (design D9.4)"; exit 1; }
-  union+=$(shape <<<"$alone" | grep -v -e '^env Application__Services__' -e '^env Application__Startup__' -e '^probe startupProbe ')$'\n'
-  helm lint . --quiet "${HOMELAB[@]}" --set-json "services=[\"$service\"]" >/dev/null || { echo "helm lint failed for $service"; exit 1; }
-done
-diff <(LC_ALL=C sort -u <<<"$union" | sed '/^$/d') <(echo "$EXPECTED") || { echo "every setting of the one process must reach the service that reads it"; exit 1; }
+# Each service alone, rendered with the values after $1, reads exactly its part of the one process's render $1.
+each_service_alone() {
+  local one=$1 union="" service alone
+  shift
+  for service in identity worlds commerce distribution; do
+    alone=$(render "$@" --set-json "services=[\"$service\"]")
+    diff <(shape <<<"$alone") <(expected_for "$service" "$one" | LC_ALL=C sort) || { echo "$service alone must read exactly its own settings (design D9.4)"; exit 1; }
+    union+=$(shape <<<"$alone" | grep -v -e '^env Application__Services__' -e '^env Application__Startup__' -e '^probe startupProbe ')$'\n'
+    helm lint . --quiet "$@" --set-json "services=[\"$service\"]" >/dev/null || { echo "helm lint failed for $service"; exit 1; }
+  done
+  diff <(LC_ALL=C sort -u <<<"$union" | sed '/^$/d') <(echo "$one") || { echo "every setting of the one process must reach the service that reads it"; exit 1; }
+}
+each_service_alone "$EXPECTED" "${HOMELAB[@]}"
+
+# ES256 (#801). The release that moves access tokens to ES256 renders what the homelab release rendered,
+# plus identity's private key, key id and game-auth host key (optional: the API falls back to the HS256
+# key for that release) and every service's public keys; the HS256 key stays while legacyIssuerSigningKey
+# is on, and goes when it is off. Each service alone reads its part: the private key and the host key
+# only where identity runs.
+ES256=(--values ci/es256-values.yaml)
+es256=$(render "${HOMELAB[@]}" "${ES256[@]}")
+added=(
+  'env Application__Authentication__SigningKey <- avalon-api/jwt-signing-private-key'
+  'env Application__Authentication__SigningKeyId="2026-10"'
+  'env Application__Authentication__ValidationKeys__2026-10="MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcNiZzBqacm/Ab3jkvqpj2CrbM6swvAqefzjRdR42P7jfnItCIn+d8Ib+b6aRJPAXeVhCD3wgNrQjgj7P8knbrg=="'
+  'env Application__GameAuth__HostKey <- avalon-api/game-auth-host-key'
+  'env Application__GameAuth__HostKey optional'
+)
+diff <(shape <<<"$es256") <(printf '%s\n' "$EXPECTED" "${added[@]}" | LC_ALL=C sort) \
+                                                                      || { echo "the ES256 release must add identity's key and the public keys to the homelab render"; exit 1; }
+each_service_alone "$(shape <<<"$es256")" "${HOMELAB[@]}" "${ES256[@]}"
+diff <(shape <<<"$es256" | grep -v '^env Application__Authentication__IssuerSigningKey ') \
+     <(render "${HOMELAB[@]}" "${ES256[@]}" --set authentication.legacyIssuerSigningKey=false | shape) \
+                                                                      || { echo "legacyIssuerSigningKey off must leave out the HS256 key alone"; exit 1; }
 # A chart-managed Secret holds only the keys of the release's services (design D9.3).
 SECRETS=(--set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set cache.password=p --set notification.privateKey=n
          --set distribution.secretAccessKey=d --set balance.sharedSecret=b)
@@ -302,6 +330,32 @@ for expect in "identity:cache-password database-auth-connection-string database-
     | awk '/^stringData:/{f=1; next} f && /^  [a-z]/{sub(/:.*/, ""); print $1}' | LC_ALL=C sort | tr '\n' ' ')
   [ "$keys" = "${expect#*:} " ] || { echo "$service's Secret must hold only its keys, not: $keys"; exit 1; }
 done
+# With the ES256 values (#801) identity's Secret also holds its private key and the game-auth host key, which no
+# other service's holds; the HS256 key stays only with legacyIssuerSigningKey.
+ESECRETS=("${SECRETS[@]}" "${ES256[@]}" --set authentication.signingKey=private --set gameAuth.hostKey=host)
+for expect in "identity:true:cache-password database-auth-connection-string database-characters-1-connection-string game-auth-host-key jwt-signing-key jwt-signing-private-key notification-private-key" \
+              "identity:false:cache-password database-auth-connection-string database-characters-1-connection-string game-auth-host-key jwt-signing-private-key notification-private-key" \
+              "commerce:true:cache-password database-auth-connection-string jwt-signing-key" \
+              "commerce:false:cache-password database-auth-connection-string"; do
+  IFS=: read -r service legacy wanted <<<"$expect"
+  issuer=(); [ "$legacy" = true ] || issuer=(--set authentication.issuerSigningKey=)
+  keys=$(render "${AUTHENTICATION[@]}" $CACHE "${ESECRETS[@]}" "${issuer[@]}" --set authentication.legacyIssuerSigningKey="$legacy" \
+      --set-json "services=[\"$service\"]" --show-only templates/secret.yaml \
+    | awk '/^stringData:/{f=1; next} f && /^  [a-z]/{sub(/:.*/, ""); print $1}' | LC_ALL=C sort | tr '\n' ' ')
+  [ "$keys" = "$wanted " ] || { echo "$service's ES256 Secret (legacy $legacy) must hold only its keys, not: $keys"; exit 1; }
+done
+render "${AUTHENTICATION[@]}" $CACHE "${ESECRETS[@]}" --set 'authentication.signingKey= private ' --show-only templates/secret.yaml \
+  | grep -q 'jwt-signing-private-key: "private"$'                     || { echo "the private key must reach the Secret, trimmed"; exit 1; }
+must_fail "identity without a key id must fail"                     --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set authentication.signingKeyId=
+must_fail "a key id that is not a plain name must fail"             --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set 'authentication.signingKeyId=a b'
+must_fail "a service without identity and no public key must fail"  --set existingSecret=x "${W1[@]}" --set-json 'services=["worlds"]' --set authentication.legacyIssuerSigningKey=true
+must_fail "a private key among the public keys must fail"           --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set-string 'authentication.validationKeys.2026-10=-----BEGIN PRIVATE KEY-----'
+must_fail "an inline private key with existingSecret must fail"     --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set authentication.signingKey=private
+must_fail "an inline host key with existingSecret must fail"        --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set gameAuth.hostKey=host
+must_fail "identity's chart-managed Secret without its private key must fail" "${ESECRETS[@]}" --set authentication.signingKey=
+must_fail "the HS256 key without legacyIssuerSigningKey must fail"  "${ESECRETS[@]}" --set authentication.legacyIssuerSigningKey=false
+must_fail "no host key and no HS256 key to fall back to must fail"  "${ESECRETS[@]}" --set authentication.legacyIssuerSigningKey=false --set authentication.issuerSigningKey= --set gameAuth.hostKey=
+must_fail "a legacy flag that is not a boolean must fail"           --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set-string authentication.legacyIssuerSigningKey=yes
 # A service's values are required only where it runs: distribution starts from the auth string and the
 # signing key alone, with no world, cache, store or game admission values.
 helm template t . --set existingSecret=x --set-json 'services=["distribution"]' >/dev/null || { echo "distribution alone must not need other services' values"; exit 1; }
