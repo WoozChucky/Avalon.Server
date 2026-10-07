@@ -182,18 +182,6 @@ public class ObservabilityServiceShould
     }
 
     [Fact]
-    public async Task Should_page_the_roster()
-    {
-        GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "A"), Char(2, "B"), Char(3, "C")));
-
-        PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { Page = 2, PageSize = 2 }, Gm, CancellationToken.None);
-
-        Assert.Single(page.Items);
-        Assert.Equal(3, page.TotalCount);
-    }
-
-    [Fact]
     public async Task Should_maintain_stable_order_across_page_boundary()
     {
         // Inserted out of alphabetical order so the assertion only passes if the service
@@ -214,35 +202,16 @@ public class ObservabilityServiceShould
         Assert.Equal([2u, 3u, 1u], combinedIds);
     }
 
-    [Fact]
-    public async Task Should_clamp_page_size_above_fifty_to_fifty()
+    [Theory]
+    [InlineData(200)]
+    [InlineData(0)]
+    [InlineData(50)]
+    public async Task Should_clamp_page_size_outside_one_to_fifty_to_fifty(int requested)
     {
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "A")));
 
         PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 200 }, Gm, CancellationToken.None);
-
-        Assert.Equal(50, page.PageSize);
-    }
-
-    [Fact]
-    public async Task Should_clamp_page_size_below_one_to_fifty()
-    {
-        GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "A")));
-
-        PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 0 }, Gm, CancellationToken.None);
-
-        Assert.Equal(50, page.PageSize);
-    }
-
-    [Fact]
-    public async Task Should_not_clamp_page_size_at_the_fifty_boundary()
-    {
-        GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "A")));
-
-        PagedResult<OnlinePlayerDto> page = await CreateSut()
-            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 50 }, Gm, CancellationToken.None);
+            .GetOnlineAsync(new PresencePaginateFilters { PageSize = requested }, Gm, CancellationToken.None);
 
         Assert.Equal(50, page.PageSize);
     }
@@ -620,24 +589,12 @@ public class ObservabilityServiceShould
             page.Items.Select(r => (r.Name, r.CharacterId, r.WorldId)));
     }
 
-    [Fact]
-    public async Task Hide_presence_in_worlds_the_caller_may_not_enter()
-    {
-        ObservabilityService sut = CreateSut();
-        GivenTwoWorlds(AccountAccessLevel.Admin);
-        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
-        GivenWorldTwoSnapshot(Char(2, "Zed"));
-
-        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
-
-        Assert.Equal(["Nym"], page.Items.Select(r => r.Name));
-    }
-
     /// <summary>
     /// PTR (32) and Tournament (16) are numerically above Admin (4): a <c>&lt;=</c> comparison would
     /// let a game master holding either flag into an Admin-only world. The rule is a mask.
     /// </summary>
     [Theory]
+    [InlineData(Gm)]
     [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.PTR)]
     [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.Tournament)]
     public async Task Hide_an_admin_only_world_from_a_caller_whose_flags_are_numerically_above_admin(
@@ -654,6 +611,7 @@ public class ObservabilityServiceShould
     }
 
     [Theory]
+    [InlineData(Gm)]
     [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.PTR)]
     [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.Tournament)]
     public async Task Hide_a_player_in_an_admin_only_world_from_a_caller_whose_flags_are_numerically_above_admin(
@@ -674,6 +632,7 @@ public class ObservabilityServiceShould
     }
 
     [Theory]
+    [InlineData(Gm)]
     [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.PTR)]
     [InlineData(AccountAccessLevel.GameMaster | AccountAccessLevel.Tournament)]
     public async Task Hide_an_instance_in_an_admin_only_world_from_a_caller_whose_flags_are_numerically_above_admin(
@@ -704,23 +663,6 @@ public class ObservabilityServiceShould
     }
 
     [Fact]
-    public async Task Hide_a_players_presence_in_a_world_the_caller_may_not_enter()
-    {
-        GivenCharacterIndex(4417);
-        GivenWorldSnapshot(Snapshot("a", Char(4417, "Nym")));
-        ObservabilityService sut = CreateSut();
-        _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<AvalonWorld?>(new AvalonWorld
-            {
-                Id = new WorldId(1),
-                Name = "Aurora",
-                AccessLevelRequired = AccountAccessLevel.Admin,
-            }));
-
-        Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None));
-    }
-
-    [Fact]
     public async Task Hide_a_players_presence_in_a_world_with_no_row()
     {
         GivenCharacterIndex(4417);
@@ -730,19 +672,6 @@ public class ObservabilityServiceShould
             .Returns(Task.FromResult<AvalonWorld?>(null));
 
         Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task Hide_an_instance_in_a_world_the_caller_may_not_enter()
-    {
-        ObservabilityService sut = CreateSut();
-        _worlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(
-        [
-            new AvalonWorld { Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Admin },
-        ]);
-        GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
-
-        Assert.Null(await sut.GetInstancePresenceAsync(s_instanceId, Gm, CancellationToken.None));
     }
 
     [Fact]

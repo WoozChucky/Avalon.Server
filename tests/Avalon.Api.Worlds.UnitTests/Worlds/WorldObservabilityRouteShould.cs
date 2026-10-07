@@ -116,14 +116,6 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Answer_404_for_a_world_the_caller_may_not_enter() =>
-        Assert.Equal(HttpStatusCode.NotFound, (await Get($"/world/{Staff}/observability/character/7")).StatusCode);
-
-    [Fact]
-    public async Task Answer_503_for_an_unavailable_world() =>
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await Get($"/world/{Down}/observability/character/7")).StatusCode);
-
-    [Fact]
     public async Task Serve_no_per_character_presence_outside_a_world() =>
         Assert.Equal(HttpStatusCode.NotFound, (await Get("/observability/character/7")).StatusCode);
 

@@ -48,19 +48,6 @@ public class CreatureTemplateControllerShould
     }
 
     [Fact]
-    public async Task Get_Returns404_WhenMissing()
-    {
-        _repository
-            .FindByIdAsync(Arg.Any<CreatureTemplateId>(), false, Arg.Any<CancellationToken>())
-            .Returns((CreatureTemplate?)null);
-
-        CreatureTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
-        IActionResult result = await sut.Get(1, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
     public async Task Get_Returns200_WhenFound()
     {
         _repository

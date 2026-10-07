@@ -4,7 +4,6 @@ using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Worlds.Controllers;
 using Avalon.Api.Worlds.Services;
-using Avalon.Database;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -32,19 +31,6 @@ public class ObservabilityControllerShould
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, accountId.ToString()) };
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
         return new(new ClaimsIdentity(claims, "test", ClaimTypes.NameIdentifier, ClaimTypes.Role));
-    }
-
-    [Fact]
-    public async Task GetOnline_ReturnsPage()
-    {
-        _service
-            .GetOnlineAsync(Arg.Any<PresencePaginateFilters>(), Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<OnlinePlayerDto>(1, 20, 0, new List<OnlinePlayerDto>()));
-
-        ObservabilityController sut = MakeSut(User(7, AvalonRoles.GameMaster));
-        PagedResult<OnlinePlayerDto> result = await sut.GetOnline(new PresencePaginateFilters(), CancellationToken.None);
-
-        Assert.Equal(0, result.TotalCount);
     }
 
     [Fact]

@@ -36,31 +36,11 @@ public class CharacterReadHandlerShould
         return ctx.HasSucceeded;
     }
 
-    [Fact]
-    public async Task Succeed_WhenCallerIsOwner()
-    {
-        Character c = MakeCharacter(accountId: 7);
-        Assert.True(await Run(User(7, AvalonRoles.Player), c));
-    }
-
-    [Fact]
-    public async Task Succeed_WhenCallerIsGameMaster()
-    {
-        Character c = MakeCharacter(accountId: 7);
-        Assert.True(await Run(User(99, AvalonRoles.GameMaster), c));
-    }
-
-    [Fact]
-    public async Task Succeed_WhenCallerIsAdmin()
-    {
-        Character c = MakeCharacter(accountId: 7);
-        Assert.True(await Run(User(99, AvalonRoles.Admin), c));
-    }
-
-    [Fact]
-    public async Task Fail_WhenCallerIsPlayerAndNotOwner()
-    {
-        Character c = MakeCharacter(accountId: 7);
-        Assert.False(await Run(User(99, AvalonRoles.Player), c));
-    }
+    [Theory]
+    [InlineData(7, AvalonRoles.Player, true)]
+    [InlineData(99, AvalonRoles.GameMaster, true)]
+    [InlineData(99, AvalonRoles.Admin, true)]
+    [InlineData(99, AvalonRoles.Player, false)]
+    public async Task Let_the_owner_and_staff_read(long caller, string role, bool allowed) =>
+        Assert.Equal(allowed, await Run(User(caller, role), MakeCharacter(7)));
 }

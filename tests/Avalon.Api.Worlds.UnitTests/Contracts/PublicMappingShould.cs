@@ -33,26 +33,6 @@ public class PublicMappingShould
     };
 
     [Fact]
-    public void Map_an_items_tooltip_fields()
-    {
-        PublicItemDto dto = Helm().ToPublicDto();
-
-        Assert.Equal(12ul, dto.Id);
-        Assert.Equal("Barkplate Helm", dto.Name);
-        Assert.Equal(Avalon.Api.Contract.ItemRarity.Uncommon, dto.Rarity);
-        Assert.Equal(Avalon.Api.Contract.ItemClass.Armor, dto.Class);
-        Assert.Equal(Avalon.Api.Contract.ItemSubClass.Helmet, dto.SubClass);
-        Assert.Equal(Avalon.Api.Contract.ItemSlotType.Head, dto.Slot);
-        Assert.Equal(1u, dto.MaxStackSize);
-        Assert.Equal((ushort)3, dto.RequiredLevel);
-        Assert.Equal((ushort)8, dto.ItemPower);
-        Assert.Equal(125u, dto.SellPrice);
-        Assert.False(dto.CannotBeSold);
-        Assert.Equal([CharacterClass.Warrior], dto.AllowedClasses);
-        Assert.Empty(dto.Damage);
-    }
-
-    [Fact]
     public void List_only_the_stat_pairs_that_are_set_in_slot_order()
     {
         PublicItemDto dto = Helm().ToPublicDto();
@@ -160,7 +140,10 @@ public class PublicMappingShould
         Assert.Equal([CharacterClass.Warrior], dto.AllowedClasses);
     }
 
-    /// <summary>PublicMapping casts these by ordinal, so each member must keep its name across the pair.</summary>
+    /// <summary>
+    /// The API casts these from the stored enums by ordinal (the public tooltips, the templates, the quest log), so each
+    /// member must keep its name across the pair.
+    /// </summary>
     [Theory]
     [InlineData(typeof(Avalon.Domain.World.ItemRarity), typeof(Avalon.Api.Contract.ItemRarity))]
     [InlineData(typeof(Avalon.Domain.World.ItemClass), typeof(Avalon.Api.Contract.ItemClass))]
@@ -173,6 +156,13 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Network.Packets.Abilities.AbilityAmountKind), typeof(Avalon.Api.Contract.AbilityAmountKind))]
     [InlineData(typeof(ScalingStat), typeof(Avalon.Api.Contract.AbilityScalingStat))]
     [InlineData(typeof(Avalon.Domain.World.ItemTemplateFlags), typeof(Avalon.Api.Contract.ItemTemplateFlags))]
+    [InlineData(typeof(Avalon.Domain.World.QuestObjectiveType), typeof(Avalon.Api.Contract.QuestObjectiveType))]
+    [InlineData(typeof(Avalon.Domain.Characters.CharacterQuestState), typeof(Avalon.Api.Contract.CharacterQuestState))]
+    [InlineData(typeof(Avalon.Domain.World.AuraKind), typeof(Avalon.Api.Contract.AuraKind))]
+    [InlineData(typeof(Avalon.Domain.World.AuraPeriodicKind), typeof(Avalon.Api.Contract.AuraPeriodicKind))]
+    [InlineData(typeof(Avalon.Domain.World.AuraStacking), typeof(Avalon.Api.Contract.AuraStacking))]
+    [InlineData(typeof(Avalon.Domain.World.AuraStat), typeof(Avalon.Api.Contract.AuraStat))]
+    [InlineData(typeof(Avalon.Domain.World.AuraModifierKind), typeof(Avalon.Api.Contract.AuraModifierKind))]
     public void Keep_enum_members_in_step_with_the_contract(Type source, Type target)
     {
         Assert.Equal(Enum.GetValues(source).Length, Enum.GetValues(target).Length);

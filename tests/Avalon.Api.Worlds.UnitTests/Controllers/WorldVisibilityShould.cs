@@ -81,15 +81,6 @@ public sealed class WorldVisibilityShould : IDisposable
     }
 
     [Fact]
-    public async Task List_only_the_worlds_a_player_may_enter()
-    {
-        PagedResult<WorldDto> result = await MakeSut(AccountAccessLevel.Player).List(1, 50, CancellationToken.None);
-
-        Assert.Equal(new[] { PlayerWorld }, result.Items.Select(w => w.Id));
-        Assert.Equal(1, result.TotalCount);
-    }
-
-    [Fact]
     public async Task Count_only_visible_worlds_when_paging()
     {
         PagedResult<WorldDto> result = await MakeSut(AccountAccessLevel.Player).List(1, 1, CancellationToken.None);

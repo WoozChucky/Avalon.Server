@@ -120,27 +120,27 @@ public class TemplateReadShould
             (dto.PeriodicKind, dto.TickIntervalMs, dto.Stacking, dto.MaxStacks));
     }
 
-    [Fact]
-    public async Task Aura_get_answers_404_for_an_unknown_id()
+    [Theory]
+    [InlineData("item")]
+    [InlineData("ability")]
+    [InlineData("creature")]
+    [InlineData("aura")]
+    public async Task Get_answers_404_for_an_unknown_id(string kind)
     {
-        IAuraTemplateRepository repository = Substitute.For<IAuraTemplateRepository>();
-        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(s_options))
-        { ControllerContext = Context() };
+        Microsoft.Extensions.Options.IOptions<TemplateEditingOptions> options = Microsoft.Extensions.Options.Options.Create(s_options);
+        Task<IActionResult> get = kind switch
+        {
+            "item" => new ItemTemplateController(Substitute.For<IItemTemplateRepository>(), World(1), options)
+            { ControllerContext = Context() }.Get(7, CancellationToken.None),
+            "ability" => new AbilityTemplateController(Substitute.For<IAbilityTemplateRepository>(), World(1), options)
+            { ControllerContext = Context() }.Get(7, CancellationToken.None),
+            "creature" => new CreatureTemplateController(Substitute.For<ICreatureTemplateRepository>(), World(1), options)
+            { ControllerContext = Context() }.Get(7, CancellationToken.None),
+            _ => new AuraTemplateController(Substitute.For<IAuraTemplateRepository>(), World(1), options)
+            { ControllerContext = Context() }.Get(7, CancellationToken.None),
+        };
 
-        Assert.IsType<NotFoundResult>(await sut.Get(7, CancellationToken.None));
-    }
-
-    /// <summary>The contract enums are cast from the stored ones, so the two must agree name for value.</summary>
-    [Fact]
-    public void Mirror_every_aura_enum_by_name_and_value()
-    {
-        static IEnumerable<(string, int)> Of<T>() where T : struct, Enum =>
-            Enum.GetValues<T>().Select(v => (v.ToString(), Convert.ToInt32(v, System.Globalization.CultureInfo.InvariantCulture)));
-        Assert.Equal(Of<Avalon.Domain.World.AuraKind>(), Of<Avalon.Api.Contract.AuraKind>());
-        Assert.Equal(Of<Avalon.Domain.World.AuraPeriodicKind>(), Of<Avalon.Api.Contract.AuraPeriodicKind>());
-        Assert.Equal(Of<Avalon.Domain.World.AuraStacking>(), Of<Avalon.Api.Contract.AuraStacking>());
-        Assert.Equal(Of<Avalon.Domain.World.AuraStat>(), Of<Avalon.Api.Contract.AuraStat>());
-        Assert.Equal(Of<Avalon.Domain.World.AuraModifierKind>(), Of<Avalon.Api.Contract.AuraModifierKind>());
+        Assert.IsType<NotFoundResult>(await get);
     }
 
     [Theory]

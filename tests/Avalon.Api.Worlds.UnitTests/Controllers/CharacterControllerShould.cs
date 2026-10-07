@@ -52,19 +52,72 @@ public class CharacterControllerShould
         CreationDate = DateTime.UtcNow,
     };
 
-    [Fact]
-    public async Task GetById_Returns200_WhenAuthzSucceeds()
+    /// <summary>Calls one endpoint for character 42, as <paramref name="user"/>.</summary>
+    private Task<IActionResult> Call(string endpoint, ClaimsPrincipal user)
+    {
+        CharacterController sut = MakeSut(user);
+        return endpoint switch
+        {
+            nameof(CharacterController.GetById) => sut.GetById(42, CancellationToken.None),
+            nameof(CharacterController.Patch) => sut.Patch(42, new CharacterPatchDto { Name = "x" }, CancellationToken.None),
+            nameof(CharacterController.GetInventory) => sut.GetInventory(42, CancellationToken.None),
+            nameof(CharacterController.GetStats) => sut.GetStats(42, CancellationToken.None),
+            nameof(CharacterController.GetQuests) => sut.GetQuests(42, CancellationToken.None),
+            nameof(CharacterController.GetAuras) => sut.GetAuras(42, CancellationToken.None),
+            _ => throw new ArgumentOutOfRangeException(nameof(endpoint), endpoint, null),
+        };
+    }
+
+    private void CharacterIsRefusedTo(ClaimsPrincipal user)
+    {
+        Character ch = MakeChar(99);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Failed());
+    }
+
+    [Theory]
+    [InlineData(nameof(CharacterController.GetById))]
+    [InlineData(nameof(CharacterController.Patch))]
+    [InlineData(nameof(CharacterController.GetInventory))]
+    [InlineData(nameof(CharacterController.GetStats))]
+    [InlineData(nameof(CharacterController.GetQuests))]
+    [InlineData(nameof(CharacterController.GetAuras))]
+    public async Task Answer_404_for_a_missing_character(string endpoint)
+    {
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
+            .Returns((Character?)null);
+
+        Assert.IsType<NotFoundResult>(await Call(endpoint, User(7, AvalonRoles.Player)));
+    }
+
+    /// <summary>A player may not learn that another player's character exists, and nothing past it is read.</summary>
+    [Theory]
+    [InlineData(nameof(CharacterController.GetById))]
+    [InlineData(nameof(CharacterController.GetInventory))]
+    [InlineData(nameof(CharacterController.GetStats))]
+    [InlineData(nameof(CharacterController.GetQuests))]
+    [InlineData(nameof(CharacterController.GetAuras))]
+    public async Task Answer_404_to_a_player_the_character_is_refused_to(string endpoint)
     {
         ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        Character ch = MakeChar(7);
-        _service.GetCharacterByIdAsync(new CharacterId(42), Arg.Any<CancellationToken>()).Returns(ch);
-        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-              .Returns(AuthorizationResult.Success());
+        CharacterIsRefusedTo(user);
 
-        CharacterController sut = MakeSut(user);
-        IActionResult result = await sut.GetById(42, CancellationToken.None);
+        Assert.IsType<NotFoundResult>(await Call(endpoint, user));
+        Assert.All(_service.ReceivedCalls(),
+            call => Assert.Equal(nameof(ICharacterService.GetCharacterByIdAsync), call.GetMethodInfo().Name));
+    }
 
-        Assert.IsType<OkObjectResult>(result);
+    [Theory]
+    [InlineData(nameof(CharacterController.GetById))]
+    [InlineData(nameof(CharacterController.GetQuests))]
+    [InlineData(nameof(CharacterController.GetAuras))]
+    public async Task Answer_403_to_a_game_master_the_character_is_refused_to(string endpoint)
+    {
+        ClaimsPrincipal user = User(99, AvalonRoles.GameMaster);
+        CharacterIsRefusedTo(user);
+
+        Assert.IsType<ForbidResult>(await Call(endpoint, user));
     }
 
     [Fact]
@@ -81,62 +134,6 @@ public class CharacterControllerShould
         CharacterDto dto = Assert.IsType<CharacterDto>(result.Value);
         Assert.Equal((ushort)1, dto.WorldId);
         Assert.Equal("Development", dto.WorldName);
-    }
-
-    [Fact]
-    public async Task GetById_Returns404_WhenEntityMissing()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
-            .Returns((Character?)null);
-
-        CharacterController sut = MakeSut(user);
-        IActionResult result = await sut.GetById(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task GetById_Returns404_WhenAuthzFailsAndCallerIsPlayer()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        Character ch = MakeChar(99);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
-        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-              .Returns(AuthorizationResult.Failed());
-
-        CharacterController sut = MakeSut(user);
-        IActionResult result = await sut.GetById(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task GetById_Returns403_WhenAuthzFailsAndCallerIsGameMaster()
-    {
-        ClaimsPrincipal user = User(99, AvalonRoles.GameMaster);
-        Character ch = MakeChar(7);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
-        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-              .Returns(AuthorizationResult.Failed());
-
-        CharacterController sut = MakeSut(user);
-        IActionResult result = await sut.GetById(42, CancellationToken.None);
-
-        Assert.IsType<ForbidResult>(result);
-    }
-
-    [Fact]
-    public async Task Patch_Returns404_WhenCharacterMissing()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
-            .Returns((Character?)null);
-
-        CharacterController sut = MakeSut(user);
-        IActionResult result = await sut.Patch(42, new CharacterPatchDto { Name = "x" }, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
@@ -190,19 +187,6 @@ public class CharacterControllerShould
     }
 
     [Fact]
-    public async Task GetInventory_Returns404_WhenCharacterMissing()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
-            .Returns((Character?)null);
-
-        CharacterController sut = MakeSut(user);
-        IActionResult result = await sut.GetInventory(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
     public async Task Paginate_ReturnsMappedResult()
     {
         ClaimsPrincipal user = User(99, AvalonRoles.GameMaster);
@@ -213,21 +197,6 @@ public class CharacterControllerShould
         PagedResult<CharacterDto> result = await sut.Paginate(new CharacterPaginateFilters(), CancellationToken.None);
 
         Assert.Single(result.Items);
-    }
-
-    [Fact]
-    public async Task GetInventory_Returns404_WhenAuthzFailsAndCallerIsPlayer()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        Character ch = MakeChar(99);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
-        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-              .Returns(AuthorizationResult.Failed());
-
-        CharacterController sut = MakeSut(user);
-        IActionResult result = await sut.GetInventory(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
@@ -249,19 +218,6 @@ public class CharacterControllerShould
     }
 
     [Fact]
-    public async Task GetStats_Returns404_WhenCharacterMissing()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
-            .Returns((Character?)null);
-
-        CharacterController sut = MakeSut(user);
-        IActionResult result = await sut.GetStats(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
     public async Task GetStats_Returns404_WhenNoStatsSaved()
     {
         ClaimsPrincipal user = User(7, AvalonRoles.Player);
@@ -276,22 +232,6 @@ public class CharacterControllerShould
         IActionResult result = await sut.GetStats(42, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task GetStats_Returns404_WhenAuthzFailsAndCallerIsPlayer()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        Character ch = MakeChar(99);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
-        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-              .Returns(AuthorizationResult.Failed());
-
-        CharacterController sut = MakeSut(user);
-        IActionResult result = await sut.GetStats(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-        await _service.DidNotReceive().GetStatsAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -312,47 +252,6 @@ public class CharacterControllerShould
     }
 
     [Fact]
-    public async Task GetQuests_Returns404_WhenCharacterMissing()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
-            .Returns((Character?)null);
-
-        IActionResult result = await MakeSut(user).GetQuests(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task GetQuests_Returns404_WhenAuthzFailsAndCallerIsPlayer()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        Character ch = MakeChar(99);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
-        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-              .Returns(AuthorizationResult.Failed());
-
-        IActionResult result = await MakeSut(user).GetQuests(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-        await _service.DidNotReceive().GetQuestLogAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task GetQuests_Returns403_WhenAuthzFailsAndCallerIsGameMaster()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.GameMaster);
-        Character ch = MakeChar(99);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
-        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-              .Returns(AuthorizationResult.Failed());
-
-        IActionResult result = await MakeSut(user).GetQuests(42, CancellationToken.None);
-
-        Assert.IsType<ForbidResult>(result);
-    }
-
-    [Fact]
     public async Task GetAuras_Returns200_WhenAuthzSucceeds()
     {
         ClaimsPrincipal user = User(7, AvalonRoles.Player);
@@ -367,47 +266,5 @@ public class CharacterControllerShould
 
         CharacterAurasDto auras = Assert.IsType<CharacterAurasDto>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal((1u, 4000u), (Assert.Single(auras.Auras).AuraId, auras.Auras[0].RemainingMs));
-    }
-
-    [Fact]
-    public async Task GetAuras_Returns404_WhenCharacterMissing()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
-            .Returns((Character?)null);
-
-        IActionResult result = await MakeSut(user).GetAuras(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-        await _service.DidNotReceive().GetAurasAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task GetAuras_Returns404_WhenAuthzFailsAndCallerIsPlayer()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.Player);
-        Character ch = MakeChar(99);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
-        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-              .Returns(AuthorizationResult.Failed());
-
-        IActionResult result = await MakeSut(user).GetAuras(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-        await _service.DidNotReceive().GetAurasAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task GetAuras_Returns403_WhenAuthzFailsAndCallerIsGameMaster()
-    {
-        ClaimsPrincipal user = User(7, AvalonRoles.GameMaster);
-        Character ch = MakeChar(99);
-        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
-        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-              .Returns(AuthorizationResult.Failed());
-
-        IActionResult result = await MakeSut(user).GetAuras(42, CancellationToken.None);
-
-        Assert.IsType<ForbidResult>(result);
     }
 }

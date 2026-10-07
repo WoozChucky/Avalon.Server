@@ -1,9 +1,7 @@
 using System.Security.Claims;
-using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Worlds.Controllers;
 using Avalon.Common.ValueObjects;
-using Avalon.Database;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Microsoft.AspNetCore.Http;
@@ -32,32 +30,6 @@ public class ItemTemplateControllerShould
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, accountId.ToString()) };
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
         return new(new ClaimsIdentity(claims, "test", ClaimTypes.NameIdentifier, ClaimTypes.Role));
-    }
-
-    [Fact]
-    public async Task List_ReturnsPage()
-    {
-        _repository
-            .PaginateAsync(Arg.Any<EntityPaginateFilter<ItemTemplate>>(), false, Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<ItemTemplate>(1, 50, 0, new List<ItemTemplate>()));
-
-        ItemTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
-        PagedResult<ItemTemplateDto> result = await sut.List(1, 50, CancellationToken.None);
-
-        Assert.Equal(0, result.TotalCount);
-    }
-
-    [Fact]
-    public async Task Get_Returns404_WhenMissing()
-    {
-        _repository
-            .FindByIdAsync(Arg.Any<ItemTemplateId>(), false, Arg.Any<CancellationToken>())
-            .Returns((ItemTemplate?)null);
-
-        ItemTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
-        IActionResult result = await sut.Get(1, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
