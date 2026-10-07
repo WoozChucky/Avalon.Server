@@ -6,44 +6,20 @@ namespace Avalon.Combat.UnitTests;
 public class PowerPoolShould
 {
     [Theory]
-    [InlineData(PowerType.Mana)]
-    [InlineData(PowerType.Energy)]
-    [InlineData(PowerType.Fury)]
-    public void Add_the_gain_to_a_pool_a_cast_spends(PowerType pool)
+    [InlineData(PowerType.Mana, false, 10u, 100u, 8u, 18u)]                                        // a pool a cast spends
+    [InlineData(PowerType.Energy, false, 10u, 100u, 8u, 18u)]
+    [InlineData(PowerType.Fury, false, 10u, 100u, 8u, 18u)]
+    [InlineData(PowerType.Fury, false, 97u, 100u, 8u, 100u)]                                       // capped at the maximum
+    [InlineData(PowerType.Fury, false, uint.MaxValue - 1, uint.MaxValue, uint.MaxValue, uint.MaxValue)] // without overflowing
+    [InlineData(PowerType.Fury, false, 10u, 100u, 0u, 10u)]                                        // a gain of zero
+    [InlineData(PowerType.Mana, false, 120u, 100u, 8u, 120u)]                                      // above the maximum: as it is
+    [InlineData(PowerType.Fury, true, 10u, 100u, 8u, 10u)]                                         // the dead gain nothing
+    [InlineData(PowerType.None, false, 10u, 100u, 8u, 10u)]                                        // a pool no cast spends
+    [InlineData((PowerType)99, false, 10u, 100u, 8u, 10u)]
+    public void Gain_power_only_into_a_living_spendable_pool_up_to_its_maximum(PowerType pool, bool dead, uint current,
+        uint max, uint amount, uint expected)
     {
-        Assert.Equal(18u, PowerPool.Gain(pool, dead: false, current: 10, max: 100, amount: 8));
-    }
-
-    [Fact]
-    public void Cap_the_gain_at_the_maximum()
-    {
-        Assert.Equal(100u, PowerPool.Gain(PowerType.Fury, dead: false, current: 97, max: 100, amount: 8));
-        Assert.Equal(uint.MaxValue, PowerPool.Gain(PowerType.Fury, false, uint.MaxValue - 1, uint.MaxValue, uint.MaxValue));
-    }
-
-    [Fact]
-    public void Add_nothing_for_a_gain_of_zero()
-    {
-        Assert.Equal(10u, PowerPool.Gain(PowerType.Fury, dead: false, current: 10, max: 100, amount: 0));
-    }
-
-    [Fact]
-    public void Leave_a_pool_above_its_maximum_as_it_is()
-    {
-        Assert.Equal(120u, PowerPool.Gain(PowerType.Mana, dead: false, current: 120, max: 100, amount: 8));
-    }
-
-    [Fact]
-    public void Give_the_dead_nothing()
-    {
-        Assert.Equal(10u, PowerPool.Gain(PowerType.Fury, dead: true, current: 10, max: 100, amount: 8));
-    }
-
-    [Fact]
-    public void Give_a_pool_no_cast_spends_nothing()
-    {
-        Assert.Equal(10u, PowerPool.Gain(PowerType.None, dead: false, current: 10, max: 100, amount: 8));
-        Assert.Equal(10u, PowerPool.Gain((PowerType)99, dead: false, current: 10, max: 100, amount: 8));
+        Assert.Equal(expected, PowerPool.Gain(pool, dead, current, max, amount));
     }
 
     [Fact]
