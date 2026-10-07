@@ -51,6 +51,205 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Whether this is a routes release (#794, design D7.2): routes.enabled renders only the IngressRoute
+and runs no API service, so it needs services: [] said outright. A release that leaves services out
+runs all four services; turning routes on there by mistake would remove its pods.
+*/}}
+{{- define "avalon-api.routesMode" -}}
+{{- if (.Values.routes | default dict).enabled }}
+{{- if not (kindIs "slice" .Values.services) }}
+{{- fail "routes.enabled renders only the IngressRoute and runs no API service, so give services: [] with it. Left out, services runs all four services, and routes.enabled would remove their pods." }}
+{{- end }}
+{{- if .Values.services }}
+{{- fail (printf "routes.enabled renders only the IngressRoute and runs no API service, so services must be [] (it lists %s). A routes release reaches the services through routes.backends." (join ", " .Values.services)) }}
+{{- end }}
+{{- "true" }}
+{{- end }}
+{{- end }}
+
+{{/*
+The API services this release runs (#794, design D9.2), as a JSON list: the names services lists, in
+lower case; every service of the route manifest (files/routes.json) when services is left out, which
+renders no Application__Services, so the process runs them all as it did before the split; none in a
+routes release. Refuses a services value that is not a list, an empty list outside a routes release,
+a name the manifest does not know, and a name listed twice.
+*/}}
+{{- define "avalon-api.services" -}}
+{{- $known := keys (.Files.Get "files/routes.json" | fromJson).services | sortAlpha }}
+{{- if eq (include "avalon-api.routesMode" .) "true" }}
+{{- list | toJson }}
+{{- else if kindIs "invalid" .Values.services }}
+{{- $known | toJson }}
+{{- else }}
+{{- if not (kindIs "slice" .Values.services) }}
+{{- fail (printf "services is a list of the API services to run, any of %s." (join ", " $known)) }}
+{{- end }}
+{{- if not .Values.services }}
+{{- fail (printf "services lists no service: name one or more of %s, or leave services out to run them all in one process." (join ", " $known)) }}
+{{- end }}
+{{- $listed := list }}
+{{- range $name := .Values.services }}
+{{- $service := $name | toString | trim | lower }}
+{{- if not (has $service $known) }}
+{{- fail (printf "services names %q, which is not an API service: the services are %s." (toString $name) (join ", " $known)) }}
+{{- end }}
+{{- if has $service $listed }}
+{{- fail (printf "services lists %s twice." $service) }}
+{{- end }}
+{{- $listed = append $listed $service }}
+{{- end }}
+{{- $listed | toJson }}
+{{- end }}
+{{- end }}
+
+{{/*
+The parts of each world's databases the services in the list read (#794, design D9.2), as a JSON
+list: worlds reads both, identity only the characters database, commerce and distribution none.
+*/}}
+{{- define "avalon-api.worldParts" -}}
+{{- if has "worlds" . }}
+{{- list "world" "characters" | toJson }}
+{{- else if has "identity" . }}
+{{- list "characters" | toJson }}
+{{- else }}
+{{- list | toJson }}
+{{- end }}
+{{- end }}
+
+{{/*
+Values that would put a provider credential through Helm, refused in every mode: only a reference
+to a Secret is accepted.
+*/}}
+{{- define "avalon-api.refuseSecretValues" -}}
+{{- if hasKey (.Values.email | default dict) "resendApiKey" -}}
+{{- fail "email.resendApiKey is forbidden; use email.existingSecret and email.resendApiKeyKey" -}}
+{{- end -}}
+{{- if hasKey (.Values.commerce | default dict) "apiKey" -}}{{- fail "commerce.apiKey is forbidden; use an existing Secret reference" -}}{{- end -}}
+{{- if hasKey (.Values.commerce | default dict) "webhookSecret" -}}{{- fail "commerce.webhookSecret is forbidden; use an existing Secret reference" -}}{{- end -}}
+{{- end -}}
+
+{{/*
+The service that owns a path by the route manifest (design D2.3): the service of the longest rule
+the path is or lies under, else the manifest's default. Called with (list <manifest> <path>), the
+path in the manifest's normalised form.
+*/}}
+{{- define "avalon-api.ownerOf" -}}
+{{- $manifest := index . 0 }}
+{{- $path := index . 1 }}
+{{- $owner := $manifest.default }}
+{{- $longest := 0 }}
+{{- range $service, $rules := $manifest.services }}
+{{- range $rule := $rules }}
+{{- if and (or (eq $path $rule) (hasPrefix (printf "%s/" $rule) $path)) (gt (len $rule) $longest) }}
+{{- $owner = $service }}
+{{- $longest = len $rule }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $owner }}
+{{- end }}
+
+{{/*
+Refuses a routes release that would route a request wrongly or nowhere (#794, design D7.2): no host,
+a malformed prefix, Middleware or Service name, a backend missing for a service of the manifest or
+named for none, and an override (design section 10) whose path is not written as the manifest
+writes rules, is listed twice, is internal, belongs to another service by the manifest, or has
+another service's rule under it, which the override would take, since it outranks every rule.
+*/}}
+{{- define "avalon-api.validateRoutes" -}}
+{{- $manifest := .Files.Get "files/routes.json" | fromJson }}
+{{- $known := keys $manifest.services | sortAlpha }}
+{{- $routes := .Values.routes }}
+{{- $name := "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" }}
+{{- if or (not (kindIs "slice" $routes.hosts)) (not $routes.hosts) }}
+{{- fail "routes.hosts lists no host: the IngressRoute answers only on the hosts it names, e.g. [avalon.example, admin.avalon.example]." }}
+{{- end }}
+{{- range $host := $routes.hosts }}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" (toString $host)) }}
+{{- fail (printf "routes.hosts: %q is not a host name in lower case." (toString $host)) }}
+{{- end }}
+{{- end }}
+{{- if not (regexMatch "^(/[-._~a-zA-Z0-9]+)*$" ($routes.pathPrefix | default "" | toString)) }}
+{{- fail (printf "routes.pathPrefix is %q: a path such as /api, with no '/' at the end, or empty for the root." (toString $routes.pathPrefix)) }}
+{{- end }}
+{{- range $middleware := $routes.middlewares | default list }}
+{{- if not (regexMatch $name (toString $middleware)) }}
+{{- fail (printf "routes.middlewares: %q is not the name of a Middleware in the release's namespace." (toString $middleware)) }}
+{{- end }}
+{{- end }}
+{{- $backends := $routes.backends | default dict }}
+{{- range $service := $known }}
+{{- if not (get $backends $service) }}
+{{- fail (printf "routes.backends.%s is required: the Service its requests go to, e.g. avalon-api." $service) }}
+{{- end }}
+{{- end }}
+{{- range $service, $backend := $backends }}
+{{- if not (has $service $known) }}
+{{- fail (printf "routes.backends.%s names no API service: the services are %s." $service (join ", " $known)) }}
+{{- end }}
+{{- if not (regexMatch $name (toString $backend)) }}
+{{- fail (printf "routes.backends.%s is %q, which is not a Service name." $service (toString $backend)) }}
+{{- end }}
+{{- end }}
+{{- $seen := list }}
+{{- range $override := $routes.overrides | default list }}
+{{- $path := get $override "path" | default "" | toString }}
+{{- $service := get $override "service" | default "" | toString }}
+{{- $backend := get $override "backend" | default "" | toString }}
+{{- if not (regexMatch "^(/[a-z0-9-]+)+$" $path) }}
+{{- fail (printf "routes.overrides: the path %q is not written as the manifest writes rules: lower-case segments of letters, digits and '-', each after a '/', with no '/' at the end." $path) }}
+{{- end }}
+{{- if has $path $seen }}
+{{- fail (printf "routes.overrides lists %s twice." $path) }}
+{{- end }}
+{{- $seen = append $seen $path }}
+{{- if not (has $service $known) }}
+{{- fail (printf "routes.overrides: %s names the service %q; the services are %s." $path $service (join ", " $known)) }}
+{{- end }}
+{{- if not (regexMatch $name $backend) }}
+{{- fail (printf "routes.overrides: %s needs a backend, the name of the Service to send it to." $path) }}
+{{- end }}
+{{- range $rule := $manifest.internal }}
+{{- if or (eq $path $rule) (hasPrefix (printf "%s/" $rule) $path) (hasPrefix (printf "%s/" $path) $rule) }}
+{{- fail (printf "routes.overrides: %s is served only inside the cluster (%s), and no route names it." $path $rule) }}
+{{- end }}
+{{- end }}
+{{- $owner := include "avalon-api.ownerOf" (list $manifest $path) }}
+{{- if ne $owner $service }}
+{{- fail (printf "routes.overrides: %s lies outside the rules of %s: the route manifest gives it to %s." $path $service $owner) }}
+{{- end }}
+{{- range $other, $rules := $manifest.services }}
+{{- if ne $other $service }}
+{{- range $rule := $rules }}
+{{- if hasPrefix (printf "%s/" $path) $rule }}
+{{- fail (printf "routes.overrides: %s would also take %s, which belongs to %s; override a path inside the rules of %s alone." $path $rule $other $service) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+One route of the IngressRoute (design D7.2): called with a dict of match, priority, middlewares
+(names) and backend (a Service, reached on port).
+*/}}
+{{- define "avalon-api.route" -}}
+- kind: Rule
+  match: {{ .match | quote }}
+  priority: {{ .priority }}
+  {{- with .middlewares }}
+  middlewares:
+    {{- range $middleware := . }}
+    - name: {{ $middleware }}
+    {{- end }}
+  {{- end }}
+  services:
+    - name: {{ .backend }}
+      port: {{ .port }}
+{{- end }}
+
+{{/*
 The Secret the pod reads its secrets from: the one existingSecret names, or the one
 templates/secret.yaml creates.
 */}}
@@ -116,37 +315,41 @@ chart-managed Secret) a world missing one of its strings; and the removed single
 Also refuses a Secret key a pod could not use or would share (#523): worldKey and charactersKey
 only with existingSecret (the chart-managed Secret names its own keys), every key a valid Secret
 key name, and no key read by two settings, the chart's own keys included, since two env vars on
-one key would silently read one value.
+one key would silently read one value. Called with (list <root> <parts>), the parts of each world's
+databases the release's services read (avalon-api.worldParts, #794): only those strings and keys
+are checked, and a release whose services read no world database ignores worlds.
 */}}
 {{- define "avalon-api.validateWorlds" -}}
-{{- if or (dig "world" "connectionString" "" .Values.database) (dig "characters" "connectionString" "" .Values.database) }}
+{{- $root := index . 0 }}
+{{- $parts := index . 1 }}
+{{- if $parts }}
+{{- if or (dig "world" "connectionString" "" $root.Values.database) (dig "characters" "connectionString" "" $root.Values.database) }}
 {{- fail "database.world and database.characters were replaced by worlds.<id> (Database:Worlds, #523): move each string to worlds.<id>.world.connectionString and worlds.<id>.characters.connectionString, <id> being the world's id in the auth Worlds table." }}
 {{- end }}
-{{- if not .Values.worlds }}
+{{- if not $root.Values.worlds }}
 {{- fail "worlds lists no world: the API needs at least one, keyed by its id in the auth Worlds table. Give worlds.<id>.world.connectionString and worlds.<id>.characters.connectionString (--set-file), or with existingSecret the keys worlds.<id>.worldKey and worlds.<id>.charactersKey." }}
 {{- end }}
 {{- $used := dict "jwt-signing-key" "authentication.issuerSigningKey" "database-auth-connection-string" "database.auth.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" }}
-{{- range $id, $entry := .Values.worlds }}
+{{- range $id, $entry := $root.Values.worlds }}
 {{- if not (and (regexMatch "^[1-9][0-9]{0,4}$" $id) (le (atoi $id) 65535)) }}
 {{- fail (printf "worlds.%s: a world id is a positive integer up to 65535 with no leading zeros, the id of the world's row in the auth Worlds table." $id) }}
 {{- end }}
 {{- $entry = $entry | default dict }}
-{{- if not $.Values.existingSecret }}
+{{- if not $root.Values.existingSecret }}
 {{- range $field := list "worldKey" "charactersKey" }}
 {{- if get $entry $field | default "" | toString | trim }}
 {{- fail (printf "worlds.%s.%s names a key of a Secret you manage, so it needs existingSecret: without it the chart creates the Secret and names its keys itself." $id $field) }}
 {{- end }}
 {{- end }}
-{{- if not (dig "world" "connectionString" "" $entry | toString | trim) }}
-{{- fail (printf "worlds.%s.world.connectionString is required unless existingSecret is set." $id) }}
-{{- end }}
-{{- if not (dig "characters" "connectionString" "" $entry | toString | trim) }}
-{{- fail (printf "worlds.%s.characters.connectionString is required unless existingSecret is set." $id) }}
+{{- range $part := $parts }}
+{{- if not (dig $part "connectionString" "" $entry | toString | trim) }}
+{{- fail (printf "worlds.%s.%s.connectionString is required unless existingSecret is set." $id $part) }}
 {{- end }}
 {{- end }}
-{{- range $pair := list (list "worldKey" (include "avalon-api.worldKey" (list $id $entry))) (list "charactersKey" (include "avalon-api.charactersKey" (list $id $entry))) }}
-{{- $field := index $pair 0 }}
-{{- $key := index $pair 1 }}
+{{- end }}
+{{- range $part := $parts }}
+{{- $field := printf "%sKey" $part }}
+{{- $key := include (printf "avalon-api.%sKey" $part) (list $id $entry) }}
 {{- if not (regexMatch "^[-._a-zA-Z0-9]+$" $key) }}
 {{- fail (printf "worlds.%s.%s is %q: a Secret key is letters, digits, '-', '_' and '.' only." $id $field $key) }}
 {{- end }}
@@ -157,11 +360,9 @@ one key would silently read one value.
 {{- end }}
 {{- end }}
 {{- end }}
+{{- end }}
 {{- define "avalon-api.validateEmail" -}}
 {{- $email := .Values.email -}}
-{{- if hasKey $email "resendApiKey" -}}
-{{- fail "email.resendApiKey is forbidden; use email.existingSecret and email.resendApiKeyKey" -}}
-{{- end -}}
 {{- if not (has $email.sender (list "None" "Resend")) -}}
 {{- fail "email.sender must be None or Resend" -}}
 {{- end -}}
@@ -191,8 +392,6 @@ one key would silently read one value.
 
 {{- define "avalon-api.validateCommerce" -}}
 {{- $commerce := .Values.commerce -}}
-{{- if hasKey $commerce "apiKey" -}}{{- fail "commerce.apiKey is forbidden; use an existing Secret reference" -}}{{- end -}}
-{{- if hasKey $commerce "webhookSecret" -}}{{- fail "commerce.webhookSecret is forbidden; use an existing Secret reference" -}}{{- end -}}
 {{- if $commerce.enabled -}}
 {{- $isolated := and (eq .Values.environment "Development") (eq .Values.storeAuthentication.environment "development") (eq .Values.storeAuthentication.steamIdentityPrefix "avalon-auth-dev") (eq $commerce.licenseEnvironment "development") -}}
 {{- $existingAccounts := and $commerce.allowExistingAccountSandbox (eq .Values.environment "Production") (eq .Values.storeAuthentication.environment "production") (eq $commerce.licenseEnvironment "production") -}}

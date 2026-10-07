@@ -1,0 +1,16 @@
+# Rendering only: a routes release (#794, design D7.2), each API service on a Service of its own so
+# the render shows where each rule goes, and one rollout override of each kind (design section 10).
+services: []
+routes:
+  enabled: true
+  hosts: [avalon.example.test, admin.avalon.example.test]
+  pathPrefix: /api
+  middlewares: [avalon-strip-api]
+  backends:
+    identity: api-identity
+    worlds: api-worlds
+    commerce: api-commerce
+    distribution: api-distribution
+  overrides:
+    - {path: /world/1, service: worlds, backend: api-worlds-next}
+    - {path: /client/channels/dev, service: distribution, backend: api-distribution-next}

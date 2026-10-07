@@ -1,0 +1,102 @@
+env ASPNETCORE_ENVIRONMENT="Production"
+env Application__Authentication__IssuerSigningKey <- avalon-api/jwt-signing-key
+env Application__Balance__SharedSecret <- avalon-api/balance-shared-secret
+env Application__Balance__SharedSecret optional
+env Application__Balance__Url="http://avalon-balance.avalon.svc:8080"
+env Application__Cache__Host="avalon-redis:6379"
+env Application__Cache__Password <- avalon-api/cache-password
+env Application__Cache__Password optional
+env Application__Commerce__AllowExistingAccountSandbox="true"
+env Application__Commerce__AmountMinor="800"
+env Application__Commerce__ApiKey <- "test-commerce"/"stripe-api-key"
+env Application__Commerce__Currency="eur"
+env Application__Commerce__Enabled="true"
+env Application__Commerce__LicenseEnvironment="production"
+env Application__Commerce__OfferId="test-offer"
+env Application__Commerce__PaymentEnvironment="sandbox"
+env Application__Commerce__PaymentMethods__0="card"
+env Application__Commerce__Product="avalon.base"
+env Application__Commerce__Provider="stripe"
+env Application__Commerce__ProviderAccountId="acct_test"
+env Application__Commerce__ProviderCatalogProductId="prod_test"
+env Application__Commerce__ProviderPriceId="price_test"
+env Application__Commerce__ProviderProduct="base"
+env Application__Commerce__PublicSiteOrigin="https://avalon.example.test"
+env Application__Commerce__Quantity="1"
+env Application__Commerce__WebhookSecret <- "test-commerce"/"stripe-webhook-secret"
+env Application__Distribution__AccessKeyId="GKtest"
+env Application__Distribution__Bucket="avalon-dist"
+env Application__Distribution__Endpoint="http://garage.distribution.svc:3900"
+env Application__Distribution__PublicUrl="https://dist.example.test"
+env Application__Distribution__Region="garage"
+env Application__Distribution__SecretAccessKey <- avalon-api/distribution-secret-key
+env Application__Email__From="noreply@avalon.example.test"
+env Application__Email__FromName="Avalon"
+env Application__Email__MaxVerificationSendsPerAccount="5"
+env Application__Email__MaxVerificationSendsPerSource="20"
+env Application__Email__ResendApiKey <- "avalon-api"/"resend-api-key"
+env Application__Email__Sender="Resend"
+env Application__Email__VerificationCooldownSeconds="60"
+env Application__Email__VerificationSiteOrigin="https://avalon.example.test"
+env Application__ForwardedHeaders__ForwardLimit="2"
+env Application__ForwardedHeaders__KnownNetworks__0="10.42.0.0/16"
+env Application__GameWorkloads__Servers__0__ClientCertificateSha256 <- "test-workload-bindings"/"world-dev-client-sha256"
+env Application__GameWorkloads__Servers__0__ServerId="world-dev"
+env Application__GameWorkloads__Servers__0__TlsCertificateSha256 <- "test-workload-bindings"/"world-dev-tls-sha256"
+env Application__GameWorkloads__Servers__0__TlsServerName="dev.example.test"
+env Application__GameWorkloads__Servers__0__WorldId="1"
+env Application__GameWorkloads__Servers__1__ClientCertificateSha256 <- "test-workload-bindings"/"world-live-client-sha256"
+env Application__GameWorkloads__Servers__1__ServerId="world-live"
+env Application__GameWorkloads__Servers__1__TlsCertificateSha256 <- "test-workload-bindings"/"world-live-tls-sha256"
+env Application__GameWorkloads__Servers__1__TlsServerName="live.example.test"
+env Application__GameWorkloads__Servers__1__WorldId="2"
+env Application__GameWorkloads__Servers__2__ClientCertificateSha256 <- "test-workload-bindings"/"world-ptr-client-sha256"
+env Application__GameWorkloads__Servers__2__ServerId="world-ptr"
+env Application__GameWorkloads__Servers__2__TlsCertificateSha256 <- "test-workload-bindings"/"world-ptr-tls-sha256"
+env Application__GameWorkloads__Servers__2__TlsServerName="ptr.example.test"
+env Application__GameWorkloads__Servers__2__WorldId="3"
+env Application__MapAssets__ChunkAssetRoot="/app/Maps"
+env Application__Notification__PrivateKey <- avalon-api/notification-private-key
+env Application__Notification__PrivateKey optional
+env Application__Notification__PublicKey=
+env Application__Notification__Subject=
+env Application__PublicSiteUrl="https://avalon.example.test"
+env Application__PublicWorldId="2"
+env Application__SteamWebLink__CallbackUrl="https://avalon.example.test/api/account/links/steam/callback"
+env Application__SteamWebLink__SiteUrl="https://avalon.example.test"
+env Application__StoreAuthentication__Environment="production"
+env Application__StoreAuthentication__PolicyVersion="1"
+env Application__StoreAuthentication__SteamAppId="123456"
+env Application__StoreAuthentication__SteamIdentityPrefix="avalon-auth-test"
+env Application__StoreAuthentication__SteamPlaytest__AllowedWorldIds__0="3"
+env Application__StoreAuthentication__SteamPlaytest__AppId="654321"
+env Application__StoreAuthentication__SteamPlaytest__Enabled="true"
+env Application__StoreAuthentication__SteamPublisherKey <- "test-steam-credentials"/"steam-publisher-key"
+env Application__Templates__EditableWorlds__0="1"
+env Application__Templates__EditableWorlds__1="3"
+env DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE="false"
+env Database__Auth__ConnectionString <- avalon-api/database-auth-connection-string
+env Database__Worlds__1__Characters__ConnectionString <- avalon-api/"database-characters-1-connection-string"
+env Database__Worlds__1__World__ConnectionString <- avalon-api/"database-world-1-connection-string"
+env Database__Worlds__2__Characters__ConnectionString <- avalon-api/"database-characters-2-connection-string"
+env Database__Worlds__2__World__ConnectionString <- avalon-api/"database-world-2-connection-string"
+env Database__Worlds__3__Characters__ConnectionString <- avalon-api/"database-characters-3-connection-string"
+env Database__Worlds__3__World__ConnectionString <- avalon-api/"database-world-3-connection-string"
+env Kestrel__Endpoints__GameInternal__Certificate__Password <- "test-api-tls"/tls-password
+env Kestrel__Endpoints__GameInternal__Certificate__Password optional
+env Kestrel__Endpoints__GameInternal__Certificate__Path=/run/avalon-auth/api-workload.pfx
+env Kestrel__Endpoints__GameInternal__Url="https://0.0.0.0:9443"
+env Kestrel__Endpoints__Public__Url="http://0.0.0.0:8080"
+env OTEL_EXPORTER_OTLP_ENDPOINT="http://otel-collector.monitoring:4317"
+env OTEL_RESOURCE_ATTRIBUTES="deployment.environment=test"
+env OTEL_SERVICE_NAME="t-avalon-api"
+kind Deployment
+kind Service
+mount /run/avalon-auth
+port game-internal 9443
+port http 8080
+probe livenessProbe /alive 3
+probe readinessProbe /health 3
+service-port game-internal 9443
+service-port http 8080
+volume "test-api-tls"
