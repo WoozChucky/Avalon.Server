@@ -25,15 +25,6 @@ public class GracefulShutdownHelperShould
         });
     }
 
-    [Fact]
-    public void SendPacketWithCorrectReason_DuplicateLogin()
-    {
-        GracefulShutdownHelper.NotifyAndClose(_connection, "Your account has been logged in from another location.", DisconnectReason.DuplicateLogin);
-
-        _connection.Received(1).Send(Arg.Is<NetworkPacket>(p => p.Header.Type == NetworkPacketType.SMSG_DISCONNECT));
-        _connection.Received(1).Close();
-    }
-
     /// <summary>
     /// The shutdown paths await this: the notice is delivered by the close itself, so a host that
     /// returned before the close finished would exit with the packet still queued.

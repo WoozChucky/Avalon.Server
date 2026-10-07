@@ -98,6 +98,18 @@ public sealed class PostLoginGuardShould
         await _cache.DidNotReceiveWithAnyArgs().SetAsync(default!, default!, default);
     }
 
+    /// <summary>A connection that has not logged in has no account to read: each handler closes it and does nothing.</summary>
+    [Theory]
+    [MemberData(nameof(Handlers))]
+    public async Task Close_a_connection_that_has_not_logged_in(string handler)
+    {
+        _connection.AccountId.Returns((AccountId?)null);
+
+        await RunAsync(handler);
+
+        await AssertRefusedAsync();
+    }
+
     [Theory]
     [MemberData(nameof(Handlers))]
     public async Task Close_a_session_whose_account_was_banned_since_its_login(string handler)

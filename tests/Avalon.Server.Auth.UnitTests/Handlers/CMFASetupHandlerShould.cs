@@ -78,21 +78,4 @@ public class CMFASetupHandlerShould
 
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
     }
-
-    [Fact]
-    public async Task CloseConnection_WhenNotAuthenticated()
-    {
-        _connection.AccountId.Returns((AccountId?)null);
-
-        var ctx = new AuthPacketContext<CMFASetupPacket>
-        {
-            Packet = new CMFASetupPacket(),
-            Connection = _connection
-        };
-
-        await CreateHandler().ExecuteAsync(ctx);
-
-        _connection.Received(1).Close();
-        await _mfaService.DidNotReceive().SetupMFAAsync(Arg.Any<Account>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
 }

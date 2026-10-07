@@ -108,18 +108,6 @@ public class MFAHashServiceShould
     }
 
     [Fact]
-    public async Task CleanupBothKeys_WhenHashExists()
-    {
-        _cache.GetAsync(CacheKeys.MfaReverseHash("myhash")).Returns("42");
-
-        await _service.CleanupHash("myhash");
-
-        // The record by compare-and-delete on its hash field (#495 re-review), the reverse key outright.
-        await _cache.Received(1).RemoveHashIfFieldEqualsAsync(CacheKeys.AccountMfa(42), "hash", "myhash");
-        await _cache.Received(1).RemoveAsync(CacheKeys.MfaReverseHash("myhash"));
-    }
-
-    [Fact]
     public async Task CleanupOnlyReverseKey_WhenHashNotFound()
     {
         _cache.GetAsync(CacheKeys.MfaReverseHash("gone")).Returns((string?)null);

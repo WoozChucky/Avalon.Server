@@ -72,23 +72,6 @@ public class CMFAConfirmHandlerShould
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
     }
 
-    [Fact]
-    public async Task CloseConnection_WhenNotAuthenticated()
-    {
-        _connection.AccountId.Returns((AccountId?)null);
-
-        var ctx = new AuthPacketContext<CMFAConfirmPacket>
-        {
-            Packet = new CMFAConfirmPacket { Code = "123456" },
-            Connection = _connection
-        };
-
-        await CreateHandler().ExecuteAsync(ctx);
-
-        _connection.Received(1).Close();
-        await _mfaService.DidNotReceive().ConfirmMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
     /// <summary>
     /// #495 re-review: the credentials changed between the guard's read and the write. The handler
     /// closes the connection, as the guard would, and sends no result.

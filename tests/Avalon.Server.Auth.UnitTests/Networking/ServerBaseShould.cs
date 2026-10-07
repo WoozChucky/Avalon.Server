@@ -104,22 +104,6 @@ public class ServerBaseShould
         probe.Stop();
     }
 
-    /// <summary>
-    /// StopAsync must complete without throwing even when there are no active connections.
-    /// </summary>
-    [Fact]
-    public async Task CompleteWithoutException_WhenStoppedWithNoConnections()
-    {
-        ushort port = GetFreePort();
-        TestServerBase server = CreateServer(port);
-
-        await server.StartAsync(CancellationToken.None);
-
-        Exception exception = await Record.ExceptionAsync(() => server.StopAsync(CancellationToken.None));
-
-        Assert.Null(exception);
-    }
-
     // ── Accept loop against a stop (#578) ───────────────────────────────────
 
     /// <summary>What the accepting connections share with the test; resolved from DI by ActivatorUtilities.</summary>

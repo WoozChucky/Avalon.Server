@@ -25,44 +25,15 @@ public class CClientInfoHandlerShould
         _handler = new CClientInfoHandler(NullLoggerFactory.Instance);
     }
 
-    [Fact]
-    public async Task DoNothing_WhenPublicKeyIsNull()
+    [Theory]
+    [InlineData(-1)]                 // no key
+    [InlineData(0)]                  // an empty key
+    [InlineData(ValidKeySize + 8)]   // a key of the wrong size
+    public async Task DoNothing_WhenThePublicKeyIsMissingOrTheWrongSize(int keyLength)
     {
         var ctx = new AuthPacketContext<CClientInfoPacket>
         {
-            Packet = new CClientInfoPacket { PublicKey = null! },
-            Connection = _connection
-        };
-
-        await _handler.ExecuteAsync(ctx);
-
-        Assert.Equal(0, _cryptoSession.InitializeCallCount);
-        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-    }
-
-    [Fact]
-    public async Task DoNothing_WhenPublicKeyIsEmpty()
-    {
-        var ctx = new AuthPacketContext<CClientInfoPacket>
-        {
-            Packet = new CClientInfoPacket { PublicKey = Array.Empty<byte>() },
-            Connection = _connection
-        };
-
-        await _handler.ExecuteAsync(ctx);
-
-        Assert.Equal(0, _cryptoSession.InitializeCallCount);
-        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-    }
-
-    [Fact]
-    public async Task DoNothing_WhenPublicKeySizeIsInvalid()
-    {
-        byte[] invalidKey = new byte[ValidKeySize + 8]; // wrong size
-
-        var ctx = new AuthPacketContext<CClientInfoPacket>
-        {
-            Packet = new CClientInfoPacket { PublicKey = invalidKey },
+            Packet = new CClientInfoPacket { PublicKey = keyLength < 0 ? null! : new byte[keyLength] },
             Connection = _connection
         };
 
