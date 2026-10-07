@@ -1,0 +1,3 @@
+# Added to every vendored project by vendor/Directory.Build.props: vendored code is not ours to restyle.
+is_global = true
+generated_code = true

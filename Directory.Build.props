@@ -1,0 +1,37 @@
+<Project>
+  <!--
+    The code standard (docs/coding-standard.md) for every project in src, tests and tools. MSBuild imports the
+    nearest Directory.Build.props: src/Directory.Build.props imports this one, tests and tools reach it directly,
+    and vendor/Directory.Build.props stops the search so vendored code builds as its upstream intends.
+  -->
+  <PropertyGroup>
+    <!-- Report the .editorconfig rules set to warning in every build, not only in the IDE. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!--
+      IDE0005 (unnecessary using directive) needs documentation comments parsed to run in the build. It also checks
+      the XML doc comments that exist (malformed XML, unknown parameters, unresolved crefs); a public member without
+      one is fine (CS1591).
+    -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- The documentation file is there for the analyzers; nothing ships it. -->
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+  </PropertyGroup>
+
+  <!-- CI fails on any warning. GitHub Actions sets CI=true; local builds show the same warnings without failing. -->
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
+    GenerateDocumentationFile also feeds the doc comments to the XML-comment source generator of
+    Microsoft.AspNetCore.OpenApi, which would add them to the OpenAPI document Avalon.Api serves and publishes.
+    The document stays as it is: the generator is removed wherever the package brings it.
+  -->
+  <Target Name="RemoveOpenApiXmlCommentGenerator" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="'%(Filename)' == 'Microsoft.AspNetCore.OpenApi.SourceGenerators'" />
+    </ItemGroup>
+  </Target>
+</Project>
