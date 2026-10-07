@@ -13,7 +13,7 @@ namespace Avalon.Server.World.UnitTests.Scripts;
 
 public class ProjectileAbilityScriptShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private static ProjectileAbilityScript Launch(TestArena arena, CharacterEntity caster, Domain.World.AbilityTemplate template,
         Vector3 point)
@@ -52,7 +52,7 @@ public class ProjectileAbilityScriptShould
         arena.Creature(0f, 8f);
         ProjectileAbilityScript script = Launch(arena, arena.Player(1, 0f, 0f), Projectile(220), new Vector3(0f, 0f, 20f));
 
-        Run(script, Tick);
+        Run(script, s_tick);
 
         Assert.Equal([first], arena.Damaged());
         Assert.Equal(Vector3.zero, script.Velocity);
@@ -67,7 +67,7 @@ public class ProjectileAbilityScriptShould
         ProjectileAbilityScript script = Launch(arena, arena.Player(1, 0f, 0f), Projectile(221, reach: 30f, speed: 24f, pierce: true),
             new Vector3(0f, 0f, 30f));
 
-        Run(script, Tick);
+        Run(script, s_tick);
 
         Assert.Equal([first, second], arena.Damaged());
     }
@@ -81,7 +81,7 @@ public class ProjectileAbilityScriptShould
         CharacterEntity caster = arena.Player(1, 0f, 0f);
         ProjectileAbilityScript script = Launch(arena, caster, Projectile(210, reach: 20f), new Vector3(0f, 0f, 1e30f));
 
-        Run(script, Tick);
+        Run(script, s_tick);
 
         Assert.Empty(arena.Damaged());
         Assert.Equal(20f, script.Position.z, 2);
@@ -100,7 +100,7 @@ public class ProjectileAbilityScriptShould
         arena.Creature(0f, 9f);
         ProjectileAbilityScript script = Launch(arena, arena.Player(1, 0f, 0f), Projectile(210), new Vector3(0f, 0f, 20f));
 
-        Run(script, Tick);
+        Run(script, s_tick);
 
         Assert.Empty(arena.Damaged());
         Assert.Equal(6f, script.Position.z, 2);
@@ -159,7 +159,7 @@ public class ProjectileAbilityScriptShould
         ICreature alive = arena.Creature(0f, 8f);
         ProjectileAbilityScript script = Launch(arena, arena.Player(1, 0f, 0f), Projectile(210), new Vector3(0f, 0f, 20f));
 
-        Run(script, Tick);
+        Run(script, s_tick);
 
         Assert.Equal([alive], arena.Damaged());
     }
@@ -186,7 +186,7 @@ public class ProjectileAbilityScriptShould
         arena.Navigator.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci => ci.ArgAt<Vector3>(0));
         ProjectileAbilityScript script = Launch(arena, arena.Player(1, 0f, 0f), Projectile(210), new Vector3(0f, 0f, 20f));
 
-        Assert.Equal(1, Run(script, Tick));
+        Assert.Equal(1, Run(script, s_tick));
         Assert.Equal(SpellState.Finished, script.State);
     }
 
@@ -199,7 +199,7 @@ public class ProjectileAbilityScriptShould
         CharacterEntity enemy = arena.Player(3, 0f, 6f, pvp: true);
         ProjectileAbilityScript script = Launch(arena, caster, Projectile(230), new Vector3(0f, 0f, 20f));
 
-        Run(script, Tick);
+        Run(script, s_tick);
 
         Assert.Equal([enemy], arena.Damaged());
     }

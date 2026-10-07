@@ -18,7 +18,10 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     private const int MaxSmooth = 2048;
     private const int MaxPolys = 256;
 
+    // Keeps its name: tools/Avalon.Exporter's NavmeshVectors reads this field by name through reflection.
+#pragma warning disable IDE1006
     private static readonly RcVec3f PolyPickExt = new(2, 4, 2);
+#pragma warning restore IDE1006
 
     /// <summary>
     /// The polygon corridor FindPath works in, kept for the navigator's life rather than allocated per

@@ -4,14 +4,14 @@ namespace Avalon.Server.World.UnitTests.Parties;
 
 public class PartyMemberStatusShould
 {
-    private static readonly Guid Here = Guid.NewGuid();
+    private static readonly Guid s_here = Guid.NewGuid();
 
     [Fact]
     public void Send_a_changed_status_to_members_in_the_same_instance_only()
     {
         var w = new PartyTestWorld();
-        PartyClient a = w.Online(1, "A", instance: Here);
-        PartyClient b = w.Online(2, "B", instance: Here);
+        PartyClient a = w.Online(1, "A", instance: s_here);
+        PartyClient b = w.Online(2, "B", instance: s_here);
         PartyClient c = w.Online(3, "C", instance: Guid.NewGuid());
         w.Form(a, b, c);
         w.Parties.FlushMemberStatus();       // first snapshot of everyone
@@ -30,8 +30,8 @@ public class PartyMemberStatusShould
     public void Send_at_most_four_times_a_second_per_member()
     {
         var w = new PartyTestWorld();
-        PartyClient a = w.Online(1, "A", instance: Here);
-        PartyClient b = w.Online(2, "B", instance: Here);
+        PartyClient a = w.Online(1, "A", instance: s_here);
+        PartyClient b = w.Online(2, "B", instance: s_here);
         w.Form(a, b);
         w.Parties.FlushMemberStatus();
         b.Clear();
@@ -52,8 +52,8 @@ public class PartyMemberStatusShould
     public void Send_nothing_when_nothing_changed()
     {
         var w = new PartyTestWorld();
-        PartyClient a = w.Online(1, "A", instance: Here);
-        PartyClient b = w.Online(2, "B", instance: Here);
+        PartyClient a = w.Online(1, "A", instance: s_here);
+        PartyClient b = w.Online(2, "B", instance: s_here);
         w.Form(a, b);
         w.Parties.FlushMemberStatus();
         b.Clear();

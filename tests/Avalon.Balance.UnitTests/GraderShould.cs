@@ -7,19 +7,19 @@ namespace Avalon.Balance.UnitTests;
 
 public class GraderShould
 {
-    private static readonly string BalanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
-    private static readonly PlayerSnapshot NoSnapshot = new(1, 1, 0, 0, 0, 0, 0, 0, 0, []);
+    private static readonly string s_balanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
+    private static readonly PlayerSnapshot s_noSnapshot = new(1, 1, 0, 0, 0, 0, 0, 0, 0, []);
 
-    private static ScenarioFile Scenarios() => ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+    private static ScenarioFile Scenarios() => ConfigFileStore.Load(Path.Combine(s_balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
 
-    private static TargetFile Targets() => ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
+    private static TargetFile Targets() => ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
 
     private static RowResult Row(CharacterClass c, ushort level, string scenario, double win, double fight,
         double? health = 50, double? firstSpender = 1, double starved = 0) =>
         new(new RowKey(c, level, "forest", scenario), 100, win, new Distribution(fight, fight, fight),
             health is { } h ? new Distribution(h, h, h) : null,
             firstSpender is { } s ? new Distribution(s, s, s) : null, new Distribution(starved, starved, starved),
-            new Dictionary<string, double>(), new Dictionary<string, double>(), NoSnapshot);
+            new Dictionary<string, double>(), new Dictionary<string, double>(), s_noSnapshot);
 
     [Theory]
     [InlineData(90d, Grade.Green)]

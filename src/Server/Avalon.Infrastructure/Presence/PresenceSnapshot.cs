@@ -61,14 +61,14 @@ public sealed record CharacterPresenceIndex(ushort WorldId, Guid InstanceId);
 
 public static class PresenceJson
 {
-    private static readonly JsonSerializerOptions Options = new()
+    private static readonly JsonSerializerOptions s_options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     };
 
-    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);
+    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, s_options);
 
     /// <summary>
     /// Returns null rather than throwing on malformed input. A snapshot written by a
@@ -76,7 +76,7 @@ public static class PresenceJson
     /// </summary>
     public static T? Deserialize<T>(string json) where T : class
     {
-        try { return JsonSerializer.Deserialize<T>(json, Options); }
+        try { return JsonSerializer.Deserialize<T>(json, s_options); }
         catch (JsonException) { return null; }
     }
 }

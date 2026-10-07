@@ -17,17 +17,17 @@ namespace Avalon.Server.World.UnitTests.Entities;
 /// </summary>
 public class InventoryAssemblerShould
 {
-    private static readonly CharacterId Owner = new(1);
+    private static readonly CharacterId s_owner = new(1);
 
     private static CharacterInventory Row(InventoryType container, ushort slot, Guid itemId) =>
-        new() { CharacterId = Owner, Container = container, Slot = slot, ItemId = new ItemInstanceId(itemId) };
+        new() { CharacterId = s_owner, Container = container, Slot = slot, ItemId = new ItemInstanceId(itemId) };
 
     private static ItemInstance Instance(Guid id, ulong template = 5, uint count = 1, uint durability = 50) =>
         new()
         {
             Id = new ItemInstanceId(id),
             TemplateId = new ItemTemplateId(template),
-            CharacterId = Owner,
+            CharacterId = s_owner,
             Count = count,
             Durability = durability,
             Flags = ItemInstanceFlags.None,

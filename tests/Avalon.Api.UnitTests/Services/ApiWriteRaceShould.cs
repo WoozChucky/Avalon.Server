@@ -33,7 +33,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class ApiWriteRaceShould : IDisposable
 {
-    private static readonly string Password = TestPasswords.Valid;
+    private static readonly string s_password = TestPasswords.Valid;
 
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
@@ -55,7 +55,7 @@ public sealed class ApiWriteRaceShould : IDisposable
             Username = "RACEUSER",
             Email = "race@avalon.monster",
             Salt = Encoding.UTF8.GetBytes(salt),
-            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, salt)),
+            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, salt)),
             JoinDate = DateTime.UtcNow,
             LastLogin = DateTime.UtcNow.AddDays(-1),
         });
@@ -102,7 +102,7 @@ public sealed class ApiWriteRaceShould : IDisposable
         Account account = await AccountAsync();
 
         await Assert.ThrowsAnyAsync<Exception>(() => Service(Stale(account)).Authenticate(
-            new AuthenticateRequest { Username = "raceuser", Password = Password }, IPAddress.Loopback,
+            new AuthenticateRequest { Username = "raceuser", Password = s_password }, IPAddress.Loopback,
             CancellationToken.None));
 
         await AssertBanAndLockSurvivedAsync(account.Id);
@@ -113,7 +113,7 @@ public sealed class ApiWriteRaceShould : IDisposable
     {
         Account account = await AccountAsync();
 
-        await Service(Stale(account)).ChangePasswordAsync(account.Id, Password, TestPasswords.Third, IPAddress.Loopback);
+        await Service(Stale(account)).ChangePasswordAsync(account.Id, s_password, TestPasswords.Third, IPAddress.Loopback);
 
         await AssertBanAndLockSurvivedAsync(account.Id);
         Account stored = await StoredAsync(account.Id);

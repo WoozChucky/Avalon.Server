@@ -128,11 +128,11 @@ public class JwtSigningKeyShould
     [Fact]
     public void Refuse_a_key_whose_hash_is_blocked()
     {
-        const string madeUpPublicKey = "made-up-public-key-made-up-public-key-0123456789";
-        var config = new AuthenticationConfig { IssuerSigningKey = madeUpPublicKey };
+        const string MadeUpPublicKey = "made-up-public-key-made-up-public-key-0123456789";
+        var config = new AuthenticationConfig { IssuerSigningKey = MadeUpPublicKey };
 
         InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
-            JwtSigningKey.Create(config, [Sha256Hex(madeUpPublicKey)]));
+            JwtSigningKey.Create(config, [Sha256Hex(MadeUpPublicKey)]));
 
         AssertNamesTheSetting(ex);
         Assert.Contains("public", ex.Message, StringComparison.Ordinal);

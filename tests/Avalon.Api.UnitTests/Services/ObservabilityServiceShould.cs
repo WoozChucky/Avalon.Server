@@ -43,7 +43,7 @@ public class ObservabilityServiceShould
     // than a mock standing in for it.
     private readonly IMemoryCache _poolMemberCache = new MemoryCache(new MemoryCacheOptions());
 
-    private static readonly Guid InstanceId = Guid.Parse("8f3c1d2e-0000-0000-0000-000000000001");
+    private static readonly Guid s_instanceId = Guid.Parse("8f3c1d2e-0000-0000-0000-000000000001");
 
     private static WorldPresenceSnapshot Snapshot(string configVersion, params CharacterPresenceSnapshot[] characters) => new(
         WorldId: 1,
@@ -51,7 +51,7 @@ public class ObservabilityServiceShould
         Instances:
         [
             new InstancePresenceSnapshot(
-                InstanceId, TemplateId: 12, Seed: 999, MapType: "Normal",
+                s_instanceId, TemplateId: 12, Seed: 999, MapType: "Normal",
                 ConfigVersion: configVersion, OwnerCharacterId: 4417, Characters: characters)
         ]);
 
@@ -143,7 +143,7 @@ public class ObservabilityServiceShould
     private void GivenCharacterIndex(uint characterId, ushort worldId = 1)
     {
         _cache.GetAsync(CacheKeys.CharacterPresenceIndex(worldId, characterId))
-              .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(worldId, InstanceId)));
+              .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(worldId, s_instanceId)));
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public class ObservabilityServiceShould
             Instances:
             [
                 new InstancePresenceSnapshot(
-                    InstanceId, TemplateId: 12, Seed: 999, MapType: "Wasteland",
+                    s_instanceId, TemplateId: 12, Seed: 999, MapType: "Wasteland",
                     ConfigVersion: "a91f3c7e", OwnerCharacterId: 4417,
                     Characters: [Char(4417, "Nym")])
             ]);
@@ -293,7 +293,7 @@ public class ObservabilityServiceShould
             Instances:
             [
                 new InstancePresenceSnapshot(
-                    InstanceId, TemplateId: 12, Seed: 1, MapType: "Normal",
+                    s_instanceId, TemplateId: 12, Seed: 1, MapType: "Normal",
                     ConfigVersion: "a", OwnerCharacterId: null, Characters: [Char(1, "A")]),
                 new InstancePresenceSnapshot(
                     Guid.NewGuid(), TemplateId: 12, Seed: 2, MapType: "Normal",
@@ -346,7 +346,7 @@ public class ObservabilityServiceShould
     {
         _cache.GetAsync(Arg.Any<string>()).Returns((string?)null);
 
-        Assert.Null(await CreateSut().GetInstancePresenceAsync(InstanceId, Gm, CancellationToken.None));
+        Assert.Null(await CreateSut().GetInstancePresenceAsync(s_instanceId, Gm, CancellationToken.None));
     }
 
     [Fact]
@@ -426,13 +426,13 @@ public class ObservabilityServiceShould
     {
         string raw = $$"""
             {"worldId":1,"capturedAt":"{{DateTime.UtcNow:O}}","version":{{WorldPresenceSnapshot.CurrentVersion}},"instances":[
-                {"instanceId":"{{InstanceId}}","templateId":12,"seed":999,"mapType":"Normal","configVersion":"a91f3c7e","ownerCharacterId":4417}
+                {"instanceId":"{{s_instanceId}}","templateId":12,"seed":999,"mapType":"Normal","configVersion":"a91f3c7e","ownerCharacterId":4417}
             ]}
             """;
         _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns(raw);
 
         InstancePresenceDto? instance =
-            await CreateSut().GetInstancePresenceAsync(InstanceId, Gm, CancellationToken.None);
+            await CreateSut().GetInstancePresenceAsync(s_instanceId, Gm, CancellationToken.None);
 
         Assert.NotNull(instance);
         Assert.Empty(instance!.Characters);
@@ -446,13 +446,13 @@ public class ObservabilityServiceShould
         // and would return non-null if the version gate were missing.
         string raw = $$"""
             {"worldId":1,"capturedAt":"{{DateTime.UtcNow:O}}","version":99999,"instances":[
-                {"instanceId":"{{InstanceId}}","templateId":12,"seed":999,"mapType":"Normal","configVersion":"a91f3c7e","ownerCharacterId":4417,"characters":[]}
+                {"instanceId":"{{s_instanceId}}","templateId":12,"seed":999,"mapType":"Normal","configVersion":"a91f3c7e","ownerCharacterId":4417,"characters":[]}
             ]}
             """;
         _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns(raw);
 
         InstancePresenceDto? instance =
-            await CreateSut().GetInstancePresenceAsync(InstanceId, Gm, CancellationToken.None);
+            await CreateSut().GetInstancePresenceAsync(s_instanceId, Gm, CancellationToken.None);
 
         Assert.Null(instance);
     }
@@ -493,7 +493,7 @@ public class ObservabilityServiceShould
             Instances:
             [
                 new InstancePresenceSnapshot(
-                    InstanceId, TemplateId: 12, Seed: 1, MapType: "Normal",
+                    s_instanceId, TemplateId: 12, Seed: 1, MapType: "Normal",
                     ConfigVersion: "a", OwnerCharacterId: null, Characters: [Char(1, "Nym")]),
                 new InstancePresenceSnapshot(
                     Guid.NewGuid(), TemplateId: 99, Seed: 2, MapType: "Normal",
@@ -544,7 +544,7 @@ public class ObservabilityServiceShould
             new AvalonWorld { Id = new WorldId(2), Name = "Boreal", AccessLevelRequired = secondRequires },
         ]);
 
-    private static readonly Guid WorldTwoInstanceId = Guid.Parse("8f3c1d2e-0000-0000-0000-000000000002");
+    private static readonly Guid s_worldTwoInstanceId = Guid.Parse("8f3c1d2e-0000-0000-0000-000000000002");
 
     /// <summary>World 1 and world 2 each have a character 7 online (#556: ids are unique only per world).</summary>
     private void GivenCharacterSevenInBothWorlds()
@@ -554,7 +554,7 @@ public class ObservabilityServiceShould
         GivenWorldTwoSnapshot(Char(7, "Zed"));
         GivenCharacterIndex(7, worldId: 1);
         _cache.GetAsync(CacheKeys.CharacterPresenceIndex(2, 7))
-            .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(2, WorldTwoInstanceId)));
+            .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(2, s_worldTwoInstanceId)));
     }
 
     [Fact]
@@ -566,8 +566,8 @@ public class ObservabilityServiceShould
         PlayerPresenceDto? two = await sut.GetPlayerPresenceAsync(new WorldId(2), 7, Gm, CancellationToken.None);
         PlayerPresenceDto? one = await sut.GetPlayerPresenceAsync(new WorldId(1), 7, Gm, CancellationToken.None);
 
-        Assert.Equal(("Zed", (ushort)2, WorldTwoInstanceId), (two!.Target.Name, two.Instance.WorldId, two.Instance.InstanceId));
-        Assert.Equal(("Nym", (ushort)1, InstanceId), (one!.Target.Name, one.Instance.WorldId, one.Instance.InstanceId));
+        Assert.Equal(("Zed", (ushort)2, s_worldTwoInstanceId), (two!.Target.Name, two.Instance.WorldId, two.Instance.InstanceId));
+        Assert.Equal(("Nym", (ushort)1, s_instanceId), (one!.Target.Name, one.Instance.WorldId, one.Instance.InstanceId));
     }
 
     [Fact]
@@ -577,7 +577,7 @@ public class ObservabilityServiceShould
         GivenTwoWorlds(AccountAccessLevel.Player);
         GivenWorldSnapshot(Snapshot("a", Char(7, "Nym")));
         _cache.GetAsync(CacheKeys.CharacterPresenceIndex(2, 7))
-            .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(1, InstanceId)));
+            .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(1, s_instanceId)));
 
         Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(2), 7, Gm, CancellationToken.None));
     }
@@ -591,7 +591,7 @@ public class ObservabilityServiceShould
         // World 2's key holds a snapshot stamped world 1.
         _cache.GetAsync(CacheKeys.WorldPresence(2)).Returns(PresenceJson.Serialize(Snapshot("a", Char(7, "Zed"))));
         _cache.GetAsync(CacheKeys.CharacterPresenceIndex(2, 7))
-            .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(2, InstanceId)));
+            .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(2, s_instanceId)));
 
         PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
 
@@ -689,7 +689,7 @@ public class ObservabilityServiceShould
         ]);
         GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
 
-        Assert.Null(await sut.GetInstancePresenceAsync(InstanceId, caller, CancellationToken.None));
+        Assert.Null(await sut.GetInstancePresenceAsync(s_instanceId, caller, CancellationToken.None));
     }
 
     [Fact]
@@ -745,7 +745,7 @@ public class ObservabilityServiceShould
         ]);
         GivenWorldSnapshot(Snapshot("a", Char(1, "Nym")));
 
-        Assert.Null(await sut.GetInstancePresenceAsync(InstanceId, Gm, CancellationToken.None));
+        Assert.Null(await sut.GetInstancePresenceAsync(s_instanceId, Gm, CancellationToken.None));
     }
 
     [Fact]
@@ -866,7 +866,7 @@ public class ObservabilityServiceShould
         ]);
         _cache.GetAsync(CacheKeys.WorldPresence(3)).Returns(PresenceJson.Serialize(new WorldPresenceSnapshot(
             WorldId: 3, CapturedAt: DateTime.UtcNow,
-            Instances: [new InstancePresenceSnapshot(InstanceId, TemplateId: 12, Seed: 3, MapType: "Normal",
+            Instances: [new InstancePresenceSnapshot(s_instanceId, TemplateId: 12, Seed: 3, MapType: "Normal",
                 ConfigVersion: "", OwnerCharacterId: null, Characters: [Char(7, "Ash")])])));
 
         PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
@@ -903,7 +903,7 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot(current, Char(4417, "Nym")));
         _cache.GetAsync(CacheKeys.WorldPresence(2)).Returns(PresenceJson.Serialize(new WorldPresenceSnapshot(
             WorldId: 2, CapturedAt: DateTime.UtcNow,
-            Instances: [new InstancePresenceSnapshot(InstanceId, TemplateId: 12, Seed: 3, MapType: "Normal",
+            Instances: [new InstancePresenceSnapshot(s_instanceId, TemplateId: 12, Seed: 3, MapType: "Normal",
                 ConfigVersion: current, OwnerCharacterId: null, Characters: [Char(5001, "Zed")])])));
         ObservabilityService sut = CreateSut();
         _perWorld.LayoutInputs(Arg.Is<WorldId>(w => w.Value == 2)).Returns(worldTwoInputs);

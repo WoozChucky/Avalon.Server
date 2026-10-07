@@ -30,13 +30,13 @@ namespace Avalon.Server.World.UnitTests.Scripts;
 /// </summary>
 public class CreatureAbilityAiShould
 {
-    private static readonly AbilityId SpecialId = new(90_164);
-    private static readonly AbilityId WindUpId = new(90_165);
+    private static readonly AbilityId s_specialId = new(90_164);
+    private static readonly AbilityId s_windUpId = new(90_165);
 
     /// <summary>A 2.5 m cone on an 8 s cooldown.</summary>
     private static AbilityTemplate Special()
     {
-        AbilityTemplate row = AbilityTestData.Cone(SpecialId.Value, reach: 2.5f, arc: 90f);
+        AbilityTemplate row = AbilityTestData.Cone(s_specialId.Value, reach: 2.5f, arc: 90f);
         row.Name = "Special";
         row.Cooldown = 8000;
         row.AllowedClasses = [];
@@ -46,7 +46,7 @@ public class CreatureAbilityAiShould
     /// <summary>A 1 s wind-up, a 5 m circle on the creature, 15 s.</summary>
     private static AbilityTemplate WindUp()
     {
-        AbilityTemplate row = AbilityTestData.Circle(WindUpId.Value, radius: 5f);
+        AbilityTemplate row = AbilityTestData.Circle(s_windUpId.Value, radius: 5f);
         row.Name = "Wind-up";
         row.CastTime = 1000;
         row.Cooldown = 15000;
@@ -82,10 +82,10 @@ public class CreatureAbilityAiShould
             Context.MeleeSlots.Returns(new MeleeSlots(6, radius: 1.5f));
 
             Script = new KitCombatScript(Creature, Context, catalog: catalog ?? TestKit.Catalog(Special(), WindUp()),
-                kit: kit ?? new CreatureAbilityKit(TestKit.BasicId, SpecialId, WindUpId));
+                kit: kit ?? new CreatureAbilityKit(TestKit.BasicId, s_specialId, s_windUpId));
             if (withRotation)
             {
-                AbilityId first = prefer ?? SpecialId;
+                AbilityId first = prefer ?? s_specialId;
                 Script.Rotation = (_, distance) => Script.ReadyFor(first, distance) ?? Script.ReadyFor(TestKit.BasicId, distance);
             }
 
@@ -116,7 +116,7 @@ public class CreatureAbilityAiShould
         fight.Tick(3);  // the basic: the special is on its 8 s cooldown
         fight.Tick(3);  // the basic again
 
-        Assert.Equal([SpecialId, TestKit.BasicId, TestKit.BasicId], fight.Cast());
+        Assert.Equal([s_specialId, TestKit.BasicId, TestKit.BasicId], fight.Cast());
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public class CreatureAbilityAiShould
 
         fight.Tick();
 
-        Assert.Equal([SpecialId], fight.Cast());
+        Assert.Equal([s_specialId], fight.Cast());
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class CreatureAbilityAiShould
     {
         var fight = new Fight(targetAt: new Vector3(1f, 0f, 0f), withRotation: false);
         IAbility foreign = AbilityTestData.Game(Special());
-        IAbility special = fight.Script.Abilities[SpecialId]!;
+        IAbility special = fight.Script.Abilities[s_specialId]!;
         special.CooldownTimer = 5f;
 
         fight.Script.Rotation = (_, _) => foreign;
@@ -198,14 +198,14 @@ public class CreatureAbilityAiShould
     [Fact]
     public void Stop_face_the_target_and_announce_a_wind_up()
     {
-        var fight = new Fight(targetAt: new Vector3(0f, 0f, 3f), prefer: WindUpId);
+        var fight = new Fight(targetAt: new Vector3(0f, 0f, 3f), prefer: s_windUpId);
         fight.Locomotion.HasArrived(fight.Creature).Returns(false);
 
         fight.Tick();
 
         (IUnit caster, AbilityAim aim, IAbility windUp) = Assert.Single(fight.Rig.Casts);
         Assert.Same(fight.Creature, caster);
-        Assert.Equal(WindUpId, windUp.AbilityId);
+        Assert.Equal(s_windUpId, windUp.AbilityId);
         Assert.Equal(new Vector3(0f, 0f, 1f), aim.Facing);
         fight.Locomotion.Received(1).Stop(fight.Creature);
         fight.Creature.Received().LookAt(new Vector3(0f, 0f, 3f));
@@ -218,13 +218,13 @@ public class CreatureAbilityAiShould
     [Fact]
     public void Aim_a_movement_ability_toward_its_target_with_no_point()
     {
-        var fight = new Fight(targetAt: new Vector3(1f, 0f, 0f), prefer: SpecialId);
+        var fight = new Fight(targetAt: new Vector3(1f, 0f, 0f), prefer: s_specialId);
         fight.Creature.Orientation.Returns(new Vector3(0f, 180f, 0f));   // its body faces -Z
 
         fight.Tick();
 
         (_, AbilityAim aim, IAbility special) = Assert.Single(fight.Rig.Casts);
-        Assert.Equal(SpecialId, special.AbilityId);
+        Assert.Equal(s_specialId, special.AbilityId);
         Assert.Null(aim.Point);
         Assert.Equal(new Vector3(1f, 0f, 0f), aim.Facing);
     }
@@ -233,9 +233,9 @@ public class CreatureAbilityAiShould
     [Fact]
     public void Ask_for_no_movement_until_the_wind_up_ends()
     {
-        var fight = new Fight(targetAt: new Vector3(0f, 0f, 3f), prefer: WindUpId);
+        var fight = new Fight(targetAt: new Vector3(0f, 0f, 3f), prefer: s_windUpId);
         fight.Tick();
-        IAbility windUp = fight.Script.Abilities[WindUpId]!;
+        IAbility windUp = fight.Script.Abilities[s_windUpId]!;
         fight.Locomotion.ClearReceivedCalls();
 
         fight.Target.Position.Returns(new Vector3(0f, 0f, 12f));
@@ -260,7 +260,7 @@ public class CreatureAbilityAiShould
     [Fact]
     public void Turn_for_home_mid_wind_up_when_its_target_dies()
     {
-        var fight = new Fight(targetAt: new Vector3(0f, 0f, 3f), prefer: WindUpId);
+        var fight = new Fight(targetAt: new Vector3(0f, 0f, 3f), prefer: s_windUpId);
         fight.Tick();
         fight.Locomotion.ClearReceivedCalls();
 
@@ -366,8 +366,8 @@ public class CreatureAbilityAiShould
             DamageMax = 5,
         };
         var script = new KitCombatScript(creature, instance, catalog: TestKit.Catalog(WindUp()),
-            kit: new CreatureAbilityKit(TestKit.BasicId, WindUpId));
-        script.Rotation = (_, distance) => script.ReadyFor(WindUpId, distance);
+            kit: new CreatureAbilityKit(TestKit.BasicId, s_windUpId));
+        script.Rotation = (_, distance) => script.ReadyFor(s_windUpId, distance);
         creature.Script = script;
         instance.AddCreature(creature);
         script.OnEnteredRange(player.Character);
@@ -406,8 +406,8 @@ public class CreatureAbilityAiShould
             CurrentHealth = 100,
         };
         var script = new KitCombatScript(creature, instance, catalog: TestKit.Catalog(WindUp()),
-            kit: new CreatureAbilityKit(TestKit.BasicId, WindUpId));
-        script.Rotation = (_, distance) => script.ReadyFor(WindUpId, distance);
+            kit: new CreatureAbilityKit(TestKit.BasicId, s_windUpId));
+        script.Rotation = (_, distance) => script.ReadyFor(s_windUpId, distance);
         creature.Script = script;
         instance.AddCreature(creature);
         script.OnEnteredRange(player.Character);
@@ -417,6 +417,6 @@ public class CreatureAbilityAiShould
 
         Assert.Equal(Vector3.zero, creature.Position);
         Assert.True(player.Character.CurrentHealth < 100u);
-        Assert.Equal(15f - 0.1f, creature.Abilities[WindUpId]!.CooldownTimer, 0.2f);
+        Assert.Equal(15f - 0.1f, creature.Abilities[s_windUpId]!.CooldownTimer, 0.2f);
     }
 }

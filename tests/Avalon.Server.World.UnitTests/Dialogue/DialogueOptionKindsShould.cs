@@ -10,13 +10,13 @@ namespace Avalon.Server.World.UnitTests.Dialogue;
 /// <summary>What each dialogue option tells a client it will do (#522).</summary>
 public class DialogueOptionKindsShould
 {
-    private static readonly DialogueNode[] Nodes =
+    private static readonly DialogueNode[] s_nodes =
     [
         new() { Id = 1, CreatureTemplateId = 11, IsRoot = true, TextId = 1 },
         new() { Id = 2, CreatureTemplateId = 11, IsRoot = false, TextId = 2 },
     ];
 
-    private static readonly DialogueOption[] Options =
+    private static readonly DialogueOption[] s_options =
     [
         new() { Id = 1, NodeId = 1, TextId = 3, NextNodeId = 2, SortOrder = 0, Action = DialogueOptionAction.OpenBank },
         new() { Id = 2, NodeId = 1, TextId = 3, NextNodeId = 1, SortOrder = 1, Action = DialogueOptionAction.OpenShop },
@@ -27,8 +27,8 @@ public class DialogueOptionKindsShould
 
     private static DialogueOptionKind KindOf(int optionId)
     {
-        var catalog = new DialogueCatalog(Nodes, Options, NullLoggerFactory.Instance);
-        var actions = new DialogueActions(Nodes, Options);
+        var catalog = new DialogueCatalog(s_nodes, s_options, NullLoggerFactory.Instance);
+        var actions = new DialogueActions(s_nodes, s_options);
         DialogueOptionView option = catalog.GetNode(new DialogueNodeId(1))!.Options.Single(o => o.Id.Value == optionId);
         return DialogueOptionKinds.For(actions, catalog, option);
     }

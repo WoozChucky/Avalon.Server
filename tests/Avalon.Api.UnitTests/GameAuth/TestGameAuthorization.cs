@@ -12,8 +12,8 @@ namespace Avalon.Api.UnitTests.GameAuth;
 
 internal static class TestGameAuthorization
 {
-    private static readonly ConditionalWeakTable<IGameContextStore, MemoryGameLicenses> Repositories = new();
-    public static MemoryGameLicenses Licenses(IGameContextStore store) => Repositories.GetValue(store, _ => new());
+    private static readonly ConditionalWeakTable<IGameContextStore, MemoryGameLicenses> s_repositories = new();
+    public static MemoryGameLicenses Licenses(IGameContextStore store) => s_repositories.GetValue(store, _ => new());
     public static GameAuthorizationService Create(IGameContextStore store, AuthAttemptStore attempts, GameAuthCryptography crypto,
         IAccountRepository accounts, IRefreshTokenRepository families, IExternalIdentityRepository identities,
         ILicenseObservationRepository observations, ISteamProofVerifier proof, ISteamOwnershipClient ownership,

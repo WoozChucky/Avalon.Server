@@ -144,8 +144,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             "Ensure the method is non-public, static, and not overloaded.");
 
     // Tick scheduling
-    private static readonly long TicksPerFrame = Stopwatch.Frequency / 60; // 60Hz
-    private static readonly long SpinThresholdTicks = Stopwatch.Frequency / 1000; // 1ms
+    private static readonly long s_ticksPerFrame = Stopwatch.Frequency / 60; // 60Hz
+    private static readonly long s_spinThresholdTicks = Stopwatch.Frequency / 1000; // 1ms
 
     private Thread? _tickThread;
     private volatile bool _tickRunning;
@@ -504,7 +504,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // From here until the loop ends, World-side state that only the tick may change refuses any other thread
         // (while the guard is enabled, #639). Unbound in the finally, so the shutdown despawn that runs once the tick is joined passes.
         _tickThreadGuard?.Bind();
-        long next = Stopwatch.GetTimestamp() + TicksPerFrame;
+        long next = Stopwatch.GetTimestamp() + s_ticksPerFrame;
         TimeSpan prev = _gameTime.Elapsed;
 
         try
@@ -520,7 +520,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                     prev = now;
 
                     long tickStart = Stopwatch.GetTimestamp();
-                    long overshootTicks = tickStart - (next - TicksPerFrame);
+                    long overshootTicks = tickStart - (next - s_ticksPerFrame);
                     double overshootUs = TicksToUs(overshootTicks);
                     _deadlineOvershootHist.Record((long)overshootUs);
                     _deadlineOvershoot.Record(overshootUs);
@@ -546,9 +546,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
                 // Sleep until ~1ms before deadline...
                 long remaining = next - Stopwatch.GetTimestamp();
-                if (remaining > SpinThresholdTicks)
+                if (remaining > s_spinThresholdTicks)
                 {
-                    long sleepTicks = remaining - SpinThresholdTicks;
+                    long sleepTicks = remaining - s_spinThresholdTicks;
                     if (OperatingSystem.IsWindows() && _waitableTimer != IntPtr.Zero)
                     {
                         WaitHighRes(_waitableTimer, sleepTicks);
@@ -569,16 +569,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                     Thread.SpinWait(64);
 
                 // Deadline-based, not delta-based: prevents drift.
-                next += TicksPerFrame;
+                next += s_ticksPerFrame;
 
                 // Spiral-of-death guard: if we fell >4 frames behind
                 // (GC pause, huge packet burst), resync instead of catching up.
                 long lag = Stopwatch.GetTimestamp() - next;
-                if (lag > TicksPerFrame * 4)
+                if (lag > s_ticksPerFrame * 4)
                 {
                     _logger.LogWarning("Tick loop fell {LagMs}ms behind; resyncing",
                         lag * 1000 / Stopwatch.Frequency);
-                    next = Stopwatch.GetTimestamp() + TicksPerFrame;
+                    next = Stopwatch.GetTimestamp() + s_ticksPerFrame;
                 }
             }
         }

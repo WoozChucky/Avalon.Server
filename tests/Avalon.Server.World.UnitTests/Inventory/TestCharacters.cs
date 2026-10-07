@@ -26,10 +26,10 @@ internal static class TestCharacters
     public static readonly ItemTemplate Hoard = new()
     { Id = new ItemTemplateId(500), Name = "Hoard", Class = ItemClass.Junk, MaxStackSize = uint.MaxValue };
 
-    private static readonly Dictionary<ItemTemplateId, ItemTemplate> Templates =
+    private static readonly Dictionary<ItemTemplateId, ItemTemplate> s_templates =
         new[] { Potion, Sword, Relic, Pebble, Hoard }.ToDictionary(t => t.Id);
 
-    public static ItemTemplate? Find(ItemTemplateId id) => Templates.GetValueOrDefault(id);
+    public static ItemTemplate? Find(ItemTemplateId id) => s_templates.GetValueOrDefault(id);
 
     public static CharacterEntity New(uint id = 7, ulong money = 0)
     {

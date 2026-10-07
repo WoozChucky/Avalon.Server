@@ -8,10 +8,10 @@ namespace Avalon.Balance.UnitTests;
 
 public class ConfigFilesShould
 {
-    private static readonly string BalanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
+    private static readonly string s_balanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
 
     private static ScenarioFile CheckedInScenarios() =>
-        ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+        ConfigFileStore.Load(Path.Combine(s_balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
 
     [Fact]
     public void Load_the_checked_in_files_against_the_seed()
@@ -19,8 +19,8 @@ public class ConfigFilesShould
         BalanceData data = TestData.Seeded;
         ScenarioFile scenarios = CheckedInScenarios();
         scenarios.Validate(data);
-        TargetFile targets = ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
-        RotationFile rotations = ConfigFileStore.Load(Path.Combine(BalanceDir, "rotations.json"), ConfigFiles.ParseRotations);
+        TargetFile targets = ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
+        RotationFile rotations = ConfigFileStore.Load(Path.Combine(s_balanceDir, "rotations.json"), ConfigFiles.ParseRotations);
 
         Assert.Equal(Enumerable.Range(1, 10).Select(l => (ushort)l), scenarios.LevelRange());
         Assert.Equal("forest", targets.GradedGear);
@@ -118,7 +118,7 @@ public class ConfigFilesShould
             ConfigFiles.ParseRotations("{}").Compile(CharacterClass.Wizard, TestData.Seeded));
 
     private static TargetFile CheckedInTargets() =>
-        ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
+        ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
 
     [Fact]
     public void Refuse_a_misspelt_scenario_field()

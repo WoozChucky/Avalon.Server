@@ -6,13 +6,13 @@ namespace Avalon.Balance.UnitTests;
 /// <summary>The seeded data, loaded once. Read-only: a test that changes tables reads its own SeedTables.</summary>
 internal static class TestData
 {
-    private static readonly Lazy<BalanceData> SeededData = new(() => BalanceData.From(SeedSource.Load()));
-    private static readonly Lazy<SeedTables> SeedCache = new(SeedSource.Load);
+    private static readonly Lazy<BalanceData> s_seededData = new(() => BalanceData.From(SeedSource.Load()));
+    private static readonly Lazy<SeedTables> s_seedCache = new(SeedSource.Load);
 
-    public static BalanceData Seeded => SeededData.Value;
+    public static BalanceData Seeded => s_seededData.Value;
 
     /// <summary>A private copy of the seed tables: a test may override it freely.</summary>
-    public static SeedTables Seed() => SeedCache.Value.Clone();
+    public static SeedTables Seed() => s_seedCache.Value.Clone();
 
     /// <summary>The checked-in balance files, freshly parsed so a test may change them.</summary>
     public static BalanceConfig Config()

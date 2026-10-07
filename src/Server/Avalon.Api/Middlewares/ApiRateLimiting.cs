@@ -52,7 +52,7 @@ public static class ApiRateLimiting
 
     private const string PatAccountItem = "Avalon.RateLimiting.PatAccountId";
 
-    private static readonly Counter<long> Rejections = DiagnosticsConfig.Api.Meter.CreateCounter<long>(
+    private static readonly Counter<long> s_rejections = DiagnosticsConfig.Api.Meter.CreateCounter<long>(
         RejectionsMetric, "{requests}", "Requests refused by the rate limiter, by partition kind");
 
     public enum PartitionKind
@@ -275,7 +275,7 @@ public static class ApiRateLimiting
     {
         HttpContext context = rejected.HttpContext;
         PartitionKind kind = PartitionOf(context, enabled: true).Kind;
-        Rejections.Add(1, new KeyValuePair<string, object?>("partition",
+        s_rejections.Add(1, new KeyValuePair<string, object?>("partition",
             kind switch { PartitionKind.Workload => "workload", PartitionKind.Authenticated => "authenticated", _ => "anonymous" }));
 
         // The limiter's own hint when it gives one, otherwise one segment, the soonest any permit

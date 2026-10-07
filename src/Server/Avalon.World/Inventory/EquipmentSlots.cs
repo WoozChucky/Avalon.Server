@@ -47,8 +47,8 @@ public static class EquipmentSlots
     public static bool Accepts(ushort slot, ItemSlotType? itemSlot) =>
         itemSlot is { } type && TypeOf(slot) == type;
 
-    private static readonly ushort[] NoSlots = [];
-    private static readonly ushort[] Fingers = [Finger1, Finger2];
+    private static readonly ushort[] s_noSlots = [];
+    private static readonly ushort[] s_fingers = [Finger1, Finger2];
 
     /// <summary>
     /// The slots an item whose template Slot is <paramref name="type" /> is worn in, in the order a use fills them
@@ -63,9 +63,9 @@ public static class EquipmentSlots
         ItemSlotType.Hands => [Hands],
         ItemSlotType.Legs => [Legs],
         ItemSlotType.Feet => [Feet],
-        ItemSlotType.Finger => Fingers,
+        ItemSlotType.Finger => s_fingers,
         ItemSlotType.MainHand => [MainHand],
         ItemSlotType.OffHand => [OffHand],
-        _ => NoSlots,
+        _ => s_noSlots,
     };
 }

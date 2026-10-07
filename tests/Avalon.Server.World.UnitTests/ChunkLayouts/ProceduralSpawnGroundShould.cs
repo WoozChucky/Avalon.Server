@@ -22,7 +22,7 @@ namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 /// #720: a procedural spawn stands on the navmesh, not at its slot's authored height. The slot's X/Z
 /// are kept when the mesh is under it; a slot just beside the mesh goes to the mesh's nearest point;
 /// a slot with no mesh within the search box places nothing and logs a warning. Against a real baked
-/// navmesh: <see cref="CrowdLocomotionShould.FlatNavMesh" />, a flat 40x40 quad at height 0 centred
+/// navmesh: <see cref="CrowdLocomotionShould.s_flatNavMesh" />, a flat 40x40 quad at height 0 centred
 /// on the origin, eroded by the agent radius at its edges.
 /// </summary>
 public class ProceduralSpawnGroundShould
@@ -30,7 +30,7 @@ public class ProceduralSpawnGroundShould
     /// <summary>A baked mesh's height on flat ground is within a cell height or so of the geometry's.</summary>
     private const float GroundTolerance = 0.25f;
 
-    private static readonly CreatureTemplateId Boar = new(4);
+    private static readonly CreatureTemplateId s_boar = new(4);
 
     [Fact]
     public async Task Put_A_Creature_Whose_Slot_Is_Above_The_Ground_On_The_Ground_At_The_Same_X_And_Z()
@@ -147,7 +147,7 @@ public class ProceduralSpawnGroundShould
     private static MapNavigator FlatGround()
     {
         var navigator = new MapNavigator(NullLoggerFactory.Instance);
-        navigator.LoadFromNavMesh(CrowdLocomotionShould.FlatNavMesh.Value);
+        navigator.LoadFromNavMesh(CrowdLocomotionShould.s_flatNavMesh.Value);
         return navigator;
     }
 
@@ -185,7 +185,7 @@ public class ProceduralSpawnGroundShould
     {
         Id = new MapCreatureSpawnId(id),
         MapTemplateId = new MapTemplateId(2),
-        CreatureTemplateId = Boar,
+        CreatureTemplateId = s_boar,
         OffsetX = offset.x,
         OffsetY = offset.y,
         OffsetZ = offset.z,
@@ -203,7 +203,7 @@ public class ProceduralSpawnGroundShould
             [
                 new SpawnTableEntry
                 {
-                    Id = 1, SpawnTableId = new SpawnTableId(1), Tag = "pack", CreatureId = Boar,
+                    Id = 1, SpawnTableId = new SpawnTableId(1), Tag = "pack", CreatureId = s_boar,
                     Weight = 1f, MinCount = 1, MaxCount = 1,
                 },
             ],

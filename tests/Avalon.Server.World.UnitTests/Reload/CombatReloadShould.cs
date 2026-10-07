@@ -34,7 +34,7 @@ public class CombatReloadShould
         }
     }
 
-    private static readonly ClassLevelStat WarriorLevel1 = new()
+    private static readonly ClassLevelStat s_warriorLevel1 = new()
     {
         Class = CharacterClass.Warrior,
         Level = 1,
@@ -47,7 +47,7 @@ public class CombatReloadShould
     };
 
     private static Task<StaticData> Load(Rows rows) =>
-        TestStaticData.LoadAsync(TestStaticData.Repositories(classStats: () => [WarriorLevel1], combat: rows.Repository()));
+        TestStaticData.LoadAsync(TestStaticData.Repositories(classStats: () => [s_warriorLevel1], combat: rows.Repository()));
 
     [Fact]
     public async Task Load_the_seeded_formula_and_every_class()

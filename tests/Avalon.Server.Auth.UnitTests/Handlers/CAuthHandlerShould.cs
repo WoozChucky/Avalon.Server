@@ -182,7 +182,7 @@ public partial class CAuthHandlerShould
     {
         Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L); // the default threshold of 5
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(5L); // the default threshold of 5
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
@@ -202,7 +202,7 @@ public partial class CAuthHandlerShould
     {
         Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(3L); // the threshold of 3
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(3L); // the threshold of 3
         CAuthHandler handler = CreateHandler(maxFailedLogins: 3);
 
         var ctx = new AuthPacketContext<CAuthPacket>
@@ -224,7 +224,7 @@ public partial class CAuthHandlerShould
         // The row's own count does not decide the lock (#484): only the username budget does.
         Account account = MakeAccount(failedLogins: 40);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L); // 5 failures, but threshold is 10
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(5L); // 5 failures, but threshold is 10
         CAuthHandler handler = CreateHandler(maxFailedLogins: 10);
 
         var ctx = new AuthPacketContext<CAuthPacket>
@@ -487,7 +487,7 @@ public partial class CAuthHandlerShould
 
     private const string SourceKey = "auth:source:127.0.0.1:failedLogins";
 
-    private static readonly string UsernameKey = UsernameBudget.KeyFor("testuser");
+    private static readonly string s_usernameKey = UsernameBudget.KeyFor("testuser");
 
     private static IOptions<AuthConfiguration> HardeningOptions(int lockoutMinutes = 15, int perSource = 10,
         int sourceWindowMinutes = 15) =>
@@ -635,7 +635,7 @@ public partial class CAuthHandlerShould
     {
         Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L);
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(5L);
 
         DateTime before = DateTime.UtcNow;
         await LogInAsync(CreateHandler(HardeningOptions(lockoutMinutes: 30)), password: TestPasswords.Wrong);
@@ -644,7 +644,7 @@ public partial class CAuthHandlerShould
         Assert.Equal(AuthResult.LOCKED, SentResult());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
             Arg.Is<DateTime?>(d => d >= before.AddMinutes(30) && d <= after.AddMinutes(30)), Arg.Any<CancellationToken>());
-        await _cache.Received(1).HoldCounterAtLeastAsync(UsernameKey, 6, TimeSpan.FromMinutes(30));
+        await _cache.Received(1).HoldCounterAtLeastAsync(s_usernameKey, 6, TimeSpan.FromMinutes(30));
     }
 
     /// <summary>A lock with no end (one set before locks expired, or by hand) is not lifted.</summary>
@@ -843,7 +843,7 @@ public partial class CAuthHandlerShould
     {
         Account account = MakeAccount(failedLogins: 4);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(1L);
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(1L);
 
         await LogInAsync(CreateHandler(HardeningOptions()), password: TestPasswords.Wrong);
 

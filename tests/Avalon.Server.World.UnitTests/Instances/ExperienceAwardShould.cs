@@ -26,7 +26,7 @@ public class ExperienceAwardShould
     public void Scale_The_Award_A_Character_Actually_Receives_By_The_Maps_Band()
     {
         // ForestDungeon's band is 1-5; a level 9 character is four levels out, so 0.75^4 = 0.3164.
-        const int creatureExperience = 1000;
+        const int CreatureExperience = 1000;
         IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>
@@ -45,7 +45,7 @@ public class ExperienceAwardShould
             Guid = new ObjectGuid(ObjectType.Creature, 880_001),
             Metadata = Substitute.For<ICreatureMetadata>(),
             Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
-            Experience = creatureExperience
+            Experience = CreatureExperience
         };
         instance.AddCreature(creature);
 

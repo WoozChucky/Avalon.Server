@@ -23,7 +23,7 @@ namespace Avalon.Api.UnitTests.Authentication;
 /// </summary>
 public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
 {
-    private static readonly string Password = TestPasswords.Valid;
+    private static readonly string s_password = TestPasswords.Valid;
 
     private ApiAuthHost _host = null!;
     private Account _account = null!;
@@ -32,7 +32,7 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
     {
         _host = await ApiAuthHost.StartAsync();
         _account = MakeAccount(AccountAccessLevel.Player | AccountAccessLevel.Admin);
-        _account.Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, BCrypt.Net.BCrypt.GenerateSalt(4)));
+        _account.Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, BCrypt.Net.BCrypt.GenerateSalt(4)));
         _host.AccountNowIs(_account);
         _host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
@@ -99,7 +99,7 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
     [Fact]
     public async Task Start_mfa_setup_with_the_current_password()
     {
-        using HttpResponseMessage response = await SetupAsync(Password);
+        using HttpResponseMessage response = await SetupAsync(s_password);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         await _host.Mfa.Received(1).SetupMFAAsync(Arg.Any<Account>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -145,7 +145,7 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
     [Fact]
     public async Task Mint_a_personal_access_token_with_the_current_password()
     {
-        using HttpResponseMessage response = await MintAsync(Password);
+        using HttpResponseMessage response = await MintAsync(s_password);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
@@ -163,7 +163,7 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
     [Fact]
     public async Task Mint_an_admin_token_with_the_admins_current_password()
     {
-        using HttpResponseMessage response = await MintAdminAsync(Password);
+        using HttpResponseMessage response = await MintAdminAsync(s_password);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }

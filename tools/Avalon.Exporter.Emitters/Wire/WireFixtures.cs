@@ -88,12 +88,12 @@ public static class WireFixtures
 {
     public static IReadOnlyList<WireMember> Members(Type contract)
     {
-        const BindingFlags instanceMembers =
+        const BindingFlags InstanceMembers =
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
-        RefuseMembersThisWalkCannotReach(contract, instanceMembers);
+        RefuseMembersThisWalkCannotReach(contract, InstanceMembers);
 
-        return contract.GetProperties(instanceMembers)
+        return contract.GetProperties(InstanceMembers)
             .Select(property => (property, tag: property.GetCustomAttribute<ProtoMemberAttribute>()))
             .Where(candidate => candidate.tag is not null)
             .Select(candidate => new WireMember(candidate.property, candidate.tag!.Tag))
@@ -262,16 +262,16 @@ public static class WireFixtures
     /// text form is liable to lose. Exposed so a test can hold the corpus to containing all
     /// of them rather than to containing whichever ones it happened to generate.
     /// </summary>
-    public static IReadOnlyList<float> FloatEdgeCases() => FixtureFloats.Specials;
+    public static IReadOnlyList<float> FloatEdgeCases() => FixtureFloats.s_specials;
 
     /// <summary>
     /// Every float member in the protocol, as <c>Message.Member</c>, ordered and de-duplicated.
     /// Its only purpose is to be a stable index space: the float specials are handed out by
     /// position in this list, so each one is guaranteed to appear in the corpus.
     /// </summary>
-    public static IReadOnlyList<string> FloatMemberPaths() => _floatMemberPaths.Value;
+    public static IReadOnlyList<string> FloatMemberPaths() => s_floatMemberPaths.Value;
 
-    private static readonly Lazy<IReadOnlyList<string>> _floatMemberPaths = new(() =>
+    private static readonly Lazy<IReadOnlyList<string>> s_floatMemberPaths = new(() =>
         WireSchema.ContractTypes()
             .SelectMany(contract => Members(contract)
                 .Where(member => ValueTypeOf(member.DeclaredType) == typeof(float))

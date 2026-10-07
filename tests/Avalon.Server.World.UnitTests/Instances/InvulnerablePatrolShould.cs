@@ -18,7 +18,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class InvulnerablePatrolShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     [Fact]
     public void Ignore_Hits_And_Keep_Patrolling()
@@ -41,11 +41,11 @@ public class InvulnerablePatrolShould
         instance.AddCreature(creature);
         var script = new CreaturePatrolScript(NullLoggerFactory.Instance, creature, instance);
         creature.Script = script;
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         instance.CombatService.ApplyDamage(attacker.Character, creature, 10);
         for (int i = 0; i < 5; i++)
-            instance.Update(Tick);
+            instance.Update(s_tick);
 
         Assert.Equal(10u, creature.CurrentHealth);
         Assert.Null(instance.CombatService.GetEncounterFor(creature));

@@ -17,7 +17,7 @@ namespace Avalon.Server.World.UnitTests.Persistence;
 /// </summary>
 public sealed class IgnoreSaveRoundTripShould : IDisposable
 {
-    private static readonly DateTime Now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
 
     private readonly SqliteDatabase<CharacterDbContext> _database = SqliteDatabase.Characters();
     private readonly CharacterSaveRepository _saves;
@@ -72,13 +72,13 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
         CharacterEntity owner = await StoredCharacterAsync(1, "Aren");
         await StoredCharacterAsync(2, "Kaela");
         await StoredCharacterAsync(3, "Tom");
-        owner.Ignores.Add(3, "Tom", Now);
-        owner.Ignores.Add(2, "Kaela", Now.AddMinutes(1));
+        owner.Ignores.Add(3, "Tom", s_now);
+        owner.Ignores.Add(2, "Kaela", s_now.AddMinutes(1));
 
         await SaveAsync(owner);
         IgnoreList loaded = await ReloadAsync(1);
 
-        Assert.Equal([new IgnoredCharacter(3, "Tom", Now), new IgnoredCharacter(2, "Kaela", Now.AddMinutes(1))], loaded.Entries);
+        Assert.Equal([new IgnoredCharacter(3, "Tom", s_now), new IgnoredCharacter(2, "Kaela", s_now.AddMinutes(1))], loaded.Entries);
         Assert.False(owner.SaveState.HasChanges);
     }
 
@@ -87,7 +87,7 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
     {
         CharacterEntity owner = await StoredCharacterAsync(1, "Aren");
         await StoredCharacterAsync(2, "Kaela");
-        owner.Ignores.Add(2, "Kaela", Now);
+        owner.Ignores.Add(2, "Kaela", s_now);
         await SaveAsync(owner);
 
         owner.Ignores.Remove(2);
@@ -101,7 +101,7 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
     {
         CharacterEntity owner = await StoredCharacterAsync(1, "Aren");
         await StoredCharacterAsync(2, "Kaela");
-        owner.Ignores.Add(2, "Kaela", Now);
+        owner.Ignores.Add(2, "Kaela", s_now);
 
         var snapshot = CharacterSaveSnapshot.Take(owner);
         await _saves.WriteAsync([snapshot.Batch]);
@@ -116,8 +116,8 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
         CharacterEntity owner = await StoredCharacterAsync(1, "Aren");
         await StoredCharacterAsync(2, "Kaela");
         await StoredCharacterAsync(3, "Tom");
-        owner.Ignores.Add(2, "Kaela", Now);
-        owner.Ignores.Add(3, "Tom", Now);
+        owner.Ignores.Add(2, "Kaela", s_now);
+        owner.Ignores.Add(3, "Tom", s_now);
         await DeleteCharacterAsync(2);
 
         await SaveAsync(owner);
@@ -131,7 +131,7 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
     {
         CharacterEntity owner = await StoredCharacterAsync(1, "Aren");
         await StoredCharacterAsync(2, "Kaela");
-        owner.Ignores.Add(2, "Kaela", Now);
+        owner.Ignores.Add(2, "Kaela", s_now);
         await SaveAsync(owner);
 
         await DeleteCharacterAsync(2);
@@ -144,7 +144,7 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
     {
         CharacterEntity owner = await StoredCharacterAsync(1, "Aren");
         await StoredCharacterAsync(2, "Kaela");
-        owner.Ignores.Add(2, "Kaela", Now);
+        owner.Ignores.Add(2, "Kaela", s_now);
         await SaveAsync(owner);
 
         await DeleteCharacterAsync(1);
@@ -158,7 +158,7 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
     {
         CharacterEntity owner = await StoredCharacterAsync(1, "Aren");
         await StoredCharacterAsync(2, "Kaela");
-        owner.Ignores.Add(2, "Kaela", Now);
+        owner.Ignores.Add(2, "Kaela", s_now);
         await SaveAsync(owner);
 
         await using (CharacterDbContext context = _database.CreateDbContext())

@@ -62,10 +62,10 @@ public class CharacterLeaveShould : IDisposable
     /// never moves here, so a slow runner only makes a test slower, and this bound only stops a
     /// broken one from hanging. Generous, because a loaded runner can hold pool work back for seconds.
     /// </summary>
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(30);
-    private static readonly CharacterId TheCharacter = new(7);
-    private static readonly CharacterId AnotherCharacter = new(8);
-    private static readonly AccountId TheAccount = new(42L);
+    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(30);
+    private static readonly CharacterId s_theCharacter = new(7);
+    private static readonly CharacterId s_anotherCharacter = new(8);
+    private static readonly AccountId s_theAccount = new(42L);
 
     private readonly List<TcpClient> _sockets = [];
     private readonly TaskCompletionSource _commit = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -93,19 +93,19 @@ public class CharacterLeaveShould : IDisposable
 
                 lock (_written)
                     _written.AddRange(call.Arg<IReadOnlyList<CharacterSaveBatch>>());
-                await _commit.Task.WaitAsync(Limit);
+                await _commit.Task.WaitAsync(s_limit);
                 Volatile.Write(ref _committed, 1);
             });
         _saver = new CharacterSaver(_saves, NullLogger<CharacterSaver>.Instance);
 
-        _characters.FindByAccountAsync(TheAccount, Arg.Any<CancellationToken>())
+        _characters.FindByAccountAsync(s_theAccount, Arg.Any<CancellationToken>())
             .Returns(new List<Character>
             {
-                new() { Id = TheCharacter, AccountId = TheAccount, Name = "Tester7", Level = 3 },
-                new() { Id = AnotherCharacter, AccountId = TheAccount, Name = "Tester8", Level = 1 },
+                new() { Id = s_theCharacter, AccountId = s_theAccount, Name = "Tester7", Level = 3 },
+                new() { Id = s_anotherCharacter, AccountId = s_theAccount, Name = "Tester8", Level = 1 },
             });
         // What happens after a select's read is the rest of the select chain, covered elsewhere.
-        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 lock (_selectReads)
@@ -139,7 +139,7 @@ public class CharacterLeaveShould : IDisposable
         Assert.True(connection.LeaveInProgress);
         Assert.DoesNotContain(live.Guid, town.Characters.Keys);
         CharacterSaveBatch logout = await WrittenAsync();
-        Assert.Equal(TheCharacter, logout.Row.Id);
+        Assert.Equal(s_theCharacter, logout.Row.Id);
         Assert.False(logout.Row.Online);
 
         connection.FlushContinuations();
@@ -154,12 +154,12 @@ public class CharacterLeaveShould : IDisposable
         h.List.Execute(connection, new CCharacterListPacket());
         await UntilAsync(connection, () => connection.Read<SCharacterListPacket>(NetworkPacketType.SMSG_CHARACTER_LIST).Count > 0);
         SCharacterListPacket list = Assert.Single(connection.Read<SCharacterListPacket>(NetworkPacketType.SMSG_CHARACTER_LIST));
-        Assert.Equal([TheCharacter.Value, AnotherCharacter.Value], list.Characters.Select(c => c.CharacterId));
+        Assert.Equal([s_theCharacter.Value, s_anotherCharacter.Value], list.Characters.Select(c => c.CharacterId));
 
-        h.Select.Execute(connection, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+        h.Select.Execute(connection, new CCharacterSelectedPacket { CharacterId = s_anotherCharacter });
         Assert.True(connection.SelectInProgress);
         await UntilAsync(connection, () => SelectReads().Count > 0);
-        Assert.Equal(AnotherCharacter, Assert.Single(SelectReads()).Id);
+        Assert.Equal(s_anotherCharacter, Assert.Single(SelectReads()).Id);
         Assert.False(connection.IsClosing);
         Assert.Single(_written);
     }
@@ -179,7 +179,7 @@ public class CharacterLeaveShould : IDisposable
 
         h.Leave.Execute(leaving, new CCharacterLeavePacket());
         await WrittenAsync();
-        h.Select.Execute(other, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        h.Select.Execute(other, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         other.FlushContinuations();
         Assert.Empty(SelectReads());
@@ -188,7 +188,7 @@ public class CharacterLeaveShould : IDisposable
         _commit.SetResult();
         await UntilAsync(other, () => SelectReads().Count > 0);
 
-        Assert.Equal((TheCharacter, true), Assert.Single(SelectReads()));
+        Assert.Equal((s_theCharacter, true), Assert.Single(SelectReads()));
         leaving.FlushContinuations();
         Assert.Empty(leaving.Results());
         Assert.Single(_written);
@@ -226,7 +226,7 @@ public class CharacterLeaveShould : IDisposable
         await UntilAsync(connection, () => !connection.LeaveInProgress);
 
         Assert.Equal([CharacterLeaveResult.AlreadyLeaving, CharacterLeaveResult.Left], connection.Results());
-        await _saver.WhenIdle(TheCharacter).WaitAsync(Limit);
+        await _saver.WhenIdle(s_theCharacter).WaitAsync(s_limit);
         Assert.Single(_written);
     }
 
@@ -242,11 +242,11 @@ public class CharacterLeaveShould : IDisposable
         Spawn(connection, town);
 
         h.Leave.Execute(connection, new CCharacterLeavePacket());
-        await connection.CloseAsync().WaitAsync(Limit);
+        await connection.CloseAsync().WaitAsync(s_limit);
         server.Tick();
 
         _commit.SetResult();
-        await _saver.WhenIdle(TheCharacter).WaitAsync(Limit);
+        await _saver.WhenIdle(s_theCharacter).WaitAsync(s_limit);
         connection.FlushContinuations();
 
         Assert.Single(_written);
@@ -284,7 +284,7 @@ public class CharacterLeaveShould : IDisposable
 
     private async Task<CharacterSaveBatch> WrittenAsync()
     {
-        DateTime deadline = DateTime.UtcNow + Limit;
+        DateTime deadline = DateTime.UtcNow + s_limit;
         while (true)
         {
             lock (_written)
@@ -301,7 +301,7 @@ public class CharacterLeaveShould : IDisposable
     /// <summary>Runs the connection's continuations, as the tick does, until <paramref name="done" /> holds.</summary>
     private static async Task UntilAsync(RecordingConnection connection, Func<bool> done)
     {
-        DateTime deadline = DateTime.UtcNow + Limit;
+        DateTime deadline = DateTime.UtcNow + s_limit;
         while (true)
         {
             connection.FlushContinuations();
@@ -314,7 +314,7 @@ public class CharacterLeaveShould : IDisposable
 
     private static CharacterEntity Spawn(RecordingConnection connection, MapInstance town)
     {
-        CharacterEntity live = New(TheCharacter.Value);
+        CharacterEntity live = New(s_theCharacter.Value);
         live.Spells.Load(Array.Empty<IAbility>());
         live.InstanceId = town.InstanceId;
         connection.Character = live;
@@ -363,7 +363,7 @@ public class CharacterLeaveShould : IDisposable
         _sockets.Add(clientSide);
         _sockets.Add(serverSide);
 
-        var connection = new RecordingConnection(server, clientSide) { AccountId = TheAccount };
+        var connection = new RecordingConnection(server, clientSide) { AccountId = s_theAccount };
         GameplayTestAdmission.Admit(connection);
         server.Add(connection);
         return connection;
@@ -517,7 +517,7 @@ public class CharacterLeaveShould : IDisposable
 
         await world.LoadAsync(CancellationToken.None);
         if (town is not null)
-            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).Published(world).WaitAsync(Limit);
+            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).Published(world).WaitAsync(s_limit);
         return world;
     }
 

@@ -16,13 +16,13 @@ public class PersonalAccessTokenServiceShould
 {
     private readonly IPersonalAccessTokenRepository _repo = Substitute.For<IPersonalAccessTokenRepository>();
     private readonly ISecureRandom _random = Substitute.For<ISecureRandom>();
-    private static readonly DateTimeOffset FixedNow = DateTime.Parse("2026-04-22Z").ToUniversalTime();
-    private readonly TimeProvider _time = new FakeTimeProvider(FixedNow);
+    private static readonly DateTimeOffset s_fixedNow = DateTime.Parse("2026-04-22Z").ToUniversalTime();
+    private readonly TimeProvider _time = new FakeTimeProvider(s_fixedNow);
 
     private PersonalAccessTokenService MakeSut() => new(_repo, _random, _time);
 
     /// <summary>A current-password check that passed a moment ago.</summary>
-    private static readonly Reauthenticated Proof = new(new AccountId(7), 0);
+    private static readonly Reauthenticated s_proof = new(new AccountId(7), 0);
 
     [Fact]
     public async Task MintSelf_DefaultsRolesToCallerRoles_WhenRequestedRolesOmitted()
@@ -39,7 +39,7 @@ public class PersonalAccessTokenServiceShould
             name: "ci",
             expiresAt: null,
             requestedRoles: null,
-            Proof,
+            s_proof,
             CancellationToken.None);
 
         Assert.Equal(AccountAccessLevel.Player | AccountAccessLevel.GameMaster, result.Roles);
@@ -57,7 +57,7 @@ public class PersonalAccessTokenServiceShould
             name: "ci",
             expiresAt: null,
             requestedRoles: AccountAccessLevel.Admin,
-            Proof,
+            s_proof,
             CancellationToken.None));
     }
 
@@ -76,7 +76,7 @@ public class PersonalAccessTokenServiceShould
             name: "svc",
             expiresAt: null,
             requestedRoles: AccountAccessLevel.GameMaster,
-            Proof,
+            s_proof,
             CancellationToken.None);
 
         Assert.Equal(AccountAccessLevel.GameMaster, result.Roles);
@@ -92,7 +92,7 @@ public class PersonalAccessTokenServiceShould
             name: "svc",
             expiresAt: null,
             requestedRoles: AccountAccessLevel.Console,
-            Proof,
+            s_proof,
             CancellationToken.None));
     }
 
@@ -100,14 +100,14 @@ public class PersonalAccessTokenServiceShould
     public async Task Mint_Throws_WhenExpiryBeyondMaxLifetime()
     {
         PersonalAccessTokenService sut = MakeSut();
-        DateTime tooFar = FixedNow.UtcDateTime.AddDays(400);
+        DateTime tooFar = s_fixedNow.UtcDateTime.AddDays(400);
         await Assert.ThrowsAsync<BusinessException>(() => sut.MintSelfAsync(
             callerId: new AccountId(7),
             callerRoles: AccountAccessLevel.Player,
             name: "ci",
             expiresAt: tooFar,
             requestedRoles: null,
-            Proof,
+            s_proof,
             CancellationToken.None));
     }
 

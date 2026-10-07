@@ -67,7 +67,7 @@ public class ConnectionProxyProtocolShould
         return (connection, client, listener);
     }
 
-    private static readonly TimeSpan Wait = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan s_wait = TimeSpan.FromSeconds(10);
 
     [Fact]
     public async Task Take_the_client_address_from_a_trusted_proxy_header()
@@ -78,7 +78,7 @@ public class ConnectionProxyProtocolShould
             await client.GetStream().WriteAsync(ProxyProtocolV2Should.ProxyTcp4("203.0.113.7", 51000));
             await connection.StartAsync(CancellationToken.None);
 
-            await connection.StreamRequested.Task.WaitAsync(Wait);
+            await connection.StreamRequested.Task.WaitAsync(s_wait);
 
             Assert.Equal("203.0.113.7:51000", connection.RemoteEndPoint);
             // Worked out once per connection, not per packet, for the telemetry.
@@ -95,7 +95,7 @@ public class ConnectionProxyProtocolShould
         {
             await connection.StartAsync(CancellationToken.None);
 
-            await connection.StreamRequested.Task.WaitAsync(Wait);
+            await connection.StreamRequested.Task.WaitAsync(s_wait);
 
             Assert.StartsWith("127.0.0.1:", connection.RemoteEndPoint);
             Assert.Equal("127.0.0.1", connection.ClientAddress);
@@ -115,7 +115,7 @@ public class ConnectionProxyProtocolShould
             await client.GetStream().WriteAsync(notProxy);
             await connection.StartAsync(CancellationToken.None);
 
-            await connection.Closed.Task.WaitAsync(Wait);
+            await connection.Closed.Task.WaitAsync(s_wait);
 
             Assert.False(connection.StreamRequested.Task.IsCompleted);
             Assert.Equal(1, logger.Count(LogLevel.Warning));
@@ -132,7 +132,7 @@ public class ConnectionProxyProtocolShould
         {
             await connection.StartAsync(CancellationToken.None);
 
-            await connection.Closed.Task.WaitAsync(Wait);
+            await connection.Closed.Task.WaitAsync(s_wait);
 
             Assert.False(connection.StreamRequested.Task.IsCompleted);
             Assert.Equal(1, logger.Count(LogLevel.Warning));
@@ -151,7 +151,7 @@ public class ConnectionProxyProtocolShould
             client.Dispose();
             await connection.StartAsync(CancellationToken.None);
 
-            await connection.Closed.Task.WaitAsync(Wait);
+            await connection.Closed.Task.WaitAsync(s_wait);
 
             Assert.False(connection.StreamRequested.Task.IsCompleted);
             Assert.Equal(0, logger.Count(LogLevel.Warning));
@@ -171,7 +171,7 @@ public class ConnectionProxyProtocolShould
             client.Dispose();
             await connection.StartAsync(CancellationToken.None);
 
-            await connection.Closed.Task.WaitAsync(Wait);
+            await connection.Closed.Task.WaitAsync(s_wait);
 
             Assert.False(connection.StreamRequested.Task.IsCompleted);
             Assert.Equal(1, logger.Count(LogLevel.Warning));
@@ -187,7 +187,7 @@ public class ConnectionProxyProtocolShould
         {
             await connection.StartAsync(CancellationToken.None);
 
-            await connection.StreamRequested.Task.WaitAsync(Wait);
+            await connection.StreamRequested.Task.WaitAsync(s_wait);
 
             Assert.StartsWith("127.0.0.1:", connection.RemoteEndPoint);
             listener.Stop();

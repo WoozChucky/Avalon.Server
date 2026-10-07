@@ -32,25 +32,25 @@ public static class TownPieces
     private static WallSegment Wall(string name, float minX, float maxX, float minZ, float maxZ) => new(name, minX, maxX, minZ, maxZ);
 
     // Today's wall boxes (0.5 m thick, centred on the cell edge; the inner walls open at 12-18).
-    private static readonly WallSegment WallN = Wall("Wall_N", 0, 30, 29.75f, 30.25f);
-    private static readonly WallSegment WallNL = Wall("Wall_N_L", 0, 12, 29.75f, 30.25f);
-    private static readonly WallSegment WallNR = Wall("Wall_N_R", 18, 30, 29.75f, 30.25f);
-    private static readonly WallSegment WallS = Wall("Wall_S", 0, 30, -0.25f, 0.25f);
-    private static readonly WallSegment WallSL = Wall("Wall_S_L", 0, 12, -0.25f, 0.25f);
-    private static readonly WallSegment WallSR = Wall("Wall_S_R", 18, 30, -0.25f, 0.25f);
-    private static readonly WallSegment WallE = Wall("Wall_E", 29.75f, 30.25f, 0, 30);
-    private static readonly WallSegment WallEL = Wall("Wall_E_L", 29.75f, 30.25f, 0, 12);
-    private static readonly WallSegment WallER = Wall("Wall_E_R", 29.75f, 30.25f, 18, 30);
-    private static readonly WallSegment WallW = Wall("Wall_W", -0.25f, 0.25f, 0, 30);
-    private static readonly WallSegment WallWL = Wall("Wall_W_L", -0.25f, 0.25f, 0, 12);
-    private static readonly WallSegment WallWR = Wall("Wall_W_R", -0.25f, 0.25f, 18, 30);
+    private static readonly WallSegment s_wallN = Wall("Wall_N", 0, 30, 29.75f, 30.25f);
+    private static readonly WallSegment s_wallNL = Wall("Wall_N_L", 0, 12, 29.75f, 30.25f);
+    private static readonly WallSegment s_wallNR = Wall("Wall_N_R", 18, 30, 29.75f, 30.25f);
+    private static readonly WallSegment s_wallS = Wall("Wall_S", 0, 30, -0.25f, 0.25f);
+    private static readonly WallSegment s_wallSL = Wall("Wall_S_L", 0, 12, -0.25f, 0.25f);
+    private static readonly WallSegment s_wallSR = Wall("Wall_S_R", 18, 30, -0.25f, 0.25f);
+    private static readonly WallSegment s_wallE = Wall("Wall_E", 29.75f, 30.25f, 0, 30);
+    private static readonly WallSegment s_wallEL = Wall("Wall_E_L", 29.75f, 30.25f, 0, 12);
+    private static readonly WallSegment s_wallER = Wall("Wall_E_R", 29.75f, 30.25f, 18, 30);
+    private static readonly WallSegment s_wallW = Wall("Wall_W", -0.25f, 0.25f, 0, 30);
+    private static readonly WallSegment s_wallWL = Wall("Wall_W_L", -0.25f, 0.25f, 0, 12);
+    private static readonly WallSegment s_wallWR = Wall("Wall_W_R", -0.25f, 0.25f, 18, 30);
 
     public static IReadOnlyList<TownSquare> Squares() =>
     [
-        new("town_sw_01", 0, 0, [Side.N, Side.E], [WallNL, WallNR, WallEL, WallER, WallS, WallW], Arrival(), IsEntry: true, HasForwardPortal: false, ["town", "entry"]),
-        new("town_se_01", 1, 0, [Side.N, Side.W], [WallNL, WallNR, WallE, WallS, WallWL, WallWR], Market(), IsEntry: false, HasForwardPortal: false, ["town"]),
-        new("town_nw_01", 0, 1, [Side.E, Side.S], [WallN, WallEL, WallER, WallSL, WallSR, WallW], Portal(), IsEntry: false, HasForwardPortal: true, ["town"]),
-        new("town_ne_01", 1, 1, [Side.S, Side.W], [WallN, WallE, WallSL, WallSR, WallWL, WallWR], BankAndInn(), IsEntry: false, HasForwardPortal: false, ["town"]),
+        new("town_sw_01", 0, 0, [Side.N, Side.E], [s_wallNL, s_wallNR, s_wallEL, s_wallER, s_wallS, s_wallW], Arrival(), IsEntry: true, HasForwardPortal: false, ["town", "entry"]),
+        new("town_se_01", 1, 0, [Side.N, Side.W], [s_wallNL, s_wallNR, s_wallE, s_wallS, s_wallWL, s_wallWR], Market(), IsEntry: false, HasForwardPortal: false, ["town"]),
+        new("town_nw_01", 0, 1, [Side.E, Side.S], [s_wallN, s_wallEL, s_wallER, s_wallSL, s_wallSR, s_wallW], Portal(), IsEntry: false, HasForwardPortal: true, ["town"]),
+        new("town_ne_01", 1, 1, [Side.S, Side.W], [s_wallN, s_wallE, s_wallSL, s_wallSR, s_wallWL, s_wallWR], BankAndInn(), IsEntry: false, HasForwardPortal: false, ["town"]),
     ];
 
     /// <summary>South-west: the town hall with its porch, the fountain, benches, lamp posts, the notice board.</summary>

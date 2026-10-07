@@ -19,7 +19,7 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestTurnInShould
 {
-    private static readonly ItemTemplateId TuskId = new(Tusk);
+    private static readonly ItemTemplateId s_tuskId = new(Tusk);
 
     /// <summary>Tusks accepted, both tusks in the bag (ready), and a conversation open with its ender.</summary>
     private static async Task<(QuestTestWorld W, QuestClient C, Creature Ender)> ReadyTusksAsync(
@@ -29,7 +29,7 @@ public class QuestTurnInShould
         QuestClient c = w.Join(money: money);
         QuestTestWorld.Complete(c, Hunt);
         w.Accept(c, Tusks);
-        w.Economy.InventoryOf(c.Character).TryAdd(TuskId, 2);
+        w.Economy.InventoryOf(c.Character).TryAdd(s_tuskId, 2);
         QuestFlusher.Flush(c.Connection, w.Quests);
         Assert.Equal(CharacterQuestState.ReadyToTurnIn, c.Character.Quests.Get(Tusks)!.State);
         Creature ender = w.Place(Ender);

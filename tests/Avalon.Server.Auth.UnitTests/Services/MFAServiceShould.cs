@@ -17,7 +17,7 @@ namespace Avalon.Server.Auth.UnitTests.Services;
 /// </summary>
 public class MFAServiceShould
 {
-    private static readonly AccountId AccountId = new(7L);
+    private static readonly AccountId s_accountId = new(7L);
 
     private readonly IMfaSetupRepository _repository = Substitute.For<IMfaSetupRepository>();
     private readonly IMFAHashService _hashService = Substitute.For<IMFAHashService>();
@@ -85,7 +85,7 @@ public class MFAServiceShould
 
     private static Account NewAccount() => new()
     {
-        Id = AccountId,
+        Id = s_accountId,
         Username = "player",
         Email = "player@example.com",
         Salt = [],
@@ -99,7 +99,7 @@ public class MFAServiceShould
         Assert.True(setup.Success);
 
         string totp = new Totp(_row!.Secret).ComputeTotp();
-        MFAConfirmResult confirm = await service.ConfirmMFAAsync(AccountId, 0, totp);
+        MFAConfirmResult confirm = await service.ConfirmMFAAsync(s_accountId, 0, totp);
         Assert.True(confirm.Success);
         Assert.NotNull(confirm.RecoveryCodes);
         Assert.Equal(3, confirm.RecoveryCodes!.Length);
@@ -124,7 +124,7 @@ public class MFAServiceShould
             Enumerable.Repeat((byte)0xFF, 10).ToArray(),
             new byte[] { 0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB });
 
-        MFAConfirmResult confirm = await service.ConfirmMFAAsync(AccountId, 0, new Totp(_row!.Secret).ComputeTotp());
+        MFAConfirmResult confirm = await service.ConfirmMFAAsync(s_accountId, 0, new Totp(_row!.Secret).ComputeTotp());
 
         Assert.True(confirm.Success);
         Assert.Equal(
@@ -154,7 +154,7 @@ public class MFAServiceShould
         MFAService service = CreateService();
         string[] codes = await SetUpAndConfirmAsync(service);
 
-        MFAResetResult result = await service.ResetMFAAsync(AccountId, 0, codes[0], codes[1], codes[2]);
+        MFAResetResult result = await service.ResetMFAAsync(s_accountId, 0, codes[0], codes[1], codes[2]);
 
         Assert.True(result.Success);
         Assert.Equal(MFAOperationResult.Success, result.Status);
@@ -166,7 +166,7 @@ public class MFAServiceShould
         MFAService service = CreateService();
         string[] codes = await SetUpAndConfirmAsync(service);
 
-        MFAResetResult result = await service.ResetMFAAsync(AccountId, 0, codes[0].ToLowerInvariant(), codes[1].Replace("-", ""), $" {codes[2]} ");
+        MFAResetResult result = await service.ResetMFAAsync(s_accountId, 0, codes[0].ToLowerInvariant(), codes[1].Replace("-", ""), $" {codes[2]} ");
 
         Assert.True(result.Success);
     }
@@ -177,7 +177,7 @@ public class MFAServiceShould
         MFAService service = CreateService();
         string[] codes = await SetUpAndConfirmAsync(service);
 
-        MFAResetResult result = await service.ResetMFAAsync(AccountId, 0, codes[0], "0000-0000-0000-0000", codes[2]);
+        MFAResetResult result = await service.ResetMFAAsync(s_accountId, 0, codes[0], "0000-0000-0000-0000", codes[2]);
 
         Assert.False(result.Success);
         Assert.Equal(MFAOperationResult.InvalidCode, result.Status);
@@ -195,7 +195,7 @@ public class MFAServiceShould
         string[] attempt = (string[])codes.Clone();
         attempt[index] = ChangeLastCharacter(attempt[index]);
 
-        MFAResetResult result = await service.ResetMFAAsync(AccountId, 0, attempt[0], attempt[1], attempt[2]);
+        MFAResetResult result = await service.ResetMFAAsync(s_accountId, 0, attempt[0], attempt[1], attempt[2]);
 
         Assert.False(result.Success);
         Assert.Equal(MFAOperationResult.InvalidCode, result.Status);
@@ -208,8 +208,8 @@ public class MFAServiceShould
         MFAService service = CreateService();
         string[] codes = await SetUpAndConfirmAsync(service);
 
-        MFAResetResult first = await service.ResetMFAAsync(AccountId, 0, codes[0], codes[1], codes[2]);
-        MFAResetResult second = await service.ResetMFAAsync(AccountId, 0, codes[0], codes[1], codes[2]);
+        MFAResetResult first = await service.ResetMFAAsync(s_accountId, 0, codes[0], codes[1], codes[2]);
+        MFAResetResult second = await service.ResetMFAAsync(s_accountId, 0, codes[0], codes[1], codes[2]);
 
         Assert.True(first.Success);
         Assert.False(second.Success);
@@ -225,7 +225,7 @@ public class MFAServiceShould
             Encoding.UTF8.GetBytes(legacy[1]),
             Encoding.UTF8.GetBytes(legacy[2]));
 
-        MFAResetResult result = await CreateService().ResetMFAAsync(AccountId, 0, legacy[0], legacy[1], legacy[2]);
+        MFAResetResult result = await CreateService().ResetMFAAsync(s_accountId, 0, legacy[0], legacy[1], legacy[2]);
 
         Assert.False(result.Success);
         Assert.Equal(MFAOperationResult.InvalidCode, result.Status);
@@ -237,7 +237,7 @@ public class MFAServiceShould
     {
         _row = ConfirmedRow([], [], []);
 
-        MFAResetResult result = await CreateService().ResetMFAAsync(AccountId, 0, "", "", "");
+        MFAResetResult result = await CreateService().ResetMFAAsync(s_accountId, 0, "", "", "");
 
         Assert.False(result.Success);
         Assert.NotNull(_row);
@@ -246,7 +246,7 @@ public class MFAServiceShould
     private static MFASetup ConfirmedRow(byte[] r1, byte[] r2, byte[] r3) => new()
     {
         Id = Guid.NewGuid(),
-        AccountId = AccountId,
+        AccountId = s_accountId,
         Secret = KeyGeneration.GenerateRandomKey(32),
         RecoveryCode1 = r1,
         RecoveryCode2 = r2,

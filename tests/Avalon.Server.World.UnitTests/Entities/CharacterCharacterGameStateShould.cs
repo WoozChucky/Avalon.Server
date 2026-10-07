@@ -59,10 +59,10 @@ public class CharacterCharacterGameStateShould
 
     private static Dictionary<ObjectGuid, GameEntityFields> EmptyDirty() => new();
 
-    private static readonly ObjectGuid Viewer = new(ObjectType.Character, 593_999u);
-    private static readonly InterestRange Range = new(60f, 10f);
+    private static readonly ObjectGuid s_viewer = new(ObjectType.Character, 593_999u);
+    private static readonly InterestRange s_range = new(60f, 10f);
 
-    /// <summary>Updates the state for a watcher (<see cref="Viewer" /> unless named) at the origin unless placed.</summary>
+    /// <summary>Updates the state for a watcher (<see cref="s_viewer" /> unless named) at the origin unless placed.</summary>
     private static void Watch(CharacterCharacterGameState state,
         Dictionary<ObjectGuid, ICreature> creatures,
         Dictionary<ObjectGuid, ICharacter> characters,
@@ -70,7 +70,7 @@ public class CharacterCharacterGameStateShould
         IReadOnlyDictionary<ObjectGuid, GameEntityFields> dirty,
         Vector3 at = default,
         ObjectGuid? watcher = null)
-        => state.Update(watcher ?? Viewer, at, Range, creatures, characters, worldObjects, dirty);
+        => state.Update(watcher ?? s_viewer, at, s_range, creatures, characters, worldObjects, dirty);
 
     private static IWorldObject MakeProjectile(uint id, Vector3 position)
     {

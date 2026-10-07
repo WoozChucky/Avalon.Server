@@ -12,7 +12,7 @@ public sealed record ReportContext(DateTimeOffset GeneratedAt, string Commit, in
 /// <summary>One self-contained page: inline CSS and SVG, no scripts, light and dark.</summary>
 public static class HtmlReport
 {
-    private static readonly CharacterClass[] ClassOrder =
+    private static readonly CharacterClass[] s_classOrder =
         [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Healer];
 
     private const string Css = """
@@ -148,7 +148,7 @@ public static class HtmlReport
         sb.Append("<div class=\"scroll\"><table><tr><th>Class</th>");
         foreach (ushort l in levels) sb.Append("<th>L").Append(l).Append("</th>");
         sb.Append("</tr>");
-        foreach (CharacterClass c in ClassOrder)
+        foreach (CharacterClass c in s_classOrder)
         {
             if (!ctx.Rows.Any(r => r.Key.Class == c && r.Key.Scenario == scenario && r.Key.Gear == gear)) continue;
             sb.Append("<tr><th>").Append(c).Append("</th>");
@@ -176,7 +176,7 @@ public static class HtmlReport
 
     private static IEnumerable<(int Slot, CharacterClass Class, double?[] Values)> Series(List<RowResult> rows, List<ushort> levels,
         Func<RowResult, double> pick) =>
-        ClassOrder.Select((c, i) => (Slot: i + 1, Class: c,
+        s_classOrder.Select((c, i) => (Slot: i + 1, Class: c,
                 Values: levels.Select(l => rows.FirstOrDefault(r => r.Key.Class == c && r.Key.Level == l) is { } r ? pick(r) : (double?)null).ToArray()))
             .Where(s => s.Values.Any(v => v is not null));
 
@@ -184,29 +184,29 @@ public static class HtmlReport
         IEnumerable<(int Slot, CharacterClass Class, double?[] Values)> series, Band? band, double yMax, string unit)
     {
         // inset keeps the first and last markers (r 4) off the y-axis labels and the plot edge.
-        const int w = 560, h = 220, left = 44, right = 12, top = 12, bottom = 28, inset = 14;
+        const int W = 560, H = 220, Left = 44, Right = 12, Top = 12, Bottom = 28, Inset = 14;
         yMax = Math.Max(yMax, 1);
-        const double span = w - left - right - 2 * inset;
-        double X(int i) => left + inset + (levels.Count <= 1 ? span / 2d : i * span / (levels.Count - 1));
-        double Y(double v) => top + (h - top - bottom) * (1 - Math.Clamp(v / yMax, 0, 1));
+        const double Span = W - Left - Right - 2 * Inset;
+        double X(int i) => Left + Inset + (levels.Count <= 1 ? Span / 2d : i * Span / (levels.Count - 1));
+        double Y(double v) => Top + (H - Top - Bottom) * (1 - Math.Clamp(v / yMax, 0, 1));
 
         sb.Append("<figure><figcaption>").Append(E(title)).Append(band is null ? "" : $" &middot; target {E(band.Describe(unit))}")
-          .Append("</figcaption><svg viewBox=\"0 0 ").Append(w).Append(' ').Append(h).Append("\" role=\"img\" aria-label=\"").Append(E(title)).Append("\">");
+          .Append("</figcaption><svg viewBox=\"0 0 ").Append(W).Append(' ').Append(H).Append("\" role=\"img\" aria-label=\"").Append(E(title)).Append("\">");
         if (band is not null)
         {
             double y1 = Y(band.Max ?? yMax), y2 = Y(band.Min ?? 0);
-            sb.Append($"<rect class=\"bandrect\" x=\"{left}\" y=\"{F(y1)}\" width=\"{w - left - right}\" height=\"{F(Math.Max(0, y2 - y1))}\"/>");
+            sb.Append($"<rect class=\"bandrect\" x=\"{Left}\" y=\"{F(y1)}\" width=\"{W - Left - Right}\" height=\"{F(Math.Max(0, y2 - y1))}\"/>");
         }
 
         foreach (double tick in new[] { 0, yMax / 2, yMax })
         {
-            sb.Append($"<line class=\"gridline\" x1=\"{left}\" x2=\"{w - right}\" y1=\"{F(Y(tick))}\" y2=\"{F(Y(tick))}\"/>")
-              .Append($"<text x=\"{left - 6}\" y=\"{F(Y(tick) + 4)}\" text-anchor=\"end\">{V(tick)}</text>");
+            sb.Append($"<line class=\"gridline\" x1=\"{Left}\" x2=\"{W - Right}\" y1=\"{F(Y(tick))}\" y2=\"{F(Y(tick))}\"/>")
+              .Append($"<text x=\"{Left - 6}\" y=\"{F(Y(tick) + 4)}\" text-anchor=\"end\">{V(tick)}</text>");
         }
 
-        sb.Append($"<line class=\"axis\" x1=\"{left}\" x2=\"{w - right}\" y1=\"{h - bottom}\" y2=\"{h - bottom}\"/>");
+        sb.Append($"<line class=\"axis\" x1=\"{Left}\" x2=\"{W - Right}\" y1=\"{H - Bottom}\" y2=\"{H - Bottom}\"/>");
         for (int i = 0; i < levels.Count; i++)
-            sb.Append($"<text x=\"{F(X(i))}\" y=\"{h - 10}\" text-anchor=\"middle\">L{levels[i]}</text>");
+            sb.Append($"<text x=\"{F(X(i))}\" y=\"{H - 10}\" text-anchor=\"middle\">L{levels[i]}</text>");
 
         var legend = new StringBuilder("<div class=\"legend\">");
         foreach ((int slot, CharacterClass c, double?[] values) in series)

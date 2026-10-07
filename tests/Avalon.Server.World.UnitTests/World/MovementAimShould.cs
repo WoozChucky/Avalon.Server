@@ -28,7 +28,7 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class MovementAimShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private readonly TestArena _arena = new();
     private readonly InstanceAbilityCastSystem _casts;
@@ -148,7 +148,7 @@ public class MovementAimShould
         _caster.Orientation = new Vector3(0f, 90f, 0f);   // turned to +X during the cast
         for (int i = 0; i < 16; i++)
         {
-            _casts.Update(Tick, []);
+            _casts.Update(s_tick, []);
         }
 
         (_, _, uint castId, AbilityFootprint? started) = Assert.Single(_arena.Started);

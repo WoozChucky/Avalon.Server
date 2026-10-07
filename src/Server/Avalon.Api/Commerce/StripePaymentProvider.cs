@@ -18,7 +18,7 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
         CommerceOptionsValidator.Identifier(config.WebhookSecret, "whsec_"));
     public string Provider => ProviderName;
     private CommerceConfiguration Configuration => options.Value;
-    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+    private static readonly UTF8Encoding s_strictUtf8 = new(false, true);
 
     public Task<CheckoutProviderResult> CreateCheckoutAsync(CheckoutCreateCommand command, CancellationToken ct) => Safe(async () =>
     {
@@ -142,7 +142,7 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
             Enabled();
             if (body.Length == 0 || body.Length > CommercePolicy.MaximumNotificationBytes || now.Kind != DateTimeKind.Utc) throw new PaymentProviderException("INVALID_NOTIFICATION");
             string signature = headers.SingleOrDefault(x => string.Equals(x.Key, "Stripe-Signature", StringComparison.OrdinalIgnoreCase)).Value;
-            Event notification = EventUtility.ConstructEvent(StrictUtf8.GetString(body.Span), signature, Configuration.WebhookSecret, CommercePolicy.NotificationClockSkewSeconds,
+            Event notification = EventUtility.ConstructEvent(s_strictUtf8.GetString(body.Span), signature, Configuration.WebhookSecret, CommercePolicy.NotificationClockSkewSeconds,
                 new DateTimeOffset(now).ToUnixTimeSeconds());
             if (notification.ApiVersion != ApiVersion || notification.Livemode ||
                 notification.Account is { } account && account != Configuration.ProviderAccountId)

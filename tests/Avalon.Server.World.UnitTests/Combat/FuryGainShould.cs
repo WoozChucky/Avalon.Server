@@ -30,7 +30,7 @@ namespace Avalon.Server.World.UnitTests.Combat;
 /// </summary>
 public class FuryGainShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     /// <summary>Cleave as seeded: a cone in front, cost 0, 8 Fury per unit damaged.</summary>
     private static AbilityTemplate Cleave()
@@ -211,7 +211,7 @@ public class FuryGainShould
             new CCastAbilityPacket { AbilityId = 202, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 20f } });
         for (int i = 0; i < 90; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.Equal(40u, near.CurrentHealth);

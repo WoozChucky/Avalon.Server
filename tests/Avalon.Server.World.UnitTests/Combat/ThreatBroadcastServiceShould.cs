@@ -170,12 +170,15 @@ public class ThreatBroadcastServiceShould
 
     // ---------- helpers ----------
 
+    // The record's lower-case properties keep their names: the code standard renames no property (#791).
+#pragma warning disable IDE1006
     private sealed record TestEnv(
         ThreatBroadcastService svc,
         ICombatService combat,
         EncounterRegistry registry,
         ObjectGuid hostileGuid,
         ICreature hostile);
+#pragma warning restore IDE1006
 
     private static TestEnv BuildEnvironment(uint intervalMs = 250, float deltaThreshold = 0.05f)
     {

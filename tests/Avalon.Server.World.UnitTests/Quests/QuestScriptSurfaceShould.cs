@@ -15,7 +15,7 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestScriptSurfaceShould
 {
-    private static readonly HashSet<Type> ReadOnlyParameters =
+    private static readonly HashSet<Type> s_readOnlyParameters =
         [typeof(IQuestContext), typeof(IQuestCharacter), typeof(QuestCreatureView), typeof(QuestInstanceView), typeof(int)];
 
     [Fact]
@@ -28,7 +28,7 @@ public class QuestScriptSurfaceShould
         {
             foreach (ParameterInfo parameter in hook.GetParameters())
             {
-                Assert.True(ReadOnlyParameters.Contains(parameter.ParameterType),
+                Assert.True(s_readOnlyParameters.Contains(parameter.ParameterType),
                     $"{hook.Name}({parameter.ParameterType.Name} {parameter.Name}) hands a script something it could change");
             }
         }

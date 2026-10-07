@@ -12,13 +12,13 @@ namespace Avalon.Server.World.UnitTests.Creatures;
 /// </summary>
 public class MeleeSlotsShould
 {
-    private static readonly ObjectGuid Target = new(ObjectType.Character, 1);
+    private static readonly ObjectGuid s_target = new(ObjectType.Character, 1);
     private static ObjectGuid Creature(uint id) => new(ObjectType.Creature, id);
 
     // Most of these tests care about slot exclusivity/lifecycle, not bearing, so target and
     // claimant share a position — bearing is then a well-defined 0 (Atan2(0, 0)) rather than
     // something the test has to reason about.
-    private static readonly Vector3 TargetPosition = Vector3.zero;
+    private static readonly Vector3 s_targetPosition = Vector3.zero;
 
     [Fact]
     public void Give_Four_Claimants_Four_Distinct_Slots()
@@ -28,7 +28,7 @@ public class MeleeSlotsShould
         var claimed = new List<int>();
         for (uint i = 1; i <= 4; i++)
         {
-            Assert.True(slots.TryClaim(Target, Creature(i), TargetPosition, TargetPosition, out int slot));
+            Assert.True(slots.TryClaim(s_target, Creature(i), s_targetPosition, s_targetPosition, out int slot));
             claimed.Add(slot);
         }
 
@@ -40,10 +40,10 @@ public class MeleeSlotsShould
     public void Refuse_A_Claim_Once_Every_Slot_Is_Taken()
     {
         var slots = new MeleeSlots(slotCount: 2, radius: 1.5f);
-        slots.TryClaim(Target, Creature(1), TargetPosition, TargetPosition, out _);
-        slots.TryClaim(Target, Creature(2), TargetPosition, TargetPosition, out _);
+        slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out _);
+        slots.TryClaim(s_target, Creature(2), s_targetPosition, s_targetPosition, out _);
 
-        Assert.False(slots.TryClaim(Target, Creature(3), TargetPosition, TargetPosition, out _));
+        Assert.False(slots.TryClaim(s_target, Creature(3), s_targetPosition, s_targetPosition, out _));
     }
 
     /// <summary>Review Focus 4. A dies as B arrives, in one tick.</summary>
@@ -51,10 +51,10 @@ public class MeleeSlotsShould
     public void Let_The_Next_Claimant_Take_A_Released_Slot_Immediately()
     {
         var slots = new MeleeSlots(slotCount: 1, radius: 1.5f);
-        slots.TryClaim(Target, Creature(1), TargetPosition, TargetPosition, out int first);
-        slots.Release(Target, Creature(1));
+        slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out int first);
+        slots.Release(s_target, Creature(1));
 
-        Assert.True(slots.TryClaim(Target, Creature(2), TargetPosition, TargetPosition, out int second));
+        Assert.True(slots.TryClaim(s_target, Creature(2), s_targetPosition, s_targetPosition, out int second));
         Assert.Equal(first, second);
     }
 
@@ -62,11 +62,11 @@ public class MeleeSlotsShould
     public void Keep_A_Claimants_Slot_Stable_Across_Repeated_Claims()
     {
         var slots = new MeleeSlots(slotCount: 6, radius: 1.5f);
-        slots.TryClaim(Target, Creature(1), TargetPosition, TargetPosition, out int first);
+        slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out int first);
 
         // A repeat claim from a DIFFERENT position (and so a different bearing) must not move the
         // claimant to a "closer" slot — the slot is fixed at first claim, not re-picked per tick.
-        Assert.True(slots.TryClaim(Target, Creature(1), TargetPosition, new Vector3(-5f, 0f, 0f), out int again));
+        Assert.True(slots.TryClaim(s_target, Creature(1), s_targetPosition, new Vector3(-5f, 0f, 0f), out int again));
         Assert.Equal(first, again);
     }
 
@@ -74,13 +74,13 @@ public class MeleeSlotsShould
     public void Release_Every_Slot_When_The_Target_Dies()
     {
         var slots = new MeleeSlots(slotCount: 2, radius: 1.5f);
-        slots.TryClaim(Target, Creature(1), TargetPosition, TargetPosition, out _);
-        slots.TryClaim(Target, Creature(2), TargetPosition, TargetPosition, out _);
+        slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out _);
+        slots.TryClaim(s_target, Creature(2), s_targetPosition, s_targetPosition, out _);
 
-        slots.ReleaseTarget(Target);
+        slots.ReleaseTarget(s_target);
 
-        Assert.True(slots.TryClaim(Target, Creature(3), TargetPosition, TargetPosition, out _));
-        Assert.True(slots.TryClaim(Target, Creature(4), TargetPosition, TargetPosition, out _));
+        Assert.True(slots.TryClaim(s_target, Creature(3), s_targetPosition, s_targetPosition, out _));
+        Assert.True(slots.TryClaim(s_target, Creature(4), s_targetPosition, s_targetPosition, out _));
     }
 
     /// <summary>
@@ -95,12 +95,12 @@ public class MeleeSlotsShould
 
         // Slot 0 sits at bearing 0 (target + (radius, 0, 0)). Claim it first, from directly that
         // bearing, so the lowest free index becomes 1 — the wrong answer this test guards against.
-        Assert.True(slots.TryClaim(Target, Creature(1), TargetPosition, new Vector3(1f, 0f, 0f), out int firstSlot));
+        Assert.True(slots.TryClaim(s_target, Creature(1), s_targetPosition, new Vector3(1f, 0f, 0f), out int firstSlot));
         Assert.Equal(0, firstSlot);
 
         // Approaching from directly opposite the target (bearing PI) should claim slot 3, which
         // sits at bearing PI — not slot 1, the lowest still-free index (bearing PI/3).
-        Assert.True(slots.TryClaim(Target, Creature(2), TargetPosition, new Vector3(-5f, 0f, 0f), out int secondSlot));
+        Assert.True(slots.TryClaim(s_target, Creature(2), s_targetPosition, new Vector3(-5f, 0f, 0f), out int secondSlot));
         Assert.Equal(3, secondSlot);
     }
 
@@ -129,25 +129,25 @@ public class MeleeSlotsShould
     [Fact]
     public void Space_Every_Pair_Of_Slots_At_Least_One_Agent_Diameter_Apart()
     {
-        const int slotCount = 6;
-        const float agentDiameter = 1.2f; // 2 * NavmeshBuildSettings.AgentRadius (0.6f)
+        const int SlotCount = 6;
+        const float AgentDiameter = 1.2f; // 2 * NavmeshBuildSettings.AgentRadius (0.6f)
 
-        var slots = new MeleeSlots(slotCount, radius: 1.5f);
+        var slots = new MeleeSlots(SlotCount, radius: 1.5f);
         var centre = new Vector3(10f, 5f, 10f);
 
-        var positions = new Vector3[slotCount];
-        for (int slot = 0; slot < slotCount; slot++)
+        var positions = new Vector3[SlotCount];
+        for (int slot = 0; slot < SlotCount; slot++)
         {
             positions[slot] = slots.PositionFor(centre, slot);
         }
 
-        for (int i = 0; i < slotCount; i++)
+        for (int i = 0; i < SlotCount; i++)
         {
-            for (int j = i + 1; j < slotCount; j++)
+            for (int j = i + 1; j < SlotCount; j++)
             {
                 float distance = Vector3.Distance(positions[i], positions[j]);
-                Assert.True(distance >= agentDiameter,
-                    $"Slots {i} and {j} are only {distance} apart — closer than one agent diameter ({agentDiameter}).");
+                Assert.True(distance >= AgentDiameter,
+                    $"Slots {i} and {j} are only {distance} apart — closer than one agent diameter ({AgentDiameter}).");
             }
         }
     }
@@ -161,11 +161,11 @@ public class MeleeSlotsShould
     public void Release_A_Claimants_Slot_Without_Naming_The_Target()
     {
         var slots = new MeleeSlots(slotCount: 1, radius: 1.5f);
-        Assert.True(slots.TryClaim(Target, Creature(1), TargetPosition, TargetPosition, out int first));
+        Assert.True(slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out int first));
 
         slots.ReleaseClaimant(Creature(1));
 
-        Assert.True(slots.TryClaim(Target, Creature(2), TargetPosition, TargetPosition, out int second));
+        Assert.True(slots.TryClaim(s_target, Creature(2), s_targetPosition, s_targetPosition, out int second));
         Assert.Equal(first, second);
     }
 
@@ -180,11 +180,11 @@ public class MeleeSlotsShould
     public void Prune_The_Targets_Entry_Once_Its_Last_Claimant_Is_Released()
     {
         var slots = new MeleeSlots(slotCount: 2, radius: 1.5f);
-        slots.TryClaim(Target, Creature(1), TargetPosition, TargetPosition, out _);
+        slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out _);
 
-        slots.Release(Target, Creature(1));
+        slots.Release(s_target, Creature(1));
 
-        Assert.False(ClaimsOf(slots).ContainsKey(Target));
+        Assert.False(ClaimsOf(slots).ContainsKey(s_target));
     }
 
     /// <summary>
@@ -199,9 +199,9 @@ public class MeleeSlotsShould
     {
         var slots = new MeleeSlots(slotCount: 0, radius: 1.5f);
 
-        Assert.False(slots.TryClaim(Target, Creature(1), TargetPosition, TargetPosition, out _));
+        Assert.False(slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out _));
 
-        Assert.False(ClaimsOf(slots).ContainsKey(Target));
+        Assert.False(ClaimsOf(slots).ContainsKey(s_target));
     }
 
     private static Dictionary<ObjectGuid, Dictionary<ObjectGuid, int>> ClaimsOf(MeleeSlots slots)

@@ -36,7 +36,7 @@ public struct Mathf
     ///   <para>Radians-to-degrees conversion constant (Read Only).</para>
     /// </summary>
     public const float Rad2Deg = 57.29578f;
-    internal const int kMaxDecimals = 15;
+    internal const int MaxDecimals = 15;
     /// <summary>
     ///   <para>A tiny floating point value (Read Only).</para>
     /// </summary>

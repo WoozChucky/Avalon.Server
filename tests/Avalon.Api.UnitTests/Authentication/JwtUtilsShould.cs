@@ -11,7 +11,7 @@ namespace Avalon.Api.UnitTests.Authentication;
 
 public class JwtUtilsShould
 {
-    private static readonly AuthenticationConfig Config = new()
+    private static readonly AuthenticationConfig s_config = new()
     {
         IssuerSigningKey = new string('k', 64),
         Issuer = "test",
@@ -46,7 +46,7 @@ public class JwtUtilsShould
     [Fact]
     public void EmitPlayerGroupSidClaim_WhenAccountHasPlayerFlagOnly()
     {
-        var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
+        var sut = new JwtUtils(s_config, JwtSigningKey.Create(s_config));
         string token = sut.GenerateJwtToken(MakeAccount(AccountAccessLevel.Player));
 
         string[] groupSids = ReadGroupSids(token);
@@ -57,7 +57,7 @@ public class JwtUtilsShould
     [Fact]
     public void EmitAllMatchingGroupSidClaims_WhenAccountHasMultipleFlags()
     {
-        var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
+        var sut = new JwtUtils(s_config, JwtSigningKey.Create(s_config));
         string token = sut.GenerateJwtToken(MakeAccount(
             AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
 
@@ -71,7 +71,7 @@ public class JwtUtilsShould
     [Fact]
     public void EmitLauncherFamilyOnlyForLauncherToken()
     {
-        var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
+        var sut = new JwtUtils(s_config, JwtSigningKey.Create(s_config));
         Account account = MakeAccount(AccountAccessLevel.Player);
         var familyId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
 

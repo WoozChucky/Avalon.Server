@@ -20,7 +20,7 @@ internal static class Exports
     /// <summary>Where the vector files live under the output root, beside the wire artifacts.</summary>
     private const string VectorsDirectory = "vectors";
 
-    internal static readonly IReadOnlyList<Export> All =
+    internal static readonly IReadOnlyList<Export> s_all =
     [
         new("proto", WireSchema.FileName,
             "the packet contracts as a language-neutral .proto schema",
@@ -86,7 +86,7 @@ internal static class Exports
     ];
 
     internal static Export? ByName(string name)
-        => All.FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        => s_all.FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// A message that no longer exists must lose its file, or the corpus keeps asserting bytes

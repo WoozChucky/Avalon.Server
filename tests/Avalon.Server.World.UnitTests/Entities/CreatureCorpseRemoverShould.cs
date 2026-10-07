@@ -8,9 +8,9 @@ namespace Avalon.Server.World.UnitTests.Entities;
 public class CreatureCorpseRemoverShould
 {
     /// <summary>The shipped default, short because a corpse is still a ticked, broadcast entity.</summary>
-    private static readonly TimeSpan DefaultRemove = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan s_defaultRemove = TimeSpan.FromSeconds(10);
 
-    private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(1);
+    private static readonly TimeSpan s_tick = TimeSpan.FromMilliseconds(1);
 
     private readonly ISimulationContext _simulationContext = Substitute.For<ISimulationContext>();
 
@@ -18,7 +18,7 @@ public class CreatureCorpseRemoverShould
     {
         ICreature creature = Substitute.For<ICreature>();
         ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
-        metadata.BodyRemoveTimer.Returns(remove ?? DefaultRemove);
+        metadata.BodyRemoveTimer.Returns(remove ?? s_defaultRemove);
         creature.Metadata.Returns(metadata);
         return creature;
     }
@@ -31,16 +31,16 @@ public class CreatureCorpseRemoverShould
     public void Tick_Without_Allocating_While_A_Corpse_Waits()
     {
         var remover = new CreatureCorpseRemover(_simulationContext);
-        remover.Update(Tick);
+        remover.Update(s_tick);
         remover.ScheduleRemoval(MakeCreature());
-        remover.Update(Tick);
+        remover.Update(s_tick);
 
         long fewest = long.MaxValue;
         for (int window = 0; window < 3; window++)
         {
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int tick = 0; tick < 100; tick++)
-                remover.Update(Tick);
+                remover.Update(s_tick);
 
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
@@ -67,7 +67,7 @@ public class CreatureCorpseRemoverShould
         var remover = new CreatureCorpseRemover(_simulationContext);
         remover.ScheduleRemoval(creature);
 
-        remover.Update(DefaultRemove - TimeSpan.FromSeconds(1));
+        remover.Update(s_defaultRemove - TimeSpan.FromSeconds(1));
 
         _simulationContext.DidNotReceive().RemoveCreature(Arg.Any<ICreature>());
     }
@@ -79,7 +79,7 @@ public class CreatureCorpseRemoverShould
         var remover = new CreatureCorpseRemover(_simulationContext);
         remover.ScheduleRemoval(creature);
 
-        remover.Update(DefaultRemove + Tick);
+        remover.Update(s_defaultRemove + s_tick);
 
         _simulationContext.Received(1).RemoveCreature(creature);
     }
@@ -91,8 +91,8 @@ public class CreatureCorpseRemoverShould
         var remover = new CreatureCorpseRemover(_simulationContext);
         remover.ScheduleRemoval(creature);
 
-        remover.Update(DefaultRemove + Tick);
-        remover.Update(DefaultRemove + Tick);
+        remover.Update(s_defaultRemove + s_tick);
+        remover.Update(s_defaultRemove + s_tick);
 
         _simulationContext.Received(1).RemoveCreature(creature);
     }
@@ -108,7 +108,7 @@ public class CreatureCorpseRemoverShould
         remover.ScheduleRemoval(second);
         remover.ScheduleRemoval(third);
 
-        remover.Update(DefaultRemove + Tick);
+        remover.Update(s_defaultRemove + s_tick);
 
         _simulationContext.Received(1).RemoveCreature(first);
         _simulationContext.Received(1).RemoveCreature(second);
@@ -126,7 +126,7 @@ public class CreatureCorpseRemoverShould
         var remover = new CreatureCorpseRemover(_simulationContext);
         remover.ScheduleRemoval(lingers);
 
-        remover.Update(DefaultRemove + Tick);
+        remover.Update(s_defaultRemove + s_tick);
         _simulationContext.DidNotReceive().RemoveCreature(lingers);
 
         remover.Update(TimeSpan.FromSeconds(61));

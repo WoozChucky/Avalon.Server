@@ -21,7 +21,7 @@ namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 /// </summary>
 public class AuthoredCreaturePlacementShould
 {
-    private static readonly MapTemplateId TownMap = new(1);
+    private static readonly MapTemplateId s_townMap = new(1);
 
     [Fact]
     public async Task Place_Each_Authored_Row_At_Its_Offset_From_The_Maps_Entry_Point()
@@ -41,7 +41,7 @@ public class AuthoredCreaturePlacementShould
         await BuildService(spawner,
                 Row(1, creature: 1, offset: new Vector3(-3f, 0f, 4f), facing: 143f),
                 Row(2, creature: 2, offset: new Vector3(0f, 0f, 7f), facing: 180f))
-            .PlaceAuthoredAsync(instance, LayoutEnteringAt(new Vector3(100f, 5f, 200f)), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(instance, LayoutEnteringAt(new Vector3(100f, 5f, 200f)), s_townMap, CancellationToken.None);
 
         // Entry (100, 5, 200) + offset, with Y replaced by the sampled ground height.
         spawner.Received(1).Spawn(Arg.Is<CreatureInfo>(i =>
@@ -65,7 +65,7 @@ public class AuthoredCreaturePlacementShould
         IMapInstance instance = StubInstance(groundHeight: 41.5f);
 
         await BuildService(spawner, Row(1, creature: 1, offset: new Vector3(0f, 0f, 0f), facing: 0f))
-            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         spawner.Received(1).Spawn(Arg.Is<CreatureInfo>(i => i.Position.y == 41.5f));
     }
@@ -80,7 +80,7 @@ public class AuthoredCreaturePlacementShould
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(npc);
 
         await BuildService(spawner, Row(1, creature: 1, offset: Vector3.zero, facing: 217f))
-            .PlaceAuthoredAsync(StubInstance(0f), LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(StubInstance(0f), LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         Assert.Equal(217f, npc.Orientation.y);
     }
@@ -101,7 +101,7 @@ public class AuthoredCreaturePlacementShould
         await BuildService(spawner,
                 Row(1, creature: 999, offset: Vector3.zero, facing: 0f),
                 Row(2, creature: 2, offset: Vector3.zero, facing: 0f))
-            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         instance.Received(1).AddCreature(good);
     }
@@ -114,7 +114,7 @@ public class AuthoredCreaturePlacementShould
         IMapInstance instance = StubInstance(0f);
 
         await BuildService(spawner)
-            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         spawner.DidNotReceiveWithAnyArgs().Spawn(default(CreatureInfo)!);
         instance.DidNotReceiveWithAnyArgs().AddCreature(default!);
@@ -145,7 +145,7 @@ public class AuthoredCreaturePlacementShould
 
         await BuildService(spawner, row)
             .PlaceAuthoredAsync(StubInstance(groundHeight: 12f), LayoutEnteringAt(new Vector3(100f, 5f, 200f)),
-                TownMap, CancellationToken.None);
+                s_townMap, CancellationToken.None);
 
         guard.Received(1).PatrolPath = Arg.Is<IReadOnlyList<PatrolPoint>>(path =>
             path.Count == 2
@@ -161,7 +161,7 @@ public class AuthoredCreaturePlacementShould
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(npc);
 
         await BuildService(spawner, Row(1, creature: 1, offset: Vector3.zero, facing: 0f))
-            .PlaceAuthoredAsync(StubInstance(groundHeight: 0f), LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(StubInstance(groundHeight: 0f), LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         npc.DidNotReceiveWithAnyArgs().PatrolPath = default!;
     }
@@ -169,7 +169,7 @@ public class AuthoredCreaturePlacementShould
     private static MapCreatureSpawn Row(int id, ulong creature, Vector3 offset, float facing) => new()
     {
         Id = new MapCreatureSpawnId(id),
-        MapTemplateId = TownMap,
+        MapTemplateId = s_townMap,
         CreatureTemplateId = new CreatureTemplateId(creature),
         OffsetX = offset.x,
         OffsetY = offset.y,

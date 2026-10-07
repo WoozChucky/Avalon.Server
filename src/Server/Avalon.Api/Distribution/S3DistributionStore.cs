@@ -13,7 +13,7 @@ namespace Avalon.Api.Distribution;
 /// </summary>
 public sealed class S3DistributionStore : IDistributionStore, IDisposable
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions s_json = new(JsonSerializerDefaults.Web);
     private readonly AmazonS3Client _reader;
     private readonly AmazonS3Client _presigner;
     private readonly string _bucket;
@@ -40,7 +40,7 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
             return null;
         try
         {
-            return JsonSerializer.Deserialize<ChannelPointer>(json, Json)
+            return JsonSerializer.Deserialize<ChannelPointer>(json, s_json)
                 ?? throw new DistributionUnavailableException($"The {channel.Wire()} channel pointer is empty.");
         }
         catch (JsonException)
@@ -130,7 +130,7 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
         ManifestDocument? doc;
         try
         {
-            doc = JsonSerializer.Deserialize<ManifestDocument>(json, Json);
+            doc = JsonSerializer.Deserialize<ManifestDocument>(json, s_json);
         }
         catch (JsonException)
         {
@@ -151,7 +151,7 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
         RawChangelogEntry? raw;
         try
         {
-            raw = JsonSerializer.Deserialize<RawChangelogEntry>(json, Json);
+            raw = JsonSerializer.Deserialize<RawChangelogEntry>(json, s_json);
         }
         catch (JsonException)
         {

@@ -19,7 +19,7 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestCollectShould
 {
-    private static readonly ItemTemplateId TuskId = new(Tusk);
+    private static readonly ItemTemplateId s_tuskId = new(Tusk);
 
     private static async Task<(QuestTestWorld W, QuestClient C)> WithTusksReadyToAcceptAsync()
     {
@@ -39,7 +39,7 @@ public class QuestCollectShould
     public async Task Count_tusks_already_in_the_bag_at_accept()
     {
         (QuestTestWorld w, QuestClient c) = await WithTusksReadyToAcceptAsync();
-        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(c.Character).TryAdd(TuskId, 1));
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(c.Character).TryAdd(s_tuskId, 1));
 
         w.Accept(c, Tusks);
 
@@ -52,7 +52,7 @@ public class QuestCollectShould
         (QuestTestWorld w, QuestClient c) = await WithTusksReadyToAcceptAsync();
         w.Accept(c, Tusks);
 
-        w.Economy.InventoryOf(c.Character).TryAdd(TuskId, 2);
+        w.Economy.InventoryOf(c.Character).TryAdd(s_tuskId, 2);
         Flush(w, c);
 
         Assert.Equal(2u, c.Character.Quests.Get(Tusks)!.ProgressOf(TusksCollect));
@@ -65,7 +65,7 @@ public class QuestCollectShould
     {
         (QuestTestWorld w, QuestClient c) = await WithTusksReadyToAcceptAsync();
         w.Accept(c, Tusks);
-        w.Economy.InventoryOf(c.Character).TryAdd(TuskId, 2);
+        w.Economy.InventoryOf(c.Character).TryAdd(s_tuskId, 2);
         Flush(w, c);
 
         ushort slot = c.Character.Container(InventoryType.Bag).Items.Single().Slot;
@@ -81,7 +81,7 @@ public class QuestCollectShould
     {
         (QuestTestWorld w, QuestClient c) = await WithTusksReadyToAcceptAsync();
         w.Accept(c, Tusks);
-        w.Economy.InventoryOf(c.Character).TryAdd(TuskId, 1);
+        w.Economy.InventoryOf(c.Character).TryAdd(s_tuskId, 1);
         Flush(w, c);
 
         ushort slot = c.Character.Container(InventoryType.Bag).Items.Single().Slot;
@@ -109,8 +109,8 @@ public class QuestCollectShould
 
         w.Quests.Abandon(c.Character, Tusks);
 
-        Assert.DoesNotContain(c.Character.Container(InventoryType.Bag).Items, i => i.TemplateId == TuskId);
-        Assert.DoesNotContain(c.Character.Container(InventoryType.Bank).Items, i => i.TemplateId == TuskId);
+        Assert.DoesNotContain(c.Character.Container(InventoryType.Bag).Items, i => i.TemplateId == s_tuskId);
+        Assert.DoesNotContain(c.Character.Container(InventoryType.Bank).Items, i => i.TemplateId == s_tuskId);
         Assert.Equal(SaveState.Removed, c.Character.SaveState.ItemState(inBag.InstanceId));
         Assert.Equal(SaveState.Removed, c.Character.SaveState.ItemState(inBank.InstanceId));
         Assert.Contains((InventoryType.Bag, (ushort)4), c.Character.ClientChanges.Slots);

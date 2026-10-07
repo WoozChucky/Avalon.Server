@@ -21,8 +21,8 @@ namespace Avalon.Server.World.UnitTests.Loot;
 public class LootPickupShould
 {
     private const float Range = 5f;
-    private static readonly DateTime Now = new(2026, 9, 25, 12, 0, 0, DateTimeKind.Utc);
-    private static readonly ObjectGuid DropGuid = new(ObjectType.Loot, 1);
+    private static readonly DateTime s_now = new(2026, 9, 25, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly ObjectGuid s_dropGuid = new(ObjectType.Loot, 1);
 
     private readonly GroundLootStore _store = new();
     private readonly CharacterEntity _picker = New(id: 7);
@@ -39,17 +39,17 @@ public class LootPickupShould
     private void Drop(ItemTemplateId? item = null, uint count = 1, ulong gold = 0, uint? owner = 7,
         DateTime? freeForAllAt = null, Vector3? at = null) => _store.Add(new GroundLoot
         {
-            Guid = DropGuid,
+            Guid = s_dropGuid,
             Position = at ?? new Vector3(1f, 0f, 1f),
             ItemTemplateId = item,
             Count = count,
             Gold = gold,
             OwnerCharacterId = owner,
-            FreeForAllAt = freeForAllAt ?? Now.AddSeconds(30),
+            FreeForAllAt = freeForAllAt ?? s_now.AddSeconds(30),
         });
 
     private LootPickupOutcome PickUp(CharacterEntity? picker = null, GroundLootStore? store = null) =>
-        LootPickup.TryPickUp(picker ?? _picker, store ?? _store, DropGuid, Range, Now, Economy(), NullLogger.Instance);
+        LootPickup.TryPickUp(picker ?? _picker, store ?? _store, s_dropGuid, Range, s_now, Economy(), NullLogger.Instance);
 
     private void FillBag() => _picker.Container(InventoryType.Bag)
         .Load(Enumerable.Range(0, 30).Select(s => Item((ushort)s, Sword)).ToList());
@@ -101,7 +101,7 @@ public class LootPickupShould
         Drop(gold: 25);
 
         Assert.Equal(LootPickupResult.NotFound,
-            LootPickup.TryPickUp(_picker, null, DropGuid, Range, Now, Economy(), NullLogger.Instance).Result);
+            LootPickup.TryPickUp(_picker, null, s_dropGuid, Range, s_now, Economy(), NullLogger.Instance).Result);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class LootPickupShould
     [Fact]
     public void Let_Another_Character_Take_It_Once_The_Grace_Period_Is_Over()
     {
-        Drop(gold: 25, owner: 99, freeForAllAt: Now);
+        Drop(gold: 25, owner: 99, freeForAllAt: s_now);
 
         Assert.Equal(LootPickupResult.Ok, PickUp().Result);
     }
@@ -141,7 +141,7 @@ public class LootPickupShould
     [Fact]
     public void Let_Anyone_Take_A_Drop_Nobody_Owns()
     {
-        Drop(gold: 25, owner: null, freeForAllAt: Now);
+        Drop(gold: 25, owner: null, freeForAllAt: s_now);
 
         Assert.Equal(LootPickupResult.Ok, PickUp().Result);
     }
@@ -191,7 +191,7 @@ public class LootPickupShould
     public void Give_Only_The_First_Of_Two_Pickups_Of_The_Same_Drop()
     {
         CharacterEntity other = New(id: 8);
-        Drop(item: Sword.Id, owner: null, freeForAllAt: Now);
+        Drop(item: Sword.Id, owner: null, freeForAllAt: s_now);
 
         Assert.Equal(LootPickupResult.Ok, PickUp().Result);
         Assert.Equal(LootPickupResult.NotFound, PickUp(picker: other).Result);
@@ -222,7 +222,7 @@ public class LootPickupShould
 
         var logger = new ErrorCountingLogger();
 
-        LootPickupOutcome outcome = LootPickup.TryPickUp(_picker, _store, DropGuid, Range, Now, economy, logger);
+        LootPickupOutcome outcome = LootPickup.TryPickUp(_picker, _store, s_dropGuid, Range, s_now, economy, logger);
 
         Assert.Equal(new LootPickupOutcome(LootPickupResult.NotFound, Removed: false), outcome);
         Assert.Equal(1, _store.Count);

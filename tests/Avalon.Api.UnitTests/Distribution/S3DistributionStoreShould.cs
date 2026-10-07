@@ -53,7 +53,7 @@ public class S3DistributionStoreShould
     [Fact]
     public void Read_a_manifest_and_ignore_fields_it_does_not_know()
     {
-        const string json = """
+        const string Json = """
             { "schema": 1, "product": "avalon-client", "channel": "live", "platform": "windows-x64",
               "version": "0.2.0", "build": "0.2.0+142.1a2b3c4", "publishedAt": "2026-10-01T18:00:00Z",
               "minLauncherVersion": "1.0.0", "launch": { "exe": "runtime.exe", "args": [] },
@@ -61,7 +61,7 @@ public class S3DistributionStoreShould
               "files": [ { "path": "runtime.exe", "size": 12, "sha256": "ab" } ] }
             """;
 
-        ManifestDocument doc = S3DistributionStore.ParseManifest(json);
+        ManifestDocument doc = S3DistributionStore.ParseManifest(Json);
 
         Assert.Equal("0.2.0+142.1a2b3c4", doc.Build);
         Assert.Equal(new DateTimeOffset(2026, 10, 1, 18, 0, 0, TimeSpan.Zero), doc.PublishedAt);
@@ -78,13 +78,13 @@ public class S3DistributionStoreShould
     [Fact]
     public void Read_the_launcher_release_from_taurus_format_plus_the_installer_block()
     {
-        const string json = """
+        const string Json = """
             { "version": "1.0.0", "notes": "first", "pub_date": "2026-10-01T18:00:00Z",
               "platforms": { "windows-x86_64": { "signature": "tsig", "url": "launcher/1.0.0/a.nsis.zip" } },
               "installer": { "key": "launcher/1.0.0/a-setup.exe", "size": 6502400, "sha256": "ee" } }
             """;
 
-        LauncherRelease release = S3DistributionStore.ParseLauncher(json);
+        LauncherRelease release = S3DistributionStore.ParseLauncher(Json);
 
         Assert.Equal("tsig", release.SignatureWindows);
         Assert.Equal("launcher/1.0.0/a.nsis.zip", release.UpdateKey);
@@ -129,14 +129,14 @@ public class S3DistributionStoreShould
     [Fact]
     public void Read_a_changelog_entry_without_its_commit()
     {
-        const string json = """
+        const string Json = """
             {"schema":1,"product":"server","channel":null,"version":"0.6.0","build":null,"commit":"35ab8b1f",
              "publishedAt":"2026-09-27T14:38:05Z","releaseUrl":"https://github.com/WoozChucky/Avalon.Server/releases/tag/v0.6.0",
              "items":[{"kind":"new","text":"Added browser sign-in to the launcher.","breaking":false,"pr":594,
                        "prUrl":"https://github.com/WoozChucky/Avalon.Server/pull/594"}]}
             """;
 
-        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(json);
+        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(Json);
 
         Assert.NotNull(entry);
         Assert.Equal("0.6.0", entry!.Version);
@@ -148,13 +148,13 @@ public class S3DistributionStoreShould
     [Fact]
     public void Read_a_private_repositorys_entry_without_links()
     {
-        const string json = """
+        const string Json = """
             {"schema":1,"product":"client","channel":"ptr","version":"0.1.0","build":"0.1.0+7.811af65","commit":"811af65",
              "publishedAt":"2026-09-27T19:44:32Z","releaseUrl":null,
              "items":[{"kind":"new","text":"Game client builds now list their changes as patch notes.","breaking":false}]}
             """;
 
-        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(json);
+        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(Json);
 
         Assert.Equal("ptr", entry!.Channel);
         Assert.Null(entry.ReleaseUrl);
@@ -173,14 +173,14 @@ public class S3DistributionStoreShould
     [Fact]
     public void Keep_only_https_links_and_whole_items()
     {
-        const string json = """
+        const string Json = """
             {"schema":1,"product":"server","version":"0.6.0","publishedAt":"2026-09-27T14:38:05Z",
              "releaseUrl":"javascript:alert(1)",
              "items":[null,{"kind":"fixed"},{"kind":"new","text":"Added a thing.","breaking":false,"prUrl":"/relative"},
                       {"kind":"fixed","text":"Fixed a thing.","breaking":false,"pr":1,"prUrl":"https://github.com/o/r/pull/1"}]}
             """;
 
-        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(json);
+        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(Json);
 
         Assert.Null(entry!.ReleaseUrl);
         Assert.Equal(["Added a thing.", "Fixed a thing."], entry.Items.Select(i => i.Text));

@@ -17,12 +17,12 @@ public class ExportEndpointsShould
     private const string Token = "github_pat_SECRET_TOKEN_VALUE";
     private const string Edit = """{"title":"Slam tuning","notes":"n","overrides":{"Ability.201.EffectValue":18}}""";
 
-    private static readonly Dictionary<string, string?> WithToken = new() { ["Balance:GitHubToken"] = Token };
+    private static readonly Dictionary<string, string?> s_withToken = new() { ["Balance:GitHubToken"] = Token };
 
     private static WebApplication Build(FakeGitHub github, bool token = true, string? commit = FakeGitHub.Commit,
         Dictionary<string, string?>? extra = null) =>
         BalanceTestHost.Build(
-            extra: extra ?? (token ? WithToken : null),
+            extra: extra ?? (token ? s_withToken : null),
             services: s =>
             {
                 s.AddSingleton<IGitHub>(github);

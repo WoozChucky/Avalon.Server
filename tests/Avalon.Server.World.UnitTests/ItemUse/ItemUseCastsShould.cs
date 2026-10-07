@@ -11,7 +11,7 @@ namespace Avalon.Server.World.UnitTests.ItemUse;
 /// <summary>An item's cast bar (item use): taking damage never ends it; moving, dying and leaving do.</summary>
 public class ItemUseCastsShould
 {
-    private static readonly ItemTemplateId Scroll = new(3);
+    private static readonly ItemTemplateId s_scroll = new(3);
 
     private readonly RecordingAudience _audience = new();
     private readonly CharacterEntity _character = Inventory.TestCharacters.New(7);
@@ -26,7 +26,7 @@ public class ItemUseCastsShould
     private void Start(float seconds = 3f) => _casts.Start(new PendingItemUse
     {
         Character = _character,
-        Item = Scroll,
+        Item = s_scroll,
         StartPosition = _character.Position,
         CastId = _casts.TakeCastId(),
         CastTimeSeconds = seconds,
@@ -45,7 +45,7 @@ public class ItemUseCastsShould
         _casts.Update(TimeSpan.FromSeconds(1));
 
         Assert.Equal(["completed"], _ends);
-        Assert.Equal([("start", Scroll, 1u), ("finish", Scroll, 1u)], _audience.Sent);
+        Assert.Equal([("start", s_scroll, 1u), ("finish", s_scroll, 1u)], _audience.Sent);
         Assert.False(_casts.IsCasting(_character.Guid));
     }
 
@@ -58,7 +58,7 @@ public class ItemUseCastsShould
         _casts.Update(TimeSpan.FromMilliseconds(16));
 
         Assert.Equal(["interrupted"], _ends);
-        Assert.Equal(("interrupt", Scroll, 1u), _audience.Sent[^1]);
+        Assert.Equal(("interrupt", s_scroll, 1u), _audience.Sent[^1]);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class ItemUseCastsShould
         _casts.Start(new PendingItemUse
         {
             Character = _character,
-            Item = Scroll,
+            Item = s_scroll,
             StartPosition = _character.Position,
             CastId = 9,
             CastTimeSeconds = 0.5f,
@@ -151,7 +151,7 @@ public class ItemUseCastsShould
         PendingItemUse OtherCast(float seconds) => new()
         {
             Character = other,
-            Item = Scroll,
+            Item = s_scroll,
             StartPosition = other.Position,
             CastId = _casts.TakeCastId(),
             CastTimeSeconds = seconds,
@@ -163,7 +163,7 @@ public class ItemUseCastsShould
         _casts.Start(new PendingItemUse
         {
             Character = _character,
-            Item = Scroll,
+            Item = s_scroll,
             StartPosition = _character.Position,
             CastId = _casts.TakeCastId(),
             CastTimeSeconds = 1f,
@@ -192,7 +192,7 @@ public class ItemUseCastsShould
         casts.Start(new PendingItemUse
         {
             Character = _character,
-            Item = Scroll,
+            Item = s_scroll,
             StartPosition = _character.Position,
             CastId = casts.TakeCastId(),
             CastTimeSeconds = 1f,

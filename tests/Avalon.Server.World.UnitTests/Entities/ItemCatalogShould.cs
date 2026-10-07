@@ -190,7 +190,7 @@ public class ItemCatalogConnectionShould
 
     // The test assembly declares no UserSecretsId, so a developer's own user-secrets for the World
     // database project cannot decide these tests; production reads that project's.
-    private static readonly System.Reflection.Assembly NoUserSecrets = typeof(ItemCatalogConnectionShould).Assembly;
+    private static readonly System.Reflection.Assembly s_noUserSecrets = typeof(ItemCatalogConnectionShould).Assembly;
 
     private static void InWorkingDirectoryWithAppsettings(string? variable, Action body)
     {
@@ -219,7 +219,7 @@ public class ItemCatalogConnectionShould
     public void Not_Read_An_Appsettings_File_In_The_Working_Directory() =>
         InWorkingDirectoryWithAppsettings(variable: null, () =>
         {
-            string? connectionString = ItemCatalog.ConnectionString(NoUserSecrets);
+            string? connectionString = ItemCatalog.ConnectionString(s_noUserSecrets);
 
             Assert.Null(connectionString);
             string? reason = ItemCatalog.ReadinessFor(connectionString);
@@ -231,7 +231,7 @@ public class ItemCatalogConnectionShould
     public void Use_The_Connection_String_The_Environment_Names() =>
         InWorkingDirectoryWithAppsettings(FromEnvironment, () =>
         {
-            string? connectionString = ItemCatalog.ConnectionString(NoUserSecrets);
+            string? connectionString = ItemCatalog.ConnectionString(s_noUserSecrets);
 
             Assert.Equal(FromEnvironment, connectionString);
             Assert.Null(ItemCatalog.ReadinessFor(connectionString));
@@ -240,5 +240,5 @@ public class ItemCatalogConnectionShould
     [Fact]
     public void Treat_A_Blank_Environment_Value_As_Not_Configured() =>
         InWorkingDirectoryWithAppsettings("   ", () =>
-            Assert.Null(ItemCatalog.ConnectionString(NoUserSecrets)));
+            Assert.Null(ItemCatalog.ConnectionString(s_noUserSecrets)));
 }

@@ -18,7 +18,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class CastTelegraphBroadcastShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private static AbilityTemplate Timed(AbilityTemplate template, uint castTimeMs)
     {
@@ -48,7 +48,7 @@ public class CastTelegraphBroadcastShould
 
         for (int i = 0; i < 12; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         SAbilityFiredPacket fired = Assert.Single(watcher.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED));
@@ -71,7 +71,7 @@ public class CastTelegraphBroadcastShould
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 212 });
         warrior.Character.Position = new Vector3(1f, 0f, 0f);   // a character that moves is interrupted
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         SUnitStartCastPacket start = Assert.Single(watcher.Read<SUnitStartCastPacket>(NetworkPacketType.SMSG_UNIT_START_CAST));
         Assert.Equal((AbilityShape.Cone, 5f, 60f), (start.Footprint!.Shape, start.Footprint.Reach, start.Footprint.ArcDegrees));

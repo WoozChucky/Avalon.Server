@@ -16,8 +16,8 @@ namespace Avalon.Server.World.UnitTests.Creatures;
 /// </summary>
 public class WaypointRepathAllocationShould
 {
-    private static readonly Vector3 Start = new(-12f, 0f, -12f);
-    private static readonly Vector3[] Destinations =
+    private static readonly Vector3 s_start = new(-12f, 0f, -12f);
+    private static readonly Vector3[] s_destinations =
     [
         new(12f, 0f, 12f), new(-12f, 0f, 12f), new(12f, 0f, -12f), new(0f, 0f, 9f),
     ];
@@ -25,14 +25,14 @@ public class WaypointRepathAllocationShould
     private static (WaypointLocomotion Locomotion, MapNavigator Navigator, Creature Creature) Build()
     {
         var navigator = new MapNavigator(NullLoggerFactory.Instance);
-        navigator.LoadFromNavMesh(CrowdLocomotionShould.FlatNavMesh.Value);
+        navigator.LoadFromNavMesh(CrowdLocomotionShould.s_flatNavMesh.Value);
         var locomotion = new WaypointLocomotion(_ => navigator);
         var creature = new Creature
         {
             Guid = new ObjectGuid(ObjectType.Creature, 638),
             TemplateId = new CreatureTemplateId(4),
             Name = "Wolf",
-            Position = Start,
+            Position = s_start,
             Speed = 5f,
             MoveState = MoveState.Running,
         };
@@ -46,9 +46,9 @@ public class WaypointRepathAllocationShould
         (WaypointLocomotion? locomotion, MapNavigator _, Creature? creature) = Build();
 
         // Warm-up: every route once, so each buffer has grown to the longest it will hold.
-        foreach (Vector3 destination in Destinations)
+        foreach (Vector3 destination in s_destinations)
         {
-            creature.Position = Start;
+            creature.Position = s_start;
             locomotion.MoveTo(creature, destination);
             locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
         }
@@ -64,8 +64,8 @@ public class WaypointRepathAllocationShould
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int repath = 0; repath < 100; repath++)
             {
-                creature.Position = Start;
-                locomotion.MoveTo(creature, Destinations[repath % Destinations.Length]);
+                creature.Position = s_start;
+                locomotion.MoveTo(creature, s_destinations[repath % s_destinations.Length]);
                 locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
             }
 

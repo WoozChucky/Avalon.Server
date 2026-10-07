@@ -123,7 +123,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private string? _presenceChange;
 
     /// <summary>The seeded combat formula, for an instance whose world has no reference data loaded (tests).</summary>
-    private static readonly Avalon.Domain.World.CombatFormula SeededFormula = Avalon.Database.World.Seeding.CombatSeed.Formula();
+    private static readonly Avalon.Domain.World.CombatFormula s_seededFormula = Avalon.Database.World.Seeding.CombatSeed.Formula();
     private readonly PvpToggle _pvp;
     private readonly IQuestProgress _quests;
 
@@ -199,7 +199,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _combatService = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time,
             furyFromDamageTaken: world.Configuration.FuryFromDamageTaken,
             random: serviceProvider.GetService<ICombatRandom>(),
-            formula: () => world.Data?.Combat?.Formula ?? SeededFormula);
+            formula: () => world.Data?.Combat?.Formula ?? s_seededFormula);
         _threatBroadcast = new ThreatBroadcastService(combatConfig, _time);
 
         // Auras: one system per instance over its own units, ticked right after the ability cast system on this
@@ -760,11 +760,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private bool Hears(ObjectGuid guid, IWorldConnection connection, ObjectGuid involved, ObjectGuid? alsoInvolved,
         Vector3 point, Vector3? alsoPoint) =>
-        EffectAudience.Receives(guid, connection.Character?.Position ?? Unplaced, _interest.Radius,
+        EffectAudience.Receives(guid, connection.Character?.Position ?? s_unplaced, _interest.Radius,
             involved, alsoInvolved, point, alsoPoint);
 
     /// <summary>The position of a connection with no character: not finite, so never near an effect.</summary>
-    private static readonly Vector3 Unplaced = new(float.NaN, float.NaN, float.NaN);
+    private static readonly Vector3 s_unplaced = new(float.NaN, float.NaN, float.NaN);
 
     public GroundLootStore Drops => _groundLoot;
 

@@ -21,7 +21,7 @@ namespace Avalon.World.Persistence;
 /// </remarks>
 public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks Marks)
 {
-    private static readonly InventoryType[] Containers = [InventoryType.Equipment, InventoryType.Bag, InventoryType.Bank];
+    private static readonly InventoryType[] s_containers = [InventoryType.Equipment, InventoryType.Bag, InventoryType.Bank];
 
     public CharacterId CharacterId => Batch.Row.Id;
 
@@ -40,7 +40,7 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
         DateTime now = DateTime.UtcNow;
 
         Dictionary<ItemInstanceId, InventoryItem> held = [];
-        foreach (InventoryType container in Containers)
+        foreach (InventoryType container in s_containers)
         {
             foreach (InventoryItem item in character.Container(container).Items)
                 held[item.InstanceId] = item;

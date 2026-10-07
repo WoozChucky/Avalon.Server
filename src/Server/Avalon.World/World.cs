@@ -631,7 +631,7 @@ public class World : IWorld
     }
 
     /// <summary>The town a dead logout goes to when the respawn town cannot be looked up at all.</summary>
-    private static readonly MapTemplateId FallbackTownId = new(1);
+    private static readonly MapTemplateId s_fallbackTownId = new(1);
 
     /// <summary>
     /// The database half of "logout while dead": resolves the respawn town for the map the character
@@ -660,20 +660,20 @@ public class World : IWorld
         }
         catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            MapTemplate? fallback = templates.FirstOrDefault(t => t.Id == FallbackTownId);
+            MapTemplate? fallback = templates.FirstOrDefault(t => t.Id == s_fallbackTownId);
             if (fallback is null)
             {
                 logger.LogError(e,
                     "Finding the respawn town for character {CharacterId}, who logged out dead on map {MapId}, failed, " +
                     "and town {FallbackTownId} is not loaded; saving it where it died",
-                    row.Id.Value, diedOn.Value, FallbackTownId.Value);
+                    row.Id.Value, diedOn.Value, s_fallbackTownId.Value);
                 return;
             }
 
             logger.LogError(e,
                 "Finding the respawn town for character {CharacterId}, who logged out dead on map {MapId}, failed; " +
                 "saving it at town {FallbackTownId}",
-                row.Id.Value, diedOn.Value, FallbackTownId.Value);
+                row.Id.Value, diedOn.Value, s_fallbackTownId.Value);
             MoveTo(row, fallback);
             return;
         }

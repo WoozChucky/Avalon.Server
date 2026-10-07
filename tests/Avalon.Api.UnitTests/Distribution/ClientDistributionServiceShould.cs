@@ -15,7 +15,7 @@ public class ClientDistributionServiceShould
 {
     private readonly IDistributionStore _store = Substitute.For<IDistributionStore>();
     private readonly ClientDistributionService _service;
-    private static readonly DateTimeOffset T0 = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset s_t0 = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
 
     public ClientDistributionServiceShould()
     {
@@ -54,7 +54,7 @@ public class ClientDistributionServiceShould
     [Fact]
     public async Task Hide_a_channel_the_caller_may_not_use_without_presigning_anything()
     {
-        Publish(Channel.Dev, Doc("dev", "b1", T0, ("runtime.exe", "aa")));
+        Publish(Channel.Dev, Doc("dev", "b1", s_t0, ("runtime.exe", "aa")));
 
         Assert.Null(await _service.GetManifestAsync(Channel.Dev, AccountAccessLevel.Player, CancellationToken.None));
         _store.DidNotReceiveWithAnyArgs().Presign(default!, default);
@@ -63,7 +63,7 @@ public class ClientDistributionServiceShould
     [Fact]
     public async Task Presign_each_distinct_blob_once_for_an_hour_and_return_the_manifest_bytes_unchanged()
     {
-        Publish(Channel.Live, Doc("live", "b1", T0, ("runtime.exe", "aa"), ("game.pak", "bb"), ("copy.pak", "bb")));
+        Publish(Channel.Live, Doc("live", "b1", s_t0, ("runtime.exe", "aa"), ("game.pak", "bb"), ("copy.pak", "bb")));
 
         ManifestResponse? res = await _service.GetManifestAsync(Channel.Live, AccountAccessLevel.Player, CancellationToken.None);
 
@@ -78,7 +78,7 @@ public class ClientDistributionServiceShould
     [Fact]
     public async Task Answer_unavailable_for_a_channel_whose_pointer_names_a_missing_manifest_but_keep_listing_the_others()
     {
-        Publish(Channel.Live, Doc("live", "b1", T0, ("runtime.exe", "aa")));
+        Publish(Channel.Live, Doc("live", "b1", s_t0, ("runtime.exe", "aa")));
         _store.GetPointerAsync(Channel.Ptr, Arg.Any<CancellationToken>()).Returns(new ChannelPointer("gone", "manifests/ptr/gone.json"));
 
         await Assert.ThrowsAsync<DistributionUnavailableException>(() =>
@@ -91,8 +91,8 @@ public class ClientDistributionServiceShould
     [Fact]
     public async Task List_only_live_releases_to_anonymous_callers_and_add_ptr_for_ptr_accounts()
     {
-        Publish(Channel.Live, Doc("live", "b1", T0, ("runtime.exe", "aa")));
-        Publish(Channel.Ptr, Doc("ptr", "b2", T0.AddDays(2), ("runtime.exe", "cc")));
+        Publish(Channel.Live, Doc("live", "b1", s_t0, ("runtime.exe", "aa")));
+        Publish(Channel.Ptr, Doc("ptr", "b2", s_t0.AddDays(2), ("runtime.exe", "cc")));
 
         IReadOnlyList<ReleaseDto> anonymous = await _service.ListReleasesAsync(null, 10, CancellationToken.None);
         IReadOnlyList<ReleaseDto> ptr = await _service.ListReleasesAsync(AccountAccessLevel.PTR, 10, CancellationToken.None);
@@ -104,7 +104,7 @@ public class ClientDistributionServiceShould
     [Fact]
     public async Task Presign_the_installer_for_fifteen_minutes_and_the_update_bundle_for_an_hour()
     {
-        _store.GetLauncherAsync(Arg.Any<CancellationToken>()).Returns(new LauncherRelease("1.0.0", "first", T0,
+        _store.GetLauncherAsync(Arg.Any<CancellationToken>()).Returns(new LauncherRelease("1.0.0", "first", s_t0,
             "tauri-sig", "launcher/1.0.0/setup.nsis.zip", "launcher/1.0.0/setup.exe", 6502400, "ee"));
 
         LauncherDto? launcher = await _service.GetLauncherAsync(CancellationToken.None);
@@ -124,7 +124,7 @@ public class ClientDistributionServiceShould
     [Fact]
     public async Task Not_remember_a_missing_manifest_so_a_just_completed_release_is_served()
     {
-        ManifestDocument doc = Doc("live", "b1", T0, ("runtime.exe", "aa"));
+        ManifestDocument doc = Doc("live", "b1", s_t0, ("runtime.exe", "aa"));
         _store.GetPointerAsync(Channel.Live, Arg.Any<CancellationToken>()).Returns(new ChannelPointer("b1", "manifests/live/b1.json"));
         _store.GetManifestAsync("manifests/live/b1.json", Arg.Any<CancellationToken>())
             .Returns((StoredManifest?)null, new StoredManifest(doc, "{}", "sig"));
@@ -140,7 +140,7 @@ public class ClientDistributionServiceShould
     [Fact]
     public async Task Keep_listing_the_other_channels_when_one_channel_cannot_be_read()
     {
-        Publish(Channel.Live, Doc("live", "b1", T0, ("runtime.exe", "aa")));
+        Publish(Channel.Live, Doc("live", "b1", s_t0, ("runtime.exe", "aa")));
         _store.GetPointerAsync(Channel.Ptr, Arg.Any<CancellationToken>())
             .Returns<ChannelPointer?>(_ => throw new DistributionUnavailableException("ptr pointer unreadable"));
 
@@ -153,8 +153,8 @@ public class ClientDistributionServiceShould
     [Fact]
     public async Task Cache_the_release_listing_and_the_launcher_release()
     {
-        Publish(Channel.Live, Doc("live", "b1", T0, ("runtime.exe", "aa")));
-        _store.GetLauncherAsync(Arg.Any<CancellationToken>()).Returns(new LauncherRelease("1.0.0", "", T0, "s", "u", "i", 1, "x"));
+        Publish(Channel.Live, Doc("live", "b1", s_t0, ("runtime.exe", "aa")));
+        _store.GetLauncherAsync(Arg.Any<CancellationToken>()).Returns(new LauncherRelease("1.0.0", "", s_t0, "s", "u", "i", 1, "x"));
 
         for (int i = 0; i < 3; i++)
         {
@@ -169,7 +169,7 @@ public class ClientDistributionServiceShould
 
     // ---- Changelog (homelab spec 2026-09-27-avalon-changelog-design §7) ----
 
-    private static readonly string[] ChangelogPrefixes =
+    private static readonly string[] s_changelogPrefixes =
         ["changelog/server/", "changelog/server/ptr/", "changelog/server/dev/", "changelog/launcher/",
             "changelog/client/live/", "changelog/client/ptr/", "changelog/client/dev/"];
 
@@ -183,7 +183,7 @@ public class ClientDistributionServiceShould
 
     private void EmptyChangelog()
     {
-        foreach (string prefix in ChangelogPrefixes)
+        foreach (string prefix in s_changelogPrefixes)
             Changelog(prefix);
     }
 
@@ -195,9 +195,9 @@ public class ClientDistributionServiceShould
     public async Task Show_server_ptr_entries_to_a_ptr_account_but_not_dev_ones()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Entry("server", null, "0.7.0", T0));
-        Changelog("changelog/server/ptr/", Entry("server", "ptr", "0.7.1-nightly.5", T0.AddHours(1)));
-        Changelog("changelog/server/dev/", Entry("server", "dev", "0.7.1-dev.6", T0.AddHours(2)));
+        Changelog("changelog/server/", Entry("server", null, "0.7.0", s_t0));
+        Changelog("changelog/server/ptr/", Entry("server", "ptr", "0.7.1-nightly.5", s_t0.AddHours(1)));
+        Changelog("changelog/server/dev/", Entry("server", "dev", "0.7.1-dev.6", s_t0.AddHours(2)));
 
         IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(
             AccountAccessLevel.PTR, new ChangelogQuery("server", null, 20, null), CancellationToken.None);
@@ -210,8 +210,8 @@ public class ClientDistributionServiceShould
     public async Task Keep_server_channel_entries_from_callers_without_access()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Entry("server", null, "0.7.0", T0),
-            Entry("server", "dev", "0.7.1-dev.6", T0.AddHours(1)), Entry("server", "ptr", "0.7.1-nightly.5", T0.AddHours(2)));
+        Changelog("changelog/server/", Entry("server", null, "0.7.0", s_t0),
+            Entry("server", "dev", "0.7.1-dev.6", s_t0.AddHours(1)), Entry("server", "ptr", "0.7.1-nightly.5", s_t0.AddHours(2)));
 
         IReadOnlyList<ChangelogEntryDto> anonymous = await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
         IReadOnlyList<ChangelogEntryDto> player = await _service.ListChangelogAsync(AccountAccessLevel.Player, new ChangelogQuery("server", null, 20, null), CancellationToken.None);
@@ -224,8 +224,8 @@ public class ClientDistributionServiceShould
     public async Task Read_the_live_server_channel_as_the_entries_without_a_channel()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Entry("server", null, "0.7.0", T0));
-        Changelog("changelog/server/dev/", Entry("server", "dev", "0.7.1-dev.6", T0.AddHours(1)));
+        Changelog("changelog/server/", Entry("server", null, "0.7.0", s_t0));
+        Changelog("changelog/server/dev/", Entry("server", "dev", "0.7.1-dev.6", s_t0.AddHours(1)));
 
         IReadOnlyList<ChangelogEntryDto> live = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", Channel.Live, 20, null), CancellationToken.None);
         IReadOnlyList<ChangelogEntryDto> dev = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", Channel.Dev, 20, null), CancellationToken.None);
@@ -238,10 +238,10 @@ public class ClientDistributionServiceShould
     public async Task List_every_product_newest_first_for_anonymous_callers_with_live_client_entries_only()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Entry("server", null, "0.6.0", T0.AddHours(3)));
-        Changelog("changelog/launcher/", Entry("launcher", null, "0.1.1", T0.AddHours(2)));
-        Changelog("changelog/client/live/", Entry("client", "live", "0.1.0", T0.AddHours(1)));
-        Changelog("changelog/client/ptr/", Entry("client", "ptr", "0.1.0", T0.AddHours(4)));
+        Changelog("changelog/server/", Entry("server", null, "0.6.0", s_t0.AddHours(3)));
+        Changelog("changelog/launcher/", Entry("launcher", null, "0.1.1", s_t0.AddHours(2)));
+        Changelog("changelog/client/live/", Entry("client", "live", "0.1.0", s_t0.AddHours(1)));
+        Changelog("changelog/client/ptr/", Entry("client", "ptr", "0.1.0", s_t0.AddHours(4)));
 
         IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
 
@@ -253,7 +253,7 @@ public class ClientDistributionServiceShould
     public async Task Hide_dev_entries_from_a_ptr_account()
     {
         EmptyChangelog();
-        Changelog("changelog/client/dev/", Entry("client", "dev", "0.1.0", T0));
+        Changelog("changelog/client/dev/", Entry("client", "dev", "0.1.0", s_t0));
 
         IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(
             AccountAccessLevel.PTR, new ChangelogQuery("client", Channel.Dev, 20, null), CancellationToken.None);
@@ -266,9 +266,9 @@ public class ClientDistributionServiceShould
     public async Task Filter_by_product_and_channel()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Entry("server", null, "0.6.0", T0));
-        Changelog("changelog/client/ptr/", Entry("client", "ptr", "0.1.0", T0.AddHours(1)));
-        Changelog("changelog/client/live/", Entry("client", "live", "0.1.0", T0.AddHours(2)));
+        Changelog("changelog/server/", Entry("server", null, "0.6.0", s_t0));
+        Changelog("changelog/client/ptr/", Entry("client", "ptr", "0.1.0", s_t0.AddHours(1)));
+        Changelog("changelog/client/live/", Entry("client", "live", "0.1.0", s_t0.AddHours(2)));
 
         IReadOnlyList<ChangelogEntryDto> servers = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", null, 20, null), CancellationToken.None);
         IReadOnlyList<ChangelogEntryDto> ptr = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("client", Channel.Ptr, 20, null), CancellationToken.None);
@@ -281,7 +281,7 @@ public class ClientDistributionServiceShould
     public async Task Page_with_before_without_repeating_the_boundary_entry()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Enumerable.Range(0, 5).Select(h => Entry("server", null, $"0.{h}.0", T0.AddHours(h))).ToArray());
+        Changelog("changelog/server/", Enumerable.Range(0, 5).Select(h => Entry("server", null, $"0.{h}.0", s_t0.AddHours(h))).ToArray());
 
         IReadOnlyList<ChangelogEntryDto> first = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, null), CancellationToken.None);
         IReadOnlyList<ChangelogEntryDto> second = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, first[^1].PublishedAt), CancellationToken.None);
@@ -294,14 +294,14 @@ public class ClientDistributionServiceShould
     public async Task Leave_out_a_prefix_whose_storage_fails_and_fail_only_when_all_do()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Entry("server", null, "0.6.0", T0));
+        Changelog("changelog/server/", Entry("server", null, "0.6.0", s_t0));
         _store.ListChangelogAsync("changelog/client/dev/", Arg.Any<CancellationToken>())
             .Returns<IReadOnlyList<StoredObject>>(_ => throw new DistributionUnavailableException("down"));
 
         IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
         Assert.Equal(["server"], feed.Select(e => e.Product));
 
-        foreach (string prefix in ChangelogPrefixes)
+        foreach (string prefix in s_changelogPrefixes)
         {
             _store.ListChangelogAsync(prefix, Arg.Any<CancellationToken>())
                 .Returns<IReadOnlyList<StoredObject>>(_ => throw new DistributionUnavailableException("down"));
@@ -316,7 +316,7 @@ public class ClientDistributionServiceShould
     public async Task Read_each_entry_once()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Entry("server", null, "0.6.0", T0));
+        Changelog("changelog/server/", Entry("server", null, "0.6.0", s_t0));
 
         await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
         await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
@@ -331,7 +331,7 @@ public class ClientDistributionServiceShould
     {
         EmptyChangelog();
         _store.ListChangelogAsync("changelog/server/", Arg.Any<CancellationToken>())
-            .Returns(new List<StoredObject> { new("changelog/server/bad.json", T0) });
+            .Returns(new List<StoredObject> { new("changelog/server/bad.json", s_t0) });
         _store.GetChangelogEntryAsync("changelog/server/bad.json", Arg.Any<CancellationToken>()).Returns((ChangelogEntryDto?)null);
 
         await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
@@ -344,7 +344,7 @@ public class ClientDistributionServiceShould
     public async Task Give_each_entry_its_id()
     {
         EmptyChangelog();
-        Changelog("changelog/client/ptr/", Entry("client", "ptr", "0.1.0", T0));
+        Changelog("changelog/client/ptr/", Entry("client", "ptr", "0.1.0", s_t0));
 
         IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(AccountAccessLevel.PTR, new ChangelogQuery("client", Channel.Ptr, 20, null), CancellationToken.None);
 
@@ -355,7 +355,7 @@ public class ClientDistributionServiceShould
     public async Task Page_through_entries_published_at_the_same_time()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Entry("server", null, "0.1.0", T0), Entry("server", null, "0.2.0", T0), Entry("server", null, "0.3.0", T0));
+        Changelog("changelog/server/", Entry("server", null, "0.1.0", s_t0), Entry("server", null, "0.2.0", s_t0), Entry("server", null, "0.3.0", s_t0));
 
         IReadOnlyList<ChangelogEntryDto> first = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, null), CancellationToken.None);
         IReadOnlyList<ChangelogEntryDto> second = await _service.ListChangelogAsync(null,
@@ -369,7 +369,7 @@ public class ClientDistributionServiceShould
     public async Task Leave_out_an_entry_filed_under_another_product_or_channel()
     {
         EmptyChangelog();
-        Changelog("changelog/server/", Entry("server", null, "0.6.0", T0), Entry("client", "dev", "0.1.0", T0.AddHours(1)));
+        Changelog("changelog/server/", Entry("server", null, "0.6.0", s_t0), Entry("client", "dev", "0.1.0", s_t0.AddHours(1)));
 
         IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
 
@@ -380,7 +380,7 @@ public class ClientDistributionServiceShould
     public async Task Read_entries_in_parallel()
     {
         EmptyChangelog();
-        var objects = Enumerable.Range(0, 16).Select(n => new StoredObject($"changelog/server/0.{n}.0.json", T0.AddMinutes(n))).ToList();
+        var objects = Enumerable.Range(0, 16).Select(n => new StoredObject($"changelog/server/0.{n}.0.json", s_t0.AddMinutes(n))).ToList();
         _store.ListChangelogAsync("changelog/server/", Arg.Any<CancellationToken>()).Returns(objects);
         int inFlight = 0, peak = 0;
         _store.GetChangelogEntryAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(async call =>
@@ -390,7 +390,7 @@ public class ClientDistributionServiceShould
             await Task.Delay(20);
             Interlocked.Decrement(ref inFlight);
             string version = call.Arg<string>().Split('/')[^1].Replace(".json", "");
-            return (ChangelogEntryDto?)Entry("server", null, version, T0);
+            return (ChangelogEntryDto?)Entry("server", null, version, s_t0);
         });
 
         await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 20, null), CancellationToken.None);

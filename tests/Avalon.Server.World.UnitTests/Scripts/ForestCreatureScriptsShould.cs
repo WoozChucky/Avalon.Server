@@ -26,7 +26,7 @@ namespace Avalon.Server.World.UnitTests.Scripts;
 /// </summary>
 public class ForestCreatureScriptsShould
 {
-    private static readonly Lazy<Task<StaticData>> Seeded = new(LoadSeededAsync);
+    private static readonly Lazy<Task<StaticData>> s_seeded = new(LoadSeededAsync);
 
     private static async Task<StaticData> LoadSeededAsync()
     {
@@ -115,7 +115,7 @@ public class ForestCreatureScriptsShould
 
     private static async Task<IWorld> World()
     {
-        StaticData data = await Seeded.Value;
+        StaticData data = await s_seeded.Value;
         IWorld world = Substitute.For<IWorld>();
         world.Data.Returns(data);
         return world;
@@ -197,7 +197,7 @@ public class ForestCreatureScriptsShould
     [Fact]
     public async Task Fight_with_the_rest_when_the_catalog_lacks_one_of_its_abilities()
     {
-        StaticData seeded = await Seeded.Value;
+        StaticData seeded = await s_seeded.Value;
         var withoutClaw = seeded.Abilities.Templates.Where(t => t.Id.Value != 303).ToList();
         TestStaticDataRepositories repositories = TestStaticData.Repositories();
         repositories.Abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())

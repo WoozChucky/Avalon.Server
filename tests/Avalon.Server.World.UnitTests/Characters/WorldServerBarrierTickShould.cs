@@ -354,13 +354,13 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     /// <summary>Reference data with the seeded combat formula, which the tick's sheet flush reads (#506).</summary>
-    private static readonly Lazy<StaticData> SeededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
+    private static readonly Lazy<StaticData> s_seededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
 
     private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(PartyService? parties = null,
         Avalon.World.Presence.PresenceCapture? presence = null, IWorldEntryGate? gate = null,
         WorldMaintenanceCoordinator? coordinator = null, TimeProvider? clock = null)
     {
-        StaticData data = SeededData.Value;   // loaded outside Returns, which it would otherwise interrupt
+        StaticData data = s_seededData.Value;   // loaded outside Returns, which it would otherwise interrupt
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CharacterLoadTimeoutSeconds = 15 });
         world.Data.Returns(data);

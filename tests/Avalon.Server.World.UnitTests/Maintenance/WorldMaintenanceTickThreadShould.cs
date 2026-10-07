@@ -19,14 +19,14 @@ namespace Avalon.Server.World.UnitTests.Maintenance;
 /// </summary>
 public sealed class WorldMaintenanceTickThreadShould
 {
-    private static readonly DateTime Start = new(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_start = new(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
     private readonly IWorldMaintenanceRepository _repository = Substitute.For<IWorldMaintenanceRepository>();
     private readonly TickThreadGuard _guard = new();
 
     public WorldMaintenanceTickThreadShould() => _guard.Bind();
 
     private WorldMaintenanceCoordinator Coordinator() => new(new WorldId(1), _repository,
-        Substitute.For<ICharacterSaver>(), new FixedClock(Start), NullLogger<WorldMaintenanceCoordinator>.Instance,
+        Substitute.For<ICharacterSaver>(), new FixedClock(s_start), NullLogger<WorldMaintenanceCoordinator>.Instance,
         Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()),
         _guard);
 
@@ -35,7 +35,7 @@ public sealed class WorldMaintenanceTickThreadShould
     {
         WorldMaintenanceCoordinator coordinator = Coordinator();
         IWorldConnection player = Connection(AccountAccessLevel.Player);
-        var enabled = new WorldMaintenanceState(true, 2, Start.AddMinutes(5));
+        var enabled = new WorldMaintenanceState(true, 2, s_start.AddMinutes(5));
         _repository.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>()).Returns(enabled);
 
         await Task.Run(() => coordinator.ApplyNotificationAsync(2, CancellationToken.None));
@@ -44,7 +44,7 @@ public sealed class WorldMaintenanceTickThreadShould
         Assert.Null(coordinator.CurrentState);
         player.DidNotReceiveWithAnyArgs().Send(default!);
 
-        coordinator.Advance(Start, [player]);
+        coordinator.Advance(s_start, [player]);
 
         Assert.Equal(enabled, coordinator.CurrentState);
         player.Received(1).Send(Arg.Any<NetworkPacket>());
@@ -56,7 +56,7 @@ public sealed class WorldMaintenanceTickThreadShould
         WorldMaintenanceCoordinator coordinator = Coordinator();
         IWorldConnection player = Connection(AccountAccessLevel.Player);
         _repository.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
-            .Returns(new WorldMaintenanceState(true, 1, Start.AddSeconds(-1)));
+            .Returns(new WorldMaintenanceState(true, 1, s_start.AddSeconds(-1)));
 
         await Task.Run(() => coordinator.ReconcileAsync(CancellationToken.None));
         _guard.Bind(); // the tick is this test's thread, wherever the await resumed
@@ -64,7 +64,7 @@ public sealed class WorldMaintenanceTickThreadShould
         await player.DidNotReceive().CloseAsync();
         ((IMaintenanceBlockable)player).DidNotReceive().BlockForMaintenance();
 
-        coordinator.Advance(Start, [player]);
+        coordinator.Advance(s_start, [player]);
 
         await player.Received(1).CloseAsync();
         ((IMaintenanceBlockable)player).Received().BlockForMaintenance();
@@ -78,8 +78,8 @@ public sealed class WorldMaintenanceTickThreadShould
 
         Assert.Null(TickThreadGuardProbe.OffThread(() => coordinator.Offer(newer)));
         Assert.Null(TickThreadGuardProbe.OffThread(() =>
-            coordinator.Offer(new WorldMaintenanceState(true, 4, Start.AddMinutes(5)))));
-        coordinator.Advance(Start, []);
+            coordinator.Offer(new WorldMaintenanceState(true, 4, s_start.AddMinutes(5)))));
+        coordinator.Advance(s_start, []);
 
         Assert.Equal(newer, coordinator.CurrentState);
     }
@@ -88,10 +88,10 @@ public sealed class WorldMaintenanceTickThreadShould
     public void Refuse_to_change_the_applied_state_off_the_tick()
     {
         WorldMaintenanceCoordinator coordinator = Coordinator();
-        var state = new WorldMaintenanceState(true, 1, Start.AddMinutes(5));
+        var state = new WorldMaintenanceState(true, 1, s_start.AddMinutes(5));
 
         AssertRefusedOffTick(() => coordinator.ApplyCommitted(state), "WorldMaintenanceCoordinator.ApplyCommitted");
-        AssertRefusedOffTick(() => coordinator.Advance(Start, []), "WorldMaintenanceCoordinator.Advance");
+        AssertRefusedOffTick(() => coordinator.Advance(s_start, []), "WorldMaintenanceCoordinator.Advance");
         AssertRefusedOffTick(() => coordinator.RunIfEntryAllowed(Connection(AccountAccessLevel.Player),
             new WorldEntryDecision(true, DateTime.MaxValue), () => { }), "WorldMaintenanceCoordinator.RunIfEntryAllowed");
         Assert.Null(coordinator.CurrentState);

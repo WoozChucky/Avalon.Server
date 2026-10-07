@@ -26,11 +26,11 @@ public sealed class RecordingAbilityScriptCollection;
 [Collection(nameof(RecordingAbilityScript))]
 public class InstanceAbilityCastSystemShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
-    private static readonly AbilityAim Aim = new(new Vector3(0f, 0f, 1f), new Vector3(3f, 0f, 4f));
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly AbilityAim s_aim = new(new Vector3(0f, 0f, 1f), new Vector3(3f, 0f, 4f));
 
-    /// <summary>The aim a script gets: <see cref="Aim" /> with the caster's position at cast start as its origin (#648).</summary>
-    private static readonly AbilityAim Taken = Aim with { Origin = Vector3.zero };
+    /// <summary>The aim a script gets: <see cref="s_aim" /> with the caster's position at cast start as its origin (#648).</summary>
+    private static readonly AbilityAim s_taken = s_aim with { Origin = Vector3.zero };
 
     private readonly IScriptManager _scripts = Substitute.For<IScriptManager>();
     private readonly IAbilityArena _arena = Substitute.For<IAbilityArena>();
@@ -90,8 +90,8 @@ public class InstanceAbilityCastSystemShould
         CharacterEntity caster = GodCaster();
         GameAbility ability = Ability(cost: 30, castTime: castTime);
 
-        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
-        if (castTime > 0) _sut.Update(Tick, []);
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, s_aim, ability) : _sut.RunInstant(caster, s_aim, ability);
+        if (castTime > 0) _sut.Update(s_tick, []);
 
         Assert.True(accepted);
         Assert.Equal(0u, caster.CurrentPower);
@@ -109,7 +109,7 @@ public class InstanceAbilityCastSystemShould
 
         caster.Spells.Update(TimeSpan.FromSeconds(1));
         Assert.Equal(4f, ability.CooldownTimer);
-        Assert.True(_sut.RunInstant(caster, Aim, ability));
+        Assert.True(_sut.RunInstant(caster, s_aim, ability));
         Assert.Equal(4f, ability.CooldownTimer);
     }
 
@@ -119,9 +119,9 @@ public class InstanceAbilityCastSystemShould
         CharacterEntity caster = GodCaster(PowerType.Mana);
         GameAbility ability = Ability(cost: 30, castTime: 0.01f);
 
-        Assert.True(_sut.QueueAbility(caster, Aim, ability));
+        Assert.True(_sut.QueueAbility(caster, s_aim, ability));
         caster.GodMode = false;
-        _sut.Update(Tick, []);
+        _sut.Update(s_tick, []);
 
         Assert.Equal(0u, caster.CurrentPower);
         Assert.Equal(2f, ability.CooldownTimer);
@@ -135,10 +135,10 @@ public class InstanceAbilityCastSystemShould
         caster.GodMode = false;
         GameAbility ability = Ability(cost: 30, castTime: 0.01f);
 
-        Assert.True(_sut.QueueAbility(caster, Aim, ability));
+        Assert.True(_sut.QueueAbility(caster, s_aim, ability));
         Assert.Equal(10u, caster.CurrentPower);
         caster.GodMode = true;
-        _sut.Update(Tick, []);
+        _sut.Update(s_tick, []);
 
         Assert.Equal(10u, caster.CurrentPower);
         Assert.Equal(0f, ability.CooldownTimer);
@@ -150,7 +150,7 @@ public class InstanceAbilityCastSystemShould
         CharacterEntity caster = GodCaster(PowerType.Mana, 40);
         GameAbility ability = Ability(cost: 30, script: "Nope");
 
-        Assert.False(_sut.RunInstant(caster, Aim, ability));
+        Assert.False(_sut.RunInstant(caster, s_aim, ability));
 
         Assert.Equal(40u, caster.CurrentPower);
         Assert.Equal(0f, ability.CooldownTimer);
@@ -163,7 +163,7 @@ public class InstanceAbilityCastSystemShould
     {
         GameAbility ability = Ability(cost: 30, castTime: 1f);
 
-        bool queued = _sut.QueueAbility(Caster(PowerType.None), Aim, ability);
+        bool queued = _sut.QueueAbility(Caster(PowerType.None), s_aim, ability);
 
         Assert.False(queued);
         Assert.False(ability.Casting);
@@ -175,7 +175,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter caster = Caster();
         GameAbility ability = Ability(cost: 30, castTime: 1f);
 
-        Assert.True(_sut.QueueAbility(caster, Aim, ability));
+        Assert.True(_sut.QueueAbility(caster, s_aim, ability));
 
         Assert.True(ability.Casting);
         caster.Received(1).CurrentPower = 70u;
@@ -188,7 +188,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter caster = Caster();
         GameAbility ability = Ability(cost: 30, castTime: 1f, script: "Nope");
 
-        Assert.False(_sut.QueueAbility(caster, Aim, ability));
+        Assert.False(_sut.QueueAbility(caster, s_aim, ability));
 
         Assert.False(ability.Casting);
         caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
@@ -208,7 +208,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter caster = Caster();
         GameAbility ability = Ability(cost: 30, castTime: castTime, script: "Throwing");
 
-        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, s_aim, ability) : _sut.RunInstant(caster, s_aim, ability);
 
         Assert.False(accepted);
         Assert.False(ability.Casting);
@@ -225,12 +225,12 @@ public class InstanceAbilityCastSystemShould
     {
         ICharacter caster = Caster();
         GameAbility ability = Ability(cost: 30, castTime: 0.01f);
-        Assert.True(_sut.QueueAbility(caster, Aim, ability));
+        Assert.True(_sut.QueueAbility(caster, s_aim, ability));
         _scripts.GetAbilityScript("Recording").Returns((Type?)null);
 
-        _sut.Update(Tick, []);
+        _sut.Update(s_tick, []);
 
-        Assert.Equal(Taken, Assert.Single(RecordingAbilityScript.Prepared).Aim);
+        Assert.Equal(s_taken, Assert.Single(RecordingAbilityScript.Prepared).Aim);
         caster.Received(1).CurrentPower = 70u;
         Assert.Equal(2f, ability.CooldownTimer);
     }
@@ -245,7 +245,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter caster = Caster(PowerType.None);
         GameAbility ability = Ability(cost: 30, castTime: castTime);
 
-        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, s_aim, ability) : _sut.RunInstant(caster, s_aim, ability);
 
         Assert.False(accepted);
         caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
@@ -264,7 +264,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter warrior = Caster(PowerType.Fury, power: 100);
         GameAbility flameSurge = Ability(cost: 20, castTime: castTime, pool: PowerType.Mana);
 
-        bool accepted = castTime > 0 ? _sut.QueueAbility(warrior, Aim, flameSurge) : _sut.RunInstant(warrior, Aim, flameSurge);
+        bool accepted = castTime > 0 ? _sut.QueueAbility(warrior, s_aim, flameSurge) : _sut.RunInstant(warrior, s_aim, flameSurge);
 
         Assert.False(accepted);
         Assert.False(flameSurge.Casting);
@@ -282,7 +282,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter caster = Caster(PowerType.Fury, power: 30);
         GameAbility ability = Ability(cost: 20, castTime: castTime, pool: PowerType.Fury);
 
-        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, s_aim, ability) : _sut.RunInstant(caster, s_aim, ability);
 
         Assert.True(accepted);
         caster.Received(1).CurrentPower = 10u;
@@ -296,7 +296,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter caster = Caster(PowerType.Fury, power: 19);
         GameAbility ability = Ability(cost: 20, castTime: castTime, pool: PowerType.Fury);
 
-        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, s_aim, ability) : _sut.RunInstant(caster, s_aim, ability);
 
         Assert.False(accepted);
         Assert.False(ability.Casting);
@@ -310,14 +310,14 @@ public class InstanceAbilityCastSystemShould
         ICharacter caster = Caster();
         GameAbility ability = Ability(cost: 30);
 
-        Assert.True(_sut.RunInstant(caster, Aim, ability));
+        Assert.True(_sut.RunInstant(caster, s_aim, ability));
 
         caster.Received(1).CurrentPower = 70u;
         Assert.Equal(2f, ability.CooldownTimer);
         _arena.Received(1).BroadcastFinishCast(caster, ability, Arg.Any<uint>());
         (IUnit who, AbilityAim aim, IAbilityArena arena) = Assert.Single(RecordingAbilityScript.Prepared);
         Assert.Same(caster, who);
-        Assert.Equal(Taken, aim);
+        Assert.Equal(s_taken, aim);
         Assert.Same(_arena, arena);
     }
 
@@ -327,7 +327,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter caster = Caster();
         GameAbility ability = Ability(cost: 30, script: "Nope");
 
-        Assert.False(_sut.RunInstant(caster, Aim, ability));
+        Assert.False(_sut.RunInstant(caster, s_aim, ability));
 
         caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
         Assert.Equal(0f, ability.CooldownTimer);
@@ -340,11 +340,11 @@ public class InstanceAbilityCastSystemShould
     {
         ICharacter caster = Caster();
         GameAbility ability = Ability(castTime: 0.01f);
-        _sut.QueueAbility(caster, Aim, ability);
+        _sut.QueueAbility(caster, s_aim, ability);
 
-        _sut.Update(Tick, []);
+        _sut.Update(s_tick, []);
 
-        Assert.Equal(Taken, Assert.Single(RecordingAbilityScript.Prepared).Aim);
+        Assert.Equal(s_taken, Assert.Single(RecordingAbilityScript.Prepared).Aim);
         Assert.False(ability.Casting);
         Assert.Equal(2f, ability.CooldownTimer);
     }
@@ -358,12 +358,12 @@ public class InstanceAbilityCastSystemShould
         ICharacter mover = Caster();
         GameAbility finishing = Ability(castTime: 0.01f);
         GameAbility interrupted = Ability(castTime: 5f);
-        _sut.QueueAbility(still, Aim, finishing);
-        _sut.QueueAbility(mover, Aim, interrupted);
+        _sut.QueueAbility(still, s_aim, finishing);
+        _sut.QueueAbility(mover, s_aim, interrupted);
         mover.Position.Returns(new Vector3(1f, 0f, 0f));
 
-        _sut.Update(Tick, []);
-        _sut.Update(Tick, []);
+        _sut.Update(s_tick, []);
+        _sut.Update(s_tick, []);
 
         Assert.Single(RecordingAbilityScript.Prepared);
         Assert.False(finishing.Casting);
@@ -384,9 +384,9 @@ public class InstanceAbilityCastSystemShould
         ICharacter staying = Caster();
         GameAbility cancelled = Ability(cost: 30, castTime: 0.6f);
         GameAbility kept = Ability(castTime: 0.6f);
-        Assert.True(_sut.QueueAbility(leaving, Aim, cancelled));
-        Assert.True(_sut.QueueAbility(staying, Aim, kept));
-        _sut.Update(Tick, []);
+        Assert.True(_sut.QueueAbility(leaving, s_aim, cancelled));
+        Assert.True(_sut.QueueAbility(staying, s_aim, kept));
+        _sut.Update(s_tick, []);
 
         _sut.CancelCasts(leaving);
 
@@ -400,7 +400,7 @@ public class InstanceAbilityCastSystemShould
 
         for (int i = 0; i < 40; i++)
         {
-            _sut.Update(Tick, []);
+            _sut.Update(s_tick, []);
         }
 
         (IUnit who, _, _) = Assert.Single(RecordingAbilityScript.Prepared);
@@ -416,10 +416,10 @@ public class InstanceAbilityCastSystemShould
     {
         ICharacter caster = Caster();
         GameAbility ability = Ability(castTime: 0.01f);
-        _sut.QueueAbility(caster, Aim, ability);
+        _sut.QueueAbility(caster, s_aim, ability);
         caster.IsDead.Returns(true);
 
-        _sut.Update(Tick, []);
+        _sut.Update(s_tick, []);
 
         Assert.Empty(RecordingAbilityScript.Prepared);
         Assert.False(ability.Casting);
@@ -427,8 +427,8 @@ public class InstanceAbilityCastSystemShould
 
         // Nothing is left behind that would refuse the next cast: the queue takes it again.
         caster.IsDead.Returns(false);
-        Assert.True(_sut.QueueAbility(caster, Aim, ability));
-        _sut.Update(Tick, []);
+        Assert.True(_sut.QueueAbility(caster, s_aim, ability));
+        _sut.Update(s_tick, []);
         Assert.Single(RecordingAbilityScript.Prepared);
     }
 
@@ -436,7 +436,7 @@ public class InstanceAbilityCastSystemShould
     [Fact]
     public void Keep_no_finished_script_in_the_active_list()
     {
-        _sut.RunInstant(Caster(), Aim, Ability());
+        _sut.RunInstant(Caster(), s_aim, Ability());
 
         Assert.NotNull(RecordingAbilityScript.LastBuilt);
         Assert.Null(_sut.GetAbility(RecordingAbilityScript.LastBuilt!.Guid));
@@ -454,10 +454,10 @@ public class InstanceAbilityCastSystemShould
         ICharacter caster = Caster();
         GameAbility ability = Ability(cost: 30, castTime: castTime, script: nameof(CircleAbilityScript));
 
-        bool accepted = castTime > 0 ? sut.QueueAbility(caster, Aim, ability) : sut.RunInstant(caster, Aim, ability);
+        bool accepted = castTime > 0 ? sut.QueueAbility(caster, s_aim, ability) : sut.RunInstant(caster, s_aim, ability);
         for (int i = 0; castTime > 0 && i < 61; i++)
         {
-            sut.Update(Tick, []);
+            sut.Update(s_tick, []);
         }
 
         Assert.True(accepted);
@@ -486,7 +486,7 @@ public class InstanceAbilityCastSystemShould
         for (int i = 0; i < 3; i++)
         {
             objects.Clear();
-            sut.Update(Tick, objects);
+            sut.Update(s_tick, objects);
         }
 
         AbilityScript projectile = Assert.IsAssignableFrom<AbilityScript>(Assert.Single(objects));
@@ -495,12 +495,12 @@ public class InstanceAbilityCastSystemShould
 
         // Its final state is still owed to the clients: it stays.
         objects.Clear();
-        sut.Update(Tick, objects);
+        sut.Update(s_tick, objects);
         Assert.Same(projectile, Assert.Single(objects));
 
         Assert.NotEqual(GameEntityFields.None, projectile.ConsumeDirtyFields());
         objects.Clear();
-        sut.Update(Tick, objects);
+        sut.Update(s_tick, objects);
 
         Assert.Empty(objects);
         Assert.Null(sut.GetAbility(projectile.Guid));
@@ -521,11 +521,11 @@ public class InstanceAbilityCastSystemShould
         var aim = new AbilityAim(new Vector3(0f, 0f, 1f), new Vector3(0f, 0f, 5f));
         Assert.True(sut.RunInstant(arena.Player(1, 0f, 0f), aim,
             AbilityTestData.Game(AbilityTestData.Projectile(1, reach: 5f, speed: 20f))));
-        sut.Update(Tick, []);   // the point-blank one hits and finishes
+        sut.Update(s_tick, []);   // the point-blank one hits and finishes
         Assert.True(sut.RunInstant(arena.Player(2, 10f, 0f), aim,
             AbilityTestData.Game(AbilityTestData.Projectile(2, reach: 20f, speed: 20f))));
         List<IWorldObject> before = [];
-        sut.Update(Tick, before);
+        sut.Update(s_tick, before);
         AbilityScript finished = Assert.Single(before.Cast<AbilityScript>(), s => s.State is SpellState.Finished);
         AbilityScript flying = Assert.Single(before.Cast<AbilityScript>(), s => s.State is not SpellState.Finished);
         Assert.True(finished.HasUnsentChanges);

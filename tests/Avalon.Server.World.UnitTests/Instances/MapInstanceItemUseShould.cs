@@ -19,12 +19,12 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// <summary>MapInstance hosts item cast bars with its own cast ids and the existing cast packets.</summary>
 public class MapInstanceItemUseShould
 {
-    private static readonly ItemTemplateId Scroll = new(3);
+    private static readonly ItemTemplateId s_scroll = new(3);
 
     private static PendingItemUse Pending(MapInstanceClient client, List<string> ends, float seconds = 3f) => new()
     {
         Character = client.Character,
-        Item = Scroll,
+        Item = s_scroll,
         StartPosition = client.Character.Position,
         CastId = 0,
         CastTimeSeconds = seconds,
@@ -55,7 +55,7 @@ public class MapInstanceItemUseShould
         instance.ItemUses.Start(new PendingItemUse
         {
             Character = client.Character,
-            Item = Scroll,
+            Item = s_scroll,
             StartPosition = client.Character.Position,
             CastId = castId,
             CastTimeSeconds = 3f,

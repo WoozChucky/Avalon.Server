@@ -108,12 +108,12 @@ public sealed class AccountDisconnectShould
     [Fact]
     public void Spare_a_connection_that_logged_in_after_this_servers_own_publish_for_the_account()
     {
-        const long publishedAt = 1_000;
-        IAuthConnection oldSession = LoggedInAt(7, publishedAt - 10);
-        IAuthConnection freshLogin = LoggedInAt(7, publishedAt + 10);
+        const long PublishedAt = 1_000;
+        IAuthConnection oldSession = LoggedInAt(7, PublishedAt - 10);
+        IAuthConnection freshLogin = LoggedInAt(7, PublishedAt + 10);
 
         int closed = AuthServer.CloseAccountConnections([oldSession, freshLogin], "7", NullLogger.Instance,
-            id => id.Value == 7 ? publishedAt : null);
+            id => id.Value == 7 ? PublishedAt : null);
 
         Assert.Equal(1, closed);
         oldSession.Received(1).Close();

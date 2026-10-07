@@ -112,10 +112,10 @@ internal static class VendorTestData
 
     public static IReadOnlyCollection<ItemTemplate> Items => [Tonic, Blade, Elixir, Charm, Keepsake, Trinket, Plate];
 
-    private static readonly Dictionary<ItemTemplateId, ItemTemplate> ById =
+    private static readonly Dictionary<ItemTemplateId, ItemTemplate> s_byId =
         new[] { Tonic, Blade, Elixir, Charm, Keepsake, Trinket, Plate }.ToDictionary(t => t.Id);
 
-    public static ItemTemplate? Find(ItemTemplateId id) => ById.GetValueOrDefault(id);
+    public static ItemTemplate? Find(ItemTemplateId id) => s_byId.GetValueOrDefault(id);
 
     /// <summary>
     /// Fresh rows on every call, so a test can change them:

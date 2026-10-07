@@ -140,9 +140,9 @@ public class CreatureShould
     [Fact]
     public void Declare_No_Static_Events()
     {
-        const BindingFlags statics = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
-        Assert.Empty(typeof(Creature).GetEvents(statics));
-        Assert.Empty(typeof(CharacterEntity).GetEvents(statics));
+        const BindingFlags Statics = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        Assert.Empty(typeof(Creature).GetEvents(Statics));
+        Assert.Empty(typeof(CharacterEntity).GetEvents(Statics));
     }
 
     // ──────────────────────────────────────────────

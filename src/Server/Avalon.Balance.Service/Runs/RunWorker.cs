@@ -8,8 +8,8 @@ namespace Avalon.Balance.Service.Runs;
 /// <summary>Runs the queued simulations one at a time, and sweeps expired results every minute.</summary>
 public sealed class RunWorker : BackgroundService
 {
-    private static readonly TimeSpan SweepEvery = TimeSpan.FromMinutes(1);
-    private static readonly IReadOnlyList<IssueDto> FailedIssues = [new IssueDto("run", "the run failed")];
+    private static readonly TimeSpan s_sweepEvery = TimeSpan.FromMinutes(1);
+    private static readonly IReadOnlyList<IssueDto> s_failedIssues = [new IssueDto("run", "the run failed")];
 
     private readonly RunQueue _queue;
     private readonly BalanceHost _host;
@@ -35,7 +35,7 @@ public sealed class RunWorker : BackgroundService
 
     private async Task SweepAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(SweepEvery, _time);
+        using var timer = new PeriodicTimer(s_sweepEvery, _time);
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
@@ -88,7 +88,7 @@ public sealed class RunWorker : BackgroundService
         {
             // The run id and the exception only, never the request: overrides and config are caller data.
             _logger.LogError(e, "Run {RunId} failed", record.Id);
-            _queue.Complete(record, RunState.Failed, null, FailedIssues);
+            _queue.Complete(record, RunState.Failed, null, s_failedIssues);
         }
     }
 

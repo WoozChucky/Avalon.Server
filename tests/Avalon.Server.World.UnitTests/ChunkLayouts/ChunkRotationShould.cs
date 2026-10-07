@@ -15,7 +15,10 @@ public class ChunkRotationShould
     // S-Center = bit 7 (128) W-Center = bit 10 (1024)
     private const ushort N_C = 1 << 1;
     private const ushort E_C = 1 << 4;
+    // N_C, E_C, S_C and W_C name the edge bits as a set; IDE1006 reads the S_ of S_C as a static-field prefix.
+#pragma warning disable IDE1006
     private const ushort S_C = 1 << 7;
+#pragma warning restore IDE1006
     private const ushort W_C = 1 << 10;
 
     [Theory]

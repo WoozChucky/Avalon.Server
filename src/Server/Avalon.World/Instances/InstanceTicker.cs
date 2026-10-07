@@ -81,14 +81,14 @@ public sealed class InstanceTicker
         log.Suppressed = 0;
     }
 
-    private static readonly KeyValuePair<string, object?> TownTag = new("map.type", nameof(MapType.Town));
-    private static readonly KeyValuePair<string, object?> NormalTag = new("map.type", nameof(MapType.Normal));
+    private static readonly KeyValuePair<string, object?> s_townTag = new("map.type", nameof(MapType.Town));
+    private static readonly KeyValuePair<string, object?> s_normalTag = new("map.type", nameof(MapType.Normal));
 
     /// <summary>The tag for a map type, cached for the two there are, so timing an update allocates nothing.</summary>
     private static KeyValuePair<string, object?> MapTypeTag(MapType type) => type switch
     {
-        MapType.Town => TownTag,
-        MapType.Normal => NormalTag,
+        MapType.Town => s_townTag,
+        MapType.Normal => s_normalTag,
         _ => new KeyValuePair<string, object?>("map.type", type.ToString()),
     };
 

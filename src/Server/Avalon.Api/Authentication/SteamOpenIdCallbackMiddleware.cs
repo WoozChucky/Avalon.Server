@@ -12,10 +12,10 @@ public sealed class SteamOpenIdCallbackMiddleware(RequestDelegate next)
     private const int MaximumValues = 32;
     private const int MaximumValueCharacters = 8192;
     private const int MaximumKeyCharacters = 128;
-    private static readonly TimeSpan RateWindow = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan s_rateWindow = TimeSpan.FromMinutes(1);
     private readonly PartitionedRateLimiter<HttpContext> _limiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
         RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new()
-        { PermitLimit = PermitsPerMinute, Window = RateWindow, QueueLimit = 0 }));
+        { PermitLimit = PermitsPerMinute, Window = s_rateWindow, QueueLimit = 0 }));
     public static bool IsCallback(PathString path) => path.Value?.EndsWith(SteamWebLinkOptions.CallbackPath, StringComparison.OrdinalIgnoreCase) == true;
     public async Task InvokeAsync(HttpContext context)
     {

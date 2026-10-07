@@ -17,7 +17,7 @@ namespace Avalon.Api.UnitTests.Templates;
 /// <summary>A template read says which version it is (body and ETag) and whether its world can be edited.</summary>
 public class TemplateReadShould
 {
-    private static readonly TemplateEditingOptions Options = new()
+    private static readonly TemplateEditingOptions s_options = new()
     {
         EditableWorlds = [1, 2],
         ReloadTimeout = TimeSpan.FromSeconds(10),
@@ -32,7 +32,7 @@ public class TemplateReadShould
         IItemTemplateRepository repository = Substitute.For<IItemTemplateRepository>();
         var row = new ItemTemplate { Id = new ItemTemplateId(1), Name = "Sword" };
         repository.FindByIdAsync(Arg.Any<ItemTemplateId>(), false, Arg.Any<CancellationToken>()).Returns(row);
-        var sut = new ItemTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
+        var sut = new ItemTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(s_options))
         { ControllerContext = Context() };
 
         ItemTemplateDto dto = Dto<ItemTemplateDto>(await sut.Get(1, CancellationToken.None));
@@ -50,7 +50,7 @@ public class TemplateReadShould
         IAbilityTemplateRepository repository = Substitute.For<IAbilityTemplateRepository>();
         var row = new AbilityTemplate { Id = new AbilityId(1), Name = "Cleave", ScriptName = "s", AuraId = new AuraId(1) };
         repository.FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>()).Returns(row);
-        var sut = new AbilityTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
+        var sut = new AbilityTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(s_options))
         { ControllerContext = Context() };
 
         AbilityTemplateDto dto = Dto<AbilityTemplateDto>(await sut.Get(1, CancellationToken.None));
@@ -77,7 +77,7 @@ public class TemplateReadShould
             Modifiers = [new Avalon.Domain.World.AuraStatModifier { AuraId = new AuraId(5), Stat = Avalon.Domain.World.AuraStat.Armor, Kind = Avalon.Domain.World.AuraModifierKind.Percent, Value = 20f }],
         };
         repository.FindByIdAsync(Arg.Any<AuraId>(), Arg.Any<CancellationToken>()).Returns(row);
-        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
+        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(s_options))
         { ControllerContext = Context() };
 
         AuraTemplateDto dto = Dto<AuraTemplateDto>(await sut.Get(5, CancellationToken.None));
@@ -110,7 +110,7 @@ public class TemplateReadShould
             MaxStacks = 3,
         };
         repository.FindByIdAsync(Arg.Any<AuraId>(), Arg.Any<CancellationToken>()).Returns(row);
-        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
+        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(s_options))
         { ControllerContext = Context() };
 
         AuraTemplateDto dto = Dto<AuraTemplateDto>(await sut.Get(6, CancellationToken.None));
@@ -124,7 +124,7 @@ public class TemplateReadShould
     public async Task Aura_get_answers_404_for_an_unknown_id()
     {
         IAuraTemplateRepository repository = Substitute.For<IAuraTemplateRepository>();
-        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
+        var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(s_options))
         { ControllerContext = Context() };
 
         Assert.IsType<NotFoundResult>(await sut.Get(7, CancellationToken.None));
@@ -151,7 +151,7 @@ public class TemplateReadShould
         ICreatureTemplateRepository repository = Substitute.For<ICreatureTemplateRepository>();
         var row = new CreatureTemplate { Id = new CreatureTemplateId(1), Name = "Wolf" };
         repository.FindByIdAsync(Arg.Any<CreatureTemplateId>(), false, Arg.Any<CancellationToken>()).Returns(row);
-        var sut = new CreatureTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
+        var sut = new CreatureTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(s_options))
         { ControllerContext = Context() };
 
         CreatureTemplateDto dto = Dto<CreatureTemplateDto>(await sut.Get(1, CancellationToken.None));
@@ -168,7 +168,7 @@ public class TemplateReadShould
         var row = new ItemTemplate { Id = new ItemTemplateId(1), Name = "Sword" };
         repository.PaginateAsync(Arg.Any<EntityPaginateFilter<ItemTemplate>>(), false, Arg.Any<CancellationToken>())
             .Returns(new PagedResult<ItemTemplate>(1, 50, 1, [row]));
-        var sut = new ItemTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
+        var sut = new ItemTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(s_options))
         { ControllerContext = Context() };
 
         PagedResult<ItemTemplateDto> page = await sut.List(1, 50, CancellationToken.None);
@@ -192,7 +192,7 @@ public class TemplateReadShould
             UseValue = 7,
         };
         repository.FindByIdAsync(Arg.Any<ItemTemplateId>(), false, Arg.Any<CancellationToken>()).Returns(row);
-        var sut = new ItemTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
+        var sut = new ItemTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(s_options))
         { ControllerContext = Context() };
 
         ItemTemplateDto dto = Dto<ItemTemplateDto>(await sut.Get(3, CancellationToken.None));

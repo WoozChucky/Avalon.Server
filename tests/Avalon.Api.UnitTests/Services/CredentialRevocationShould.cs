@@ -30,7 +30,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class CredentialRevocationShould : IDisposable
 {
-    private static readonly string Password = TestPasswords.Valid;
+    private static readonly string s_password = TestPasswords.Valid;
 
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
@@ -54,7 +54,7 @@ public sealed class CredentialRevocationShould : IDisposable
             Username = "OWNER",
             Email = "owner@avalon.monster",
             Salt = Encoding.UTF8.GetBytes(salt),
-            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, salt)),
+            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, salt)),
             JoinDate = DateTime.UtcNow,
             LastLogin = DateTime.UtcNow,
         });
@@ -97,7 +97,7 @@ public sealed class CredentialRevocationShould : IDisposable
         Substitute.For<IMFAHashService>(), new SecureRandom(), _cache);
 
     private Task ChangePasswordAsync(AccountId id, string? current = null) =>
-        AccountService().ChangePasswordAsync(id, current ?? Password, TestPasswords.Third, IPAddress.Loopback);
+        AccountService().ChangePasswordAsync(id, current ?? s_password, TestPasswords.Third, IPAddress.Loopback);
 
     [Fact]
     public async Task Refuse_a_personal_access_token_minted_before_a_password_change()
@@ -126,7 +126,7 @@ public sealed class CredentialRevocationShould : IDisposable
         Assert.False(await PatIsRefusedAsync(pat));
         Account stored = (await _accounts.FindByIdAsync(account.Id))!;
         Assert.Equal(1, stored.FailedLogins);
-        Assert.True(BCrypt.Net.BCrypt.Verify(Password, Encoding.UTF8.GetString(stored.Verifier)));
+        Assert.True(BCrypt.Net.BCrypt.Verify(s_password, Encoding.UTF8.GetString(stored.Verifier)));
     }
 
     [Fact]

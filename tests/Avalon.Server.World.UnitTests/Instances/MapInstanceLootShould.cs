@@ -36,8 +36,8 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class MapInstanceLootShould
 {
-    private static readonly DateTimeOffset Now = new(2026, 9, 25, 12, 0, 0, TimeSpan.Zero);
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly DateTimeOffset s_now = new(2026, 9, 25, 12, 0, 0, TimeSpan.Zero);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private List<LootTable> _tables = [Table(1, Item(1, Sword))];
     private IReadOnlyCollection<CharacterLevelExperience>? _levels;
@@ -63,7 +63,7 @@ public class MapInstanceLootShould
         serviceProvider.GetService(typeof(ILootRoller))
             .Returns(roller ?? new LootRoller(new LootRandom(new Random(460)), NullLogger<LootRoller>.Instance));
         serviceProvider.GetService(typeof(ILootAllocator))
-            .Returns(new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(Now),
+            .Returns(new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(s_now),
                 random ?? CombatRandom.Steady));
         if (parties is not null)
         {
@@ -202,7 +202,7 @@ public class MapInstanceLootShould
         Assert.All(instance.Drops.All, drop =>
         {
             Assert.Equal(7u, drop.OwnerCharacterId);
-            Assert.Equal(Now.UtcDateTime + TimeSpan.FromSeconds(30), drop.FreeForAllAt);
+            Assert.Equal(s_now.UtcDateTime + TimeSpan.FromSeconds(30), drop.FreeForAllAt);
         });
     }
 
@@ -229,7 +229,7 @@ public class MapInstanceLootShould
         Assert.All(instance.Drops.All, drop =>
         {
             Assert.Null(drop.OwnerCharacterId);
-            Assert.Equal(Now.UtcDateTime, drop.FreeForAllAt);
+            Assert.Equal(s_now.UtcDateTime, drop.FreeForAllAt);
         });
     }
 
@@ -253,7 +253,7 @@ public class MapInstanceLootShould
         Assert.Equal(2, instance.Drops.Count);
         Assert.Equal(2u, instance.Drops.All.Single(d => d.ItemTemplateId == Sword.Id).OwnerCharacterId);
         Assert.Equal(1u, instance.Drops.All.Single(d => d.Gold > 0).OwnerCharacterId);
-        Assert.All(instance.Drops.All, drop => Assert.Equal(Now.UtcDateTime + TimeSpan.FromSeconds(30), drop.FreeForAllAt));
+        Assert.All(instance.Drops.All, drop => Assert.Equal(s_now.UtcDateTime + TimeSpan.FromSeconds(30), drop.FreeForAllAt));
         Assert.Equal([(0L, 1L), (0L, 1L)], random.WeaponRolls);
     }
 
@@ -262,11 +262,11 @@ public class MapInstanceLootShould
     {
         using MapInstance instance = await Build();
         MapInstanceClient client = Join(instance, 460_101);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         // No table and no gold: the roll is empty.
         Kill(instance, 460_003, template: BoarTemplate(null, minGold: 0, maxGold: 0));
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal(0, instance.Drops.Count);
         Assert.Empty(Spawned(client));
@@ -277,13 +277,13 @@ public class MapInstanceLootShould
     {
         using MapInstance instance = await Build();
         MapInstanceClient first = Join(instance, 460_101);
-        instance.Update(Tick);            // first's own snapshot: nothing on the ground yet, so nothing sent
+        instance.Update(s_tick);            // first's own snapshot: nothing on the ground yet, so nothing sent
         Kill(instance, 460_001);
 
         MapInstanceClient second = Join(instance, 460_102);
         Assert.Empty(Spawned(second));   // not from AddCharacter: the map transition packets go first
 
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         SLootSpawnedPacket snapshot = Assert.Single(Spawned(second));
         Assert.Equal(2, snapshot.Drops.Count);
@@ -296,7 +296,7 @@ public class MapInstanceLootShould
         using MapInstance instance = await Build();
         MapInstanceClient client = Join(instance, 460_101);
 
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Empty(Spawned(client));
     }
@@ -306,12 +306,12 @@ public class MapInstanceLootShould
     {
         using MapInstance instance = await Build();
         MapInstanceClient stays = Join(instance, 460_101);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         Kill(instance, 460_001);
         MapInstanceClient leaves = Join(instance, 460_102);
 
         instance.RemoveCharacter(leaves.Connection);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         // It joined after the kill, so no broadcast reached it, and it left before its snapshot.
         Assert.Empty(Spawned(leaves));
@@ -343,12 +343,12 @@ public class MapInstanceLootShould
         using MapInstance instance = await Build();
         MapInstanceClient far = Join(instance, 460_121);
         far.Character.Position = new Vector3(500f, 0f, 500f);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Kill(instance, 460_001);
         MapInstanceClient farLate = Join(instance, 460_122);
         farLate.Character.Position = new Vector3(-500f, 0f, 0f);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         ObjectGuid[] guids = instance.Drops.All.Select(d => d.Guid).ToArray();
         instance.BroadcastLootDespawned(guids);
 

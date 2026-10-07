@@ -19,9 +19,9 @@ public sealed class StripePaymentProviderShould
         var http = new Transport { RequireHostedPageMode = true };
         Assert.Equal("cs_test", (await Provider(http).CreateCheckoutAsync(Command(), default)).CheckoutReference);
     }
-    internal static readonly DateTime Now = new(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
-    internal static readonly Guid Order = Guid.NewGuid();
-    internal static readonly Guid Attempt = Guid.NewGuid();
+    internal static readonly DateTime s_now = new(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
+    internal static readonly Guid s_order = Guid.NewGuid();
+    internal static readonly Guid s_attempt = Guid.NewGuid();
 
     [Fact]
     public async Task Create_fixed_inclusive_euro_checkout_with_the_persisted_operation_key()
@@ -104,7 +104,7 @@ public sealed class StripePaymentProviderShould
         config.PaymentMethods = ["card", "multibanco"];
         var http = new Transport();
         var provider = new StripePaymentProvider(Options.Create(config), new StripeClient("sk_test_private",
-            httpClient: new SystemNetHttpClient(new HttpClient(http), maxNetworkRetries: 0)), new FakeTimeProvider(new DateTimeOffset(Now)));
+            httpClient: new SystemNetHttpClient(new HttpClient(http), maxNetworkRetries: 0)), new FakeTimeProvider(new DateTimeOffset(s_now)));
         Assert.Equal("cs_test", (await provider.CreateCheckoutAsync(Command(), default)).CheckoutReference);
         Assert.Contains("allowed_payment_method_types[0]=card", Uri.UnescapeDataString(http.Body!));
         Assert.DoesNotContain("multibanco", http.Body);
@@ -115,7 +115,7 @@ public sealed class StripePaymentProviderShould
     {
         var http = new Transport();
         var provider = new StripePaymentProvider(Options.Create(CommerceConfigurationShould.Valid()), new StripeClient("sk_test_private",
-            httpClient: new SystemNetHttpClient(new HttpClient(http), maxNetworkRetries: 0)), new FakeTimeProvider(new DateTimeOffset(Now.AddHours(1))));
+            httpClient: new SystemNetHttpClient(new HttpClient(http), maxNetworkRetries: 0)), new FakeTimeProvider(new DateTimeOffset(s_now.AddHours(1))));
         Assert.Equal("cs_test", (await provider.CreateCheckoutAsync(Command(), default)).CheckoutReference);
         Assert.Equal("operation-test", http.Key);
     }
@@ -140,7 +140,7 @@ public sealed class StripePaymentProviderShould
         config.Currency = "usd";
         var http = new Transport { Paid = true, Gross = 1200, Currency = "usd" };
         var provider = new StripePaymentProvider(Options.Create(config), new StripeClient("sk_test_private",
-            httpClient: new SystemNetHttpClient(new HttpClient(http), maxNetworkRetries: 0)), new FakeTimeProvider(new DateTimeOffset(Now)));
+            httpClient: new SystemNetHttpClient(new HttpClient(http), maxNetworkRetries: 0)), new FakeTimeProvider(new DateTimeOffset(s_now)));
         await provider.CreateCheckoutAsync(Command() with { AmountMinor = 1200, Currency = "usd" }, default);
         config.AmountMinor = 800;
         config.Currency = "eur";
@@ -158,7 +158,7 @@ public sealed class StripePaymentProviderShould
     [InlineData(0, true, true)]
     public void Verify_raw_signature_and_environment_before_normalizing(int age, bool live, bool rejected)
     {
-        long timestamp = new DateTimeOffset(Now.AddSeconds(age)).ToUnixTimeSeconds();
+        long timestamp = new DateTimeOffset(s_now.AddSeconds(age)).ToUnixTimeSeconds();
         string raw = JsonSerializer.Serialize(new
         {
             id = "evt_test",
@@ -172,16 +172,16 @@ public sealed class StripePaymentProviderShould
         string signed = $"{timestamp}.{raw}";
         string signature = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes("whsec_private"), Encoding.UTF8.GetBytes(signed))).ToLowerInvariant();
         var headers = new Dictionary<string, string> { ["Stripe-Signature"] = $"t={timestamp},v1={signature}" };
-        if (rejected) Assert.Throws<PaymentProviderException>(() => Provider(new Transport()).VerifyNotification(Encoding.UTF8.GetBytes(raw), headers, Now));
-        else Assert.Equal("cs_test", Provider(new Transport()).VerifyNotification(Encoding.UTF8.GetBytes(raw), headers, Now).ResourceReference);
+        if (rejected) Assert.Throws<PaymentProviderException>(() => Provider(new Transport()).VerifyNotification(Encoding.UTF8.GetBytes(raw), headers, s_now));
+        else Assert.Equal("cs_test", Provider(new Transport()).VerifyNotification(Encoding.UTF8.GetBytes(raw), headers, s_now).ResourceReference);
         headers["Stripe-Signature"] = $"t={timestamp},v1={new string('0', 64)}";
-        Assert.Throws<PaymentProviderException>(() => Provider(new Transport()).VerifyNotification(Encoding.UTF8.GetBytes(raw), headers, Now));
+        Assert.Throws<PaymentProviderException>(() => Provider(new Transport()).VerifyNotification(Encoding.UTF8.GetBytes(raw), headers, s_now));
     }
 
-    internal static CheckoutCreateCommand Command() => new(Order, Attempt, "operation-test", "price_test", "prod_test", 800, "eur", 1,
-        "player@example.test", $"https://example.test/account/purchases/{Order:D}", $"https://example.test/account/purchases/{Order:D}?canceled=true", Now.AddMinutes(30), ["card"]);
+    internal static CheckoutCreateCommand Command() => new(s_order, s_attempt, "operation-test", "price_test", "prod_test", 800, "eur", 1,
+        "player@example.test", $"https://example.test/account/purchases/{s_order:D}", $"https://example.test/account/purchases/{s_order:D}?canceled=true", s_now.AddMinutes(30), ["card"]);
     internal static StripePaymentProvider Provider(Transport http) => new(Options.Create(CommerceConfigurationShould.Valid()),
-        new StripeClient("sk_test_private", httpClient: new SystemNetHttpClient(new HttpClient(http), maxNetworkRetries: 0)), new FakeTimeProvider(new DateTimeOffset(Now)));
+        new StripeClient("sk_test_private", httpClient: new SystemNetHttpClient(new HttpClient(http), maxNetworkRetries: 0)), new FakeTimeProvider(new DateTimeOffset(s_now)));
 
     internal sealed class Transport : HttpMessageHandler
     {
@@ -289,13 +289,13 @@ public sealed class StripePaymentProviderShould
                     status = "complete",
                     payment_status = Paid ? "paid" : "unpaid",
                     payment_intent = "pi_test",
-                    expires_at = new DateTimeOffset(Now.AddMinutes(30)).ToUnixTimeSeconds(),
+                    expires_at = new DateTimeOffset(s_now.AddMinutes(30)).ToUnixTimeSeconds(),
                     amount_total = Gross,
                     amount_subtotal = Gross,
                     currency = Currency,
                     automatic_tax = new { enabled = true, status = "complete" },
                     total_details = new { amount_tax = 0, amount_discount = 0, amount_shipping = 0 },
-                    metadata = new { order_id = Order.ToString("D"), attempt_id = Attempt.ToString("D") }
+                    metadata = new { order_id = s_order.ToString("D"), attempt_id = s_attempt.ToString("D") }
                 };
             }
             return new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json") };

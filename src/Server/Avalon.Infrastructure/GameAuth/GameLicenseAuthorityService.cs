@@ -94,7 +94,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
             if (owns && end <= completedAt) return Unavailable;
             GameLicense? applied = await licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision,
                 new(owns, evidence.ObservedAt, end, evidence.ProviderExpiresAt,
-                    Reestablish: request.BoundLicenseId is null && provider.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership), ct);
+                    reestablish: request.BoundLicenseId is null && provider.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership), ct);
             if (applied is null) return Unlicensed;
             if (!Matches(applied, request, provider.AuthorityKind)) return Unavailable;
             if (owns && !applied.Authorizes(request.Account, request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;

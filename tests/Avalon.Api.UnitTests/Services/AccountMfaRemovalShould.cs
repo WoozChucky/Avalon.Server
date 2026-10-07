@@ -28,7 +28,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public class AccountMfaRemovalShould : IDisposable
 {
-    private static readonly string Password = TestPasswords.Valid;
+    private static readonly string s_password = TestPasswords.Valid;
     private const string PendingHash = "PENDINGLOGINHASH";
 
     private readonly SqliteAuthDatabase _database = new();
@@ -224,7 +224,7 @@ public class AccountMfaRemovalShould : IDisposable
         TestLogin.Password(new AccountRepository(_database), _cache),
         TestLogin.Reauthentication(new AccountRepository(_database), _cache));
 
-    private static AuthenticateRequest Login(string username) => new() { Username = username, Password = Password };
+    private static AuthenticateRequest Login(string username) => new() { Username = username, Password = s_password };
 
     private async Task<Account> CreateAccountAsync(string username)
     {
@@ -234,7 +234,7 @@ public class AccountMfaRemovalShould : IDisposable
             Username = username,
             Email = $"{username.ToLowerInvariant()}@avalon.monster",
             Salt = Encoding.UTF8.GetBytes(salt),
-            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, salt)),
+            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, salt)),
             SessionKey = [],
             LastIp = "127.0.0.1",
             LastAttemptIp = string.Empty,

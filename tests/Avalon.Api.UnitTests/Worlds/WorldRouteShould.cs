@@ -197,14 +197,14 @@ public sealed class WorldRouteShould : IAsyncLifetime
     [Fact]
     public async Task Apply_the_world_rule_to_a_personal_access_token()
     {
-        const string token = "avp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-        _host.Pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>()).Returns(new PersonalAccessToken
+        const string Token = "avp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        _host.Pats.FindByRawTokenAsync(Token, Arg.Any<CancellationToken>()).Returns(new PersonalAccessToken
         {
             Id = new PersonalAccessTokenId(5),
             AccountId = new AccountId(ApiAuthHost.AccountIdValue),
-            TokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token)),
+            TokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(Token)),
             Name = "ci",
-            TokenPrefix = token[..8],
+            TokenPrefix = Token[..8],
             Roles = AccountAccessLevel.Player,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(1),
@@ -214,7 +214,7 @@ public sealed class WorldRouteShould : IAsyncLifetime
         async Task<HttpStatusCode> WithPat(ushort world)
         {
             using HttpRequestMessage request = new(HttpMethod.Get, $"/world/{world}/item-template/1");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Avalon", token);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Avalon", Token);
             return (await _host.Client.SendAsync(request)).StatusCode;
         }
 

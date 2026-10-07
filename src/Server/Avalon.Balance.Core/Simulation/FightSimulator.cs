@@ -40,7 +40,7 @@ public sealed class FightSimulator
     public const double MaxSeconds = 300d;
 
     private const float Dt = (float)StepSeconds;
-    private static readonly double GcdSeconds = new CombatConfig().GcdMs / 1000d;
+    private static readonly double s_gcdSeconds = new CombatConfig().GcdMs / 1000d;
 
     private readonly RegenConfiguration _regen = new();
     private readonly CombatFormula _formula;
@@ -122,7 +122,7 @@ public sealed class FightSimulator
 
     private void PlayerPhase()
     {
-        if (!Player.IsDead && Player.Casting is null && Time - _lastCastStart >= GcdSeconds - 1e-9)
+        if (!Player.IsDead && Player.Casting is null && Time - _lastCastStart >= s_gcdSeconds - 1e-9)
             TryCast();
 
         foreach (SimAbility ability in Player.Abilities)

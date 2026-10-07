@@ -98,15 +98,15 @@ public static class ObjWriter
         {
             Object(name, material);
             int b = _points.Count;
-            const int n = CylinderBlocker.Segments;
-            for (int i = 0; i < n; i++)
+            const int N = CylinderBlocker.Segments;
+            for (int i = 0; i < N; i++)
             {
-                double angle = 2.0 * Math.PI * i / n;
+                double angle = 2.0 * Math.PI * i / N;
                 Vertex(x + (float)(radius * Math.Cos(angle)), y0, z + (float)(radius * Math.Sin(angle)));
             }
-            for (int i = 0; i < n; i++)
+            for (int i = 0; i < N; i++)
             {
-                double angle = 2.0 * Math.PI * i / n;
+                double angle = 2.0 * Math.PI * i / N;
                 Vertex(x + (float)(radius * Math.Cos(angle)), y1, z + (float)(radius * Math.Sin(angle)));
             }
             int bottomCentre = _points.Count;
@@ -115,12 +115,12 @@ public static class ObjWriter
             Vertex(x, y1, z);
 
             (float x, float, float z) inside = (x, (y0 + y1) / 2f, z);
-            for (int i = 0; i < n; i++)
+            for (int i = 0; i < N; i++)
             {
-                int j = (i + 1) % n;
-                Triangle(inside, topCentre, b + n + i, b + n + j);
+                int j = (i + 1) % N;
+                Triangle(inside, topCentre, b + N + i, b + N + j);
                 Triangle(inside, bottomCentre, b + i, b + j);
-                Quad(inside, b + i, b + j, b + n + j, b + n + i);
+                Quad(inside, b + i, b + j, b + N + j, b + N + i);
             }
         }
 
@@ -132,27 +132,27 @@ public static class ObjWriter
         {
             Object(name, material);
             int b = _points.Count;
-            const int n = CylinderBlocker.Segments;
+            const int N = CylinderBlocker.Segments;
             foreach ((float radius, float y) in new[] { (outer, y0), (outer, y1), (inner, y0), (inner, y1) })
             {
-                for (int i = 0; i < n; i++)
+                for (int i = 0; i < N; i++)
                 {
-                    double angle = 2.0 * Math.PI * i / n;
+                    double angle = 2.0 * Math.PI * i / N;
                     Vertex(x + (float)(radius * Math.Cos(angle)), y, z + (float)(radius * Math.Sin(angle)));
                 }
             }
 
             // b + i outer bottom, b + n + i outer top, b + 2n + i inner bottom, b + 3n + i inner top.
             float mid = (outer + inner) / 2f;
-            for (int i = 0; i < n; i++)
+            for (int i = 0; i < N; i++)
             {
-                int j = (i + 1) % n;
-                double angle = 2.0 * Math.PI * (i + 0.5) / n;
+                int j = (i + 1) % N;
+                double angle = 2.0 * Math.PI * (i + 0.5) / N;
                 (float, float, float) inside = (x + (float)(mid * Math.Cos(angle)), (y0 + y1) / 2f, z + (float)(mid * Math.Sin(angle)));
-                Quad(inside, b + i, b + j, b + n + j, b + n + i);                           // outer wall
-                Quad(inside, b + 2 * n + i, b + 2 * n + j, b + 3 * n + j, b + 3 * n + i);   // inner wall
-                Quad(inside, b + n + i, b + n + j, b + 3 * n + j, b + 3 * n + i);           // top
-                Quad(inside, b + i, b + j, b + 2 * n + j, b + 2 * n + i);                   // bottom
+                Quad(inside, b + i, b + j, b + N + j, b + N + i);                           // outer wall
+                Quad(inside, b + 2 * N + i, b + 2 * N + j, b + 3 * N + j, b + 3 * N + i);   // inner wall
+                Quad(inside, b + N + i, b + N + j, b + 3 * N + j, b + 3 * N + i);           // top
+                Quad(inside, b + i, b + j, b + 2 * N + j, b + 2 * N + i);                   // bottom
             }
         }
 

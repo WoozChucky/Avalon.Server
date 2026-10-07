@@ -27,15 +27,15 @@ namespace Avalon.Server.World.UnitTests.Dialogue;
 /// </summary>
 public class CanInteractAgreementShould
 {
-    private static readonly CreatureTemplateId Innkeeper = new(3);
-    private static readonly CreatureTemplateId Wolf = new(4);
+    private static readonly CreatureTemplateId s_innkeeper = new(3);
+    private static readonly CreatureTemplateId s_wolf = new(4);
 
     [Theory]
     [InlineData(3ul, true)]
     [InlineData(4ul, false)]
     public void Advertise_Interaction_Exactly_When_The_Handler_Accepts_It(ulong templateId, bool hasDialogue)
     {
-        IWorld world = WorldWithDialogueFor(Innkeeper);
+        IWorld world = WorldWithDialogueFor(s_innkeeper);
         ICreature creature = new CreatureSpawner(NullLoggerFactory.Instance, world)
             .Spawn(new CreatureTemplateId(templateId));
 
@@ -78,7 +78,7 @@ public class CanInteractAgreementShould
     {
         ICreatureTemplateRepository templates = Substitute.For<ICreatureTemplateRepository>();
         templates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new List<CreatureTemplate> { Template(Innkeeper, "Innkeeper"), Template(Wolf, "Wolf") }));
+            .Returns(Task.FromResult(new List<CreatureTemplate> { Template(s_innkeeper, "Innkeeper"), Template(s_wolf, "Wolf") }));
 
         ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())

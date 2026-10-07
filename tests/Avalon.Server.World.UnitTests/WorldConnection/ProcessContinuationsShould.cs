@@ -126,7 +126,7 @@ public sealed class ProcessContinuationsShould : IDisposable
     [Fact]
     public void Run_the_callback_of_a_task_that_succeeds_while_the_flush_is_reading_it()
     {
-        const int iterations = 50_000;
+        const int Iterations = 50_000;
         TaskCompletionSource<bool>? pending = null;
         bool stop = false;
         var completer = new Thread(() =>
@@ -153,7 +153,7 @@ public sealed class ProcessContinuationsShould : IDisposable
         {
             // Bounded in time too, so a slow or single-core runner only runs fewer rounds.
             var budget = System.Diagnostics.Stopwatch.StartNew();
-            for (int i = 0; i < iterations && budget.Elapsed < TimeSpan.FromSeconds(3); i++)
+            for (int i = 0; i < Iterations && budget.Elapsed < TimeSpan.FromSeconds(3); i++)
             {
                 var tcs = new TaskCompletionSource<bool>();
                 bool invoked = false;

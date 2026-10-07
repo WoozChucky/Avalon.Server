@@ -7,7 +7,7 @@ namespace Avalon.Database.UnitTests;
 
 public sealed class GameLicenseShould
 {
-    private static readonly DateTime Now = new(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_now = new(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
 
     [Theory]
     [InlineData("steam")]
@@ -26,7 +26,7 @@ public sealed class GameLicenseShould
         Assert.Equal(otherProvider.Id, (await repo.RecordGrantAsync(otherProvider, default)).Id);
         GameLicense otherEnvironment = Grant(account.Id, provider); otherEnvironment.Environment = "test";
         Assert.Equal(otherEnvironment.Id, (await repo.RecordGrantAsync(otherEnvironment, default)).Id);
-        Assert.Equal(grant.Id, (await repo.FindActiveAsync(account.Id, provider, "production", "avalon.base", "base", Now, default))!.Id);
+        Assert.Equal(grant.Id, (await repo.FindActiveAsync(account.Id, provider, "production", "avalon.base", "base", s_now, default))!.Id);
         GameLicense conflict = Grant(account.Id, provider); conflict.Product = "other-product";
         await Assert.ThrowsAsync<InvalidOperationException>(() => repo.RecordGrantAsync(conflict, default));
     }
@@ -37,16 +37,16 @@ public sealed class GameLicenseShould
         using var db = SqliteDatabase.Auth();
         Account account = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("TIME"));
         var repo = new GameLicenseRepository(db);
-        Assert.Null(await repo.FindActiveAsync(account.Id, "avalon", "production", "avalon.base", "base", Now, default));
-        GameLicense grant = Grant(account.Id, "avalon"); grant.GrantedAt = Now.AddMinutes(1);
+        Assert.Null(await repo.FindActiveAsync(account.Id, "avalon", "production", "avalon.base", "base", s_now, default));
+        GameLicense grant = Grant(account.Id, "avalon"); grant.GrantedAt = s_now.AddMinutes(1);
         await repo.RecordGrantAsync(grant, default);
-        Assert.Null(await repo.FindActiveAsync(account.Id, "avalon", "production", "avalon.base", "base", Now, default));
-        GameLicense expired = Grant(account.Id, "avalon"); expired.LicenseReference = "expired"; expired.ExpiresAt = Now;
+        Assert.Null(await repo.FindActiveAsync(account.Id, "avalon", "production", "avalon.base", "base", s_now, default));
+        GameLicense expired = Grant(account.Id, "avalon"); expired.LicenseReference = "expired"; expired.ExpiresAt = s_now;
         await repo.RecordGrantAsync(expired, default);
-        Assert.False(expired.Authorizes(account.Id, "avalon.base", "production", Now));
-        GameLicense revoked = Grant(account.Id, "avalon"); revoked.LicenseReference = "revoked"; revoked.RevokedAt = Now.AddHours(1);
+        Assert.False(expired.Authorizes(account.Id, "avalon.base", "production", s_now));
+        GameLicense revoked = Grant(account.Id, "avalon"); revoked.LicenseReference = "revoked"; revoked.RevokedAt = s_now.AddHours(1);
         await repo.RecordGrantAsync(revoked, default);
-        Assert.False(revoked.Authorizes(account.Id, "avalon.base", "production", Now));
+        Assert.False(revoked.Authorizes(account.Id, "avalon.base", "production", s_now));
     }
 
     [Fact]
@@ -57,12 +57,12 @@ public sealed class GameLicenseShould
         var repo = new GameLicenseRepository(db);
         GameLicense grant = await repo.RecordGrantAsync(Grant(account.Id, "avalon"), default);
         GameLicense? revoked = await repo.ApplyDecisionAsync(grant.Id, grant.AuthorityRevision,
-            new LicenseAuthorityDecision(false, Now, Now), default);
+            new LicenseAuthorityDecision(false, s_now, s_now), default);
         Assert.NotNull(revoked);
         Assert.Equal(2, revoked.AuthorityRevision);
-        Assert.False(revoked.Authorizes(account.Id, "avalon.base", "production", Now));
-        Assert.Null(await repo.ApplyDecisionAsync(grant.Id, 1, new(true, Now.AddSeconds(1), Now.AddMinutes(5)), default));
-        Assert.Null(await repo.ApplyDecisionAsync(grant.Id, 2, new(true, Now.AddSeconds(1), Now.AddMinutes(5), Reestablish: true), default));
+        Assert.False(revoked.Authorizes(account.Id, "avalon.base", "production", s_now));
+        Assert.Null(await repo.ApplyDecisionAsync(grant.Id, 1, new(true, s_now.AddSeconds(1), s_now.AddMinutes(5)), default));
+        Assert.Null(await repo.ApplyDecisionAsync(grant.Id, 2, new(true, s_now.AddSeconds(1), s_now.AddMinutes(5), reestablish: true), default));
     }
 
     [Fact]
@@ -73,12 +73,12 @@ public sealed class GameLicenseShould
         var repo = new GameLicenseRepository(db);
         GameLicense grant = Grant(account.Id, "test-store"); grant.AuthorityKind = LicenseAuthorityKind.VerifiedOwnership;
         await repo.RecordGrantAsync(grant, default);
-        Assert.NotNull(await repo.ApplyDecisionAsync(grant.Id, 1, new(false, Now, Now), default));
-        Assert.Null(await repo.ApplyDecisionAsync(grant.Id, 2, new(true, Now.AddSeconds(-1), Now.AddMinutes(5).AddSeconds(-1), Reestablish: true), default));
-        GameLicense? renewed = await repo.ApplyDecisionAsync(grant.Id, 2, new(true, Now.AddSeconds(1), Now.AddMinutes(5), Reestablish: true), default);
+        Assert.NotNull(await repo.ApplyDecisionAsync(grant.Id, 1, new(false, s_now, s_now), default));
+        Assert.Null(await repo.ApplyDecisionAsync(grant.Id, 2, new(true, s_now.AddSeconds(-1), s_now.AddMinutes(5).AddSeconds(-1), reestablish: true), default));
+        GameLicense? renewed = await repo.ApplyDecisionAsync(grant.Id, 2, new(true, s_now.AddSeconds(1), s_now.AddMinutes(5), reestablish: true), default);
         Assert.NotNull(renewed); Assert.Equal(3, renewed.AuthorityRevision);
         Assert.Null(renewed.RevokedAt);
-        Assert.NotNull(await repo.ApplyDecisionAsync(grant.Id, 3, new(true, Now.AddSeconds(2), Now.AddMinutes(5)), default));
+        Assert.NotNull(await repo.ApplyDecisionAsync(grant.Id, 3, new(true, s_now.AddSeconds(2), s_now.AddMinutes(5)), default));
         Assert.Equal(3, (await repo.FindAsync(grant.Id, default))!.AuthorityRevision);
     }
 
@@ -90,19 +90,19 @@ public sealed class GameLicenseShould
         var repo = new GameLicenseRepository(db);
         GameLicense grant = Grant(account.Id, "test-store");
         grant.AuthorityKind = LicenseAuthorityKind.VerifiedOwnership;
-        grant.ExpiresAt = Now.AddDays(1);
+        grant.ExpiresAt = s_now.AddDays(1);
         await repo.RecordGrantAsync(grant);
 
         DateTime providerExpiry = grant.GrantedAt.AddDays(-1);
         GameLicense? revoked = await repo.ApplyDecisionAsync(grant.Id, 1,
-            new(false, Now, providerExpiry, ProviderExpiresAt: providerExpiry));
+            new(false, s_now, providerExpiry, providerExpiresAt: providerExpiry));
 
         Assert.NotNull(revoked);
         Assert.Equal(2, revoked.AuthorityRevision);
-        Assert.Equal(Now, revoked.RevokedAt);
-        Assert.Equal(Now.AddDays(1), revoked.ExpiresAt);
+        Assert.Equal(s_now, revoked.RevokedAt);
+        Assert.Equal(s_now.AddDays(1), revoked.ExpiresAt);
         Assert.Null(revoked.VerifiedUntil);
-        Assert.False(revoked.Authorizes(account.Id, "avalon.base", "production", Now));
+        Assert.False(revoked.Authorizes(account.Id, "avalon.base", "production", s_now));
         Assert.Equal(2, (await repo.FindAsync(grant.Id))!.AuthorityRevision);
     }
 
@@ -116,7 +116,7 @@ public sealed class GameLicenseShould
         ProviderProductId = "base",
         LicenseReference = "proof-1",
         AuthorityKind = LicenseAuthorityKind.StoredGrant,
-        GrantedAt = Now.AddDays(-1),
+        GrantedAt = s_now.AddDays(-1),
         AuthorityRevision = 1,
     };
 
@@ -155,10 +155,10 @@ public sealed class GameLicenseShould
             Product = "avalon.base",
             ProviderProductId = "base",
             OwnsProduct = true,
-            ObservedAt = Now,
-            AuthorizedUntil = Now.AddMinutes(5),
+            ObservedAt = s_now,
+            AuthorizedUntil = s_now.AddMinutes(5),
             PolicyVersion = 1,
         });
-        Assert.Null(await new GameLicenseRepository(db).FindActiveAsync(account.Id, "steam", "production", "avalon.base", "base", Now));
+        Assert.Null(await new GameLicenseRepository(db).FindActiveAsync(account.Id, "steam", "production", "avalon.base", "base", s_now));
     }
 }

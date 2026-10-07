@@ -28,8 +28,8 @@ namespace Avalon.Server.World.UnitTests.Auras;
 /// </summary>
 public class AuraTickShould
 {
-    private static readonly AuraId Bleed = new(901);
-    private static readonly AuraId Renew = new(904);
+    private static readonly AuraId s_bleed = new(901);
+    private static readonly AuraId s_renew = new(904);
     private readonly HashSet<IUnit> _walkingHome = [];
     private readonly AuraHarness _h;
 
@@ -44,7 +44,7 @@ public class AuraTickShould
     {
         CharacterEntity warrior = _h.Player(910_101);
         Creature boar = _h.Creature(910_901);
-        _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(warrior, boar, s_bleed, AuraSource.None);
 
         _h.Advance(TimeSpan.FromMilliseconds(2999));
         _h.Auras.Update();
@@ -68,7 +68,7 @@ public class AuraTickShould
     public void Catch_up_every_owed_tick_after_a_stall_and_no_more()
     {
         Creature boar = _h.Creature(910_902);
-        _h.Auras.Apply(_h.Player(910_102), boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_102), boar, s_bleed, AuraSource.None);
 
         _h.Advance(TimeSpan.FromMinutes(1));
         _h.Auras.Update();
@@ -118,7 +118,7 @@ public class AuraTickShould
         CharacterEntity warrior = _h.Player(910_103);
         Creature boar = _h.Creature(910_903);
         for (int cast = 0; cast < 3; cast++)
-            _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+            _h.Auras.Apply(warrior, boar, s_bleed, AuraSource.None);
 
         _h.Advance(TimeSpan.FromSeconds(3));
         _h.Auras.Update();
@@ -132,13 +132,13 @@ public class AuraTickShould
         CharacterEntity healer = _h.Player(910_104);
         CharacterEntity friend = _h.Player(910_105);
         friend.CurrentHealth = 400;
-        _h.Auras.Apply(healer, friend, Renew, AuraSource.None);
+        _h.Auras.Apply(healer, friend, s_renew, AuraSource.None);
 
         _h.Advance(TimeSpan.FromSeconds(3));
         _h.Auras.Update();
 
         Assert.Equal(406u, friend.CurrentHealth);   // 24 over 4 ticks
-        _h.Outcomes.Received(1).PeriodicTick(healer, friend, 6u, Renew, HitResult.None, true);
+        _h.Outcomes.Received(1).PeriodicTick(healer, friend, 6u, s_renew, HitResult.None, true);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class AuraTickShould
     {
         CharacterEntity warrior = _h.Player(910_106);
         Creature boar = _h.Creature(910_904);
-        _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(warrior, boar, s_bleed, AuraSource.None);
 
         _h.Advance(TimeSpan.FromSeconds(3));
         _h.Auras.Update();
@@ -154,8 +154,8 @@ public class AuraTickShould
         _h.Advance(TimeSpan.FromSeconds(3));
         _h.Auras.Update();
 
-        _h.Outcomes.Received(1).PeriodicTick(warrior, boar, 3u, Bleed, HitResult.None, false);
-        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, Bleed, HitResult.None, false);
+        _h.Outcomes.Received(1).PeriodicTick(warrior, boar, 3u, s_bleed, HitResult.None, false);
+        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, s_bleed, HitResult.None, false);
     }
 
     /// <summary>The caster logged out; the last tick kills; the kill counts and nobody is credited.</summary>
@@ -164,7 +164,7 @@ public class AuraTickShould
     {
         CharacterEntity warrior = _h.Player(910_107);
         Creature boar = _h.Creature(910_905, health: 3);
-        _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(warrior, boar, s_bleed, AuraSource.None);
         _h.Characters.Remove(warrior.Guid);
 
         _h.Advance(TimeSpan.FromSeconds(3));
@@ -180,8 +180,8 @@ public class AuraTickShould
     public void Tick_nothing_more_on_a_unit_a_tick_killed()
     {
         Creature boar = _h.Creature(910_912, health: 4);
-        _h.Auras.Apply(_h.Player(910_114), boar, Bleed, AuraSource.None);
-        _h.Auras.Apply(_h.Player(910_115), boar, Renew, AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_114), boar, s_bleed, AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_115), boar, s_renew, AuraSource.None);
 
         _h.Advance(TimeSpan.FromMinutes(1));
         _h.Auras.Update();
@@ -198,13 +198,13 @@ public class AuraTickShould
     {
         CharacterEntity warrior = _h.Player(910_108);
         Creature boar = _h.Creature(910_906);
-        _h.Auras.Apply(warrior, boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(warrior, boar, s_bleed, AuraSource.None);
         warrior.IsDead = true;
 
         _h.Advance(TimeSpan.FromSeconds(3));
         _h.Auras.Update();
 
-        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, Bleed, HitResult.None, false);
+        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, s_bleed, HitResult.None, false);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class AuraTickShould
     {
         CharacterEntity hunter = _h.Player(910_109);
         Creature boar = _h.Creature(910_907);
-        _h.Auras.Apply(hunter, boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(hunter, boar, s_bleed, AuraSource.None);
         _h.Auras.Apply(hunter, boar, new AuraId(903), AuraSource.None);
         boar.CurrentHealth = 0;
 
@@ -226,7 +226,7 @@ public class AuraTickShould
     public void Expire_an_aura_whose_template_is_no_longer_loaded_without_ticking_it()
     {
         Creature boar = _h.Creature(910_908);
-        _h.Auras.Apply(_h.Player(910_110), boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_110), boar, s_bleed, AuraSource.None);
         _h.Use(AuraTestData.Renew());
 
         _h.Advance(TimeSpan.FromSeconds(3));
@@ -241,7 +241,7 @@ public class AuraTickShould
     public void End_the_harmful_auras_of_a_creature_walking_home()
     {
         Creature boar = _h.Creature(910_909);
-        _h.Auras.Apply(_h.Player(910_111), boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_111), boar, s_bleed, AuraSource.None);
         _walkingHome.Add(boar);
 
         _h.Auras.Update();
@@ -256,15 +256,15 @@ public class AuraTickShould
         Creature boar = _h.Creature(910_913);
         boar.CurrentHealth = 900;
         CharacterEntity caster = _h.Player(910_116);
-        _h.Auras.Apply(caster, boar, Bleed, AuraSource.None);
-        _h.Auras.Apply(caster, boar, Renew, AuraSource.None);
+        _h.Auras.Apply(caster, boar, s_bleed, AuraSource.None);
+        _h.Auras.Apply(caster, boar, s_renew, AuraSource.None);
         _walkingHome.Add(boar);
 
         _h.Advance(TimeSpan.FromSeconds(3));
         _h.Auras.Update();
 
         ActiveAura held = Assert.Single(boar.Auras.All);
-        Assert.Equal(Renew.Value, held.Id.Value);
+        Assert.Equal(s_renew.Value, held.Id.Value);
         Assert.Equal(906u, boar.CurrentHealth);
     }
 
@@ -275,8 +275,8 @@ public class AuraTickShould
         Creature boar = _h.Creature(910_914);
         _walkingHome.Add(boar);
 
-        AuraApplyResult harmful = _h.Auras.Apply(_h.Player(910_117), boar, Bleed, AuraSource.None);
-        AuraApplyResult helpful = _h.Auras.Apply(_h.Player(910_118), boar, Renew, AuraSource.None);
+        AuraApplyResult harmful = _h.Auras.Apply(_h.Player(910_117), boar, s_bleed, AuraSource.None);
+        AuraApplyResult helpful = _h.Auras.Apply(_h.Player(910_118), boar, s_renew, AuraSource.None);
 
         Assert.Equal(AuraApplyResult.Refused, harmful);
         Assert.Equal(AuraApplyResult.Applied, helpful);
@@ -305,7 +305,7 @@ public class AuraTickShould
         Creature thrower = _h.Creature(910_915);
         Creature other = _h.Creature(910_916);
         _h.Auras.Apply(_h.Player(910_119), thrower, new AuraId(907), AuraSource.None);
-        _h.Auras.Apply(_h.Player(910_120), other, Bleed, AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_120), other, s_bleed, AuraSource.None);
         _h.Outcomes
             .When(o => o.PeriodicTick(Arg.Any<IUnit?>(), thrower, Arg.Any<uint>(), Arg.Any<AuraId>(), Arg.Any<HitResult>(),
                 Arg.Any<bool>()))
@@ -336,7 +336,7 @@ public class AuraTickShould
         CharacterEntity fallen = _h.Player(910_123);
         Creature boar = _h.Creature(910_917);
         _h.Auras.Apply(fallen, fallen, new AuraId(905), AuraSource.None);
-        _h.Auras.Apply(_h.Player(910_124), boar, Bleed, AuraSource.None);
+        _h.Auras.Apply(_h.Player(910_124), boar, s_bleed, AuraSource.None);
         fallen.IsDead = true;
         _h.DataFails = true;
 
@@ -355,7 +355,7 @@ public class AuraTickShould
     {
         CharacterEntity healer = _h.Player(910_121);
         CharacterEntity friend = _h.Player(910_122);
-        _h.Auras.Apply(healer, friend, Renew, AuraSource.None);
+        _h.Auras.Apply(healer, friend, s_renew, AuraSource.None);
 
         _h.Advance(TimeSpan.FromSeconds(3));
         _h.Auras.Update();
@@ -397,7 +397,7 @@ public class AuraTickShould
         KitCombatScript script = ScriptOf(boar, h);
         boar.Script = script;
 
-        Assert.Equal(AuraApplyResult.Applied, h.Auras.Apply(boar, player, Bleed, AuraSource.None));
+        Assert.Equal(AuraApplyResult.Applied, h.Auras.Apply(boar, player, s_bleed, AuraSource.None));
         Assert.NotNull(h.Encounters.FindEncounterContaining(boar));
         script.OnEnteredRange(player);
         boar.Position = new Vector3(40.5f, 0f, 0f);   // drawn past the 40 m leash
@@ -414,7 +414,7 @@ public class AuraTickShould
         Assert.Equal(497u, player.CurrentHealth);   // the tick lands
         Assert.Null(h.Encounters.FindEncounterContaining(boar));
 
-        h.Auras.Apply(healer, player, Renew, new AuraSource(new AbilityId(233), 1f, 0.5f, 0));
+        h.Auras.Apply(healer, player, s_renew, new AuraSource(new AbilityId(233), 1f, 0.5f, 0));
         h.Advance(TimeSpan.FromSeconds(3));
         h.Auras.Update();
 
@@ -457,7 +457,7 @@ public class AuraTickShould
         DateTime timerSetAt = time.GetUtcNow().UtcDateTime;
         time.Advance(TimeSpan.FromSeconds(30));
 
-        uint dealt = combat.ApplyPeriodicDamage(new PeriodicHit(attacker, target, Bleed, 10f, new AuraSnapshot(10f, 0f, 1),
+        uint dealt = combat.ApplyPeriodicDamage(new PeriodicHit(attacker, target, s_bleed, 10f, new AuraSnapshot(10f, 0f, 1),
             AuraSource.None));
 
         Assert.Equal((10u, 490u), (dealt, target.CurrentHealth));

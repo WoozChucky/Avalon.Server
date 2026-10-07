@@ -10,7 +10,7 @@ namespace Avalon.Database.UnitTests;
 
 public sealed class PurchaseRepositoryShould
 {
-    private static readonly DateTime Now = new(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_now = new(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
     private readonly Clock _clock = new();
 
     [Fact]
@@ -79,9 +79,9 @@ public sealed class PurchaseRepositoryShould
         PaymentEvent row = Event("event-one");
         Assert.True(await repo.AcceptEventAsync(row));
         Assert.False(await repo.AcceptEventAsync(Event("event-one")));
-        PaymentEventClaim first = Assert.Single(await repo.ClaimEventsAsync(Now, 10, TimeSpan.FromMinutes(2)));
-        Assert.Empty(await repo.ClaimEventsAsync(Now, 10, TimeSpan.FromMinutes(2)));
-        _clock.Now = Now.AddMinutes(3);
+        PaymentEventClaim first = Assert.Single(await repo.ClaimEventsAsync(s_now, 10, TimeSpan.FromMinutes(2)));
+        Assert.Empty(await repo.ClaimEventsAsync(s_now, 10, TimeSpan.FromMinutes(2)));
+        _clock.Now = s_now.AddMinutes(3);
         Assert.False(await repo.CompleteEventAsync(row.Id, first.LeaseId, new(true)));
         PaymentEventClaim second = Assert.Single(await repo.ClaimEventsAsync(_clock.Now, 10, TimeSpan.FromMinutes(2)));
         Assert.NotEqual(first.LeaseId, second.LeaseId);
@@ -97,10 +97,10 @@ public sealed class PurchaseRepositoryShould
         Account account = await Account(database, "LEASE");
         var repo = new PurchaseRepository(database, _clock);
         PurchaseReservationResult reservation = await repo.ReserveAsync(Reservation(account.Id));
-        PaymentAttemptClaim? first = await repo.ClaimAttemptAsync(reservation.Attempt!.Id, Now, TimeSpan.FromMinutes(2));
+        PaymentAttemptClaim? first = await repo.ClaimAttemptAsync(reservation.Attempt!.Id, s_now, TimeSpan.FromMinutes(2));
         Assert.NotNull(first);
-        Assert.Null(await repo.ClaimAttemptAsync(first.Attempt.Id, Now, TimeSpan.FromMinutes(2)));
-        _clock.Now = Now.AddMinutes(3);
+        Assert.Null(await repo.ClaimAttemptAsync(first.Attempt.Id, s_now, TimeSpan.FromMinutes(2)));
+        _clock.Now = s_now.AddMinutes(3);
         PaymentAttemptClaim? second = await repo.ClaimAttemptAsync(first.Attempt.Id, _clock.Now, TimeSpan.FromMinutes(2));
         Assert.NotNull(second);
         Assert.False(await repo.ReleaseAttemptAsync(first.Attempt.Id, first.LeaseId));
@@ -108,7 +108,7 @@ public sealed class PurchaseRepositoryShould
     }
 
     internal static PurchaseReservation Reservation(AccountId account) => new(account, 0, "avalon.base", "base", "price-test", 800, "eur",
-        "stripe", "merchant-test", "sandbox", "development", "https://avalon.example.test", "purchaser@example.test", "catalog", "card", Now.AddMinutes(30));
+        "stripe", "merchant-test", "sandbox", "development", "https://avalon.example.test", "purchaser@example.test", "catalog", "card", s_now.AddMinutes(30));
 
     [Fact]
     public async Task Retry_backoff_grows_without_losing_fencing()
@@ -117,14 +117,14 @@ public sealed class PurchaseRepositoryShould
         var repo = new PurchaseRepository(database, _clock);
         PaymentEvent row = Event("retry");
         await repo.AcceptEventAsync(row);
-        PaymentEventClaim first = Assert.Single(await repo.ClaimEventsAsync(Now, 10, TimeSpan.FromMinutes(2)));
+        PaymentEventClaim first = Assert.Single(await repo.ClaimEventsAsync(s_now, 10, TimeSpan.FromMinutes(2)));
         await repo.CompleteEventAsync(row.Id, first.LeaseId, new(false, "PROVIDER_UNAVAILABLE"));
-        _clock.Now = Now.AddSeconds(5);
+        _clock.Now = s_now.AddSeconds(5);
         PaymentEventClaim second = Assert.Single(await repo.ClaimEventsAsync(_clock.Now, 10, TimeSpan.FromMinutes(2)));
         await repo.CompleteEventAsync(row.Id, second.LeaseId, new(false, "PROVIDER_UNAVAILABLE"));
-        _clock.Now = Now.AddSeconds(14);
+        _clock.Now = s_now.AddSeconds(14);
         Assert.Empty(await repo.ClaimEventsAsync(_clock.Now, 10, TimeSpan.FromMinutes(2)));
-        _clock.Now = Now.AddSeconds(15);
+        _clock.Now = s_now.AddSeconds(15);
         Assert.Single(await repo.ClaimEventsAsync(_clock.Now, 10, TimeSpan.FromMinutes(2)));
     }
 
@@ -137,20 +137,20 @@ public sealed class PurchaseRepositoryShould
         ExternalReference = reference,
         Type = "checkout",
         ResourceReference = "checkout-one",
-        CreatedAt = Now,
-        NextAttemptAt = Now
+        CreatedAt = s_now,
+        NextAttemptAt = s_now
     };
 
     internal static async Task<Avalon.Domain.Auth.Account> Account(SqliteDatabase<AuthDbContext> database, string name)
     {
         Account row = StoreAuthenticationModelShould.Account(name);
-        row.EmailVerifiedAt = Now;
+        row.EmailVerifiedAt = s_now;
         return await new AccountRepository(database).CreateAsync(row);
     }
 
     private sealed class Clock : TimeProvider
     {
-        public DateTime Now { get; set; } = PurchaseRepositoryShould.Now;
+        public DateTime Now { get; set; } = PurchaseRepositoryShould.s_now;
         public override DateTimeOffset GetUtcNow() => new(Now);
     }
 }

@@ -13,11 +13,11 @@ namespace Avalon.Server.World.UnitTests.Scripts;
 
 public class CircleAbilityScriptShould
 {
-    private static readonly Vector3 AlongZ = new(0f, 0f, 1f);
+    private static readonly Vector3 s_alongZ = new(0f, 0f, 1f);
 
     private static void Fire(TestArena arena, CharacterEntity caster, GameAbility ability, Vector3? point = null)
     {
-        var script = new CircleAbilityScript(ability, caster, new AbilityAim(AlongZ, point), arena);
+        var script = new CircleAbilityScript(ability, caster, new AbilityAim(s_alongZ, point), arena);
         script.Prepare();
         Assert.Equal(SpellState.Finished, script.State);   // a circle resolves once, when it fires
     }
@@ -134,7 +134,7 @@ public class CircleAbilityScriptShould
         CharacterEntity caster = arena.Player(1, 0f, 0f);
         ICreature nearOld = arena.Creature(0f, 1f);
         ICreature nearNew = arena.Creature(20f, 1f);
-        var script = new CircleAbilityScript(Game(Circle(201, radius: 3f)), caster, new AbilityAim(AlongZ, null), arena);
+        var script = new CircleAbilityScript(Game(Circle(201, radius: 3f)), caster, new AbilityAim(s_alongZ, null), arena);
 
         caster.Position = new Vector3(20f, 0f, 0f);
         script.Prepare();

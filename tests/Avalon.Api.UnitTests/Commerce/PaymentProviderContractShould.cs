@@ -32,9 +32,9 @@ public sealed class PaymentProviderContractShould
     {
         public string Provider => "alternative";
         public Task<PaymentSnapshot> GetCheckoutAsync(PaymentLookup lookup, CancellationToken ct) => Task.FromResult(new PaymentSnapshot(
-            Provider, "merchant", "sandbox", StripePaymentProviderShould.Order, StripePaymentProviderShould.Attempt,
+            Provider, "merchant", "sandbox", StripePaymentProviderShould.s_order, StripePaymentProviderShould.s_attempt,
             "checkout", "payment", "offer", "game", 1, 800, "eur", 0, 800, true, paid,
-            paid ? PaymentAttemptState.Paid : PaymentAttemptState.Processing, StripePaymentProviderShould.Now.AddMinutes(30),
+            paid ? PaymentAttemptState.Paid : PaymentAttemptState.Processing, StripePaymentProviderShould.s_now.AddMinutes(30),
             [new("refund-one", "payment", 800, "eur", refunded ? PaymentRefundState.Succeeded : PaymentRefundState.Failed),
              new("refund-two", "payment", 800, "eur", refunded ? PaymentRefundState.Succeeded : PaymentRefundState.Failed)],
             disputed ? [new("dispute", "payment", 800, "eur", PaymentDisputeState.Open)] : []));

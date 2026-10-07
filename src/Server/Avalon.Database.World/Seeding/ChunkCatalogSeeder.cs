@@ -23,7 +23,7 @@ public sealed record ChunkCatalogSeedResult(
 public static class ChunkCatalogSeeder
 {
     // camelCase only names the files' own properties in an error (a missing required field); reading ignores case.
-    private static readonly JsonSerializerOptions Json = new()
+    private static readonly JsonSerializerOptions s_json = new()
     {
         PropertyNameCaseInsensitive = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -360,13 +360,13 @@ public static class ChunkCatalogSeeder
     }
 
     /// <summary>Slot tags no spawn table answers for: the player's entry and an explicitly empty slot.</summary>
-    private static readonly string[] UntabledSlotTags = ["entry", "empty"];
+    private static readonly string[] s_untabledSlotTags = ["entry", "empty"];
 
     /// <summary>
     /// Spawn-table tags no slot carries, each rolled at the slot whose tag it names: a leader's pack is rolled at its
     /// leader's slot (CreaturePlacementService). Confirmed by the owner.
     /// </summary>
-    private static readonly Dictionary<string, string> CompanionTags = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> s_companionTags = new(StringComparer.OrdinalIgnoreCase)
     {
         ["leader_pack"] = "leader",
     };
@@ -431,13 +431,13 @@ public static class ChunkCatalogSeeder
                 groups?.GetValueOrDefault(map.ChunkPool)?.SelectMany(g => g.Members.Select(m => m.Chunk)) ?? []);
             var slotTags = chunkNames
                 .SelectMany(n => metas[n].SpawnSlots.Select(s => s.Tag))
-                .Where(t => !UntabledSlotTags.Contains(t, StringComparer.OrdinalIgnoreCase))
+                .Where(t => !s_untabledSlotTags.Contains(t, StringComparer.OrdinalIgnoreCase))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var entryTags = entries.Select(e => e.Tag).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             foreach (string tag in entryTags)
             {
-                bool companion = CompanionTags.TryGetValue(tag, out string? of) && slotTags.Contains(of);
+                bool companion = s_companionTags.TryGetValue(tag, out string? of) && slotTags.Contains(of);
                 if (!slotTags.Contains(tag) && !companion)
                     throw new InvalidDataException($"{path}: spawn table '{map.SpawnTable}' tag '{tag}' matches no slot in pool '{map.ChunkPool}'");
             }
@@ -598,7 +598,7 @@ public static class ChunkCatalogSeeder
         string text = await File.ReadAllTextAsync(path, ct);
         try
         {
-            return JsonSerializer.Deserialize<T>(text, Json) ?? throw new InvalidDataException($"{path}: empty");
+            return JsonSerializer.Deserialize<T>(text, s_json) ?? throw new InvalidDataException($"{path}: empty");
         }
         catch (JsonException ex)
         {

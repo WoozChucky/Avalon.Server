@@ -103,9 +103,9 @@ public sealed class SteamWebLinkStore(IGameContextStore store, GameAuthCryptogra
     }
     public static string? SteamSubject(string identity)
     {
-        const string prefix = "https://steamcommunity.com/openid/id/";
-        if (!identity.StartsWith(prefix, StringComparison.Ordinal)) return null;
-        string subject = identity[prefix.Length..];
+        const string Prefix = "https://steamcommunity.com/openid/id/";
+        if (!identity.StartsWith(Prefix, StringComparison.Ordinal)) return null;
+        string subject = identity[Prefix.Length..];
         return subject.Length == 17 && subject[0] != '0' && subject.All(char.IsAsciiDigit) &&
             ulong.TryParse(subject, NumberStyles.None, CultureInfo.InvariantCulture, out _) ? subject : null;
     }

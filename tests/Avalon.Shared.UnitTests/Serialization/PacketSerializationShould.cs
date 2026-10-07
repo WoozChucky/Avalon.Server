@@ -8,7 +8,7 @@ namespace Avalon.Shared.UnitTests.Serialization;
 
 public class PacketSerializationShould
 {
-    private static readonly DateTime TestDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_testDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public void Create_ProducesDeserializablePayload()
@@ -20,7 +20,7 @@ public class PacketSerializationShould
             characterId: 7UL,
             characterName: "Alice",
             message: "Hello",
-            dateTime: TestDate,
+            dateTime: s_testDate,
             encryptFunc: identity);
 
         using var ms = new MemoryStream(packet.Payload);
@@ -30,7 +30,7 @@ public class PacketSerializationShould
         Assert.Equal(7UL, result.CharacterId);
         Assert.Equal("Alice", result.CharacterName);
         Assert.Equal("Hello", result.Message);
-        Assert.Equal(TestDate, result.DateTime);
+        Assert.Equal(s_testDate, result.DateTime);
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public class PacketSerializationShould
     {
         EncryptFunc identity = span => span.ToArray();
 
-        NetworkPacket packet1 = SChatMessagePacket.Create(1UL, 2UL, "Alice", "Hello", TestDate, identity);
-        NetworkPacket packet2 = SChatMessagePacket.Create(3UL, 4UL, "Bob", "World", TestDate, identity);
+        NetworkPacket packet1 = SChatMessagePacket.Create(1UL, 2UL, "Alice", "Hello", s_testDate, identity);
+        NetworkPacket packet2 = SChatMessagePacket.Create(3UL, 4UL, "Bob", "World", s_testDate, identity);
 
         using var ms1 = new MemoryStream(packet1.Payload);
         using var ms2 = new MemoryStream(packet2.Payload);
@@ -62,7 +62,7 @@ public class PacketSerializationShould
             return capturedBytes;
         };
 
-        SChatMessagePacket.Create(99UL, 1UL, "Test", "Data", TestDate, capturing);
+        SChatMessagePacket.Create(99UL, 1UL, "Test", "Data", s_testDate, capturing);
 
         Assert.NotNull(capturedBytes);
         using var ms = new MemoryStream(capturedBytes);

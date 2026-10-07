@@ -11,7 +11,7 @@ namespace Avalon.Server.World.UnitTests.Loot;
 
 public class PartyLootAllocatorShould
 {
-    private static readonly DateTimeOffset Now = new(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset s_now = new(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
 
     private static ICharacter Member(uint id)
     {
@@ -21,7 +21,7 @@ public class PartyLootAllocatorShould
     }
 
     private static PartyLootAllocator Allocator(ScriptedCombatRandom random) =>
-        new(Options.Create(new GameConfiguration()), new FixedTimeProvider(Now), random);
+        new(Options.Create(new GameConfiguration()), new FixedTimeProvider(s_now), random);
 
     [Fact]
     public void Reserve_a_solo_instances_drops_for_its_owner()
@@ -29,7 +29,7 @@ public class PartyLootAllocatorShould
         LootAllocation got = Allocator(new ScriptedCombatRandom()).Allocate(7, null, [Member(8)]);
 
         Assert.Equal(7u, got.OwnerCharacterId);
-        Assert.Equal(Now.UtcDateTime + TimeSpan.FromSeconds(30), got.FreeForAllAt);
+        Assert.Equal(s_now.UtcDateTime + TimeSpan.FromSeconds(30), got.FreeForAllAt);
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class PartyLootAllocatorShould
         LootAllocation got = Allocator(new ScriptedCombatRandom()).Allocate(null, null, [Member(8)]);
 
         Assert.Null(got.OwnerCharacterId);
-        Assert.Equal(Now.UtcDateTime, got.FreeForAllAt);
+        Assert.Equal(s_now.UtcDateTime, got.FreeForAllAt);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class PartyLootAllocatorShould
         LootAllocation got = Allocator(random).Allocate(null, new PartyId(1), [Member(1), Member(2)]);
 
         Assert.Equal(2u, got.OwnerCharacterId);
-        Assert.Equal(Now.UtcDateTime + TimeSpan.FromSeconds(30), got.FreeForAllAt);
+        Assert.Equal(s_now.UtcDateTime + TimeSpan.FromSeconds(30), got.FreeForAllAt);
     }
 
     [Fact]
@@ -74,6 +74,6 @@ public class PartyLootAllocatorShould
         LootAllocation got = Allocator(new ScriptedCombatRandom()).Allocate(null, new PartyId(1), []);
 
         Assert.Null(got.OwnerCharacterId);
-        Assert.Equal(Now.UtcDateTime, got.FreeForAllAt);
+        Assert.Equal(s_now.UtcDateTime, got.FreeForAllAt);
     }
 }

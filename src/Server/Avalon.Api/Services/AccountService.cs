@@ -456,7 +456,7 @@ public class AccountService : IAccountService
         // The email goes last: it is the only part that can hold the separator.
         string payload = string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{accountId.Value}|{proof.CredentialsVersion}|{email}");
-        await _cache.SetAsync(CacheKeys.EmailChange(tokenHash), payload, EmailChangeLifetime);
+        await _cache.SetAsync(CacheKeys.EmailChange(tokenHash), payload, s_emailChangeLifetime);
 
         // From here the change is stored: a caller dropping the connection must not stop either
         // email, the notice to the old address least of all (#510 review). Each send has its own
@@ -507,7 +507,7 @@ public class AccountService : IAccountService
         }
     }
 
-    private static readonly TimeSpan EmailChangeLifetime = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan s_emailChangeLifetime = TimeSpan.FromMinutes(15);
 
     private const string EmailChangeConfirmSubject = "Confirm your new Avalon email address";
     private const string EmailChangeNoticeSubject = "Your Avalon email address is being changed";
@@ -528,7 +528,7 @@ public class AccountService : IAccountService
             "",
             EmailChangeTokenLabel + token,
             "",
-            $"This confirmation expires in {(int)EmailChangeLifetime.TotalMinutes} minutes.",
+            $"This confirmation expires in {(int)s_emailChangeLifetime.TotalMinutes} minutes.",
             "",
             "If you did not request this change, ignore this email. Your current email address will stay unchanged.");
     }
@@ -583,7 +583,7 @@ public class AccountService : IAccountService
     private async Task ReplacePendingEmailChangeAsync(AccountId accountId, string tokenHash)
     {
         string? previous = await _cache.SwapAsync(CacheKeys.AccountEmailChangePending(accountId.Value), tokenHash,
-            EmailChangeLifetime);
+            s_emailChangeLifetime);
         if (!string.IsNullOrEmpty(previous) && !string.Equals(previous, tokenHash, StringComparison.Ordinal))
             await _cache.RemoveAsync(CacheKeys.EmailChange(previous));
     }

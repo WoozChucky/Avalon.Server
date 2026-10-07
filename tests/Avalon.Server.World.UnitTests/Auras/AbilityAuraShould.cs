@@ -113,7 +113,7 @@ public class AbilityAuraShould
         return creature;
     }
 
-    private static readonly Vector3Dto AtTheBoar = new() { X = 0f, Y = 0f, Z = 2f };
+    private static readonly Vector3Dto s_atTheBoar = new() { X = 0f, Y = 0f, Z = 2f };
 
     [Fact]
     public async Task Hit_then_apply_the_abilitys_aura()
@@ -149,7 +149,7 @@ public class AbilityAuraShould
         MapInstanceClient wizard = Caster(instance, 912_103, Ignite());
         Creature boar = Boar(instance, 912_903, dodge: 30f);
 
-        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = AtTheBoar });
+        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = s_atTheBoar });
 
         Assert.Equal(100u, boar.CurrentHealth);
         ActiveAuraIs(boar, 902, wizard.Character.Guid);
@@ -180,7 +180,7 @@ public class AbilityAuraShould
         MapInstanceClient bystander = Caster(instance, 912_106, Ignite());
         bystander.Character.Position = new Vector3(0f, 0f, 2f);
 
-        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = AtTheBoar });
+        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = s_atTheBoar });
 
         Assert.Equal(0, bystander.Character.Auras.Count);
     }
@@ -263,7 +263,7 @@ public class AbilityAuraShould
         MapInstanceClient hunter = Caster(instance, 912_111, Volley());
         Creature boar = Boar(instance, 912_907);
 
-        handler.Execute(hunter.Connection, new CCastAbilityPacket { AbilityId = 222, GroundPos = AtTheBoar });
+        handler.Execute(hunter.Connection, new CCastAbilityPacket { AbilityId = 222, GroundPos = s_atTheBoar });
         for (int i = 0; i < 30 && boar.Auras.Count == 0; i++)
             instance.Update(TimeSpan.FromSeconds(1d / 60d));
 

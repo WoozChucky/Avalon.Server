@@ -9,7 +9,7 @@ namespace Avalon.Server.World.UnitTests.Parties;
 
 public class PartyHealthScalingShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(16);
+    private static readonly TimeSpan s_tick = TimeSpan.FromMilliseconds(16);
 
     private static Creature Boar(uint id) => new()
     {
@@ -30,7 +30,7 @@ public class PartyHealthScalingShould
         MapInstanceClient a = MapInstanceClients.Join(instance, 1);
         MapInstanceClient b = MapInstanceClients.Join(instance, 2);
         MapInstanceClient c = MapInstanceClients.Join(instance, 3);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal(220u, boar.Health);
         Assert.Equal(110u, boar.CurrentHealth);
@@ -46,11 +46,11 @@ public class PartyHealthScalingShould
         instance.AddCreature(boar);
         MapInstanceClient a = MapInstanceClients.Join(instance, 1);
         MapInstanceClient b = MapInstanceClients.Join(instance, 2);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         a.Sent.Clear();
 
         instance.RemoveCharacter(b.Connection);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal(100u, boar.Health);
         Assert.Equal(["Tester2 has left. Creatures now have 100% health (1 player)."], SystemLines(a));
@@ -62,7 +62,7 @@ public class PartyHealthScalingShould
         MapInstance instance = TestMapInstances.Build(MapInstanceClients.NewWorld(), ownerPartyId: new PartyId(1));
         MapInstanceClients.Join(instance, 1);
         MapInstanceClients.Join(instance, 2);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Creature late = Boar(900_003);
         late.CurrentHealth = 100;
@@ -81,7 +81,7 @@ public class PartyHealthScalingShould
         MapInstanceClients.Join(instance, 1);
         MapInstanceClients.Join(instance, 2);
 
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal(100u, boar.Health);
     }

@@ -11,7 +11,10 @@ internal static class PacketSerializationHelper
     /// allocated about 250 bytes per entity in a state broadcast; through a stream it writes the same
     /// bytes and allocates nothing. The stream keeps the largest packet it has held, as the writer did.
     /// </summary>
-    [ThreadStatic] private static MemoryStream? _stream;
+    // [ThreadStatic] fields take the t_ prefix, which a naming rule cannot select (the static-field rule asks for s_).
+#pragma warning disable IDE1006
+    [ThreadStatic] private static MemoryStream? t_stream;
+#pragma warning restore IDE1006
 
     public static NetworkPacket Serialize<T>(
         T packet,
@@ -44,7 +47,7 @@ internal static class PacketSerializationHelper
 
     private static MemoryStream Write<T>(T packet) where T : class
     {
-        MemoryStream stream = _stream ??= new MemoryStream(512);
+        MemoryStream stream = t_stream ??= new MemoryStream(512);
         stream.SetLength(0);
         Serializer.Serialize(stream, packet);
         return stream;

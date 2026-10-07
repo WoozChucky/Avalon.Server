@@ -57,7 +57,7 @@ List<Export> selected;
 
 if (names.Count == 1 && names[0].Equals("all", StringComparison.OrdinalIgnoreCase))
 {
-    selected = [.. Exports.All];
+    selected = [.. Exports.s_all];
 }
 else if (names.Any(name => name.Equals("all", StringComparison.OrdinalIgnoreCase)))
 {
@@ -104,7 +104,7 @@ if (notReady.Count > 0)
     Console.Error.WriteLine();
     Console.Error.WriteLine("To export without it, name the artifacts you want:");
     Console.Error.WriteLine("  " + string.Join(
-        ' ', Exports.All.Where(e => e.Readiness is null).Select(e => e.Name)));
+        ' ', Exports.s_all.Where(e => e.Readiness is null).Select(e => e.Name)));
     return 1;
 }
 
@@ -116,7 +116,7 @@ foreach (Export export in selected)
     export.Write(root);
 }
 
-Console.WriteLine($"exported {selected.Count} of {Exports.All.Count} artifacts to {root}");
+Console.WriteLine($"exported {selected.Count} of {Exports.s_all.Count} artifacts to {root}");
 return 0;
 
 static void Usage(TextWriter? writer = null)
@@ -130,9 +130,9 @@ static void Usage(TextWriter? writer = null)
     writer.WriteLine();
     writer.WriteLine("Artifacts:");
 
-    int width = Exports.All.Max(export => export.Name.Length);
+    int width = Exports.s_all.Max(export => export.Name.Length);
 
-    foreach (Export export in Exports.All)
+    foreach (Export export in Exports.s_all)
     {
         writer.WriteLine($"  {export.Name.PadRight(width)}  {export.Destination}");
         writer.WriteLine($"  {new string(' ', width)}  {export.Summary}");

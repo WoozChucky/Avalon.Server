@@ -28,7 +28,7 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class WorldPartyContainmentShould
 {
-    private static readonly MapTemplateId TownId = new(1);
+    private static readonly MapTemplateId s_townId = new(1);
     private readonly BreakableClock _clock = new();
     private readonly TestLog _log = new();
     private readonly PartyService _parties;
@@ -53,11 +53,11 @@ public class WorldPartyContainmentShould
         using MapInstance town = TestMapInstances.Build(NewWorld(), mapType: MapType.Town);
         MapInstanceClient inTown = Join(town, 700_001);
         IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
-        mapManager.Templates.Returns([new MapTemplate { Id = TownId, MapType = MapType.Town }]);
+        mapManager.Templates.Returns([new MapTemplate { Id = s_townId, MapType = MapType.Town }]);
         IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(town);
         Avalon.World.World world = await BuildAsync(mapManager, factory);
-        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).Published(world);
+        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100).Published(world);
         _clock.Broken = true;
 
         Exception? thrown = Record.Exception(() =>

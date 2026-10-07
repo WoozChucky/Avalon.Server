@@ -250,15 +250,15 @@ public class SeedIntegrityShould
             + string.Join(", ", authored));
     }
 
-    private static readonly LootTableId ForestCommon = new(1);
+    private static readonly LootTableId s_forestCommon = new(1);
 
-    private static readonly LootTableId ForestWeapons = new(9);
+    private static readonly LootTableId s_forestWeapons = new(9);
 
-    private static readonly LootTableId ForestScrolls = new(10);
+    private static readonly LootTableId s_forestScrolls = new(10);
 
-    private static readonly LootTableId ForestArmour = new(11);
+    private static readonly LootTableId s_forestArmour = new(11);
 
-    private static readonly ItemSubClass[] ArmourSubClasses =
+    private static readonly ItemSubClass[] s_armourSubClasses =
         [ItemSubClass.Helmet, ItemSubClass.Chest, ItemSubClass.Legs, ItemSubClass.Gloves, ItemSubClass.Boots];
 
     /// <summary>
@@ -324,10 +324,10 @@ public class SeedIntegrityShould
         {
             Assert.Contains(table.Entries, e => e.GroupId is null && e.ItemTemplateId is not null);
             Assert.DoesNotContain(table.Entries, e => e.GroupId is not null);
-            Assert.Contains(table.Entries, e => e.ReferenceTableId == ForestCommon);
-            Assert.Single(table.Entries, e => e.ReferenceTableId == ForestWeapons && e.Chance == 2f);
-            Assert.Single(table.Entries, e => e.ReferenceTableId == ForestScrolls && e.Chance == 10f);
-            Assert.Single(table.Entries, e => e.ReferenceTableId == ForestArmour && e.Chance == 100f);
+            Assert.Contains(table.Entries, e => e.ReferenceTableId == s_forestCommon);
+            Assert.Single(table.Entries, e => e.ReferenceTableId == s_forestWeapons && e.Chance == 2f);
+            Assert.Single(table.Entries, e => e.ReferenceTableId == s_forestScrolls && e.Chance == 10f);
+            Assert.Single(table.Entries, e => e.ReferenceTableId == s_forestArmour && e.Chance == 100f);
         });
     }
 
@@ -338,7 +338,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
-        LootTable table = LoadTable(context, ForestWeapons);
+        LootTable table = LoadTable(context, s_forestWeapons);
 
         Assert.Equal(4, table.Entries.Count);
         Assert.All(table.Entries, e =>
@@ -360,7 +360,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
-        LootTable table = LoadTable(context, ForestScrolls);
+        LootTable table = LoadTable(context, s_forestScrolls);
 
         Assert.Equal(3, table.Entries.Count);
         Assert.Single(table.Entries.Select(e => e.Chance).Distinct());
@@ -381,7 +381,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
-        LootTable table = LoadTable(context, ForestArmour);
+        LootTable table = LoadTable(context, s_forestArmour);
 
         Assert.Equal(20, table.Entries.Count);
         Assert.All(table.Entries, e =>
@@ -390,7 +390,7 @@ public class SeedIntegrityShould
             Assert.Equal(2f, e.Chance);
             ItemTemplate piece = items[e.ItemTemplateId!];
             Assert.Equal(ItemClass.Armor, piece.Class);
-            Assert.Contains(piece.SubClass, ArmourSubClasses);
+            Assert.Contains(piece.SubClass, s_armourSubClasses);
             Assert.Equal(ItemRarity.Uncommon, piece.Rarity);
             Assert.Equal(SlotFor(piece.SubClass), piece.Slot);
             Assert.Single(piece.AllowedClasses);
@@ -401,7 +401,7 @@ public class SeedIntegrityShould
             .Select(i => (i.AllowedClasses[0], i.SubClass))
             .ToHashSet();
         var expected = Enum.GetValues<CharacterClass>()
-            .SelectMany(c => ArmourSubClasses.Select(s => (c, s)))
+            .SelectMany(c => s_armourSubClasses.Select(s => (c, s)))
             .ToHashSet();
         Assert.True(expected.SetEquals(covered), "the armour table should hold one piece per class per slot");
     }
@@ -420,9 +420,9 @@ public class SeedIntegrityShould
 
         var items = context.ItemTemplates.AsNoTracking().ToList();
         var tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
-        HashSet<ulong> weapons = ItemsIn(tables, ForestWeapons);
-        HashSet<ulong> scrolls = ItemsIn(tables, ForestScrolls);
-        HashSet<ulong> armour = ItemsIn(tables, ForestArmour);
+        HashSet<ulong> weapons = ItemsIn(tables, s_forestWeapons);
+        HashSet<ulong> scrolls = ItemsIn(tables, s_forestScrolls);
+        HashSet<ulong> armour = ItemsIn(tables, s_forestArmour);
         var catalog = new LootCatalog(tables, NullLoggerFactory.Instance);
         var roller = new LootRoller(new LootRandom(new Random(460)), NullLogger<LootRoller>.Instance);
 
@@ -466,9 +466,9 @@ public class SeedIntegrityShould
 
         var items = context.ItemTemplates.AsNoTracking().ToList();
         var tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
-        var pool = ItemsIn(tables, ForestWeapons)
-            .Concat(ItemsIn(tables, ForestScrolls))
-            .Concat(ItemsIn(tables, ForestArmour))
+        var pool = ItemsIn(tables, s_forestWeapons)
+            .Concat(ItemsIn(tables, s_forestScrolls))
+            .Concat(ItemsIn(tables, s_forestArmour))
             .ToHashSet();
 
         Assert.Equal(27, pool.Count);   // items 5-31
@@ -490,9 +490,9 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
-        var pieces = LoadTable(context, ForestArmour).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
+        var pieces = LoadTable(context, s_forestArmour).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
 
-        foreach (ItemSubClass slot in ArmourSubClasses)
+        foreach (ItemSubClass slot in s_armourSubClasses)
         {
             uint ArmorFor(CharacterClass c) =>
                 ArmorOf(Assert.Single(pieces, p => p.SubClass == slot && p.AllowedClasses[0] == c));
@@ -535,7 +535,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
-        var weapons = LoadTable(context, ForestWeapons).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
+        var weapons = LoadTable(context, s_forestWeapons).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
 
         Assert.All(weapons, w =>
         {
@@ -605,7 +605,7 @@ public class SeedIntegrityShould
     };
 
     /// <summary>The starter kit (#164) and the aura abilities (auras).</summary>
-    private static readonly Dictionary<CharacterClass, uint[]> Kit = new()
+    private static readonly Dictionary<CharacterClass, uint[]> s_kit = new()
     {
         [CharacterClass.Warrior] = [200, 201, 202, 203],
         [CharacterClass.Wizard] = [210, 211, 212, 213],
@@ -622,7 +622,7 @@ public class SeedIntegrityShould
 
         var ids = context.AbilityTemplates.AsNoTracking().AsEnumerable().Select(a => a.Id.Value).OrderBy(i => i).ToList();
 
-        Assert.Equal(Kit.Values.SelectMany(v => v).Concat(Enumerable.Range(300, 19).Select(i => (uint)i)).OrderBy(i => i), ids);
+        Assert.Equal(s_kit.Values.SelectMany(v => v).Concat(Enumerable.Range(300, 19).Select(i => (uint)i)).OrderBy(i => i), ids);
     }
 
     /// <summary>
@@ -717,13 +717,13 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         var infos = context.CharacterCreateInfos.AsNoTracking().ToList();
-        Assert.Equal(Kit.Keys.OrderBy(c => c), infos.Select(i => i.Class).OrderBy(c => c));
+        Assert.Equal(s_kit.Keys.OrderBy(c => c), infos.Select(i => i.Class).OrderBy(c => c));
 
         foreach (CharacterCreateInfo info in infos)
         {
-            Assert.Equal(Kit[info.Class], info.StartingSpells.Select(s => s.Value));
+            Assert.Equal(s_kit[info.Class], info.StartingSpells.Select(s => s.Value));
 
-            foreach (uint id in Kit[info.Class])
+            foreach (uint id in s_kit[info.Class])
             {
                 AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == id);
                 Assert.Equal([info.Class], ability.AllowedClasses);
@@ -747,7 +747,7 @@ public class SeedIntegrityShould
         var levelStats = context.ClassLevelStats.AsNoTracking().ToList();
         var factors = context.ClassStatFactors.AsNoTracking().ToList();
 
-        foreach ((CharacterClass cls, uint[] ids) in Kit)
+        foreach ((CharacterClass cls, uint[] ids) in s_kit)
         {
             ClassLevelStat levelOne = levelStats.Single(s => s.Class == cls && s.Level == 1);
             uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], factors.Single(f => f.Class == cls)).MaxPower;

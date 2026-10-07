@@ -32,7 +32,7 @@ public interface IGameAdmissionClient
 /// <summary>Bounded, fixed-origin workload requests. The transport supplies mTLS; credentials never enter logs.</summary>
 public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions options, TimeProvider clock) : IGameAdmissionClient
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions s_json = new(JsonSerializerDefaults.Web);
     private Uri Endpoint(string path) => new(new Uri(options.ApiUrl), "internal/game/" + path);
     public async Task<WorldAdmissionResult> AdmitAsync(string ticket, Guid connectionId, Guid redemptionId, CancellationToken cancellationToken)
     {
@@ -114,7 +114,7 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
             bytes.Write(buffer, 0, read);
         }
         if (bytes.Length == 0) return default;
-        T? result = JsonSerializer.Deserialize<T>(bytes.GetBuffer().AsSpan(0, (int)bytes.Length), Json);
+        T? result = JsonSerializer.Deserialize<T>(bytes.GetBuffer().AsSpan(0, (int)bytes.Length), s_json);
         // A success-shaped error response must never become authority.
         if (!response.IsSuccessStatusCode)
         {

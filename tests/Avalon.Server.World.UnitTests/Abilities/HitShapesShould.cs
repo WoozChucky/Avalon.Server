@@ -9,8 +9,8 @@ namespace Avalon.Server.World.UnitTests.Abilities;
 /// </summary>
 public class HitShapesShould
 {
-    private static readonly Vector3 Origin = Vector3.zero;
-    private static readonly Vector3 AlongZ = new(0f, 0f, 1f);
+    private static readonly Vector3 s_origin = Vector3.zero;
+    private static readonly Vector3 s_alongZ = new(0f, 0f, 1f);
 
     private static Vector3 At(float x, float z, float y = 0f) => new(x, y, z);
 
@@ -19,14 +19,14 @@ public class HitShapesShould
     [InlineData(3.51f, false)]
     [InlineData(0f, true)]
     public void Count_a_body_touching_the_circle_edge(float distance, bool expected) =>
-        Assert.Equal(expected, HitShapes.CircleOverlaps(Origin, 3f, At(distance, 0f), 0.5f));
+        Assert.Equal(expected, HitShapes.CircleOverlaps(s_origin, 3f, At(distance, 0f), 0.5f));
 
     [Fact]
     public void Ignore_height_in_every_shape()
     {
-        Assert.True(HitShapes.CircleOverlaps(Origin, 1f, At(0f, 0f, y: 50f), 0.5f));
-        Assert.True(HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 90f, At(0f, 2f, y: -50f), 0.5f));
-        Assert.True(HitShapes.SegmentOverlaps(Origin, At(0f, 10f), At(0f, 5f, y: 99f), 0.5f));
+        Assert.True(HitShapes.CircleOverlaps(s_origin, 1f, At(0f, 0f, y: 50f), 0.5f));
+        Assert.True(HitShapes.ConeOverlaps(s_origin, s_alongZ, 3f, 90f, At(0f, 2f, y: -50f), 0.5f));
+        Assert.True(HitShapes.SegmentOverlaps(s_origin, At(0f, 10f), At(0f, 5f, y: 99f), 0.5f));
     }
 
     [Theory]
@@ -36,14 +36,14 @@ public class HitShapesShould
     [InlineData(0f, 3.6f, false)]
     [InlineData(0.2f, 0f, true)]    // body over the apex counts in every direction
     public void Hit_inside_a_90_degree_cone_and_nothing_behind_it(float x, float z, bool expected) =>
-        Assert.Equal(expected, HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 90f, At(x, z), 0.5f));
+        Assert.Equal(expected, HitShapes.ConeOverlaps(s_origin, s_alongZ, 3f, 90f, At(x, z), 0.5f));
 
     [Fact]
     public void Count_a_unit_exactly_on_the_half_arc()
     {
         // 45 degrees off +Z, at 2 m: the centre sits on the edge of a 90-degree cone.
         Vector3 onEdge = At(MathF.Sin(MathF.PI / 4f) * 2f, MathF.Cos(MathF.PI / 4f) * 2f);
-        Assert.True(HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 90f, onEdge, 0f));
+        Assert.True(HitShapes.ConeOverlaps(s_origin, s_alongZ, 3f, 90f, onEdge, 0f));
     }
 
     [Fact]
@@ -54,23 +54,23 @@ public class HitShapesShould
         float radians = 50f * MathF.PI / 180f;
         Vector3 justOutside = At(MathF.Sin(radians) * 2f, MathF.Cos(radians) * 2f);
 
-        Assert.False(HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 90f, justOutside, 0f));
-        Assert.True(HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 90f, justOutside, 0.5f));
+        Assert.False(HitShapes.ConeOverlaps(s_origin, s_alongZ, 3f, 90f, justOutside, 0f));
+        Assert.True(HitShapes.ConeOverlaps(s_origin, s_alongZ, 3f, 90f, justOutside, 0.5f));
     }
 
     [Fact]
     public void Hit_all_round_with_a_360_degree_cone()
     {
-        Assert.True(HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 360f, At(0f, -2f), 0.5f));
-        Assert.False(HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 360f, At(0f, -4f), 0.5f));
+        Assert.True(HitShapes.ConeOverlaps(s_origin, s_alongZ, 3f, 360f, At(0f, -2f), 0.5f));
+        Assert.False(HitShapes.ConeOverlaps(s_origin, s_alongZ, 3f, 360f, At(0f, -4f), 0.5f));
     }
 
     /// <summary>A NaN position or reach fails every comparison, so the reach test must refuse it rather than let it through (#164).</summary>
     [Fact]
     public void Miss_a_NaN_position_or_reach_even_in_a_360_degree_cone()
     {
-        Assert.False(HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 360f, At(float.NaN, float.NaN), 0.5f));
-        Assert.False(HitShapes.ConeOverlaps(Origin, AlongZ, float.NaN, 360f, At(0f, 1f), 0.5f));
+        Assert.False(HitShapes.ConeOverlaps(s_origin, s_alongZ, 3f, 360f, At(float.NaN, float.NaN), 0.5f));
+        Assert.False(HitShapes.ConeOverlaps(s_origin, s_alongZ, float.NaN, 360f, At(0f, 1f), 0.5f));
     }
 
     [Theory]
@@ -80,7 +80,7 @@ public class HitShapesShould
     [InlineData(0f, 11f, false)]
     [InlineData(0f, -0.5f, true)]    // just behind the start, touching
     public void Sweep_a_segment_against_a_body(float x, float z, bool expected) =>
-        Assert.Equal(expected, HitShapes.SegmentOverlaps(Origin, At(0f, 10f), At(x, z), 0.5f));
+        Assert.Equal(expected, HitShapes.SegmentOverlaps(s_origin, At(0f, 10f), At(x, z), 0.5f));
 
     [Fact]
     public void Treat_a_zero_length_step_as_a_point()
@@ -94,7 +94,7 @@ public class HitShapesShould
     [InlineData(0.2f, 12f, 0f, 10f)]   // past its end: clamped to the end
     public void Find_the_closest_point_on_a_segment_clamped_to_it(float x, float z, float expectedX, float expectedZ)
     {
-        Vector3 closest = HitShapes.ClosestPointOnSegment(Origin, At(0f, 10f), At(x, z));
+        Vector3 closest = HitShapes.ClosestPointOnSegment(s_origin, At(0f, 10f), At(x, z));
 
         Assert.Equal(expectedX, closest.x, 4);
         Assert.Equal(expectedZ, closest.z, 4);

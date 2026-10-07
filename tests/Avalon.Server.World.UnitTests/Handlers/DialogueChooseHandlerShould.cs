@@ -22,17 +22,17 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 
 public class DialogueChooseHandlerShould
 {
-    private static readonly ObjectGuid NpcGuid = new(ObjectType.Creature, 7);
+    private static readonly ObjectGuid s_npcGuid = new(ObjectType.Creature, 7);
 
     [Fact]
     public void Advance_To_The_Next_Node()
     {
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
-        Assert.Equal((NpcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
         fixture.Connection.Received(1).Send(Arg.Any<NetworkPacket>());
         NetworkPacket sent = Assert.Single(fixture.SentPackets);
         Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_NODE, sent.Header.Type);
@@ -42,7 +42,7 @@ public class DialogueChooseHandlerShould
     public void End_The_Conversation_On_A_Null_Next_Node()
     {
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 2));
 
@@ -59,26 +59,26 @@ public class DialogueChooseHandlerShould
         // happy-path test cannot see, and rejecting it is the entire reason the conversation is
         // server-authoritative rather than a graph shipped to the client.
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
 
         // Option 4 is real and belongs to node 2 — the server is showing node 1. A handler that
         // looked options up globally instead of on the open node would happily accept it.
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 4));
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
     }
 
     [Fact]
     public void Reject_A_Choice_Against_A_Node_The_Server_Is_Not_Showing()
     {
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 2, option: 1));
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
     }
 
     [Fact]
@@ -96,14 +96,14 @@ public class DialogueChooseHandlerShould
     public void Reject_A_Choice_Naming_A_Different_Npc()
     {
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
 
         var other = new ObjectGuid(ObjectType.Creature, 8);
         fixture.Handler.Execute(fixture.Connection,
             new CDialogueChoosePacket { TargetGuid = other.RawValue, NodeId = 1, OptionId = 1 });
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class DialogueChooseHandlerShould
         // Review Focus 1. Someone else killed the innkeeper mid-sentence; the player must not keep
         // talking to a corpse.
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
         fixture.Npc.CurrentHealth.Returns(0u);
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
@@ -125,7 +125,7 @@ public class DialogueChooseHandlerShould
     {
         // Review Focus 1, despawn variant — corpse removal takes the creature out entirely.
         var fixture = Fixture.Build(npcInInstance: false);
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
@@ -137,7 +137,7 @@ public class DialogueChooseHandlerShould
     {
         // Broken content should close the window, not wedge it open.
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 3));
 
@@ -148,26 +148,26 @@ public class DialogueChooseHandlerShould
     public void Drop_The_Packet_When_There_Is_No_Character()
     {
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
         fixture.Connection.Character.Returns((ICharacter?)null);
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
     }
 
     [Fact]
     public void Drop_The_Packet_When_The_Character_Is_Dead()
     {
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
         fixture.Character.IsDead.Returns(true);
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class DialogueChooseHandlerShould
         // authored for a different creature template than the one now answering to NpcGuid, so
         // advancing on it would hand out dialogue that was never meant for this NPC.
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(3));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(3));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 3, option: 1));
 
@@ -190,12 +190,12 @@ public class DialogueChooseHandlerShould
         // 5.5 m: past the 5 m needed to open the conversation, still inside the 6 m leash.
         // Stepping back mid-sentence must not slam the window shut.
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
         fixture.Npc.Position.Returns(new Vector3(0, 0, 5.5f));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
-        Assert.Equal((NpcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
         NetworkPacket sent = Assert.Single(fixture.SentPackets);
         Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_NODE, sent.Header.Type);
     }
@@ -206,7 +206,7 @@ public class DialogueChooseHandlerShould
         // Just past 6 m: the player walked away. Once options have effects, advancing here would let
         // them act on the NPC from anywhere on the map.
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
         fixture.Npc.Position.Returns(new Vector3(0, 0, NpcInteraction.LeashRange + 0.01f));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
@@ -229,12 +229,12 @@ public class DialogueChooseHandlerShould
     {
         // The leash is inclusive: exactly 6 m is still with the NPC.
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
         fixture.Npc.Position.Returns(new Vector3(0, 0, NpcInteraction.LeashRange));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
-        Assert.Equal((NpcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
         NetworkPacket sent = Assert.Single(fixture.SentPackets);
         Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_NODE, sent.Header.Type);
     }
@@ -243,7 +243,7 @@ public class DialogueChooseHandlerShould
     public void Ignore_A_Further_Choice_After_A_Leash_Close()
     {
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
         fixture.Npc.Position.Returns(new Vector3(0, 0, 7));
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
@@ -262,7 +262,7 @@ public class DialogueChooseHandlerShould
         // A NaN position compares false against everything. Written as "distance > LeashRange" the
         // check would let it through; the leash must fail closed.
         var fixture = Fixture.Build();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(1));
         fixture.Character.Position.Returns(new Vector3(float.NaN, 0, 0));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
@@ -273,7 +273,7 @@ public class DialogueChooseHandlerShould
     }
 
     private static CDialogueChoosePacket Choose(int node, int option)
-        => new() { TargetGuid = NpcGuid.RawValue, NodeId = node, OptionId = option };
+        => new() { TargetGuid = s_npcGuid.RawValue, NodeId = node, OptionId = option };
 
     private sealed class Fixture
     {
@@ -297,7 +297,7 @@ public class DialogueChooseHandlerShould
             fixture.Character.InstanceId.Returns(Guid.NewGuid());
 
             fixture.Npc = Substitute.For<ICreature>();
-            fixture.Npc.Guid.Returns(NpcGuid);
+            fixture.Npc.Guid.Returns(s_npcGuid);
             fixture.Npc.Name.Returns("Innkeeper");
             fixture.Npc.CurrentHealth.Returns(100u);
             fixture.Npc.Position.Returns(new Vector3(0, 0, 2));
@@ -307,7 +307,7 @@ public class DialogueChooseHandlerShould
 
             IMapInstance instance = Substitute.For<IMapInstance>();
             instance.Creatures.Returns(npcInInstance
-                ? new Dictionary<ObjectGuid, ICreature> { [NpcGuid] = fixture.Npc }
+                ? new Dictionary<ObjectGuid, ICreature> { [s_npcGuid] = fixture.Npc }
                 : new Dictionary<ObjectGuid, ICreature>());
 
             IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();

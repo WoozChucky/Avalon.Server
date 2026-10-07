@@ -12,8 +12,8 @@ namespace Avalon.Server.World.UnitTests.Persistence;
 
 public class CharacterSaveSchedulerShould
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_interval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     [Fact]
     public void Default_to_five_minutes()
@@ -38,21 +38,21 @@ public class CharacterSaveSchedulerShould
     public void Save_when_the_first_delay_runs_out_and_then_every_interval()
     {
         ICharacterSaver saver = Substitute.For<ICharacterSaver>();
-        var scheduler = new CharacterSaveScheduler(saver, Options.Create(new GameConfiguration { CharacterSaveInterval = Interval }));
+        var scheduler = new CharacterSaveScheduler(saver, Options.Create(new GameConfiguration { CharacterSaveInterval = s_interval }));
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         CharacterEntity character = New(7);
-        TimeSpan first = CharacterSaveScheduler.FirstSaveDelay(new CharacterId(7), Interval);
+        TimeSpan first = CharacterSaveScheduler.FirstSaveDelay(new CharacterId(7), s_interval);
 
-        scheduler.Tick(connection, character, first - Tick);
+        scheduler.Tick(connection, character, first - s_tick);
         saver.DidNotReceiveWithAnyArgs().Save(default(IWorldConnection)!, default!);
 
-        scheduler.Tick(connection, character, Tick);
+        scheduler.Tick(connection, character, s_tick);
         saver.Received(1).Save(connection, character);
 
-        scheduler.Tick(connection, character, Interval - Tick);
+        scheduler.Tick(connection, character, s_interval - s_tick);
         saver.Received(1).Save(connection, character);
 
-        scheduler.Tick(connection, character, Tick);
+        scheduler.Tick(connection, character, s_tick);
         saver.Received(2).Save(connection, character);
     }
 
@@ -67,6 +67,6 @@ public class CharacterSaveSchedulerShould
 
         Assert.All(delays, delay => Assert.InRange(delay, TimeSpan.Zero, interval - TimeSpan.FromTicks(1)));
         // A hundred characters, a hundred different ticks.
-        Assert.Equal(100, delays.Select(delay => (long)(delay / Tick)).Distinct().Count());
+        Assert.Equal(100, delays.Select(delay => (long)(delay / s_tick)).Distinct().Count());
     }
 }

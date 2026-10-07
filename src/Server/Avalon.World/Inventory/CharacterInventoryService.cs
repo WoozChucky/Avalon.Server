@@ -19,7 +19,7 @@ public sealed class CharacterInventoryService(
     IItemIdAllocator itemIds) : IInventoryService
 {
     /// <summary>Where an instance id is looked for, in order.</summary>
-    private static readonly InventoryType[] AllContainers = [InventoryType.Bag, InventoryType.Equipment, InventoryType.Bank];
+    private static readonly InventoryType[] s_allContainers = [InventoryType.Bag, InventoryType.Equipment, InventoryType.Bank];
 
     private CharacterInventoryContainer Bag => owner.Container(InventoryType.Bag);
 
@@ -89,7 +89,7 @@ public sealed class CharacterInventoryService(
 
     public InventoryRemoveResult TryRemove(ItemInstanceId itemInstanceId, uint count)
     {
-        foreach (InventoryType container in AllContainers)
+        foreach (InventoryType container in s_allContainers)
         {
             foreach (InventoryItem item in owner.Container(container).Items)
             {
@@ -151,7 +151,7 @@ public sealed class CharacterInventoryService(
 
     public InventoryAddResult TryAddInstance(InventoryItem item)
     {
-        foreach (InventoryType container in AllContainers)
+        foreach (InventoryType container in s_allContainers)
         {
             if (owner.Container(container).Items.Any(held => held.InstanceId == item.InstanceId))
                 throw new InvalidOperationException($"Item {item.InstanceId} is already held; it cannot be added twice.");
@@ -258,7 +258,7 @@ public sealed class CharacterInventoryService(
         return room >= count ? InventoryAddResult.Ok : InventoryAddResult.InventoryFull;
     }
 
-    private long OwnedCount(ItemTemplateId templateId) => AllContainers.Sum(container =>
+    private long OwnedCount(ItemTemplateId templateId) => s_allContainers.Sum(container =>
         owner.Container(container).Items.Where(i => i.TemplateId == templateId).Sum(i => (long)i.Count));
 
     /// <summary>Stacks below the maximum. One already above it (a lowered template) is left alone.</summary>

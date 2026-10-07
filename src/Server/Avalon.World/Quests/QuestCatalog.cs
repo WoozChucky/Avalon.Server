@@ -58,8 +58,8 @@ public sealed class QuestCatalog
 
     public static readonly QuestCatalog Empty = new([], [], [], [], _ => null, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
 
-    private static readonly IReadOnlyList<QuestView> NoQuests = [];
-    private static readonly IReadOnlyList<QuestDropView> NoDrops = [];
+    private static readonly IReadOnlyList<QuestView> s_noQuests = [];
+    private static readonly IReadOnlyList<QuestDropView> s_noDrops = [];
 
     private readonly Dictionary<uint, QuestView> _byId;
     private readonly Dictionary<ulong, IReadOnlyList<QuestView>> _byGiver;
@@ -138,14 +138,14 @@ public sealed class QuestCatalog
 
     /// <summary>The quests this NPC gives, by level requirement then id. No allocation.</summary>
     public IReadOnlyList<QuestView> GivenBy(CreatureTemplateId npc) =>
-        _byGiver.TryGetValue(npc.Value, out IReadOnlyList<QuestView>? list) ? list : NoQuests;
+        _byGiver.TryGetValue(npc.Value, out IReadOnlyList<QuestView>? list) ? list : s_noQuests;
 
     /// <summary>The quests handed in to this NPC, by id. No allocation.</summary>
     public IReadOnlyList<QuestView> EndedBy(CreatureTemplateId npc) =>
-        _byEnder.TryGetValue(npc.Value, out IReadOnlyList<QuestView>? list) ? list : NoQuests;
+        _byEnder.TryGetValue(npc.Value, out IReadOnlyList<QuestView>? list) ? list : s_noQuests;
 
     public IReadOnlyList<QuestDropView> DropsFrom(CreatureTemplateId creature) =>
-        _dropsByCreature.TryGetValue(creature.Value, out IReadOnlyList<QuestDropView>? list) ? list : NoDrops;
+        _dropsByCreature.TryGetValue(creature.Value, out IReadOnlyList<QuestDropView>? list) ? list : s_noDrops;
 
     public bool IsQuestNpc(CreatureTemplateId npc) => _byGiver.ContainsKey(npc.Value) || _byEnder.ContainsKey(npc.Value);
 

@@ -21,7 +21,7 @@ public static class ServiceCollectionExtensions
     /// The logging providers the hosts register, by the alias configuration names them with:
     /// Serilog (<see cref="AddCustomLogging"/>) and the OpenTelemetry log exporter.
     /// </summary>
-    private static readonly string[] NamedLoggingProviders = ["Serilog", "OpenTelemetry"];
+    private static readonly string[] s_namedLoggingProviders = ["Serilog", "OpenTelemetry"];
 
     private const string MESSAGE_TEMPLATE =
         "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
@@ -151,7 +151,7 @@ public static class ServiceCollectionExtensions
         services.Configure<LoggerFilterOptions>(options =>
         {
             options.Rules.Insert(0, new LoggerFilterRule(null, EntityFrameworkCategory, LogLevel.Warning, null));
-            foreach (string provider in NamedLoggingProviders)
+            foreach (string provider in s_namedLoggingProviders)
             {
                 options.Rules.Insert(0, new LoggerFilterRule(provider, EntityFrameworkCategory, LogLevel.Warning, null));
             }

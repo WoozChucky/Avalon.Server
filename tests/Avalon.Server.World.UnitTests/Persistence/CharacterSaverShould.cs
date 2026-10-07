@@ -28,7 +28,7 @@ namespace Avalon.Server.World.UnitTests.Persistence;
 /// </summary>
 public sealed class CharacterSaverShould : IDisposable
 {
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(5);
 
     private readonly SqliteDatabase<CharacterDbContext> _db = SqliteDatabase.Characters();
     private readonly List<(Task<bool> Task, Action<bool> Callback)> _queued = [];
@@ -53,7 +53,7 @@ public sealed class CharacterSaverShould : IDisposable
 
         InventoryFor(character).TryAdd(Potion.Id, 3);
         new CharacterWallet(character, ulong.MaxValue).TryAddMoney(250);
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
         await PumpAsync();
 
         Assert.Equal(8u, (await StoredItemAsync(potion.InstanceId))!.Count);
@@ -68,7 +68,7 @@ public sealed class CharacterSaverShould : IDisposable
 
         InventoryFor(character).TryAdd(Sword.Id, 1);
         InventoryItem sword = At(character, InventoryType.Bag, 0);
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         Assert.Equal(new CharacterId(7), (await StoredItemAsync(sword.InstanceId))!.CharacterId);
         Assert.Equal(sword.InstanceId, (await StoredSlotsAsync(7)).Single().ItemId);
@@ -81,7 +81,7 @@ public sealed class CharacterSaverShould : IDisposable
         CharacterEntity character = await SeedAsync(7, stored: [potion]);
 
         InventoryFor(character).TryRemove(potion.InstanceId, 5);
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         Assert.Null(await StoredItemAsync(potion.InstanceId));
         Assert.Empty(await StoredSlotsAsync(7));
@@ -93,7 +93,7 @@ public sealed class CharacterSaverShould : IDisposable
         CharacterEntity character = await SeedAsync(7);
         InventoryFor(character).TryAdd(Potion.Id, 1);
 
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
         Assert.True(character.SaveState.HasChanges);
 
         await PumpAsync();
@@ -111,11 +111,11 @@ public sealed class CharacterSaverShould : IDisposable
         failing.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("database down")));
 
-        Assert.False(await Saver(failing).Save(_connection, character).WaitAsync(Limit));
+        Assert.False(await Saver(failing).Save(_connection, character).WaitAsync(s_limit));
         await PumpAsync();
         Assert.Equal(SaveState.New, character.SaveState.ItemState(potion.InstanceId));
 
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
         await PumpAsync();
         Assert.Equal(4u, (await StoredItemAsync(potion.InstanceId))!.Count);
         Assert.False(character.SaveState.HasChanges);
@@ -136,7 +136,7 @@ public sealed class CharacterSaverShould : IDisposable
         InventoryFor(character).TryAdd(Potion.Id, 2);   // 10, after the snapshot
         wallet.TryAddMoney(5);                          // 15, after the snapshot
         gated.Open();
-        Assert.True(await first.WaitAsync(Limit));
+        Assert.True(await first.WaitAsync(s_limit));
         await PumpAsync();
 
         Assert.Equal(8u, (await StoredItemAsync(potion.InstanceId))!.Count);
@@ -144,7 +144,7 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Equal(SaveState.Changed, character.SaveState.ItemState(potion.InstanceId));
         Assert.True(character.SaveState.MoneyDirty);
 
-        Assert.True(await saver.Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await saver.Save(_connection, character).WaitAsync(s_limit));
         await PumpAsync();
         Assert.Equal(10u, (await StoredItemAsync(potion.InstanceId))!.Count);
         Assert.Equal(15UL, (await StoredRowAsync(7)).Money);
@@ -164,13 +164,13 @@ public sealed class CharacterSaverShould : IDisposable
         Task<bool> first = saver.Save(_connection, character);
         InventoryFor(character).TryRemove(sword.InstanceId, 1);
         gated.Open();
-        Assert.True(await first.WaitAsync(Limit));
+        Assert.True(await first.WaitAsync(s_limit));
         await PumpAsync();
 
         Assert.NotNull(await StoredItemAsync(sword.InstanceId));   // the insert landed
         Assert.Equal(SaveState.Removed, character.SaveState.ItemState(sword.InstanceId));
 
-        Assert.True(await saver.Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await saver.Save(_connection, character).WaitAsync(s_limit));
         await PumpAsync();
         Assert.Null(await StoredItemAsync(sword.InstanceId));
         Assert.Empty(await StoredSlotsAsync(7));
@@ -195,8 +195,8 @@ public sealed class CharacterSaverShould : IDisposable
         Task<bool> delete = saver.Save(_connection, character);
         gated.Open();
 
-        Assert.True(await insert.WaitAsync(Limit));
-        Assert.True(await delete.WaitAsync(Limit));
+        Assert.True(await insert.WaitAsync(s_limit));
+        Assert.True(await delete.WaitAsync(s_limit));
         await PumpAsync();
 
         Assert.Null(await StoredItemAsync(sword.InstanceId));
@@ -219,8 +219,8 @@ public sealed class CharacterSaverShould : IDisposable
         Task<bool> despawn = saver.SaveOnDespawnAsync(character, prepareRow: null, CancellationToken.None);
         gated.Open();
 
-        Assert.True(await periodic.WaitAsync(Limit));
-        Assert.True(await despawn.WaitAsync(Limit));
+        Assert.True(await periodic.WaitAsync(s_limit));
+        Assert.True(await despawn.WaitAsync(s_limit));
         await using CharacterDbContext read = _db.CreateDbContext();
         Assert.Single(await read.ItemInstances.AsNoTracking().Where(i => i.CharacterId == new CharacterId(7)).ToListAsync());
         Assert.Single(await StoredSlotsAsync(7));
@@ -242,13 +242,13 @@ public sealed class CharacterSaverShould : IDisposable
         CharacterEntity newSession = New(7);
         Task<bool> next = saver.Save(_connection, newSession);
 
-        await recording.FirstStarted.WaitAsync(Limit);
+        await recording.FirstStarted.WaitAsync(s_limit);
         await Task.Delay(50);   // gives an unchained second save time to start; a correct chain keeps the count at 1 however long this waits (#599)
         Assert.Equal(1, recording.Started);
 
         recording.Release();
-        Assert.True(await despawn.WaitAsync(Limit));
-        Assert.True(await next.WaitAsync(Limit));
+        Assert.True(await despawn.WaitAsync(s_limit));
+        Assert.True(await next.WaitAsync(s_limit));
         Assert.Equal(2, recording.Started);
     }
 
@@ -266,7 +266,7 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.True(saver.WhenIdle(new CharacterId(8)).IsCompleted);   // another character is not held up
 
         gated.Open();
-        await idle.WaitAsync(Limit);
+        await idle.WaitAsync(s_limit);
         Assert.True(despawn.IsCompleted);
     }
 
@@ -279,9 +279,9 @@ public sealed class CharacterSaverShould : IDisposable
             .Returns(Task.FromException(new InvalidOperationException("database down")));
         CharacterSaver saver = Saver(failing);
 
-        Assert.False(await saver.SaveOnDespawnAsync(character, prepareRow: null, CancellationToken.None).WaitAsync(Limit));
+        Assert.False(await saver.SaveOnDespawnAsync(character, prepareRow: null, CancellationToken.None).WaitAsync(s_limit));
 
-        await saver.WhenIdle(new CharacterId(7)).WaitAsync(Limit);
+        await saver.WhenIdle(new CharacterId(7)).WaitAsync(s_limit);
     }
 
     [Fact]
@@ -292,7 +292,7 @@ public sealed class CharacterSaverShould : IDisposable
         new CharacterWallet(saved, ulong.MaxValue).TryAddMoney(100);
         InventoryFor(saved).TryAdd(Potion.Id, 1);
 
-        Assert.False(await Saver().Save([(_connection, saved), (_connection, neverStored)]).WaitAsync(Limit));
+        Assert.False(await Saver().Save([(_connection, saved), (_connection, neverStored)]).WaitAsync(s_limit));
         await PumpAsync();
 
         Assert.Equal(0UL, (await StoredRowAsync(7)).Money);
@@ -323,7 +323,7 @@ public sealed class CharacterSaverShould : IDisposable
         CharacterEntity character = await SeedAsync(7, stored: [wand]);
 
         InventoryFor(character).TryAdd(Potion.Id, 1);
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         Assert.Equal(3u, (await StoredItemAsync(wand.InstanceId))!.Charges);
     }
@@ -336,7 +336,7 @@ public sealed class CharacterSaverShould : IDisposable
 
         Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
             EquipTemplates.InventoryFor(character).TryMove(EquipTemplates.Bag(0), EquipTemplates.Bag(6), null, false));
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         CharacterInventory slot = Assert.Single(await StoredSlotsAsync(7));
         Assert.Equal((ushort)6, slot.Slot);
@@ -353,7 +353,7 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
             EquipTemplates.InventoryFor(character).TryMove(EquipTemplates.Bag(0), EquipTemplates.Bag(4), 3, false));
         InventoryItem split = At(character, InventoryType.Bag, 4);
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         Assert.Equal(7u, (await StoredItemAsync(potion.InstanceId))!.Count);
         Assert.Equal(3u, (await StoredItemAsync(split.InstanceId))!.Count);
@@ -370,7 +370,7 @@ public sealed class CharacterSaverShould : IDisposable
 
         Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
             EquipTemplates.InventoryFor(character).TryMove(EquipTemplates.Bag(0), EquipTemplates.Bag(1), null, false));
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         List<CharacterInventory> slots = await StoredSlotsAsync(7);
         Assert.Equal(2, slots.Count);
@@ -398,7 +398,7 @@ public sealed class CharacterSaverShould : IDisposable
             inventory.TryDestroy(EquipTemplates.Bag(0), null, false));
         Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
             inventory.TryMove(EquipTemplates.Bag(1), EquipTemplates.Bag(0), null, false));
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         CharacterInventory slot = Assert.Single(await StoredSlotsAsync(7));
         Assert.Equal((InventoryType.Bag, (ushort)0, sword.InstanceId), (slot.Container, slot.Slot, slot.ItemId));
@@ -413,12 +413,12 @@ public sealed class CharacterSaverShould : IDisposable
         DerivedCharacterStats first = new(240, 100, 22, 23, 20, 20, 0, 5f, 3.664f, 5f, 46, 4);
 
         character.ApplyStats(first, CurrentValues.Refill, TestCombat.Formula);
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
         await PumpAsync();
         Assert.False(character.SaveState.StatsDirty);
 
         character.ApplyStats(first with { MaxHealth = 260, Armor = 8 }, CurrentValues.KeepShare, TestCombat.Formula);
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         await using CharacterDbContext read = _db.CreateDbContext();
         CharacterStats stored = await read.CharacterStats.AsNoTracking().SingleAsync();
@@ -438,7 +438,7 @@ public sealed class CharacterSaverShould : IDisposable
     private async Task PumpAsync()
     {
         foreach ((Task<bool> task, Action<bool> callback) in _queued.ToList())
-            callback(await task.WaitAsync(Limit));
+            callback(await task.WaitAsync(s_limit));
 
         _queued.Clear();
     }
@@ -505,7 +505,7 @@ public sealed class CharacterSaverShould : IDisposable
 
         public async Task WriteAsync(IReadOnlyList<CharacterSaveBatch> batches, CancellationToken cancellationToken = default)
         {
-            await _gate.Task.WaitAsync(Limit, cancellationToken);
+            await _gate.Task.WaitAsync(s_limit, cancellationToken);
             await inner.WriteAsync(batches, cancellationToken);
         }
     }
@@ -532,7 +532,7 @@ public sealed class CharacterSaverShould : IDisposable
             if (Interlocked.Increment(ref _started) == 1)
             {
                 _firstStarted.TrySetResult();
-                await _gate.Task.WaitAsync(Limit, cancellationToken);
+                await _gate.Task.WaitAsync(s_limit, cancellationToken);
             }
         }
     }

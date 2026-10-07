@@ -33,7 +33,7 @@ public class TownNpcPlacementShould
     private const float DoorwayLaneDepth = 3f;
 
     private const float InnerWall = 30f;
-    private static readonly (float From, float To)[] Doorways = [(12f, 18f), (42f, 48f)];
+    private static readonly (float From, float To)[] s_doorways = [(12f, 18f), (42f, 48f)];
 
     private sealed record WallBox(string Name, float MinX, float MaxX, float MinZ, float MaxZ)
     {
@@ -49,9 +49,9 @@ public class TownNpcPlacementShould
 
     private sealed record TownGeometry(Vector3 Entry, float CellSize, List<WallBox> Walls, List<(string Chunk, Vector3 Origin)> Chunks);
 
-    private static readonly Lazy<TownGeometry> Town = new(ReadTown, isThreadSafe: true);
-    private static readonly Lazy<DtNavMesh> TownNavMesh = new(BakeTown, isThreadSafe: true);
-    private static readonly Lazy<List<MapCreatureSpawn>> TownSpawns = new(ReadTownSpawns, isThreadSafe: true);
+    private static readonly Lazy<TownGeometry> s_town = new(ReadTown, isThreadSafe: true);
+    private static readonly Lazy<DtNavMesh> s_townNavMesh = new(BakeTown, isThreadSafe: true);
+    private static readonly Lazy<List<MapCreatureSpawn>> s_townSpawns = new(ReadTownSpawns, isThreadSafe: true);
 
     private static string MapsDir => Path.Combine(AppContext.BaseDirectory, "Maps");
 
@@ -121,7 +121,7 @@ public class TownNpcPlacementShould
     {
         var sb = new StringBuilder();
         int offset = 0;
-        foreach ((string name, Vector3 origin) in Town.Value.Chunks)
+        foreach ((string name, Vector3 origin) in s_town.Value.Chunks)
         {
             int count = 0;
             foreach (string raw in File.ReadAllLines(Path.Combine(MapsDir, "Chunks", $"{name}.obj")))
@@ -132,7 +132,7 @@ public class TownNpcPlacementShould
                 {
                     Vector3 w = ChunkRotation.LocalToWorld(float.Parse(parts[1], CultureInfo.InvariantCulture),
                         float.Parse(parts[2], CultureInfo.InvariantCulture), float.Parse(parts[3], CultureInfo.InvariantCulture),
-                        0, Town.Value.CellSize, origin);
+                        0, s_town.Value.CellSize, origin);
                     sb.Append(CultureInfo.InvariantCulture, $"v {w.x} {w.y} {w.z}\n");
                     count++;
                 }
@@ -163,7 +163,7 @@ public class TownNpcPlacementShould
     }
 
     /// <summary>The seeded spawns on the town (map 1), read once for every test in the class.</summary>
-    private static List<MapCreatureSpawn> SeededSpawns() => TownSpawns.Value;
+    private static List<MapCreatureSpawn> SeededSpawns() => s_townSpawns.Value;
 
     private static List<MapCreatureSpawn> ReadTownSpawns()
     {
@@ -176,7 +176,7 @@ public class TownNpcPlacementShould
     }
 
     private static (float X, float Z) WorldOf(MapCreatureSpawn spawn) =>
-        (Town.Value.Entry.x + spawn.OffsetX, Town.Value.Entry.z + spawn.OffsetZ);
+        (s_town.Value.Entry.x + spawn.OffsetX, s_town.Value.Entry.z + spawn.OffsetZ);
 
     private static MapCreatureSpawn SpawnOf(List<MapCreatureSpawn> spawns, ulong template) =>
         spawns.Single(s => s.CreatureTemplateId.Value == template);
@@ -184,8 +184,8 @@ public class TownNpcPlacementShould
     [Fact]
     public void Read_the_entry_spawn_at_fifteen_fifteen()
     {
-        Assert.Equal(15f, Town.Value.Entry.x);
-        Assert.Equal(15f, Town.Value.Entry.z);
+        Assert.Equal(15f, s_town.Value.Entry.x);
+        Assert.Equal(15f, s_town.Value.Entry.z);
     }
 
     /// <summary>Template, world X and Z, and the south-west corner of the square it belongs in.</summary>
@@ -215,7 +215,7 @@ public class TownNpcPlacementShould
         foreach (MapCreatureSpawn spawn in SeededSpawns())
         {
             (float x, float z) = WorldOf(spawn);
-            foreach (WallBox wall in Town.Value.Walls)
+            foreach (WallBox wall in s_town.Value.Walls)
             {
                 float clearance = wall.DistanceTo(x, z);
                 Assert.True(clearance >= MinWallClearance,
@@ -232,21 +232,21 @@ public class TownNpcPlacementShould
     public void Find_every_doorway_open_in_the_town_geometry()
     {
         const float Step = 0.25f;
-        foreach ((float from, float to) in Doorways)
+        foreach ((float from, float to) in s_doorways)
         {
             // Strictly inside the opening: the walls either side end exactly at its edges.
             int samples = (int)MathF.Round((to - from) / Step) - 1;
             for (int i = 1; i <= samples; i++)
             {
                 float along = from + i * Step;
-                Assert.DoesNotContain(Town.Value.Walls, w => w.Contains(InnerWall, along));   // a gap in the X = 30 wall
-                Assert.DoesNotContain(Town.Value.Walls, w => w.Contains(along, InnerWall));   // a gap in the Z = 30 wall
+                Assert.DoesNotContain(s_town.Value.Walls, w => w.Contains(InnerWall, along));   // a gap in the X = 30 wall
+                Assert.DoesNotContain(s_town.Value.Walls, w => w.Contains(along, InnerWall));   // a gap in the Z = 30 wall
             }
 
-            Assert.Contains(Town.Value.Walls, w => w.Contains(InnerWall, from - 1f));         // the X = 30 wall closes either side
-            Assert.Contains(Town.Value.Walls, w => w.Contains(InnerWall, to + 1f));
-            Assert.Contains(Town.Value.Walls, w => w.Contains(from - 1f, InnerWall));         // the Z = 30 wall closes either side
-            Assert.Contains(Town.Value.Walls, w => w.Contains(to + 1f, InnerWall));
+            Assert.Contains(s_town.Value.Walls, w => w.Contains(InnerWall, from - 1f));         // the X = 30 wall closes either side
+            Assert.Contains(s_town.Value.Walls, w => w.Contains(InnerWall, to + 1f));
+            Assert.Contains(s_town.Value.Walls, w => w.Contains(from - 1f, InnerWall));         // the Z = 30 wall closes either side
+            Assert.Contains(s_town.Value.Walls, w => w.Contains(to + 1f, InnerWall));
         }
     }
 
@@ -256,7 +256,7 @@ public class TownNpcPlacementShould
         foreach (MapCreatureSpawn spawn in SeededSpawns())
         {
             (float x, float z) = WorldOf(spawn);
-            foreach ((float from, float to) in Doorways)
+            foreach ((float from, float to) in s_doorways)
             {
                 bool inXWallLane = Math.Abs(x - InnerWall) <= DoorwayLaneDepth && z >= from && z <= to;
                 bool inZWallLane = Math.Abs(z - InnerWall) <= DoorwayLaneDepth && x >= from && x <= to;
@@ -290,8 +290,8 @@ public class TownNpcPlacementShould
     public void Stand_every_npc_on_the_town_navmesh_within_reach_of_the_entry()
     {
         var navigator = new MapNavigator(NullLoggerFactory.Instance);
-        navigator.LoadFromNavMesh(TownNavMesh.Value);
-        Vector3 entry = Town.Value.Entry + new Vector3(0f, 1f, 0f);
+        navigator.LoadFromNavMesh(s_townNavMesh.Value);
+        Vector3 entry = s_town.Value.Entry + new Vector3(0f, 1f, 0f);
 
         foreach (MapCreatureSpawn spawn in SeededSpawns())
         {
@@ -309,7 +309,7 @@ public class TownNpcPlacementShould
     }
 
     /// <summary>Which building each NPC belongs to (TownPieces.Building names).</summary>
-    private static readonly Dictionary<ulong, string> BuildingOf = new()
+    private static readonly Dictionary<ulong, string> s_buildingOf = new()
     {
         [1] = "Town hall",
         [2] = "Hunter's lodge",
@@ -332,7 +332,7 @@ public class TownNpcPlacementShould
         foreach (MapCreatureSpawn spawn in SeededSpawns())
         {
             (float x, float z) = WorldOf(spawn);
-            string building = BuildingOf[spawn.CreatureTemplateId.Value];
+            string building = s_buildingOf[spawn.CreatureTemplateId.Value];
 
             foreach ((TownSquare square, TownPiece piece, float distance) in Solids(x, z))
             {
@@ -355,7 +355,7 @@ public class TownNpcPlacementShould
     /// well inside the 45-degree frame.
     /// </summary>
     private const float CameraPivotHeight = 1.75f;
-    private static readonly float[] CameraDistances = [5f, 10f, 15f, 20f, 25f];
+    private static readonly float[] s_cameraDistances = [5f, 10f, 15f, 20f, 25f];
     private const float FramedFraction = 0.35f;
     private const float PlayerGridStep = 1f;
 
@@ -412,7 +412,7 @@ public class TownNpcPlacementShould
         {
             (float x, float z) = WorldOf(spawn);
             var head = new Vector3(x, HeadHeight, z);
-            foreach (float distance in CameraDistances)
+            foreach (float distance in s_cameraDistances)
             {
                 float reach = FramedFraction * distance;
                 for (float dx = -reach; dx <= reach; dx += PlayerGridStep)
@@ -442,7 +442,7 @@ public class TownNpcPlacementShould
     public void Walk_through_every_doorway_and_the_gate_arch()
     {
         var navigator = new MapNavigator(NullLoggerFactory.Instance);
-        navigator.LoadFromNavMesh(TownNavMesh.Value);
+        navigator.LoadFromNavMesh(s_townNavMesh.Value);
 
         (Vector3 From, Vector3 To, string Label)[] walks =
         [
@@ -460,7 +460,7 @@ public class TownNpcPlacementShould
             Assert.True(MathF.Abs(back.x - from.x) < 0.5f && MathF.Abs(back.z - from.z) < 0.5f, $"{label}, back: stopped at ({back.x:0.00}, {back.z:0.00})");
         }
 
-        List<Vector3> path = navigator.FindPath(Town.Value.Entry + new Vector3(0f, 1f, 0f), new Vector3(15f, 1f, 45f));
+        List<Vector3> path = navigator.FindPath(s_town.Value.Entry + new Vector3(0f, 1f, 0f), new Vector3(15f, 1f, 45f));
         Assert.NotEmpty(path);
         Assert.True(MathF.Abs(path[^1].x - 15f) <= 1f && MathF.Abs(path[^1].z - 45f) <= 1f, $"the path to the portal ends at {path[^1]}");
     }

@@ -10,7 +10,7 @@ namespace Avalon.Database.UnitTests;
 /// </summary>
 public class GrantAuraAbilitiesMigrationShould
 {
-    private static readonly string[] Pairs = ["(1, 203)", "(2, 213)", "(3, 223)", "(4, 233)", "(4, 234)"];
+    private static readonly string[] s_pairs = ["(1, 203)", "(2, 213)", "(3, 223)", "(4, 233)", "(4, 234)"];
 
     [Fact]
     public void Add_each_classes_new_abilities_and_touch_no_other_row()
@@ -21,7 +21,7 @@ public class GrantAuraAbilitiesMigrationShould
         Assert.Contains("NOT EXISTS", up, StringComparison.Ordinal);
         Assert.DoesNotContain("DELETE", up, StringComparison.Ordinal);
         Assert.DoesNotContain("UPDATE", up, StringComparison.Ordinal);
-        Assert.All(Pairs, pair => Assert.Contains(pair, up, StringComparison.Ordinal));
+        Assert.All(s_pairs, pair => Assert.Contains(pair, up, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -30,6 +30,6 @@ public class GrantAuraAbilitiesMigrationShould
         string down = Assert.Single(new GrantAuraAbilities().DownOperations.OfType<SqlOperation>()).Sql;
 
         Assert.StartsWith("DELETE FROM \"CharacterAbilities\"", down, StringComparison.Ordinal);
-        Assert.All(Pairs, pair => Assert.Contains(pair, down, StringComparison.Ordinal));
+        Assert.All(s_pairs, pair => Assert.Contains(pair, down, StringComparison.Ordinal));
     }
 }

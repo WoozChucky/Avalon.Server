@@ -18,7 +18,7 @@ namespace Avalon.Server.Auth.UnitTests.Services;
 /// </summary>
 public sealed class OnlineSweepShould : IDisposable
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan s_interval = TimeSpan.FromSeconds(30);
 
     private readonly AuthSqlite _database = new();
     private readonly AccountRepository _accounts;
@@ -33,7 +33,7 @@ public sealed class OnlineSweepShould : IDisposable
 
     public void Dispose() => _database.Dispose();
 
-    private OnlineSweep Sweep(IAccountRepository accounts) => new(accounts, () => _live, Interval, _clock, _logger);
+    private OnlineSweep Sweep(IAccountRepository accounts) => new(accounts, () => _live, s_interval, _clock, _logger);
 
     private async Task<Account> AccountAsync() => await _accounts.CreateAsync(new Account
     {
@@ -58,7 +58,7 @@ public sealed class OnlineSweepShould : IDisposable
         await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.1", DateTime.UtcNow, Guid.NewGuid());
         OnlineSweep sweep = Sweep(_accounts);
 
-        _clock.Advance(Interval);
+        _clock.Advance(s_interval);
         Assert.True(await sweep.RunIfDueAsync(CancellationToken.None));
 
         Account stored = await StoredAsync(account.Id);
@@ -75,7 +75,7 @@ public sealed class OnlineSweepShould : IDisposable
         _live.Add(session);
         OnlineSweep sweep = Sweep(_accounts);
 
-        _clock.Advance(Interval);
+        _clock.Advance(s_interval);
         await sweep.RunIfDueAsync(CancellationToken.None);
 
         Account stored = await StoredAsync(account.Id);
@@ -94,7 +94,7 @@ public sealed class OnlineSweepShould : IDisposable
         }
 
         OnlineSweep sweep = Sweep(_accounts);
-        _clock.Advance(Interval);
+        _clock.Advance(s_interval);
         await sweep.RunIfDueAsync(CancellationToken.None);
 
         Assert.False((await StoredAsync(account.Id)).Online);
@@ -116,7 +116,7 @@ public sealed class OnlineSweepShould : IDisposable
         };
         OnlineSweep sweep = Sweep(racing);
 
-        _clock.Advance(Interval);
+        _clock.Advance(s_interval);
         await sweep.RunIfDueAsync(CancellationToken.None);
 
         Account stored = await StoredAsync(account.Id);
@@ -151,8 +151,8 @@ public sealed class OnlineSweepShould : IDisposable
             return snapshot;
         }
 
-        var sweep = new OnlineSweep(_accounts, SnapshotThenLogin, Interval, _clock, _logger);
-        _clock.Advance(Interval);
+        var sweep = new OnlineSweep(_accounts, SnapshotThenLogin, s_interval, _clock, _logger);
+        _clock.Advance(s_interval);
         await sweep.RunIfDueAsync(CancellationToken.None);
 
         Assert.False((await StoredAsync(stale.Id)).Online);
@@ -173,7 +173,7 @@ public sealed class OnlineSweepShould : IDisposable
             .ThrowsAsync(new InvalidOperationException("boom"));
         OnlineSweep sweep = Sweep(accounts);
 
-        _clock.Advance(Interval);
+        _clock.Advance(s_interval);
         await sweep.RunIfDueAsync(CancellationToken.None);
 
         await accounts.Received(1).MarkOfflineAsync(next, Arg.Any<Guid?>(), 0, Arg.Any<CancellationToken>());
@@ -193,7 +193,7 @@ public sealed class OnlineSweepShould : IDisposable
             .Returns([new OnlineSession(id, stale)]);
         OnlineSweep sweep = Sweep(accounts);
 
-        _clock.Advance(Interval);
+        _clock.Advance(s_interval);
         await sweep.RunIfDueAsync(CancellationToken.None);
 
         await accounts.Received(1).MarkOfflineAsync(id, stale, 0, Arg.Any<CancellationToken>());
@@ -205,7 +205,7 @@ public sealed class OnlineSweepShould : IDisposable
         IAccountRepository accounts = Substitute.For<IAccountRepository>();
         OnlineSweep sweep = Sweep(accounts);
 
-        _clock.Advance(Interval - TimeSpan.FromMilliseconds(1));
+        _clock.Advance(s_interval - TimeSpan.FromMilliseconds(1));
         Assert.False(await sweep.RunIfDueAsync(CancellationToken.None));
 
         await accounts.DidNotReceive().ListOnlineSessionsAsync(Arg.Any<CancellationToken>());
@@ -218,12 +218,12 @@ public sealed class OnlineSweepShould : IDisposable
         accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>()).Returns([]);
         OnlineSweep sweep = Sweep(accounts);
 
-        _clock.Advance(Interval * 5);
+        _clock.Advance(s_interval * 5);
         Assert.True(await sweep.RunIfDueAsync(CancellationToken.None));
         Assert.False(await sweep.RunIfDueAsync(CancellationToken.None));
 
         await accounts.Received(1).ListOnlineSessionsAsync(Arg.Any<CancellationToken>());
-        Assert.Equal(_clock.GetUtcNow() + Interval, sweep.NextDue);
+        Assert.Equal(_clock.GetUtcNow() + s_interval, sweep.NextDue);
     }
 
     [Fact]
@@ -234,9 +234,9 @@ public sealed class OnlineSweepShould : IDisposable
             .ThrowsAsync(new InvalidOperationException("boom"));
         OnlineSweep sweep = Sweep(accounts);
 
-        _clock.Advance(Interval);
+        _clock.Advance(s_interval);
         Assert.True(await sweep.RunIfDueAsync(CancellationToken.None));
-        _clock.Advance(Interval);
+        _clock.Advance(s_interval);
         Assert.True(await sweep.RunIfDueAsync(CancellationToken.None));
 
         await accounts.Received(2).ListOnlineSessionsAsync(Arg.Any<CancellationToken>());

@@ -16,7 +16,7 @@ namespace Avalon.Server.World.UnitTests.Combat;
 /// </summary>
 public class CombatTickAllocationShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     [Fact]
     public void Run_a_steady_combat_tick_without_allocating()
@@ -45,7 +45,7 @@ public class CombatTickAllocationShould
         // Warm up: the first broadcast sends; the clock stands still, so every later one is throttled.
         for (int i = 0; i < 2; i++)
         {
-            combat.Update(Tick);
+            combat.Update(s_tick);
             broadcast.Tick(connections.Values, creatures, combat);
         }
         Assert.Equal(1, connection.Sent);
@@ -53,7 +53,7 @@ public class CombatTickAllocationShould
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 100; i++)
         {
-            combat.Update(Tick);
+            combat.Update(s_tick);
             broadcast.Tick(connections.Values, creatures, combat);
         }
 

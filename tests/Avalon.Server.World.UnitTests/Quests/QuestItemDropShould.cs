@@ -28,14 +28,14 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestItemDropShould
 {
-    private static uint _nextCreature = 970_000;
+    private static uint s_nextCreature = 970_000;
 
     private static Creature Boar(MapInstance instance, QuestTestWorld w)
     {
         CreatureTemplate metadata = w.Data.CreatureTemplates.Single(t => t.Id.Value == QuestTestData.Boar);
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, Interlocked.Increment(ref _nextCreature)),
+            Guid = new ObjectGuid(ObjectType.Creature, Interlocked.Increment(ref s_nextCreature)),
             Metadata = metadata,
             TemplateId = metadata.Id,
             Position = Vector3.zero,

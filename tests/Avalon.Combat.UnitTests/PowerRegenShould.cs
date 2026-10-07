@@ -10,7 +10,7 @@ public class PowerRegenShould
 {
     private const double Tick = 1d / 60d;
 
-    private static readonly RegenConfiguration Config = new();   // 0.05 a stat a second in combat, 0.3 out of it
+    private static readonly RegenConfiguration s_config = new();   // 0.05 a stat a second in combat, 0.3 out of it
 
     private static DerivedCharacterStats Stats(uint intellect, uint agility) =>
         new(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: agility, Intellect: intellect, Armor: 0,
@@ -30,7 +30,7 @@ public class PowerRegenShould
         double carry = 0d;
         uint total = 0;
         for (int tick = 0; tick < 60; tick++)
-            total += PowerRegen.Amount(Config, regenStat: 23, inCombat: true, castSuppressed: false, Tick, ref carry);
+            total += PowerRegen.Amount(s_config, regenStat: 23, inCombat: true, castSuppressed: false, Tick, ref carry);
 
         // 23 x 0.05 = 1.15 a second: one whole point, 0.15 carried. The floor gave 60.
         Assert.Equal(1u, total);
@@ -42,7 +42,7 @@ public class PowerRegenShould
     {
         double carry = 0d;
 
-        Assert.Equal(6u, PowerRegen.Amount(Config, regenStat: 23, inCombat: false, castSuppressed: false, 1d, ref carry));
+        Assert.Equal(6u, PowerRegen.Amount(s_config, regenStat: 23, inCombat: false, castSuppressed: false, 1d, ref carry));
         Assert.Equal(0.9, carry, precision: 5);   // 6.9
     }
 
@@ -52,7 +52,7 @@ public class PowerRegenShould
         double carry = 0d;
         uint total = 0;
         for (int tick = 0; tick < 60; tick++)
-            total += PowerRegen.Amount(Config, regenStat: 23, inCombat: false, castSuppressed: false, Tick, ref carry);
+            total += PowerRegen.Amount(s_config, regenStat: 23, inCombat: false, castSuppressed: false, Tick, ref carry);
 
         Assert.Equal(6u, total);
         Assert.Equal(0.9, carry, precision: 3);
@@ -64,7 +64,7 @@ public class PowerRegenShould
         double carry = 0.9;
 
         // 0.9 + 23 x 0.3 / 60 = 1.015
-        Assert.Equal(1u, PowerRegen.Amount(Config, regenStat: 23, inCombat: false, castSuppressed: false, Tick, ref carry));
+        Assert.Equal(1u, PowerRegen.Amount(s_config, regenStat: 23, inCombat: false, castSuppressed: false, Tick, ref carry));
         Assert.Equal(0.015, carry, precision: 3);
     }
 
@@ -73,7 +73,7 @@ public class PowerRegenShould
     {
         double carry = 0.5;
 
-        Assert.Equal(0u, PowerRegen.Amount(Config, regenStat: 23, inCombat: true, castSuppressed: true, Tick, ref carry));
+        Assert.Equal(0u, PowerRegen.Amount(s_config, regenStat: 23, inCombat: true, castSuppressed: true, Tick, ref carry));
         Assert.Equal(0d, carry);
     }
 
@@ -82,7 +82,7 @@ public class PowerRegenShould
     {
         double carry = 0.5;
 
-        Assert.Equal(0u, PowerRegen.Amount(Config, regenStat: 0, inCombat: true, castSuppressed: false, Tick, ref carry));
+        Assert.Equal(0u, PowerRegen.Amount(s_config, regenStat: 0, inCombat: true, castSuppressed: false, Tick, ref carry));
         Assert.Equal(0d, carry);
     }
 }

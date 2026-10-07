@@ -21,9 +21,9 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// </summary>
 public class FuryLifecycleShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
-    private static readonly DateTimeOffset Start = new(2001, 1, 1, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset s_start = new(2001, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>A character with a 100-point <paramref name="pool" /> holding <paramref name="current" />, on <paramref name="clock" />.</summary>
     private static CharacterEntity Character(FixedTimeProvider clock, uint current, PowerType pool = PowerType.Fury,
@@ -47,14 +47,14 @@ public class FuryLifecycleShould
     {
         for (int i = 0; i < ticks; i++)
         {
-            character.Update(Tick);
+            character.Update(s_tick);
         }
     }
 
     [Fact]
     public void Not_Decay_In_Combat()
     {
-        var clock = new FixedTimeProvider(Start);
+        var clock = new FixedTimeProvider(s_start);
         CharacterEntity warrior = Character(clock, current: 50);
         warrior.MarkCombat();
 
@@ -67,10 +67,10 @@ public class FuryLifecycleShould
     [Fact]
     public void Decay_Exactly_The_Rate_Out_Of_Combat()
     {
-        var clock = new FixedTimeProvider(Start);
+        var clock = new FixedTimeProvider(s_start);
         CharacterEntity warrior = Character(clock, current: 50);
         warrior.MarkCombat();
-        clock.Now = Start.AddSeconds(new RegenConfiguration().CombatLeaveDelaySeconds);   // the tag has just ended
+        clock.Now = s_start.AddSeconds(new RegenConfiguration().CombatLeaveDelaySeconds);   // the tag has just ended
         Assert.False(warrior.IsInCombat);
 
         Run(warrior, 60);
@@ -82,14 +82,14 @@ public class FuryLifecycleShould
     [Fact]
     public void Start_The_Fraction_Over_After_A_Fight()
     {
-        var clock = new FixedTimeProvider(Start);
+        var clock = new FixedTimeProvider(s_start);
         CharacterEntity warrior = Character(clock, current: 50);
         Run(warrior, 11);   // 55/60 of a point owed, none lost yet
         Assert.Equal(50u, warrior.CurrentPower);
 
         warrior.MarkCombat();
         Run(warrior, 1);
-        clock.Now = Start.AddSeconds(new RegenConfiguration().CombatLeaveDelaySeconds);
+        clock.Now = s_start.AddSeconds(new RegenConfiguration().CombatLeaveDelaySeconds);
         Run(warrior, 11);
 
         Assert.Equal(50u, warrior.CurrentPower);
@@ -102,7 +102,7 @@ public class FuryLifecycleShould
     [Fact]
     public void Keep_Decaying_Through_Gear_Changes()
     {
-        var clock = new FixedTimeProvider(Start);
+        var clock = new FixedTimeProvider(s_start);
         CharacterEntity warrior = Character(clock, current: 50);
         var stats = new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
             Intellect: 0, Armor: 0, BlockPct: 0f, DodgePct: 0f, CritPct: 0f, AttackDamage: 0, AbilityDamage: 0);
@@ -110,7 +110,7 @@ public class FuryLifecycleShould
         for (int i = 0; i < 60; i++)
         {
             warrior.ApplyStats(stats, CurrentValues.KeepShare, TestCombat.Formula);
-            warrior.Update(Tick);
+            warrior.Update(s_tick);
         }
 
         Assert.Equal(45u, warrior.CurrentPower);
@@ -119,7 +119,7 @@ public class FuryLifecycleShould
     [Fact]
     public void Stop_Decaying_At_Zero()
     {
-        var clock = new FixedTimeProvider(Start);
+        var clock = new FixedTimeProvider(s_start);
         CharacterEntity warrior = Character(clock, current: 3);
 
         Run(warrior, 600);
@@ -130,7 +130,7 @@ public class FuryLifecycleShould
     [Fact]
     public void Not_Decay_When_The_Rate_Is_Zero()
     {
-        var clock = new FixedTimeProvider(Start);
+        var clock = new FixedTimeProvider(s_start);
         CharacterEntity warrior = Character(clock, current: 50, furyDecayPerSecond: 0f);
 
         Run(warrior, 600);
@@ -144,7 +144,7 @@ public class FuryLifecycleShould
     [InlineData(PowerType.Energy)]
     public void Leave_Mana_And_Energy_Regeneration_Unchanged(PowerType pool)
     {
-        var clock = new FixedTimeProvider(Start);
+        var clock = new FixedTimeProvider(s_start);
         CharacterEntity caster = Character(clock, current: 50, pool, regenStat: 10,
             regen: new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f });
 

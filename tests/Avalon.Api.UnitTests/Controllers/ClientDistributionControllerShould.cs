@@ -13,7 +13,7 @@ namespace Avalon.Api.UnitTests.Controllers;
 public class ClientDistributionControllerShould
 {
     private readonly IDistributionStore _store = Substitute.For<IDistributionStore>();
-    private static readonly DateTimeOffset T0 = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset s_t0 = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
 
     public ClientDistributionControllerShould()
     {
@@ -35,11 +35,11 @@ public class ClientDistributionControllerShould
     private void Publish(Channel channel, string build)
     {
         string key = $"manifests/{channel.Wire()}/{build}.json";
-        var doc = new ManifestDocument(1, channel.Wire(), "windows-x64", "0.2.0", build, T0, "1.0.0", "notes", 10,
+        var doc = new ManifestDocument(1, channel.Wire(), "windows-x64", "0.2.0", build, s_t0, "1.0.0", "notes", 10,
             [new ManifestFile("runtime.exe", 10, "aa")]);
         _store.GetPointerAsync(channel, Arg.Any<CancellationToken>()).Returns(new ChannelPointer(build, key));
         _store.GetManifestAsync(key, Arg.Any<CancellationToken>()).Returns(new StoredManifest(doc, "{}", "sig"));
-        _store.ListManifestsAsync(channel, Arg.Any<CancellationToken>()).Returns(new List<StoredObject> { new(key, T0) });
+        _store.ListManifestsAsync(channel, Arg.Any<CancellationToken>()).Returns(new List<StoredObject> { new(key, s_t0) });
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class ClientDistributionControllerShould
     [Fact]
     public void Serialise_the_update_response_in_taurus_shape()
     {
-        var dto = new TauriUpdateDto("1.0.0", "first", T0,
+        var dto = new TauriUpdateDto("1.0.0", "first", s_t0,
             new Dictionary<string, TauriPlatformDto> { ["windows-x86_64"] = new("tsig", new Uri("https://dist.example/u.zip")) });
 
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(dto, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
@@ -115,7 +115,7 @@ public class ClientDistributionControllerShould
         var objects = new List<StoredObject>();
         for (int n = 0; n < count; n++)
         {
-            var entry = new ChangelogEntryDto(product, channel, $"0.{n}.0", null, T0.AddMinutes(n), null,
+            var entry = new ChangelogEntryDto(product, channel, $"0.{n}.0", null, s_t0.AddMinutes(n), null,
                 [new ChangelogItemDto("fixed", $"Fixed thing {n}.", false, null, null)]);
             string key = $"{prefix}0.{n}.0.json";
             objects.Add(new StoredObject(key, entry.PublishedAt));

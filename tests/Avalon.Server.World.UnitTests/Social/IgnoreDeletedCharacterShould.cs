@@ -22,7 +22,7 @@ namespace Avalon.Server.World.UnitTests.Social;
 /// </summary>
 public class IgnoreDeletedCharacterShould
 {
-    private static readonly DateTime Now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public async Task Take_a_deleted_character_off_every_loaded_list()
@@ -30,8 +30,8 @@ public class IgnoreDeletedCharacterShould
         var w = new PartyTestWorld();
         PartyClient aren = w.Online(1, "Aren");
         PartyClient tom = w.Online(3, "Tom");
-        aren.Character.Ignores.Add(2, "Kaela", Now);
-        aren.Character.Ignores.Add(9, "Borin", Now);
+        aren.Character.Ignores.Add(2, "Kaela", s_now);
+        aren.Character.Ignores.Add(9, "Borin", s_now);
 
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         var kaela = new Character { Id = new CharacterId(2), AccountId = new AccountId(5), Name = "Kaela" };
@@ -52,7 +52,7 @@ public class IgnoreDeletedCharacterShould
 
         // Selected and waiting on its load report: the list is loaded, the character not yet in the world.
         CharacterEntity selecting = Inventory.TestCharacters.New(4);
-        selecting.Ignores.Add(2, "Kaela", Now);
+        selecting.Ignores.Add(2, "Kaela", s_now);
         var pendingSent = new List<NetworkPacket>();
         IWorldConnection pending = Substitute.For<IWorldConnection>();
         pending.Character.Returns((ICharacter?)null);

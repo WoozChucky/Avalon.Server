@@ -21,12 +21,12 @@ public class AvalonAuthenticationHandlerShould
     private readonly IPersonalAccessTokenService _pats = Substitute.For<IPersonalAccessTokenService>();
     private readonly IAccountService _accounts = Substitute.For<IAccountService>();
 
-    private static readonly AvalonAuthenticationSchemeOptions Options = new();
+    private static readonly AvalonAuthenticationSchemeOptions s_options = new();
 
     private async Task<AuthenticateResult> Authenticate(string? header)
     {
         IOptionsMonitor<AvalonAuthenticationSchemeOptions> monitor = Substitute.For<IOptionsMonitor<AvalonAuthenticationSchemeOptions>>();
-        monitor.Get(Arg.Any<string>()).Returns(Options);
+        monitor.Get(Arg.Any<string>()).Returns(s_options);
 
         var handler = new AvalonAuthenticationHandler(monitor, NullLoggerFactory.Instance, UrlEncoder.Default, _pats, _accounts);
         var context = new DefaultHttpContext();

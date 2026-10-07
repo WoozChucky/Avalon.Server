@@ -28,11 +28,11 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
     private const ushort Two = 2;
 
     // Not script names a world has: stand-ins for whatever a world publishes.
-    private static readonly string[] OneAi = ["AiOne", "AiTwo"];
-    private static readonly string[] OneAbility = ["AbilityOne"];
-    private static readonly string[] OneQuest = ["QuestOne", "QuestTwo", "QuestThree"];
-    private static readonly string[] OneItem = ["ItemOne"];
-    private static readonly string[] OneAura = ["AuraOne"];
+    private static readonly string[] s_oneAi = ["AiOne", "AiTwo"];
+    private static readonly string[] s_oneAbility = ["AbilityOne"];
+    private static readonly string[] s_oneQuest = ["QuestOne", "QuestTwo", "QuestThree"];
+    private static readonly string[] s_oneItem = ["ItemOne"];
+    private static readonly string[] s_oneAura = ["AuraOne"];
 
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
@@ -44,7 +44,7 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         Row(One);
         Row(Two);
         _cache.GetAsync(CacheKeys.WorldScriptCatalog(One))
-            .Returns(ScriptCatalogJson.Serialize(new ScriptCatalogSnapshot(OneAi, OneAbility, OneQuest, OneItem, OneAura)));
+            .Returns(ScriptCatalogJson.Serialize(new ScriptCatalogSnapshot(s_oneAi, s_oneAbility, s_oneQuest, s_oneItem, s_oneAura)));
 
         _host = await ApiAuthHost.StartAsync(_cache, services =>
         {
@@ -84,11 +84,11 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         WorldScriptCatalogDto dto = (await response.Content.ReadFromJsonAsync<WorldScriptCatalogDto>())!;
         Assert.True(dto.Published);
-        Assert.Equal(OneAi, dto.Ai);
-        Assert.Equal(OneAbility, dto.Ability);
-        Assert.Equal(OneQuest, dto.Quest);
-        Assert.Equal(OneItem, dto.Item);
-        Assert.Equal(OneAura, dto.Aura);
+        Assert.Equal(s_oneAi, dto.Ai);
+        Assert.Equal(s_oneAbility, dto.Ability);
+        Assert.Equal(s_oneQuest, dto.Quest);
+        Assert.Equal(s_oneItem, dto.Item);
+        Assert.Equal(s_oneAura, dto.Aura);
     }
 
     [Fact]

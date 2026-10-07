@@ -42,7 +42,7 @@ namespace Avalon.Benchmarking.CrowdBudget;
 /// </summary>
 public static class CrowdBudgetHarness
 {
-    private static readonly TimeSpan Dt = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_dt = TimeSpan.FromSeconds(1d / 60d);
     private const double TickBudgetMs = 1000d / 60d;
 
     private enum Mode { Waypoint, Crowd, CrowdPlayers }
@@ -160,9 +160,9 @@ public static class CrowdBudgetHarness
         var rng = new Random(425);
         Vector3 centre = new(15f, 0f, 15f); // the entry room (SW chunk) of the town, 28 m square
         centre = Snap(navigator, centre) ?? throw new InvalidOperationException("Loop centre is off the navmesh");
-        const float loopRadius = 8f;
+        const float LoopRadius = 8f;
         float playerSpeed = s_playerSpeed;
-        float angularSpeed = playerSpeed / loopRadius;
+        float angularSpeed = playerSpeed / LoopRadius;
 
         var chars = new List<CharacterEntity>();
         for (int p = 0; p < playerCount; p++)
@@ -170,7 +170,7 @@ public static class CrowdBudgetHarness
             CharacterEntity ch = NewCharacter((uint)(1 + p));
             ch.Spells.Load(Array.Empty<IAbility>());
             ch.InstanceId = instance.InstanceId;
-            ch.Position = LoopPoint(navigator, centre, loopRadius, Phase(p, playerCount, 0));
+            ch.Position = LoopPoint(navigator, centre, LoopRadius, Phase(p, playerCount, 0));
             instance.AddCharacter(new BenchConnection(ch));
             chars.Add(ch);
         }
@@ -219,7 +219,7 @@ public static class CrowdBudgetHarness
         int offLoop = 0;
         for (int k = 0; k < 64; k++)
         {
-            Vector3 lp = LoopPoint(navigator, centre, loopRadius, k * MathF.Tau / 64);
+            Vector3 lp = LoopPoint(navigator, centre, LoopRadius, k * MathF.Tau / 64);
             if (Snap(navigator, lp) is not { } s0 || Vector3.Distance(s0, lp) > 0.3f) offLoop++;
         }
         double[] locoMs = new double[measure];
@@ -246,12 +246,12 @@ public static class CrowdBudgetHarness
             }
 
             // The players' input for this tick, as PlayerInputHandler would have applied it.
-            float t = (float)(tick * Dt.TotalSeconds);
+            float t = (float)(tick * s_dt.TotalSeconds);
             for (int p = 0; p < chars.Count; p++)
             {
                 CharacterEntity ch = chars[p];
                 Vector3 before = ch.Position;
-                Vector3 next = LoopPoint(navigator, centre, loopRadius, Phase(p, playerCount, t * angularSpeed));
+                Vector3 next = LoopPoint(navigator, centre, LoopRadius, Phase(p, playerCount, t * angularSpeed));
                 ch.Position = next;
                 ch.Velocity = (next - before) * 60f;
                 ch.CurrentHealth = ch.Health;
@@ -262,7 +262,7 @@ public static class CrowdBudgetHarness
 
             long a0 = GC.GetAllocatedBytesForCurrentThread();
             sw.Restart();
-            instance.Update(Dt);
+            instance.Update(s_dt);
             sw.Stop();
             long a1 = GC.GetAllocatedBytesForCurrentThread();
             (double stepMs, long stepAlloc) = measured.TakeTick();
@@ -302,7 +302,7 @@ public static class CrowdBudgetHarness
         if (!print)
             return;
 
-        double seconds = measure * Dt.TotalSeconds;
+        double seconds = measure * s_dt.TotalSeconds;
         Array.Sort(locoMs);
         Array.Sort(updMs);
         double locoMean = locoMs.Average();
@@ -403,7 +403,7 @@ public static class CrowdBudgetHarness
 
     private sealed class TownLibrary : IChunkLibrary
     {
-        private static readonly Dictionary<int, string> Names = new()
+        private static readonly Dictionary<int, string> s_names = new()
         {
             [1] = "town_sw_01",
             [2] = "town_se_01",
@@ -414,7 +414,7 @@ public static class CrowdBudgetHarness
         public Task LoadAsync(CancellationToken ct) => Task.CompletedTask;
 
         public ChunkTemplate GetById(ChunkTemplateId id) =>
-            new() { Id = id, Name = Names[id.Value], CellSize = 30f };
+            new() { Id = id, Name = s_names[id.Value], CellSize = 30f };
 
         public IReadOnlyList<ChunkPoolMember> GetByPool(ChunkPoolId poolId) => [];
 

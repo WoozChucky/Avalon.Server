@@ -15,17 +15,17 @@ namespace Avalon.Api.UnitTests.GameAuth;
 
 public sealed class GameLicenseProviderContractShould
 {
-    private static readonly DateTime Now = new(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_now = new(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Steam_evidence_observed_during_verification_is_accepted_only_if_still_live(bool expiresDuringCall)
     {
-        var clock = new FakeTimeProvider(new DateTimeOffset(Now));
+        var clock = new FakeTimeProvider(new DateTimeOffset(s_now));
         IOptions<StoreAuthenticationConfiguration> options = SteamProofVerifierShould.Configuration(2499460);
         var request = new GameLicenseCheckRequest(new AccountId(7), options.Value.ResolveApplication("steam.main")!,
-            new(SteamProofVerifierShould.SteamId, Now, Now.AddMinutes(30)), null, null, Now);
+            new(SteamProofVerifierShould.SteamId, s_now, s_now.AddMinutes(30)), null, null, s_now);
         clock.Advance(TimeSpan.FromSeconds(1)); // Request capture precedes the provider's observation.
         using var handler = new DelayedOwnershipHandler(clock, expiresDuringCall);
         using var http = new HttpClient(handler);
@@ -34,7 +34,7 @@ public sealed class GameLicenseProviderContractShould
         var service = new GameLicenseAuthorityService(registry, licenses, Substitute.For<ILicenseObservationRepository>(), options, clock);
         GameLicenseAuthorityResult result = await service.VerifyAsync(request, default);
         Assert.Equal(expiresDuringCall ? GameLicenseCheckStatus.Unavailable : GameLicenseCheckStatus.Licensed, result.Status);
-        if (!expiresDuringCall) Assert.Equal(Now.AddSeconds(301), result.AuthorizedUntil);
+        if (!expiresDuringCall) Assert.Equal(s_now.AddSeconds(301), result.AuthorizedUntil);
         else Assert.Empty(licenses.Rows);
     }
 
@@ -60,10 +60,10 @@ public sealed class GameLicenseProviderContractShould
         Assert.Equal(GameLicenseCheckStatus.Licensed, result.Status);
         Assert.Equal(fixture.License.Id, result.LicenseId);
         Assert.Equal(1, result.Revision);
-        Assert.Equal(Now.AddMinutes(5), result.AuthorizedUntil);
-        Assert.True(await fixture.Service.ValidateAsync(result.LicenseId!.Value, 1, fixture.Request.Account, fixture.Application, Now, default));
-        Assert.False(await fixture.Service.ValidateAsync(result.LicenseId.Value, 1, new AccountId(8), fixture.Application, Now, default));
-        Assert.False(await fixture.Service.ValidateAsync(result.LicenseId.Value, 2, fixture.Request.Account, fixture.Application, Now, default));
+        Assert.Equal(s_now.AddMinutes(5), result.AuthorizedUntil);
+        Assert.True(await fixture.Service.ValidateAsync(result.LicenseId!.Value, 1, fixture.Request.Account, fixture.Application, s_now, default));
+        Assert.False(await fixture.Service.ValidateAsync(result.LicenseId.Value, 1, new AccountId(8), fixture.Application, s_now, default));
+        Assert.False(await fixture.Service.ValidateAsync(result.LicenseId.Value, 2, fixture.Request.Account, fixture.Application, s_now, default));
         var observation = fixture.Observations.ReceivedCalls().Single().GetArguments()[0] as LicenseObservation;
         Assert.Equal(result.LicenseId, observation!.LicenseId);
         Assert.Equal(result.Revision, observation.AuthorityRevision);
@@ -74,13 +74,13 @@ public sealed class GameLicenseProviderContractShould
     public async Task Short_source_expiry_and_identity_deadline_bound_authority()
     {
         var fixture = new Fixture("test-store", LicenseAuthorityKind.VerifiedOwnership);
-        fixture.Provider.Result = fixture.Provider.Result with { ProviderExpiresAt = Now.AddSeconds(20) };
+        fixture.Provider.Result = fixture.Provider.Result with { ProviderExpiresAt = s_now.AddSeconds(20) };
         GameLicenseAuthorityResult result = await fixture.Service.VerifyAsync(fixture.Request, default);
-        Assert.Equal(Now.AddSeconds(20), result.AuthorizedUntil);
+        Assert.Equal(s_now.AddSeconds(20), result.AuthorizedUntil);
         fixture.Provider.Result = fixture.Provider.Result with { ProviderExpiresAt = null };
         result = await fixture.Service.VerifyAsync(fixture.Request with
-        { Identity = fixture.Request.Identity! with { ValidUntil = Now.AddSeconds(10) } }, default);
-        Assert.Equal(Now.AddSeconds(10), result.AuthorizedUntil);
+        { Identity = fixture.Request.Identity! with { ValidUntil = s_now.AddSeconds(10) } }, default);
+        Assert.Equal(s_now.AddSeconds(10), result.AuthorizedUntil);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class GameLicenseProviderContractShould
             fixture.Provider.Result with { Status = GameLicenseCheckStatus.Unavailable },
             fixture.Provider.Result with { ProviderSubject = "other" },
             fixture.Provider.Result with { ProviderProductId = "other" },
-            fixture.Provider.Result with { ObservedAt = Now.AddSeconds(1) },
+            fixture.Provider.Result with { ObservedAt = s_now.AddSeconds(1) },
             fixture.Provider.Result with { LicenseId = Guid.NewGuid() },
         })
         {
@@ -117,14 +117,14 @@ public sealed class GameLicenseProviderContractShould
     public async Task Negative_evidence_invalidates_exact_revision_and_a_bound_context_cannot_reestablish_it()
     {
         var fixture = new Fixture("test-store", LicenseAuthorityKind.VerifiedOwnership);
-        fixture.Provider.Result = fixture.Provider.Result with { Status = GameLicenseCheckStatus.Unlicensed, AuthorizedUntil = Now };
+        fixture.Provider.Result = fixture.Provider.Result with { Status = GameLicenseCheckStatus.Unlicensed, AuthorizedUntil = s_now };
         Assert.Equal(GameLicenseCheckStatus.Unlicensed, (await fixture.Service.VerifyAsync(fixture.Request with
         { BoundLicenseId = fixture.License.Id, BoundRevision = 1 }, default)).Status);
         Assert.Equal(2, fixture.License.AuthorityRevision);
-        Assert.False(await fixture.Service.ValidateAsync(fixture.License.Id, 1, fixture.Request.Account, fixture.Application, Now, default));
-        fixture.Provider.Result = fixture.Provider.Result with { Status = GameLicenseCheckStatus.Licensed, AuthorizedUntil = Now.AddMinutes(5), ObservedAt = Now.AddSeconds(1) };
+        Assert.False(await fixture.Service.ValidateAsync(fixture.License.Id, 1, fixture.Request.Account, fixture.Application, s_now, default));
+        fixture.Provider.Result = fixture.Provider.Result with { Status = GameLicenseCheckStatus.Licensed, AuthorizedUntil = s_now.AddMinutes(5), ObservedAt = s_now.AddSeconds(1) };
         Assert.Equal(GameLicenseCheckStatus.Unlicensed, (await fixture.Service.VerifyAsync(fixture.Request with
-        { BoundLicenseId = fixture.License.Id, BoundRevision = 1, Now = Now.AddSeconds(1) }, default)).Status);
+        { BoundLicenseId = fixture.License.Id, BoundRevision = 1, Now = s_now.AddSeconds(1) }, default)).Status);
     }
 
     private sealed class Fixture
@@ -143,7 +143,7 @@ public sealed class GameLicenseProviderContractShould
             string providerProduct = provider == "steam" ? "2499460" : "base";
             if (provider == "test-store") config.AdditionalApplications[key] = new() { Provider = provider, ProviderProductId = providerProduct };
             Application = config.ResolveApplication(key)!;
-            Request = new(new AccountId(7), Application, kind == LicenseAuthorityKind.StoredGrant ? null : new("subject", Now, Now.AddMinutes(30)), null, null, Now);
+            Request = new(new AccountId(7), Application, kind == LicenseAuthorityKind.StoredGrant ? null : new("subject", s_now, s_now.AddMinutes(30)), null, null, s_now);
             License = new()
             {
                 Id = Guid.NewGuid(),
@@ -155,7 +155,7 @@ public sealed class GameLicenseProviderContractShould
                 ProviderProductId = providerProduct,
                 LicenseReference = "same-reference",
                 AuthorityKind = kind,
-                GrantedAt = Now.AddDays(-1),
+                GrantedAt = s_now.AddDays(-1),
                 AuthorityRevision = 1,
             };
             Licenses.FindAsync(License.Id, Arg.Any<CancellationToken>()).Returns(_ => License);
@@ -169,9 +169,9 @@ public sealed class GameLicenseProviderContractShould
                 License.VerifiedUntil = decision.OwnsProduct ? decision.AuthorizedUntil : null;
                 return License;
             });
-            Provider = new(provider, kind, new(GameLicenseCheckStatus.Licensed, "same-reference", Now, Now.AddHours(1),
+            Provider = new(provider, kind, new(GameLicenseCheckStatus.Licensed, "same-reference", s_now, s_now.AddHours(1),
                 ProviderProductId: providerProduct, ProviderSubject: Request.Identity?.ProviderSubject));
-            Service = new(new GameProviderRegistry([], [Provider]), Licenses, Observations, Options.Create(config), new FakeTimeProvider(new DateTimeOffset(Now)));
+            Service = new(new GameProviderRegistry([], [Provider]), Licenses, Observations, Options.Create(config), new FakeTimeProvider(new DateTimeOffset(s_now)));
         }
     }
 

@@ -20,7 +20,7 @@ namespace Avalon.Server.World.UnitTests.Procedural;
 /// </summary>
 public class DepthBandPlacementShould
 {
-    private static readonly List<ProceduralDepthBand> Bands =
+    private static readonly List<ProceduralDepthBand> s_bands =
     [
         new() { MinDepth = 1, MaxDepth = 3, MinLevel = 1, MaxLevel = 3 },
         new() { MinDepth = 4, MaxDepth = 7, MinLevel = 3, MaxLevel = 6 },
@@ -112,7 +112,7 @@ public class DepthBandPlacementShould
         for (int seed = 0; seed < 20; seed++)
         {
             await service.PlaceAsync(FlatInstance(), Layout(new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero, depth, group)),
-                Config(Bands), seed, CancellationToken.None);
+                Config(s_bands), seed, CancellationToken.None);
         }
 
         Assert.NotEmpty(spawned);
@@ -128,7 +128,7 @@ public class DepthBandPlacementShould
 
         await Service(Recording(spawned), templates, Entry(7, "boss", 10, 1, 1))
             .PlaceAsync(FlatInstance(), Layout(new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero, 12, "forest_arena")),
-                Config(Bands), seed: 3, CancellationToken.None);
+                Config(s_bands), seed: 3, CancellationToken.None);
 
         Assert.Equal([new Spawned(10, 8)], spawned);
     }
@@ -141,7 +141,7 @@ public class DepthBandPlacementShould
 
         await Service(Recording(spawned), templates, Entry(8, "leader", 8, 1, 1), Entry(9, "leader_pack", 5, 2, 3))
             .PlaceAsync(FlatInstance(), Layout(new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero, 5, null)),
-                Config(Bands), seed: 11, CancellationToken.None);
+                Config(s_bands), seed: 11, CancellationToken.None);
 
         Assert.Equal(8ul, spawned[0].Template);
         var pack = spawned.Skip(1).ToList();
@@ -226,7 +226,7 @@ public class DepthBandPlacementShould
 
         await Service(Recording(spawned), templates, Entry(1, "pack", 4, 1, 1))
             .PlaceAsync(FlatInstance(), Layout(new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero, 0, null)),
-                Config(Bands), seed: 5, CancellationToken.None);
+                Config(s_bands), seed: 5, CancellationToken.None);
 
         Assert.Equal([new Spawned(4, null)], spawned);
     }
@@ -256,7 +256,7 @@ public class DepthBandPlacementShould
                     new PlacedChunk(new ChunkTemplateId(2), 1, 0, 0, Vector3.zero, 3, "forest_grove_ruin"),
                     new PlacedChunk(new ChunkTemplateId(3), 0, 1, 0, Vector3.zero, 3, "forest_grove_ruin"),
                     new PlacedChunk(new ChunkTemplateId(4), 1, 1, 0, Vector3.zero, 4, "forest_grove_ruin")),
-                Config(Bands), seed, CancellationToken.None);
+                Config(s_bands), seed, CancellationToken.None);
 
             Assert.Equal(4, spawned.Count);
             Assert.All(spawned, s => Assert.InRange((int)s.Level!.Value, 5, 8));

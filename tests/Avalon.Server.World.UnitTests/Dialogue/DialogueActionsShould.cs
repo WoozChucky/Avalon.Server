@@ -6,14 +6,14 @@ namespace Avalon.Server.World.UnitTests.Dialogue;
 
 public class DialogueActionsShould
 {
-    private static readonly DialogueNode[] Nodes =
+    private static readonly DialogueNode[] s_nodes =
     [
         new() { Id = 1, CreatureTemplateId = 11, IsRoot = true, TextId = 1 },
         new() { Id = 2, CreatureTemplateId = 11, IsRoot = false, TextId = 2 },
         new() { Id = 3, CreatureTemplateId = 3, IsRoot = true, TextId = 3 },
     ];
 
-    private static readonly DialogueOption[] Options =
+    private static readonly DialogueOption[] s_options =
     [
         new() { Id = 1, NodeId = 1, TextId = 4, NextNodeId = 2 },
         new() { Id = 2, NodeId = 2, TextId = 5, NextNodeId = 1, Action = DialogueOptionAction.OpenBank },
@@ -24,7 +24,7 @@ public class DialogueActionsShould
     [Fact]
     public void Say_what_an_option_does()
     {
-        var actions = new DialogueActions(Nodes, Options);
+        var actions = new DialogueActions(s_nodes, s_options);
 
         Assert.Equal(DialogueOptionAction.OpenBank, actions.For(new DialogueOptionId(2)));
         Assert.Null(actions.For(new DialogueOptionId(1)));
@@ -34,7 +34,7 @@ public class DialogueActionsShould
     [Fact]
     public void Offer_an_action_for_the_template_whose_dialogue_holds_it_anywhere()
     {
-        var actions = new DialogueActions(Nodes, Options);
+        var actions = new DialogueActions(s_nodes, s_options);
 
         Assert.True(actions.Offers(new CreatureTemplateId(11), DialogueOptionAction.OpenBank));
         Assert.False(actions.Offers(new CreatureTemplateId(3), DialogueOptionAction.OpenBank));
@@ -43,7 +43,7 @@ public class DialogueActionsShould
     [Fact]
     public void Ignore_an_option_on_a_node_that_does_not_exist()
     {
-        var actions = new DialogueActions(Nodes, Options);
+        var actions = new DialogueActions(s_nodes, s_options);
 
         Assert.Null(actions.For(new DialogueOptionId(4)));
         Assert.Equal(1, actions.Count);

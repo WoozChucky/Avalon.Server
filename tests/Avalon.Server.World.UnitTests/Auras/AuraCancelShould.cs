@@ -18,7 +18,7 @@ namespace Avalon.Server.World.UnitTests.Auras;
 /// <summary>CMSG_AURA_CANCEL: the owner's helpful auras only, the copy it names, exactly one answer.</summary>
 public class AuraCancelShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private static async Task<(MapInstance Instance, AuraCancelHandler Handler, MapInstanceClient Player)> SetUpAsync()
     {
@@ -209,11 +209,11 @@ public class AuraCancelShould
     {
         (MapInstance instance, AuraCancelHandler handler, MapInstanceClient player) = await SetUpAsync();
         instance.Auras.Apply(player.Character, player.Character, new AuraId(905), AuraSource.None);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         player.Sent.Clear();
 
         handler.Execute(player.Connection, new CAuraCancelPacket { AuraId = 905 });
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         var order = player.Sent.Select(p => p.Header.Type)
             .Where(t => t is NetworkPacketType.SMSG_AURA_CANCEL_RESULT or NetworkPacketType.SMSG_AURA_UPDATE).ToList();

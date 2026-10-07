@@ -35,7 +35,7 @@ public static class ItemCatalog
     public const string FileName = "item-catalog-v1.json";
 
     // camelCase, matching opcodes.json and item-schema-v1.json.
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    private static readonly JsonSerializerOptions s_serializerOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -81,7 +81,7 @@ public static class ItemCatalog
                      "Field meanings and enum values are in item-schema-v1.json.",
             Items: templates.OrderBy(template => template.Id.Value).ToList());
 
-        return JsonSerializer.Serialize(document, SerializerOptions) + "\n";
+        return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
     }
 
     /// <summary>

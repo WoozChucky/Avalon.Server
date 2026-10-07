@@ -7,7 +7,7 @@ namespace Avalon.Infrastructure.GameTickets;
 
 public sealed class RedisGameTicketStore(IReplicatedCache cache) : IGameTicketStore
 {
-    private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan s_lifetime = TimeSpan.FromSeconds(60);
     public async Task<string> IssueAsync(GameTicketGrant grant, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -16,7 +16,7 @@ public sealed class RedisGameTicketStore(IReplicatedCache cache) : IGameTicketSt
         CryptographicOperations.ZeroMemory(bytes);
         string value = string.Create(CultureInfo.InvariantCulture,
             $"{grant.AccountId.Value}|{grant.FamilyId:D}|{grant.CredentialsVersion}|{grant.SessionEpoch}|{grant.Environment}");
-        if (!await cache.SetNxAsync(Key(ticket), value, Lifetime)) throw new InvalidOperationException("Could not issue game ticket");
+        if (!await cache.SetNxAsync(Key(ticket), value, s_lifetime)) throw new InvalidOperationException("Could not issue game ticket");
         return ticket;
     }
 

@@ -19,7 +19,7 @@ namespace Avalon.Server.World.UnitTests.Characters;
 public class LevelGapShould
 {
     /// <summary>Level 4 is missing: 3 is a dead end below the gap, 6 the highest row.</summary>
-    private static readonly CharacterLevelExperience[] GappedLevels =
+    private static readonly CharacterLevelExperience[] s_gappedLevels =
     [
         new() { Level = 1, Experience = 100 },
         new() { Level = 2, Experience = 200 },
@@ -46,7 +46,7 @@ public class LevelGapShould
     [InlineData(6, false)]   // the highest row: the maximum level
     public async Task Let_a_character_gain_experience_only_while_its_level_and_the_next_have_rows(int level, bool expected)
     {
-        StaticData data = await TestStaticData.LoadAsync(levels: GappedLevels);
+        StaticData data = await TestStaticData.LoadAsync(levels: s_gappedLevels);
 
         Assert.Equal(expected, ExperienceAward.CanGainExperience(Character((ushort)level, 0), data));
     }
@@ -54,7 +54,7 @@ public class LevelGapShould
     [Fact]
     public async Task Stop_before_the_gap_with_no_experience_when_an_award_crosses_into_it()
     {
-        StaticData data = await TestStaticData.LoadAsync(levels: GappedLevels);
+        StaticData data = await TestStaticData.LoadAsync(levels: s_gappedLevels);
         ICharacter character = Character(2, 150);
         var log = new TestLog();
 
@@ -71,7 +71,7 @@ public class LevelGapShould
     [InlineData(120ul)]
     public async Task Give_a_character_sitting_below_the_gap_nothing_and_log_nothing(ulong experience)
     {
-        StaticData data = await TestStaticData.LoadAsync(levels: GappedLevels);
+        StaticData data = await TestStaticData.LoadAsync(levels: s_gappedLevels);
         ICharacter character = Character(3, experience);
         var log = new TestLog();
 
@@ -85,7 +85,7 @@ public class LevelGapShould
     [Fact]
     public async Task Still_level_and_carry_as_usual_below_the_level_before_the_gap()
     {
-        StaticData data = await TestStaticData.LoadAsync(levels: GappedLevels);
+        StaticData data = await TestStaticData.LoadAsync(levels: s_gappedLevels);
         ICharacter character = Character(1, 0);
 
         ExperienceAward.Grant(character, 150, data, parties: null, new TestLog());
@@ -97,7 +97,7 @@ public class LevelGapShould
     [Fact]
     public async Task Leave_a_party_member_below_the_gap_out_of_the_split()
     {
-        StaticData data = await TestStaticData.LoadAsync(levels: GappedLevels);
+        StaticData data = await TestStaticData.LoadAsync(levels: s_gappedLevels);
         ICharacter belowGap = Character(3, 0);
         ICharacter other = Character(2, 0);
 

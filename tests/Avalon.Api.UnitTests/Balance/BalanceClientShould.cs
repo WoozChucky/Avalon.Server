@@ -41,7 +41,7 @@ public sealed class BalanceClientShould
         return services.BuildServiceProvider().GetRequiredService<IBalanceClient>();
     }
 
-    private static readonly RunRequestDto Run = new(null, null, null, null, null);
+    private static readonly RunRequestDto s_run = new(null, null, null, null, null);
 
     [Fact]
     public async Task Not_retry_a_post_that_failed()
@@ -50,7 +50,7 @@ public sealed class BalanceClientShould
             ? Json(HttpStatusCode.InternalServerError, "{}")
             : Json(HttpStatusCode.Accepted, """{"runId":"r1"}"""));
 
-        BalanceResponse<RunAcceptedDto> response = await Build(handler).StartRunAsync(Run, default);
+        BalanceResponse<RunAcceptedDto> response = await Build(handler).StartRunAsync(s_run, default);
 
         Assert.Equal(500, response.Status);
         Assert.Equal(1, handler.Calls);
@@ -61,7 +61,7 @@ public sealed class BalanceClientShould
     {
         var handler = new StubHandler((_, _) => throw new HttpRequestException("refused"));
 
-        await Assert.ThrowsAsync<BalanceUnavailableException>(() => Build(handler).StartRunAsync(Run, default));
+        await Assert.ThrowsAsync<BalanceUnavailableException>(() => Build(handler).StartRunAsync(s_run, default));
 
         Assert.Equal(1, handler.Calls);
     }
@@ -134,13 +134,13 @@ public sealed class BalanceClientShould
     [Fact]
     public async Task Keep_a_422_body_with_its_issues()
     {
-        const string body = """{"runId":"","status":"invalid","rowsDone":0,"rowsTotal":0,"result":null,"issues":[{"path":"a","message":"b"}]}""";
-        var handler = new StubHandler((_, _) => Json((HttpStatusCode)422, body));
+        const string Body = """{"runId":"","status":"invalid","rowsDone":0,"rowsTotal":0,"result":null,"issues":[{"path":"a","message":"b"}]}""";
+        var handler = new StubHandler((_, _) => Json((HttpStatusCode)422, Body));
 
-        BalanceResponse<RunAcceptedDto> response = await Build(handler).StartRunAsync(Run, default);
+        BalanceResponse<RunAcceptedDto> response = await Build(handler).StartRunAsync(s_run, default);
 
         Assert.Equal(422, response.Status);
-        Assert.Equal(body, response.Json);
+        Assert.Equal(Body, response.Json);
     }
 
     [Fact]

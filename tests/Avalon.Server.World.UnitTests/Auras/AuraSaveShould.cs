@@ -24,8 +24,8 @@ namespace Avalon.Server.World.UnitTests.Auras;
 /// </summary>
 public class AuraSaveShould
 {
-    private static readonly DateTimeOffset T0 = new(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
-    private readonly FakeTimeProvider _clock = new(T0);
+    private static readonly DateTimeOffset s_t0 = new(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
+    private readonly FakeTimeProvider _clock = new(s_t0);
 
     private CharacterEntity Character(uint id = 913_101, TimeProvider? clock = null)
     {
@@ -49,7 +49,7 @@ public class AuraSaveShould
     {
         CharacterEntity character = Character();
         var caster = new ObjectGuid(ObjectType.Character, 77);
-        character.Auras.Add(Bleed(T0, caster), T0);
+        character.Auras.Add(Bleed(s_t0, caster), s_t0);
         _clock.Advance(TimeSpan.FromSeconds(4));   // one tick owed and taken
         character.Auras.All[0].Schedule = character.Auras.All[0].Schedule.AfterTicks(1);
         character.Auras.All[0].PeriodicCarry = 0.25d;
@@ -68,7 +68,7 @@ public class AuraSaveShould
     public void Save_a_creature_caster_as_nobody()
     {
         CharacterEntity character = Character();
-        character.Auras.Add(Bleed(T0, new ObjectGuid(ObjectType.Creature, 77)), T0);
+        character.Auras.Add(Bleed(s_t0, new ObjectGuid(ObjectType.Creature, 77)), s_t0);
 
         Assert.Equal(0UL, Assert.Single(CharacterSaveSnapshot.Take(character).Batch.Auras!.Rows).CasterGuid);
     }
@@ -82,9 +82,9 @@ public class AuraSaveShould
     public void Delete_the_rows_once_the_last_aura_ended()
     {
         CharacterEntity character = Character();
-        ActiveAura bleed = Bleed(T0, new ObjectGuid());
-        character.Auras.Add(bleed, T0);
-        character.Auras.Remove(bleed, T0);
+        ActiveAura bleed = Bleed(s_t0, new ObjectGuid());
+        character.Auras.Add(bleed, s_t0);
+        character.Auras.Remove(bleed, s_t0);
 
         Assert.Empty(CharacterSaveSnapshot.Take(character).Batch.Auras!.Rows);
     }
@@ -94,7 +94,7 @@ public class AuraSaveShould
     public void Write_no_aura_for_a_dead_character()
     {
         CharacterEntity character = Character();
-        character.Auras.Add(Bleed(T0, new ObjectGuid()), T0);
+        character.Auras.Add(Bleed(s_t0, new ObjectGuid()), s_t0);
         character.IsDead = true;
 
         Assert.Empty(CharacterSaveSnapshot.Take(character).Batch.Auras!.Rows);
@@ -108,7 +108,7 @@ public class AuraSaveShould
     public void Keep_an_aura_with_no_time_left_whose_last_tick_is_still_owed()
     {
         CharacterEntity character = Character();
-        character.Auras.Add(Bleed(T0, new ObjectGuid()), T0);
+        character.Auras.Add(Bleed(s_t0, new ObjectGuid()), s_t0);
         _clock.Advance(TimeSpan.FromSeconds(12));
         character.Auras.All[0].Schedule = character.Auras.All[0].Schedule.AfterTicks(3);
 
@@ -134,7 +134,7 @@ public class AuraSaveShould
         TickAmount = 3f,
         CritPct = 0f,
         CasterLevel = 1,
-        AppliedAt = T0.UtcDateTime,
+        AppliedAt = s_t0.UtcDateTime,
     };
 
     private static void Restore(CharacterEntity character, StaticData data, params CharacterAura[] rows) =>
@@ -287,14 +287,14 @@ public class AuraSaveShould
     {
         CharacterEntity character = Character(913_109);
         CharacterAura late = Saved(901, 7500, 3);
-        late.AppliedAt = T0.UtcDateTime.AddSeconds(5);
+        late.AppliedAt = s_t0.UtcDateTime.AddSeconds(5);
         CharacterAura early = Saved(901, 7500, 3, slot: 1);
         CharacterAura middle = Saved(901, 7500, 3, slot: 2);
-        middle.AppliedAt = T0.UtcDateTime.AddSeconds(1);
+        middle.AppliedAt = s_t0.UtcDateTime.AddSeconds(1);
 
         AuraRestore.Restore(character, [late, early, middle], await DataAsync(AuraTestData.Bleed()), 2, NullLogger.Instance);
 
-        Assert.Equal([T0.UtcDateTime, T0.UtcDateTime.AddSeconds(1)], character.Auras.All.Select(a => a.AppliedAt));
+        Assert.Equal([s_t0.UtcDateTime, s_t0.UtcDateTime.AddSeconds(1)], character.Auras.All.Select(a => a.AppliedAt));
     }
 
     [Theory]

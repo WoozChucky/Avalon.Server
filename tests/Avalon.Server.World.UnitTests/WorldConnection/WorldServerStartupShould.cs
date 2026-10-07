@@ -31,7 +31,7 @@ namespace Avalon.Server.World.UnitTests.WorldConnection;
 /// </summary>
 public class WorldServerStartupShould
 {
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(5);
 
     private readonly int _port = FreePort();
     private readonly IWorld _world = Substitute.For<IWorld>();
@@ -60,7 +60,7 @@ public class WorldServerStartupShould
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -87,7 +87,7 @@ public class WorldServerStartupShould
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -115,7 +115,7 @@ public class WorldServerStartupShould
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -132,12 +132,12 @@ public class WorldServerStartupShould
         {
             _load.SetException(new InvalidOperationException("simulated load failure"));
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(Limit));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(s_limit));
             Assert.False(await AcceptsAsync(), "a client was accepted after the world failed to load");
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -168,7 +168,7 @@ public class WorldServerStartupShould
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -187,12 +187,12 @@ public class WorldServerStartupShould
         {
             _load.SetResult();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(Limit));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(s_limit));
             Assert.False(await AcceptsAsync(), "a client was accepted without a maintenance state");
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -233,7 +233,7 @@ public class WorldServerStartupShould
             // Only the tick ends the drain this early: the stop's own wait runs to the deadline, a minute away.
             ((IAccessLevelAssignable)player).AssignAccessLevel(Avalon.Common.Accounts.AccountAccessLevel.Admin);
 
-            await stopping.WaitAsync(Limit);
+            await stopping.WaitAsync(s_limit);
             Assert.False(player.IsConnected, "the stop after the drain did not close the Admin");
             await _world.Received(1).DeSpawnPlayerAsync(player);
         }
@@ -277,7 +277,7 @@ public class WorldServerStartupShould
 
             using var timedOut = new CancellationTokenSource();
             await timedOut.CancelAsync();
-            await server.StopAsync(timedOut.Token).WaitAsync(Limit);
+            await server.StopAsync(timedOut.Token).WaitAsync(s_limit);
 
             Assert.False(player.IsConnected, "the stop did not close the player");
             Assert.False(admin.IsConnected, "the stop did not close the Admin");
@@ -295,7 +295,7 @@ public class WorldServerStartupShould
 
         Task stopping = server.StopAsync(CancellationToken.None);
         _load.SetResult();
-        await stopping.WaitAsync(Limit);
+        await stopping.WaitAsync(s_limit);
 
         Assert.False(await AcceptsAsync(), "the port opened after the server had been stopped");
     }
@@ -306,7 +306,7 @@ public class WorldServerStartupShould
         using var client = new TcpClient();
         try
         {
-            await client.ConnectAsync(IPAddress.Loopback, _port).WaitAsync(Limit);
+            await client.ConnectAsync(IPAddress.Loopback, _port).WaitAsync(s_limit);
             return true;
         }
         catch (SocketException)
@@ -317,7 +317,7 @@ public class WorldServerStartupShould
 
     private static async Task UntilAsync(Func<Task<bool>> done, string failure)
     {
-        DateTime deadline = DateTime.UtcNow + Limit;
+        DateTime deadline = DateTime.UtcNow + s_limit;
         while (!await done())
         {
             Assert.True(DateTime.UtcNow < deadline, failure);

@@ -14,7 +14,7 @@ public class TownPiecesShould
 {
     private static string Maps => Path.Combine(RepositoryRoot(), "src", "Server", "Avalon.Server.World", "Maps");
 
-    private static readonly Lazy<MapNavigator> Town = new(
+    private static readonly Lazy<MapNavigator> s_town = new(
         () => GeneratedChunkBake.Bake(TownPieces.Squares().Select(s => (ObjWriter.Write(s), s.GridX, s.GridZ))), isThreadSafe: true);
 
     [Fact]
@@ -129,16 +129,16 @@ public class TownPiecesShould
     {
         var arrival = new Vector3(TownPieces.ArrivalX, 1f, TownPieces.ArrivalZ);
         var portal = new Vector3(TownPieces.PortalX, 1f, TownPieces.PortalZ);
-        Assert.Equal(NavmeshGroundKind.Under, Town.Value.FindGround(arrival, out _));
-        Assert.Equal(NavmeshGroundKind.Under, Town.Value.FindGround(portal, out _));
+        Assert.Equal(NavmeshGroundKind.Under, s_town.Value.FindGround(arrival, out _));
+        Assert.Equal(NavmeshGroundKind.Under, s_town.Value.FindGround(portal, out _));
 
-        List<Vector3> path = Town.Value.FindPath(arrival, portal);
+        List<Vector3> path = s_town.Value.FindPath(arrival, portal);
         Assert.NotEmpty(path);
         Vector3 end = path[^1];
         Assert.True(MathF.Abs(end.x - portal.x) <= 1f && MathF.Abs(end.z - portal.z) <= 1f, $"the path ends at {end}");
 
         // The corridor itself: a straight walk north along x = 15 through the doorway and under the arch.
-        Vector3 stop = Town.Value.RaycastWalkable(new Vector3(15f, 0.15f, 15f), new Vector3(15f, 0.15f, 45f));
+        Vector3 stop = s_town.Value.RaycastWalkable(new Vector3(15f, 0.15f, 15f), new Vector3(15f, 0.15f, 45f));
         Assert.True(stop.z >= 44.5f, $"the walk north along x = 15 stopped at z = {stop.z}");
     }
 
@@ -165,7 +165,7 @@ public class TownPiecesShould
             (float cx, float cz) = piece.Centre;
             var from = new Vector3(ox + minX - 1.5f, 0.15f, oz + cz);
             var to = new Vector3(ox + cx, 0.15f, oz + cz);
-            Vector3 stop = Town.Value.RaycastWalkable(from, to);
+            Vector3 stop = s_town.Value.RaycastWalkable(from, to);
             if (stop.x > ox + minX + 0.05f)
                 entered.Add($"{square.Name}: {piece.Building}/{piece.Part} entered to x = {stop.x:0.00} (edge {ox + minX:0.00})");
         }
@@ -187,7 +187,7 @@ public class TownPiecesShould
         {
             (float ox, float oz) = square.Origin;
             (float cx, float cz) = piece.Centre;
-            List<Vector3> path = Town.Value.FindPath(arrival, new Vector3(ox + cx, piece.Top + 0.3f, oz + cz));
+            List<Vector3> path = s_town.Value.FindPath(arrival, new Vector3(ox + cx, piece.Top + 0.3f, oz + cz));
             if (path.Count == 0) continue;
             Vector3 end = path[^1];
             bool onTop = piece.DistanceTo(end.x - ox, end.z - oz) <= 0.05f && end.y > piece.Y0 + 0.1f;
@@ -226,9 +226,9 @@ public class TownPiecesShould
 
         // Nothing walks onto the water from the plaza: the rim stops a walk, and the water's surface is an island.
         var from = new Vector3(basin.X - basin.Radius - 1.5f, 0.15f, basin.Z);
-        Vector3 stop = Town.Value.RaycastWalkable(from, new Vector3(basin.X, 0.15f, basin.Z));
+        Vector3 stop = s_town.Value.RaycastWalkable(from, new Vector3(basin.X, 0.15f, basin.Z));
         Assert.True(stop.x <= basin.X - basin.Radius + 0.05f, $"the walk entered the basin to x = {stop.x:0.00}");
-        List<Vector3> path = Town.Value.FindPath(new Vector3(TownPieces.ArrivalX, 1f, TownPieces.ArrivalZ), new Vector3(water.X + 1f, water.Top + 0.3f, water.Z));
+        List<Vector3> path = s_town.Value.FindPath(new Vector3(TownPieces.ArrivalX, 1f, TownPieces.ArrivalZ), new Vector3(water.X + 1f, water.Top + 0.3f, water.Z));
         if (path.Count > 0)
             Assert.True(water.DistanceTo(path[^1].x, path[^1].z) > 0.05f || path[^1].y < water.Y0 + 0.1f, $"a path reached the water at {path[^1]}");
     }

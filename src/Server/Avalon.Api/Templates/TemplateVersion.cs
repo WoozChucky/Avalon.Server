@@ -18,10 +18,10 @@ namespace Avalon.Api.Templates;
 /// </summary>
 public static class TemplateVersion
 {
-    private static readonly Lazy<IModel> Model = new(BuildModel);
-    private static readonly ConcurrentDictionary<Type, IReadOnlyList<IProperty>> Columns = new();
+    private static readonly Lazy<IModel> s_model = new(BuildModel);
+    private static readonly ConcurrentDictionary<Type, IReadOnlyList<IProperty>> s_columns = new();
 
-    private static readonly JsonSerializerOptions Json = new()
+    private static readonly JsonSerializerOptions s_json = new()
     {
         NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
         Converters = { new JsonStringEnumConverter() },
@@ -68,7 +68,7 @@ public static class TemplateVersion
 
     private static string HashOf(SortedDictionary<string, object?> values)
     {
-        byte[] json = JsonSerializer.SerializeToUtf8Bytes(values, Json);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(values, s_json);
         return Convert.ToHexStringLower(SHA256.HashData(json));
     }
 
@@ -81,9 +81,9 @@ public static class TemplateVersion
     }
 
     private static IReadOnlyList<IProperty> ColumnsFor(Type entityType) =>
-        Columns.GetOrAdd(entityType, type =>
+        s_columns.GetOrAdd(entityType, type =>
         {
-            IEntityType entity = Model.Value.FindEntityType(type)
+            IEntityType entity = s_model.Value.FindEntityType(type)
                 ?? throw new InvalidOperationException($"{type.Name} is not in the world model.");
             return entity.GetProperties().Where(p => !p.IsShadowProperty()).OrderBy(p => p.Name, StringComparer.Ordinal)
                 .ToList();

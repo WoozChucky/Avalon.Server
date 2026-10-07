@@ -11,7 +11,7 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestLogShould
 {
-    private static readonly DateTime Now = new(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_now = new(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
 
     private static CharacterEntity Character() => TestCharacters.New(1);
 
@@ -21,9 +21,9 @@ public class QuestLogShould
         CharacterEntity c = Character();
 
         c.Quests.Load(new Avalon.Database.Character.Repositories.CharacterQuestRows(
-            [new CharacterQuest { CharacterId = 1, QuestId = 5, State = CharacterQuestState.Active, Stage = 1, AcceptedAt = Now }],
+            [new CharacterQuest { CharacterId = 1, QuestId = 5, State = CharacterQuestState.Active, Stage = 1, AcceptedAt = s_now }],
             [new CharacterQuestObjective { CharacterId = 1, QuestId = 5, ObjectiveId = 51, Progress = 3 }],
-            [new CharacterCompletedQuest { CharacterId = 1, QuestId = 4, CompletedAt = Now }]));
+            [new CharacterCompletedQuest { CharacterId = 1, QuestId = 4, CompletedAt = s_now }]));
 
         Assert.Equal(1, c.Quests.ActiveCount);
         Assert.Equal(3u, c.Quests.Get(5)!.ProgressOf(51));
@@ -38,9 +38,9 @@ public class QuestLogShould
     {
         CharacterEntity c = Character();
 
-        ActiveQuest quest = c.Quests.Start(5, Now);
+        ActiveQuest quest = c.Quests.Start(5, s_now);
 
-        Assert.Equal((CharacterQuestState.Active, 0, Now), (quest.State, quest.Stage, quest.AcceptedAt));
+        Assert.Equal((CharacterQuestState.Active, 0, s_now), (quest.State, quest.Stage, quest.AcceptedAt));
         Assert.True(c.SaveState.HasChanges);
         Assert.Equal(QuestClientChange.Accepted, c.Quests.ClientChanges[5]);
     }
@@ -49,7 +49,7 @@ public class QuestLogShould
     public void Keep_an_accept_an_accept_when_progress_follows_in_the_same_tick()
     {
         CharacterEntity c = Character();
-        ActiveQuest quest = c.Quests.Start(5, Now);
+        ActiveQuest quest = c.Quests.Start(5, s_now);
 
         Assert.True(c.Quests.SetProgress(quest, 51, 2));
 
@@ -63,7 +63,7 @@ public class QuestLogShould
     public void Change_nothing_when_the_progress_is_already_that_value()
     {
         CharacterEntity c = Character();
-        ActiveQuest quest = c.Quests.Start(5, Now);
+        ActiveQuest quest = c.Quests.Start(5, s_now);
         c.Quests.SetProgress(quest, 51, 2);
         c.Quests.ClearClientChanges();
         int version = c.Quests.Version;
@@ -77,27 +77,27 @@ public class QuestLogShould
     public void Remove_an_abandoned_quest_and_forget_its_progress()
     {
         CharacterEntity c = Character();
-        c.Quests.SetProgress(c.Quests.Start(5, Now), 51, 2);
+        c.Quests.SetProgress(c.Quests.Start(5, s_now), 51, 2);
 
         Assert.True(c.Quests.Remove(5));
 
         Assert.False(c.Quests.IsActive(5));
         Assert.False(c.Quests.IsCompleted(5));
         Assert.Equal(QuestClientChange.Removed, c.Quests.ClientChanges[5]);
-        Assert.Equal(0u, c.Quests.Start(5, Now).ProgressOf(51));
+        Assert.Equal(0u, c.Quests.Start(5, s_now).ProgressOf(51));
     }
 
     [Fact]
     public void Move_a_turned_in_quest_to_the_completed_set()
     {
         CharacterEntity c = Character();
-        c.Quests.Start(5, Now);
+        c.Quests.Start(5, s_now);
 
-        c.Quests.Complete(5, Now);
+        c.Quests.Complete(5, s_now);
 
         Assert.False(c.Quests.IsActive(5));
         Assert.True(c.Quests.IsCompleted(5));
-        Assert.Equal(Now, c.Quests.CompletedAt(5));
+        Assert.Equal(s_now, c.Quests.CompletedAt(5));
         Assert.Equal(QuestClientChange.Completed, c.Quests.ClientChanges[5]);
     }
 
@@ -106,11 +106,11 @@ public class QuestLogShould
     public void Keep_the_first_completion_time()
     {
         CharacterEntity c = Character();
-        c.Quests.Complete(5, Now);
+        c.Quests.Complete(5, s_now);
 
-        c.Quests.Complete(5, Now.AddHours(1));
+        c.Quests.Complete(5, s_now.AddHours(1));
 
-        Assert.Equal(Now, c.Quests.CompletedAt(5));
+        Assert.Equal(s_now, c.Quests.CompletedAt(5));
     }
 
     [Fact]

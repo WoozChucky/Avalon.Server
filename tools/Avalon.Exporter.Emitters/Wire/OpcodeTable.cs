@@ -32,7 +32,7 @@ public static class OpcodeTable
         List<OpcodeEntry> entries = [];
         Dictionary<NetworkPacketType, string> seen = [];
 
-        const BindingFlags staticFields = BindingFlags.Public | BindingFlags.Static;
+        const BindingFlags StaticFields = BindingFlags.Public | BindingFlags.Static;
 
         foreach (Type type in WireSchema.ContractTypes())
         {
@@ -41,7 +41,7 @@ public static class OpcodeTable
                 continue;
             }
 
-            FieldInfo[] fields = type.GetFields(staticFields);
+            FieldInfo[] fields = type.GetFields(StaticFields);
 
             FieldInfo? opcodeField = Array.Find(fields, field => field.FieldType == typeof(NetworkPacketType));
             if (opcodeField is null)

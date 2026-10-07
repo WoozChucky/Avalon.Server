@@ -18,7 +18,7 @@ public static partial class ExportComposer
     private const int MaxSlugLength = 40;
     private const int WorstMetrics = 10;
 
-    private static readonly JsonSerializerOptions OverrideFormat = new()
+    private static readonly JsonSerializerOptions s_overrideFormat = new()
     {
         WriteIndented = true,
         IndentSize = 2,
@@ -124,7 +124,7 @@ public static partial class ExportComposer
                 sorted.Add(key, value);
         }
 
-        return JsonSerializer.Serialize(sorted, OverrideFormat) + "\n";
+        return JsonSerializer.Serialize(sorted, s_overrideFormat) + "\n";
     }
 
     public static string Slug(string title)

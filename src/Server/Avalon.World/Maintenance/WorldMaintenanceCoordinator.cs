@@ -34,7 +34,7 @@ public sealed class WorldMaintenanceCoordinator(
     IOptions<WorldShutdownConfiguration> shutdown,
     TickThreadGuard? tickThread = null)
 {
-    private static readonly int[] Thresholds = [180, 60, 30, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
+    private static readonly int[] s_thresholds = [180, 60, 30, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
 
     /// <summary>How long past its deadline the stop waits for the tick to end a restart drain, should the tick not.</summary>
     public static readonly TimeSpan RestartTickBackstop = TimeSpan.FromSeconds(1);
@@ -411,7 +411,7 @@ public sealed class WorldMaintenanceCoordinator(
             else
             {
                 int last = _lastRemaining;
-                int? crossed = Thresholds.LastOrDefault(threshold => last > threshold && remaining <= threshold);
+                int? crossed = s_thresholds.LastOrDefault(threshold => last > threshold && remaining <= threshold);
                 if (crossed.HasValue && (last > crossed.Value && remaining <= crossed.Value))
                     line = (false, crossed.Value);
             }

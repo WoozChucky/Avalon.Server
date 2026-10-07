@@ -189,7 +189,7 @@ public class WorldDatabaseSettingsShould
     [Fact]
     public void Parse_the_json_shape()
     {
-        const string json = """
+        const string Json = """
             {
               "Database": {
                 "Auth": { "ConnectionString": "Host=auth" },
@@ -200,7 +200,7 @@ public class WorldDatabaseSettingsShould
               }
             }
             """;
-        using MemoryStream stream = new(Encoding.UTF8.GetBytes(json));
+        using MemoryStream stream = new(Encoding.UTF8.GetBytes(Json));
         IConfiguration configuration = new ConfigurationBuilder().AddJsonStream(stream).Build();
 
         IReadOnlyList<ConfiguredWorld> worlds = WorldDatabaseSettings.Parse(configuration);
@@ -214,14 +214,14 @@ public class WorldDatabaseSettingsShould
     public void Parse_the_environment_variable_form()
     {
         // A prefix no other test or host variable uses, so this can run beside the other tests.
-        const string prefix = "AV523T_";
-        const string world = prefix + "Database__Worlds__2__World__ConnectionString";
-        const string characters = prefix + "Database__Worlds__2__Characters__ConnectionString";
+        const string Prefix = "AV523T_";
+        const string World = Prefix + "Database__Worlds__2__World__ConnectionString";
+        const string Characters = Prefix + "Database__Worlds__2__Characters__ConnectionString";
         try
         {
-            Environment.SetEnvironmentVariable(world, "Host=w2");
-            Environment.SetEnvironmentVariable(characters, "Host=c2");
-            IConfiguration configuration = new ConfigurationBuilder().AddEnvironmentVariables(prefix).Build();
+            Environment.SetEnvironmentVariable(World, "Host=w2");
+            Environment.SetEnvironmentVariable(Characters, "Host=c2");
+            IConfiguration configuration = new ConfigurationBuilder().AddEnvironmentVariables(Prefix).Build();
 
             ConfiguredWorld parsed = Assert.Single(WorldDatabaseSettings.Parse(configuration));
 
@@ -231,8 +231,8 @@ public class WorldDatabaseSettingsShould
         }
         finally
         {
-            Environment.SetEnvironmentVariable(world, null);
-            Environment.SetEnvironmentVariable(characters, null);
+            Environment.SetEnvironmentVariable(World, null);
+            Environment.SetEnvironmentVariable(Characters, null);
         }
     }
 }

@@ -98,15 +98,15 @@ public sealed class AvalonGameAuthorizationShould
             Options.Create(new GameWorkloadConfiguration { Servers = [new() { ServerId = "world-1", WorldId = 1 }] }),
             _clock, new(_options));
         Assert.Null((await heartbeats.HeartbeatAsync("world-1", _account.Id, worldSession.GameSessionId, 1, default)).Error);
-        const string subject = "76561198000000001";
-        _identities.FindAsync("steam", subject, Arg.Any<CancellationToken>()).Returns(new ExternalIdentity
-        { Id = Guid.NewGuid(), AccountId = _account.Id, Provider = "steam", ProviderSubject = subject });
+        const string Subject = "76561198000000001";
+        _identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns(new ExternalIdentity
+        { Id = Guid.NewGuid(), AccountId = _account.Id, Provider = "steam", ProviderSubject = Subject });
         ISteamProofVerifier proof = Substitute.For<ISteamProofVerifier>();
         proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new SteamProofResult(SteamProofStatus.Verified, subject));
+            .Returns(new SteamProofResult(SteamProofStatus.Verified, Subject));
         ISteamOwnershipClient ownership = Substitute.For<ISteamOwnershipClient>();
-        ownership.CheckAsync(2499460, subject, Arg.Any<CancellationToken>())
-            .Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, subject, Now, Now.AddMinutes(5)));
+        ownership.CheckAsync(2499460, Subject, Arg.Any<CancellationToken>())
+            .Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, Now, Now.AddMinutes(5)));
         GameAuthorizationService service = TestGameAuthorization.Create(_store, new(_store, _crypto, _options, _clock), _crypto,
             _accounts, _families, _identities, _observations, proof, ownership, _options, _clock, gameLicenses: _licenses);
         AuthAttemptReply attempt = (await service.CreateProviderAttemptAsync("steam.main", "1", _run, new string('A', 43),

@@ -28,11 +28,11 @@ public static class ItemSchema
             Fields: Fields().ToList(),
             Enums: Vocabularies());
 
-        return JsonSerializer.Serialize(document, Options) + "\n";
+        return JsonSerializer.Serialize(document, s_options) + "\n";
     }
 
     // camelCase, matching opcodes.json — the other code-derived JSON the client reads.
-    private static readonly JsonSerializerOptions Options = new()
+    private static readonly JsonSerializerOptions s_options = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

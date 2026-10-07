@@ -16,7 +16,7 @@ namespace Avalon.World.Characters;
 /// </summary>
 public static class CharacterReadinessBarrier
 {
-    private static readonly ConditionalWeakTable<IWorldConnection, Task<WorldEntryDecision>> PendingChecks = new();
+    private static readonly ConditionalWeakTable<IWorldConnection, Task<WorldEntryDecision>> s_pendingChecks = new();
 
     /// <summary>Checks current admission off the tick before a pending character becomes visible.</summary>
     public static void RequestRelease(IWorldConnection connection, IWorld world, ILogger logger,
@@ -24,7 +24,7 @@ public static class CharacterReadinessBarrier
         TimeProvider? clock = null)
     {
         if (!connection.IsConnected || connection.IsClosing || connection.AccountId is null ||
-            connection.PendingSpawn is not { } pending || PendingChecks.TryGetValue(connection, out _))
+            connection.PendingSpawn is not { } pending || s_pendingChecks.TryGetValue(connection, out _))
         {
             return;
         }
@@ -41,10 +41,10 @@ public static class CharacterReadinessBarrier
                 return default;
             }
         });
-        PendingChecks.Add(connection, check);
+        s_pendingChecks.Add(connection, check);
         connection.EnqueueContinuation(check, decision =>
         {
-            PendingChecks.Remove(connection);
+            s_pendingChecks.Remove(connection);
             if (!connection.IsConnected || connection.IsClosing || !ReferenceEquals(connection.PendingSpawn, pending))
                 return;
 

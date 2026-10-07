@@ -38,7 +38,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class InstanceTransferReplicationShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
     private const ushort TownMap = 1;
     private const ushort ForestMap = 2;
 
@@ -192,7 +192,7 @@ public class InstanceTransferReplicationShould
     {
         for (int i = 0; i < count; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
     }
 

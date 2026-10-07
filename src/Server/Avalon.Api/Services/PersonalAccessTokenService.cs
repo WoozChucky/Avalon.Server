@@ -49,7 +49,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
     public const string TokenPrefix = "avp_";
     public const string CredentialsChanged = "Credentials changed; sign in again";
     public const int TokenPrefixDisplayLength = 8;
-    private static readonly TimeSpan LastUsedBucket = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan s_lastUsedBucket = TimeSpan.FromSeconds(60);
 
     private readonly IPersonalAccessTokenRepository _repository;
     private readonly ISecureRandom _random;
@@ -173,6 +173,6 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
     public Task TouchLastUsedAsync(PersonalAccessTokenId id, CancellationToken cancellationToken = default)
     {
         DateTime now = _time.GetUtcNow().UtcDateTime;
-        return _repository.UpdateLastUsedIfStaleAsync(id, now, LastUsedBucket, cancellationToken);
+        return _repository.UpdateLastUsedIfStaleAsync(id, now, s_lastUsedBucket, cancellationToken);
     }
 }

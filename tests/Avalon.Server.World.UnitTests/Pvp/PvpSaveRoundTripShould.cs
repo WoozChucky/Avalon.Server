@@ -13,7 +13,7 @@ namespace Avalon.Server.World.UnitTests.Pvp;
 /// <summary>The PvP flag and its off timer survive a save through the real save path on SQLite (#164).</summary>
 public sealed class PvpSaveRoundTripShould : IDisposable
 {
-    private static readonly DateTime OffAt = new(2026, 9, 26, 12, 5, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_offAt = new(2026, 9, 26, 12, 5, 0, DateTimeKind.Utc);
 
     private readonly SqliteDatabase<CharacterDbContext> _database = SqliteDatabase.Characters();
     private readonly CharacterSaveRepository _saves;
@@ -51,7 +51,7 @@ public sealed class PvpSaveRoundTripShould : IDisposable
     {
         CharacterEntity character = await LoadedAsync();
         character.Data!.PvpEnabled = true;
-        character.Data.PvpOffAt = OffAt;
+        character.Data.PvpOffAt = s_offAt;
         character.MarkPvpChanged();
 
         await SaveAsync(character);
@@ -59,6 +59,6 @@ public sealed class PvpSaveRoundTripShould : IDisposable
         await using CharacterDbContext context = _database.CreateDbContext();
         Character row = await context.Characters.AsNoTracking().SingleAsync(c => c.Id == character.Data.Id);
         Assert.True(row.PvpEnabled);
-        Assert.Equal(OffAt, row.PvpOffAt);
+        Assert.Equal(s_offAt, row.PvpOffAt);
     }
 }

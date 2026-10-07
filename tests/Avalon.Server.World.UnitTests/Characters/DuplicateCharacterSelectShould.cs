@@ -66,12 +66,12 @@ public class DuplicateCharacterSelectShould : IDisposable
     /// moves here, so a slow runner only makes a test slower, and this bound only stops a broken
     /// one from hanging. Generous, because a loaded runner can hold pool work back for seconds.
     /// </summary>
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(30);
-    private static readonly CharacterId TheCharacter = new(7);
-    private static readonly CharacterId AnotherCharacter = new(8);
-    private static readonly CharacterId ThirdCharacter = new(9);
-    private static readonly AccountId TheAccount = new(42L);
-    private static readonly AccountId OtherAccount = new(43L);
+    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(30);
+    private static readonly CharacterId s_theCharacter = new(7);
+    private static readonly CharacterId s_anotherCharacter = new(8);
+    private static readonly CharacterId s_thirdCharacter = new(9);
+    private static readonly AccountId s_theAccount = new(42L);
+    private static readonly AccountId s_otherAccount = new(43L);
 
     private readonly List<TcpClient> _sockets = [];
     private readonly TaskCompletionSource _commit = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -96,11 +96,11 @@ public class DuplicateCharacterSelectShould : IDisposable
                 IReadOnlyList<CharacterSaveBatch> batches = call.Arg<IReadOnlyList<CharacterSaveBatch>>();
                 lock (_written)
                     _written.AddRange(batches);
-                await _commit.Task.WaitAsync(Limit);
+                await _commit.Task.WaitAsync(s_limit);
                 foreach (CharacterSaveBatch batch in batches)
                 {
                     if (_gates.TryGetValue(batch.Row.Id, out TaskCompletionSource? gate))
-                        await gate.Task.WaitAsync(Limit);
+                        await gate.Task.WaitAsync(s_limit);
                 }
 
                 lock (_committedIds)
@@ -115,7 +115,7 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         // The read records whether the old session's save had committed when it ran, then finds
         // nothing: what happens after the read is the rest of the select chain, covered elsewhere.
-        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>())
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 _read.TrySetResult(Volatile.Read(ref _committed) == 1);
@@ -143,27 +143,27 @@ public class DuplicateCharacterSelectShould : IDisposable
         (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
         Avalon.World.WorldConnection first = Connect(server);
         Avalon.World.WorldConnection second = Connect(server);
-        CharacterEntity live = New(TheCharacter.Value);
+        CharacterEntity live = New(s_theCharacter.Value);
         first.Character = live;
 
-        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.Null(first.Character);
-        await first.CloseAsync().WaitAsync(Limit);
+        await first.CloseAsync().WaitAsync(s_limit);
         Assert.DoesNotContain(server.Connections, c => ReferenceEquals(c, first));
         Assert.False(_read.Task.IsCompleted, "the second session read the character while the first still held it");
 
         _commit.SetResult();
 
-        Assert.True(await _read.Task.WaitAsync(Limit), "the second session read before the first one's logout save committed");
+        Assert.True(await _read.Task.WaitAsync(s_limit), "the second session read before the first one's logout save committed");
         CharacterSaveBatch logout = Assert.Single(_written);
-        Assert.Equal(TheCharacter, logout.Row.Id);
+        Assert.Equal(s_theCharacter, logout.Row.Id);
         Assert.False(logout.Row.Online);
 
         // The tick then dequeues the kicked connection's own close. The character has already left
         // with the kick, so there is nothing for that despawn to save a second time.
         server.Tick();
-        await _saver.WhenIdle(TheCharacter).WaitAsync(Limit);
+        await _saver.WhenIdle(s_theCharacter).WaitAsync(s_limit);
         Assert.Single(_written);
     }
 
@@ -177,9 +177,9 @@ public class DuplicateCharacterSelectShould : IDisposable
         (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
         Avalon.World.WorldConnection first = Connect(server);
         Avalon.World.WorldConnection second = Connect(server);
-        first.SetPendingSpawn(New(TheCharacter.Value), Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks);
+        first.SetPendingSpawn(New(s_theCharacter.Value), Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks);
 
-        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.Null(first.PendingSpawn);
         Assert.Null(first.Character);
@@ -187,8 +187,8 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         _commit.SetResult();
 
-        Assert.True(await _read.Task.WaitAsync(Limit));
-        Assert.Equal(TheCharacter, Assert.Single(_written).Row.Id);
+        Assert.True(await _read.Task.WaitAsync(s_limit));
+        Assert.Equal(s_theCharacter, Assert.Single(_written).Row.Id);
     }
 
     /// <summary>
@@ -203,23 +203,23 @@ public class DuplicateCharacterSelectShould : IDisposable
         (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
         Avalon.World.WorldConnection first = Connect(server);
         Avalon.World.WorldConnection second = Connect(server);
-        first.Character = New(TheCharacter.Value);
+        first.Character = New(s_theCharacter.Value);
 
-        await first.CloseAsync().WaitAsync(Limit);
+        await first.CloseAsync().WaitAsync(s_limit);
         Assert.DoesNotContain(server.Connections, c => ReferenceEquals(c, first));
-        Assert.True(_saver.WhenIdle(TheCharacter).IsCompleted, "no tick has run, so no despawn save should be queued yet");
+        Assert.True(_saver.WhenIdle(s_theCharacter).IsCompleted, "no tick has run, so no despawn save should be queued yet");
 
-        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.False(_read.Task.IsCompleted, "the select read the character before the closed session's logout save was queued");
 
         _commit.SetResult();
 
-        Assert.True(await _read.Task.WaitAsync(Limit), "the select read before the closed session's logout save committed");
-        Assert.Equal(TheCharacter, Assert.Single(_written).Row.Id);
+        Assert.True(await _read.Task.WaitAsync(s_limit), "the select read before the closed session's logout save committed");
+        Assert.Equal(s_theCharacter, Assert.Single(_written).Row.Id);
 
         server.Tick();
-        await _saver.WhenIdle(TheCharacter).WaitAsync(Limit);
+        await _saver.WhenIdle(s_theCharacter).WaitAsync(s_limit);
         Assert.Single(_written);
     }
 
@@ -235,25 +235,25 @@ public class DuplicateCharacterSelectShould : IDisposable
         (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
         Avalon.World.WorldConnection first = Connect(server);
         Avalon.World.WorldConnection second = Connect(server);
-        first.Character = New(AnotherCharacter.Value);
+        first.Character = New(s_anotherCharacter.Value);
 
-        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.Null(first.Character);
-        await first.CloseAsync().WaitAsync(Limit);
+        await first.CloseAsync().WaitAsync(s_limit);
         Assert.DoesNotContain(server.Connections, c => ReferenceEquals(c, first));
         Assert.False(_read.Task.IsCompleted, "the second character was read while the account's first one was still live");
 
         _commit.SetResult();
 
-        Assert.True(await _read.Task.WaitAsync(Limit), "the second character was read before the first one's logout save committed");
+        Assert.True(await _read.Task.WaitAsync(s_limit), "the second character was read before the first one's logout save committed");
         CharacterSaveBatch logout = Assert.Single(_written);
-        Assert.Equal(AnotherCharacter, logout.Row.Id);
+        Assert.Equal(s_anotherCharacter, logout.Row.Id);
         Assert.False(logout.Row.Online);
 
         // The kicked connection's own close then despawns nothing a second time.
         server.Tick();
-        await _saver.WhenIdle(AnotherCharacter).WaitAsync(Limit);
+        await _saver.WhenIdle(s_anotherCharacter).WaitAsync(s_limit);
         Assert.Single(_written);
     }
 
@@ -268,29 +268,29 @@ public class DuplicateCharacterSelectShould : IDisposable
         Avalon.World.WorldConnection first = Connect(server);
         Avalon.World.WorldConnection third = Connect(server);
         Avalon.World.WorldConnection selecting = Connect(server);
-        first.Character = New(AnotherCharacter.Value);
-        third.SetPendingSpawn(New(ThirdCharacter.Value), Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks);
+        first.Character = New(s_anotherCharacter.Value);
+        third.SetPendingSpawn(New(s_thirdCharacter.Value), Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks);
         var thirdGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _gates[ThirdCharacter] = thirdGate;
+        _gates[s_thirdCharacter] = thirdGate;
 
-        select.Execute(selecting, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(selecting, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.Null(first.Character);
         Assert.Null(third.PendingSpawn);
         Assert.Null(third.Character);
 
         _commit.SetResult();
-        await _saver.WhenIdle(AnotherCharacter).WaitAsync(Limit);
+        await _saver.WhenIdle(s_anotherCharacter).WaitAsync(s_limit);
         await Task.Delay(100);
         Assert.False(_read.Task.IsCompleted, "the select read while a kicked character's logout save was still running");
 
         thirdGate.SetResult();
 
-        await _read.Task.WaitAsync(Limit);
+        await _read.Task.WaitAsync(s_limit);
         lock (_committedIds)
         {
-            Assert.Contains(AnotherCharacter, _committedIds);
-            Assert.Contains(ThirdCharacter, _committedIds);
+            Assert.Contains(s_anotherCharacter, _committedIds);
+            Assert.Contains(s_thirdCharacter, _committedIds);
         }
 
         lock (_written)
@@ -311,12 +311,12 @@ public class DuplicateCharacterSelectShould : IDisposable
         Avalon.World.WorldConnection second = Connect(server);
         first.BeginSelect(DateTime.UtcNow.Ticks);
 
-        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.False(first.SelectInProgress);
         await DisconnectedAsync(first);
         Assert.True(second.SelectInProgress);
-        await _read.Task.WaitAsync(Limit);
+        await _read.Task.WaitAsync(s_limit);
     }
 
     /// <summary>
@@ -332,15 +332,15 @@ public class DuplicateCharacterSelectShould : IDisposable
         Avalon.World.WorldConnection winner = Connect(server);
         Avalon.World.WorldConnection kicked = Connect(server);
 
-        select.Execute(winner, new CCharacterSelectedPacket { CharacterId = TheCharacter });
-        select.Execute(kicked, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+        select.Execute(winner, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
+        select.Execute(kicked, new CCharacterSelectedPacket { CharacterId = s_anotherCharacter });
 
         Assert.True(winner.SelectInProgress, "the kicked session kicked back and cancelled the winner's select");
         Assert.False(kicked.SelectInProgress);
         await DisconnectedAsync(kicked);
         Assert.True(winner.IsConnected, "the kicked session kicked back and disconnected the winner");
-        await _read.Task.WaitAsync(Limit);
-        await _characters.DidNotReceive().FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), AnotherCharacter, Arg.Any<CancellationToken>());
+        await _read.Task.WaitAsync(s_limit);
+        await _characters.DidNotReceive().FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_anotherCharacter, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Every other session of the account ends, including one still at the character list.</summary>
@@ -351,10 +351,10 @@ public class DuplicateCharacterSelectShould : IDisposable
         Avalon.World.WorldConnection first = Connect(server);
         Avalon.World.WorldConnection second = Connect(server);
 
-        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         await DisconnectedAsync(first);
-        await _read.Task.WaitAsync(Limit);
+        await _read.Task.WaitAsync(s_limit);
         Assert.Empty(_written);
     }
 
@@ -363,15 +363,15 @@ public class DuplicateCharacterSelectShould : IDisposable
     public async Task Leave_a_session_of_another_account_alone()
     {
         (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
-        Avalon.World.WorldConnection other = Connect(server, OtherAccount);
+        Avalon.World.WorldConnection other = Connect(server, s_otherAccount);
         Avalon.World.WorldConnection selecting = Connect(server);
-        CharacterEntity theirs = New(AnotherCharacter.Value);
+        CharacterEntity theirs = New(s_anotherCharacter.Value);
         other.Character = theirs;
 
-        select.Execute(selecting, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(selecting, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         // Read at once: there is no save of this account's to wait for.
-        await _read.Task.WaitAsync(Limit);
+        await _read.Task.WaitAsync(s_limit);
         Assert.Same(theirs, other.Character);
         Assert.True(other.IsConnected);
         Assert.Contains(server.Connections, c => ReferenceEquals(c, other));
@@ -394,7 +394,7 @@ public class DuplicateCharacterSelectShould : IDisposable
         Avalon.World.WorldConnection first = Connect(server);
         Avalon.World.WorldConnection second = Connect(server);
 
-        CharacterEntity live = New(TheCharacter.Value);
+        CharacterEntity live = New(s_theCharacter.Value);
         live.Spells.Load(Array.Empty<IAbility>());   // the instance tick updates abilities
         live.InstanceId = town.InstanceId;
         first.Character = live;
@@ -409,7 +409,7 @@ public class DuplicateCharacterSelectShould : IDisposable
         creature.Script = new Avalon.Server.World.UnitTests.Scripts.ThrowOnLeaveScript(creature, town);
         town.AddCreature(creature);
 
-        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.Null(first.Character);
         Assert.DoesNotContain(live.Guid, town.Characters.Keys);
@@ -419,13 +419,13 @@ public class DuplicateCharacterSelectShould : IDisposable
         // The logout save was still queued, so the new session waits for it.
         Assert.False(_read.Task.IsCompleted, "the second session read the character while the first still held it");
         _commit.SetResult();
-        Assert.True(await _read.Task.WaitAsync(Limit), "the second session read before the first one's logout save committed");
+        Assert.True(await _read.Task.WaitAsync(s_limit), "the second session read before the first one's logout save committed");
         CharacterSaveBatch logout = Assert.Single(_written);
         Assert.False(logout.Row.Online);
 
-        await first.CloseAsync().WaitAsync(Limit);
+        await first.CloseAsync().WaitAsync(s_limit);
         server.Tick();
-        await _saver.WhenIdle(TheCharacter).WaitAsync(Limit);
+        await _saver.WhenIdle(s_theCharacter).WaitAsync(s_limit);
         Assert.Single(_written);
     }
 
@@ -445,7 +445,7 @@ public class DuplicateCharacterSelectShould : IDisposable
         Avalon.World.World world = await LoadedWorldAsync(_saver, town: null);
         var server = new TestWorldServer(world, _saver);
         Avalon.World.WorldConnection connection = Connect(server);
-        CharacterEntity live = New(TheCharacter.Value);
+        CharacterEntity live = New(s_theCharacter.Value);
         live.InstanceId = Guid.NewGuid();
         connection.Character = live;
 
@@ -470,9 +470,9 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         Assert.Null(connection.Character);
         _commit.SetResult();
-        await despawn.WaitAsync(Limit);
+        await despawn.WaitAsync(s_limit);
         CharacterSaveBatch logout = Assert.Single(_written);
-        Assert.Equal(TheCharacter, logout.Row.Id);
+        Assert.Equal(s_theCharacter, logout.Row.Id);
         Assert.False(logout.Row.Online);
         if (step != "lookup")
             instance.Received(1).RemoveCharacter(connection);   // a failed encounter drop still removes it
@@ -493,13 +493,13 @@ public class DuplicateCharacterSelectShould : IDisposable
         (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync(despawnSaver);
         Avalon.World.WorldConnection first = Connect(server);
         Avalon.World.WorldConnection second = Connect(server);
-        first.Character = New(TheCharacter.Value);
+        first.Character = New(s_theCharacter.Value);
 
-        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.Null(first.Character);
 
-        await first.CloseAsync().WaitAsync(Limit);
+        await first.CloseAsync().WaitAsync(s_limit);
         server.Tick();
         despawnSaver.ReceivedWithAnyArgs(1).SaveOnDespawnAsync(default!, default, default);
     }
@@ -507,7 +507,7 @@ public class DuplicateCharacterSelectShould : IDisposable
     /// <summary>Waits, bounded, for the kick's close to drop the socket. The test never closes it itself.</summary>
     private static async Task DisconnectedAsync(Avalon.World.WorldConnection connection)
     {
-        DateTime deadline = DateTime.UtcNow + Limit;
+        DateTime deadline = DateTime.UtcNow + s_limit;
         while (connection.IsConnected)
         {
             Assert.True(DateTime.UtcNow < deadline, "the other session of the account was not disconnected");
@@ -529,7 +529,7 @@ public class DuplicateCharacterSelectShould : IDisposable
         var connection = new Avalon.World.WorldConnection(
             server, clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>())
         {
-            AccountId = account ?? TheAccount
+            AccountId = account ?? s_theAccount
         };
         GameplayTestAdmission.Admit(connection);
         server.Add(connection);
@@ -659,7 +659,7 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         await world.LoadAsync(CancellationToken.None);
         if (town is not null)
-            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).Published(world).WaitAsync(Limit);
+            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).Published(world).WaitAsync(s_limit);
         return world;
     }
 

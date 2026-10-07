@@ -12,8 +12,8 @@ internal static class SteamWebApi
     private const int MaxResponseBytes = GameAuthPolicy.MaximumBodyBytes;
     private const int MaximumAttempts = 2;
     private const int MaximumSteamIdCharacters = 20;
-    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan s_requestTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_retryDelay = TimeSpan.FromMilliseconds(100);
     private const int JsonDepth = 8;
     private const string Origin = "https://partner.steam-api.com/";
     internal const string AuthenticateTicketPath = "ISteamUserAuth/AuthenticateUserTicket/v1/";
@@ -40,7 +40,7 @@ internal static class SteamWebApi
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            bounded.CancelAfter(RequestTimeout);
+            bounded.CancelAfter(s_requestTimeout);
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, uri);
@@ -60,7 +60,7 @@ internal static class SteamWebApi
             }
             catch (HttpRequestException) { if (attempt == MaximumAttempts - 1) return (false, null); }
             catch (IOException) { if (attempt == MaximumAttempts - 1) return (false, null); }
-            await Task.Delay(RetryDelay, cancellationToken);
+            await Task.Delay(s_retryDelay, cancellationToken);
         }
         return (false, null);
     }

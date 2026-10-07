@@ -10,6 +10,9 @@ namespace Avalon.Common.Mathematics;
 
 public struct Vector3 : IEquatable<Vector3>, IFormattable
 {
+    // Public API shaped like Unity's vector types (x, y, z, normalized, zero and the rest): its names stay as they
+    // are, since the code standard renames no public member (#791).
+#pragma warning disable IDE1006
     public const float kEpsilon = 1E-05f;
     public const float kEpsilonNormalSqrt = 1E-15f;
     /// <summary>
@@ -24,17 +27,18 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     ///   <para>Z component of the vector.</para>
     /// </summary>
     public float z;
+#pragma warning restore IDE1006
 
-    private static readonly Vector3 zeroVector = new Vector3(0.0f, 0.0f, 0.0f);
-    private static readonly Vector3 oneVector = new Vector3(1f, 1f, 1f);
-    private static readonly Vector3 upVector = new Vector3(0.0f, 1f, 0.0f);
-    private static readonly Vector3 downVector = new Vector3(0.0f, -1f, 0.0f);
-    private static readonly Vector3 leftVector = new Vector3(-1f, 0.0f, 0.0f);
-    private static readonly Vector3 rightVector = new Vector3(1f, 0.0f, 0.0f);
-    private static readonly Vector3 forwardVector = new Vector3(0.0f, 0.0f, 1f);
-    private static readonly Vector3 backVector = new Vector3(0.0f, 0.0f, -1f);
-    private static readonly Vector3 positiveInfinityVector = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
-    private static readonly Vector3 negativeInfinityVector = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
+    private static readonly Vector3 s_zeroVector = new Vector3(0.0f, 0.0f, 0.0f);
+    private static readonly Vector3 s_oneVector = new Vector3(1f, 1f, 1f);
+    private static readonly Vector3 s_upVector = new Vector3(0.0f, 1f, 0.0f);
+    private static readonly Vector3 s_downVector = new Vector3(0.0f, -1f, 0.0f);
+    private static readonly Vector3 s_leftVector = new Vector3(-1f, 0.0f, 0.0f);
+    private static readonly Vector3 s_rightVector = new Vector3(1f, 0.0f, 0.0f);
+    private static readonly Vector3 s_forwardVector = new Vector3(0.0f, 0.0f, 1f);
+    private static readonly Vector3 s_backVector = new Vector3(0.0f, 0.0f, -1f);
+    private static readonly Vector3 s_positiveInfinityVector = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
+    private static readonly Vector3 s_negativeInfinityVector = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
 
     /// <summary>
     ///   <para>Spherically interpolates between two vectors.</para>
@@ -432,6 +436,8 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
             this = Vector3.zero;
     }
 
+    // Unity-style public name, as above.
+#pragma warning disable IDE1006
     /// <summary>
     ///   <para>Returns a normalized vector based on the current vector. The normalized vector has a magnitude of 1 and is in the same direction as the current vector. Returns a zero vector If the current vector is too small to be normalized.</para>
     /// </summary>
@@ -440,6 +446,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => Vector3.Normalize(this);
     }
+#pragma warning restore IDE1006
 
     /// <summary>
     ///   <para>Dot Product of two vectors.</para>
@@ -558,6 +565,8 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
         return (float)Math.Sqrt((double)vector.x * (double)vector.x + (double)vector.y * (double)vector.y + (double)vector.z * (double)vector.z);
     }
 
+    // Unity-style public name, as above.
+#pragma warning disable IDE1006
     /// <summary>
     ///   <para>Returns the length of this vector (Read Only).</para>
     /// </summary>
@@ -569,6 +578,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
             return (float)Math.Sqrt((double)x * (double)x + (double)y * (double)y + (double)z * (double)z);
         }
     }
+#pragma warning restore IDE1006
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float SqrMagnitude(Vector3 vector)
@@ -576,6 +586,8 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
         return (float)((double)vector.x * (double)vector.x + (double)vector.y * (double)vector.y + (double)vector.z * (double)vector.z);
     }
 
+    // Unity-style public name, as above.
+#pragma warning disable IDE1006
     /// <summary>
     ///   <para>Returns the squared length of this vector (Read Only).</para>
     /// </summary>
@@ -587,6 +599,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
             return (float)((double)x * (double)x + (double)y * (double)y + (double)z * (double)z);
         }
     }
+#pragma warning restore IDE1006
 
     /// <summary>
     ///   <para>Returns a vector that is made from the smallest components of two vectors.</para>
@@ -610,13 +623,15 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
         return new Vector3(Mathf.Max(lhs.x, rhs.x), Mathf.Max(lhs.y, rhs.y), Mathf.Max(lhs.z, rhs.z));
     }
 
+    // Unity-style public names, as above.
+#pragma warning disable IDE1006
     /// <summary>
     ///   <para>Shorthand for writing Vector3(0, 0, 0).</para>
     /// </summary>
     public static Vector3 zero
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.zeroVector;
+        get => Vector3.s_zeroVector;
     }
 
     /// <summary>
@@ -625,7 +640,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 one
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.oneVector;
+        get => Vector3.s_oneVector;
     }
 
     /// <summary>
@@ -634,7 +649,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 forward
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.forwardVector;
+        get => Vector3.s_forwardVector;
     }
 
     /// <summary>
@@ -643,7 +658,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 back
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.backVector;
+        get => Vector3.s_backVector;
     }
 
     /// <summary>
@@ -652,7 +667,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 up
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.upVector;
+        get => Vector3.s_upVector;
     }
 
     /// <summary>
@@ -661,7 +676,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 down
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.downVector;
+        get => Vector3.s_downVector;
     }
 
     /// <summary>
@@ -670,7 +685,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 left
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.leftVector;
+        get => Vector3.s_leftVector;
     }
 
     /// <summary>
@@ -679,7 +694,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 right
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.rightVector;
+        get => Vector3.s_rightVector;
     }
 
     /// <summary>
@@ -688,7 +703,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 positiveInfinity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.positiveInfinityVector;
+        get => Vector3.s_positiveInfinityVector;
     }
 
     /// <summary>
@@ -697,8 +712,9 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 negativeInfinity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Vector3.negativeInfinityVector;
+        get => Vector3.s_negativeInfinityVector;
     }
+#pragma warning restore IDE1006
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector3 operator +(Vector3 a, Vector3 b)

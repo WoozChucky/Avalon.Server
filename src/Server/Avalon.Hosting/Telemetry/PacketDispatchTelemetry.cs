@@ -21,7 +21,7 @@ public sealed class PacketDispatchTelemetry
     /// Handler duration buckets, in ms. Most tick handlers run in microseconds; the SDK's default
     /// buckets start at 5 ms and would put them all in the first one.
     /// </summary>
-    private static readonly double[] DurationBuckets =
+    private static readonly double[] s_durationBuckets =
         [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
 
     public static readonly IReadOnlyList<NetworkPacketType> DefaultNoSpanPacketTypes =
@@ -32,10 +32,10 @@ public sealed class PacketDispatchTelemetry
         new(new ActivitySource("avalon-telemetry-disabled"), new Meter("avalon-telemetry-disabled"));
 
     // Enum.ToString allocates on every call; the names are tagged on every packet.
-    private static readonly FrozenDictionary<NetworkPacketType, string> Names =
+    private static readonly FrozenDictionary<NetworkPacketType, string> s_names =
         Enum.GetValues<NetworkPacketType>().Distinct().ToFrozenDictionary(t => t, t => t.ToString());
 
-    internal static string NameOf(NetworkPacketType type) => Names.TryGetValue(type, out string? name) ? name : type.ToString();
+    internal static string NameOf(NetworkPacketType type) => s_names.TryGetValue(type, out string? name) ? name : type.ToString();
 
     private readonly ActivitySource _source;
     private readonly HashSet<NetworkPacketType> _noSpan;
@@ -49,7 +49,7 @@ public sealed class PacketDispatchTelemetry
         _noSpan = [.. noSpanPacketTypes ?? DefaultNoSpanPacketTypes];
         _duration = meter.CreateHistogram<double>("avalon.packet.handler.duration", "ms",
             "Time a packet handler took", tags: null,
-            advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = DurationBuckets });
+            advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = s_durationBuckets });
         _errors = meter.CreateCounter<long>("avalon.packet.handler.errors", "{errors}",
             "Packet handlers that threw");
         // On the host's meter too: this is the telemetry every ServerBase carries (#584).

@@ -19,8 +19,8 @@ namespace Avalon.Server.World.UnitTests.Parties;
 /// </summary>
 public class PartyReturnRetryShould
 {
-    private static readonly Guid PartyInstance = Guid.NewGuid();
-    private static readonly MapTemplateId TownMap = new(1);
+    private static readonly Guid s_partyInstance = Guid.NewGuid();
+    private static readonly MapTemplateId s_townMap = new(1);
 
     private readonly TestLog _log = new();
     private readonly PartyTestWorld _w;
@@ -37,11 +37,11 @@ public class PartyReturnRetryShould
     public PartyReturnRetryShould()
     {
         _w = new PartyTestWorld(logger: new Logger<PartyService>(_log));
-        _a = _w.Online(1, "A", instance: PartyInstance);
-        _b = _w.Online(2, "B", instance: PartyInstance);
-        _c = _w.Online(3, "C", instance: PartyInstance);
+        _a = _w.Online(1, "A", instance: s_partyInstance);
+        _b = _w.Online(2, "B", instance: s_partyInstance);
+        _c = _w.Online(3, "C", instance: s_partyInstance);
         _w.Form(_a, _b, _c);
-        _w.Instances.Owned[PartyInstance] = _w.Parties.PartyOf(_a.Id)!.Id;
+        _w.Instances.Owned[s_partyInstance] = _w.Parties.PartyOf(_a.Id)!.Id;
 
         // Continuations run inline, as the tick runs them once their tasks complete.
         _c.Connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
@@ -53,7 +53,7 @@ public class PartyReturnRetryShould
         _world.InstanceRegistry.Returns(registry);
         _world.MapTemplates.Returns(new List<MapTemplate>
         {
-            new() { Id = TownMap, MapType = MapType.Town, Name = "town", Description = "" },
+            new() { Id = s_townMap, MapType = MapType.Town, Name = "town", Description = "" },
         });
         // What World.TransferPlayer does that matters here: the character is in the town, and the party is told.
         _world.When(w => w.TransferPlayer(Arg.Any<IWorldConnection>(), _townInstance)).Do(ci =>
@@ -68,7 +68,7 @@ public class PartyReturnRetryShould
             _lookups++;
             return _failuresLeft-- > 0
                 ? Task.FromException<MapTemplateId>(new InvalidOperationException("database down"))
-                : Task.FromResult(TownMap);
+                : Task.FromResult(s_townMap);
         });
 
         _town = new TownReturn(_log, _world, _resolver, Substitute.For<IChunkLibrary>());
@@ -94,7 +94,7 @@ public class PartyReturnRetryShould
         After(60);
 
         Assert.Equal(1, _lookups);
-        Assert.Equal(PartyInstance, _c.Character.InstanceId);
+        Assert.Equal(s_partyInstance, _c.Character.InstanceId);
         Assert.False(_c.Connection.RespawnInFlight);
         Assert.True(_w.Parties.InCountdown(_c.Id));
         Assert.Contains(Warnings, e => e.Exception is InvalidOperationException);
@@ -121,11 +121,11 @@ public class PartyReturnRetryShould
     public void Honour_the_configured_retry_delay()
     {
         var w = new PartyTestWorld(c => c.PartyReturnRetrySeconds = 12);
-        PartyClient a = w.Online(1, "A", instance: PartyInstance);
-        PartyClient b = w.Online(2, "B", instance: PartyInstance);
-        PartyClient c = w.Online(3, "C", instance: PartyInstance);
+        PartyClient a = w.Online(1, "A", instance: s_partyInstance);
+        PartyClient b = w.Online(2, "B", instance: s_partyInstance);
+        PartyClient c = w.Online(3, "C", instance: s_partyInstance);
         w.Form(a, b, c);
-        w.Instances.Owned[PartyInstance] = w.Parties.PartyOf(a.Id)!.Id;
+        w.Instances.Owned[s_partyInstance] = w.Parties.PartyOf(a.Id)!.Id;
         w.Parties.Leave(b.Id);
         w.Clock.Advance(TimeSpan.FromSeconds(60));
         Assert.Single(w.Parties.Tick());
@@ -154,7 +154,7 @@ public class PartyReturnRetryShould
         Assert.Contains("Gave up", gaveUp.Message, StringComparison.Ordinal);
         Assert.False(_w.Parties.InCountdown(_c.Id));
         Assert.False(_c.Connection.RespawnInFlight);
-        Assert.Equal(PartyInstance, _c.Character.InstanceId);
+        Assert.Equal(s_partyInstance, _c.Character.InstanceId);
 
         After(60);
         Assert.Equal(PartyService.MaxReturnRetries + 1, _lookups);

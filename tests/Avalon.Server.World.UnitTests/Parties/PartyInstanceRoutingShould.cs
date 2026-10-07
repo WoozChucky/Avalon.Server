@@ -36,8 +36,8 @@ namespace Avalon.Server.World.UnitTests.Parties;
 
 public class PartyInstanceRoutingShould : IDisposable
 {
-    private static readonly MapTemplateId DungeonId = new(2);
-    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
+    private static readonly MapTemplateId s_dungeonId = new(2);
+    private static readonly TimeSpan s_bound = TimeSpan.FromSeconds(5);
     private readonly IChunkLayoutInstanceFactory _factory = Substitute.For<IChunkLayoutInstanceFactory>();
     private readonly List<TaskCompletionSource<MapInstance>> _builds = [];
     private readonly List<(MapTemplate Template, PartyId? Party)> _requested = [];
@@ -48,7 +48,7 @@ public class PartyInstanceRoutingShould : IDisposable
     public PartyInstanceRoutingShould()
     {
         IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
-        mapManager.Templates.Returns([new MapTemplate { Id = DungeonId, MapType = MapType.Normal }]);
+        mapManager.Templates.Returns([new MapTemplate { Id = s_dungeonId, MapType = MapType.Normal }]);
         _factory.BuildAsync(default!, default, default, default).ReturnsForAnyArgs(call =>
         {
             _requested.Add((call.ArgAt<MapTemplate>(0), call.ArgAt<PartyId?>(3)));
@@ -63,12 +63,12 @@ public class PartyInstanceRoutingShould : IDisposable
     public async Task Build_one_instance_for_members_entering_at_once()
     {
         var party = new PartyId(9);
-        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
-        Task<IMapInstance> second = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
+        Task<IMapInstance> second = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
 
         Assert.Single(_builds);
         CompleteBuilds();
-        IMapInstance[] got = await Task.WhenAll(first, second).WaitAsync(Bound);
+        IMapInstance[] got = await Task.WhenAll(first, second).WaitAsync(s_bound);
 
         Assert.Same(got[0], got[1]);
         Assert.Equal(party, ((MapInstance)got[0]).OwnerPartyId);
@@ -85,18 +85,18 @@ public class PartyInstanceRoutingShould : IDisposable
     public async Task Index_the_party_instance_only_when_the_tick_publishes_it()
     {
         var party = new PartyId(9);
-        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
         CompleteBuilds(publish: false);
 
         Assert.False(first.IsCompleted);
         Assert.Empty(_registry.ActiveInstances);
-        Assert.Same(first, _registry.GetOrCreatePartyInstanceAsync(party, DungeonId));
+        Assert.Same(first, _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId));
 
         _registry.PublishFinished();
-        IMapInstance built = await first.WaitAsync(Bound);
+        IMapInstance built = await first.WaitAsync(s_bound);
 
         Assert.True(_registry.IsPartyInstance(party, built.InstanceId));
-        Assert.Same(built, await _registry.GetOrCreatePartyInstanceAsync(party, DungeonId).WaitAsync(Bound));
+        Assert.Same(built, await _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId).WaitAsync(s_bound));
         Assert.Single(_builds);
     }
 
@@ -105,14 +105,14 @@ public class PartyInstanceRoutingShould : IDisposable
     public async Task Leave_unindexed_a_build_that_finished_before_the_party_was_forgotten_but_was_published_after()
     {
         var party = new PartyId(9);
-        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
         CompleteBuilds(publish: false);
 
         _registry.ForgetParty(party);
         _registry.PublishFinished();
-        IMapInstance orphan = await first.WaitAsync(Bound);
+        IMapInstance orphan = await first.WaitAsync(s_bound);
 
-        _ = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        _ = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
         Assert.Equal(2, _builds.Count);
         Assert.Same(orphan, _registry.GetInstanceById(orphan.InstanceId));
     }
@@ -121,27 +121,27 @@ public class PartyInstanceRoutingShould : IDisposable
     public async Task Reuse_the_party_instance_on_re_entry_and_build_anew_once_forgotten()
     {
         var party = new PartyId(9);
-        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
         CompleteBuilds();
-        IMapInstance built = await first.WaitAsync(Bound);
+        IMapInstance built = await first.WaitAsync(s_bound);
 
-        Assert.Same(built, await _registry.GetOrCreatePartyInstanceAsync(party, DungeonId).WaitAsync(Bound));
+        Assert.Same(built, await _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId).WaitAsync(s_bound));
 
         _registry.ForgetParty(party);
-        Task<IMapInstance> after = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> after = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
         Assert.Equal(2, _builds.Count);
         CompleteBuilds();
-        Assert.NotSame(built, await after.WaitAsync(Bound));
+        Assert.NotSame(built, await after.WaitAsync(s_bound));
     }
 
     [Fact]
     public async Task Keep_party_and_solo_instances_apart()
     {
-        Task<IMapInstance> solo = _registry.GetOrCreateNormalInstanceAsync(1, DungeonId);
-        Task<IMapInstance> party = _registry.GetOrCreatePartyInstanceAsync(new PartyId(9), DungeonId);
+        Task<IMapInstance> solo = _registry.GetOrCreateNormalInstanceAsync(1, s_dungeonId);
+        Task<IMapInstance> party = _registry.GetOrCreatePartyInstanceAsync(new PartyId(9), s_dungeonId);
         CompleteBuilds();
 
-        Assert.NotSame(await solo.WaitAsync(Bound), await party.WaitAsync(Bound));
+        Assert.NotSame(await solo.WaitAsync(s_bound), await party.WaitAsync(s_bound));
     }
 
     /// <summary>
@@ -152,17 +152,17 @@ public class PartyInstanceRoutingShould : IDisposable
     public async Task Leave_a_build_finished_after_the_party_was_forgotten_unindexed_and_let_it_expire()
     {
         var party = new PartyId(9);
-        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
 
         _registry.ForgetParty(party); // the party disbands mid-build
         CompleteBuilds();
-        IMapInstance orphan = await first.WaitAsync(Bound);
+        IMapInstance orphan = await first.WaitAsync(s_bound);
 
         // Not indexed: asking again builds anew instead of handing back the orphan.
-        Task<IMapInstance> again = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> again = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
         Assert.Equal(2, _builds.Count);
         CompleteBuilds();
-        Assert.NotSame(orphan, await again.WaitAsync(Bound));
+        Assert.NotSame(orphan, await again.WaitAsync(s_bound));
 
         _clock.Now += TimeSpan.FromMinutes(15) - TimeSpan.FromSeconds(1);
         _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
@@ -178,22 +178,22 @@ public class PartyInstanceRoutingShould : IDisposable
     public async Task Keep_the_newer_party_instance_indexed_when_an_older_one_of_the_map_is_freed()
     {
         var party = new PartyId(9);
-        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
         CompleteBuilds();
-        IMapInstance older = await first.WaitAsync(Bound);
+        IMapInstance older = await first.WaitAsync(s_bound);
 
         _clock.Now += TimeSpan.FromMinutes(15); // older is expired but not yet freed
-        Task<IMapInstance> second = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> second = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
         Assert.Equal(2, _builds.Count);
         CompleteBuilds();
-        IMapInstance newer = await second.WaitAsync(Bound);
+        IMapInstance newer = await second.WaitAsync(s_bound);
 
         _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
 
         Assert.Null(_registry.GetInstanceById(older.InstanceId));
-        Task<IMapInstance> after = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
+        Task<IMapInstance> after = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
         Assert.Equal(2, _builds.Count); // no third build: the entry still names the newer instance
-        Assert.Same(newer, await after.WaitAsync(Bound));
+        Assert.Same(newer, await after.WaitAsync(s_bound));
     }
 
     /// <summary>An instance stamped empty at creation must not look expired while someone is in it, however long.</summary>
@@ -201,19 +201,19 @@ public class PartyInstanceRoutingShould : IDisposable
     public async Task Keep_occupied_party_and_solo_instances_past_the_expiry()
     {
         var party = new PartyId(9);
-        Task<IMapInstance> partyBuild = _registry.GetOrCreatePartyInstanceAsync(party, DungeonId);
-        Task<IMapInstance> soloBuild = _registry.GetOrCreateNormalInstanceAsync(1, DungeonId);
+        Task<IMapInstance> partyBuild = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
+        Task<IMapInstance> soloBuild = _registry.GetOrCreateNormalInstanceAsync(1, s_dungeonId);
         CompleteBuilds();
-        var partyInstance = (MapInstance)await partyBuild.WaitAsync(Bound);
-        var soloInstance = (MapInstance)await soloBuild.WaitAsync(Bound);
+        var partyInstance = (MapInstance)await partyBuild.WaitAsync(s_bound);
+        var soloInstance = (MapInstance)await soloBuild.WaitAsync(s_bound);
         MapInstanceClients.Join(partyInstance, 1);
         MapInstanceClients.Join(soloInstance, 2);
 
         _clock.Now += TimeSpan.FromMinutes(20);
         _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
 
-        Assert.Same(partyInstance, await _registry.GetOrCreatePartyInstanceAsync(party, DungeonId).WaitAsync(Bound));
-        Assert.Same(soloInstance, await _registry.GetOrCreateNormalInstanceAsync(1, DungeonId).WaitAsync(Bound));
+        Assert.Same(partyInstance, await _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId).WaitAsync(s_bound));
+        Assert.Same(soloInstance, await _registry.GetOrCreateNormalInstanceAsync(1, s_dungeonId).WaitAsync(s_bound));
         Assert.Equal(2, _builds.Count);
     }
 
@@ -432,8 +432,8 @@ public class PartyMapEntryShould
 /// <summary>The party side of a real, loaded World: the registry it builds is the one the party service forgets into.</summary>
 public class PartyWorldWiringShould
 {
-    private static readonly MapTemplateId DungeonId = new(2);
-    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
+    private static readonly MapTemplateId s_dungeonId = new(2);
+    private static readonly TimeSpan s_bound = TimeSpan.FromSeconds(5);
 
     [Fact]
     public async Task Forget_the_party_instances_in_the_world_registry_when_the_party_disbands()
@@ -446,12 +446,12 @@ public class PartyWorldWiringShould
         parties.Form(a, b);
         PartyId party = parties.Parties.PartyOf(a.Id)!.Id;
 
-        IMapInstance first = await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, DungeonId).Published(world).WaitAsync(Bound);
-        Assert.Same(first, await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, DungeonId).Published(world).WaitAsync(Bound));
+        IMapInstance first = await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, s_dungeonId).Published(world).WaitAsync(s_bound);
+        Assert.Same(first, await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, s_dungeonId).Published(world).WaitAsync(s_bound));
 
         parties.Parties.Leave(b.Id); // two members: the party disbands
 
-        IMapInstance after = await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, DungeonId).Published(world).WaitAsync(Bound);
+        IMapInstance after = await world.PartyInstances.GetOrCreatePartyInstanceAsync(party, s_dungeonId).Published(world).WaitAsync(s_bound);
         Assert.NotSame(first, after);
         Assert.Equal(2, built.Count);
         Assert.Empty(parties.Instances.Forgotten); // the world's registry, not the fake, is what the service forgets into
@@ -508,7 +508,7 @@ public class PartyWorldWiringShould
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory)).Returns(factory);
 
         IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
-        mapManager.Templates.Returns([new MapTemplate { Id = DungeonId, MapType = MapType.Normal }]);
+        mapManager.Templates.Returns([new MapTemplate { Id = s_dungeonId, MapType = MapType.Normal }]);
 
         TestStaticDataRepositories r = TestStaticData.Repositories();
         var world = new Avalon.World.World(

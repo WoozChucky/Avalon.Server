@@ -28,7 +28,7 @@ namespace Avalon.Server.Auth.UnitTests.Services;
 public class UsernameBudgetShould
 {
     private const int Max = 5;
-    private static readonly string CorrectPassword = TestPasswords.Valid;
+    private static readonly string s_correctPassword = TestPasswords.Valid;
 
     private readonly CounterCache _counters = new();
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
@@ -214,7 +214,7 @@ public class UsernameBudgetShould
 
             IAuthConnection[] connections = Enumerable.Range(0, 8).Select(ConnectionFrom).ToArray();
             Task[] logins = connections
-                .Select((c, i) => LogInAsync(handler, c, i == correctAt ? CorrectPassword : TestPasswords.Wrong))
+                .Select((c, i) => LogInAsync(handler, c, i == correctAt ? s_correctPassword : TestPasswords.Wrong))
                 .ToArray();
             gate.SetResult();
             await Task.WhenAll(logins);
@@ -301,7 +301,7 @@ public class UsernameBudgetShould
 
             IAuthConnection[] connections = Enumerable.Range(0, 8).Select(ConnectionFrom).ToArray();
             Task[] logins = connections
-                .Select((c, i) => LogInAsync(handler, c, i == correctAt ? CorrectPassword : TestPasswords.Wrong))
+                .Select((c, i) => LogInAsync(handler, c, i == correctAt ? s_correctPassword : TestPasswords.Wrong))
                 .ToArray();
             gate.SetResult();
             await Task.WhenAll(logins);
@@ -329,7 +329,7 @@ public class UsernameBudgetShould
         string key = Assert.Single(_counters.UsernameKeys);
 
         IAuthConnection login = ConnectionFrom(9);
-        await LogInAsync(handler, login, CorrectPassword);
+        await LogInAsync(handler, login, s_correctPassword);
         Assert.Equal(AuthResult.SUCCESS, ResultOf(login));
         Assert.False(_counters.Exists(key));
 
@@ -349,7 +349,7 @@ public class UsernameBudgetShould
         IAuthConnection source = ConnectionFrom(1);
         for (int i = 0; i < 2; i++) await LogInAsync(handler, source, TestPasswords.Wrong);
 
-        await LogInAsync(handler, source, CorrectPassword);
+        await LogInAsync(handler, source, s_correctPassword);
 
         Assert.Equal(AuthResult.SUCCESS, ResultOf(source));
         string sourceKey = SourceBudget.KeyFor(source.RemoteEndPoint);
@@ -372,7 +372,7 @@ public class UsernameBudgetShould
         for (int i = 0; i < 3; i++) await LogInAsync(handler, ConnectionFrom(i), TestPasswords.Wrong);
 
         IAuthConnection connection = ConnectionFrom(9);
-        await LogInAsync(handler, connection, CorrectPassword);
+        await LogInAsync(handler, connection, s_correctPassword);
 
         Assert.Equal(AuthResult.MFA_REQUIRED, ResultOf(connection));
         string key = Assert.Single(_counters.UsernameKeys);
@@ -395,7 +395,7 @@ public class UsernameBudgetShould
         CAuthHandler handler = PasswordHandler();
         for (int i = 0; i < 3; i++) await LogInAsync(handler, ConnectionFrom(i), TestPasswords.Wrong);
 
-        await LogInAsync(handler, ConnectionFrom(9), CorrectPassword);
+        await LogInAsync(handler, ConnectionFrom(9), s_correctPassword);
         await VerifyCodeAsync(MfaHandler(), ConnectionFrom(10), "000000");
 
         string key = Assert.Single(_counters.UsernameKeys);
@@ -437,7 +437,7 @@ public class UsernameBudgetShould
         _accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(false);
         IAuthConnection connection = ConnectionFrom(1);
 
-        await LogInAsync(PasswordHandler(), connection, CorrectPassword);
+        await LogInAsync(PasswordHandler(), connection, s_correctPassword);
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, ResultOf(connection));
         Assert.Equal(1, _counters.CountOf(SourceBudget.KeyFor(connection.RemoteEndPoint)));
@@ -604,7 +604,7 @@ public class UsernameBudgetShould
         for (int i = 0; i < Max; i++) await VerifyCodeAsync(mfaHandler, ConnectionFrom(i), "000000");
 
         IAuthConnection connection = ConnectionFrom(20);
-        await LogInAsync(PasswordHandler(), connection, CorrectPassword);
+        await LogInAsync(PasswordHandler(), connection, s_correctPassword);
 
         Assert.Equal(AuthResult.LOCKED, ResultOf(connection));
         Assert.Equal(0, _verifier.Count);
@@ -654,7 +654,7 @@ public class UsernameBudgetShould
         IAuthConnection connection = ConnectionFrom(1);
 
         if (mfa) await VerifyCodeAsync(MfaHandler(), connection, "123456");
-        else await LogInAsync(PasswordHandler(), connection, CorrectPassword);
+        else await LogInAsync(PasswordHandler(), connection, s_correctPassword);
 
         Assert.Equal(AuthResult.SUCCESS, ResultOf(connection));
         Assert.True(_counters.Exists(key));
@@ -715,8 +715,8 @@ public class UsernameBudgetShould
         CAuthHandler handler = PasswordHandler();
         IAuthConnection c = ConnectionFrom(1), b = ConnectionFrom(2), a = ConnectionFrom(3);
 
-        int cIndex = logins.Start(() => LogInAsync(handler, c, CorrectPassword)); // slot 3
-        int bIndex = logins.Start(() => LogInAsync(handler, b, CorrectPassword)); // slot 4
+        int cIndex = logins.Start(() => LogInAsync(handler, c, s_correctPassword)); // slot 3
+        int bIndex = logins.Start(() => LogInAsync(handler, b, s_correctPassword)); // slot 4
         int aIndex = logins.Start(() => LogInAsync(handler, a, TestPasswords.Wrong)); // slot 5
         await logins.RunAsync(aIndex);
         Assert.Equal(Max + 1, _counters.CountOf(key));
@@ -745,8 +745,8 @@ public class UsernameBudgetShould
         var logins = new OrderedLogins(_accounts, account);
         CAuthHandler handler = PasswordHandler();
 
-        int b1 = logins.Start(() => LogInAsync(handler, ConnectionFrom(1), CorrectPassword)); // slot 3
-        int b2 = logins.Start(() => LogInAsync(handler, ConnectionFrom(2), CorrectPassword)); // slot 4
+        int b1 = logins.Start(() => LogInAsync(handler, ConnectionFrom(1), s_correctPassword)); // slot 3
+        int b2 = logins.Start(() => LogInAsync(handler, ConnectionFrom(2), s_correctPassword)); // slot 4
         int a = logins.Start(() => LogInAsync(handler, ConnectionFrom(3), TestPasswords.Wrong)); // slot 5
         await logins.RunAsync(a);
         await logins.RunAsync(b1);
@@ -883,7 +883,7 @@ public class UsernameBudgetShould
         IAuthConnection connection = ConnectionFrom(1);
 
         await server.CallListener(connection, new NetworkPacketHeader { Type = NetworkPacketType.CMSG_AUTH },
-            new CAuthPacket { Username = "testuser", Password = CorrectPassword });
+            new CAuthPacket { Username = "testuser", Password = s_correctPassword });
 
         connection.Received(1).Close();
         Assert.Equal(0, _verifier.Count);
@@ -910,7 +910,7 @@ public class UsernameBudgetShould
         {
             Interlocked.Increment(ref _count);
             _hashes.Enqueue(hash);
-            return hash == StoredHash && password == CorrectPassword;
+            return hash == StoredHash && password == s_correctPassword;
         }
     }
 }

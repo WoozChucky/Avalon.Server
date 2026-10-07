@@ -20,7 +20,7 @@ public static class AuraCatalogExport
     public const string DirectoryName = "auras";
     public const string FileName = "aura-catalog-v1.json";
 
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    private static readonly JsonSerializerOptions s_serializerOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -57,7 +57,7 @@ public static class AuraCatalogExport
                      "stacks held. durationMs and tickIntervalMs in milliseconds; 0 ticks never.",
             Auras: auras.OrderBy(a => a.Id.Value).Select(Row.From).ToList());
 
-        return JsonSerializer.Serialize(document, SerializerOptions) + "\n";
+        return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
     }
 
     private sealed record CatalogDocument(

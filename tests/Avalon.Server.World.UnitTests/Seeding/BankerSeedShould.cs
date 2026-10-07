@@ -13,7 +13,7 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// <summary>Marta Ledgerwell, the town's banker (spec #463), as the World database seeds her.</summary>
 public class BankerSeedShould
 {
-    private static readonly CreatureTemplateId Marta = new(11);
+    private static readonly CreatureTemplateId s_marta = new(11);
 
     [Fact]
     public void Seed_Marta_As_An_Unkillable_Town_Npc_That_Drops_Nothing()
@@ -21,7 +21,7 @@ public class BankerSeedShould
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        CreatureTemplate marta = context.CreatureTemplates.AsNoTracking().ToList().Single(t => t.Id == Marta);
+        CreatureTemplate marta = context.CreatureTemplates.AsNoTracking().ToList().Single(t => t.Id == s_marta);
 
         Assert.Equal("Marta Ledgerwell", marta.Name);
         Assert.True(marta.Invulnerable);
@@ -37,7 +37,7 @@ public class BankerSeedShould
         using WorldDbContext context = database.CreateDbContext();
 
         MapCreatureSpawn spawn = context.MapCreatureSpawns.AsNoTracking().ToList()
-            .Single(s => s.CreatureTemplateId == Marta);
+            .Single(s => s.CreatureTemplateId == s_marta);
 
         Assert.Equal(1u, spawn.MapTemplateId.Value);
         Assert.Equal((21.8f, 0f, 34.4f, 118f), (spawn.OffsetX, spawn.OffsetY, spawn.OffsetZ, spawn.Facing));
@@ -54,8 +54,8 @@ public class BankerSeedShould
         var actions = new DialogueActions(nodes, options);
         var catalog = new DialogueCatalog(nodes, options, NullLoggerFactory.Instance);
 
-        Assert.True(NpcInteraction.IsBanker(actions, Marta));
-        Assert.True(NpcInteraction.CanInteract(catalog, Marta));
+        Assert.True(NpcInteraction.IsBanker(actions, s_marta));
+        Assert.True(NpcInteraction.CanInteract(catalog, s_marta));
         foreach (ulong other in new ulong[] { 1, 2, 3 })
             Assert.False(NpcInteraction.IsBanker(actions, new CreatureTemplateId(other)));
     }
@@ -70,7 +70,7 @@ public class BankerSeedShould
         var catalog = new DialogueCatalog(nodes, options, NullLoggerFactory.Instance);
         var actions = new DialogueActions(nodes, options);
 
-        DialogueNodeView root = catalog.GetRoot(Marta)!;
+        DialogueNodeView root = catalog.GetRoot(s_marta)!;
 
         Assert.Equal(2, root.Options.Count);
         DialogueOptionView open = root.Options[0], farewell = root.Options[1];

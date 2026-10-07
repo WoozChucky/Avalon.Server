@@ -27,7 +27,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
     public void Dispose() => _database.Dispose();
 
     /// <summary>One browser: the same source and User-Agent for both of its tabs.</summary>
-    private static readonly RefreshCaller Tab = RefreshCaller.From(System.Net.IPAddress.Parse("203.0.113.7"), "Browser/1.0");
+    private static readonly RefreshCaller s_tab = RefreshCaller.From(System.Net.IPAddress.Parse("203.0.113.7"), "Browser/1.0");
 
     private async Task<Account> AccountAsync()
     {
@@ -118,7 +118,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var service = new RefreshTokenService(new BothReadFirst(real), new SecureRandom(), TimeProvider.System);
 
         Task<RefreshRotateResult>[] rotations =
-            [service.RotateAsync(issued.RawToken, Tab), service.RotateAsync(issued.RawToken, Tab)];
+            [service.RotateAsync(issued.RawToken, s_tab), service.RotateAsync(issued.RawToken, s_tab)];
         try { await Task.WhenAll(rotations); } catch { /* inspected below */ }
 
         Assert.Single(rotations, r => r.IsCompletedSuccessfully);
@@ -145,7 +145,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var clock = new Clock(DateTimeOffset.UtcNow);
         var service = new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), clock);
         RefreshIssueResult issued = await service.IssueAsync(account.Id, 0);
-        await service.RotateAsync(issued.RawToken, Tab);
+        await service.RotateAsync(issued.RawToken, s_tab);
         return (service, clock, issued);
     }
 
@@ -161,7 +161,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued) = await RotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(4);
 
-        Exception refused = await Assert.ThrowsAnyAsync<Exception>(() => service.RotateAsync(issued.RawToken, Tab));
+        Exception refused = await Assert.ThrowsAnyAsync<Exception>(() => service.RotateAsync(issued.RawToken, s_tab));
 
         Assert.IsType<RefreshAlreadyRotatedException>(refused);
         Assert.Equal(1, await LiveInFamilyAsync(issued.FamilyId));
@@ -215,7 +215,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued) = await RotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(6);
 
-        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, Tab));
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, s_tab));
 
         Assert.Equal(0, await LiveInFamilyAsync(issued.FamilyId));
     }
@@ -232,7 +232,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
 
         clock.Now += TimeSpan.FromSeconds(1);
 
-        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, Tab));
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, s_tab));
     }
 
     /// <summary>Records what the service logs.</summary>
@@ -256,7 +256,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var log = new RecordingLogger();
         var service = new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), clock, log);
         RefreshIssueResult issued = await service.IssueAsync(account.Id, 0);
-        await service.RotateAsync(issued.RawToken, Tab);
+        await service.RotateAsync(issued.RawToken, s_tab);
         return (service, clock, issued, log);
     }
 
@@ -292,7 +292,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued, RecordingLogger? log) = await LoggedRotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(1);
 
-        await Assert.ThrowsAsync<RefreshAlreadyRotatedException>(() => service.RotateAsync(issued.RawToken, Tab));
+        await Assert.ThrowsAsync<RefreshAlreadyRotatedException>(() => service.RotateAsync(issued.RawToken, s_tab));
 
         Assert.Empty(log.Entries);
     }

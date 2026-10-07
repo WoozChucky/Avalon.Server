@@ -21,7 +21,7 @@ public sealed class SeedTables
     public required List<AuraTemplate> AuraTemplates { get; init; }
     public required List<AuraStatModifier> AuraStatModifiers { get; init; }
 
-    private static readonly ConcurrentDictionary<Type, PropertyInfo[]> Columns = new();
+    private static readonly ConcurrentDictionary<Type, PropertyInfo[]> s_columns = new();
 
     /// <summary>
     /// A deep copy of the row lists: each row is a new object carrying the same writable public properties (the ones
@@ -47,7 +47,7 @@ public sealed class SeedTables
 
     private static List<T> CloneRows<T>(List<T> rows) where T : class, new()
     {
-        PropertyInfo[] columns = Columns.GetOrAdd(typeof(T), type => type
+        PropertyInfo[] columns = s_columns.GetOrAdd(typeof(T), type => type
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.SetMethod is { IsPublic: true } && p.GetIndexParameters().Length == 0)
             .ToArray());

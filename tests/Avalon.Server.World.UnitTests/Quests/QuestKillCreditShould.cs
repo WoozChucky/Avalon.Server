@@ -23,14 +23,14 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestKillCreditShould
 {
-    private static uint _nextCreature = 960_000;
+    private static uint s_nextCreature = 960_000;
 
     private static Creature Spawn(MapInstance instance, QuestTestWorld w, ulong template)
     {
         CreatureTemplate metadata = w.Data.CreatureTemplates.Single(t => t.Id.Value == template);
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, Interlocked.Increment(ref _nextCreature)),
+            Guid = new ObjectGuid(ObjectType.Creature, Interlocked.Increment(ref s_nextCreature)),
             Metadata = metadata,
             TemplateId = metadata.Id,
             Position = Vector3.zero,

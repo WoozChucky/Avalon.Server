@@ -19,10 +19,10 @@ public class ObjectGuidShould
     [Fact]
     public void StoreRawValue()
     {
-        const ulong raw = 0x0100000000000001UL;
-        var guid = new ObjectGuid(raw);
+        const ulong Raw = 0x0100000000000001UL;
+        var guid = new ObjectGuid(Raw);
 
-        Assert.Equal(raw, guid.RawValue);
+        Assert.Equal(Raw, guid.RawValue);
         Assert.False(guid.IsEmpty);
     }
 
@@ -117,11 +117,11 @@ public class ObjectGuidShould
     public void TruncateIdToFortyBits()
     {
         // IdMask = 0x000000FFFFFFFFFF — any bits above bit 39 are masked out
-        const uint id = 0xFFFFFFFFU;
-        var guid = new ObjectGuid(ObjectType.Character, id);
+        const uint Id = 0xFFFFFFFFU;
+        var guid = new ObjectGuid(ObjectType.Character, Id);
 
         // Lower 40 bits of uint.MaxValue fit entirely, so Id should equal uint.MaxValue
-        Assert.Equal(id & 0x000000FFFFFFFFU, (uint)(guid.Id & 0x000000FFFFFFFFU));
+        Assert.Equal(Id & 0x000000FFFFFFFFU, (uint)(guid.Id & 0x000000FFFFFFFFU));
     }
 
     [Fact]

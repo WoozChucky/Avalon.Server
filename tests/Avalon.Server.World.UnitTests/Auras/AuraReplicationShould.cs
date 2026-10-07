@@ -19,7 +19,7 @@ namespace Avalon.Server.World.UnitTests.Auras;
 /// </summary>
 public class AuraReplicationShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
 
     private async Task<IWorld> WorldAsync() => NewWorld(await TestStaticData.LoadAsync(TestStaticData.Repositories(
@@ -57,7 +57,7 @@ public class AuraReplicationShould
         Creature boar = Boar(instance, 915_901);
         instance.Auras.Apply(watcher.Character, boar, new AuraId(901), AuraSource.None);
 
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         List<SAuraListPacket> lists = watcher.Read<SAuraListPacket>(NetworkPacketType.SMSG_AURA_LIST);
         SAuraListPacket ofBoar = Assert.Single(lists, l => l.UnitGuid == boar.Guid.RawValue);
@@ -75,11 +75,11 @@ public class AuraReplicationShould
         MapInstanceClient healer = Player(instance, 915_102, 0f);
         MapInstanceClient near = Player(instance, 915_103, 5f);
         MapInstanceClient far = Player(instance, 915_104, 200f);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         instance.Auras.Apply(healer.Character, near.Character, new AuraId(905), AuraSource.None);
-        instance.Update(Tick);
-        instance.Update(Tick);
+        instance.Update(s_tick);
+        instance.Update(s_tick);
 
         foreach (MapInstanceClient told in new[] { healer, near })
         {
@@ -97,12 +97,12 @@ public class AuraReplicationShould
     {
         using MapInstance instance = TestMapInstances.Build(await WorldAsync(), time: _clock);
         MapInstanceClient player = Player(instance, 915_105, 0f);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         instance.Auras.Apply(player.Character, player.Character, new AuraId(904), AuraSource.None);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         _clock.Advance(TimeSpan.FromSeconds(13));
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         SAuraUpdatePacket last = player.Read<SAuraUpdatePacket>(NetworkPacketType.SMSG_AURA_UPDATE)[^1];
         AuraEntryDto removed = Assert.Single(last.Entries);
@@ -119,17 +119,17 @@ public class AuraReplicationShould
         using MapInstance instance = TestMapInstances.Build(await WorldAsync(), time: _clock);
         MapInstanceClient watcher = Player(instance, 915_107, 200f);
         Creature boar = Boar(instance, 915_903);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         instance.Auras.Apply(watcher.Character, boar, new AuraId(901), AuraSource.None);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.False(boar.Auras.HasChanges);
         Assert.DoesNotContain(watcher.Read<SAuraUpdatePacket>(NetworkPacketType.SMSG_AURA_UPDATE),
             u => u.UnitGuid == boar.Guid.RawValue);
 
         watcher.Character.Position = new Vector3(0f, 0f, 0f);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         SAuraListPacket ofBoar = Assert.Single(watcher.Read<SAuraListPacket>(NetworkPacketType.SMSG_AURA_LIST),
             l => l.UnitGuid == boar.Guid.RawValue);
@@ -151,20 +151,20 @@ public class AuraReplicationShould
         MapInstanceClient traveller = Player(first, 915_106, 0f);
         Creature boar = Boar(first, 915_902);
         first.Auras.Apply(boar, traveller.Character, new AuraId(901), AuraSource.None);
-        first.Update(Tick);
+        first.Update(s_tick);
 
         _clock.Advance(TimeSpan.FromSeconds(1));
         first.RemoveCharacter(traveller.Connection);
         traveller.Character.InstanceId = second.InstanceId;
         second.AddCharacter(traveller.Connection);
-        second.Update(Tick);
+        second.Update(s_tick);
 
         SAuraListPacket own = traveller.Read<SAuraListPacket>(NetworkPacketType.SMSG_AURA_LIST)[^1];
         Assert.Equal(traveller.Character.Guid.RawValue, own.UnitGuid);
         Assert.Equal(11000u, Assert.Single(own.Entries).RemainingMs);
 
         _clock.Advance(TimeSpan.FromSeconds(2));
-        second.Update(Tick);
+        second.Update(s_tick);
         Assert.Equal(497u, traveller.Character.CurrentHealth);   // its first tick, at 3 s, in the new instance
     }
 }

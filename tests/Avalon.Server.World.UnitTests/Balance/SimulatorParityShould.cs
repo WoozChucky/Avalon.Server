@@ -38,12 +38,12 @@ public class SimulatorParityShould
 {
     private const int Seed = 672;
     private const ushort Level = 3;
-    private static readonly ulong[] ForestWarrior = [7, 12, 13, 14, 15, 16];
-    private static readonly Lazy<BalanceData> SeededData = new(() => BalanceData.From(SeedSource.Load()));
-    private static BalanceData Data => SeededData.Value;
+    private static readonly ulong[] s_forestWarrior = [7, 12, 13, 14, 15, 16];
+    private static readonly Lazy<BalanceData> s_seededData = new(() => BalanceData.From(SeedSource.Load()));
+    private static BalanceData Data => s_seededData.Value;
 
     /// <summary>Close enough to the warrior (at the origin) that Hurled Axe's first step, 18 m/s for one tick, reaches it.</summary>
-    private static readonly Vector3 PointBlank = new(0f, 0f, 0.5f);
+    private static readonly Vector3 s_pointBlank = new(0f, 0f, 0.5f);
 
     private static ushort SlotOf(ItemTemplate item) =>
         Enumerable.Range(0, EquipmentSlots.FirstReserved).Select(s => (ushort)s).First(s => EquipmentSlots.TypeOf(s) == item.Slot);
@@ -55,7 +55,7 @@ public class SimulatorParityShould
         warrior.Character.Level = Level;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
         warrior.Character.Container(InventoryType.Equipment)
-            .Load(ForestWarrior.Select(Data.Item).Select(i => Inventory.TestCharacters.Item(SlotOf(i), i)).ToArray());
+            .Load(s_forestWarrior.Select(Data.Item).Select(i => Inventory.TestCharacters.Item(SlotOf(i), i)).ToArray());
         Assert.True(CharacterStatsRefresh.Apply(warrior.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid), CurrentValues.Refill, Data.Combat.Formula));
         warrior.Character.Spells.Load(abilities.Select(a => (IAbility)AbilityTestData.Game(a)).ToArray());
@@ -104,7 +104,7 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out _);
         MapInstanceClient real = RealWarrior(instance, 6760_101, Row(200));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(real.Character.EffectiveHastePct, sim.HastePct);
@@ -147,7 +147,7 @@ public class SimulatorParityShould
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_111, Row(200));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         Creature realBoar = RealBoar(instance, 6760_911, simBoar);
@@ -176,7 +176,7 @@ public class SimulatorParityShould
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_121, Row(200));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         Creature realBoar = RealBoar(instance, 6760_921, simBoar);
         IAbility realGore = AbilityTestData.Game(Row(300));
@@ -212,13 +212,13 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_151, Row(200), Row(202));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
         SimCreature simBoar = PassiveBoar(Level);
-        Creature realBoar = RealBoar(instance, 6760_951, simBoar, PointBlank);
+        Creature realBoar = RealBoar(instance, 6760_951, simBoar, s_pointBlank);
         CompiledRotationEntry[] rotation = [new(202, []), new(200, [])];
         var fight = new FightSimulator(Data.Combat.Formula, simWarrior, [simBoar], rotation, new CombatRandom(new Random(Seed)));
 
-        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, PointBlank, ticks: 600, tick =>
+        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, s_pointBlank, ticks: 600, tick =>
         {
             Assert.True(simBoar.CurrentHealth == realBoar.CurrentHealth,
                 $"tick {tick}: the boar has {realBoar.CurrentHealth} health on the server, {simBoar.CurrentHealth} simulated");
@@ -243,7 +243,7 @@ public class SimulatorParityShould
     public void Suppress_and_resume_mana_regen_around_a_wind_up_as_a_character_entity()
     {
         const uint StartMana = 40;
-        var clock = new FixedTimeProvider(ClockStart);
+        var clock = new FixedTimeProvider(s_clockStart);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             random: new CombatRandom(new Random(Seed)));
         var row = new Avalon.Domain.Characters.Character
@@ -341,7 +341,7 @@ public class SimulatorParityShould
     [Fact]
     public async Task Bleed_the_same_as_the_aura_system_tick_for_tick()
     {
-        var clock = new FixedTimeProvider(ClockStart);
+        var clock = new FixedTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             abilities: () => [TestRend()], auras: () => [TestBleed()]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
@@ -352,7 +352,7 @@ public class SimulatorParityShould
         seed.AuraTemplates.Add(TestBleed());
         seed.AbilityTemplates.Add(TestRend());
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
         simWarrior.Abilities.Add(new SimAbility(TestRend()));
         Assert.True(simWarrior.Attack.WeaponMax > 0, "the Warrior has no main hand to roll");
         SimCreature simBoar = PassiveBoar(Level);
@@ -362,7 +362,7 @@ public class SimulatorParityShould
             new CombatRandom(new Random(Seed)), data: data);
         bool carried = false;
 
-        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, PointBlank, ticks: 900, tick =>
+        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, s_pointBlank, ticks: 900, tick =>
             {
                 Assert.True(simBoar.CurrentHealth == realBoar.CurrentHealth,
                     $"tick {tick}: the boar has {realBoar.CurrentHealth} health on the server, {simBoar.CurrentHealth} simulated");
@@ -417,14 +417,14 @@ public class SimulatorParityShould
         seed.AuraTemplates.Add(poison);
         var data = BalanceData.From(seed);
 
-        var clock = new FixedTimeProvider(ClockStart);
+        var clock = new FixedTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             abilities: () => [gore], auras: () => [poison]));
         using MapInstance instance = TestMapInstances.BuildCasting(out _,
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(PoisonSeed)), time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_191, Row(200));
 
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
         var simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         foreach (SimAbility special in simBoar.Specials) special.CooldownLeft = 1_000f;   // only Gore, once
@@ -437,7 +437,7 @@ public class SimulatorParityShould
 
         for (int tick = 0; tick < 600; tick++)
         {
-            clock.Now = ClockStart + Ticks(tick);
+            clock.Now = s_clockStart + Ticks(tick);
             fight.Tick();
             if (tick == 0)
             {
@@ -453,7 +453,7 @@ public class SimulatorParityShould
                     $"the poison rolled the bottom of the boar's range: {snapshot.PerTickPerStack} a tick");
             }
 
-            instance.Update(OneTick);
+            instance.Update(s_oneTick);
 
             Assert.True(simWarrior.CurrentHealth == real.Character.CurrentHealth,
                 $"tick {tick}: the Warrior has {real.Character.CurrentHealth} health on the server, {simWarrior.CurrentHealth} simulated");
@@ -481,7 +481,7 @@ public class SimulatorParityShould
     public async Task Gain_the_same_fury_from_each_bleed_tick_as_the_aura_system()
     {
         const int Gain = 8;
-        var clock = new FixedTimeProvider(ClockStart);
+        var clock = new FixedTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             abilities: () => [TestRend(Gain)], auras: () => [TestBleed()]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
@@ -492,7 +492,7 @@ public class SimulatorParityShould
         seed.AuraTemplates.Add(TestBleed());
         seed.AbilityTemplates.Add(TestRend(Gain));
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
         simWarrior.Abilities.Add(new SimAbility(TestRend(Gain)));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_972, simBoar);
@@ -500,7 +500,7 @@ public class SimulatorParityShould
         var fight = new FightSimulator(Data.Combat.Formula, simWarrior, [simBoar], rotation,
             new CombatRandom(new Random(Seed)), data: data);
 
-        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, PointBlank, ticks: 900, tick =>
+        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, s_pointBlank, ticks: 900, tick =>
             {
                 Assert.True(simBoar.CurrentHealth == realBoar.CurrentHealth,
                     $"tick {tick}: the boar has {realBoar.CurrentHealth} health on the server, {simBoar.CurrentHealth} simulated");
@@ -527,7 +527,7 @@ public class SimulatorParityShould
         AbilityTemplate renew = Row(233);
         AuraTemplate renewAura = Data.Tables.AuraTemplates.Single(a => a.Id.Value == renew.AuraId!.Value);
         Assert.Equal(AuraPeriodicKind.Heal, renewAura.PeriodicKind);
-        var clock = new FixedTimeProvider(ClockStart);
+        var clock = new FixedTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             abilities: () => [renew], auras: () => [renewAura]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
@@ -558,7 +558,7 @@ public class SimulatorParityShould
             new CombatRandom(new Random(Seed)), data: Data);
         bool carried = false;
 
-        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, PointBlank, ticks: 1200, tick =>
+        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, s_pointBlank, ticks: 1200, tick =>
             {
                 Assert.True(simHealer.CurrentHealth == real.Character.CurrentHealth,
                     $"tick {tick}: the Healer has {real.Character.CurrentHealth} health on the server, {simHealer.CurrentHealth} simulated");
@@ -604,12 +604,12 @@ public class SimulatorParityShould
             ],
         };
         real.Character.Auras.Add(new ActiveAura(ward, real.Character.Guid, AuraSource.None, 1, default,
-            AuraSchedule.Start(ClockStart, 30000, 0), 30000, ClockStart.UtcDateTime), ClockStart);
+            AuraSchedule.Start(s_clockStart, 30000, 0), 30000, s_clockStart.UtcDateTime), s_clockStart);
         Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid), CurrentValues.KeepShare, Data.Combat.Formula));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
-        sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(ClockStart, 30000, 0), 0));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(s_clockStart, 30000, 0), 0));
         sim.ApplyAuraStats(Data);
 
         Assert.Equal(real.Character.Stats, sim.Stats);
@@ -634,7 +634,7 @@ public class SimulatorParityShould
         return boar;
     }
 
-    private static readonly DateTimeOffset ClockStart = new(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset s_clockStart = new(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary><paramref name="ticks" /> server ticks as a TimeSpan, rounded to its 100 ns units so whole seconds stay exact.</summary>
     private static TimeSpan Ticks(long ticks) =>
@@ -646,7 +646,7 @@ public class SimulatorParityShould
     /// short that a 0.6 s wind-up fires a tick later on the server than at the simulator's (float)(1/60) =
     /// 0.016666668 s, an artefact of the test's clock and not of either side.
     /// </summary>
-    private static readonly TimeSpan OneTick = Ticks(1);
+    private static readonly TimeSpan s_oneTick = Ticks(1);
 
     /// <summary>
     /// How far a real cooldown may sit from the simulated one. The real container subtracts (float)OneTick.TotalSeconds
@@ -675,7 +675,7 @@ public class SimulatorParityShould
 
         for (int tick = 0; tick < ticks; tick++)
         {
-            if (clock is not null) clock.Now = ClockStart + Ticks(tick);
+            if (clock is not null) clock.Now = s_clockStart + Ticks(tick);
             double now = tick * FightSimulator.StepSeconds;
             int castsBefore = fight.Result().Casts.Count;
             fight.Tick();
@@ -705,7 +705,7 @@ public class SimulatorParityShould
             }
 
             beforeUpdate?.Invoke();
-            instance.Update(OneTick);
+            instance.Update(s_oneTick);
 
             foreach (CompiledRotationEntry entry in rotation)
             {
@@ -729,7 +729,7 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
         MapInstanceClient real = RealWarrior(instance, 6760_131, Row(200));
         real.Character.LastCastStartTime = DateTime.UtcNow.AddSeconds(-1);
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
 
         handler.Execute(real.Connection, new CCastAbilityPacket { AbilityId = 200 });
 
@@ -775,7 +775,7 @@ public class SimulatorParityShould
         for (int tick = 0; tick < 600; tick++)
         {
             fight.Tick();
-            real.Update(OneTick);
+            real.Update(s_oneTick);
             Assert.True(real.CurrentPower == sim.CurrentPower,
                 $"tick {tick}: {real.CurrentPower} Mana on the server, {sim.CurrentPower} simulated");
         }

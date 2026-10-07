@@ -47,8 +47,8 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 public class CharacterSelectHandlerShould
 {
     private const ushort TownMapId = 1;
-    private static readonly CharacterId TheCharacter = new(7);
-    private static readonly AccountId TheAccount = new(42L);
+    private static readonly CharacterId s_theCharacter = new(7);
+    private static readonly AccountId s_theAccount = new(42L);
 
     private sealed class Fixture
     {
@@ -79,8 +79,8 @@ public class CharacterSelectHandlerShould
     {
         var row = new Character
         {
-            Id = TheCharacter,
-            AccountId = TheAccount,
+            Id = s_theCharacter,
+            AccountId = s_theAccount,
             Name = "Tester",
             Class = CharacterClass.Warrior,
             Level = 1,
@@ -94,12 +94,12 @@ public class CharacterSelectHandlerShould
         };
 
         ICharacterRepository characterRepository = Substitute.For<ICharacterRepository>();
-        characterRepository.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>())
+        characterRepository.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(row);
         characterRepository.UpdateForGameplayAsync(Arg.Any<GameplayWriteAuthority>(), row, Arg.Any<CancellationToken>()).Returns(row);
 
         ICharacterInventoryRepository inventoryRepository = Substitute.For<ICharacterInventoryRepository>();
-        inventoryRepository.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
+        inventoryRepository.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(inventoryRows ?? Array.Empty<CharacterInventory>());
 
         IItemInstanceRepository itemInstanceRepository = Substitute.For<IItemInstanceRepository>();
@@ -109,9 +109,9 @@ public class CharacterSelectHandlerShould
         ICharacterAbilityRepository abilityRepository = Substitute.For<ICharacterAbilityRepository>();
         // The character knows every ability template it is given.
         CharacterAbility[] knownAbilities = (abilityTemplates ?? [])
-            .Select(t => new CharacterAbility { CharacterId = TheCharacter, AbilityId = t.Id })
+            .Select(t => new CharacterAbility { CharacterId = s_theCharacter, AbilityId = t.Id })
             .ToArray();
-        abilityRepository.GetCharacterAbilitiesAsync(TheCharacter, Arg.Any<CancellationToken>())
+        abilityRepository.GetCharacterAbilitiesAsync(s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(knownAbilities);
 
         IMapInstance instance = Substitute.For<IMapInstance>();
@@ -141,7 +141,7 @@ public class CharacterSelectHandlerShould
         var sent = new List<NetworkPacketType>();
         var sentPackets = new List<NetworkPacket>();
         IWorldConnection connection = PendingSpawnConnection.Create();
-        connection.AccountId.Returns(TheAccount);
+        connection.AccountId.Returns(s_theAccount);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<NetworkPacket>()))
             .Do(ci =>
@@ -213,7 +213,7 @@ public class CharacterSelectHandlerShould
             var id = new ItemInstanceId(Guid.NewGuid());
             rows.Add(new CharacterInventory
             {
-                CharacterId = TheCharacter,
+                CharacterId = s_theCharacter,
                 Container = container,
                 Slot = slot,
                 ItemId = id
@@ -222,7 +222,7 @@ public class CharacterSelectHandlerShould
             {
                 Id = id,
                 TemplateId = new ItemTemplateId(template),
-                CharacterId = TheCharacter,
+                CharacterId = s_theCharacter,
                 Count = count,
                 Durability = durability,
                 Flags = flags
@@ -311,7 +311,7 @@ public class CharacterSelectHandlerShould
     {
         Fixture f = await BuildAsync();
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         f.World.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
         Assert.Null(f.Connection.Character);
@@ -323,12 +323,12 @@ public class CharacterSelectHandlerShould
     {
         ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
         quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
-            [new CharacterQuest { CharacterId = TheCharacter, QuestId = 5, State = CharacterQuestState.Active, Stage = 1 }],
-            [new CharacterQuestObjective { CharacterId = TheCharacter, QuestId = 5, ObjectiveId = 51, Progress = 2 }],
+            [new CharacterQuest { CharacterId = s_theCharacter, QuestId = 5, State = CharacterQuestState.Active, Stage = 1 }],
+            [new CharacterQuestObjective { CharacterId = s_theCharacter, QuestId = 5, ObjectiveId = 51, Progress = 2 }],
             []));
         Fixture f = await BuildAsync(quests: quests);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         f.Connection.Received(1).SetPendingSpawn(
             Arg.Is<ICharacter>(c => ((CharacterEntity)c).Quests.Get(5)!.ProgressOf(51) == 2), f.Instance, Arg.Any<long>());
@@ -344,14 +344,14 @@ public class CharacterSelectHandlerShould
         QuestTestWorld w = await QuestTestWorld.CreateAsync();
         ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
         quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
-            [new CharacterQuest { CharacterId = TheCharacter, QuestId = QuestTestData.Tusks, State = CharacterQuestState.Active, Stage = 0 }],
-            [new CharacterQuestObjective { CharacterId = TheCharacter, QuestId = QuestTestData.Tusks, ObjectiveId = QuestTestData.TusksCollect, Progress = 0 }],
+            [new CharacterQuest { CharacterId = s_theCharacter, QuestId = QuestTestData.Tusks, State = CharacterQuestState.Active, Stage = 0 }],
+            [new CharacterQuestObjective { CharacterId = s_theCharacter, QuestId = QuestTestData.Tusks, ObjectiveId = QuestTestData.TusksCollect, Progress = 0 }],
             []));
         (List<CharacterInventory> rows, List<ItemInstance> instances) =
             BuildInventory((InventoryType.Bag, 0, QuestTestData.Tusk, 2, 0, ItemInstanceFlags.None));
         Fixture f = await BuildAsync(rows, instances, itemTemplates: [QuestTestData.TuskItem()], quests: quests, questService: w.Quests);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         f.Connection.Received(1).SetPendingSpawn(
             Arg.Is<ICharacter>(c => ((CharacterEntity)c).Quests.Get(QuestTestData.Tusks)!.ProgressOf(QuestTestData.TusksCollect) == 2
@@ -367,11 +367,11 @@ public class CharacterSelectHandlerShould
     public async Task Load_the_ignore_list_before_the_pending_spawn_and_send_it()
     {
         ICharacterIgnoreRepository ignores = Substitute.For<ICharacterIgnoreRepository>();
-        ignores.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(
+        ignores.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>()).Returns(
             (IReadOnlyList<IgnoredCharacterRow>)[new IgnoredCharacterRow(9u, "Borin", DateTime.UtcNow)]);
         Fixture f = await BuildAsync(ignores: ignores);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         f.Connection.Received(1).SetPendingSpawn(
             Arg.Is<ICharacter>(c => ((CharacterEntity)c).Ignores.Contains(9)), f.Instance, Arg.Any<long>());
@@ -389,17 +389,17 @@ public class CharacterSelectHandlerShould
     public async Task Bring_the_saved_auras_back_on_the_pending_character()
     {
         ICharacterAuraRepository auras = Substitute.For<ICharacterAuraRepository>();
-        auras.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns((IReadOnlyList<CharacterAura>)
+        auras.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>()).Returns((IReadOnlyList<CharacterAura>)
         [
             new CharacterAura
             {
-                CharacterId = TheCharacter, Slot = 0, AuraId = 901, Stacks = 1, RemainingMs = 7500, DurationMs = 12000,
+                CharacterId = s_theCharacter, Slot = 0, AuraId = 901, Stacks = 1, RemainingMs = 7500, DurationMs = 12000,
                 TicksLeft = 3, TickAmount = 3f, AppliedAt = DateTime.UtcNow,
             },
         ]);
         Fixture f = await BuildAsync(auras: auras, auraTemplates: [Auras.AuraTestData.Bleed()]);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         f.Connection.Received(1).SetPendingSpawn(
             Arg.Is<ICharacter>(c => ((CharacterEntity)c).Auras.Count == 1 && ((CharacterEntity)c).Auras.HeldSince != null),
@@ -412,7 +412,7 @@ public class CharacterSelectHandlerShould
     {
         bool closing = false;
         ICharacterIgnoreRepository ignores = Substitute.For<ICharacterIgnoreRepository>();
-        ignores.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(_ =>
+        ignores.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>()).Returns(_ =>
         {
             closing = true;
             return Task.FromResult<IReadOnlyList<IgnoredCharacterRow>>([]);
@@ -421,7 +421,7 @@ public class CharacterSelectHandlerShould
         Fixture f = await BuildAsync(ignores: ignores, auras: auras);
         f.Connection.IsClosing.Returns(_ => closing);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         await auras.DidNotReceiveWithAnyArgs().GetByCharacterIdAsync(default!, default);
         f.Connection.DidNotReceiveWithAnyArgs().SetPendingSpawn(default!, default!, default);
@@ -433,7 +433,7 @@ public class CharacterSelectHandlerShould
     {
         Fixture f = await BuildAsync();
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.Contains(NetworkPacketType.SMSG_IGNORE_LIST, f.Sent);
         f.Connection.Received(1).SetPendingSpawn(Arg.Any<ICharacter>(), f.Instance, Arg.Any<long>());
@@ -448,7 +448,7 @@ public class CharacterSelectHandlerShould
     {
         Fixture f = await BuildAsync();
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.Contains(NetworkPacketType.SMSG_CHARACTER_SELECTED, f.Sent);
         Assert.Contains(NetworkPacketType.SMSG_CHARACTER_ABILITIES, f.Sent);
@@ -466,7 +466,7 @@ public class CharacterSelectHandlerShould
             AbilityTestData.HealCircle(4),
         ]);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         NetworkPacket sent = Assert.Single(
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
@@ -504,7 +504,7 @@ public class CharacterSelectHandlerShould
         f.Connection.When(c => c.SetPendingSpawn(Arg.Any<ICharacter>(), Arg.Any<IMapInstance>(), Arg.Any<long>()))
             .Do(ci => built = ci.Arg<ICharacter>());
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         NetworkPacket sent = Assert.Single(
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
@@ -547,7 +547,7 @@ public class CharacterSelectHandlerShould
             (InventoryType.Bank, 0, 30, 1u, 100u, ItemInstanceFlags.None));
         Fixture f = await BuildAsync(rows, instances);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         SInventorySnapshotPacket snapshot = DeserializeInventorySnapshot(f);
         Assert.Equal(5, snapshot.Items.Length);
@@ -572,7 +572,7 @@ public class CharacterSelectHandlerShould
     {
         Fixture f = await BuildAsync();
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         SInventorySnapshotPacket snapshot = DeserializeInventorySnapshot(f);
         // protobuf-net writes nothing for a zero-length repeated field, so an empty array round
@@ -585,7 +585,7 @@ public class CharacterSelectHandlerShould
     {
         Fixture f = await BuildAsync(money: 123_456_789_012UL);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.Equal(123_456_789_012UL, DeserializeInventorySnapshot(f).Money);
     }
@@ -614,7 +614,7 @@ public class CharacterSelectHandlerShould
         Fixture f = await BuildAsync(rows, instances, classStats: [warrior],
             itemTemplates: [EquipTemplates.Chestguard], storedHealth: 1);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
         Assert.Equal(260u, entity.Health);
@@ -658,7 +658,7 @@ public class CharacterSelectHandlerShould
         };
         Fixture f = await BuildAsync(rows, instances, classStats: [warrior], itemTemplates: [boots]);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         NetworkPacket packet = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_SELECTED);
         using var stream = new MemoryStream(packet.Payload);
@@ -677,7 +677,7 @@ public class CharacterSelectHandlerShould
     {
         Fixture f = await BuildAsync(storedHealth: 150);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
         Assert.Equal(150u, entity.Health);
@@ -692,7 +692,7 @@ public class CharacterSelectHandlerShould
     {
         Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100);
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
         Assert.Equal(100u, entity.Power);
@@ -707,7 +707,7 @@ public class CharacterSelectHandlerShould
         Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100,
             game: new GameConfiguration { FuryDecayPerSecond = 30f });
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
         entity.CurrentPower = 50;
@@ -725,10 +725,10 @@ public class CharacterSelectHandlerShould
     {
         Fixture f = await BuildAsync();
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         await f.ItemInstances.Received(1)
-            .GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>());
+            .GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -737,7 +737,7 @@ public class CharacterSelectHandlerShould
         Fixture f = await BuildAsync();
         long before = DateTime.UtcNow.Ticks;
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         long after = DateTime.UtcNow.Ticks;
         f.Connection.Received(1).SetPendingSpawn(
@@ -760,7 +760,7 @@ public class CharacterSelectHandlerShould
         f.Connection.PendingSpawn.Returns(new PendingSpawn(
             pendingCharacter, f.Instance, DateTime.UtcNow.Ticks));
 
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         f.Connection.Received().Close(Arg.Any<bool>());
         f.Connection.DidNotReceiveWithAnyArgs().SetPendingSpawn(default!, default!, default);
@@ -794,12 +794,12 @@ public class CharacterSelectHandlerShould
         };
 
         IAccountRepository accountRepository = Substitute.For<IAccountRepository>();
-        accountRepository.FindByIdAsync(TheAccount, false, Arg.Any<CancellationToken>())
+        accountRepository.FindByIdAsync(s_theAccount, false, Arg.Any<CancellationToken>())
             .Returns(account);
 
         IWorldConnection connection = Substitute.For<IWorldConnection, IAccessLevelAssignable>();
-        connection.AccountId.Returns(TheAccount);
-        connection.GameplayAuthority.Returns(new GameplayWriteAuthority(TheAccount, Guid.NewGuid(), 1));
+        connection.AccountId.Returns(s_theAccount);
+        connection.GameplayAuthority.Returns(new GameplayWriteAuthority(s_theAccount, Guid.NewGuid(), 1));
         connection.IsConnected.Returns(true);
         connection.Character.Returns((ICharacter?)null);
         connection.PendingSpawn.Returns((PendingSpawn?)null);
@@ -822,7 +822,7 @@ public class CharacterSelectHandlerShould
             Substitute.For<IWorldServer>(),
             databaseWork: InlineDatabaseWork.Instance);
 
-        handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         ((IAccessLevelAssignable)connection).DidNotReceiveWithAnyArgs().AssignAccessLevel(default);
     }

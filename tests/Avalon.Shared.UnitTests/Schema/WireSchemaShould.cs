@@ -75,8 +75,8 @@ public class WireSchemaShould
                 + $" (checked in has {checkedIn.Length} lines, generated has {regenerated.Length}).",
         };
 
-        const int contextLines = 3;
-        for (int i = Math.Max(0, first - contextLines); i < first; i++)
+        const int ContextLines = 3;
+        for (int i = Math.Max(0, first - ContextLines); i < first; i++)
         {
             report.Add($"    {i + 1,5} | {checkedIn[i]}");
         }

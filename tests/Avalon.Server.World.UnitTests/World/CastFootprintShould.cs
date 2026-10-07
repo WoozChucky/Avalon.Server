@@ -18,7 +18,7 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class CastFootprintShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private readonly TestArena _arena = new();
     private readonly InstanceAbilityCastSystem _sut;
@@ -51,7 +51,7 @@ public class CastFootprintShould
     {
         for (int i = 0; i < (int)(seconds * 60f) + 2; i++)
         {
-            _sut.Update(Tick, []);
+            _sut.Update(s_tick, []);
         }
     }
 

@@ -23,7 +23,7 @@ namespace Avalon.Server.World.UnitTests.Combat;
 /// </summary>
 public class PeriodicCombatShould
 {
-    private static readonly AuraId Bleed = new(901);
+    private static readonly AuraId s_bleed = new(901);
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
     private readonly ICombatOutcomes _outcomes = Substitute.For<ICombatOutcomes>();
     private readonly EncounterRegistry _registry;
@@ -54,7 +54,7 @@ public class PeriodicCombatShould
     }
 
     private static PeriodicHit Tick(IUnit? caster, IUnit target, float amount = 20f, float threat = 1f) =>
-        new(caster, target, Bleed, amount, new AuraSnapshot(0f, 0f, 1), AuraSource.None with { ThreatMultiplier = threat });
+        new(caster, target, s_bleed, amount, new AuraSnapshot(0f, 0f, 1), AuraSource.None with { ThreatMultiplier = threat });
 
     /// <summary>Armour 60 against level 1 takes half: 20 becomes 10.</summary>
     [Fact]
@@ -67,7 +67,7 @@ public class PeriodicCombatShould
 
         Assert.Equal(10u, dealt);
         Assert.Equal(90u, boar.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(warrior, boar, 10u, Bleed, HitResult.None, false);
+        _outcomes.Received(1).PeriodicTick(warrior, boar, 10u, s_bleed, HitResult.None, false);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class PeriodicCombatShould
         Assert.Equal(450u, warrior.CurrentHealth);
         Assert.Equal(5u, warrior.CurrentPower);   // floor(50 / 500 x 50)
         Assert.True(warrior.IsInCombat);
-        _outcomes.Received(1).PeriodicTick(null, warrior, 50u, Bleed, HitResult.None, false);
+        _outcomes.Received(1).PeriodicTick(null, warrior, 50u, s_bleed, HitResult.None, false);
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public class PeriodicCombatShould
 
         Assert.Equal(10u, restored);
         Assert.Equal(500u, target.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(healer, target, 10u, Bleed, HitResult.None, true);
+        _outcomes.Received(1).PeriodicTick(healer, target, 10u, s_bleed, HitResult.None, true);
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public class PeriodicCombatShould
 
         Assert.Equal([0u, 1u], new[] { first, second });
         Assert.Equal(401u, target.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(null, target, 1u, Bleed, HitResult.None, true);
+        _outcomes.Received(1).PeriodicTick(null, target, 1u, s_bleed, HitResult.None, true);
     }
 
     [Fact]

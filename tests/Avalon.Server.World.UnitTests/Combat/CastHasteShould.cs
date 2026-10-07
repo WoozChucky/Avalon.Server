@@ -25,7 +25,7 @@ namespace Avalon.Server.World.UnitTests.Combat;
 /// </summary>
 public class CastHasteShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private const uint CleaveId = 200;
     private const uint BurstId = 201;
@@ -69,8 +69,8 @@ public class CastHasteShould
 
     private static void TickFor(MapInstance instance, double seconds)
     {
-        for (int i = 0; i < (int)Math.Ceiling(seconds / Tick.TotalSeconds); i++)
-            instance.Update(Tick);
+        for (int i = 0; i < (int)Math.Ceiling(seconds / s_tick.TotalSeconds); i++)
+            instance.Update(s_tick);
     }
 
     [Fact]

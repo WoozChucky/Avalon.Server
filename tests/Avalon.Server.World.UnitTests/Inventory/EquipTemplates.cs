@@ -176,17 +176,17 @@ internal static class EquipTemplates
         MaxStackSize = 1,
     };
 
-    private static readonly Dictionary<ItemTemplateId, ItemTemplate> Mine = new[]
+    private static readonly Dictionary<ItemTemplateId, ItemTemplate> s_mine = new[]
     {
         Longsword, Axe, Greatsword, Buckler, IronHelm, Circlet, Band, StackedBand, Ruby, Heirloom, Chestguard, VigorAmulet,
     }.ToDictionary(t => t.Id);
 
     /// <summary>These, then TestCharacters' Potion, Sword, Relic, Pebble and Hoard. Never Ghost.</summary>
-    public static ItemTemplate? Find(ItemTemplateId id) => Mine.GetValueOrDefault(id) ?? TestCharacters.Find(id);
+    public static ItemTemplate? Find(ItemTemplateId id) => s_mine.GetValueOrDefault(id) ?? TestCharacters.Find(id);
 
     public static IReadOnlyCollection<ItemTemplate> All =>
     [
-        .. Mine.Values, TestCharacters.Potion, TestCharacters.Sword, TestCharacters.Relic, TestCharacters.Pebble,
+        .. s_mine.Values, TestCharacters.Potion, TestCharacters.Sword, TestCharacters.Relic, TestCharacters.Pebble,
         TestCharacters.Hoard,
     ];
 

@@ -26,7 +26,7 @@ public static class QuestCatalogExport
     public const string FileName = "quest-catalog-v1.json";
 
     // camelCase, matching item-catalog-v1.json and ability-catalog-v1.json.
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    private static readonly JsonSerializerOptions s_serializerOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -72,7 +72,7 @@ public static class QuestCatalogExport
                      "template for kill and talk, an item template for collect, 0 for scripted. money is copper.",
             Quests: quests.OrderBy(q => q.Id.Value).Select(q => Quest.From(q, texts)).ToList());
 
-        return JsonSerializer.Serialize(document, SerializerOptions) + "\n";
+        return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
     }
 
     private sealed record CatalogDocument(

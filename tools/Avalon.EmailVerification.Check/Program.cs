@@ -31,8 +31,8 @@ try
     var accounts = new AccountRepository(factory);
     var repo = new AccountEmailVerificationRepository(factory);
     DateTime now = DateTime.UtcNow;
-    const string first = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const string replacement = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const string First = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const string Replacement = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     if (!args.Contains("--serve"))
     {
@@ -56,7 +56,7 @@ try
         Console.WriteLine("PASS historical migration preserves credentials/roles and leaves email unverified");
 
         Account race = await accounts.CreateAsync(NewAccount("EMAILRACE", now));
-        EmailVerificationIssueResult[] issued = await Task.WhenAll(Issue(race, first, now), Issue(race, replacement, now));
+        EmailVerificationIssueResult[] issued = await Task.WhenAll(Issue(race, First, now), Issue(race, Replacement, now));
         Check(issued.Count(x => x == EmailVerificationIssueResult.Issued) == 1 && issued.Count(x => x == EmailVerificationIssueResult.Cooldown) == 1,
             "Concurrent issuers must have one winner and one cooldown.");
         string digest = (await repo.FindAsync(race.Id, default))!.TokenHash;
@@ -65,16 +65,16 @@ try
         Console.WriteLine("PASS cross-connection concurrent issuance and single consumption");
 
         Account late = await accounts.CreateAsync(NewAccount("EMAILREPLACE", now));
-        await Issue(late, first, now);
-        await Issue(late, replacement, now.AddSeconds(60));
-        bool[] cleanup = await Task.WhenAll(repo.InvalidateAsync(late.Id, first, default), repo.ConsumeAsync(late.Id, replacement, now.AddSeconds(61), default));
-        Check(!cleanup[0] && cleanup[1] && (await repo.FindAsync(late.Id, default))!.TokenHash == replacement,
+        await Issue(late, First, now);
+        await Issue(late, Replacement, now.AddSeconds(60));
+        bool[] cleanup = await Task.WhenAll(repo.InvalidateAsync(late.Id, First, default), repo.ConsumeAsync(late.Id, Replacement, now.AddSeconds(61), default));
+        Check(!cleanup[0] && cleanup[1] && (await repo.FindAsync(late.Id, default))!.TokenHash == Replacement,
             "An old send failure affected its replacement.");
         Console.WriteLine("PASS late send cleanup preserves current replacement proof");
 
         Account failed = await accounts.CreateAsync(NewAccount("EMAILFAILED", now));
-        await Issue(failed, first, now);
-        Check(await repo.InvalidateAsync(failed.Id, first, default) && !await repo.ConsumeAsync(failed.Id, first, now, default), "Failed send proof remained usable.");
+        await Issue(failed, First, now);
+        Check(await repo.InvalidateAsync(failed.Id, First, default) && !await repo.ConsumeAsync(failed.Id, First, now, default), "Failed send proof remained usable.");
         Check((await accounts.FindByIdAsync(failed.Id))!.EmailVerifiedAt is null, "Failure verified the address.");
         Console.WriteLine("PASS failed-send invalidation leaves account unverified");
 

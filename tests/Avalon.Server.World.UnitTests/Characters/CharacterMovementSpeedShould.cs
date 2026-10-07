@@ -28,14 +28,14 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// </summary>
 public class CharacterMovementSpeedShould
 {
-    private static readonly CombatFormula Seeded = CombatSeed.Formula();
+    private static readonly CombatFormula s_seeded = CombatSeed.Formula();
 
-    private static readonly ClassLevelStat[] WarriorRows =
+    private static readonly ClassLevelStat[] s_warriorRows =
     [
         new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
     ];
 
-    private static readonly ItemTemplate SwiftBoots = new()
+    private static readonly ItemTemplate s_swiftBoots = new()
     {
         Id = new ItemTemplateId(627_001),
         Name = "Swift Boots",
@@ -49,7 +49,7 @@ public class CharacterMovementSpeedShould
         new(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0, Intellect: 0, Armor: 0,
             BlockPct: 0f, DodgePct: 0f, CritPct: 0f, AttackDamage: 0, AbilityDamage: 0, MovementSpeedPct: movementPct);
 
-    private static ItemTemplate? Find(ItemTemplateId id) => id == SwiftBoots.Id ? SwiftBoots : null;
+    private static ItemTemplate? Find(ItemTemplateId id) => id == s_swiftBoots.Id ? s_swiftBoots : null;
 
     [Fact]
     public void Move_at_the_base_four_metres_a_second_with_no_gear()
@@ -57,7 +57,7 @@ public class CharacterMovementSpeedShould
         CharacterEntity character = New();
         Assert.Equal(4f, character.GetMovementSpeed());
 
-        Assert.True(CharacterStatsRefresh.Apply(character, WarriorRows, TestCombat.Factors, Find, CurrentValues.EnterWorld, Seeded));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find, CurrentValues.EnterWorld, s_seeded));
 
         Assert.Equal(4f, character.GetMovementSpeed());
     }
@@ -73,7 +73,7 @@ public class CharacterMovementSpeedShould
     {
         CharacterEntity character = New();
 
-        character.ApplyStats(Stats(pct), CurrentValues.EnterWorld, Seeded);
+        character.ApplyStats(Stats(pct), CurrentValues.EnterWorld, s_seeded);
 
         Assert.Equal(speed, character.GetMovementSpeed(), precision: 5);
     }
@@ -97,15 +97,15 @@ public class CharacterMovementSpeedShould
     public void Change_the_speed_at_the_refresh_after_a_gear_change()
     {
         CharacterEntity character = New();
-        Assert.True(CharacterStatsRefresh.Apply(character, WarriorRows, TestCombat.Factors, Find, CurrentValues.EnterWorld, Seeded));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find, CurrentValues.EnterWorld, s_seeded));
 
-        character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Feet, SwiftBoots)]);
+        character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Feet, s_swiftBoots)]);
         Assert.Equal(4f, character.GetMovementSpeed());
-        Assert.True(CharacterStatsRefresh.Apply(character, WarriorRows, TestCombat.Factors, Find, CurrentValues.KeepShare, Seeded));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find, CurrentValues.KeepShare, s_seeded));
         Assert.Equal(4.4f, character.GetMovementSpeed(), precision: 5);
 
         character.Container(InventoryType.Equipment).Load([]);
-        Assert.True(CharacterStatsRefresh.Apply(character, WarriorRows, TestCombat.Factors, Find, CurrentValues.KeepShare, Seeded));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find, CurrentValues.KeepShare, s_seeded));
         Assert.Equal(4f, character.GetMovementSpeed(), precision: 5);
     }
 
@@ -115,9 +115,9 @@ public class CharacterMovementSpeedShould
     {
         var rows = new CombatReloadShould.Rows();
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            classStats: () => WarriorRows, items: () => [SwiftBoots], combat: rows.Repository()));
+            classStats: () => s_warriorRows, items: () => [s_swiftBoots], combat: rows.Repository()));
         CharacterEntity character = New();
-        character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Feet, SwiftBoots)]);
+        character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Feet, s_swiftBoots)]);
         Assert.True(CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld));
         Assert.Equal(4.4f, character.GetMovementSpeed(), precision: 5);
 
@@ -139,17 +139,17 @@ public class CharacterMovementSpeedShould
     [Fact]
     public void Keep_the_drift_of_a_speed_change_over_one_round_trip_under_the_clients_snap()
     {
-        const float roundTrip = 0.1f;
+        const float RoundTrip = 0.1f;
         float Drift(float fromPct, float toPct) =>
-            MathF.Abs(CharacterMovement.SpeedFor(toPct, Seeded) - CharacterMovement.SpeedFor(fromPct, Seeded)) * roundTrip;
+            MathF.Abs(CharacterMovement.SpeedFor(toPct, s_seeded) - CharacterMovement.SpeedFor(fromPct, s_seeded)) * RoundTrip;
 
         Assert.Equal(0.04f, Drift(0f, 10f), precision: 5);
         Assert.True(Drift(0f, 10f) < CharacterMovement.ClientSnapThreshold);
 
         // The default cap: the whole bonus gear can give, reached in one change.
-        Assert.Equal(0.14f, Drift(0f, Seeded.MoveSpeedCap), precision: 5);
+        Assert.Equal(0.14f, Drift(0f, s_seeded.MoveSpeedCap), precision: 5);
         Assert.True(Drift(0f, float.PositiveInfinity) < CharacterMovement.ClientSnapThreshold,
-            $"the default MoveSpeedCap {Seeded.MoveSpeedCap} % drifts {Drift(0f, float.PositiveInfinity)} m over a round trip");
+            $"the default MoveSpeedCap {s_seeded.MoveSpeedCap} % drifts {Drift(0f, float.PositiveInfinity)} m over a round trip");
 
         using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
@@ -178,7 +178,7 @@ public class CharacterMovementSpeedShould
     [Fact]
     public void Keep_the_drift_of_each_seeded_movement_aura_over_one_round_trip_under_the_clients_snap()
     {
-        const float roundTrip = 0.1f;
+        const float RoundTrip = 0.1f;
         using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
         var movement = context.AuraTemplates.Include(a => a.Modifiers).AsEnumerable()
@@ -190,7 +190,7 @@ public class CharacterMovementSpeedShould
         {
             var totals = AuraStatTotals.Of([(aura.Modifiers, Math.Max(1u, aura.MaxStacks))]);
             float pct = AuraStats.Apply(0f, totals, AuraStat.MovementSpeed);
-            float drift = MathF.Abs(CharacterMovement.SpeedFor(pct, Seeded) - CharacterMovement.SpeedFor(0f, Seeded)) * roundTrip;
+            float drift = MathF.Abs(CharacterMovement.SpeedFor(pct, s_seeded) - CharacterMovement.SpeedFor(0f, s_seeded)) * RoundTrip;
             Assert.True(drift < CharacterMovement.ClientSnapThreshold,
                 $"aura {aura.Id.Value} ({aura.Name}) moves the speed {drift} m off over a round trip");
         }
@@ -202,7 +202,7 @@ public class CharacterMovementSpeedShould
     {
         CharacterEntity character = New();
         character.InstanceId = Guid.NewGuid();
-        character.ApplyStats(Stats(10f), CurrentValues.EnterWorld, Seeded);
+        character.ApplyStats(Stats(10f), CurrentValues.EnterWorld, s_seeded);
 
         IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(call => call.ArgAt<Vector3>(1));

@@ -29,14 +29,14 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class MapInstanceAbilityCastShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     /// <summary>Seven 60 Hz ticks: past the 0.1 s state broadcast interval.</summary>
     private static void TickUntilBroadcast(MapInstance instance)
     {
         for (int i = 0; i < 7; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
     }
 
@@ -227,7 +227,7 @@ public class MapInstanceAbilityCastShould
             new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
         for (int i = 0; i < 30; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
@@ -263,7 +263,7 @@ public class MapInstanceAbilityCastShould
             new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
         for (int i = 0; i < 30; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         List<(string Kind, ObjectState? State)> seen = [];
@@ -338,7 +338,7 @@ public class MapInstanceAbilityCastShould
         wizard.Character.Orientation = new Vector3(0f, 180f, 0f);   // turned round: facing -Z, towards the other
         for (int i = 0; i < 12; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.Empty(wizard.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
@@ -425,7 +425,7 @@ public class MapInstanceAbilityCastShould
             new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 20f } });
         for (int i = 0; i < 90; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.Empty(hunter.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
@@ -484,16 +484,16 @@ public class MapInstanceAbilityCastShould
             new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
         for (int i = 0; i < 3; i++)
         {
-            instance.Update(Tick);   // the projectile hits and finishes, three ticks short of the next broadcast
+            instance.Update(s_tick);   // the projectile hits and finishes, three ticks short of the next broadcast
         }
 
         Assert.Equal(40u, creature.CurrentHealth);
         instance.RemoveCharacter(caster.Connection);
-        instance.Update(Tick);   // nobody is here
+        instance.Update(s_tick);   // nobody is here
         MapInstanceClient next = Join(instance, 164_242);
         for (int i = 0; i < 30; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.DoesNotContain(next.Added(), s => new ObjectGuid(s.Guid).Type == ObjectType.SpellProjectile);

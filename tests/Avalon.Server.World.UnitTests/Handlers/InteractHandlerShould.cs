@@ -23,17 +23,17 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 
 public class InteractHandlerShould
 {
-    private static readonly ObjectGuid NpcGuid = new(ObjectType.Creature, 7);
+    private static readonly ObjectGuid s_npcGuid = new(ObjectType.Creature, 7);
 
     [Fact]
     public void Open_The_Conversation_At_The_Root_Node()
     {
         var fixture = Fixture.WithTalkingNpc();
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
         fixture.Connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class InteractHandlerShould
         var fixture = Fixture.WithTalkingNpc();
         fixture.Connection.Character.Returns((ICharacter?)null);
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
         Assert.Null(fixture.Connection.CurrentDialogue);
@@ -54,7 +54,7 @@ public class InteractHandlerShould
         var fixture = Fixture.WithTalkingNpc();
         fixture.Character.IsDead.Returns(true);
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
@@ -75,7 +75,7 @@ public class InteractHandlerShould
         var fixture = Fixture.WithTalkingNpc();
         fixture.Npc.CurrentHealth.Returns(0u);
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
@@ -86,7 +86,7 @@ public class InteractHandlerShould
         // The ordinary case for every monster in the game.
         var fixture = Fixture.WithSilentNpc();
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
         Assert.Null(fixture.Connection.CurrentDialogue);
@@ -98,7 +98,7 @@ public class InteractHandlerShould
         var fixture = Fixture.WithTalkingNpc();
         fixture.Npc.Position.Returns(new Vector3(0, 0, 50));   // 50 m away, limit is 5
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
         // A rejected interact must never leave a conversation "open" on the connection, even if the
@@ -114,7 +114,7 @@ public class InteractHandlerShould
         var fixture = Fixture.WithTalkingNpc();
         fixture.Npc.Position.Returns(new Vector3(0, 0, 6));
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
         Assert.Null(fixture.Connection.CurrentDialogue);
@@ -126,11 +126,11 @@ public class InteractHandlerShould
         // What a player expects from clicking an NPC twice, and it unwedges a client that lost the
         // window without needing a cancel packet.
         var fixture = Fixture.WithTalkingNpc();
-        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(2));
+        fixture.Connection.CurrentDialogue = (s_npcGuid, new DialogueNodeId(2));
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
-        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
+        Assert.Equal((s_npcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class InteractHandlerShould
         // deserialize it.
         var fixture = Fixture.WithTalkingNpc();
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
         SDialogueNodePacket sent = fixture.CaptureSentNode();
 
@@ -190,7 +190,7 @@ public class InteractHandlerShould
             fixture.Character.InstanceId.Returns(Guid.NewGuid());
 
             fixture.Npc = Substitute.For<ICreature>();
-            fixture.Npc.Guid.Returns(NpcGuid);
+            fixture.Npc.Guid.Returns(s_npcGuid);
             fixture.Npc.Name.Returns("Innkeeper");
             fixture.Npc.CurrentHealth.Returns(100u);
             fixture.Npc.Position.Returns(new Vector3(0, 0, 2));
@@ -199,7 +199,7 @@ public class InteractHandlerShould
             fixture.Npc.Metadata.Returns(npcMetadata);
 
             IMapInstance instance = Substitute.For<IMapInstance>();
-            instance.Creatures.Returns(new Dictionary<ObjectGuid, ICreature> { [NpcGuid] = fixture.Npc });
+            instance.Creatures.Returns(new Dictionary<ObjectGuid, ICreature> { [s_npcGuid] = fixture.Npc });
 
             IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
             registry.GetInstanceById(Arg.Any<Guid>()).Returns(instance);

@@ -13,12 +13,12 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestScriptServicesShould
 {
-    private static readonly ManualTimerClock Clock = new();
+    private static readonly ManualTimerClock s_clock = new();
 
     private static IServiceProvider Container() => new ServiceCollection()
         .AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance)
         .AddSingleton(typeof(ILogger<>), typeof(Logger<>))
-        .AddSingleton<TimeProvider>(Clock)
+        .AddSingleton<TimeProvider>(s_clock)
         .AddSingleton(Substitute.For<IWorld>())
         .AddSingleton(new object())
         .BuildServiceProvider();
@@ -30,7 +30,7 @@ public class QuestScriptServicesShould
 
         Assert.Same(NullLoggerFactory.Instance, services.GetService(typeof(ILoggerFactory)));
         Assert.IsAssignableFrom<ILogger<QuestScriptServicesShould>>(services.GetService(typeof(ILogger<QuestScriptServicesShould>)));
-        Assert.Same(Clock, services.GetService(typeof(TimeProvider)));
+        Assert.Same(s_clock, services.GetService(typeof(TimeProvider)));
     }
 
     [Theory]

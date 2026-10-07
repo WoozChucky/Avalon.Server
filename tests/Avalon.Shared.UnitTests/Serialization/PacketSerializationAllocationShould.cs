@@ -15,14 +15,14 @@ namespace Avalon.Shared.UnitTests.Serialization;
 /// </summary>
 public class PacketSerializationAllocationShould
 {
-    private static readonly byte[] Discarded = [];
+    private static readonly byte[] s_discarded = [];
 
     /// <summary>An encryption that keeps nothing, so only the serialization's own allocations count.</summary>
-    private static readonly EncryptFunc Discard = static _ => Discarded;
+    private static readonly EncryptFunc s_discard = static _ => s_discarded;
 
-    private static readonly EncryptFunc Identity = static span => span.ToArray();
+    private static readonly EncryptFunc s_identity = static span => span.ToArray();
 
-    private static readonly DateTime When = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_when = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     private static List<ObjectState> States(int count, string name)
     {
@@ -50,7 +50,7 @@ public class PacketSerializationAllocationShould
     public void Serialize_nested_messages_without_allocating_per_message()
     {
         var packet = new SInstanceStateUpdatePacket { Updates = States(100, "Bench Wolf") };
-        SInstanceStateUpdatePacket.Create(packet.Updates, Discard);
+        SInstanceStateUpdatePacket.Create(packet.Updates, s_discard);
 
         // The fewest bytes over three windows, as WaypointRepathAllocationShould takes them.
         long fewest = long.MaxValue;
@@ -58,7 +58,7 @@ public class PacketSerializationAllocationShould
         {
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int create = 0; create < 10; create++)
-                SInstanceStateUpdatePacket.Create(packet.Updates, Discard);
+                SInstanceStateUpdatePacket.Create(packet.Updates, s_discard);
 
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
@@ -85,7 +85,7 @@ public class PacketSerializationAllocationShould
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        byte[] written = SInstanceStateUpdatePacket.Create(packet.Updates, Identity).Payload;
+        byte[] written = SInstanceStateUpdatePacket.Create(packet.Updates, s_identity).Payload;
 
         Assert.Equal(reference.WrittenSpan.ToArray(), written);
     }
@@ -99,12 +99,12 @@ public class PacketSerializationAllocationShould
             CharacterId = 7,
             CharacterName = "Alice",
             Message = new string('m', 300),
-            DateTime = When,
+            DateTime = s_when,
         };
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        byte[] written = SChatMessagePacket.Create(42, 7, "Alice", new string('m', 300), When, Identity).Payload;
+        byte[] written = SChatMessagePacket.Create(42, 7, "Alice", new string('m', 300), s_when, s_identity).Payload;
 
         Assert.Equal(reference.WrittenSpan.ToArray(), written);
     }
@@ -128,7 +128,7 @@ public class PacketSerializationAllocationShould
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, expected);
 
-        byte[] written = SInstanceStateRemovePacket.Create(guids, Identity).Payload;
+        byte[] written = SInstanceStateRemovePacket.Create(guids, s_identity).Payload;
 
         Assert.Equal(reference.WrittenSpan.ToArray(), written);
     }
@@ -138,13 +138,13 @@ public class PacketSerializationAllocationShould
     public void Build_a_remove_list_at_its_size()
     {
         List<ObjectGuid> guids = Guids(100);
-        SInstanceStateRemovePacket.Create(guids, Discard);
+        SInstanceStateRemovePacket.Create(guids, s_discard);
 
         long fewest = long.MaxValue;
         for (int window = 0; window < 3; window++)
         {
             long before = GC.GetAllocatedBytesForCurrentThread();
-            SInstanceStateRemovePacket.Create(guids, Discard);
+            SInstanceStateRemovePacket.Create(guids, s_discard);
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
@@ -156,13 +156,13 @@ public class PacketSerializationAllocationShould
     [Fact]
     public void Start_each_packet_afresh_after_a_larger_one()
     {
-        SInstanceStateUpdatePacket.Create(States(400, new string('w', 200)), Identity);
+        SInstanceStateUpdatePacket.Create(States(400, new string('w', 200)), s_identity);
 
         List<ObjectState> small = States(1, "Wolf");
         var packet = new SInstanceStateUpdatePacket { Updates = small };
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        Assert.Equal(reference.WrittenSpan.ToArray(), SInstanceStateUpdatePacket.Create(small, Identity).Payload);
+        Assert.Equal(reference.WrittenSpan.ToArray(), SInstanceStateUpdatePacket.Create(small, s_identity).Payload);
     }
 }

@@ -26,7 +26,7 @@ public sealed class CrowdLocomotion : IPlayerAwareLocomotion
     /// Half-extents for the nearest-polygon search, matching <see cref="MapNavigator" />'s
     /// <c>PolyPickExt</c> so a destination WaypointLocomotion can path to is one this can too.
     /// </summary>
-    private static readonly RcVec3f PolyPickExt = new(2, 4, 2);
+    private static readonly RcVec3f s_polyPickExt = new(2, 4, 2);
 
     /// <summary>
     /// Floor for the arrival radius. A crowd agent is pushed off its exact target by separation
@@ -111,7 +111,7 @@ public sealed class CrowdLocomotion : IPlayerAwareLocomotion
 
         _routeEnds.Remove(creature.Guid);
         DtNavMeshQuery query = _crowd.GetNavMeshQuery();
-        DtStatus status = query.FindNearestPoly(ToRc(destination), PolyPickExt, _crowd.GetFilter(0),
+        DtStatus status = query.FindNearestPoly(ToRc(destination), s_polyPickExt, _crowd.GetFilter(0),
             out long refs, out RcVec3f nearest, out _);
 
         if (status.Failed() || refs == 0)

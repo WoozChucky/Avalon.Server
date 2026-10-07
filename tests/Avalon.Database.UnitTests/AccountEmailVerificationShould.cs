@@ -9,9 +9,9 @@ namespace Avalon.Database.UnitTests;
 
 public sealed class AccountEmailVerificationShould
 {
-    private static readonly DateTime Now = new(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
-    private static readonly string Digest = new('a', 64);
-    private static readonly string Replacement = new('b', 64);
+    private static readonly DateTime s_now = new(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly string s_digest = new('a', 64);
+    private static readonly string s_replacement = new('b', 64);
 
     [Fact]
     public async Task StoresDigestAndConsumesOnlyOnceWithoutChangingGameAuthority()
@@ -23,17 +23,17 @@ public sealed class AccountEmailVerificationShould
         await using (AuthDbContext context = db.CreateDbContext())
         {
             AccountEmailVerification challenge = await context.AccountEmailVerifications.SingleAsync();
-            Assert.Equal(Digest, challenge.TokenHash);
-            Assert.Equal(Now.AddMinutes(30), challenge.ExpiresAt);
+            Assert.Equal(s_digest, challenge.TokenHash);
+            Assert.Equal(s_now.AddMinutes(30), challenge.ExpiresAt);
             Assert.Null((await context.Accounts.SingleAsync(a => a.Id == account.Id)).EmailVerifiedAt);
         }
-        Assert.True(await repo.ConsumeAsync(account.Id, Digest, Now.AddMinutes(29), default));
-        Assert.False(await repo.ConsumeAsync(account.Id, Digest, Now.AddMinutes(29), default));
+        Assert.True(await repo.ConsumeAsync(account.Id, s_digest, s_now.AddMinutes(29), default));
+        Assert.False(await repo.ConsumeAsync(account.Id, s_digest, s_now.AddMinutes(29), default));
         Account? stored = await new AccountRepository(db).FindByIdAsync(account.Id);
-        Assert.Equal(Now.AddMinutes(29), stored!.EmailVerifiedAt);
+        Assert.Equal(s_now.AddMinutes(29), stored!.EmailVerifiedAt);
         Assert.Equal(0, stored.CredentialsVersion);
         Assert.Equal(0, stored.SessionEpoch);
-        Assert.Equal(EmailVerificationIssueResult.AlreadyVerified, await Issue(repo, account, Now.AddMinutes(31)));
+        Assert.Equal(EmailVerificationIssueResult.AlreadyVerified, await Issue(repo, account, s_now.AddMinutes(31)));
     }
 
     [Theory]
@@ -58,7 +58,7 @@ public sealed class AccountEmailVerificationShould
             if (cause == "banned") await target.ExecuteUpdateAsync(u => u.SetProperty(a => a.Status, AccountStatus.Banned));
         }
         AccountId presentedAccount = cause == "account" ? new AccountId(account.Id.Value + 99) : account.Id;
-        Assert.False(await repo.ConsumeAsync(presentedAccount, Digest, cause == "expiry" ? Now.AddMinutes(30) : Now.AddMinutes(1), default));
+        Assert.False(await repo.ConsumeAsync(presentedAccount, s_digest, cause == "expiry" ? s_now.AddMinutes(30) : s_now.AddMinutes(1), default));
         await using AuthDbContext read = db.CreateDbContext();
         Assert.Null((await read.AccountEmailVerifications.SingleAsync()).ConsumedAt);
         Assert.Null((await read.Accounts.SingleAsync(a => a.Id == account.Id)).EmailVerifiedAt);
@@ -71,11 +71,11 @@ public sealed class AccountEmailVerificationShould
         Account account = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("REPLACE"));
         var repo = new AccountEmailVerificationRepository(db);
         await Issue(repo, account);
-        Assert.Equal(EmailVerificationIssueResult.Cooldown, await Issue(repo, account, Now.AddSeconds(59), Replacement));
-        Assert.Equal(EmailVerificationIssueResult.Issued, await Issue(repo, account, Now.AddSeconds(60), Replacement));
-        Assert.False(await repo.InvalidateAsync(account.Id, Digest, default));
-        Assert.False(await repo.ConsumeAsync(account.Id, Digest, Now.AddSeconds(61), default));
-        Assert.True(await repo.ConsumeAsync(account.Id, Replacement, Now.AddSeconds(61), default));
+        Assert.Equal(EmailVerificationIssueResult.Cooldown, await Issue(repo, account, s_now.AddSeconds(59), s_replacement));
+        Assert.Equal(EmailVerificationIssueResult.Issued, await Issue(repo, account, s_now.AddSeconds(60), s_replacement));
+        Assert.False(await repo.InvalidateAsync(account.Id, s_digest, default));
+        Assert.False(await repo.ConsumeAsync(account.Id, s_digest, s_now.AddSeconds(61), default));
+        Assert.True(await repo.ConsumeAsync(account.Id, s_replacement, s_now.AddSeconds(61), default));
     }
 
     [Fact]
@@ -84,11 +84,11 @@ public sealed class AccountEmailVerificationShould
         using var db = SqliteDatabase.Auth();
         Account account = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("FAIL"));
         var repo = new AccountEmailVerificationRepository(db);
-        Assert.Equal(EmailVerificationIssueResult.AccountChanged, await repo.IssueAsync(account.Id, "wrong@example.test", 0, Digest, Now, Now.AddMinutes(30), TimeSpan.FromSeconds(60), default));
+        Assert.Equal(EmailVerificationIssueResult.AccountChanged, await repo.IssueAsync(account.Id, "wrong@example.test", 0, s_digest, s_now, s_now.AddMinutes(30), TimeSpan.FromSeconds(60), default));
         await Issue(repo, account);
-        Assert.True(await repo.InvalidateAsync(account.Id, Digest, default));
-        Assert.False(await repo.ConsumeAsync(account.Id, Digest, Now.AddSeconds(1), default));
-        Assert.Equal(EmailVerificationIssueResult.Cooldown, await Issue(repo, account, Now.AddSeconds(1), Replacement));
+        Assert.True(await repo.InvalidateAsync(account.Id, s_digest, default));
+        Assert.False(await repo.ConsumeAsync(account.Id, s_digest, s_now.AddSeconds(1), default));
+        Assert.Equal(EmailVerificationIssueResult.Cooldown, await Issue(repo, account, s_now.AddSeconds(1), s_replacement));
     }
 
     [Fact]
@@ -97,12 +97,12 @@ public sealed class AccountEmailVerificationShould
         using var db = SqliteDatabase.Auth();
         Account account = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("RACE"));
         var repo = new AccountEmailVerificationRepository(db);
-        EmailVerificationIssueResult[] issues = await Task.WhenAll(Issue(repo, account), Issue(repo, account, hash: Replacement));
+        EmailVerificationIssueResult[] issues = await Task.WhenAll(Issue(repo, account), Issue(repo, account, hash: s_replacement));
         Assert.Single(issues, x => x == EmailVerificationIssueResult.Issued);
         Assert.Single(issues, x => x == EmailVerificationIssueResult.Cooldown);
         await using AuthDbContext read = db.CreateDbContext();
         string digest = (await read.AccountEmailVerifications.SingleAsync()).TokenHash;
-        bool[] results = await Task.WhenAll(repo.ConsumeAsync(account.Id, digest, Now, default), repo.ConsumeAsync(account.Id, digest, Now, default));
+        bool[] results = await Task.WhenAll(repo.ConsumeAsync(account.Id, digest, s_now, default), repo.ConsumeAsync(account.Id, digest, s_now, default));
         Assert.Single(results, x => x);
     }
 
@@ -110,7 +110,7 @@ public sealed class AccountEmailVerificationShould
     public async Task OrdinaryEmailReplacementClearsVerification()
     {
         using var db = SqliteDatabase.Auth();
-        Account account = StoreAuthenticationModelShould.Account("CHANGE"); account.EmailVerifiedAt = Now;
+        Account account = StoreAuthenticationModelShould.Account("CHANGE"); account.EmailVerifiedAt = s_now;
         account = await new AccountRepository(db).CreateAsync(account);
         await using AuthDbContext context = db.CreateDbContext();
         Assert.Equal(1, await AccountRepository.SetEmailAsync(context, account.Id, "new@example.test", 0));
@@ -119,5 +119,5 @@ public sealed class AccountEmailVerificationShould
 
     private static Task<EmailVerificationIssueResult> Issue(AccountEmailVerificationRepository repo, Account account,
         DateTime? now = null, string? hash = null) => repo.IssueAsync(account.Id, account.Email!, account.CredentialsVersion,
-            hash ?? Digest, now ?? Now, (now ?? Now).AddMinutes(30), TimeSpan.FromSeconds(60), default);
+            hash ?? s_digest, now ?? s_now, (now ?? s_now).AddMinutes(30), TimeSpan.FromSeconds(60), default);
 }

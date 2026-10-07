@@ -19,11 +19,11 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 public class InstanceRegistryShould : IDisposable
 {
-    private static readonly MapTemplateId TownId = new(1);
-    private static readonly MapTemplateId DungeonId = new(2);
-    private static readonly MapTemplateId CaveId = new(3);
+    private static readonly MapTemplateId s_townId = new(1);
+    private static readonly MapTemplateId s_dungeonId = new(2);
+    private static readonly MapTemplateId s_caveId = new(3);
     private const uint CharacterId = 42;
-    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_bound = TimeSpan.FromSeconds(5);
 
     private readonly IChunkLayoutInstanceFactory _factory = Substitute.For<IChunkLayoutInstanceFactory>();
     private readonly List<TaskCompletionSource<MapInstance>> _builds = [];
@@ -36,9 +36,9 @@ public class InstanceRegistryShould : IDisposable
     {
         IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([
-            new MapTemplate { Id = TownId, MapType = MapType.Town },
-            new MapTemplate { Id = DungeonId, MapType = MapType.Normal },
-            new MapTemplate { Id = CaveId, MapType = MapType.Normal },
+            new MapTemplate { Id = s_townId, MapType = MapType.Town },
+            new MapTemplate { Id = s_dungeonId, MapType = MapType.Normal },
+            new MapTemplate { Id = s_caveId, MapType = MapType.Normal },
         ]);
 
         // Each build gets its own completion source, so the test decides when each one finishes.
@@ -65,16 +65,16 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Start_One_Town_Build_For_Callers_Arriving_While_It_Is_In_Flight()
     {
-        Task<IMapInstance> first = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
-        Task<IMapInstance> second = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        Task<IMapInstance> first = _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
+        Task<IMapInstance> second = _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
 
         Assert.Single(_builds);
 
         CompleteBuildsAndPublish();
-        IMapInstance[] results = await Task.WhenAll(first, second).WaitAsync(Bound);
+        IMapInstance[] results = await Task.WhenAll(first, second).WaitAsync(s_bound);
 
         Assert.Same(results[0], results[1]);
-        Assert.Single(_registry.ActiveInstances, i => i.TemplateId == TownId && i.MapType == MapType.Town);
+        Assert.Single(_registry.ActiveInstances, i => i.TemplateId == s_townId && i.MapType == MapType.Town);
     }
 
     /// <summary>
@@ -85,8 +85,8 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Leave_A_Finished_Build_Out_Of_The_Registry_Until_It_Is_Published()
     {
-        Task<IMapInstance> town = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
-        Task<IMapInstance> dungeon = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> town = _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
+        Task<IMapInstance> dungeon = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
 
         CompleteBuilds();
 
@@ -94,7 +94,7 @@ public class InstanceRegistryShould : IDisposable
         Assert.False(town.IsCompleted);
         Assert.False(dungeon.IsCompleted);
         // Still in flight as far as requesters can tell: a second request joins the build rather than starting one.
-        Assert.Same(dungeon, _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId));
+        Assert.Same(dungeon, _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId));
         Assert.Equal(2, _builds.Count);
 
         IReadOnlyList<MapInstance> published = _registry.PublishFinished();
@@ -103,8 +103,8 @@ public class InstanceRegistryShould : IDisposable
         Assert.True(town.IsCompletedSuccessfully);
         Assert.True(dungeon.IsCompletedSuccessfully);
         Assert.Equal(2, _registry.ActiveInstances.Count);
-        Assert.Same(await dungeon.WaitAsync(Bound),
-            await _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId).WaitAsync(Bound));
+        Assert.Same(await dungeon.WaitAsync(s_bound),
+            await _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId).WaitAsync(s_bound));
         Assert.Equal(2, _builds.Count);
     }
 
@@ -112,7 +112,7 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public void Publish_Nothing_While_No_Build_Has_Finished()
     {
-        _ = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        _ = _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
 
         Assert.Same(Array.Empty<MapInstance>(), _registry.PublishFinished());
         Assert.Empty(_registry.ActiveInstances);
@@ -126,24 +126,24 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Let_The_Next_Caller_Start_A_Fresh_Build_After_One_Fails()
     {
-        Task<IMapInstance> first = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
-        Task<IMapInstance> second = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        Task<IMapInstance> first = _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
+        Task<IMapInstance> second = _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
 
         _builds[0].SetException(new InvalidOperationException("navmesh bake failed"));
         Assert.False(first.IsCompleted); // the failure, too, reaches requesters only through the tick
         _registry.PublishFinished();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(Bound));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => second.WaitAsync(Bound));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(s_bound));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => second.WaitAsync(s_bound));
 
-        Task<IMapInstance> retry = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        Task<IMapInstance> retry = _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
 
         Assert.Equal(2, _builds.Count);
 
         CompleteBuildsAndPublish();
-        IMapInstance town = await retry.WaitAsync(Bound);
+        IMapInstance town = await retry.WaitAsync(s_bound);
 
-        Assert.Single(_registry.ActiveInstances, i => i.TemplateId == TownId && i.MapType == MapType.Town);
+        Assert.Single(_registry.ActiveInstances, i => i.TemplateId == s_townId && i.MapType == MapType.Town);
         Assert.Same(town, _registry.ActiveInstances.Single());
     }
 
@@ -154,11 +154,11 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Reuse_The_Registered_Town_Once_Its_Build_Has_Finished()
     {
-        Task<IMapInstance> first = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        Task<IMapInstance> first = _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
         CompleteBuildsAndPublish();
-        IMapInstance town = await first.WaitAsync(Bound);
+        IMapInstance town = await first.WaitAsync(s_bound);
 
-        IMapInstance later = await _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).WaitAsync(Bound);
+        IMapInstance later = await _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100).WaitAsync(s_bound);
 
         Assert.Same(town, later);
         Assert.Single(_builds);
@@ -172,13 +172,13 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Start_One_Normal_Build_For_A_Character_Entering_Twice_While_It_Is_In_Flight()
     {
-        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
-        Task<IMapInstance> second = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
+        Task<IMapInstance> second = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
 
         Assert.Single(_builds);
 
         CompleteBuildsAndPublish();
-        IMapInstance[] results = await Task.WhenAll(first, second).WaitAsync(Bound);
+        IMapInstance[] results = await Task.WhenAll(first, second).WaitAsync(s_bound);
 
         Assert.Same(results[0], results[1]);
         Assert.Single(_registry.ActiveInstances);
@@ -191,18 +191,18 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Let_A_Character_Start_A_Fresh_Normal_Build_After_One_Fails()
     {
-        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
 
         _builds[0].SetException(new InvalidOperationException("navmesh bake failed"));
         _registry.PublishFinished();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(Bound));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(s_bound));
 
-        Task<IMapInstance> retry = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> retry = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
 
         Assert.Equal(2, _builds.Count);
 
         CompleteBuildsAndPublish();
-        IMapInstance instance = await retry.WaitAsync(Bound);
+        IMapInstance instance = await retry.WaitAsync(s_bound);
 
         Assert.Same(instance, _registry.ActiveInstances.Single());
     }
@@ -214,16 +214,16 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Answer_the_requesters_of_a_build_whose_publish_throws_and_publish_the_rest()
     {
-        Task<IMapInstance> broken = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
-        Task<IMapInstance> town = _registry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        Task<IMapInstance> broken = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
+        Task<IMapInstance> town = _registry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
         _builds[0].SetResult(null!);
         CompleteBuilds();
 
         IReadOnlyList<MapInstance> published = _registry.PublishFinished();
 
-        await Assert.ThrowsAnyAsync<Exception>(() => broken.WaitAsync(Bound));
-        Assert.Same(Assert.Single(published), await town.WaitAsync(Bound));
-        _ = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        await Assert.ThrowsAnyAsync<Exception>(() => broken.WaitAsync(s_bound));
+        Assert.Same(Assert.Single(published), await town.WaitAsync(s_bound));
+        _ = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
         Assert.Equal(3, _builds.Count);
     }
 
@@ -236,7 +236,7 @@ public class InstanceRegistryShould : IDisposable
         Assert.False(unknown.IsCompleted);
         _registry.PublishFinished();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => unknown.WaitAsync(Bound));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => unknown.WaitAsync(s_bound));
         Assert.NotSame(unknown, _registry.GetOrCreateNormalInstanceAsync(CharacterId, new MapTemplateId(99)));
         Assert.Empty(_builds);
     }
@@ -248,13 +248,13 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Build_Separate_Normal_Instances_For_Different_Characters()
     {
-        Task<IMapInstance> mine = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
-        Task<IMapInstance> theirs = _registry.GetOrCreateNormalInstanceAsync(CharacterId + 1, DungeonId);
+        Task<IMapInstance> mine = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
+        Task<IMapInstance> theirs = _registry.GetOrCreateNormalInstanceAsync(CharacterId + 1, s_dungeonId);
 
         Assert.Equal(2, _builds.Count);
 
         CompleteBuildsAndPublish();
-        IMapInstance[] results = await Task.WhenAll(mine, theirs).WaitAsync(Bound);
+        IMapInstance[] results = await Task.WhenAll(mine, theirs).WaitAsync(s_bound);
 
         Assert.NotSame(results[0], results[1]);
     }
@@ -266,11 +266,11 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Return_A_Characters_Finished_Normal_Instance_On_Re_Entry()
     {
-        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
         CompleteBuildsAndPublish();
-        IMapInstance instance = await first.WaitAsync(Bound);
+        IMapInstance instance = await first.WaitAsync(s_bound);
 
-        IMapInstance again = await _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId).WaitAsync(Bound);
+        IMapInstance again = await _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId).WaitAsync(s_bound);
 
         Assert.Same(instance, again);
         Assert.Single(_builds);
@@ -284,23 +284,23 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Expire_One_Map_And_Publish_Another_For_The_Same_Character_In_Tick_Order()
     {
-        Task<IMapInstance> dungeonBuild = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> dungeonBuild = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
         CompleteBuildsAndPublish();
-        IMapInstance dungeon = await dungeonBuild.WaitAsync(Bound);
+        IMapInstance dungeon = await dungeonBuild.WaitAsync(s_bound);
 
         _clock.Now += TimeSpan.FromMinutes(15);
-        Task<IMapInstance> caveBuild = _registry.GetOrCreateNormalInstanceAsync(CharacterId, CaveId);
+        Task<IMapInstance> caveBuild = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_caveId);
         CompleteBuilds(); // the cave's build ends off the tick, queued until the next publish
 
         _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
         Assert.Null(_registry.GetInstanceById(dungeon.InstanceId));
 
         _registry.PublishFinished();
-        IMapInstance cave = await caveBuild.WaitAsync(Bound);
+        IMapInstance cave = await caveBuild.WaitAsync(s_bound);
 
-        Assert.Same(cave, await _registry.GetOrCreateNormalInstanceAsync(CharacterId, CaveId).WaitAsync(Bound));
+        Assert.Same(cave, await _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_caveId).WaitAsync(s_bound));
         Assert.Equal(2, _builds.Count);
-        _ = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        _ = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
         Assert.Equal(3, _builds.Count); // the expired dungeon's entry is gone, so a fresh one is built
     }
 
@@ -311,20 +311,20 @@ public class InstanceRegistryShould : IDisposable
     [Fact]
     public async Task Keep_The_Newer_Normal_Instance_Indexed_When_An_Older_One_Of_The_Map_Is_Freed()
     {
-        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
         CompleteBuildsAndPublish();
-        IMapInstance older = await first.WaitAsync(Bound);
+        IMapInstance older = await first.WaitAsync(s_bound);
 
         _clock.Now += TimeSpan.FromMinutes(15); // older is expired but not yet freed
-        Task<IMapInstance> second = _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId);
+        Task<IMapInstance> second = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
         Assert.Equal(2, _builds.Count);
         CompleteBuildsAndPublish();
-        IMapInstance newer = await second.WaitAsync(Bound);
+        IMapInstance newer = await second.WaitAsync(s_bound);
 
         _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
 
         Assert.Null(_registry.GetInstanceById(older.InstanceId));
-        Assert.Same(newer, await _registry.GetOrCreateNormalInstanceAsync(CharacterId, DungeonId).WaitAsync(Bound));
+        Assert.Same(newer, await _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId).WaitAsync(s_bound));
         Assert.Equal(2, _builds.Count);
     }
 

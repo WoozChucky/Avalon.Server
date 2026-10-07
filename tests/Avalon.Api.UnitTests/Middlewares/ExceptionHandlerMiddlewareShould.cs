@@ -15,12 +15,12 @@ namespace Avalon.Api.UnitTests.Middlewares;
 public class ExceptionHandlerMiddlewareShould
 {
     // A connection string as a driver might echo it, built at run time: no literal credential in source.
-    private static readonly string Secret = "postgres-server:5432 password=" + TestPasswords.Valid;
+    private static readonly string s_secret = "postgres-server:5432 password=" + TestPasswords.Valid;
 
     public static TheoryData<Exception> Outages => new()
     {
-        new FakeDbException(Secret),
-        new RedisConnectionException(ConnectionFailureType.UnableToConnect, Secret),
+        new FakeDbException(s_secret),
+        new RedisConnectionException(ConnectionFailureType.UnableToConnect, s_secret),
     };
 
     [Theory]

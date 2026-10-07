@@ -40,7 +40,7 @@ public class MapNavigatorShould
     private static MapNavigator BuildOverFlatGround()
     {
         var nav = new MapNavigator(NullLoggerFactory.Instance);
-        nav.LoadFromNavMesh(CrowdLocomotionShould.FlatNavMesh.Value);
+        nav.LoadFromNavMesh(CrowdLocomotionShould.s_flatNavMesh.Value);
         return nav;
     }
 

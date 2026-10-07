@@ -14,7 +14,7 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class InstanceTickerShould : IDisposable
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private readonly Meter _meter = new($"{nameof(InstanceTickerShould)}.{Guid.NewGuid()}");
     private readonly MeterListener _listener = new();
@@ -72,10 +72,10 @@ public class InstanceTickerShould : IDisposable
         IMapInstance town = Instance(MapType.Town);
         IMapInstance dungeon = Instance();
 
-        _sut.Tick([town, dungeon], Tick);
+        _sut.Tick([town, dungeon], s_tick);
 
-        town.Received(1).Update(Tick);
-        dungeon.Received(1).Update(Tick);
+        town.Received(1).Update(s_tick);
+        dungeon.Received(1).Update(s_tick);
     }
 
     [Fact]
@@ -85,10 +85,10 @@ public class InstanceTickerShould : IDisposable
         IMapInstance broken = Instance(throws: new InvalidOperationException("boom"));
         IMapInstance after = Instance();
 
-        _sut.Tick([before, broken, after], Tick);
+        _sut.Tick([before, broken, after], s_tick);
 
-        before.Received(1).Update(Tick);
-        after.Received(1).Update(Tick);
+        before.Received(1).Update(s_tick);
+        after.Received(1).Update(s_tick);
         (LogLevel level, Exception? exception, _) = Assert.Single(_logger.Entries);
         Assert.Equal(LogLevel.Error, level);
         Assert.IsType<InvalidOperationException>(exception);
@@ -100,28 +100,28 @@ public class InstanceTickerShould : IDisposable
     {
         IMapInstance broken = Instance(throws: new InvalidOperationException("boom"));
 
-        _sut.Tick([broken], Tick);
+        _sut.Tick([broken], s_tick);
         for (int i = 0; i < 59; i++)
         {
-            _clock.Advance(Tick);
-            _sut.Tick([broken], Tick);
+            _clock.Advance(s_tick);
+            _sut.Tick([broken], s_tick);
         }
 
         Assert.Single(_logger.Entries);
 
         _clock.Advance(InstanceTicker.FailureLogInterval);
-        _sut.Tick([broken], Tick);
+        _sut.Tick([broken], s_tick);
 
         Assert.Equal(2, _logger.Entries.Count);
         Assert.Contains("59 earlier throws", _logger.Entries[1].Message, StringComparison.Ordinal);
-        broken.Received(61).Update(Tick);
+        broken.Received(61).Update(s_tick);
     }
 
     /// <summary>The rate limit is per instance: a second broken instance is logged at once.</summary>
     [Fact]
     public void Log_each_broken_instance_on_its_own()
     {
-        _sut.Tick([Instance(throws: new InvalidOperationException("a")), Instance(throws: new InvalidOperationException("b"))], Tick);
+        _sut.Tick([Instance(throws: new InvalidOperationException("a")), Instance(throws: new InvalidOperationException("b"))], s_tick);
 
         Assert.Equal(2, _logger.Entries.Count);
     }
@@ -129,7 +129,7 @@ public class InstanceTickerShould : IDisposable
     [Fact]
     public void Time_each_instance_tagged_with_its_map_type_and_count_its_failures()
     {
-        _sut.Tick([Instance(MapType.Town), Instance(), Instance(throws: new InvalidOperationException("boom"))], Tick);
+        _sut.Tick([Instance(MapType.Town), Instance(), Instance(throws: new InvalidOperationException("boom"))], s_tick);
 
         var durations =
             _measurements.Where(m => m.Name == "world.instance.update.duration").ToList();
@@ -143,7 +143,7 @@ public class InstanceTickerShould : IDisposable
     [Fact]
     public void Tick_nothing_and_record_nothing_with_no_instances()
     {
-        _sut.Tick([], Tick);
+        _sut.Tick([], s_tick);
 
         Assert.Empty(_measurements);
         Assert.Empty(_logger.Entries);

@@ -76,7 +76,7 @@ public class MapInstanceLocomotionShould
     public void Sync_Every_Characters_Position_Into_The_Crowd_Each_Tick_When_The_Flag_Is_On()
     {
         (MapInstance instance, _) = BuildInstanceWithCreature(crowdIncludesPlayers: true);
-        var crowd = new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value,
+        var crowd = new CrowdLocomotion(CrowdLocomotionShould.s_flatNavMesh.Value,
             NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
         SetLocomotion(instance, crowd);
 
@@ -90,7 +90,7 @@ public class MapInstanceLocomotionShould
     public void Sync_No_Players_Into_The_Crowd_When_The_Flag_Is_Off()
     {
         (MapInstance instance, _) = BuildInstanceWithCreature(crowdIncludesPlayers: false);
-        var crowd = new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value,
+        var crowd = new CrowdLocomotion(CrowdLocomotionShould.s_flatNavMesh.Value,
             NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
         SetLocomotion(instance, crowd);
 
@@ -277,7 +277,7 @@ public class MapInstanceLocomotionShould
     // reached the locomotion at all, and nothing anywhere drove the production script loop and the
     // production locomotion together, so their order was free.
 
-    private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(0.25);
+    private static readonly TimeSpan s_tickInterval = TimeSpan.FromSeconds(0.25);
 
     /// <summary>
     /// F1, waypoint side. A creature killed mid-approach used to keep walking its remaining path:
@@ -301,7 +301,7 @@ public class MapInstanceLocomotionShould
         // What a chasing script would have left behind: a long queued path and a moving MoveState.
         instance.Locomotion.MoveTo(creature, new Vector3(20f, 0f, 0f));
         creature.MoveState = MoveState.Running;
-        instance.Update(TickInterval);
+        instance.Update(s_tickInterval);
 
         Assert.NotEqual(Vector3.zero, creature.Position); // fixture check: it really was walking
 
@@ -310,7 +310,7 @@ public class MapInstanceLocomotionShould
 
         // 30 simulated seconds — far more than the ~5s the remaining 20-unit path would have taken.
         for (int tick = 0; tick < 120; tick++)
-            instance.Update(TickInterval);
+            instance.Update(s_tickInterval);
 
         Assert.Equal(whereItFell, creature.Position);
         Assert.Equal(MoveState.Idle, creature.MoveState);
@@ -341,7 +341,7 @@ public class MapInstanceLocomotionShould
 
         instance.Locomotion.MoveTo(creature, new Vector3(20f, 0f, 0f));
         creature.MoveState = MoveState.Running;
-        instance.Update(TickInterval);
+        instance.Update(s_tickInterval);
 
         Assert.NotEqual(Vector3.zero, creature.Position); // fixture check: it really was walking
         Vector3 whereItStood = creature.Position;
@@ -353,7 +353,7 @@ public class MapInstanceLocomotionShould
 
         // And it actually stays put: with the agent gone, nothing should advance it further either.
         for (int tick = 0; tick < 60; tick++)
-            instance.Update(TickInterval);
+            instance.Update(s_tickInterval);
 
         Assert.Equal(whereItStood, creature.Position);
     }
@@ -371,7 +371,7 @@ public class MapInstanceLocomotionShould
     public void Remove_A_Killed_Creatures_Crowd_Agent()
     {
         (MapInstance instance, _) = BuildKillableInstance();
-        var crowd = new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value,
+        var crowd = new CrowdLocomotion(CrowdLocomotionShould.s_flatNavMesh.Value,
             NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
         SetLocomotion(instance, crowd);
 
@@ -507,7 +507,7 @@ public class MapInstanceLocomotionShould
         script.OnEnteredRange(target);
         creature.Script = script;
 
-        instance.Update(TickInterval);
+        instance.Update(s_tickInterval);
 
         Assert.NotEqual(Vector3.zero, creature.Position);
     }
@@ -594,11 +594,11 @@ public class MapInstanceLocomotionShould
     /// </summary>
     private static List<Vector3> StepwisePath(Vector3 from, Vector3 to)
     {
-        const float stepSize = 0.5f;
+        const float StepSize = 0.5f;
         var path = new List<Vector3> { from };
 
         float total = Vector3.Distance(from, to);
-        for (float walked = stepSize; walked < total; walked += stepSize)
+        for (float walked = StepSize; walked < total; walked += StepSize)
             path.Add(Vector3.MoveTowards(from, to, walked));
 
         path.Add(to);
@@ -612,7 +612,7 @@ public class MapInstanceLocomotionShould
     /// selection actually reads: the configuration, and the navigator.
     /// </summary>
     /// <param name="withBakedNavMesh">
-    /// True loads <see cref="CrowdLocomotionShould.FlatNavMesh" /> into a real
+    /// True loads <see cref="CrowdLocomotionShould.s_flatNavMesh" /> into a real
     /// <see cref="MapNavigator" /> before construction (the success path for Crowd). False, the
     /// default, builds a real <see cref="MapNavigator" /> that is never loaded, so its
     /// <see cref="MapNavigator.NavMesh" /> stays null — one of the two fallback conditions. Ignored
@@ -646,7 +646,7 @@ public class MapInstanceLocomotionShould
         {
             var mapNavigator = new MapNavigator(NullLoggerFactory.Instance);
             if (withBakedNavMesh)
-                mapNavigator.LoadFromNavMesh(CrowdLocomotionShould.FlatNavMesh.Value);
+                mapNavigator.LoadFromNavMesh(CrowdLocomotionShould.s_flatNavMesh.Value);
             navigator = mapNavigator;
         }
 

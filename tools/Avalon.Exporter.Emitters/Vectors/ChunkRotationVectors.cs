@@ -136,7 +136,10 @@ public static class ChunkRotationVectors
     {
         const ushort N_C = 1 << 1;
         const ushort E_C = 1 << 4;
+        // N_C, E_C, S_C and W_C name the edge bits as a set; IDE1006 reads the S_ of S_C as a static-field prefix.
+#pragma warning disable IDE1006
         const ushort S_C = 1 << 7;
+#pragma warning restore IDE1006
         const ushort W_C = 1 << 10;
 
         return

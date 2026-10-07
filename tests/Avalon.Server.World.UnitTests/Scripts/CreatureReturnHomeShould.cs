@@ -29,10 +29,10 @@ namespace Avalon.Server.World.UnitTests.Scripts;
 /// </summary>
 public class CreatureReturnHomeShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(0.05);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(0.05);
 
     /// <summary>A flat 120 x 120 ground at height 0, from -60 to 60 on X and Z.</summary>
-    private static readonly Lazy<DtNavMesh> Ground = new(BakeGround, isThreadSafe: true);
+    private static readonly Lazy<DtNavMesh> s_ground = new(BakeGround, isThreadSafe: true);
 
     private static DtNavMesh BakeGround()
     {
@@ -175,12 +175,12 @@ public class CreatureReturnHomeShould
             if (mover == Mover.Waypoint)
             {
                 var navigator = new MapNavigator(NullLoggerFactory.Instance);
-                navigator.LoadFromNavMesh(Ground.Value);
+                navigator.LoadFromNavMesh(s_ground.Value);
                 _real = new WaypointLocomotion(_ => navigator);
             }
             else
             {
-                _real = new CrowdLocomotion(Ground.Value, NavmeshBuildSettings.AgentRadius, NullLogger.Instance);
+                _real = new CrowdLocomotion(s_ground.Value, NavmeshBuildSettings.AgentRadius, NullLogger.Instance);
             }
 
             Locomotion = new JammableLocomotion(_real, this);
@@ -244,7 +244,7 @@ public class CreatureReturnHomeShould
         {
             for (int i = 0; i < 600; i++)
             {
-                _targetPosition += new Vector3(6f * (float)Tick.TotalSeconds, 0f, 0f);
+                _targetPosition += new Vector3(6f * (float)s_tick.TotalSeconds, 0f, 0f);
                 Step();
                 if (Returning)
                     return;
@@ -268,8 +268,8 @@ public class CreatureReturnHomeShould
 
         private void Step()
         {
-            Script.Update(Tick);   // the AI first...
-            Locomotion.Update(Tick); // ...then the locomotion, as MapInstance does
+            Script.Update(s_tick);   // the AI first...
+            Locomotion.Update(s_tick); // ...then the locomotion, as MapInstance does
         }
 
         /// <summary>

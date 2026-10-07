@@ -8,13 +8,13 @@ namespace Avalon.Balance.UnitTests;
 public class ConfigSaveShould
 {
     /// <summary>Every property, nothing skipped: two configs with the same neutral JSON are equal field by field.</summary>
-    private static readonly JsonSerializerOptions Neutral = new()
+    private static readonly JsonSerializerOptions s_neutral = new()
     {
         Converters = { new JsonStringEnumConverter() },
     };
 
-    private static string Neutral_(BalanceConfig c) => JsonSerializer.Serialize(c.Scenarios, Neutral)
-        + JsonSerializer.Serialize(c.Targets, Neutral) + JsonSerializer.Serialize(c.Rotations, Neutral);
+    private static string Neutral_(BalanceConfig c) => JsonSerializer.Serialize(c.Scenarios, s_neutral)
+        + JsonSerializer.Serialize(c.Targets, s_neutral) + JsonSerializer.Serialize(c.Rotations, s_neutral);
 
     private static BalanceConfig Reload(BalanceConfig config)
     {

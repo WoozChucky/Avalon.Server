@@ -10,7 +10,7 @@ namespace Avalon.Server.World.UnitTests.Parties;
 
 public class PartyEligibilityShould
 {
-    private static readonly Vector3 Corpse = new(0, 0, 0);
+    private static readonly Vector3 s_corpse = new(0, 0, 0);
 
     private readonly PartyTestWorld _w = new();
     private readonly PartyClient _a;
@@ -26,7 +26,7 @@ public class PartyEligibilityShould
         _d = _w.Online(4, "D");
         _w.Form(_a, _b, _c, _d);
         foreach (PartyClient client in new[] { _a, _b, _c, _d })
-            client.Character.Position = Corpse;
+            client.Character.Position = s_corpse;
     }
 
     private Party Party => _w.Parties.PartyOf(_a.Id)!;
@@ -43,7 +43,7 @@ public class PartyEligibilityShould
 
     private static IReadOnlyList<ICharacter> For(ICharacter? killer, Party? party,
         Dictionary<ObjectGuid, ICharacter> present, Func<uint, bool>? inCountdown = null, IEncounter? encounter = null) =>
-        PartyEligibility.For(killer, party, present, inCountdown ?? (_ => false), encounter, Corpse, range: 60f);
+        PartyEligibility.For(killer, party, present, inCountdown ?? (_ => false), encounter, s_corpse, range: 60f);
 
     [Fact]
     public void Count_a_member_in_the_encounter_or_within_range_and_always_the_killer()

@@ -13,7 +13,7 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
 {
     public static readonly TimeSpan InstallerTtl = TimeSpan.FromMinutes(15);
     public static readonly TimeSpan BlobTtl = TimeSpan.FromHours(1);
-    private static readonly TimeSpan CacheFor = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan s_cacheFor = TimeSpan.FromSeconds(60);
     private const string WindowsPlatform = "windows-x86_64";
 
     public async Task<LauncherDto?> GetLauncherAsync(CancellationToken ct)
@@ -157,17 +157,17 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
 
     // An entry that cannot be read is remembered as such, for as long as a listing: re-reading it on every
     // request would cost one storage read per request for as long as it sits in the bucket.
-    private static readonly ChangelogEntryDto Unreadable = new("", null, "", null, default, null, []);
+    private static readonly ChangelogEntryDto s_unreadable = new("", null, "", null, default, null, []);
 
     /// <summary>An entry is immutable once published, so it is kept without expiry.</summary>
     private async Task<ChangelogEntryDto?> ChangelogEntryAsync(string key, CancellationToken ct)
     {
         if (cache.TryGetValue(("changelog-entry", key), out ChangelogEntryDto? hit))
-            return ReferenceEquals(hit, Unreadable) ? null : hit;
+            return ReferenceEquals(hit, s_unreadable) ? null : hit;
         ChangelogEntryDto? entry = await store.GetChangelogEntryAsync(key, ct);
         if (entry is null)
         {
-            cache.Set(("changelog-entry", key), Unreadable, CacheFor);
+            cache.Set(("changelog-entry", key), s_unreadable, s_cacheFor);
             return null;
         }
 
@@ -225,7 +225,7 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
             return hit;
         T? value = await read();
         if (value is not null)
-            cache.Set(key, value, CacheFor);
+            cache.Set(key, value, s_cacheFor);
         return value;
     }
 }

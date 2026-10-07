@@ -93,10 +93,10 @@ public class AccessLevelsShould
     [Fact]
     public void Agree_With_ForWorld_For_Every_Required_And_Actual_Combination()
     {
-        const int all = 0b11_1111;
-        for (int required = 0; required <= all; required++)
+        const int All = 0b11_1111;
+        for (int required = 0; required <= All; required++)
         {
-            for (int actual = 0; actual <= all; actual++)
+            for (int actual = 0; actual <= All; actual++)
             {
                 var r = (AccountAccessLevel)required;
                 var a = (AccountAccessLevel)actual;

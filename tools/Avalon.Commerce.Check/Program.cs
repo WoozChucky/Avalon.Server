@@ -99,12 +99,12 @@ try
 
     Account source = await accounts.CreateAsync(NewAccount("COMMERCESTORE", now, true));
     Account target = await accounts.CreateAsync(NewAccount("COMMERCEWEB", now));
-    const string subject = "76561198000000123";
-    await new ExternalIdentityRepository(factory, clock).LinkAsync(source.Id, "steam", subject, now);
+    const string Subject = "76561198000000123";
+    await new ExternalIdentityRepository(factory, clock).LinkAsync(source.Id, "steam", Subject, now);
     PurchaseReservationResult moving = await repo.ReserveAsync(Reservation(source.Id, now));
     PaymentAttemptClaim movingClaim = (await repo.ClaimAttemptAsync(moving.Attempt!.Id, DateTime.UtcNow, TimeSpan.FromMinutes(2)))!;
     var consolidation = new AccountConsolidationRepository(factory, clock);
-    var request = new AccountConsolidationRequest(Guid.NewGuid(), target.Id, subject, target.CredentialsVersion, target.SessionEpoch, null,
+    var request = new AccountConsolidationRequest(Guid.NewGuid(), target.Id, Subject, target.CredentialsVersion, target.SessionEpoch, null,
         [new WorldId(1)], now.AddMinutes(2));
     Task<PurchaseReconciliationResult> paymentTask = repo.ApplySnapshotAsync(new(movingClaim, moving.Order!.Version, Snapshot(moving.Order.Id, moving.Attempt.Id, "moving", now)));
     Task<AccountConsolidationResult> consolidationTask = consolidation.BeginAsync(request, default);

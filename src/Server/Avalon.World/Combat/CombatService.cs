@@ -32,7 +32,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     private readonly Func<CombatFormula> _formula;
 
     /// <summary>The seeded formula, for a service built without an accessor (tests).</summary>
-    private static readonly CombatFormula SeededFormula = CombatSeed.Formula();
+    private static readonly CombatFormula s_seededFormula = CombatSeed.Formula();
 
     /// <param name="outcomes">Where hits and kills are reported (#546): the instance this service belongs to.</param>
     /// <param name="time">The instance's clock, the one taunts end by (#614).</param>
@@ -48,7 +48,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         Func<CombatFormula>? formula = null)
     {
         _random = random ?? CombatRandom.Steady;
-        _formula = formula ?? (() => SeededFormula);
+        _formula = formula ?? (() => s_seededFormula);
         _time = time ?? TimeProvider.System;
         _furyFromDamageTaken = furyFromDamageTaken;
         _config = config;

@@ -171,7 +171,7 @@ public class DialogueSeedShould
             "these strings have no ptPT translation: " + string.Join(", ", untranslated));
     }
 
-    private static readonly string[] KnownTokens = ["name", "class", "level"];
+    private static readonly string[] s_knownTokens = ["name", "class", "level"];
 
     [Fact]
     public void Use_Only_Known_Tokens_In_Every_String()
@@ -186,7 +186,7 @@ public class DialogueSeedShould
         {
             foreach (string token in ValueTokens(text.Text))
             {
-                if (!KnownTokens.Contains(token)) offenders.Add($"text {text.Id.Value}: {{{token}}}");
+                if (!s_knownTokens.Contains(token)) offenders.Add($"text {text.Id.Value}: {{{token}}}");
             }
         }
 
@@ -194,7 +194,7 @@ public class DialogueSeedShould
         {
             foreach (string token in ValueTokens(locale.Text))
             {
-                if (!KnownTokens.Contains(token))
+                if (!s_knownTokens.Contains(token))
                 {
                     offenders.Add($"text {locale.TextId.Value} ({locale.Locale}): {{{token}}}");
                 }

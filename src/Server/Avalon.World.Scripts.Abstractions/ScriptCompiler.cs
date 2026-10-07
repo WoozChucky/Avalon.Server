@@ -28,7 +28,7 @@ public class ScriptCompiler : IScriptCompiler
     private const string ScriptExtension = ".cs";
     private const int DebounceDelayMs = 500; // Delay in milliseconds to wait before compiling the script
 
-    private static readonly List<MetadataReference> References =
+    private static readonly List<MetadataReference> s_references =
     [
         MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
@@ -43,7 +43,7 @@ public class ScriptCompiler : IScriptCompiler
         MetadataReference.CreateFromFile(typeof(ValueType).Assembly.Location)
     ];
 
-    private static readonly List<string> DefaultUsings =
+    private static readonly List<string> s_defaultUsings =
     [
         "System",
         "System.Collections.Generic",
@@ -83,7 +83,7 @@ public class ScriptCompiler : IScriptCompiler
         _watcher.Deleted += OnScriptChanged;
         _watcher.Renamed += OnScriptChanged;
 
-        References.AddRange(AppDomain.CurrentDomain.GetAssemblies()
+        s_references.AddRange(AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic) // Only include non-dynamic assemblies
             .Select(a => MetadataReference.CreateFromFile(a.Location)));
     }
@@ -137,7 +137,7 @@ public class ScriptCompiler : IScriptCompiler
         {
             string code = await File.ReadAllTextAsync(file, CancellationToken.None);
 
-            foreach (string defaultUsing in DefaultUsings)
+            foreach (string defaultUsing in s_defaultUsings)
             {
                 if (!code.Contains($"using {defaultUsing};"))
                 {
@@ -152,7 +152,7 @@ public class ScriptCompiler : IScriptCompiler
         var compilation = CSharpCompilation.Create(
             $"Scripts_{Guid.NewGuid()}",
             syntaxTrees,
-            References,
+            s_references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
         );
 

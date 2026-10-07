@@ -25,8 +25,8 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 /// <summary>The wiring around LootPickup: who hears what. The rules themselves are LootPickupShould's.</summary>
 public class LootPickupHandlerShould
 {
-    private static readonly DateTimeOffset Now = new(2026, 9, 25, 12, 0, 0, TimeSpan.Zero);
-    private static readonly ObjectGuid DropGuid = new(ObjectType.Loot, 1);
+    private static readonly DateTimeOffset s_now = new(2026, 9, 25, 12, 0, 0, TimeSpan.Zero);
+    private static readonly ObjectGuid s_dropGuid = new(ObjectType.Loot, 1);
 
     private readonly GroundLootStore _store = new();
     private readonly IMapInstance _instance = Substitute.For<IMapInstance, IGroundLootHost>();
@@ -58,19 +58,19 @@ public class LootPickupHandlerShould
         _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => _sent.Add(ci.Arg<NetworkPacket>()));
 
-        _handler = new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world, economy, new FixedTimeProvider(Now));
+        _handler = new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world, economy, new FixedTimeProvider(s_now));
     }
 
     private void DropGold(Vector3 at) => _store.Add(new GroundLoot
     {
-        Guid = DropGuid,
+        Guid = s_dropGuid,
         Position = at,
         Gold = 25,
         OwnerCharacterId = 7,
-        FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
+        FreeForAllAt = s_now.UtcDateTime.AddSeconds(30)
     });
 
-    private void PickUp() => _handler.Execute(_connection, new CLootPickupPacket { LootGuid = DropGuid.RawValue });
+    private void PickUp() => _handler.Execute(_connection, new CLootPickupPacket { LootGuid = s_dropGuid.RawValue });
 
     private SLootPickupResultPacket Result()
     {
@@ -88,9 +88,9 @@ public class LootPickupHandlerShould
 
         SLootPickupResultPacket result = Result();
         Assert.Equal(LootPickupResult.Ok, result.Result);
-        Assert.Equal(DropGuid.RawValue, result.LootGuid);
+        Assert.Equal(s_dropGuid.RawValue, result.LootGuid);
         ((IGroundLootHost)_instance).Received(1).BroadcastLootDespawned(
-            Arg.Is<IReadOnlyCollection<ObjectGuid>>(g => g.Single() == DropGuid));
+            Arg.Is<IReadOnlyCollection<ObjectGuid>>(g => g.Single() == s_dropGuid));
         // The inventory update is not sent here: InventoryUpdateFlusher sends it at the end of the tick.
         Assert.True(_character.ClientChanges.MoneyChanged);
     }
@@ -112,12 +112,12 @@ public class LootPickupHandlerShould
         // 999 is in no template list: an Items reload removed it after the kill rolled it.
         _store.Add(new GroundLoot
         {
-            Guid = DropGuid,
+            Guid = s_dropGuid,
             Position = Vector3.zero,
             ItemTemplateId = new ItemTemplateId(999),
             Count = 1,
             OwnerCharacterId = 7,
-            FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
+            FreeForAllAt = s_now.UtcDateTime.AddSeconds(30)
         });
 
         PickUp();
@@ -125,7 +125,7 @@ public class LootPickupHandlerShould
         Assert.Equal(LootPickupResult.NotFound, Result().Result);
         Assert.Equal(0, _store.Count);
         ((IGroundLootHost)_instance).Received(1).BroadcastLootDespawned(
-            Arg.Is<IReadOnlyCollection<ObjectGuid>>(g => g.Single() == DropGuid));
+            Arg.Is<IReadOnlyCollection<ObjectGuid>>(g => g.Single() == s_dropGuid));
     }
 
     [Fact]
@@ -137,9 +137,9 @@ public class LootPickupHandlerShould
         world.InstanceRegistry.Returns(registry);
         world.Configuration.Returns(new GameConfiguration());
         var handler = new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world,
-            Substitute.For<ICharacterEconomy>(), new FixedTimeProvider(Now));
+            Substitute.For<ICharacterEconomy>(), new FixedTimeProvider(s_now));
 
-        handler.Execute(_connection, new CLootPickupPacket { LootGuid = DropGuid.RawValue });
+        handler.Execute(_connection, new CLootPickupPacket { LootGuid = s_dropGuid.RawValue });
 
         Assert.Equal(LootPickupResult.NotFound, Result().Result);
     }
@@ -183,12 +183,12 @@ public class LootPickupHandlerShould
     {
         _store.Add(new GroundLoot
         {
-            Guid = DropGuid,
+            Guid = s_dropGuid,
             Position = Vector3.zero,
             ItemTemplateId = Potion.Id,
             Count = 3,
             OwnerCharacterId = 7,
-            FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
+            FreeForAllAt = s_now.UtcDateTime.AddSeconds(30)
         });
 
         PickUp();

@@ -8,14 +8,14 @@ namespace Avalon.Server.World.UnitTests.Procedural;
 
 public class ChunkGenWritersShould
 {
-    private static readonly ChunkPiece Sample = new("test_piece", [Side.N, Side.S],
+    private static readonly ChunkPiece s_sample = new("test_piece", [Side.N, Side.S],
         [new BoxBlocker(4, 10, 4, 10), new CylinderBlocker(22, 22, 2)],
         [new Slot("pack", 15, 15)], ["forest", "test"]);
 
     [Fact]
     public void Write_the_chunk_json_in_the_catalogs_layout()
     {
-        string json = ChunkJsonWriter.Write(Sample.ToMeta());
+        string json = ChunkJsonWriter.Write(s_sample.ToMeta());
 
         Assert.Equal("""
             {
@@ -44,7 +44,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Write_portal_slots_in_the_catalogs_layout()
     {
-        ChunkMetaDto meta = Sample.ToMeta() with { PortalSlots = [new PortalSlotDto("Forward", 15, 0, 15)] };
+        ChunkMetaDto meta = s_sample.ToMeta() with { PortalSlots = [new PortalSlotDto("Forward", 15, 0, 15)] };
 
         string json = ChunkJsonWriter.Write(meta);
 
@@ -59,7 +59,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Wind_every_face_outward()
     {
-        string obj = ObjWriter.Write(Sample);
+        string obj = ObjWriter.Write(s_sample);
         var vertices = new List<Vector3>();
         string current = "";
         var objects = new Dictionary<string, List<Vector3>>();
@@ -97,7 +97,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Bake_a_floor_that_a_blocker_cuts()
     {
-        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(Sample), 0, 0)]);
+        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(s_sample), 0, 0)]);
 
         Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(15f, 1f, 15f), out Vector3 ground));
         Assert.InRange(ground.y, -0.3f, 0.3f);
@@ -115,7 +115,7 @@ public class ChunkGenWritersShould
         try
         {
             CopyDirectory(Path.Combine(AppContext.BaseDirectory, "Maps"), root);
-            foreach ((string name, string obj, string json) in ChunkFiles.For([Sample]))
+            foreach ((string name, string obj, string json) in ChunkFiles.For([s_sample]))
             {
                 File.WriteAllText(Path.Combine(root, "Chunks", name + ".obj"), obj);
                 File.WriteAllText(Path.Combine(root, "Chunks", name + ".json"), json);
@@ -193,7 +193,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Refuse_a_single_piece_blocker_outside_its_cell()
     {
-        ChunkPiece piece = Sample with { Name = "bad", Blockers = [new BoxBlocker(25, 32, 5, 10)] };
+        ChunkPiece piece = s_sample with { Name = "bad", Blockers = [new BoxBlocker(25, 32, 5, 10)] };
 
         InvalidOperationException refusal = Assert.Throws<InvalidOperationException>(() => ChunkFiles.For([piece]));
         Assert.Contains("bad", refusal.Message, StringComparison.Ordinal);
@@ -205,14 +205,14 @@ public class ChunkGenWritersShould
     [InlineData(float.NaN, 5f)]
     public void Refuse_a_single_piece_slot_outside_its_cell(float x, float z)
     {
-        ChunkPiece piece = Sample with { Name = "bad", Slots = [new Slot("pack", x, z)] };
+        ChunkPiece piece = s_sample with { Name = "bad", Slots = [new Slot("pack", x, z)] };
 
         Assert.Throws<InvalidOperationException>(() => ChunkFiles.For([piece]));
     }
 
     [Fact]
     public void Accept_a_single_piece_blocker_and_slot_on_its_cell_edges() =>
-        Assert.Single(ChunkFiles.For([Sample with { Blockers = [new BoxBlocker(0, 4, 26, 30)], Slots = [new Slot("pack", 30, 0)] }]));
+        Assert.Single(ChunkFiles.For([s_sample with { Blockers = [new BoxBlocker(0, 4, 26, 30)], Slots = [new Slot("pack", 30, 0)] }]));
 
     // ---- town squares (town beautification, 2026-10-01) ----
 
@@ -285,7 +285,7 @@ public class ChunkGenWritersShould
     public void Name_an_object_from_its_building_and_part(string building, string part, string expected) =>
         Assert.Equal(expected, TownSquare.ObjectName(building, part));
 
-    private static readonly TownSquare SampleSquare = new("town_test_01", 0, 0, [Side.N, Side.E],
+    private static readonly TownSquare s_sampleSquare = new("town_test_01", 0, 0, [Side.N, Side.E],
         [
             new WallSegment("Wall_N_L", 0, 12, 29.75f, 30.25f), new WallSegment("Wall_N_R", 18, 30, 29.75f, 30.25f),
             new WallSegment("Wall_E_L", 29.75f, 30.25f, 0, 12), new WallSegment("Wall_E_R", 29.75f, 30.25f, 18, 30),
@@ -302,7 +302,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Write_a_town_square_as_named_objects_with_materials()
     {
-        string obj = ObjWriter.Write(SampleSquare);
+        string obj = ObjWriter.Write(s_sampleSquare);
         string[] lines = obj.Split('\n');
 
         Assert.Equal("# Avalon chunk: town_test_01", lines[0]);
@@ -326,7 +326,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Reproduce_the_floor_and_wall_boxes_of_a_town_square()
     {
-        Dictionary<string, (float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ)> boxes = BoundsByObject(ObjWriter.Write(SampleSquare));
+        Dictionary<string, (float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ)> boxes = BoundsByObject(ObjWriter.Write(s_sampleSquare));
 
         Assert.Equal((0f, 30f, -0.05f, 0.05f, 0f, 30f), boxes["Floor"]);
         Assert.Equal((0f, 12f, 0f, 2f, 29.75f, 30.25f), boxes["Wall_N_L"]);
@@ -338,7 +338,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Draw_a_gable_with_its_ridge_along_the_longer_axis()
     {
-        List<Vector3> vertices = Vertices(ObjWriter.Write(SampleSquare))["House_roof"];
+        List<Vector3> vertices = Vertices(ObjWriter.Write(s_sampleSquare))["House_roof"];
 
         Assert.Equal(6, vertices.Count);
         var ridge = vertices.Where(v => v.y == 5f).ToList();
@@ -349,9 +349,9 @@ public class ChunkGenWritersShould
     }
 
     [Fact]
-    public void Wind_every_face_of_a_town_square_outward() => AssertOutward(ObjWriter.Write(SampleSquare));
+    public void Wind_every_face_of_a_town_square_outward() => AssertOutward(ObjWriter.Write(s_sampleSquare));
 
-    private static readonly TownSquare RingSquare = SampleSquare with
+    private static readonly TownSquare s_ringSquare = s_sampleSquare with
     {
         Pieces = [new RingPiece("Fountain", "basin", Material.Stone, 15, 15, 2.2f, 1.8f, 0, 1.1f), new CylinderPiece("Fountain", "water", Material.Water, 15, 15, 1.78f, 0.9f, 1f)],
     };
@@ -364,7 +364,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Wind_every_face_of_a_ring_outward()
     {
-        string obj = ObjWriter.Write(RingSquare);
+        string obj = ObjWriter.Write(s_ringSquare);
         var vertices = new List<Vector3>();
         var ringVertices = new List<Vector3>();
         var faces = new List<(int A, int B, int C)>();
@@ -408,7 +408,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Bake_a_ring_a_walk_cannot_enter()
     {
-        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(RingSquare), 0, 0)]);
+        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(s_ringSquare), 0, 0)]);
 
         Vector3 stop = navigator.RaycastWalkable(new Vector3(5f, 0.15f, 15f), new Vector3(15f, 0.15f, 15f));
         Assert.True(stop.x < 12.85f, $"the walk entered the rim to x = {stop.x}");
@@ -425,7 +425,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Never_write_negative_zero_for_a_town_square()
     {
-        TownSquare square = SampleSquare with { Pieces = [new BoxPiece("Crate", "crate", Material.Wood, 0.00001f, 1, 10, 11, -0.00001f, 1)] };
+        TownSquare square = s_sampleSquare with { Pieces = [new BoxPiece("Crate", "crate", Material.Wood, 0.00001f, 1, 10, 11, -0.00001f, 1)] };
 
         string obj = ObjWriter.Write(square);
 
@@ -437,7 +437,7 @@ public class ChunkGenWritersShould
     [Fact]
     public void Bake_a_town_square_a_player_can_walk_onto_its_porch()
     {
-        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(SampleSquare), 0, 0)]);
+        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(s_sampleSquare), 0, 0)]);
 
         Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(11f, 1f, 7f), out Vector3 deck));   // on the porch deck
         Assert.InRange(deck.y, -0.1f, 0.5f);
@@ -452,7 +452,7 @@ public class ChunkGenWritersShould
         try
         {
             CopyDirectory(Path.Combine(AppContext.BaseDirectory, "Maps"), root);
-            foreach ((string name, string obj, string json) in ChunkFiles.For([SampleSquare]))
+            foreach ((string name, string obj, string json) in ChunkFiles.For([s_sampleSquare]))
             {
                 File.WriteAllText(Path.Combine(root, "Chunks", name + ".obj"), obj);
                 File.WriteAllText(Path.Combine(root, "Chunks", name + ".json"), json);

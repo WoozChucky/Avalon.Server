@@ -17,7 +17,7 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// </summary>
 public class VendorSeedShould
 {
-    private static readonly (ulong Id, string Name, string SubName)[] Vendors =
+    private static readonly (ulong Id, string Name, string SubName)[] s_vendors =
     [
         (12, "Garrick Emberforge", "Weapons Dealer"),
         (13, "Hilde Brassbuckle", "Armourer"),
@@ -25,7 +25,7 @@ public class VendorSeedShould
     ];
 
     /// <summary>Each starter piece and the forest piece it is scaled from (#432: each starter piece is 60% of its forest piece).</summary>
-    private static readonly (ulong Starter, ulong Forest)[] Tiers =
+    private static readonly (ulong Starter, ulong Forest)[] s_tiers =
     [
         (32, 7), (33, 5), (34, 6), (35, 8),
         (36, 12), (37, 13), (38, 14), (39, 15), (40, 16),
@@ -62,7 +62,7 @@ public class VendorSeedShould
         using WorldDbContext context = database.CreateDbContext();
         var templates = context.CreatureTemplates.AsNoTracking().ToList();
 
-        foreach ((ulong id, string name, string subName) in Vendors)
+        foreach ((ulong id, string name, string subName) in s_vendors)
         {
             CreatureTemplate vendor = templates.Single(t => t.Id.Value == id);
             Assert.Equal((name, subName), (vendor.Name, vendor.SubName));
@@ -104,7 +104,7 @@ public class VendorSeedShould
         using WorldDbContext context = database.CreateDbContext();
         var actions = new DialogueActions(context.DialogueNodes.AsNoTracking().ToList(), context.DialogueOptions.AsNoTracking().ToList());
 
-        foreach ((ulong id, _, _) in Vendors)
+        foreach ((ulong id, _, _) in s_vendors)
         {
             Assert.True(NpcInteraction.IsVendor(actions, new CreatureTemplateId(id)));
             Assert.False(NpcInteraction.IsBanker(actions, new CreatureTemplateId(id)));
@@ -124,7 +124,7 @@ public class VendorSeedShould
         var catalog = new DialogueCatalog(nodes, options, NullLoggerFactory.Instance);
         var actions = new DialogueActions(nodes, options);
 
-        foreach ((ulong id, _, _) in Vendors)
+        foreach ((ulong id, _, _) in s_vendors)
         {
             DialogueNodeView root = catalog.GetRoot(new CreatureTemplateId(id))!;
             Assert.Equal(3, root.Options.Count);
@@ -196,7 +196,7 @@ public class VendorSeedShould
         using WorldDbContext context = database.CreateDbContext();
         Dictionary<ulong, ItemTemplate> items = Items(context);
 
-        foreach ((ulong starterId, ulong forestId) in Tiers)
+        foreach ((ulong starterId, ulong forestId) in s_tiers)
         {
             ItemTemplate starter = items[starterId], forest = items[forestId];
 

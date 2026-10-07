@@ -11,12 +11,12 @@ namespace Avalon.Server.World.UnitTests.Serialization;
 /// </summary>
 public class ObjectStatePoolShould
 {
-    private static readonly PropertyInfo[] Members = typeof(ObjectState).GetProperties();
+    private static readonly PropertyInfo[] s_members = typeof(ObjectState).GetProperties();
 
     /// <summary>Sets every member of <paramref name="state" /> to something no new message holds.</summary>
     internal static void FillEveryMember(ObjectState state)
     {
-        foreach (PropertyInfo member in Members)
+        foreach (PropertyInfo member in s_members)
             member.SetValue(state, NotDefault(member.PropertyType));
     }
 
@@ -39,7 +39,7 @@ public class ObjectStatePoolShould
         ObjectStatePool.Clear(state);
 
         var fresh = new ObjectState();
-        foreach (PropertyInfo member in Members)
+        foreach (PropertyInfo member in s_members)
             Assert.True(Equals(member.GetValue(fresh), member.GetValue(state)), $"{member.Name} was not cleared");
     }
 

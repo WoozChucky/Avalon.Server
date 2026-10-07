@@ -44,7 +44,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
     /// production-code helper: baking a navmesh is test fixture setup, not something the
     /// locomotion classes themselves need to expose.
     /// </summary>
-    private static readonly Lazy<DtNavMesh> FlatNavMesh = new(BakeFlatGround, isThreadSafe: true);
+    private static readonly Lazy<DtNavMesh> s_flatNavMesh = new(BakeFlatGround, isThreadSafe: true);
 
     private static DtNavMesh BakeFlatGround()
     {
@@ -66,14 +66,14 @@ public class CreatureCombatScriptCrowdLocomotionShould
     [Fact]
     public void Reach_Their_Claimed_Slots_And_Attack_Under_CrowdLocomotion()
     {
-        var locomotion = new CrowdLocomotion(FlatNavMesh.Value, NavmeshBuildSettings.AgentRadius,
+        var locomotion = new CrowdLocomotion(s_flatNavMesh.Value, NavmeshBuildSettings.AgentRadius,
             NullLogger.Instance);
 
         // Production default: MapInstance registers every creature with the same agent radius it
         // built the crowd with (GameConfiguration.CreatureAgentRadius, which itself defaults to
         // NavmeshBuildSettings.AgentRadius). Using anything smaller here would dodge the exact
         // scenario this test exists to pin.
-        const float agentRadius = NavmeshBuildSettings.AgentRadius;
+        const float AgentRadius = NavmeshBuildSettings.AgentRadius;
 
         Vector3 targetPosition = Vector3.zero;
         ICharacter target = Substitute.For<ICharacter>();
@@ -128,7 +128,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
             creature.Position.Returns(start);
 
             // MapInstance.AddCreature's job, done manually since there is no MapInstance here.
-            locomotion.Register(creature, radius: agentRadius);
+            locomotion.Register(creature, radius: AgentRadius);
 
             var script = new KitCombatScript(creature, context);
             script.OnEnteredRange(target); // _initialPosition = start, State = Combat
@@ -169,7 +169,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
     /// target on the island is within the polygon search box of its own mesh, so the crowd plans a
     /// partial route that ends at the ground's east edge (#606).
     /// </summary>
-    private static readonly Lazy<DtNavMesh> GroundAndIsland = new(BakeGroundAndIsland, isThreadSafe: true);
+    private static readonly Lazy<DtNavMesh> s_groundAndIsland = new(BakeGroundAndIsland, isThreadSafe: true);
 
     private static DtNavMesh BakeGroundAndIsland()
     {
@@ -201,7 +201,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
     [Fact]
     public void Go_Home_Within_The_Limit_When_Its_Target_Is_On_An_Island_Under_CrowdLocomotion()
     {
-        var locomotion = new CrowdLocomotion(GroundAndIsland.Value, NavmeshBuildSettings.AgentRadius,
+        var locomotion = new CrowdLocomotion(s_groundAndIsland.Value, NavmeshBuildSettings.AgentRadius,
             NullLogger.Instance);
 
         ICharacter target = Substitute.For<ICharacter>();

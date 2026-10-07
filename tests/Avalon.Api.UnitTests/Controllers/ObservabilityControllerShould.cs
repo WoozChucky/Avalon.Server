@@ -82,14 +82,14 @@ public class ObservabilityControllerShould
         ClaimsPrincipal user = User(7, AvalonRoles.GameMaster);
         ((ClaimsIdentity)user.Identity!).AddClaim(new Claim(ClaimTypes.GroupSid, nameof(AccountAccessLevel.GameMaster)));
         ((ClaimsIdentity)user.Identity!).AddClaim(new Claim(ClaimTypes.GroupSid, nameof(AccountAccessLevel.PTR)));
-        const AccountAccessLevel expected = AccountAccessLevel.GameMaster | AccountAccessLevel.PTR;
+        const AccountAccessLevel Expected = AccountAccessLevel.GameMaster | AccountAccessLevel.PTR;
         ObservabilityController sut = MakeSut(user);
 
         await sut.GetOnline(new PresencePaginateFilters(), CancellationToken.None);
         await sut.GetInstancePresence(instanceId, CancellationToken.None);
 
-        await _service.Received(1).GetOnlineAsync(Arg.Any<PresencePaginateFilters>(), expected, Arg.Any<CancellationToken>());
-        await _service.Received(1).GetInstancePresenceAsync(instanceId, expected, Arg.Any<CancellationToken>());
+        await _service.Received(1).GetOnlineAsync(Arg.Any<PresencePaginateFilters>(), Expected, Arg.Any<CancellationToken>());
+        await _service.Received(1).GetInstancePresenceAsync(instanceId, Expected, Arg.Any<CancellationToken>());
     }
 }
 

@@ -675,14 +675,14 @@ public class CreatureCombatScriptShould
             combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>(), Arg.Any<IAbility>());
         }
 
-        const float agentDiameter = 1.2f;
+        const float AgentDiameter = 1.2f;
         for (int i = 0; i < creatures.Count; i++)
         {
             for (int j = i + 1; j < creatures.Count; j++)
             {
                 float distance = Vector3.Distance(creatures[i].Position, creatures[j].Position);
-                Assert.True(distance >= agentDiameter,
-                    $"Creatures {i} and {j} ended up only {distance} apart — closer than one agent diameter ({agentDiameter}).");
+                Assert.True(distance >= AgentDiameter,
+                    $"Creatures {i} and {j} ended up only {distance} apart — closer than one agent diameter ({AgentDiameter}).");
             }
         }
     }
@@ -872,7 +872,7 @@ public class CreatureCombatScriptShould
         }
 
         var tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
-        const float agentDiameter = 1.2f;
+        const float AgentDiameter = 1.2f;
 
         // 10 simulated seconds: long enough to close the initial ~8.5-unit gap against a target
         // that keeps receding at 1 u/s, then sustain formation for several swing-interval (2.25 s)
@@ -904,8 +904,8 @@ public class CreatureCombatScriptShould
                 for (int j = i + 1; j < creatures.Count; j++)
                 {
                     float distance = Vector3.Distance(creatures[i].Position, creatures[j].Position);
-                    Assert.True(distance >= agentDiameter,
-                        $"Tick {tick}: creatures {i} and {j} were only {distance} apart — closer than one agent diameter ({agentDiameter}).");
+                    Assert.True(distance >= AgentDiameter,
+                        $"Tick {tick}: creatures {i} and {j} were only {distance} apart — closer than one agent diameter ({AgentDiameter}).");
                 }
             }
         }
@@ -1774,11 +1774,11 @@ public class CreatureCombatScriptShould
 
     private static List<Vector3> SmoothedPath(Vector3 from, Vector3 to)
     {
-        const float stepSize = 0.5f;
+        const float StepSize = 0.5f;
         var path = new List<Vector3> { from };
 
         float total = Vector3.Distance(from, to);
-        for (float walked = stepSize; walked < total; walked += stepSize)
+        for (float walked = StepSize; walked < total; walked += StepSize)
             path.Add(Vector3.MoveTowards(from, to, walked));
 
         path.Add(to);

@@ -17,8 +17,8 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public class CharacterRenameShould
 {
-    private static readonly CharacterId Self = new(1);
-    private static readonly CharacterId Other = new(2);
+    private static readonly CharacterId s_self = new(1);
+    private static readonly CharacterId s_other = new(2);
 
     private readonly ICharacterRepository _characters = Substitute.For<ICharacterRepository>();
     private readonly CharacterService _service;
@@ -74,7 +74,7 @@ public class CharacterRenameShould
     [MemberData(nameof(BothPaths))]
     public async Task Refuse_a_name_that_breaks_the_rule_in_the_service_too(bool cosmetic)
     {
-        Character character = Holder(Self, "Kaela");
+        Character character = Holder(s_self, "Kaela");
 
         BusinessException refused = await Assert.ThrowsAsync<BusinessException>(() => Rename(cosmetic, character, "B0b"));
 
@@ -88,11 +88,11 @@ public class CharacterRenameShould
     [MemberData(nameof(BothPaths))]
     public async Task Store_the_name_with_its_first_letter_upper_case_and_the_rest_lower_case(bool cosmetic)
     {
-        Character character = Holder(Self, "Kaela");
+        Character character = Holder(s_self, "Kaela");
 
         await Rename(cosmetic, character, "bORIN");
 
-        await _characters.Received(1).TryRenameAsync(Self, "Borin", Arg.Any<CancellationToken>());
+        await _characters.Received(1).TryRenameAsync(s_self, "Borin", Arg.Any<CancellationToken>());
         Assert.Equal(("Borin", "BORIN"), (character.Name, character.NameKey));
     }
 
@@ -100,8 +100,8 @@ public class CharacterRenameShould
     [MemberData(nameof(BothPaths))]
     public async Task Refuse_a_name_another_character_holds_in_any_case(bool cosmetic)
     {
-        Character character = Holder(Self, "Kaela");
-        _characters.FindByNameAsync("borin", Arg.Any<CancellationToken>()).Returns(Holder(Other, "Borin"));
+        Character character = Holder(s_self, "Kaela");
+        _characters.FindByNameAsync("borin", Arg.Any<CancellationToken>()).Returns(Holder(s_other, "Borin"));
 
         BusinessException refused = await Assert.ThrowsAsync<BusinessException>(() => Rename(cosmetic, character, "borin"));
 
@@ -115,12 +115,12 @@ public class CharacterRenameShould
     [MemberData(nameof(BothPaths))]
     public async Task Let_a_character_change_the_case_of_its_own_name(bool cosmetic)
     {
-        Character character = Holder(Self, "kaela"); // stored before #757
-        _characters.FindByNameAsync("KAELA", Arg.Any<CancellationToken>()).Returns(Holder(Self, "kaela"));
+        Character character = Holder(s_self, "kaela"); // stored before #757
+        _characters.FindByNameAsync("KAELA", Arg.Any<CancellationToken>()).Returns(Holder(s_self, "kaela"));
 
         await Rename(cosmetic, character, "KAELA");
 
-        await _characters.Received(1).TryRenameAsync(Self, "Kaela", Arg.Any<CancellationToken>());
+        await _characters.Received(1).TryRenameAsync(s_self, "Kaela", Arg.Any<CancellationToken>());
         Assert.Equal("Kaela", character.Name);
     }
 
@@ -128,7 +128,7 @@ public class CharacterRenameShould
     [MemberData(nameof(BothPaths))]
     public async Task Write_nothing_for_a_name_that_would_not_change(bool cosmetic)
     {
-        Character character = Holder(Self, "Kaela");
+        Character character = Holder(s_self, "Kaela");
 
         await Rename(cosmetic, character, "kaela");
 
@@ -144,8 +144,8 @@ public class CharacterRenameShould
     [MemberData(nameof(BothPaths))]
     public async Task Answer_name_already_taken_to_a_rename_that_loses_the_race_to_the_index(bool cosmetic)
     {
-        Character character = Holder(Self, "Kaela");
-        _characters.TryRenameAsync(Self, "Borin", Arg.Any<CancellationToken>()).Returns(CharacterRename.NameTaken);
+        Character character = Holder(s_self, "Kaela");
+        _characters.TryRenameAsync(s_self, "Borin", Arg.Any<CancellationToken>()).Returns(CharacterRename.NameTaken);
 
         BusinessException refused = await Assert.ThrowsAsync<BusinessException>(() => Rename(cosmetic, character, "Borin"));
 
@@ -159,8 +159,8 @@ public class CharacterRenameShould
     [MemberData(nameof(BothPaths))]
     public async Task Refuse_to_rename_a_character_that_is_online(bool cosmetic)
     {
-        Character character = Holder(Self, "Kaela");
-        _characters.TryRenameAsync(Self, "Borin", Arg.Any<CancellationToken>()).Returns(CharacterRename.Online);
+        Character character = Holder(s_self, "Kaela");
+        _characters.TryRenameAsync(s_self, "Borin", Arg.Any<CancellationToken>()).Returns(CharacterRename.Online);
 
         CharacterOnlineException refused =
             await Assert.ThrowsAsync<CharacterOnlineException>(() => Rename(cosmetic, character, "Borin"));
@@ -173,7 +173,7 @@ public class CharacterRenameShould
     [Fact]
     public async Task Patch_an_online_characters_other_fields_when_the_name_does_not_change()
     {
-        Character character = Holder(Self, "Kaela");
+        Character character = Holder(s_self, "Kaela");
         character.Online = true;
 
         await _service.UpdateAnyAsync(character, new CharacterPatchDto { Name = "Kaela", Level = 5 });
@@ -188,8 +188,8 @@ public class CharacterRenameShould
     [MemberData(nameof(BothPaths))]
     public async Task Answer_not_found_when_the_character_is_gone_by_the_write(bool cosmetic)
     {
-        Character character = Holder(Self, "Kaela");
-        _characters.TryRenameAsync(Self, "Borin", Arg.Any<CancellationToken>()).Returns(CharacterRename.NotFound);
+        Character character = Holder(s_self, "Kaela");
+        _characters.TryRenameAsync(s_self, "Borin", Arg.Any<CancellationToken>()).Returns(CharacterRename.NotFound);
 
         await Assert.ThrowsAsync<CharacterNotFoundException>(() => Rename(cosmetic, character, "Borin"));
         await _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);

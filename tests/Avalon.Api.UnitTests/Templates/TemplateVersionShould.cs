@@ -16,7 +16,7 @@ namespace Avalon.Api.UnitTests.Templates;
 /// </summary>
 public class TemplateVersionShould
 {
-    private static readonly string[] NotStored = ["Stackable", "BodyRemoveTimer"];
+    private static readonly string[] s_notStored = ["Stackable", "BodyRemoveTimer"];
 
     public static TheoryData<string, string> ItemColumns => Columns(typeof(ItemTemplate));
     public static TheoryData<string, string> AbilityColumns => Columns(typeof(AbilityTemplate));
@@ -171,7 +171,7 @@ public class TemplateVersionShould
         TheoryData<string, string> data = [];
         foreach (IProperty property in type.GetProperties().Where(p => !p.IsShadowProperty()))
             data.Add(entity.Name, property.Name);
-        Assert.DoesNotContain(type.GetProperties(), p => NotStored.Contains(p.Name, StringComparer.Ordinal));
+        Assert.DoesNotContain(type.GetProperties(), p => s_notStored.Contains(p.Name, StringComparer.Ordinal));
         return data;
     }
 

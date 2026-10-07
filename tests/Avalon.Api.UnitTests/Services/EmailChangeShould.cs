@@ -236,7 +236,7 @@ public sealed class EmailChangeShould : IDisposable
 
     // ---------------- "Email already exists" costs a slot (review, #503) ----------------
 
-    private static readonly string SourceKey = SourceBudget.KeyFor(IPAddress.Loopback);
+    private static readonly string s_sourceKey = SourceBudget.KeyFor(IPAddress.Loopback);
 
     /// <summary>
     /// The start answers whether an address is taken, once the password is proved. The proof gives
@@ -254,7 +254,7 @@ public sealed class EmailChangeShould : IDisposable
         await Assert.ThrowsAsync<BusinessException>(() => Service(counters.Cache)
             .InitiateEmailChangeAsync(account.Id, "taken@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));
 
-        Assert.Equal(1, counters.CountOf(SourceKey));
+        Assert.Equal(1, counters.CountOf(s_sourceKey));
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public sealed class EmailChangeShould : IDisposable
         await Service(counters.Cache)
             .InitiateEmailChangeAsync(account.Id, "free@avalon.monster", TestPasswords.Valid, IPAddress.Loopback);
 
-        Assert.Equal(0, counters.CountOf(SourceKey));
+        Assert.Equal(0, counters.CountOf(s_sourceKey));
     }
 
     [Fact]

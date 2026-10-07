@@ -26,7 +26,7 @@ public static class JwtSigningKey
         "99e2138407b7f8aa4be292593a9432ad73a5b869d19a22d34cc3b63e1552c645",
     ];
 
-    private static readonly string HowToSet =
+    private static readonly string s_howToSet =
         $"Set {SettingName} to a random value of at least {MinimumBytes} bytes: in development run " +
         $"`dotnet user-secrets set \"{SettingName}\" \"<key>\" --project src/Server/Avalon.Api`, " +
         $"elsewhere set the environment variable {EnvironmentVariableName}. See CLAUDE.md, \"REST API signing key\".";
@@ -50,7 +50,7 @@ public static class JwtSigningKey
         string? key = config?.IssuerSigningKey;
         if (string.IsNullOrWhiteSpace(key))
         {
-            throw new InvalidOperationException($"The JWT signing key is not set. {HowToSet}");
+            throw new InvalidOperationException($"The JWT signing key is not set. {s_howToSet}");
         }
 
         // Refused rather than trimmed: a newline from a key file would otherwise sign with bytes
@@ -59,14 +59,14 @@ public static class JwtSigningKey
         {
             throw new InvalidOperationException(
                 "The JWT signing key has leading or trailing whitespace, often a newline from the file it " +
-                $"was read from. Remove it. {HowToSet}");
+                $"was read from. Remove it. {s_howToSet}");
         }
 
         byte[] bytes = Encoding.UTF8.GetBytes(key);
         if (bytes.Length < MinimumBytes)
         {
             throw new InvalidOperationException(
-                $"The JWT signing key is {bytes.Length} bytes; HMAC-SHA256 needs at least {MinimumBytes}. {HowToSet}");
+                $"The JWT signing key is {bytes.Length} bytes; HMAC-SHA256 needs at least {MinimumBytes}. {s_howToSet}");
         }
 
         string hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
@@ -74,7 +74,7 @@ public static class JwtSigningKey
         {
             throw new InvalidOperationException(
                 "The JWT signing key is one that was committed to the repository and is public; " +
-                $"anyone could forge tokens with it. Generate a new one. {HowToSet}");
+                $"anyone could forge tokens with it. Generate a new one. {s_howToSet}");
         }
 
         return new SymmetricSecurityKey(bytes);

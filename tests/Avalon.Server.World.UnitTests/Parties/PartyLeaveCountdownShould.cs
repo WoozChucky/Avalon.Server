@@ -4,7 +4,7 @@ namespace Avalon.Server.World.UnitTests.Parties;
 
 public class PartyLeaveCountdownShould
 {
-    private static readonly Guid PartyInstance = Guid.NewGuid();
+    private static readonly Guid s_partyInstance = Guid.NewGuid();
     private readonly PartyTestWorld _w = new();
     private readonly PartyClient _a;
     private readonly PartyClient _b;
@@ -12,11 +12,11 @@ public class PartyLeaveCountdownShould
 
     public PartyLeaveCountdownShould()
     {
-        _a = _w.Online(1, "A", instance: PartyInstance);
-        _b = _w.Online(2, "B", instance: PartyInstance);
-        _c = _w.Online(3, "C", instance: PartyInstance);
+        _a = _w.Online(1, "A", instance: s_partyInstance);
+        _b = _w.Online(2, "B", instance: s_partyInstance);
+        _c = _w.Online(3, "C", instance: s_partyInstance);
         _w.Form(_a, _b, _c);
-        _w.Instances.Owned[PartyInstance] = _w.Parties.PartyOf(_a.Id)!.Id;
+        _w.Instances.Owned[s_partyInstance] = _w.Parties.PartyOf(_a.Id)!.Id;
     }
 
     private IReadOnlyList<IWorldConnection> After(int seconds)

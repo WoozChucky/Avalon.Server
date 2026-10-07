@@ -30,7 +30,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public class AccountLoginStatusShould
 {
-    private static readonly string Password = TestPasswords.Valid;
+    private static readonly string s_password = TestPasswords.Valid;
 
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
     private readonly IJwtUtils _jwt = Substitute.For<IJwtUtils>();
@@ -51,8 +51,8 @@ public class AccountLoginStatusShould
         TestLogin.Password(_accounts, Substitute.For<IReplicatedCache>()),
         TestLogin.Reauthentication(_accounts, Substitute.For<IReplicatedCache>()));
 
-    private static readonly byte[] Verifier =
-        Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, BCrypt.Net.BCrypt.GenerateSalt(4)));
+    private static readonly byte[] s_verifier =
+        Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, BCrypt.Net.BCrypt.GenerateSalt(4)));
 
     private void AccountIs(DomainStatus status, bool mfa = false)
     {
@@ -62,7 +62,7 @@ public class AccountLoginStatusShould
             Username = "CALLER",
             Email = "c@avalon.monster",
             Salt = [1],
-            Verifier = Verifier,
+            Verifier = s_verifier,
             JoinDate = DateTime.UtcNow,
             Status = status,
         };
@@ -83,7 +83,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(DomainStatus.Active);
 
-        (AuthenticateResponse? response, AccountId? accountId, int _) = await LoginAsync(Password);
+        (AuthenticateResponse? response, AccountId? accountId, int _) = await LoginAsync(s_password);
 
         Assert.Equal("jwt", response.Token);
         Assert.Equal(7, accountId!.Value);
@@ -99,7 +99,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(status, mfa);
 
-        AccountInactiveException refused = await Assert.ThrowsAsync<AccountInactiveException>(() => LoginAsync(Password));
+        AccountInactiveException refused = await Assert.ThrowsAsync<AccountInactiveException>(() => LoginAsync(s_password));
 
         Assert.Equal(status, refused.Status);
         Assert.Equal(expected, refused.Message);

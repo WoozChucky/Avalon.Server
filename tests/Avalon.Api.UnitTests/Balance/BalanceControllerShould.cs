@@ -24,10 +24,10 @@ public sealed class BalanceControllerShould
         { "POST", "/balance/exports", """{"title":"t","overrides":{}}""" },
     };
 
-    private static readonly CatalogDto Catalog = new("1.0.0", "abc", [], new BalanceConfigDto("{}", "{}", "{}"), ["Warrior"],
+    private static readonly CatalogDto s_catalog = new("1.0.0", "abc", [], new BalanceConfigDto("{}", "{}", "{}"), ["Warrior"],
         [1], [], [], [], []);
 
-    private static readonly AccountAccessLevel Admin = AccountAccessLevel.Player | AccountAccessLevel.Admin;
+    private static readonly AccountAccessLevel s_admin = AccountAccessLevel.Player | AccountAccessLevel.Admin;
 
     private static async Task<HttpResponseMessage> SendAsync(ApiAuthHost host, string method, string path, string body,
         AccountAccessLevel? level)
@@ -56,10 +56,10 @@ public sealed class BalanceControllerShould
     public async Task Let_an_admin_read_the_catalog()
     {
         IBalanceClient client = Substitute.For<IBalanceClient>();
-        client.CatalogAsync(Arg.Any<CancellationToken>()).Returns(new BalanceResponse<CatalogDto>(200, Catalog, """{"version":"1.0.0","commit":"abc"}"""));
+        client.CatalogAsync(Arg.Any<CancellationToken>()).Returns(new BalanceResponse<CatalogDto>(200, s_catalog, """{"version":"1.0.0","commit":"abc"}"""));
         await using ApiAuthHost host = await Host(client);
 
-        using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/catalog", "", Admin);
+        using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/catalog", "", s_admin);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -74,7 +74,7 @@ public sealed class BalanceControllerShould
             .Returns(new BalanceResponse<RunAcceptedDto>(202, new RunAcceptedDto("r1"), """{"runId":"r1"}"""));
         await using ApiAuthHost host = await Host(client);
 
-        using HttpResponseMessage response = await SendAsync(host, "POST", "/balance/runs", "{}", Admin);
+        using HttpResponseMessage response = await SendAsync(host, "POST", "/balance/runs", "{}", s_admin);
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Contains("\"runId\":\"r1\"", await response.Content.ReadAsStringAsync());
@@ -83,15 +83,15 @@ public sealed class BalanceControllerShould
     [Fact]
     public async Task Forward_a_success_body_byte_for_byte_with_its_nulls()
     {
-        const string raw = """{"runId":"r1","status":"running","rowsDone":0,"rowsTotal":4,"result":null,"issues":[]}""";
+        const string Raw = """{"runId":"r1","status":"running","rowsDone":0,"rowsTotal":4,"result":null,"issues":[]}""";
         IBalanceClient client = Substitute.For<IBalanceClient>();
         client.GetRunAsync("r1", Arg.Any<CancellationToken>())
-            .Returns(new BalanceResponse<RunStatusDto>(200, new RunStatusDto("r1", "running", 0, 4, null, []), raw));
+            .Returns(new BalanceResponse<RunStatusDto>(200, new RunStatusDto("r1", "running", 0, 4, null, []), Raw));
         await using ApiAuthHost host = await Host(client);
 
-        using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/runs/r1", "", Admin);
+        using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/runs/r1", "", s_admin);
 
-        Assert.Equal(raw, await response.Content.ReadAsStringAsync());
+        Assert.Equal(Raw, await response.Content.ReadAsStringAsync());
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
     }
 
@@ -102,7 +102,7 @@ public sealed class BalanceControllerShould
         client.CancelRunAsync("r1", Arg.Any<CancellationToken>()).Returns(new BalanceResponse(204, null));
         await using ApiAuthHost host = await Host(client);
 
-        using HttpResponseMessage response = await SendAsync(host, "DELETE", "/balance/runs/r1", "", Admin);
+        using HttpResponseMessage response = await SendAsync(host, "DELETE", "/balance/runs/r1", "", s_admin);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
@@ -150,7 +150,7 @@ public sealed class BalanceControllerShould
         client.ExportAsync(default!, default).ReturnsForAnyArgs(new BalanceResponse<ExportResultDto>(status, null, json));
         await using ApiAuthHost host = await Host(client);
 
-        using HttpResponseMessage response = await SendAsync(host, method, path, body, Admin);
+        using HttpResponseMessage response = await SendAsync(host, method, path, body, s_admin);
 
         Assert.Equal(status, (int)response.StatusCode);
         // A status with no body of its own gets MVC's standard ProblemDetails for that status.
@@ -164,7 +164,7 @@ public sealed class BalanceControllerShould
         await using ApiAuthHost host = await ApiAuthHost.StartAsync(
             configure: s => s.AddSingleton<IBalanceClient, UnconfiguredBalanceClient>());
 
-        using HttpResponseMessage response = await SendAsync(host, method, path, body, Admin);
+        using HttpResponseMessage response = await SendAsync(host, method, path, body, s_admin);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -179,7 +179,7 @@ public sealed class BalanceControllerShould
             .Returns<BalanceResponse<CatalogDto>>(_ => throw new BalanceUnavailableException("balance service unavailable"));
         await using ApiAuthHost host = await Host(client);
 
-        using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/catalog", "", Admin);
+        using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/catalog", "", s_admin);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());

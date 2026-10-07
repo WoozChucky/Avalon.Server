@@ -10,7 +10,7 @@ namespace Avalon.Infrastructure.Services;
 public class MFAService : IMFAService
 {
     // One step either side of now, about ±30 s of clock drift (#471).
-    private static readonly VerificationWindow TotpWindow = new(1, 1);
+    private static readonly VerificationWindow s_totpWindow = new(1, 1);
 
     private readonly ILogger<MFAService> _logger;
     private readonly IMfaSetupRepository _mfaSetupRepository;
@@ -74,7 +74,7 @@ public class MFAService : IMFAService
         }
 
         var totp = new Totp(mfaSetup.Secret);
-        if (!totp.VerifyTotp(code, out long step, TotpWindow))
+        if (!totp.VerifyTotp(code, out long step, s_totpWindow))
             return new MFAConfirmResult(false, null, MFAOperationResult.InvalidCode);
 
         // Generate the codes here and return them once; only their hashes are stored.
@@ -107,7 +107,7 @@ public class MFAService : IMFAService
             return new MFAVerifyResult(false, null);
 
         var totp = new Totp(mfaSetup.Secret);
-        if (!totp.VerifyTotp(code, out long step, TotpWindow))
+        if (!totp.VerifyTotp(code, out long step, s_totpWindow))
             return new MFAVerifyResult(false, null);
 
         // Each code once (#471): refuse a step no later than the last one accepted. The write is

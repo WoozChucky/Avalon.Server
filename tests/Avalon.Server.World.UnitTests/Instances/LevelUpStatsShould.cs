@@ -27,7 +27,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class LevelUpStatsShould
 {
-    private static readonly ClassLevelStat[] WarriorRows =
+    private static readonly ClassLevelStat[] s_warriorRows =
     [
         new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
         new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 40, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
@@ -37,7 +37,7 @@ public class LevelUpStatsShould
     public async Task Recalculate_at_the_new_level_and_refill_on_a_level_up()
     {
         StaticData data = await TestStaticData.LoadAsync(
-            classStats: WarriorRows,
+            classStats: s_warriorRows,
             levels:
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
@@ -138,7 +138,7 @@ public class LevelUpStatsShould
     public async Task Keep_a_warriors_fury_capped_through_a_level_up_its_cleave_caused(uint maxBefore, uint furyBefore, uint furyAfter)
     {
         StaticData data = await TestStaticData.LoadAsync(
-            classStats: WarriorRows,
+            classStats: s_warriorRows,
             levels:
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
@@ -187,7 +187,7 @@ public class LevelUpStatsShould
     public async Task Level_up_a_dead_killer_without_refilling_its_corpse()
     {
         StaticData data = await TestStaticData.LoadAsync(
-            classStats: WarriorRows,
+            classStats: s_warriorRows,
             levels:
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
@@ -231,7 +231,7 @@ public class LevelUpStatsShould
     public async Task Level_up_and_keep_the_old_maximums_when_the_new_level_has_no_row()
     {
         StaticData data = await TestStaticData.LoadAsync(
-            classStats: [WarriorRows[0]],
+            classStats: [s_warriorRows[0]],
             levels:
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },

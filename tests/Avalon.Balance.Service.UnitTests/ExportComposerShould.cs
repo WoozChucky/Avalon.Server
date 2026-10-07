@@ -12,15 +12,15 @@ namespace Avalon.Balance.Service.UnitTests;
 
 public class ExportComposerShould
 {
-    private static readonly Lazy<BalanceHost> SharedHost = new(() =>
+    private static readonly Lazy<BalanceHost> s_sharedHost = new(() =>
     {
         WebApplication app = BalanceTestHost.Build();
         return app.Services.GetRequiredService<BalanceHost>();
     });
 
-    private static readonly DateTimeOffset Now = new(2026, 9, 30, 14, 5, 59, TimeSpan.Zero);
+    private static readonly DateTimeOffset s_now = new(2026, 9, 30, 14, 5, 59, TimeSpan.Zero);
 
-    private static BalanceHost Host => SharedHost.Value;
+    private static BalanceHost Host => s_sharedHost.Value;
 
     private static Dictionary<string, JsonElement> Overrides(string json) =>
         JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)!;
@@ -43,7 +43,7 @@ public class ExportComposerShould
 
     private static Task<ExportResultDto> Compose(ExportRequestDto request, FakeGitHub github, RunResultDto? run = null,
         FakeTimeProvider? time = null) =>
-        ExportComposer.ComposeAsync(request, Host, github, time ?? new FakeTimeProvider(Now), FakeGitHub.Commit, run, CancellationToken.None);
+        ExportComposer.ComposeAsync(request, Host, github, time ?? new FakeTimeProvider(s_now), FakeGitHub.Commit, run, CancellationToken.None);
 
     [Fact]
     public async Task Put_only_the_files_that_changed()

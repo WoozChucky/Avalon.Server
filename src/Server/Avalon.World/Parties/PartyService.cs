@@ -51,7 +51,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     public static readonly TimeSpan StatusInterval = TimeSpan.FromMilliseconds(250);
 
     // Second marks the countdown is announced at, highest first (spec 2026-09-30 section 2).
-    private static readonly int[] CountdownMarks = [60, 30, 10, 5, 4, 3, 2, 1];
+    private static readonly int[] s_countdownMarks = [60, 30, 10, 5, 4, 3, 2, 1];
     private readonly Dictionary<uint, PartyCountdown> _countdowns = [];
     private readonly Dictionary<uint, PendingReturn> _returning = [];   // countdown ran out, return under way (#700)
 
@@ -408,7 +408,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         int delay = Config.PartyReturnRetrySeconds;
         _countdowns[characterId] = new PartyCountdown(pending.InstanceId, pending.Party,
             time.GetUtcNow() + TimeSpan.FromSeconds(delay))
-        { NextMark = CountdownMarks.Length, Retries = attempt };
+        { NextMark = s_countdownMarks.Length, Retries = attempt };
         logger.LogWarning(failure,
             "Return to town of character {CharacterId} failed (attempt {Attempt} of {Attempts}); trying again in {Seconds} s",
             characterId, attempt, MaxReturnRetries + 1, delay);
@@ -490,7 +490,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         int grace = Config.PartyLeaveGraceSeconds;
         int next = 0;
-        while (next < CountdownMarks.Length && CountdownMarks[next] >= grace)
+        while (next < s_countdownMarks.Length && s_countdownMarks[next] >= grace)
             next++;
 
         _countdowns[characterId] = new PartyCountdown(character.InstanceId, party.Id,
@@ -537,8 +537,8 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
             int seconds = (int)Math.Ceiling(remaining);
             int announce = 0;
-            while (countdown.NextMark < CountdownMarks.Length && seconds <= CountdownMarks[countdown.NextMark])
-                announce = CountdownMarks[countdown.NextMark++];
+            while (countdown.NextMark < s_countdownMarks.Length && seconds <= s_countdownMarks[countdown.NextMark])
+                announce = s_countdownMarks[countdown.NextMark++];
 
             if (announce > 0)
                 SendLine(id, $"Returning to town in {Seconds(announce)}.");
