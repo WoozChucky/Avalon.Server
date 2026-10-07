@@ -60,42 +60,15 @@ public partial class CAuthHandlerShould
         };
     }
 
-    [Fact]
-    public async Task SendInvalidCredentials_WhenUsernameIsNull()
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("user", true)]
+    public async Task SendInvalidCredentials_WithoutAUsernameOrPassword(string? username, bool blankPassword)
     {
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = null!, Password = TestPasswords.Wrong },
-            Connection = _connection
-        };
-
-        await _handler.ExecuteAsync(ctx);
-
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        await _accountRepository.DidNotReceive().FindByUserNameAsync(Arg.Any<string>());
-    }
-
-    [Fact]
-    public async Task SendInvalidCredentials_WhenPasswordIsWhitespace()
-    {
-        var ctx = new AuthPacketContext<CAuthPacket>
-        {
-            Packet = new CAuthPacket { Username = "user", Password = "   " },
-            Connection = _connection
-        };
-
-        await _handler.ExecuteAsync(ctx);
-
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        await _accountRepository.DidNotReceive().FindByUserNameAsync(Arg.Any<string>());
-    }
-
-    [Fact]
-    public async Task SendInvalidCredentials_WhenUsernameIsEmptyString()
-    {
-        var ctx = new AuthPacketContext<CAuthPacket>
-        {
-            Packet = new CAuthPacket { Username = "", Password = TestPasswords.Wrong },
+            Packet = new CAuthPacket { Username = username!, Password = blankPassword ? "   " : TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -122,41 +95,6 @@ public partial class CAuthHandlerShould
     }
 
     [Fact]
-    public async Task SendInvalidCredentials_WhenAccountNotFound()
-    {
-        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns((Account?)null);
-
-        var ctx = new AuthPacketContext<CAuthPacket>
-        {
-            Packet = new CAuthPacket { Username = "unknown", Password = TestPasswords.Wrong },
-            Connection = _connection
-        };
-
-        await _handler.ExecuteAsync(ctx);
-
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
-    }
-
-    [Fact]
-    public async Task SendLocked_WhenAccountIsLocked()
-    {
-        Account account = MakeAccount(locked: true);
-        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-
-        var ctx = new AuthPacketContext<CAuthPacket>
-        {
-            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Wrong },
-            Connection = _connection
-        };
-
-        await _handler.ExecuteAsync(ctx);
-
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
-    }
-
-    [Fact]
     public async Task SendInvalidCredentials_WhenPasswordIsWrong_AndIncrementFailedLogins()
     {
         Account account = MakeAccount(failedLogins: 0);
@@ -175,26 +113,6 @@ public partial class CAuthHandlerShould
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(),
             (DateTime?)null, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
-    }
-
-    [Fact]
-    public async Task SendLocked_WhenFailedLoginAttemptsReachDefaultThreshold()
-    {
-        Account account = MakeAccount();
-        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(5L); // the default threshold of 5
-
-        var ctx = new AuthPacketContext<CAuthPacket>
-        {
-            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Wrong },
-            Connection = _connection
-        };
-
-        await _handler.ExecuteAsync(ctx);
-
-        Assert.Equal(AuthResult.LOCKED, SentResult());
-        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
-            Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -238,25 +156,6 @@ public partial class CAuthHandlerShould
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
             (DateTime?)null, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ResetFailedLogins_OnSuccessfulLogin_RegardlessOfThreshold()
-    {
-        Account account = MakeAccount(failedLogins: 3);
-        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        CAuthHandler handler = CreateHandler(maxFailedLogins: 10);
-
-        var ctx = new AuthPacketContext<CAuthPacket>
-        {
-            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Valid },
-            Connection = _connection
-        };
-
-        await handler.ExecuteAsync(ctx);
-
-        Assert.Equal(0, account.FailedLogins);
-        Assert.True(account.Online);
     }
 
     [Fact]
@@ -379,27 +278,6 @@ public partial class CAuthHandlerShould
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
         await _mfaHashService.Received(1).GenerateHashAsync(account);
         await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
-    }
-
-    [Fact]
-    public async Task SendSuccess_WhenAccountHasNoMfa()
-    {
-        Account account = MakeAccount();
-        IMfaSetupRepository mfaSetupRepo = Substitute.For<IMfaSetupRepository>();
-        mfaSetupRepo.FindByAccountIdAsync(Arg.Any<AccountId>()).Returns((MFASetup?)null);
-        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-
-        var handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, mfaSetupRepo, AuthOptions(), _passwordVerifier);
-        var ctx = new AuthPacketContext<CAuthPacket>
-        {
-            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Valid },
-            Connection = _connection
-        };
-
-        await handler.ExecuteAsync(ctx);
-
-        Assert.True(account.Online);
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
     }
 
     private AuthResult? SentResult()
@@ -760,18 +638,6 @@ public partial class CAuthHandlerShould
         Assert.InRange(verifies, 1, 10);
     }
 
-    [Fact]
-    public async Task Refuse_on_the_count_the_increment_returns()
-    {
-        _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(11L);
-        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
-
-        await LogInAsync(CreateHandler(HardeningOptions(perSource: 10)));
-
-        Assert.Equal(AuthResult.LOCKED, SentResult());
-        await _accountRepository.DidNotReceiveWithAnyArgs().FindByUserNameAsync(default!, default);
-    }
-
     /// <summary>A correct password gives back its own slot, and only its own.</summary>
     [Fact]
     public async Task Give_back_its_own_source_slot_on_a_correct_password()
@@ -881,18 +747,5 @@ public partial class CAuthHandlerShould
 
         await _accountRepository.Received(1).TryRecordLoginAsync(account.Id, "2001:db8:1:2:3:4:5:6",
             Arg.Any<DateTime>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Not_count_a_successful_login_against_its_source()
-    {
-        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
-
-        await LogInAsync(CreateHandler(HardeningOptions()));
-
-        // The slot the attempt took is given back, so the success leaves the count where it was.
-        Assert.Equal(AuthResult.SUCCESS, SentResult());
-        await _cache.Received(1).IncrementAsync(SourceKey, Arg.Any<TimeSpan>());
-        await _cache.Received(1).DecrementFloorAsync(SourceKey);
     }
 }

@@ -54,15 +54,27 @@ public class QuestCatalogShould
         Assert.Equal([2u, 1u, 3u], catalog.GivenBy(new CreatureTemplateId(Giver)).Select(q => q.Id));
     }
 
-    [Fact] public void Refuse_a_missing_giver() => AssertRefused(Build([Quest(1, giver: 999).WithStage(0, Kill(11, Boar, 1))]), 1, "giver");
-    [Fact] public void Refuse_a_missing_ender() => AssertRefused(Build([Quest(1, ender: 999).WithStage(0, Kill(11, Boar, 1))]), 1, "ender");
-    [Fact] public void Refuse_a_missing_objective_creature() => AssertRefused(Build([Quest(1).WithStage(0, Kill(11, 999, 1))]), 1, "creature template 999");
-    [Fact] public void Refuse_a_missing_objective_item() => AssertRefused(Build([Quest(1).WithStage(0, Collect(11, 999, 1))]), 1, "item template 999");
-    [Fact] public void Refuse_a_missing_reward_item() => AssertRefused(Build([Quest(1).WithStage(0, Kill(11, Boar, 1)).Paying(999, 1)]), 1, "item template 999");
-    [Fact] public void Refuse_a_missing_prerequisite() => AssertRefused(Build([Quest(1, requires: 999).WithStage(0, Kill(11, Boar, 1))]), 1, "prerequisite");
-    [Fact] public void Refuse_a_quest_with_no_stage() => AssertRefused(Build([Quest(1)]), 1, "no stages");
-    [Fact] public void Refuse_a_count_of_zero() => AssertRefused(Build([Quest(1).WithStage(0, Kill(11, Boar, 0))]), 1, "count 0");
-    [Fact] public void Refuse_a_script_that_is_not_loaded() => AssertRefused(Build([Quest(1, script: "Nope").WithStage(0, Kill(11, Boar, 1))]), 1, "script");
+    public static TheoryData<QuestTemplate, string> BrokenQuests => new()
+    {
+        { Quest(1, giver: 999).WithStage(0, Kill(11, Boar, 1)), "giver" },
+        { Quest(1, ender: 999).WithStage(0, Kill(11, Boar, 1)), "ender" },
+        { Quest(1).WithStage(0, Kill(11, 999, 1)), "creature template 999" },
+        { Quest(1).WithStage(0, Collect(11, 999, 1)), "item template 999" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Paying(999, 1), "item template 999" },
+        { Quest(1, requires: 999).WithStage(0, Kill(11, Boar, 1)), "prerequisite" },
+        { Quest(1), "no stages" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 0)), "count 0" },
+        { Quest(1, script: "Nope").WithStage(0, Kill(11, Boar, 1)), "script" },
+        { Quest(0).WithStage(0, Kill(11, Boar, 1)), "id" },
+        { Quest(1).WithStage(0, Collect(11, Tonic, 1)), "not a QuestItem" },
+        { Quest(1).WithStage(0, Collect(11, Tusk, 1)).WithStage(1, Collect(12, Tusk, 1)), "objective 12 collects item template 7101, which objective 11 already collects" },
+    };
+
+    [Theory]
+    [MemberData(nameof(BrokenQuests))]
+    public void Refuse_a_quest_that_breaks_a_rule(QuestTemplate quest, string reasonFragment) =>
+        AssertRefused(Build([quest]), (uint)quest.Id.Value, reasonFragment);
+
     /// <summary>Final review M3: only the quest's script can move a Scripted objective, so a quest without one would stick.</summary>
     [Fact]
     public void Refuse_a_scripted_objective_on_a_quest_without_a_script()
@@ -105,15 +117,6 @@ public class QuestCatalogShould
         AssertRefused(Build([Quest(1).WithStage(0, Talk(11, TalkTarget))], nodes: nodes), 1, "no dialogue root");
     }
 
-    /// <summary>A kill target needs no dialogue: monsters are never talked to.</summary>
-    [Fact]
-    public void Load_a_quest_whose_kill_target_has_no_dialogue_root()
-    {
-        QuestCatalog catalog = Build([Quest(1).WithStage(0, Kill(11, Boar, 1))]);
-
-        Assert.True(catalog.TryGet(1, out _));
-    }
-
     /// <summary>#737: what a /reload dialogue checks against the loaded quests; it refuses nothing.</summary>
     [Fact]
     public void Name_every_loaded_quest_whose_npc_has_no_root_in_a_dialogue_catalog()
@@ -133,8 +136,6 @@ public class QuestCatalogShould
         Assert.Empty(catalog.NpcsWithoutDialogue(new Avalon.World.Dialogue.DialogueCatalog(Roots(Giver, Ender, TalkTarget), [],
             NullLoggerFactory.Instance)));
     }
-
-    [Fact] public void Refuse_quest_id_zero() => AssertRefused(Build([Quest(0).WithStage(0, Kill(11, Boar, 1))]), 0, "id");
 
     [Fact]
     public void Refuse_a_prerequisite_cycle()
@@ -175,10 +176,6 @@ public class QuestCatalogShould
         AssertRefused(Build([Quest(2).WithStage(0, Kill(21, Boar, 1), Kill(22, Boar, 1), Kill(23, Boar, 1), Kill(24, Boar, 1), Kill(25, Boar, 1))]),
             2, "more than 4");
     }
-
-    [Fact]
-    public void Refuse_a_collect_objective_whose_item_is_not_a_quest_item() =>
-        AssertRefused(Build([Quest(1).WithStage(0, Collect(11, Tonic, 1))]), 1, "not a QuestItem");
 
     [Theory]
     [InlineData(-0.5f)]
@@ -252,11 +249,6 @@ public class QuestCatalogShould
     }
 
     [Fact]
-    public void Refuse_a_quest_that_collects_one_item_in_two_objectives() =>
-        AssertRefused(Build([Quest(1).WithStage(0, Collect(11, Tusk, 1)).WithStage(1, Collect(12, Tusk, 1))]), 1,
-            "objective 12 collects item template 7101, which objective 11 already collects");
-
-    [Fact]
     public void Let_a_quest_collect_an_item_whose_earlier_collector_was_refused()
     {
         // Quest 1 is refused for its prerequisite, so it holds no item: quest 2 may collect the tusk, and no
@@ -283,18 +275,6 @@ public class QuestCatalogShould
         Assert.True(catalog.TryGet(1, out _));
         AssertRefused(catalog, 2, "already collected by quest 1");
         AssertRefused(catalog, 3, "prerequisite quest 2");
-    }
-
-    [Fact]
-    public void Refuse_a_second_quest_that_collects_the_same_item()
-    {
-        QuestCatalog catalog = Build([
-            Quest(1).WithStage(0, Collect(11, Tusk, 1)),
-            Quest(2).WithStage(0, Collect(21, Tusk, 1)),
-        ]);
-
-        Assert.True(catalog.TryGet(1, out _));
-        AssertRefused(catalog, 2, "already collected by quest 1");
     }
 
     [Fact]

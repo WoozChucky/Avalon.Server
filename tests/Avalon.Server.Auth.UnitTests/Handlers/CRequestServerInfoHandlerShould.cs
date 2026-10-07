@@ -89,25 +89,17 @@ public class CRequestServerInfoHandlerShould
 
     // ── success cases ────────────────────────────────────────────────────────────
 
-    [Fact]
-    public async Task SendServerInfo_WhenClientVersionEqualsMinimum()
+    [Theory]
+    [InlineData("0.0.1")]   // the minimum itself
+    [InlineData("2.0.0")]   // newer than the minimum
+    public async Task SendServerInfo_WhenClientVersionIsAtLeastTheMinimum(string clientVersion)
     {
         CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "0.0.1");
-        await handler.ExecuteAsync(Ctx("0.0.1"));
+        await handler.ExecuteAsync(Ctx(clientVersion));
 
         _connection.DidNotReceive().Close();
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
         _serverCrypto.Received(1).GetPublicKey();
-    }
-
-    [Fact]
-    public async Task SendServerInfo_WhenClientVersionIsNewerThanMinimum()
-    {
-        CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "0.0.1");
-        await handler.ExecuteAsync(Ctx("2.0.0"));
-
-        _connection.DidNotReceive().Close();
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
     }
 
     [Fact]

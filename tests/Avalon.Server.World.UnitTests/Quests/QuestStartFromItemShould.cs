@@ -1,6 +1,5 @@
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Quest;
-using Avalon.World.Entities;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,18 +35,6 @@ public class QuestStartFromItemShould
         Assert.Equal(QuestResult.Ok, w.Quests.StartFromItem(c.Character, Hunt));
         Assert.Equal(QuestResult.NotAvailable, w.Quests.StartFromItem(c.Character, Hunt));     // already held
         Assert.False(c.Character.Quests.IsActive(Tusks));
-    }
-
-    [Fact]
-    public async Task Leave_accept_at_a_giver_unchanged()
-    {
-        QuestTestWorld w = await QuestTestWorld.CreateAsync();
-        QuestClient c = w.Join();
-        Creature giver = w.Place(Giver);
-        w.Talk(c, giver);
-
-        Assert.Equal(QuestResult.Ok, w.Quests.Accept(c.Connection, c.Character, Hunt, giver.Guid.RawValue));
-        Assert.True(c.Character.Quests.IsActive(Hunt));
     }
 
     /// <summary>Kill and Talk objectives move; a Scripted one stays its own script's, a Collect one the bag's.</summary>

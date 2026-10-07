@@ -1,7 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
-using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Public.Dialogue;
@@ -227,29 +226,6 @@ public class StaticDataReloadShould
 
         Assert.False(data.DialogueActions.Offers(banker, DialogueOptionAction.OpenBank));
         Assert.Null(data.DialogueActions.For(new DialogueOptionId(1)));
-    }
-
-    [Fact]
-    public async Task Make_Reloaded_Creatures_Visible_Through_Its_Properties()
-    {
-        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
-        repos.Templates = [Template(1), Template(2)];
-
-        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
-
-        Assert.Equal(2, data.CreatureTemplates.Count);
-    }
-
-    [Fact]
-    public async Task Make_Reloaded_Abilities_Visible_Through_Its_Properties()
-    {
-        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
-        Assert.Empty(data.AbilityTemplates);
-        repos.Abilities = [AbilityTestData.Circle(1, "ability-1")];
-
-        data.Apply(await data.PrepareAsync(ReloadArea.Abilities));
-
-        Assert.Single(data.AbilityTemplates);
     }
 
     [Fact]

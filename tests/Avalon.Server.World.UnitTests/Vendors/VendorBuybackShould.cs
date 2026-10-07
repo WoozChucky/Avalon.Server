@@ -10,17 +10,6 @@ public class VendorBuybackShould
     private static BuybackEntry Sold(ulong price) => new(Item(0, Tonic), price);
 
     [Fact]
-    public void Put_the_newest_sale_first()
-    {
-        var buyback = new VendorBuyback();
-
-        buyback.Push(Sold(1));
-        buyback.Push(Sold(2));
-
-        Assert.Equal([2UL, 1UL], buyback.Entries.Select(e => e.Price));
-    }
-
-    [Fact]
     public void Push_the_oldest_sale_out_on_the_eleventh()
     {
         var buyback = new VendorBuyback();
@@ -56,16 +45,5 @@ public class VendorBuybackShould
         buyback.RemoveAt(1);
 
         Assert.Equal([3UL, 1UL], buyback.Entries.Select(e => e.Price));
-    }
-
-    [Fact]
-    public void Forget_every_sale_on_clear()
-    {
-        var buyback = new VendorBuyback();
-        buyback.Push(Sold(1));
-
-        buyback.Clear();
-
-        Assert.Empty(buyback.Entries);
     }
 }

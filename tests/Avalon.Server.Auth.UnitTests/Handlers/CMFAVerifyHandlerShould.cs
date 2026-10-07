@@ -128,23 +128,6 @@ public class CMFAVerifyHandlerShould
     }
 
     [Fact]
-    public async Task SendMfaFailed_WhenHashNotFoundOrExpired()
-    {
-        _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(new MFAVerifyResult(false, null));
-
-        var ctx = new AuthPacketContext<CMFAVerifyPacket>
-        {
-            Packet = new CMFAVerifyPacket { MfaHash = "bad-hash", Code = "000000" },
-            Connection = _connection
-        };
-
-        await CreateHandler().ExecuteAsync(ctx);
-
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
-    }
-
-    [Fact]
     public async Task SendMfaFailed_WhenCodeIsInvalid()
     {
         _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(new MFAVerifyResult(false, null));

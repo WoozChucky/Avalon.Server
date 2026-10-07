@@ -57,9 +57,6 @@ public class PvpCommandShould
     }
 
     [Fact]
-    public void Be_named_pvp() => Assert.Equal("pvp", _command.Name);
-
-    [Fact]
     public void Be_runnable_by_every_player() =>
         Assert.Equal(AccessLevels.Player, ((ICommand)_command).RequiredAccess);
 

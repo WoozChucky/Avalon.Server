@@ -65,41 +65,24 @@ public class VendorQuestRefreshShould : IAsyncLifetime
 
     private static bool ListsGated(SVendorListPacket list) => list.Entries.Any(e => e.Sequence == GatedSequence);
 
-    [Fact]
-    public void Send_one_list_for_an_accept_and_a_shop_opening_in_the_same_tick()
+    [Theory]
+    [InlineData("accept")]
+    [InlineData("turn-in")]
+    [InlineData("abandon")]
+    public void Send_one_list_for_a_quest_change_and_a_shop_opening_in_the_same_tick(string change)
     {
-        _w.Interact(_w.Main, VendorWorld.SmithGuid);
-        Assert.Equal(QuestResult.Ok, Accept());
+        if (change != "accept")
+            HoldReady();
+        if (change != "abandon")
+            _w.Interact(_w.Main, VendorWorld.SmithGuid);
+        Assert.Equal(QuestResult.Ok, change switch { "accept" => Accept(), "turn-in" => TurnIn(), _ => Abandon() });
         _w.OpenShop();
 
         _w.EndOfTick();
 
-        Assert.Single(_w.Main.Lists());
-    }
-
-    [Fact]
-    public void Send_one_list_for_a_turn_in_and_a_shop_opening_in_the_same_tick()
-    {
-        HoldReady();
-        _w.Interact(_w.Main, VendorWorld.SmithGuid);
-        Assert.Equal(QuestResult.Ok, TurnIn());
-        _w.OpenShop();
-
-        _w.EndOfTick();
-
-        Assert.True(ListsGated(Assert.Single(_w.Main.Lists())));
-    }
-
-    [Fact]
-    public void Send_one_list_for_an_abandon_and_a_shop_opening_in_the_same_tick()
-    {
-        HoldReady();
-        Assert.Equal(QuestResult.Ok, Abandon());
-        _w.OpenShop();
-
-        _w.EndOfTick();
-
-        Assert.Single(_w.Main.Lists());
+        SVendorListPacket list = Assert.Single(_w.Main.Lists());
+        if (change == "turn-in")
+            Assert.True(ListsGated(list));
     }
 
     /// <summary>A turn-in at the Smith while its shop is open meets the gate: the vendor pass resends the list once, with the row.</summary>

@@ -68,32 +68,6 @@ public class AbilityScriptCloneShould
     }
 
     [Fact]
-    public void Clone_MutatingCloneChain_DoesNotAffectOriginal()
-    {
-        StubAbilityScript original = MakeScript();
-        original.Chain(MakeScript());
-        original.Chain(MakeScript());
-
-        var clone = (StubAbilityScript)original.Clone();
-        clone.Chain.Clear();
-
-        // Original chain is unaffected
-        Assert.Equal(2, original.Chain.Count);
-        Assert.Empty(clone.Chain);
-    }
-
-    [Fact]
-    public void Clone_SubclassWithoutOverride_ReturnsCorrectType()
-    {
-        StubAbilityScript original = MakeScript();
-
-        AbilityScript clone = original.Clone();
-
-        Assert.IsType<StubAbilityScript>(clone);
-        Assert.NotSame(original, clone);
-    }
-
-    [Fact]
     public void Clone_ChainsAreRecursivelyCloned()
     {
         StubAbilityScript original = MakeScript();

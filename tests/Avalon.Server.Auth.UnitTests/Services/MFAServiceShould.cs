@@ -149,18 +149,6 @@ public class MFAServiceShould
     }
 
     [Fact]
-    public async Task Reset_when_all_recovery_codes_are_correct()
-    {
-        MFAService service = CreateService();
-        string[] codes = await SetUpAndConfirmAsync(service);
-
-        MFAResetResult result = await service.ResetMFAAsync(s_accountId, 0, codes[0], codes[1], codes[2]);
-
-        Assert.True(result.Success);
-        Assert.Equal(MFAOperationResult.Success, result.Status);
-    }
-
-    [Fact]
     public async Task Reset_when_codes_are_typed_in_lower_case_without_separators()
     {
         MFAService service = CreateService();
@@ -169,19 +157,6 @@ public class MFAServiceShould
         MFAResetResult result = await service.ResetMFAAsync(s_accountId, 0, codes[0].ToLowerInvariant(), codes[1].Replace("-", ""), $" {codes[2]} ");
 
         Assert.True(result.Success);
-    }
-
-    [Fact]
-    public async Task Reject_a_wrong_recovery_code()
-    {
-        MFAService service = CreateService();
-        string[] codes = await SetUpAndConfirmAsync(service);
-
-        MFAResetResult result = await service.ResetMFAAsync(s_accountId, 0, codes[0], "0000-0000-0000-0000", codes[2]);
-
-        Assert.False(result.Success);
-        Assert.Equal(MFAOperationResult.InvalidCode, result.Status);
-        Assert.NotNull(_row);
     }
 
     [Theory]

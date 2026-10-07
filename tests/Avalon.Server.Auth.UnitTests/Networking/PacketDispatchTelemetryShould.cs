@@ -208,15 +208,6 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     }
 
     [Fact]
-    public void Refuse_a_packet_type_name_that_does_not_exist()
-    {
-        var config = new TelemetryConfiguration { NoSpanPacketTypes = ["CMSG_NOPE"] };
-
-        ArgumentException error = Assert.Throws<ArgumentException>(() => PacketDispatchTelemetry.From(_source, _meter, config));
-        Assert.Contains("CMSG_NOPE", error.Message);
-    }
-
-    [Fact]
     public void Allocate_little_per_packet_for_the_chatty_types()
     {
         // A source and meter nothing listens to, so only the dispatch itself is measured. Player input
@@ -277,6 +268,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     }
 
     [Theory]
+    [InlineData("CMSG_NOPE")]
     [InlineData("3")]
     [InlineData("8192")]
     [InlineData("0x2000")]
