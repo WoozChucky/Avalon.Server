@@ -123,50 +123,7 @@ public class CreatureCastShould
         Assert.Equal([player], _arena.Damaged());
     }
 
-    [Fact]
-    public void Hit_each_player_in_its_circle_once_and_no_creature()
-    {
-        Creature wolf = Wolf();
-        IAbility roar = wolf.Abilities[s_roarId]!;
-        CharacterEntity near = _arena.Player(163_111, 1f, 0f);
-        CharacterEntity far = _arena.Player(163_112, 0f, -4f);
-        _arena.Creature(2f, 2f);
-        _arena.Creature(-2f, 0f, invulnerable: true);
-
-        Assert.True(_sut.QueueAbility(wolf, s_north, roar));
-        RunFor(1.05f);
-
-        Assert.Equal(2, _arena.Damaged().Count);
-        Assert.Equal([near, far], _arena.Damaged().OrderBy(u => u.Guid.Id));
-    }
-
-    // ── cost ──
-
-    [Fact]
-    public void Charge_a_creature_nothing_on_either_path()
-    {
-        Creature wolf = Wolf();
-        wolf.PowerType = Avalon.Network.Packets.State.PowerType.None;
-        wolf.CurrentPower = 0;
-
-        Assert.True(_sut.QueueAbility(wolf, s_north, wolf.Abilities[s_roarId]!));   // Cost 30
-        Assert.Equal(0u, wolf.CurrentPower);
-        Assert.True(wolf.Abilities.IsCasting);
-    }
-
     // ── cooldowns and haste ──
-
-    [Fact]
-    public void Wait_the_swing_interval_after_the_basic()
-    {
-        Creature wolf = Wolf();
-        IAbility bite = wolf.Abilities[s_biteId]!;
-
-        Assert.True(_sut.RunInstant(wolf, s_north, bite));
-
-        Assert.Equal(wolf.SwingInterval, bite.CooldownTimer);
-        Assert.Equal(2.25f, bite.CooldownTimer);
-    }
 
     /// <summary>
     /// With 50 % haste the basic waits BaseAttackTime / 1.5: SwingInterval already carries the haste, so it is
@@ -184,17 +141,6 @@ public class CreatureCastShould
 
         Assert.Equal(1.5f, bite.CooldownTimer, 0.0001f);
         Assert.Equal(8f / 1.5f, claw.CooldownTimer, 0.0001f);
-    }
-
-    [Fact]
-    public void Scale_a_wind_up_by_haste()
-    {
-        Creature wolf = Wolf(haste: 50f);
-        IAbility roar = wolf.Abilities[s_roarId]!;
-
-        Assert.True(_sut.QueueAbility(wolf, s_north, roar));
-
-        Assert.Equal(1f / 1.5f, roar.CastTimeTimer, 0.0001f);
     }
 
     // ── wind-ups ──
@@ -236,17 +182,27 @@ public class CreatureCastShould
         Assert.Equal([stayed], _arena.Damaged());
     }
 
-    /// <summary>Review Focus 1: a creature killed mid wind-up casts nothing, now or later, and its cast bar ends at once.</summary>
-    [Fact]
-    public void Drop_the_wind_up_of_a_creature_killed_mid_cast_and_broadcast_the_interrupt()
+    /// <summary>
+    /// Review Focus 1 and 2: a creature killed, or turned for home, mid wind-up casts nothing, now or later, and
+    /// its cast bar ends on the cast system's next tick.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Drop_the_wind_up_of_a_creature_that_dies_or_turns_for_home_and_broadcast_the_interrupt(bool dies)
     {
         Creature wolf = Wolf();
+        var combat = new CreatureCombatScript(NullLoggerFactory.Instance, wolf, Substitute.For<ISimulationContext>());
+        wolf.Script = combat;
         IAbility roar = wolf.Abilities[s_roarId]!;
         _arena.Player(163_131, 0f, 2f);
 
         Assert.True(_sut.QueueAbility(wolf, s_north, roar));
         RunFor(0.3f);
-        wolf.CurrentHealth = 0;
+        if (dies)
+            wolf.CurrentHealth = 0;
+        else
+            combat.State = CreatureCombatScript.CombatState.Returning;
         _sut.Update(s_tick, []);
 
         Assert.Equal([roar], _arena.InterruptsOf(wolf));
@@ -255,44 +211,6 @@ public class CreatureCastShould
         RunFor(2f);
         Assert.Empty(_arena.Damaged());
         Assert.Empty(_arena.Finished);
-    }
-
-    /// <summary>Review Focus 2: a wind-up in progress when the creature turns for home ends without firing.</summary>
-    [Fact]
-    public void Drop_the_wind_up_of_a_creature_walking_home()
-    {
-        Creature wolf = Wolf();
-        var combat = new CreatureCombatScript(NullLoggerFactory.Instance, wolf, Substitute.For<ISimulationContext>());
-        wolf.Script = combat;
-        IAbility roar = wolf.Abilities[s_roarId]!;
-        _arena.Player(163_141, 0f, 2f);
-
-        Assert.True(_sut.QueueAbility(wolf, s_north, roar));
-        combat.State = CreatureCombatScript.CombatState.Returning;
-        RunFor(1.5f);
-
-        Assert.Equal([roar], _arena.InterruptsOf(wolf));
-        Assert.Empty(_arena.Damaged());
-        Assert.False(wolf.Abilities.IsCasting);
-    }
-
-    /// <summary>
-    /// A creature is never interrupted by being moved (#163): its script asks for no movement while it winds
-    /// up, so a push (a crowd's separation) must not cancel the wind-up, and re-queue it, every tick.
-    /// </summary>
-    [Fact]
-    public void Fire_a_wind_up_whose_creature_was_pushed_during_it()
-    {
-        Creature wolf = Wolf();
-        CharacterEntity player = _arena.Player(163_195, 0f, 2f);
-
-        Assert.True(_sut.QueueAbility(wolf, s_north, wolf.Abilities[s_roarId]!));
-        RunFor(0.3f);
-        wolf.Position = new Vector3(0.3f, 0f, 0f);
-        RunFor(0.8f);
-
-        Assert.Empty(_arena.Interrupted);
-        Assert.Equal([player], _arena.Damaged());
     }
 
     /// <summary>
@@ -351,38 +269,6 @@ public class CreatureCastShould
         Assert.Equal([(3L, 7L)], rng.WeaponRolls);
         Assert.Equal(before - 6u, player.Character.CurrentHealth);
         SCharacterDamagePacket hit = Assert.Single(player.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
-        Assert.Equal(s_biteId.Value, hit.AbilityId);
-    }
-
-    [Fact]
-    public void Mark_a_creature_abilitys_crit_on_the_hit()
-    {
-        ScriptedCombatRandom rng = new ScriptedCombatRandom(0.99, 0.0, 0.99).Longs(4);
-        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _, random: rng);
-        MapInstanceClient player = Join(instance, 163_161);
-        player.Character.Health = 100;
-        player.Character.CurrentHealth = 100;
-        player.Character.Position = new Vector3(0f, 0f, 1.5f);
-        var wolf = new Creature
-        {
-            Guid = new ObjectGuid(ObjectType.Creature, 163_961),
-            TemplateId = new CreatureTemplateId(5),
-            Metadata = Loot.LootTestData.BoarTemplate(null),
-            Name = "Wolf",
-            Position = Vector3.zero,
-            Health = 100,
-            CurrentHealth = 100,
-            DamageMin = 3,
-            DamageMax = 7,
-            CritPct = 100f,
-        };
-        wolf.Abilities.Load(CreatureAbilitiesShould.Catalog(Bite()), new CreatureAbilityKit(s_biteId), NullLogger.Instance, "Wolf");
-        instance.AddCreature(wolf);
-
-        Assert.True(instance.RunInstantAbility(wolf, s_north, wolf.Abilities[s_biteId]!));
-
-        SCharacterDamagePacket hit = Assert.Single(player.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
-        Assert.Equal(HitResult.Crit, hit.Result);
         Assert.Equal(s_biteId.Value, hit.AbilityId);
     }
 

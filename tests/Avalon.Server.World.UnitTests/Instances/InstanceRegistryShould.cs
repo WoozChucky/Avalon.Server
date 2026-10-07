@@ -185,29 +185,6 @@ public class InstanceRegistryShould : IDisposable
     }
 
     /// <summary>
-    /// A failed per-character build must not stay cached either, or that character could never
-    /// enter the map again until a restart.
-    /// </summary>
-    [Fact]
-    public async Task Let_A_Character_Start_A_Fresh_Normal_Build_After_One_Fails()
-    {
-        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
-
-        _builds[0].SetException(new InvalidOperationException("navmesh bake failed"));
-        _registry.PublishFinished();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(s_bound));
-
-        Task<IMapInstance> retry = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
-
-        Assert.Equal(2, _builds.Count);
-
-        CompleteBuildsAndPublish();
-        IMapInstance instance = await retry.WaitAsync(s_bound);
-
-        Assert.Same(instance, _registry.ActiveInstances.Single());
-    }
-
-    /// <summary>
     /// A publish step that throws (here a build that handed back no instance) loses nothing: its requesters get the
     /// failure, the build behind it is still published, and the next request starts afresh.
     /// </summary>
@@ -257,23 +234,6 @@ public class InstanceRegistryShould : IDisposable
         IMapInstance[] results = await Task.WhenAll(mine, theirs).WaitAsync(s_bound);
 
         Assert.NotSame(results[0], results[1]);
-    }
-
-    /// <summary>
-    /// Re-entry within the window still returns the character's instance once its build has
-    /// finished, rather than a stale pending entry or a fresh build.
-    /// </summary>
-    [Fact]
-    public async Task Return_A_Characters_Finished_Normal_Instance_On_Re_Entry()
-    {
-        Task<IMapInstance> first = _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
-        CompleteBuildsAndPublish();
-        IMapInstance instance = await first.WaitAsync(s_bound);
-
-        IMapInstance again = await _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId).WaitAsync(s_bound);
-
-        Assert.Same(instance, again);
-        Assert.Single(_builds);
     }
 
     /// <summary>

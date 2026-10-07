@@ -9,6 +9,7 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Units;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -20,130 +21,66 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class EffectBroadcastRadiusShould
 {
-    private const float Radius = 60f;
-
     private static readonly Vector3 s_inside = new(30f, 0f, 30f);
     private static readonly Vector3 s_outside = new(100f, 0f, 0f);
     private static readonly Vector3 s_far = new(500f, 0f, 500f);
 
-    [Fact]
-    public void Default_the_radius_to_60() => Assert.Equal(60f, new GameConfiguration().InterestRadius);
+    /// <summary>Not finite, so near nothing: only being involved in an effect reaches a watcher standing here.</summary>
+    private static readonly Vector3 s_unplaced = new(float.NaN, 0f, float.NaN);
 
-    // ---- Each method: one watcher inside, one outside --------------------------------------------
+    // ---- Each broadcast: one watcher inside, one outside, and the units involved ---------------------
 
-    [Fact]
-    public void Send_a_unit_hit_only_to_the_watcher_inside_the_radius()
+    [Theory]
+    [InlineData(NetworkPacketType.SMSG_CREATURE_DAMAGED)]
+    [InlineData(NetworkPacketType.SMSG_UNIT_START_CAST)]
+    [InlineData(NetworkPacketType.SMSG_UNIT_FINISH_CAST)]
+    [InlineData(NetworkPacketType.SMSG_INTERRUPTED_CAST)]
+    [InlineData(NetworkPacketType.SMSG_CREATURE_ATTACK_ANIMATION)]
+    [InlineData(NetworkPacketType.SMSG_ABILITY_FIRED)]
+    [InlineData(NetworkPacketType.SMSG_UNIT_DEATH)]
+    [InlineData(NetworkPacketType.SMSG_UNIT_REVIVE)]
+    public void Send_an_effect_only_to_the_watcher_inside_the_radius(NetworkPacketType effect)
     {
         using MapInstance instance = Build();
-        (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
-        Creature attacker = AddCreature(instance, 1, Vector3.zero);
-        Creature target = AddCreature(instance, 2, new Vector3(1f, 0f, 0f));
+        MapInstanceClient near = JoinAt(instance, 532_001, s_inside);
+        MapInstanceClient far = JoinAt(instance, 532_002, s_outside);
+        // A revive is heard where the unit revives (the origin), not where it died.
+        Creature unit = AddCreature(instance, 1, effect == NetworkPacketType.SMSG_UNIT_REVIVE ? s_far : Vector3.zero);
+        Creature other = AddCreature(instance, 2, new Vector3(1f, 0f, 0f));
 
-        instance.BroadcastUnitHit(attacker, target, 10, 5);
+        Broadcast(instance, effect, unit, other);
 
-        AssertOnlyNear(near, far, NetworkPacketType.SMSG_CREATURE_DAMAGED);
+        Assert.Equal([effect], near.Sent.Select(p => p.Header.Type));
+        Assert.Empty(far.Sent);
     }
 
-    [Fact]
-    public void Send_a_start_cast_only_to_the_watcher_inside_the_radius()
+    /// <summary>
+    /// The units an effect involves hear it wherever they stand: a hit's attacker and target, the caster of a
+    /// cast, a swing or a fired ability, the dying unit and its killer, the revived unit.
+    /// </summary>
+    [Theory]
+    [InlineData(NetworkPacketType.SMSG_CREATURE_DAMAGED, true)]
+    [InlineData(NetworkPacketType.SMSG_UNIT_START_CAST, false)]
+    [InlineData(NetworkPacketType.SMSG_UNIT_FINISH_CAST, false)]
+    [InlineData(NetworkPacketType.SMSG_INTERRUPTED_CAST, false)]
+    [InlineData(NetworkPacketType.SMSG_CREATURE_ATTACK_ANIMATION, false)]
+    [InlineData(NetworkPacketType.SMSG_ABILITY_FIRED, false)]
+    [InlineData(NetworkPacketType.SMSG_UNIT_DEATH, true)]
+    [InlineData(NetworkPacketType.SMSG_UNIT_REVIVE, false)]
+    public void Send_an_effect_to_the_units_it_involves_wherever_they_stand(NetworkPacketType effect, bool otherInvolved)
     {
         using MapInstance instance = Build();
-        (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
-        Creature caster = AddCreature(instance, 1, Vector3.zero);
+        MapInstanceClient unit = JoinAt(instance, 532_003, s_unplaced);
+        MapInstanceClient other = JoinAt(instance, 532_004, s_unplaced);
 
-        instance.BroadcastUnitStartCast(caster, Ability(), 1u, null);
+        Broadcast(instance, effect, unit.Character, other.Character);
 
-        AssertOnlyNear(near, far, NetworkPacketType.SMSG_UNIT_START_CAST);
+        Assert.Equal([effect], unit.Sent.Select(p => p.Header.Type));
+        NetworkPacketType[] heardByOther = otherInvolved ? [effect] : [];
+        Assert.Equal(heardByOther, other.Sent.Select(p => p.Header.Type));
     }
 
-    [Fact]
-    public void Send_a_finish_cast_only_to_the_watcher_inside_the_radius()
-    {
-        using MapInstance instance = Build();
-        (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
-        Creature caster = AddCreature(instance, 1, Vector3.zero);
-
-        instance.BroadcastFinishCast(caster, Ability());
-
-        AssertOnlyNear(near, far, NetworkPacketType.SMSG_UNIT_FINISH_CAST);
-    }
-
-    [Fact]
-    public void Send_an_interrupted_cast_only_to_the_watcher_inside_the_radius()
-    {
-        using MapInstance instance = Build();
-        (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
-        Creature caster = AddCreature(instance, 1, Vector3.zero);
-
-        instance.BroadcastInterruptedCast(caster, Ability());
-
-        AssertOnlyNear(near, far, NetworkPacketType.SMSG_INTERRUPTED_CAST);
-    }
-
-    [Fact]
-    public void Send_an_attack_animation_only_to_the_watcher_inside_the_radius()
-    {
-        using MapInstance instance = Build();
-        (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
-        Creature attacker = AddCreature(instance, 1, Vector3.zero);
-
-        instance.BroadcastAttackAnimation(attacker, null);
-
-        AssertOnlyNear(near, far, NetworkPacketType.SMSG_CREATURE_ATTACK_ANIMATION);
-    }
-
-    [Fact]
-    public void Send_an_ability_fired_only_to_the_watcher_inside_the_radius()
-    {
-        using MapInstance instance = Build();
-        (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
-        Creature caster = AddCreature(instance, 1, Vector3.zero);
-
-        instance.BroadcastAbilityFired(caster, Ability(), Fired(Vector3.zero, new Vector3(0f, 0f, 1f), null));
-
-        AssertOnlyNear(near, far, NetworkPacketType.SMSG_ABILITY_FIRED);
-    }
-
-    [Fact]
-    public void Send_a_death_only_to_the_watcher_inside_the_radius()
-    {
-        using MapInstance instance = Build();
-        (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
-        Creature unit = AddCreature(instance, 1, Vector3.zero);
-
-        instance.BroadcastUnitDeath(unit, null);
-
-        AssertOnlyNear(near, far, NetworkPacketType.SMSG_UNIT_DEATH);
-    }
-
-    [Fact]
-    public void Send_a_revive_only_to_the_watcher_inside_the_radius_of_where_the_unit_revives()
-    {
-        using MapInstance instance = Build();
-        (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
-        Creature unit = AddCreature(instance, 1, s_far);   // where it died is not where it revives
-
-        instance.BroadcastUnitRevive(unit, Vector3.zero, 100);
-
-        AssertOnlyNear(near, far, NetworkPacketType.SMSG_UNIT_REVIVE);
-    }
-
-    // ---- Involved units beyond the radius still hear it ------------------------------------------
-
-    [Fact]
-    public void Send_a_hit_to_the_attacker_and_the_target_even_when_both_are_beyond_the_radius()
-    {
-        using MapInstance instance = Build();
-        MapInstanceClient attacker = JoinAt(instance, 10, s_far);
-        MapInstanceClient target = JoinAt(instance, 11, -s_far);
-        MapInstanceClient bystander = JoinAt(instance, 12, Vector3.zero);
-
-        instance.BroadcastUnitHit(attacker.Character, target.Character, 10, 5);
-
-        Assert.Equal([NetworkPacketType.SMSG_CREATURE_DAMAGED], attacker.Sent.Select(p => p.Header.Type));
-        Assert.Equal([NetworkPacketType.SMSG_CREATURE_DAMAGED], target.Sent.Select(p => p.Header.Type));
-        Assert.Empty(bystander.Sent);
-    }
+    // ---- An effect with a second point is heard near either ---------------------------------------
 
     [Fact]
     public void Send_a_hit_to_a_watcher_near_the_target_though_far_from_the_attacker()
@@ -156,79 +93,6 @@ public class EffectBroadcastRadiusShould
         instance.BroadcastUnitHit(attacker, target, 10, 5);
 
         Assert.Single(nearTarget.Sent);
-    }
-
-    [Fact]
-    public void Send_cast_broadcasts_to_the_caster_whatever_its_position()
-    {
-        using MapInstance instance = Build();
-        MapInstanceClient caster = JoinAt(instance, 10, Vector3.zero);
-        // The caster's position is unreadable: only involvement can reach it.
-        caster.Character.Position = new Vector3(float.NaN, 0f, float.NaN);
-        IAbility ability = Ability();
-
-        instance.BroadcastUnitStartCast(caster.Character, ability, 1u, null);
-        instance.BroadcastFinishCast(caster.Character, ability);
-        instance.BroadcastInterruptedCast(caster.Character, ability);
-        instance.BroadcastAttackAnimation(caster.Character, ability);
-        instance.BroadcastAbilityFired(caster.Character, ability, Fired(s_far, null, s_far));
-
-        Assert.Equal(
-            [NetworkPacketType.SMSG_UNIT_START_CAST, NetworkPacketType.SMSG_UNIT_FINISH_CAST,
-                NetworkPacketType.SMSG_INTERRUPTED_CAST, NetworkPacketType.SMSG_CREATURE_ATTACK_ANIMATION,
-                NetworkPacketType.SMSG_ABILITY_FIRED],
-            caster.Sent.Select(p => p.Header.Type));
-    }
-
-    [Fact]
-    public void Send_a_death_to_the_killer_beyond_the_radius()
-    {
-        using MapInstance instance = Build();
-        Creature unit = AddCreature(instance, 1, Vector3.zero);
-        MapInstanceClient killer = JoinAt(instance, 10, s_far);
-
-        instance.BroadcastUnitDeath(unit, killer.Character);
-
-        Assert.Single(killer.Sent);
-    }
-
-    [Fact]
-    public void Send_a_death_to_the_dying_character_whatever_its_position()
-    {
-        using MapInstance instance = Build();
-        MapInstanceClient dying = JoinAt(instance, 10, Vector3.zero);
-        dying.Character.Position = new Vector3(float.PositiveInfinity, 0f, 0f);
-
-        instance.BroadcastUnitDeath(dying.Character, null);
-
-        Assert.Single(dying.Sent);
-    }
-
-    [Fact]
-    public void Send_a_revive_to_the_revived_character_though_it_revives_beyond_the_radius()
-    {
-        using MapInstance instance = Build();
-        MapInstanceClient revived = JoinAt(instance, 10, Vector3.zero);   // still standing where it died
-
-        instance.BroadcastUnitRevive(revived.Character, s_far, 100);
-
-        Assert.Single(revived.Sent);
-    }
-
-    // ---- The rule's edges ------------------------------------------------------------------------
-
-    [Fact]
-    public void Send_to_a_watcher_exactly_at_the_radius_but_not_just_past_it()
-    {
-        using MapInstance instance = Build();
-        Creature unit = AddCreature(instance, 1, Vector3.zero);
-        MapInstanceClient atEdge = JoinAt(instance, 10, new Vector3(Radius, 0f, 0f));
-        MapInstanceClient past = JoinAt(instance, 11, new Vector3(0f, 0f, Radius + 0.01f));
-
-        instance.BroadcastUnitDeath(unit, null);
-
-        Assert.Single(atEdge.Sent);
-        Assert.Empty(past.Sent);
     }
 
     [Fact]
@@ -245,16 +109,25 @@ public class EffectBroadcastRadiusShould
         Assert.Empty(nowhere.Sent);
     }
 
-    [Fact]
-    public void Not_exclude_a_watcher_whose_distance_is_only_along_y()
+    // ---- The rule's edges ------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(0f, 1000f, 0f, true)]   // straight above: height is ignored
+    [InlineData(float.NaN, 0f, 0f, false)]
+    [InlineData(0f, 0f, float.PositiveInfinity, false)]
+    [InlineData(float.NegativeInfinity, 0f, 0f, false)]
+    [InlineData(0f, float.NaN, 0f, false)]
+    public void Place_a_watcher_on_x_and_z_and_never_count_a_non_finite_position_as_near(float x, float y, float z,
+        bool hears)
     {
         using MapInstance instance = Build();
         Creature unit = AddCreature(instance, 1, Vector3.zero);
-        MapInstanceClient above = JoinAt(instance, 10, new Vector3(0f, 1000f, 0f));
+        MapInstanceClient watcher = JoinAt(instance, 10, new Vector3(x, y, z));
 
         instance.BroadcastUnitDeath(unit, null);
 
-        Assert.Single(above.Sent);
+        NetworkPacketType[] heard = hears ? [NetworkPacketType.SMSG_UNIT_DEATH] : [];
+        Assert.Equal(heard, watcher.Sent.Select(p => p.Header.Type));
     }
 
     [Fact]
@@ -268,22 +141,6 @@ public class EffectBroadcastRadiusShould
         instance.BroadcastUnitDeath(unit, null);
 
         Assert.Single(dead.Sent);
-    }
-
-    [Theory]
-    [InlineData(float.NaN, 0f, 0f)]
-    [InlineData(0f, 0f, float.PositiveInfinity)]
-    [InlineData(float.NegativeInfinity, 0f, 0f)]
-    [InlineData(0f, float.NaN, 0f)]
-    public void Never_count_a_non_finite_watcher_position_as_near(float x, float y, float z)
-    {
-        using MapInstance instance = Build();
-        Creature unit = AddCreature(instance, 1, Vector3.zero);
-        MapInstanceClient watcher = JoinAt(instance, 10, new Vector3(x, y, z));
-
-        instance.BroadcastUnitDeath(unit, null);
-
-        Assert.Empty(watcher.Sent);
     }
 
     [Theory]
@@ -303,6 +160,7 @@ public class EffectBroadcastRadiusShould
         Assert.Empty(watcher.Sent);
     }
 
+    /// <summary>The configured radius, inclusive: 5 m away is heard, 6 m is not.</summary>
     [Fact]
     public void Use_the_configured_radius()
     {
@@ -329,9 +187,6 @@ public class EffectBroadcastRadiusShould
 
         return TestMapInstances.Build(world);
     }
-
-    private static (MapInstanceClient Near, MapInstanceClient Far) Watchers(MapInstance instance) =>
-        (JoinAt(instance, 532_001, s_inside), JoinAt(instance, 532_002, s_outside));
 
     private static MapInstanceClient JoinAt(MapInstance instance, uint id, Vector3 position)
     {
@@ -362,10 +217,42 @@ public class EffectBroadcastRadiusShould
         return ability;
     }
 
-    private static void AssertOnlyNear(MapInstanceClient near, MapInstanceClient far, NetworkPacketType type)
+    /// <summary>
+    /// Makes the broadcast that sends <paramref name="effect" />, by <paramref name="unit" />. <paramref name="other" />
+    /// is the hit's target and the death's killer, and takes no part in the rest. A revive brings the unit back
+    /// at the origin, and an ability fires at the origin.
+    /// </summary>
+    private static void Broadcast(MapInstance instance, NetworkPacketType effect, IUnit unit, IUnit other)
     {
-        Assert.Equal([type], near.Sent.Select(p => p.Header.Type));
-        Assert.Empty(far.Sent);
+        switch (effect)
+        {
+            case NetworkPacketType.SMSG_CREATURE_DAMAGED:
+                instance.BroadcastUnitHit(unit, other, 10, 5);
+                break;
+            case NetworkPacketType.SMSG_UNIT_START_CAST:
+                instance.BroadcastUnitStartCast(unit, Ability(), 1u, null);
+                break;
+            case NetworkPacketType.SMSG_UNIT_FINISH_CAST:
+                instance.BroadcastFinishCast(unit, Ability());
+                break;
+            case NetworkPacketType.SMSG_INTERRUPTED_CAST:
+                instance.BroadcastInterruptedCast(unit, Ability());
+                break;
+            case NetworkPacketType.SMSG_CREATURE_ATTACK_ANIMATION:
+                instance.BroadcastAttackAnimation(unit, null);
+                break;
+            case NetworkPacketType.SMSG_ABILITY_FIRED:
+                instance.BroadcastAbilityFired(unit, Ability(), Fired(Vector3.zero, new Vector3(0f, 0f, 1f), null));
+                break;
+            case NetworkPacketType.SMSG_UNIT_DEATH:
+                instance.BroadcastUnitDeath(unit, other);
+                break;
+            case NetworkPacketType.SMSG_UNIT_REVIVE:
+                instance.BroadcastUnitRevive(unit, Vector3.zero, 100);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(effect), effect, "Not an effect broadcast.");
+        }
     }
 
     /// <summary>A fired circle or cone at these points, with no dimensions: only where it is heard matters here.</summary>

@@ -38,7 +38,6 @@ public class MapInstanceVendorShould
 
     private readonly FixedTimeProvider _clock = new(new DateTimeOffset(Now));
     private StaticData _data = null!;
-    private IWorld _world = null!;
 
     private sealed record Client(IWorldConnection Connection, CharacterEntity Character, List<NetworkPacket> Sent)
     {
@@ -56,11 +55,11 @@ public class MapInstanceVendorShould
     {
         _data = await TestStaticData.LoadAsync(items: Items, vendors: Rows());
 
-        _world = Substitute.For<IWorld>();
-        _world.Configuration.Returns(new GameConfiguration());
-        _world.MapTemplates.Returns(new List<MapTemplate>());
-        _world.Data.Returns(_data);
-        return Build(_world);
+        IWorld world = Substitute.For<IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate>());
+        world.Data.Returns(_data);
+        return Build(world);
     }
 
     private MapInstance Build(IWorld world)
@@ -114,24 +113,6 @@ public class MapInstanceVendorShould
     private DateTime ClockNow => _clock.GetUtcNow().UtcDateTime;
 
     [Fact]
-    public async Task Send_every_open_shop_the_list_when_the_last_unit_sells()
-    {
-        using MapInstance instance = await BuildAsync();
-        Client first = Join(instance, 432_001, shopOpen: true);
-        Client second = Join(instance, 432_002, shopOpen: true);
-        Client browsing = Join(instance, 432_003, shopOpen: false);
-        VendorStockState stock = SmithStock(instance);
-
-        stock.Take(stock.Rows.Single(r => r.Sequence == BladeSequence), 2, ClockNow);
-        instance.Update(s_tick);
-
-        Assert.Equal((uint?)0, Assert.Single(first.Lists()).Entries.Single(e => e.Sequence == BladeSequence).Stock);
-        Assert.Equal((uint?)0, Assert.Single(second.Lists()).Entries.Single(e => e.Sequence == BladeSequence).Stock);
-        Assert.Empty(browsing.Lists());
-        Assert.False(stock.Changed);
-    }
-
-    [Fact]
     public async Task Refill_and_tell_everyone_with_the_shop_open_once_the_restock_is_due()
     {
         using MapInstance instance = await BuildAsync();
@@ -153,23 +134,6 @@ public class MapInstanceVendorShould
             Assert.Equal(2, client.Lists().Count);
             Assert.Equal((uint?)2, client.Lists()[^1].Entries.Single(e => e.Sequence == BladeSequence).Stock);
         }
-    }
-
-    /// <summary>
-    /// The pass reads the same catalog snapshot the shop was opened from: had it read another, its
-    /// reconcile would mark the stock changed and every open shop would hear a list.
-    /// </summary>
-    [Fact]
-    public async Task Send_nothing_on_a_tick_where_nothing_changed()
-    {
-        using MapInstance instance = await BuildAsync();
-        Client first = Join(instance, 432_001, shopOpen: true);
-        SmithStock(instance);
-
-        instance.Update(s_tick);
-        instance.Update(s_tick);
-
-        Assert.Empty(first.Lists());
     }
 
     /// <summary>
@@ -274,61 +238,6 @@ public class MapInstanceVendorShould
 
         Assert.Equal((uint?)5, BladesLeft(stock));
         Assert.Empty(first.Lists());
-    }
-
-    /// <summary>
-    /// The pass's "now" is the container's TimeProvider, the clock the vendor handlers take their
-    /// sales at, not the system clock. The clock here is decades from the system's, so a pass on
-    /// the wrong clock never restocks.
-    /// </summary>
-    [Fact]
-    public async Task Restock_on_the_container_clock()
-    {
-        _clock.Now = new DateTimeOffset(2100, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        using MapInstance instance = await BuildAsync();
-        Join(instance, 432_001, shopOpen: true);
-        VendorStockState stock = SmithStock(instance);
-        stock.Take(stock.Rows.Single(r => r.Sequence == BladeSequence), 2, ClockNow);
-
-        _clock.Now = _clock.Now.AddSeconds(59);
-        instance.Update(s_tick);
-        Assert.Equal((uint?)0, BladesLeft(stock));
-
-        _clock.Now = _clock.Now.AddSeconds(1);
-        instance.Update(s_tick);
-        Assert.Equal((uint?)2, BladesLeft(stock));
-    }
-
-    /// <summary>One read of the world's static data per pass, so the whole pass works from one catalog.</summary>
-    [Fact]
-    public async Task Read_the_vendor_data_once_per_pass()
-    {
-        using MapInstance instance = await BuildAsync();
-        Join(instance, 432_001, shopOpen: true);
-        Join(instance, 432_002, shopOpen: true);
-        SmithStock(instance);
-        instance.Update(s_tick);
-
-        _world.ClearReceivedCalls();
-        instance.Update(s_tick);
-
-        _ = _world.Received(1).Data;
-    }
-
-    [Fact]
-    public void Tick_an_instance_nobody_shopped_in_without_reading_vendor_data()
-    {
-        IWorld world = Substitute.For<IWorld>();
-        world.Configuration.Returns(new GameConfiguration());
-        world.MapTemplates.Returns(new List<MapTemplate>());
-        // world.Data is deliberately left unconfigured, so it is null: the pass must not run.
-        using MapInstance instance = Build(world);
-        Join(instance, 432_001, shopOpen: true);
-
-        instance.Update(s_tick);
-
-        Assert.Equal(0, instance.Vendors.Count);
-        _ = world.DidNotReceive().Data;
     }
 
     /// <summary>

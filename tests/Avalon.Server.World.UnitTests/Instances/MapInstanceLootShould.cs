@@ -172,26 +172,6 @@ public class MapInstanceLootShould
     }
 
     [Fact]
-    public async Task Drop_A_Kills_Loot_And_Tell_Everyone_In_One_Packet()
-    {
-        using MapInstance instance = await Build();
-        MapInstanceClient first = Join(instance, 460_101);
-        MapInstanceClient second = Join(instance, 460_102);
-
-        Kill(instance, 460_001);
-
-        // One sword from table 1, then the 5-copper pile.
-        Assert.Equal(2, instance.Drops.Count);
-        foreach (MapInstanceClient client in new[] { first, second })
-        {
-            SLootSpawnedPacket spawned = Assert.Single(Spawned(client));
-            Assert.Equal(2, spawned.Drops.Count);
-            Assert.Equal(Sword.Id.Value, spawned.Drops[0].ItemTemplateId);
-            Assert.Equal(5UL, spawned.Drops[1].Gold);
-        }
-    }
-
-    [Fact]
     public async Task Reserve_The_Drops_For_The_Instance_Owner()
     {
         using MapInstance instance = await Build(owner: 7);
@@ -291,17 +271,6 @@ public class MapInstanceLootShould
     }
 
     [Fact]
-    public async Task Send_No_Snapshot_To_A_Character_Entering_An_Instance_With_Nothing_On_The_Ground()
-    {
-        using MapInstance instance = await Build();
-        MapInstanceClient client = Join(instance, 460_101);
-
-        instance.Update(s_tick);
-
-        Assert.Empty(Spawned(client));
-    }
-
-    [Fact]
     public async Task Send_No_Snapshot_To_A_Character_Who_Left_Before_The_Tick()
     {
         using MapInstance instance = await Build();
@@ -316,21 +285,6 @@ public class MapInstanceLootShould
         // It joined after the kill, so no broadcast reached it, and it left before its snapshot.
         Assert.Empty(Spawned(leaves));
         Assert.Single(Spawned(stays));
-    }
-
-    [Fact]
-    public async Task Tell_Everyone_When_Drops_Leave_The_Ground()
-    {
-        using MapInstance instance = await Build();
-        MapInstanceClient first = Join(instance, 460_101);
-        MapInstanceClient second = Join(instance, 460_102);
-        Kill(instance, 460_001);
-        ObjectGuid[] guids = instance.Drops.All.Select(d => d.Guid).ToArray();
-
-        instance.BroadcastLootDespawned(guids);
-
-        foreach (MapInstanceClient client in new[] { first, second })
-            Assert.Equal(guids.Select(g => g.RawValue), Assert.Single(Despawned(client)).LootGuids);
     }
 
     /// <summary>

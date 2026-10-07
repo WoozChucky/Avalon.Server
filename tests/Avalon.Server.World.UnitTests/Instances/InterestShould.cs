@@ -5,46 +5,35 @@ using Avalon.World.Public.Instances;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
-/// <summary>#593: the rule that decides which objects a client's world-state replication covers.</summary>
+/// <summary>
+/// #593: the rule that decides which objects a client's world-state replication covers, at its edges. The
+/// watcher's own character, always in view, is pinned through a real MapInstance (InterestReplicationShould).
+/// </summary>
 public class InterestShould
 {
     private static readonly ObjectGuid s_watcher = new(ObjectType.Character, 593_001);
     private static readonly ObjectGuid s_other = new(ObjectType.Creature, 593_002);
-    private static readonly InterestRange s_range = new(60f, 10f);
 
-    private static bool Visible(float x, bool tracked, float y = 0f, float z = 0f) =>
-        Interest.IsVisible(s_watcher, Vector3.zero, s_other, new Vector3(x, y, z), tracked, s_range);
-
-    [Fact] public void Add_an_object_inside_the_radius() => Assert.True(Visible(59f, tracked: false));
-    [Fact] public void Add_an_object_exactly_at_the_radius() => Assert.True(Visible(60f, tracked: false));
-    [Fact] public void Not_add_an_object_between_the_radius_and_the_margin() => Assert.False(Visible(65f, tracked: false));
-    [Fact] public void Keep_a_tracked_object_between_the_radius_and_the_margin() => Assert.True(Visible(65f, tracked: true));
-    [Fact] public void Keep_a_tracked_object_exactly_at_radius_plus_margin() => Assert.True(Visible(70f, tracked: true));
-    [Fact] public void Drop_a_tracked_object_beyond_radius_plus_margin() => Assert.False(Visible(70.01f, tracked: true));
-    [Fact] public void Ignore_height() => Assert.True(Visible(0f, tracked: false, y: 500f));
-    [Fact] public void Measure_on_x_and_z() => Assert.False(Visible(50f, tracked: false, z: 50f)); // ~70.7 m
-
-    [Fact]
-    public void Always_show_the_watcher_itself_even_far_or_unplaced()
-    {
-        Assert.True(Interest.IsVisible(s_watcher, Vector3.zero, s_watcher, new Vector3(1e6f, 0, 0), false, s_range));
-        Assert.True(Interest.IsVisible(s_watcher, new Vector3(float.NaN, 0, 0), s_watcher, new Vector3(float.NaN, 0, 0), false, s_range));
-    }
-
+    /// <summary>
+    /// An object enters within the radius (60 m) and, once tracked, stays until beyond radius + margin, both
+    /// inclusive, on X/Z only; a non-finite position, the watcher's or the object's, and an overflowing distance
+    /// are never in view.
+    /// </summary>
     [Theory]
-    [InlineData(float.NaN)]
-    [InlineData(float.PositiveInfinity)]
-    public void Never_show_an_object_at_a_non_finite_position(float x) => Assert.False(Visible(x, tracked: true));
-
-    [Fact]
-    public void Show_nothing_else_to_a_watcher_at_a_non_finite_position() =>
-        Assert.False(Interest.IsVisible(s_watcher, new Vector3(float.NaN, 0, 0), s_other, Vector3.zero, true, s_range));
-
-    [Fact]
-    public void Treat_an_overflowing_distance_as_far() =>
-        Assert.False(Interest.IsVisible(s_watcher, new Vector3(-3e38f, 0, 0), s_other, new Vector3(3e38f, 0, 0), true, s_range));
-
-    [Fact]
-    public void Remove_at_the_radius_when_the_margin_is_zero() =>
-        Assert.False(Interest.IsVisible(s_watcher, Vector3.zero, s_other, new Vector3(60.01f, 0, 0), true, new InterestRange(60f, 0f)));
+    [InlineData(0f, 60f, 0f, 0f, false, 10f, true)]                     // exactly at the radius
+    [InlineData(0f, 65f, 0f, 0f, false, 10f, false)]                    // in the margin, not yet tracked
+    [InlineData(0f, 65f, 0f, 0f, true, 10f, true)]                      // in the margin, tracked
+    [InlineData(0f, 70f, 0f, 0f, true, 10f, true)]                      // exactly at radius + margin
+    [InlineData(0f, 70.01f, 0f, 0f, true, 10f, false)]                  // just beyond it
+    [InlineData(0f, 0f, 500f, 0f, false, 10f, true)]                    // height is ignored
+    [InlineData(0f, 50f, 0f, 50f, false, 10f, false)]                   // X and Z together: ~70.7 m
+    [InlineData(0f, float.NaN, 0f, 0f, true, 10f, false)]
+    [InlineData(0f, float.PositiveInfinity, 0f, 0f, true, 10f, false)]
+    [InlineData(float.NaN, 0f, 0f, 0f, true, 10f, false)]               // the watcher's position
+    [InlineData(-3e38f, 3e38f, 0f, 0f, true, 10f, false)]               // a distance that overflows
+    [InlineData(0f, 60.01f, 0f, 0f, true, 0f, false)]                   // no margin: gone past the radius
+    public void Decide_whether_an_object_is_in_view(float watcherX, float x, float y, float z, bool tracked,
+        float margin, bool visible) =>
+        Assert.Equal(visible, Interest.IsVisible(s_watcher, new Vector3(watcherX, 0f, 0f), s_other,
+            new Vector3(x, y, z), tracked, new InterestRange(60f, margin)));
 }

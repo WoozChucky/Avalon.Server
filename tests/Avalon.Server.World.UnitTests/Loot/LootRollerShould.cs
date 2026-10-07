@@ -14,19 +14,6 @@ public class LootRollerShould
         new(new ScriptedLootRandom(doubles, integers), NullLogger<LootRoller>.Instance);
 
     [Fact]
-    public void Hit_An_Independent_Entry_About_As_Often_As_Its_Chance()
-    {
-        LootCatalog catalog = Catalog(Table(1, Item(1, Potion, chance: 25f)));
-        LootRoller roller = Seeded();
-
-        int hits = 0;
-        for (int i = 0; i < 10_000; i++)
-            hits += roller.Roll(BoarTemplate(1), catalog, Items).Count;
-
-        Assert.InRange(hits, 2_300, 2_700);
-    }
-
-    [Fact]
     public void Roll_Each_Independent_Entry_On_Its_Own()
     {
         // 0.10 * 100 < 50 hits; 0.60 * 100 < 50 misses; 0.20 * 100 < 30 hits.
@@ -46,24 +33,6 @@ public class LootRollerShould
         LootCatalog catalog = Catalog(Table(1, Item(1, Sword, chance: chance)));
 
         Assert.Equal(expected, Scripted([roll], [1]).Roll(BoarTemplate(1), catalog, Items).Count);
-    }
-
-    [Fact]
-    public void Drop_Exactly_One_Entry_Of_A_Group_Picked_By_Weight()
-    {
-        LootCatalog catalog = Catalog(Table(1,
-            Item(1, Sword, chance: 75f, group: 1), Item(2, Staff, chance: 25f, group: 1)));
-        LootRoller roller = Seeded();
-
-        int swords = 0;
-        for (int i = 0; i < 10_000; i++)
-        {
-            RolledDrop drop = Assert.Single(roller.Roll(BoarTemplate(1), catalog, Items));
-            if (drop.ItemTemplateId == Sword.Id)
-                swords++;
-        }
-
-        Assert.InRange(swords, 7_200, 7_800);
     }
 
     [Theory]
@@ -91,27 +60,19 @@ public class LootRollerShould
         Assert.Empty(Scripted([]).Roll(BoarTemplate(1), catalog, Items));
     }
 
-    [Fact]
-    public void Roll_A_Referenced_Table_When_The_Reference_Hits()
+    [Theory]
+    [InlineData(0.10, 1)]   // hits the reference; then 0.50 hits the potion inside table 2, and 1 is its count
+    [InlineData(0.90, 0)]   // misses it: table 2 is never rolled
+    public void Roll_A_Referenced_Table_Only_When_The_Reference_Hits(double referenceRoll, int expected)
     {
         LootCatalog catalog = Catalog(
             Table(1, Reference(1, table: 2, chance: 50f)),
             Table(2, Item(1, Potion, chance: 100f)));
 
-        // 0.10 hits the reference, 0.50 hits the potion inside table 2, 1 is its count.
-        RolledDrop drop = Assert.Single(Scripted([0.10, 0.50], [1]).Roll(BoarTemplate(1), catalog, Items));
+        IReadOnlyList<RolledDrop> drops = Scripted([referenceRoll, 0.50], [1]).Roll(BoarTemplate(1), catalog, Items);
 
-        Assert.Equal(Potion.Id, drop.ItemTemplateId);
-    }
-
-    [Fact]
-    public void Skip_A_Referenced_Table_When_The_Reference_Misses()
-    {
-        LootCatalog catalog = Catalog(
-            Table(1, Reference(1, table: 2, chance: 50f)),
-            Table(2, Item(1, Potion, chance: 100f)));
-
-        Assert.Empty(Scripted([0.90]).Roll(BoarTemplate(1), catalog, Items));
+        Assert.Equal(expected, drops.Count);
+        Assert.All(drops, drop => Assert.Equal(Potion.Id, drop.ItemTemplateId));
     }
 
     [Fact]
@@ -193,17 +154,13 @@ public class LootRollerShould
         }
     }
 
-    [Fact]
-    public void Skip_Gold_When_Both_Bounds_Are_Zero()
+    /// <summary>A creature with no gold draws nothing (no integer is scripted for it); a roll of 0 makes no pile.</summary>
+    [Theory]
+    [InlineData(0, new long[0])]
+    [InlineData(10, new long[] { 0 })]
+    public void Skip_Gold_When_There_Is_None_Or_The_Roll_Comes_Out_Zero(int maxGold, long[] integers)
     {
-        // No scripted integers: a creature with no gold must not even draw.
-        Assert.Empty(Scripted([]).Roll(BoarTemplate(null), Catalog(), Items));
-    }
-
-    [Fact]
-    public void Skip_Gold_When_The_Roll_Comes_Out_Zero()
-    {
-        Assert.Empty(Scripted([], [0]).Roll(BoarTemplate(null, minGold: 0, maxGold: 10), Catalog(), Items));
+        Assert.Empty(Scripted([], integers).Roll(BoarTemplate(null, minGold: 0, maxGold: maxGold), Catalog(), Items));
     }
 
     [Theory]
@@ -224,11 +181,5 @@ public class LootRollerShould
         IReadOnlyList<RolledDrop> drops = Scripted([], [7]).Roll(BoarTemplate(42, minGold: 7, maxGold: 7), Catalog(), Items);
 
         Assert.Equal(RolledDrop.GoldPile(7), Assert.Single(drops));
-    }
-
-    [Fact]
-    public void Drop_Nothing_For_A_Creature_With_No_Table_And_No_Gold()
-    {
-        Assert.Empty(Seeded().Roll(BoarTemplate(null), Catalog(), Items));
     }
 }

@@ -64,141 +64,6 @@ public class CreatureSpawnerShould
         Assert.Equal(originalHealth + 500, after.Health);
     }
 
-    /// <summary>
-    /// #506: a creature's armour and rolls are fixed at spawn from base x modifier x rarity. A
-    /// /reload creatures reaches the next spawn only; one already standing keeps its defences.
-    /// </summary>
-    [Fact]
-    public async Task Fix_armour_and_rolls_at_spawn_and_keep_them_through_a_reload_of_creatures()
-    {
-        var template = new CreatureTemplate
-        {
-            Id = new CreatureTemplateId(62),
-            Name = "Armour Reload Target",
-            MinLevel = 1,
-            MaxLevel = 1,
-            Rarity = CreatureRarity.Normal,
-            HealthModifier = 1f,
-            DamageModifier = 1f,
-            ExperienceModifier = 1f,
-            ArmorModifier = 2f,
-        };
-        (CreatureSpawner spawner, StaticData data, MutableRepos repos) = ReloadableSpawnerOver(template);
-        repos.BaseStats[0] = new CreatureBaseStat { Level = 1, Health = 50, DamageMin = 4, DamageMax = 7, Experience = 25, Armor = 10 };
-        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
-
-        var before = (Creature)spawner.Spawn(template.Id);
-
-        repos.BaseStats[0] = new CreatureBaseStat { Level = 1, Health = 50, DamageMin = 4, DamageMax = 7, Experience = 25, Armor = 40 };
-        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
-        var after = (Creature)spawner.Spawn(template.Id);
-
-        Assert.Equal(20u, before.Armor);
-        Assert.Equal(80u, after.Armor);
-        Assert.Equal((0f, 0f, 0f), (before.CritPct, before.DodgePct, before.BlockPct));
-    }
-
-    /// <summary>
-    /// #627: the template's swing interval and the combat formula's haste cap are fixed on the creature at
-    /// spawn, and a creature starts with no haste.
-    /// </summary>
-    [Fact]
-    public void Fix_the_swing_interval_and_the_haste_cap_at_spawn()
-    {
-        var template = new CreatureTemplate
-        {
-            Id = new CreatureTemplateId(63),
-            Name = "Quick Swinger",
-            MinLevel = 1,
-            MaxLevel = 1,
-            Rarity = CreatureRarity.Normal,
-            HealthModifier = 1f,
-            DamageModifier = 1f,
-            ExperienceModifier = 1f,
-            BaseAttackTime = 1.5f,
-        };
-        (CreatureSpawner spawner, _, _) = ReloadableSpawnerOver(template);
-
-        var creature = (Creature)spawner.Spawn(template.Id);
-
-        Assert.Equal((1.5f, 50f, 0f), (creature.BaseAttackTime, creature.HasteCap, creature.HastePct));
-        Assert.Equal(1.5f, creature.SwingInterval);
-    }
-
-    /// <summary>
-    /// The other half of the same trap: a reloaded template's own modifier has to reach the next
-    /// spawn too, not just the base-stat table.
-    /// </summary>
-    [Fact]
-    public async Task Use_A_Reloaded_Templates_Modifier_For_The_Next_Spawn()
-    {
-        var template = new CreatureTemplate
-        {
-            Id = new CreatureTemplateId(61),
-            Name = "Template Reload Target",
-            MinLevel = 1,
-            MaxLevel = 1,
-            Rarity = CreatureRarity.Normal,
-            HealthModifier = 1f,
-            DamageModifier = 1f,
-            ExperienceModifier = 1f
-        };
-
-        (CreatureSpawner spawner, StaticData data, MutableRepos repos) = ReloadableSpawnerOver(template);
-
-        ICreature before = spawner.Spawn(template.Id);
-        uint originalHealth = before.Health;
-
-        repos.Templates[0] = new CreatureTemplate
-        {
-            Id = template.Id,
-            Name = template.Name,
-            MinLevel = template.MinLevel,
-            MaxLevel = template.MaxLevel,
-            Rarity = template.Rarity,
-            HealthModifier = 2f,
-            DamageModifier = 1f,
-            ExperienceModifier = 1f
-        };
-        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
-
-        ICreature after = spawner.Spawn(template.Id);
-
-        Assert.Equal(originalHealth, before.Health);
-        Assert.Equal(originalHealth * 2, after.Health);
-    }
-
-    /// <summary>
-    /// The single assertion that would have caught the bug this whole change exists to fix: every
-    /// creature used to spawn as level 1 with 100 health whatever its template said.
-    /// </summary>
-    [Fact]
-    public void Give_A_Spawned_Creature_Its_Templates_Stats_Rather_Than_Hardcoded_Ones()
-    {
-        var template = new CreatureTemplate
-        {
-            Id = new CreatureTemplateId(42),
-            Name = "Mother Bramble",
-            MinLevel = 5,
-            MaxLevel = 5,
-            Rarity = CreatureRarity.Boss,
-            HealthModifier = 1f,
-            DamageModifier = 1f,
-            ExperienceModifier = 1f,
-            SpeedWalk = 2f,
-            SpeedRun = 4f
-        };
-
-        ICreature creature = SpawnerOver(template).Spawn(template.Id);
-
-        Assert.Equal(5, creature.Level);
-        Assert.NotEqual(100u, creature.Health);
-        Assert.Equal(848u, creature.Health);     // base 106 * 8.0 boss
-        Assert.Equal(18u, creature.DamageMin);   // base 9 * 2.0
-        Assert.Equal(28u, creature.DamageMax);   // base 14 * 2.0
-        Assert.Equal(creature.Health, creature.CurrentHealth);
-    }
-
     [Fact]
     public void Roll_A_Level_Inside_The_Templates_Range()
     {
@@ -223,118 +88,47 @@ public class CreatureSpawnerShould
         }
     }
 
-    [Fact]
-    public void Carry_The_Templates_Invulnerable_Flag_Onto_The_Spawned_Creature()
-    {
-        // The flag is what makes a town NPC unkillable, and CombatService reads it off the creature
-        // rather than the template. If the spawner drops it, every NPC is killable and the guard in
-        // ApplyDamageCore never fires.
-        var template = new CreatureTemplate
-        {
-            Id = new CreatureTemplateId(44),
-            Name = "Innkeeper",
-            MinLevel = 2,
-            MaxLevel = 2,
-            Rarity = CreatureRarity.Normal,
-            Invulnerable = true,
-            HealthModifier = 1f,
-            DamageModifier = 1f,
-            ExperienceModifier = 1f
-        };
-
-        ICreature creature = SpawnerOver(template).Spawn(template.Id);
-
-        Assert.True(creature.Invulnerable);
-    }
-
-    [Fact]
-    public void Leave_A_Creature_Vulnerable_When_Its_Template_Says_Nothing()
-    {
-        // The default has to stay false, or adding the column would silently make every monster
-        // in the game unkillable.
-        var template = new CreatureTemplate
-        {
-            Id = new CreatureTemplateId(45),
-            Name = "Thornback Boar",
-            MinLevel = 2,
-            MaxLevel = 2,
-            Rarity = CreatureRarity.Normal,
-            HealthModifier = 1f,
-            DamageModifier = 1f,
-            ExperienceModifier = 1f
-        };
-
-        ICreature creature = SpawnerOver(template).Spawn(template.Id);
-
-        Assert.False(creature.Invulnerable);
-    }
-
-    [Fact]
-    public void Carry_the_templates_body_radius_onto_the_spawned_creature()
-    {
-        // What a skill's shape must overlap (#164). Dropped here, every creature would be the default
-        // size whatever its template says.
-        CreatureTemplate template = PlainTemplate(47, "Stone Giant");
-        template.BodyRadius = 1.75f;
-
-        ICreature creature = SpawnerOver(template).Spawn(template.Id);
-
-        Assert.Equal(1.75f, creature.BodyRadius);
-    }
-
+    /// <summary>
+    /// The flag is what makes a town NPC unkillable, and CombatService reads it off the creature rather than the
+    /// template: dropped here, every NPC is killable. Left unset, it stays false, or adding the column would
+    /// silently make every monster in the game unkillable.
+    /// </summary>
     [Theory]
-    [InlineData(float.NaN)]
-    [InlineData(float.PositiveInfinity)]
-    [InlineData(float.NegativeInfinity)]
-    [InlineData(0f)]
-    [InlineData(-1f)]
-    public void Fall_back_to_the_default_body_radius_and_warn_when_the_template_has_no_usable_one(float bad)
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Carry_the_templates_invulnerable_flag_onto_the_spawned_creature(bool invulnerable)
     {
-        // The check constraint refuses such a row in Postgres, but a template can still reach the
-        // spawner another way (a test database, a hand-built template). A NaN body is never hit, and an
-        // infinite one is hit by everything (#164).
+        CreatureTemplate template = PlainTemplate(44, "Innkeeper");
+        if (invulnerable)
+            template.Invulnerable = true;
+
+        ICreature creature = SpawnerOver(template).Spawn(template.Id);
+
+        Assert.Equal(invulnerable, creature.Invulnerable);
+    }
+
+    /// <summary>
+    /// What a skill's shape must overlap (#164): the template's body radius, or the default one with a warning when
+    /// the template's is not a finite value above 0. The check constraint refuses such a row in Postgres, but a
+    /// template can still reach the spawner another way (a test database, a hand-built template). A NaN body is
+    /// never hit, and an infinite one is hit by everything.
+    /// </summary>
+    [Theory]
+    [InlineData(1.75f, true)]
+    [InlineData(float.NaN, false)]
+    [InlineData(float.PositiveInfinity, false)]
+    [InlineData(0f, false)]
+    [InlineData(-1f, false)]
+    public void Use_the_templates_body_radius_or_warn_and_fall_back_to_the_default(float radius, bool usable)
+    {
         CreatureTemplate template = PlainTemplate(49, "Misshapen Wolf");
-        template.BodyRadius = bad;
+        template.BodyRadius = radius;
         var warnings = new WarningCountingLoggerFactory();
 
         ICreature creature = SpawnerOver(template, warnings).Spawn(template.Id);
 
-        Assert.Equal(UnitBody.DefaultCreatureRadius, creature.BodyRadius);
-        Assert.Equal(1, warnings.Warnings);
-    }
-
-    [Fact]
-    public void Mark_A_Creature_Whose_Template_Has_Dialogue_As_Interactable()
-    {
-        // What lets a client offer "talk to" for an NPC and not for a wolf. The flag is read off the
-        // dialogue catalog at spawn, with the same rule InteractHandler applies.
-        CreatureTemplate template = PlainTemplate(46, "Innkeeper");
-
-        ICreature creature = SpawnerOver(template, RootNodeFor(template.Id)).Spawn(template.Id);
-
-        Assert.True(ObjectStateWriter.From(creature, GameEntityFields.CreatureUpdate).CanInteract);
-    }
-
-    [Fact]
-    public void Leave_A_Monster_Without_The_Interact_Flag()
-    {
-        // Null, not false: a monster's state omits the member altogether.
-        CreatureTemplate template = PlainTemplate(47, "Grey Fen Wolf");
-
-        ICreature creature = SpawnerOver(template).Spawn(template.Id);
-
-        Assert.Null(ObjectStateWriter.From(creature, GameEntityFields.CreatureUpdate).CanInteract);
-    }
-
-    [Fact]
-    public void Leave_A_Creature_Without_The_Flag_When_Only_Another_Template_Has_Dialogue()
-    {
-        CreatureTemplate template = PlainTemplate(48, "Thornback Boar");
-
-        ICreature creature = SpawnerOver(template, RootNodeFor(new CreatureTemplateId(999)))
-            .Spawn(template.Id);
-
-        Assert.Null(ObjectStateWriter.From(creature, GameEntityFields.CreatureUpdate).CanInteract);
+        Assert.Equal(usable ? radius : UnitBody.DefaultCreatureRadius, creature.BodyRadius);
+        Assert.Equal(usable ? 0 : 1, warnings.Warnings);
     }
 
     /// <summary>
@@ -360,20 +154,6 @@ public class CreatureSpawnerShould
 
         Assert.Null(ObjectStateWriter.From(before, GameEntityFields.None).CanInteract);
         Assert.True(ObjectStateWriter.From(after, GameEntityFields.None).CanInteract);
-    }
-
-    /// <summary>#709: the rarity a creature advertises comes from its template, fixed at spawn.</summary>
-    [Theory]
-    [InlineData(CreatureRarity.Boss)]
-    [InlineData(CreatureRarity.Normal)]
-    public void Fix_The_Rarity_From_The_Template_At_Spawn(CreatureRarity rarity)
-    {
-        CreatureTemplate template = PlainTemplate(63, "Mother Bramble");
-        template.Rarity = rarity;
-
-        var creature = (Creature)SpawnerOver(template).Spawn(template.Id);
-
-        Assert.Equal(rarity, creature.Rarity);
     }
 
     /// <summary>

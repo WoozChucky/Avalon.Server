@@ -27,16 +27,6 @@ public class ItemEquipShould
     private void Worn(params InventoryItem[] items) => _character.Container(InventoryType.Equipment).Load(items);
 
     [Fact]
-    public void Put_a_weapon_into_an_empty_main_hand()
-    {
-        Bag(Item(2, Longsword));
-
-        Assert.Equal(ItemUseResult.Ok, Equip(2, Longsword));
-        Assert.Equal(Longsword.Id, At(_character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
-        Assert.False(_character.Container(InventoryType.Bag).TryGet(2, out _));
-    }
-
-    [Fact]
     public void Swap_the_worn_item_into_the_clicked_bag_slot()
     {
         Bag(Item(2, Longsword));
@@ -45,17 +35,6 @@ public class ItemEquipShould
         Assert.Equal(ItemUseResult.Ok, Equip(2, Longsword));
         Assert.Equal(Longsword.Id, At(_character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
         Assert.Equal(Axe.Id, At(_character, InventoryType.Bag, 2).TemplateId);
-    }
-
-    [Fact]
-    public void Fill_the_empty_finger_first()
-    {
-        Bag(Item(0, Band));
-        Worn(Item(EquipmentSlots.Finger1, Band));
-
-        Assert.Equal(ItemUseResult.Ok, Equip(0, Band));
-        Assert.True(_character.Container(InventoryType.Equipment).TryGet(EquipmentSlots.Finger2, out _));
-        Assert.False(_character.Container(InventoryType.Bag).TryGet(0, out _));
     }
 
     [Fact]
@@ -117,26 +96,18 @@ public class ItemEquipShould
         Assert.Equal(Buckler.Id, At(_character, InventoryType.Equipment, EquipmentSlots.OffHand).TemplateId);
     }
 
-    [Fact]
-    public void Refuse_an_off_hand_item_beside_a_worn_two_hander_as_Blocked()
-    {
-        Bag(Item(0, Buckler));
-        Worn(Item(EquipmentSlots.MainHand, Greatsword));
-
-        Assert.Equal(ItemUseResult.Blocked, Equip(0, Buckler));
-    }
-
     [Theory]
     [MemberData(nameof(Refusals))]
     public void Answer_the_move_rules_refusal(string name, ItemUseResult expected)
     {
         (ItemTemplate template, uint count) = name switch
         {
-            "wrong class" => (Circlet, 1u),
-            "level too low" => (IronHelm, 1u),
             "a stack of gear" => (StackedBand, 2u),
+            "an off hand beside a worn two-hander" => (Buckler, 1u),
             _ => throw new ArgumentOutOfRangeException(nameof(name)),
         };
+        if (template == Buckler)
+            Worn(Item(EquipmentSlots.MainHand, Greatsword));
         Bag(Item(0, template, count));
 
         Assert.Equal(expected, Equip(0, template));
@@ -145,18 +116,7 @@ public class ItemEquipShould
 
     public static TheoryData<string, ItemUseResult> Refusals => new()
     {
-        { "wrong class", ItemUseResult.WrongClass },
-        { "level too low", ItemUseResult.LevelTooLow },
         { "a stack of gear", ItemUseResult.NotUsable },   // no stack is ever worn
+        { "an off hand beside a worn two-hander", ItemUseResult.Blocked },
     };
-
-    [Fact]
-    public void Treat_only_worn_slot_types_as_wearable()
-    {
-        Assert.True(ItemEquip.IsWearable(Band));
-        Assert.True(ItemEquip.IsWearable(Longsword));
-        Assert.False(ItemEquip.IsWearable(Ruby));     // a gem is never worn
-        Assert.False(ItemEquip.IsWearable(Potion));   // no slot
-        Assert.Equal([EquipmentSlots.Finger1, EquipmentSlots.Finger2], EquipmentSlots.SlotsFor(ItemSlotType.Finger));
-    }
 }

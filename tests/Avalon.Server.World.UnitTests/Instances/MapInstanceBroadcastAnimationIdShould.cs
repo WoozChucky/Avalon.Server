@@ -6,37 +6,23 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 public class MapInstanceBroadcastAnimationIdShould
 {
-    [Fact]
-    public void Return_metadata_animation_id_when_ability_present()
+    /// <summary>
+    /// The swing broadcast carries its ability's animation id, 0 included (the client reads 0 as "no
+    /// animation", so it must not fall back), and 1, the old melee swing's, when no ability backs the swing.
+    /// </summary>
+    [Theory]
+    [InlineData(5u, (ushort)5)]
+    [InlineData(0u, (ushort)0)]
+    [InlineData(null, (ushort)1)]
+    public void Carry_the_abilitys_animation_id_or_1_without_one(uint? animationId, ushort expected)
     {
-        IAbility ability = Substitute.For<IAbility>();
-        ability.Metadata.Returns(new AbilityMetadata { AnimationId = 5u });
+        IAbility? ability = null;
+        if (animationId is not null)
+        {
+            ability = Substitute.For<IAbility>();
+            ability.Metadata.Returns(new AbilityMetadata { AnimationId = animationId.Value });
+        }
 
-        ushort result = MapInstance.ResolveBroadcastAnimationId(ability);
-
-        Assert.Equal((ushort)5, result);
-    }
-
-    [Fact]
-    public void Return_zero_when_metadata_animation_id_is_zero()
-    {
-        // Basic-attack ability templates seed AnimationId=0 on purpose; the broadcast must
-        // honour that (client treats 0 as "no animation"), not silently fall back to 1.
-        IAbility ability = Substitute.For<IAbility>();
-        ability.Metadata.Returns(new AbilityMetadata { AnimationId = 0u });
-
-        ushort result = MapInstance.ResolveBroadcastAnimationId(ability);
-
-        Assert.Equal((ushort)0, result);
-    }
-
-    [Fact]
-    public void Fall_back_to_one_when_ability_is_null()
-    {
-        // Null ability == legacy melee auto-attack swing (no ability backing). The historic
-        // hardcoded broadcast value was 1; preserve that as the fallback.
-        ushort result = MapInstance.ResolveBroadcastAnimationId(null);
-
-        Assert.Equal((ushort)1, result);
+        Assert.Equal(expected, MapInstance.ResolveBroadcastAnimationId(ability));
     }
 }

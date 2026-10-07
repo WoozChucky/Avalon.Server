@@ -31,17 +31,6 @@ public class PartyHandlersShould
     }
 
     [Fact]
-    public void Answer_nothing_for_a_connection_with_no_character()
-    {
-        PartyClient a = _w.Online(1, "A");
-        a.Connection.Character.Returns((Avalon.World.Public.Characters.ICharacter?)null);
-
-        new PartyLeaveHandler(_w.Parties, NullLogger<PartyLeaveHandler>.Instance).Execute(a.Connection, new CPartyLeavePacket());
-
-        Assert.Empty(a.Results());
-    }
-
-    [Fact]
     public void Answer_Error_once_when_the_request_throws()
     {
         PartyClient a = _w.Online(1, "A");

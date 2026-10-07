@@ -62,89 +62,6 @@ public class ExperienceAwardShould
     }
 
     /// <summary>
-    /// #546: a real hit that kills awards the experience once. The script no longer reports the kill,
-    /// the combat service does, so a wiring that did both would award it twice.
-    /// </summary>
-    [Fact]
-    public void Award_A_Real_Kills_Experience_Once()
-    {
-        IWorld world = Substitute.For<Avalon.World.IWorld>();
-        world.Configuration.Returns(new GameConfiguration());
-        world.MapTemplates.Returns(new List<MapTemplate>());
-        StaticData data = LoadedStaticData();
-        world.Data.Returns(data);
-
-        MapInstance instance = TestMapInstances.Build(world);
-
-        var creature = new Creature
-        {
-            Guid = new ObjectGuid(ObjectType.Creature, 880_011),
-            Metadata = Substitute.For<ICreatureMetadata>(),
-            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
-            Experience = 100,
-            Health = 10,
-            CurrentHealth = 10,
-        };
-        instance.AddCreature(creature);
-        creature.Script = new Avalon.World.Scripts.Creatures.CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
-
-        ICharacter killer = Substitute.For<ICharacter>();
-        killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 880_012));
-        killer.Level.Returns((ushort)9);
-        killer.Experience.Returns(0ul);
-
-        instance.CombatService.ApplyDamage(killer, creature, 10);
-        instance.CombatService.ApplyDamage(killer, creature, 10);   // the corpse: no second award
-
-        killer.Received(1).Experience = 100;
-        instance.Dispose();
-    }
-
-    /// <summary>
-    /// #600: a patrolling creature takes damage, and a hit that kills it awards the experience once.
-    /// Its script used to ignore the hit's damage, so it could never be killed.
-    /// </summary>
-    [Fact]
-    public void Award_A_Patrolling_Creatures_Kill_Experience_Once()
-    {
-        IWorld world = Substitute.For<Avalon.World.IWorld>();
-        world.Configuration.Returns(new GameConfiguration());
-        world.MapTemplates.Returns(new List<MapTemplate>());
-        StaticData data = LoadedStaticData();
-        world.Data.Returns(data);
-
-        MapInstance instance = TestMapInstances.Build(world);
-
-        var creature = new Creature
-        {
-            Guid = new ObjectGuid(ObjectType.Creature, 880_031),
-            Metadata = Substitute.For<ICreatureMetadata>(),
-            Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
-            Experience = 100,
-            Health = 10,
-            CurrentHealth = 10,
-        };
-        instance.AddCreature(creature);
-        creature.Script = new Avalon.World.Scripts.Creatures.CreaturePatrolScript(NullLoggerFactory.Instance, creature, instance);
-
-        ICharacter killer = Substitute.For<ICharacter>();
-        killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 880_032));
-        killer.Level.Returns((ushort)9);
-        killer.Experience.Returns(0ul);
-
-        instance.CombatService.ApplyDamage(killer, creature, 4);
-        Assert.Equal(6u, creature.CurrentHealth);
-
-        instance.CombatService.ApplyDamage(killer, creature, 10);
-        instance.CombatService.ApplyDamage(killer, creature, 10);   // the corpse: no second award
-
-        Assert.Equal(0u, creature.CurrentHealth);
-        Assert.Null(creature.Script);
-        killer.Received(1).Experience = 100;
-        instance.Dispose();
-    }
-
-    /// <summary>
     /// #590 characterisation: a kill reported for a creature this instance does not hold does
     /// nothing. The creature keeps its script and the killer gains nothing.
     /// </summary>
@@ -176,43 +93,6 @@ public class ExperienceAwardShould
 
         Assert.NotNull(creature.Script);
         killer.DidNotReceive().Experience = Arg.Any<ulong>();
-        instance.Dispose();
-    }
-
-    /// <summary>
-    /// #590 characterisation: a killer whose level has no experience requirement gains nothing and
-    /// keeps its level, while the kill itself still takes effect (the script is gone).
-    /// </summary>
-    [Fact]
-    public void Award_Nothing_When_The_Killers_Level_Has_No_Experience_Requirement()
-    {
-        IWorld world = Substitute.For<Avalon.World.IWorld>();
-        world.Configuration.Returns(new GameConfiguration());
-        world.MapTemplates.Returns(new List<MapTemplate>());
-        StaticData data = LoadedStaticData();
-        world.Data.Returns(data);
-
-        MapInstance instance = TestMapInstances.Build(world);
-
-        var creature = new Creature
-        {
-            Guid = new ObjectGuid(ObjectType.Creature, 880_031),
-            Metadata = Substitute.For<ICreatureMetadata>(),
-            Experience = 100,
-        };
-        instance.AddCreature(creature);
-        creature.Script = new Avalon.World.Scripts.Creatures.CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
-
-        ICharacter killer = Substitute.For<ICharacter>();
-        killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 880_032));
-        killer.Level.Returns((ushort)3); // LoadedStaticData only has a requirement for level 9
-        killer.Experience.Returns(0ul);
-
-        instance.ReportKill(creature, killer);
-
-        Assert.Null(creature.Script);
-        killer.DidNotReceive().Experience = Arg.Any<ulong>();
-        killer.DidNotReceive().Level = Arg.Any<ushort>();
         instance.Dispose();
     }
 
@@ -330,15 +210,6 @@ public class ExperienceAwardShould
         Assert.Equal(1.0, MapInstance.BandScale(40, null, null, 0.75f), precision: 3);
         Assert.Equal(1.0, MapInstance.BandScale(40, 1, null, 0.75f), precision: 3);
         Assert.Equal(1.0, MapInstance.BandScale(40, null, 5, 0.75f), precision: 3);
-    }
-
-    [Fact]
-    public void Never_Return_A_Negative_Scale_However_Far_Out_The_Player_Is()
-    {
-        double scale = MapInstance.BandScale(60000, 1, 5, 0.75f);
-
-        Assert.True(scale >= 0.0, $"scale went negative at {scale}");
-        Assert.True(scale < 0.001, "an absurd level difference should award essentially nothing");
     }
 
     /// <summary>

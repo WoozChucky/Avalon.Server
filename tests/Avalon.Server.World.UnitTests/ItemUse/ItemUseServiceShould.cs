@@ -179,17 +179,6 @@ public class ItemUseServiceShould : IAsyncLifetime
     }
 
     [Fact]
-    public void Equip_gear_through_the_same_request()
-    {
-        _w.Bag(Item(0, EquipTemplates.Longsword));
-
-        _w.Use(17, 0);
-
-        Assert.Equal((17u, ItemUseResult.Ok), Only());
-        Assert.Equal(EquipTemplates.Longsword.Id, At(_w.Character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
-    }
-
-    [Fact]
     public void Start_a_cast_bar_and_answer_once_it_completes()
     {
         _w.Bag(Item(0, Scroll, count: 2));
@@ -209,31 +198,24 @@ public class ItemUseServiceShould : IAsyncLifetime
         InventoryItemAssert(1u);
     }
 
-    [Fact]
-    public void Interrupt_the_cast_when_the_character_moves()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Interrupt_the_cast_when_the_character_moves_or_dies(bool dies)
     {
         _w.Bag(Item(0, Scroll, count: 2));
         _w.Use(19, 0);
 
-        _w.Character.Position = new Avalon.Common.Mathematics.Vector3(1, 0, 0);
+        if (dies)
+            _w.Character.IsDead = true;
+        else
+            _w.Character.Position = new Avalon.Common.Mathematics.Vector3(1, 0, 0);
         _w.Tick(0.1);
 
         Assert.Equal((19u, ItemUseResult.Interrupted), Only());
         Assert.Equal(["cast started", "cast interrupted"], _w.Lines());
         Assert.Single(_w.Client.Read<SCharacterInterruptedCastPacket>(NetworkPacketType.SMSG_INTERRUPTED_CAST));
         InventoryItemAssert(2u);
-    }
-
-    [Fact]
-    public void Interrupt_the_cast_when_the_character_dies()
-    {
-        _w.Bag(Item(0, Scroll, count: 2));
-        _w.Use(20, 0);
-
-        _w.Character.IsDead = true;
-        _w.Tick(0.1);
-
-        Assert.Equal((20u, ItemUseResult.Interrupted), Only());
     }
 
     /// <summary>At completion the used item must still be the same instance in the same Bag slot.</summary>
@@ -360,13 +342,14 @@ public class ItemUseServiceShould : IAsyncLifetime
 
     /// <summary>An equip refreshes the stats as a drag does: the worn sword's Strength counts at once.</summary>
     [Fact]
-    public void Refresh_the_stats_after_an_equip()
+    public void Equip_gear_through_the_same_request_and_refresh_the_stats()
     {
         _w.Bag(Item(0, EquipTemplates.Longsword));
 
         _w.Use(37, 0);
 
         Assert.Equal((37u, ItemUseResult.Ok), Only());
+        Assert.Equal(EquipTemplates.Longsword.Id, At(_w.Character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
         Assert.Equal(WarriorLevel1.Strength + 3u, _w.Character.Stats!.Value.Strength);
     }
 

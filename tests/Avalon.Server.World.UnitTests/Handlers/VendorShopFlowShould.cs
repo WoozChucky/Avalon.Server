@@ -1,4 +1,3 @@
-using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -13,9 +12,8 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 
 /// <summary>
 /// The shop end to end (spec #432). It is opened through the vendor's dialogue, used by the three
-/// requests, closed by the leash and by talking to someone else, and its list reaches everyone
-/// with it open. EndOfTick is the instance's vendor pass, and InventoryUpdateFlusher.Flush the
-/// tick's inventory flush.
+/// requests, and its list reaches everyone with it open; when it closes is ShopAccessShould's.
+/// EndOfTick is the instance's vendor pass, and InventoryUpdateFlusher.Flush the tick's inventory flush.
 /// </summary>
 public class VendorShopFlowShould : IAsyncLifetime
 {
@@ -64,8 +62,9 @@ public class VendorShopFlowShould : IAsyncLifetime
         _w.EndOfTick();
         Assert.Empty(_w.Main.Lists()[^1].Buyback);
 
-        // The opening, then one list per change.
+        // The opening, then one list per change; each request got exactly one result.
         Assert.Equal(4, _w.Main.Lists().Count);
+        Assert.Equal([1u, 2u, 3u], _w.Main.Results().Select(r => r.RequestId));
     }
 
     [Fact]
@@ -79,35 +78,6 @@ public class VendorShopFlowShould : IAsyncLifetime
         Assert.Equal(1000UL - 20 - 30, Me.Data!.Money);
         InventoryItem only = Assert.Single(Me.Container(InventoryType.Bag).Items);
         Assert.Equal((Elixir.Id, 1u), (only.TemplateId, only.Count));
-    }
-
-    [Fact]
-    public void Close_the_shop_on_the_leash_and_refuse_it_after()
-    {
-        _w.OpenShop();
-        Me.Position = new Vector3(0, 0, 25);
-
-        Assert.Equal(VendorResult.ShopClosed, _w.Buy(_w.Main, 1, TonicSequence));
-        Assert.Single(_w.Main.Ends());
-
-        // Walking back does not reopen it: that takes the dialogue again.
-        Me.Position = Vector3.zero;
-        Assert.Equal(VendorResult.ShopClosed, _w.Buy(_w.Main, 2, TonicSequence));
-        Assert.Single(_w.Main.Ends());
-        Assert.Equal(1000UL, Me.Data!.Money);
-    }
-
-    [Fact]
-    public void Close_the_shop_when_the_player_switches_to_another_vendor()
-    {
-        _w.OpenShop();
-
-        _w.Interact(_w.Main, VendorWorld.PedlarGuid);
-        Assert.Equal(VendorResult.ShopClosed, _w.Buy(_w.Main, 1, TonicSequence));
-
-        _w.Choose(_w.Main, VendorWorld.PedlarGuid, VendorWorld.PedlarRoot, VendorWorld.PedlarWares);
-        Assert.Equal(VendorResult.Ok, _w.Buy(_w.Main, 2, 1));   // the Pedlar's own row 1
-        Assert.Equal(VendorWorld.PedlarGuid.RawValue, _w.Main.Lists()[^1].VendorGuid);
     }
 
     [Fact]

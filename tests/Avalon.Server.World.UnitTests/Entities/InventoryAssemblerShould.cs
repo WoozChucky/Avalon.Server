@@ -37,28 +37,19 @@ public class InventoryAssemblerShould
         Assemble(IReadOnlyCollection<CharacterInventory> rows, IReadOnlyCollection<ItemInstance> instances)
         => InventoryAssembler.Assemble(rows, instances, NullLogger.Instance);
 
-    [Fact]
-    public void Group_Items_By_Their_Container()
-    {
-        Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid();
-
-        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble(
-            [Row(InventoryType.Equipment, 0, a), Row(InventoryType.Bag, 1, b), Row(InventoryType.Bank, 2, c)],
-            [Instance(a), Instance(b), Instance(c)]);
-
-        Assert.Single(result[InventoryType.Equipment]);
-        Assert.Single(result[InventoryType.Bag]);
-        Assert.Single(result[InventoryType.Bank]);
-    }
-
+    /// <summary>
+    /// A save writes the whole instance back, so anything the assembler dropped (a charge too) would be lost.
+    /// </summary>
     [Fact]
     public void Carry_The_Instance_Data_Onto_The_Item()
     {
         var id = Guid.NewGuid();
+        ItemInstance instance = Instance(id, template: 4242, count: 7, durability: 33);
+        instance.Charges = 6;
 
         IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble(
             [Row(InventoryType.Bag, 3, id)],
-            [Instance(id, template: 4242, count: 7, durability: 33)]);
+            [instance]);
 
         InventoryItem item = Assert.Single(result[InventoryType.Bag]);
         Assert.Equal((ushort)3, item.Slot);
@@ -66,6 +57,7 @@ public class InventoryAssemblerShould
         Assert.Equal(new ItemInstanceId(id), item.InstanceId);
         Assert.Equal(7u, item.Count);
         Assert.Equal(33u, item.Durability);
+        Assert.Equal(6u, item.Charges);
     }
 
     /// <summary>
@@ -124,28 +116,5 @@ public class InventoryAssemblerShould
 
         InventoryItem item = Assert.Single(result[InventoryType.Bag]);
         Assert.Equal(new ItemTemplateId(9), item.TemplateId);
-    }
-
-    [Fact]
-    public void Return_A_List_For_Every_Container_When_There_Is_Nothing()
-    {
-        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble([], []);
-
-        Assert.Empty(result[InventoryType.Equipment]);
-        Assert.Empty(result[InventoryType.Bag]);
-        Assert.Empty(result[InventoryType.Bank]);
-    }
-
-    /// <summary>A save writes the whole instance back, so a charge the assembler dropped would be lost.</summary>
-    [Fact]
-    public void Carry_the_charges_onto_the_item()
-    {
-        var id = Guid.NewGuid();
-        ItemInstance instance = Instance(id);
-        instance.Charges = 6;
-
-        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble([Row(InventoryType.Bag, 0, id)], [instance]);
-
-        Assert.Equal(6u, Assert.Single(result[InventoryType.Bag]).Charges);
     }
 }

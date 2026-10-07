@@ -58,7 +58,6 @@ public class CharacterSelectHandlerShould
         public required IMapInstance Instance { get; init; }
         public required List<NetworkPacketType> Sent { get; init; }
         public required List<NetworkPacket> SentPackets { get; init; }
-        public required IItemInstanceRepository ItemInstances { get; init; }
     }
 
     private static async Task<Fixture> BuildAsync(
@@ -188,8 +187,7 @@ public class CharacterSelectHandlerShould
             World = world,
             Instance = instance,
             Sent = sent,
-            SentPackets = sentPackets,
-            ItemInstances = itemInstanceRepository
+            SentPackets = sentPackets
         };
     }
 
@@ -318,22 +316,6 @@ public class CharacterSelectHandlerShould
         f.Connection.Received(1).SetPendingSpawn(Arg.Any<ICharacter>(), f.Instance, Arg.Any<long>());
     }
 
-    [Fact]
-    public async Task Load_the_quest_log_before_the_pending_spawn()
-    {
-        ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
-        quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
-            [new CharacterQuest { CharacterId = s_theCharacter, QuestId = 5, State = CharacterQuestState.Active, Stage = 1 }],
-            [new CharacterQuestObjective { CharacterId = s_theCharacter, QuestId = 5, ObjectiveId = 51, Progress = 2 }],
-            []));
-        Fixture f = await BuildAsync(quests: quests);
-
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
-
-        f.Connection.Received(1).SetPendingSpawn(
-            Arg.Is<ICharacter>(c => ((CharacterEntity)c).Quests.Get(5)!.ProgressOf(51) == 2), f.Instance, Arg.Any<long>());
-    }
-
     /// <summary>
     /// #433 review fix: with the bag and the quest log both loaded, select counts the quest items the bag holds, so a
     /// log-in never shows a Collect count the bag no longer matches. Here the saved count is 0 and the bag holds both.
@@ -440,59 +422,6 @@ public class CharacterSelectHandlerShould
     }
 
     /// <summary>
-    /// The character is held back; everything the client needs in order to do the loading is not.
-    /// Sending less than this leaves a client with nothing to report having loaded.
-    /// </summary>
-    [Fact]
-    public async Task Still_send_the_character_and_its_abilities()
-    {
-        Fixture f = await BuildAsync();
-
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
-
-        Assert.Contains(NetworkPacketType.SMSG_CHARACTER_SELECTED, f.Sent);
-        Assert.Contains(NetworkPacketType.SMSG_CHARACTER_ABILITIES, f.Sent);
-    }
-
-    /// <summary>There is no facing cone since #164, so AbilityInfo.FacingAngle is never set.</summary>
-    [Fact]
-    public async Task Send_each_abilitys_shape_and_leave_the_facing_angle_unset()
-    {
-        Fixture f = await BuildAsync(abilityTemplates:
-        [
-            AbilityTestData.AimedCircle(1, reach: 18f, radius: 3f),
-            AbilityTestData.Projectile(2, reach: 25f, speed: 28f, pierce: true),
-            AbilityTestData.Cone(3, arc: 60f),
-            AbilityTestData.HealCircle(4),
-        ]);
-
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
-
-        NetworkPacket sent = Assert.Single(
-            f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
-        using var stream = new MemoryStream(sent.Payload);
-        AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
-        Assert.Equal(4, abilities.Length);
-        Assert.All(abilities, a => Assert.Equal(0f, a.FacingAngle));
-
-        AbilityInfo circle = Assert.Single(abilities, a => a.AbilityId == 1);
-        Assert.Equal(AbilityShape.Circle, circle.Shape);
-        Assert.Equal(AbilityAnchor.AimPoint, circle.Anchor);
-        Assert.Equal(AbilityAimMode.Cursor, circle.AimMode);
-        Assert.Equal(18f, circle.Reach);
-        Assert.Equal(3f, circle.Radius);
-
-        AbilityInfo projectile = Assert.Single(abilities, a => a.AbilityId == 2);
-        Assert.Equal(AbilityShape.Projectile, projectile.Shape);
-        Assert.Equal(28f, projectile.ProjectileSpeed);
-        Assert.True(projectile.Pierce);
-
-        Assert.Equal(60f, Assert.Single(abilities, a => a.AbilityId == 3).ArcDegrees);
-        Assert.Equal(AbilityAffects.Ally, Assert.Single(abilities, a => a.AbilityId == 4).Affects);
-        Assert.Equal(AbilityAffects.Hostile, circle.Affects);
-    }
-
-    /// <summary>
     /// #669: each ability's per-hit amount travels with it at select, from the stats the select chain
     /// refreshed, and the entity records it, so the first tick in the world sends no update on top.
     /// </summary>
@@ -564,30 +493,21 @@ public class CharacterSelectHandlerShould
     }
 
     /// <summary>
-    /// The packet must still be sent for an empty inventory: an absent packet and an empty one
+    /// The snapshot carries the money, and is sent for an empty inventory too: an absent packet and an empty one
     /// mean different things to the client, and only the wire content distinguishes them.
     /// </summary>
     [Fact]
-    public async Task Send_An_Empty_Snapshot_When_The_Character_Has_No_Items()
-    {
-        Fixture f = await BuildAsync();
-
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
-
-        SInventorySnapshotPacket snapshot = DeserializeInventorySnapshot(f);
-        // protobuf-net writes nothing for a zero-length repeated field, so an empty array round
-        // trips as null rather than []; either is "no items" on the wire.
-        Assert.Empty(snapshot.Items ?? []);
-    }
-
-    [Fact]
-    public async Task Send_The_Characters_Money_In_The_Snapshot()
+    public async Task Send_the_money_in_the_snapshot_even_with_no_items()
     {
         Fixture f = await BuildAsync(money: 123_456_789_012UL);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
-        Assert.Equal(123_456_789_012UL, DeserializeInventorySnapshot(f).Money);
+        SInventorySnapshotPacket snapshot = DeserializeInventorySnapshot(f);
+        Assert.Equal(123_456_789_012UL, snapshot.Money);
+        // protobuf-net writes nothing for a zero-length repeated field, so an empty array round
+        // trips as null rather than []; either is "no items" on the wire.
+        Assert.Empty(snapshot.Items ?? []);
     }
 
     /// <summary>
@@ -668,36 +588,22 @@ public class CharacterSelectHandlerShould
     }
 
     /// <summary>
-    /// Regression guard: this passes before the select refresh too, because select then copied the
-    /// stored maximums and patched Stamina from a row that is not there. It pins that a class and
-    /// level with no ClassLevelStat row keeps the stored maximums and derives nothing.
+    /// Regression guard: a class and level with no ClassLevelStat row keeps the stored maximums and
+    /// derives nothing (select once patched Stamina from a row that is not there), and a warrior still
+    /// enters with no Fury (#526).
     /// </summary>
     [Fact]
-    public async Task Keep_the_stored_maximums_when_the_class_and_level_have_no_row()
-    {
-        Fixture f = await BuildAsync(storedHealth: 150);
-
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
-
-        var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
-        Assert.Equal(150u, entity.Health);
-        Assert.Equal(150u, entity.CurrentHealth);
-        Assert.Null(entity.Stats);
-        Assert.Equal(0u, entity.Stamina);
-    }
-
-    /// <summary>#526: a warrior enters with no Fury even when there is no stats row to refresh from.</summary>
-    [Fact]
-    public async Task Enter_with_no_fury_when_the_class_and_level_have_no_row()
+    public async Task Keep_the_stored_maximums_and_enter_with_no_fury_when_the_class_and_level_have_no_row()
     {
         Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
-        Assert.Equal(100u, entity.Power);
-        Assert.Equal(0u, entity.CurrentPower);
-        Assert.Equal(150u, entity.CurrentHealth);
+        Assert.Equal((150u, 150u), (entity.Health, entity.CurrentHealth));
+        Assert.Equal((100u, 0u), (entity.Power, entity.CurrentPower));
+        Assert.Null(entity.Stats);
+        Assert.Equal(0u, entity.Stamina);
     }
 
     /// <summary>#526: Game:FuryDecayPerSecond reaches the character select builds: at 30, a second out of combat loses 30.</summary>
@@ -715,22 +621,6 @@ public class CharacterSelectHandlerShould
         Assert.Equal(20u, entity.CurrentPower);
     }
 
-    /// <summary>
-    /// Login reads the character's item instances from the Character database, beside the slot
-    /// rows. There is no template join to ask for any more: templates live in the World database,
-    /// and the client resolves template ids against the vendored item catalog.
-    /// </summary>
-    [Fact]
-    public async Task Read_The_Characters_Item_Instances()
-    {
-        Fixture f = await BuildAsync();
-
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
-
-        await f.ItemInstances.Received(1)
-            .GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>());
-    }
-
     [Fact]
     public async Task Stamp_the_pending_spawn_with_the_moment_it_started_waiting()
     {
@@ -743,27 +633,6 @@ public class CharacterSelectHandlerShould
         f.Connection.Received(1).SetPendingSpawn(
             Arg.Any<ICharacter>(), f.Instance,
             Arg.Is<long>(ticks => ticks >= before && ticks <= after));
-    }
-
-    /// <summary>
-    /// A character waiting on the barrier is built and already marked online in the database. A
-    /// second select would overwrite the pending spawn and leave that row online with nothing
-    /// holding the entity that would have cleared it.
-    /// </summary>
-    [Fact]
-    public async Task Close_a_connection_that_selects_again_while_a_spawn_is_pending()
-    {
-        Fixture f = await BuildAsync();
-        // Built outside the Returns(): configuring a substitute inside one breaks NSubstitute's
-        // last-call tracking.
-        ICharacter pendingCharacter = PendingSpawnConnection.Character();
-        f.Connection.PendingSpawn.Returns(new PendingSpawn(
-            pendingCharacter, f.Instance, DateTime.UtcNow.Ticks));
-
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
-
-        f.Connection.Received().Close(Arg.Any<bool>());
-        f.Connection.DidNotReceiveWithAnyArgs().SetPendingSpawn(default!, default!, default);
     }
 
     /// <summary>

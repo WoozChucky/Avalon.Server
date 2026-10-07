@@ -33,25 +33,19 @@ public class DialogueOptionKindsShould
         return DialogueOptionKinds.For(actions, catalog, option);
     }
 
-    [Fact]
-    public void Name_the_action_an_option_that_keeps_the_conversation_open_runs()
+    /// <summary>
+    /// The action an option that keeps the conversation open runs, and a conversation otherwise:
+    /// DialogueChooseHandler runs no action on an option that ends the conversation or leads to an
+    /// unknown node, so the wire must not promise one.
+    /// </summary>
+    [Theory]
+    [InlineData(1, DialogueOptionKind.OpenBank)]       // every action's kind: Map_every_action_to_a_kind_of_its_own
+    [InlineData(3, DialogueOptionKind.Conversation)]   // no action
+    [InlineData(4, DialogueOptionKind.Conversation)]   // ends the conversation
+    [InlineData(5, DialogueOptionKind.Conversation)]   // leads to an unknown node
+    public void Tell_the_client_only_the_action_choosing_the_option_will_run(int optionId, DialogueOptionKind expected)
     {
-        Assert.Equal(DialogueOptionKind.OpenBank, KindOf(1));
-        Assert.Equal(DialogueOptionKind.OpenShop, KindOf(2));
-    }
-
-    [Fact]
-    public void Call_an_option_without_an_action_a_conversation()
-    {
-        Assert.Equal(DialogueOptionKind.Conversation, KindOf(3));
-    }
-
-    /// <summary>DialogueChooseHandler runs no action on these, so the wire must not promise one.</summary>
-    [Fact]
-    public void Call_an_action_that_would_never_run_a_conversation()
-    {
-        Assert.Equal(DialogueOptionKind.Conversation, KindOf(4));   // ends the conversation
-        Assert.Equal(DialogueOptionKind.Conversation, KindOf(5));   // leads to an unknown node
+        Assert.Equal(expected, KindOf(optionId));
     }
 
     /// <summary>A new action with no wire kind fails here rather than going out as a conversation.</summary>

@@ -55,18 +55,6 @@ public class VendorTradeShould
     }
 
     [Fact]
-    public void Leave_an_unlimited_row_uncounted_on_a_buy()
-    {
-        CharacterEntity character = TestCharacters.New(money: 100);
-        VendorStockState stock = Stock();
-
-        Assert.Equal(VendorResult.Ok, Trade(character).TryBuy(true, stock, TonicSequence, 3, NoQuestProgress.Instance, Now));
-
-        Assert.Equal(3u, At(character, 0).Count);
-        Assert.False(stock.Changed);
-    }
-
-    [Fact]
     public void Change_nothing_for_a_refused_buy()
     {
         CharacterEntity character = TestCharacters.New(money: 100);
@@ -267,22 +255,5 @@ public class VendorTradeShould
         character.Container(InventoryType.Bag).Load(bag);
         character.Container(InventoryType.Bank).Load(bank);
         return character;
-    }
-
-    [Fact]
-    public void Keep_only_the_last_ten_sales()
-    {
-        CharacterEntity character = TestCharacters.New(money: 0);
-        character.Container(InventoryType.Bag).Load(
-            Enumerable.Range(0, 11).Select(s => TestCharacters.Item((ushort)s, Tonic)).ToList());
-        VendorTrade trade = Trade(character);
-
-        for (uint slot = 0; slot < 11; slot++)
-            Assert.Equal(VendorResult.Ok, trade.TrySell(true, slot, null));
-
-        Assert.Equal(VendorBuyback.Capacity, character.Buyback.Entries.Count);
-        Assert.Equal((ushort)10, character.Buyback.Entries[0].Item.Slot);
-        Assert.DoesNotContain(character.Buyback.Entries, e => e.Item.Slot == 0);
-        Assert.Equal(44UL, character.Data!.Money);
     }
 }

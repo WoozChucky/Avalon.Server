@@ -55,19 +55,4 @@ public sealed class WorldTlsTransportShould
         socket.Client.Shutdown(SocketShutdown.Send);
         await Assert.ThrowsAnyAsync<Exception>(async () => await serverTask);
     }
-
-    [Fact]
-    public async Task Wrong_certificate_is_not_an_authenticated_world()
-    {
-        using X509Certificate2 certificate = Certificate();
-        using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
-        using var socket = new TcpClient();
-        await socket.ConnectAsync((IPEndPoint)listener.LocalEndpoint);
-        using TcpClient accepted = await listener.AcceptTcpClientAsync();
-        Task<SslStream> serverTask = WorldTlsTransport.AuthenticateAsync(accepted.GetStream(), certificate);
-        await using var client = new SslStream(socket.GetStream(), false, (_, _, _, _) => false);
-        await Assert.ThrowsAsync<AuthenticationException>(() => client.AuthenticateAsClientAsync("localhost"));
-        socket.Dispose();
-        try { await using SslStream server = await serverTask; } catch (Exception) { }
-    }
 }

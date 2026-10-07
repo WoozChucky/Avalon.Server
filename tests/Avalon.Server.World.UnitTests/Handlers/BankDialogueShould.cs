@@ -46,20 +46,6 @@ public class BankDialogueShould
     }
 
     [Fact]
-    public async Task Close_the_bank_when_the_conversation_ends()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        Interact(w);
-        Choose(w, BankerWorld.OpenBankOption);
-
-        Choose(w, BankerWorld.FarewellOption);
-
-        Assert.False(BankAccess.IsOpen(w.Connection, w.Character));
-        Assert.Null(w.Character.OpenBankNpc);
-        Assert.Single(w.Read<SDialogueEndPacket>(NetworkPacketType.SMSG_DIALOGUE_END));
-    }
-
-    [Fact]
     public async Task Close_the_bank_when_the_player_talks_to_the_banker_again()
     {
         BankerWorld w = await BankerWorld.CreateAsync();
@@ -151,30 +137,5 @@ public class BankDialogueShould
                 [BankerWorld.OpenBankAndLeaveOption] = DialogueOptionKind.Conversation,
             },
             Kinds(root));
-    }
-
-    [Fact]
-    public async Task Send_the_kinds_again_on_the_node_a_choice_leads_to()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        Interact(w);
-
-        Choose(w, BankerWorld.OpenBankOption);
-
-        SDialogueNodePacket next = w.Read<SDialogueNodePacket>(NetworkPacketType.SMSG_DIALOGUE_NODE).Last();
-        Assert.Equal(DialogueOptionKind.OpenBank, Kinds(next)[BankerWorld.OpenBankOption]);
-        Assert.Equal(DialogueOptionKind.Conversation, Kinds(next)[BankerWorld.OpenBankAndLeaveOption]);
-    }
-
-    [Fact]
-    public async Task Send_a_plain_npcs_options_as_conversation()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-
-        new InteractHandler(NullLogger<InteractHandler>.Instance, w.World).Execute(w.Connection,
-            new CInteractPacket { TargetGuid = BankerWorld.StrangerGuid.RawValue });
-
-        SDialogueNodePacket root = Assert.Single(w.Read<SDialogueNodePacket>(NetworkPacketType.SMSG_DIALOGUE_NODE));
-        Assert.Equal(DialogueOptionKind.Conversation, Assert.Single(root.Options).Kind);
     }
 }

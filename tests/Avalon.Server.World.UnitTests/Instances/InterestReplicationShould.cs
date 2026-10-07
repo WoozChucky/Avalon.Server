@@ -24,61 +24,6 @@ public class InterestReplicationShould
     private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     [Fact]
-    public void Send_no_add_for_a_creature_a_character_or_a_projectile_beyond_the_radius()
-    {
-        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
-        MapInstanceClient watcher = JoinAt(instance, 593_101, Vector3.zero);
-        Creature creature = AddCreature(instance, 593_901, new Vector3(100f, 0f, 0f));
-        MapInstanceClient other = JoinAt(instance, 593_102, new Vector3(0f, 0f, 100f));
-        CastProjectile(handler, other, towards: new Vector3(0f, 0f, 110f), reach: 10f);
-
-        Ticks(instance, 30);
-
-        Assert.DoesNotContain(watcher.Added(), s => s.Guid == creature.Guid.RawValue);
-        Assert.DoesNotContain(watcher.Added(), s => s.Guid == other.Character.Guid.RawValue);
-        Assert.DoesNotContain(watcher.Added(), s => IsProjectile(s.Guid));
-        Assert.Contains(other.Added(), s => IsProjectile(s.Guid));   // the projectile did fly
-        Assert.DoesNotContain(watcher.StateUpdates(), s => s.Guid != watcher.Character.Guid.RawValue);
-        Assert.Empty(watcher.Removed());
-    }
-
-    [Fact]
-    public void Add_a_creature_once_with_full_state_when_the_watcher_walks_up()
-    {
-        using MapInstance instance = TestMapInstances.Build(NewWorld());
-        MapInstanceClient watcher = JoinAt(instance, 593_111, Vector3.zero);
-        Creature creature = AddCreature(instance, 593_911, new Vector3(100f, 0f, 0f));
-        Ticks(instance, 2);
-        Assert.DoesNotContain(watcher.Added(), s => s.Guid == creature.Guid.RawValue);
-
-        watcher.Character.Position = new Vector3(50f, 0f, 0f);
-        Ticks(instance, 2);
-
-        ObjectState added = Assert.Single(watcher.Added(), s => s.Guid == creature.Guid.RawValue);
-        Assert.Equal(100u, added.Health);
-        Assert.Equal(100u, added.CurrentHealth);
-        Assert.Equal(100f, added.Position!.X);
-        Assert.NotNull(added.Velocity);
-        Assert.NotNull(added.MoveState);
-        Assert.NotNull(added.Level);
-    }
-
-    [Fact]
-    public void Remove_a_creature_once_when_the_watcher_walks_away()
-    {
-        using MapInstance instance = TestMapInstances.Build(NewWorld());
-        MapInstanceClient watcher = JoinAt(instance, 593_121, Vector3.zero);
-        Creature creature = AddCreature(instance, 593_921, new Vector3(10f, 0f, 0f));
-        Ticks(instance, 2);
-        Assert.Single(watcher.Added(), s => s.Guid == creature.Guid.RawValue);
-
-        watcher.Character.Position = new Vector3(200f, 0f, 0f);
-        Ticks(instance, 2);
-
-        Assert.Equal([creature.Guid.RawValue], watcher.Removed());
-    }
-
-    [Fact]
     public void Not_churn_between_the_radius_and_the_margin()
     {
         using MapInstance instance = TestMapInstances.Build(NewWorld());

@@ -26,17 +26,25 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 /// </summary>
 public class BankInstanceChangeShould
 {
+    /// <summary>The shop closes with the conversation on a transfer, exactly as the bank does (#432); the buyback stays.</summary>
     [Fact]
-    public async Task Close_the_bank_when_the_character_changes_instance()
+    public async Task Close_the_bank_and_the_shop_when_the_character_changes_instance()
     {
         BankerWorld w = await BankerWorld.CreateAsync();
         w.Character.Container(InventoryType.Bank).Load([Item(2, Potion, count: 7)]);
         OpenBankThroughTheDialogue(w);
         Assert.True(BankAccess.TryUse(w.Connection, w.Character, w.World));
+        w.Character.OpenShopNpc = BankerWorld.BankerGuid;   // as if the banker also kept a shop
+        w.Character.VendorListOwed = true;
+        w.Character.Buyback.Push(new BuybackEntry(Item(0, Sword), 25));
         Avalon.World.World world = await RealWorldAsync();
 
         world.TransferPlayer(w.Connection, Elsewhere());
 
+        Assert.Null(w.Character.OpenShopNpc);
+        Assert.False(w.Character.VendorListOwed);
+        Assert.False(ShopAccess.IsOpen(w.Connection, w.Character));
+        Assert.Single(w.Character.Buyback.Entries);   // the session goes on, and so does its buyback
         Assert.False(BankAccess.IsOpen(w.Connection, w.Character));
         Assert.Null(w.Character.OpenBankNpc);
         Assert.Null(w.Connection.CurrentDialogue);
@@ -62,38 +70,7 @@ public class BankInstanceChangeShould
     }
 
     [Fact]
-    public async Task Close_the_bank_when_the_character_leaves_the_world()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        OpenBankThroughTheDialogue(w);
-        Avalon.World.World world = await RealWorldAsync();
-
-        await world.DeSpawnPlayerAsync(w.Connection);
-
-        Assert.Null(w.Character.OpenBankNpc);
-    }
-
-    /// <summary>The shop closes with the conversation on a transfer, exactly as the bank does (#432).</summary>
-    [Fact]
-    public async Task Close_the_shop_too_when_the_character_changes_instance()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        OpenBankThroughTheDialogue(w);
-        w.Character.OpenShopNpc = BankerWorld.BankerGuid;   // as if the banker also kept a shop
-        w.Character.VendorListOwed = true;
-        w.Character.Buyback.Push(new BuybackEntry(Item(0, Sword), 25));
-        Avalon.World.World world = await RealWorldAsync();
-
-        world.TransferPlayer(w.Connection, Elsewhere());
-
-        Assert.Null(w.Character.OpenShopNpc);
-        Assert.False(w.Character.VendorListOwed);
-        Assert.False(ShopAccess.IsOpen(w.Connection, w.Character));
-        Assert.Single(w.Character.Buyback.Entries);   // the session goes on, and so does its buyback
-    }
-
-    [Fact]
-    public async Task Clear_the_shop_and_the_buyback_when_the_character_leaves_the_world()
+    public async Task Close_the_bank_and_the_shop_and_clear_the_buyback_when_the_character_leaves_the_world()
     {
         BankerWorld w = await BankerWorld.CreateAsync();
         OpenBankThroughTheDialogue(w);
@@ -104,6 +81,7 @@ public class BankInstanceChangeShould
 
         await world.DeSpawnPlayerAsync(w.Connection);
 
+        Assert.Null(w.Character.OpenBankNpc);
         Assert.Null(w.Character.OpenShopNpc);
         Assert.False(w.Character.VendorListOwed);
         Assert.Empty(w.Character.Buyback.Entries);

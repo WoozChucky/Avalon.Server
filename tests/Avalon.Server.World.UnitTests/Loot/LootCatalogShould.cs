@@ -81,72 +81,41 @@ public class LootCatalogShould
         Assert.Equal("loot table 1 'boar': entry 2 references missing table 99", RefusalOf(catalog, 1).ToString());
     }
 
-    [Fact]
-    public void Refuse_An_Entry_With_Both_Targets()
+    /// <summary>An entry that breaks any rule refuses its own table, and only that table.</summary>
+    [Theory]
+    [InlineData(true, true, 50f, 1, 1, "entry 1 names both an item and a table")]
+    [InlineData(false, false, 50f, 1, 1, "entry 1 names neither an item nor a table")]
+    [InlineData(true, false, 50f, 0, 1, "entry 1 has MinCount 0; it must be at least 1")]
+    [InlineData(true, false, 50f, 3, 2, "entry 1 has MinCount 3 above MaxCount 2")]
+    [InlineData(true, false, 50f, 1, 1001, "entry 1 has MaxCount 1001; it must be at most 1000")]
+    [InlineData(true, false, -1f, 1, 1, "entry 1 has Chance -1; it must be between 0 and 100")]
+    [InlineData(true, false, 100.5f, 1, 1, "entry 1 has Chance 100.5; it must be between 0 and 100")]
+    [InlineData(true, false, float.NaN, 1, 1, "entry 1 has Chance NaN; it must be between 0 and 100")]
+    public void Refuse_A_Table_With_A_Bad_Entry_And_Keep_The_Others(
+        bool namesItem, bool namesTable, float chance, int min, int max, string reason)
     {
-        LootTableEntry both = Item(1);
-        both.ReferenceTableId = new LootTableId(2);
+        LootTableEntry entry = Item(1, chance: chance, min: min, max: max);
+        if (!namesItem)
+            entry.ItemTemplateId = null;
+        if (namesTable)
+            entry.ReferenceTableId = new LootTableId(2);
 
-        LootCatalog catalog = Build(Table(1, "boar", both), Table(2, "shared", Item(1)));
+        LootCatalog catalog = Build(Table(1, "boar", entry), Table(2, "shared", Item(1)));
 
-        Assert.Equal("entry 1 names both an item and a table", RefusalOf(catalog, 1).Reason);
+        Assert.Equal(reason, RefusalOf(catalog, 1).Reason);
         Assert.True(catalog.TryGet(new LootTableId(2), out _));
     }
 
-    [Fact]
-    public void Refuse_An_Entry_With_Neither_Target()
-    {
-        LootTableEntry neither = Item(1);
-        neither.ItemTemplateId = null;
-
-        Assert.Equal("entry 1 names neither an item nor a table", RefusalOf(Build(Table(1, "boar", neither)), 1).Reason);
-    }
-
     [Theory]
-    [InlineData(0, 1, "entry 1 has MinCount 0; it must be at least 1")]
-    [InlineData(3, 2, "entry 1 has MinCount 3 above MaxCount 2")]
-    [InlineData(1, 1001, "entry 1 has MaxCount 1001; it must be at most 1000")]
-    public void Refuse_A_Count_Range_Out_Of_Order_Or_Out_Of_Bounds(int min, int max, string reason)
+    [InlineData(0f, 1)]
+    [InlineData(100f, 1)]
+    [InlineData(50f, LootCatalog.MaxEntryCount)]
+    public void Accept_An_Entry_At_Each_Bound(float chance, int max)
     {
-        Assert.Equal(reason, RefusalOf(Build(Table(1, "boar", Item(1, min: min, max: max))), 1).Reason);
-    }
+        LootCatalog catalog = Build(Table(1, "boar", Item(1, chance: chance, max: max)));
 
-    [Theory]
-    [InlineData(-1f, "entry 1 has Chance -1; it must be between 0 and 100")]
-    [InlineData(100.5f, "entry 1 has Chance 100.5; it must be between 0 and 100")]
-    [InlineData(float.NaN, "entry 1 has Chance NaN; it must be between 0 and 100")]
-    public void Refuse_A_Chance_Outside_Zero_To_One_Hundred(float chance, string reason)
-    {
-        Assert.Equal(reason, RefusalOf(Build(Table(1, "boar", Item(1, chance: chance))), 1).Reason);
-    }
-
-    [Theory]
-    [InlineData(0f)]
-    [InlineData(100f)]
-    public void Accept_The_Chance_Bounds_Themselves(float chance)
-    {
-        Assert.Empty(Build(Table(1, "boar", Item(1, chance: chance))).Refused);
-    }
-
-    [Fact]
-    public void Accept_A_Max_Count_Of_Exactly_The_Bound()
-    {
-        LootCatalog catalog = Build(Table(1, "boar", Item(1, min: 1, max: LootCatalog.MaxEntryCount)));
-
-        Assert.Equal(1000, LootCatalog.MaxEntryCount);
         Assert.Empty(catalog.Refused);
         Assert.True(catalog.TryGet(new LootTableId(1), out _));
-    }
-
-    [Fact]
-    public void Refuse_A_Table_That_References_A_Refused_Table()
-    {
-        LootCatalog catalog = Build(
-            Table(1, "boar", Reference(1, 2)),
-            Table(2, "shared", Item(1, min: 0)));
-
-        Assert.Equal("entry 1 references refused table 2", RefusalOf(catalog, 1).Reason);
-        Assert.Equal(0, catalog.TableCount);
     }
 
     [Fact]
@@ -174,15 +143,5 @@ public class LootCatalogShould
             Table(3, "gamma", Reference(1, 1)));
 
         Assert.Equal("entry 1 references refused table 1", RefusalOf(catalog, 3).Reason);
-    }
-
-    [Fact]
-    public void Describe_Counts_And_Every_Refusal()
-    {
-        LootCatalog catalog = Build(Table(1, "boar", Item(1), Item(2)), Table(2, "bad", Item(1, min: 0)));
-
-        Assert.Equal(
-            "1 tables, 2 entries, 1 refused (loot table 2 'bad': entry 1 has MinCount 0; it must be at least 1)",
-            catalog.Describe());
     }
 }

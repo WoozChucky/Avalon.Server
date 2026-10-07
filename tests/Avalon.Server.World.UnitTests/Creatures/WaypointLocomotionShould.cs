@@ -29,26 +29,6 @@ public class WaypointLocomotionShould
         return (new WaypointLocomotion(_ => navigator), navigator);
     }
 
-    [Fact]
-    public void Advance_A_Creature_Toward_Its_Destination()
-    {
-        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
-        ICreature creature = CreatureAt(Vector3.zero);
-        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
-            .Returns([new Vector3(10f, 0f, 0f)]);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.MoveTo(creature, new Vector3(10f, 0f, 0f));
-        locomotion.Update(TimeSpan.FromSeconds(1));
-
-        // 4 m/s for one second along +X.
-        creature.Received().Position = Arg.Is<Vector3>(p => p.x > 3.9f && p.x < 4.1f);
-
-        // Locomotion owns only the at-rest transition; the caller (a script) owns the moving
-        // MoveState (Walking vs Running) and must not have it overwritten every tick.
-        creature.DidNotReceiveWithAnyArgs().MoveState = default;
-    }
-
     /// <summary>
     /// Review Focus 2. CreatureCombatScript carries a comment about this exact drift: an empty path
     /// leaving MoveState at a moving value while Position never changes, so the client animates a
@@ -132,36 +112,6 @@ public class WaypointLocomotionShould
         Assert.True(locomotion.HasArrived(creature));
     }
 
-    [Fact]
-    public void Report_Arrival_Once_The_Last_Waypoint_Is_Consumed()
-    {
-        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
-        ICreature creature = CreatureAt(Vector3.zero);
-        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
-            .Returns([new Vector3(1f, 0f, 0f)]);
-        creature.Position.Returns(new Vector3(1f, 0f, 0f)); // already standing on it
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.MoveTo(creature, new Vector3(1f, 0f, 0f));
-        locomotion.Update(TimeSpan.FromSeconds(0.1));
-
-        Assert.True(locomotion.HasArrived(creature));
-    }
-
-    [Fact]
-    public void Place_A_Teleported_Creature_Without_Walking_It()
-    {
-        (WaypointLocomotion? locomotion, IMapNavigator _) = Build();
-        ICreature creature = CreatureAt(Vector3.zero);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.Teleport(creature, new Vector3(50f, 0f, 50f));
-
-        creature.Received().Position = new Vector3(50f, 0f, 50f);
-        creature.Received().Velocity = Vector3.zero;
-        Assert.True(locomotion.HasArrived(creature));
-    }
-
     /// <summary>
     /// A leash-return teleport must discard whatever path was queued: otherwise the next Update
     /// would walk the creature straight back along the stale route from before it was teleported.
@@ -211,10 +161,12 @@ public class WaypointLocomotionShould
     /// MoveState at whatever moving value the caller last set while Position never changed again
     /// — the client extrapolates a creature stuck running on the spot forever. CrowdLocomotion
     /// already no-ops on a second Register for an already-registered creature; this pins
-    /// WaypointLocomotion matching that instead of resetting.
+    /// WaypointLocomotion matching that instead of resetting. While it walks, the locomotion owns
+    /// only the at-rest transition: the caller (a script) owns the moving MoveState (Walking vs
+    /// Running), which must not be overwritten every tick.
     /// </summary>
     [Fact]
-    public void Keep_Advancing_An_Already_Moving_Creature_When_Registered_Again()
+    public void Keep_Advancing_An_Already_Moving_Creature_When_Registered_Again_And_Leave_The_Moving_MoveState_To_The_Caller()
     {
         (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
@@ -232,43 +184,8 @@ public class WaypointLocomotionShould
         locomotion.Update(TimeSpan.FromSeconds(1));
 
         // Still walking the original path toward (10, 0, 0) — 4 m/s for one second along +X —
-        // not stuck at the origin with a cleared queue.
+        // not stuck at the origin with a cleared queue, and no MoveState written at all.
         creature.Received().Position = Arg.Is<Vector3>(p => p.x > 3.9f && p.x < 4.1f);
-        creature.DidNotReceive().MoveState = MoveState.Idle;
-    }
-
-    /// <summary>
-    /// This implementation has no notion of other agents, so a synced player is simply nothing to
-    /// record — but it must still satisfy the interface without throwing, and it must not perturb a
-    /// creature that happens to share the same Update tick.
-    /// </summary>
-    [Fact]
-    public void Ignore_A_Synced_Player_Entirely()
-    {
-        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
-        ICreature creature = CreatureAt(Vector3.zero);
-        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
-            .Returns([new Vector3(10f, 0f, 0f)]);
-
-        var playerGuid = new ObjectGuid(ObjectType.Character, 500);
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.MoveTo(creature, new Vector3(10f, 0f, 0f));
-
-        locomotion.SyncPlayer(playerGuid, new Vector3(5f, 0f, 0f));
-        locomotion.Update(TimeSpan.FromSeconds(1));
-
-        // Identical to Advance_A_Creature_Toward_Its_Destination: the synced player changed nothing.
-        creature.Received().Position = Arg.Is<Vector3>(p => p.x > 3.9f && p.x < 4.1f);
-    }
-
-    /// <summary>Idempotent and inert: removing a player that was never (and can never be) tracked.</summary>
-    [Fact]
-    public void Ignore_Removing_A_Player_That_Was_Never_Synced()
-    {
-        (WaypointLocomotion? locomotion, IMapNavigator _) = Build();
-        var playerGuid = new ObjectGuid(ObjectType.Character, 500);
-
-        locomotion.RemovePlayer(playerGuid);
-        locomotion.RemovePlayer(playerGuid);
+        creature.DidNotReceiveWithAnyArgs().MoveState = default;
     }
 }

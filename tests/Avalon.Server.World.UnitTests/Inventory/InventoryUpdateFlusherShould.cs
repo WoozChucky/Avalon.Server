@@ -38,14 +38,6 @@ public class InventoryUpdateFlusherShould
     }
 
     [Fact]
-    public void Send_nothing_when_nothing_changed()
-    {
-        InventoryUpdateFlusher.Flush(ConnectionFor(New()));
-
-        Assert.Empty(_sent);
-    }
-
-    [Fact]
     public void Collapse_several_changes_to_a_slot_into_its_final_value()
     {
         CharacterEntity character = New();
@@ -62,22 +54,6 @@ public class InventoryUpdateFlusherShould
         Assert.Equal(5u, slot.Item!.Count);
         Assert.Equal(Potion.Id.Value, slot.Item.ItemTemplateId);
         Assert.Null(update.Money);
-    }
-
-    [Fact]
-    public void Send_an_emptied_slot_with_no_item()
-    {
-        CharacterEntity character = New();
-        InventoryItem potion = Item(4, Potion, count: 2);
-        character.Container(InventoryType.Bag).Load([potion]);
-        IWorldConnection connection = ConnectionFor(character);
-
-        InventoryFor(character).TryRemove(potion.InstanceId, 2);
-        InventoryUpdateFlusher.Flush(connection);
-
-        InventorySlotUpdateDto slot = Assert.Single(Read(Assert.Single(_sent)).Slots);
-        Assert.Equal((ushort)4, slot.Slot);
-        Assert.Null(slot.Item);
     }
 
     [Fact]

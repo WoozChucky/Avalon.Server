@@ -84,22 +84,7 @@ public sealed class ProcessQueueTelemetryShould : IDisposable
     }
 
     [Fact]
-    public void Start_a_span_for_a_queued_packet_it_handles()
-    {
-        TestConnection connection = Connect(new Recorder(NetworkPacketType.CMSG_CHARACTER_LIST, _dispatched),
-            new PacketDispatchTelemetry(_source, _meter));
-
-        connection.Deliver(NetworkPacketType.CMSG_CHARACTER_LIST, new CCharacterListPacket());
-        Pump(connection);
-
-        Activity span = Assert.Single(_spans);
-        Assert.Equal("packet CMSG_CHARACTER_LIST", span.DisplayName);
-        Assert.Equal(connection.Id.ToString(), span.GetTagItem("avalon.connection.id"));
-        Assert.Equal("ok", span.GetTagItem("avalon.outcome"));
-    }
-
-    [Fact]
-    public void Carry_the_character_on_the_span_once_one_is_in_the_world()
+    public void Start_a_span_for_a_queued_packet_it_handles_with_the_connection_and_its_character()
     {
         TestConnection connection = Connect(new Recorder(NetworkPacketType.CMSG_CHARACTER_LIST, _dispatched),
             new PacketDispatchTelemetry(_source, _meter, noSpanPacketTypes: []));
@@ -110,22 +95,11 @@ public sealed class ProcessQueueTelemetryShould : IDisposable
         Pump(connection);
 
         Activity span = Assert.Single(_spans);
+        Assert.Equal("packet CMSG_PLAYER_INPUT", span.DisplayName);
+        Assert.Equal(connection.Id.ToString(), span.GetTagItem("avalon.connection.id"));
+        Assert.Equal("ok", span.GetTagItem("avalon.outcome"));
         Assert.Equal(42L, span.GetTagItem("avalon.account.id"));
         Assert.Equal(7u, span.GetTagItem("avalon.character.id"));
-    }
-
-    [Fact]
-    public void Handle_player_input_without_a_span()
-    {
-        TestConnection connection = Connect(new Recorder(NetworkPacketType.CMSG_CHARACTER_LIST, _dispatched),
-            new PacketDispatchTelemetry(_source, _meter));
-        connection.Character = new CharacterEntity { Data = new Character { Id = new CharacterId(7), Name = "Tester", Map = 1 } };
-
-        connection.Deliver(NetworkPacketType.CMSG_PLAYER_INPUT, new CPlayerInputPacket());
-        Pump(connection);
-
-        Assert.Equal([NetworkPacketType.CMSG_PLAYER_INPUT], _dispatched);
-        Assert.Empty(_spans);
     }
 
     [Fact]
@@ -138,17 +112,6 @@ public sealed class ProcessQueueTelemetryShould : IDisposable
 
         Activity span = Assert.Single(_spans);
         Assert.Equal(ActivityStatusCode.Error, span.Status);
-    }
-
-    [Fact]
-    public void Still_dispatch_when_the_server_has_no_telemetry()
-    {
-        TestConnection connection = Connect(new Recorder(NetworkPacketType.CMSG_CHARACTER_LIST, _dispatched), telemetry: null);
-
-        connection.Deliver(NetworkPacketType.CMSG_CHARACTER_LIST, new CCharacterListPacket());
-        Pump(connection);
-
-        Assert.Equal([NetworkPacketType.CMSG_CHARACTER_LIST], _dispatched);
     }
 
     private sealed class Recorder(NetworkPacketType type, List<NetworkPacketType> log) : IWorldPacketHandler

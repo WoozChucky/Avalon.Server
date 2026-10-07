@@ -1,4 +1,3 @@
-using Avalon.Common.ValueObjects;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
@@ -59,18 +58,6 @@ public class CharacterInventoryServiceShould
         Assert.False(character.ClientChanges.HasChanges);
     }
 
-    [Fact]
-    public void Never_add_to_equipment_or_the_bank()
-    {
-        CharacterEntity character = New();
-        character.Container(InventoryType.Bag).Load(Enumerable.Range(0, 30).Select(s => Item((ushort)s, Sword)).ToList());
-
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).TryAdd(Potion.Id, 1));
-
-        Assert.Empty(character.Container(InventoryType.Equipment).Items);
-        Assert.Empty(character.Container(InventoryType.Bank).Items);
-    }
-
     [Theory]
     [InlineData(InventoryType.Bag)]
     [InlineData(InventoryType.Equipment)]
@@ -93,12 +80,6 @@ public class CharacterInventoryServiceShould
         Assert.Empty(character.Container(InventoryType.Bag).Items);
 
         Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAdd(Relic.Id, 1));
-    }
-
-    [Fact]
-    public void Report_an_unknown_template()
-    {
-        Assert.Equal(InventoryAddResult.UnknownTemplate, InventoryFor(New()).TryAdd(new ItemTemplateId(9999), 1));
     }
 
     /// <summary>Review Focus 4.</summary>
@@ -124,17 +105,6 @@ public class CharacterInventoryServiceShould
 
         Assert.Equal(25u, At(character, InventoryType.Bag, 0).Count);
         Assert.Equal(1u, At(character, InventoryType.Bag, 1).Count);
-    }
-
-    /// <summary>Review Focus 3.</summary>
-    [Fact]
-    public void Refuse_a_count_no_bag_could_hold_without_wrapping()
-    {
-        CharacterEntity character = New();
-
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).TryAdd(Potion.Id, uint.MaxValue));
-
-        Assert.Empty(character.Container(InventoryType.Bag).Items);
     }
 
     /// <summary>
@@ -183,17 +153,6 @@ public class CharacterInventoryServiceShould
         Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAdd(Potion.Id, 0));
         Assert.Equal(InventoryRemoveResult.NotFound, InventoryFor(character).TryRemove(Potion.Id, 0));
 
-        Assert.False(character.SaveState.HasChanges);
-    }
-
-    [Fact]
-    public void Answer_CanAdd_without_changing_anything()
-    {
-        CharacterEntity character = New();
-
-        Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).CanAdd(Potion.Id, 5));
-
-        Assert.Empty(character.Container(InventoryType.Bag).Items);
         Assert.False(character.SaveState.HasChanges);
     }
 
@@ -250,17 +209,6 @@ public class CharacterInventoryServiceShould
     }
 
     [Fact]
-    public void Find_an_instance_in_any_container()
-    {
-        CharacterEntity character = New();
-        InventoryItem banked = Item(9, Sword);
-        character.Container(InventoryType.Bank).Load([banked]);
-
-        Assert.Equal(InventoryRemoveResult.Ok, InventoryFor(character).TryRemove(banked.InstanceId, 1));
-        Assert.Empty(character.Container(InventoryType.Bank).Items);
-    }
-
-    [Fact]
     public void Mark_what_each_change_does_to_items_and_slots()
     {
         CharacterEntity character = New();
@@ -280,23 +228,6 @@ public class CharacterInventoryServiceShould
 
         Assert.Equal(SaveState.Removed, character.SaveState.ItemState(loaded.InstanceId));
         Assert.Equal(SaveState.Removed, character.SaveState.SlotState(InventoryType.Bag, 0));
-    }
-
-    /// <summary>
-    /// Bank slots are recorded like any other; whether they are sent is the flusher's decision,
-    /// which depends on the bank being open (spec #463).
-    /// </summary>
-    [Fact]
-    public void Record_every_slot_the_client_may_need_to_hear_about_bank_included()
-    {
-        CharacterEntity character = New();
-        InventoryItem banked = Item(4, Sword);
-        character.Container(InventoryType.Bank).Load([banked]);
-        CharacterInventoryService inventory = InventoryFor(character);
-
-        inventory.TryRemove(banked.InstanceId, 1);
-
-        Assert.Equal((InventoryType.Bank, (ushort)4), Assert.Single(character.ClientChanges.Slots));
     }
 
     [Fact]

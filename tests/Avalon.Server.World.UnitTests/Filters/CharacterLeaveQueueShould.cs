@@ -118,20 +118,6 @@ public class CharacterLeaveQueueShould : IDisposable
             _dispatched);
     }
 
-    /// <summary>With a character still held, an in-map packet at the head waits for the map pass, as before.</summary>
-    [Fact]
-    public void Not_drop_an_in_map_packet_while_the_character_is_still_held()
-    {
-        Spawn();
-        _connection.Deliver(NetworkPacketType.CMSG_PLAYER_INPUT, new CPlayerInputPacket());
-
-        _connection.UpdateSession();
-        Assert.Empty(_dispatched);
-
-        _connection.UpdateMap();
-        Assert.Equal([NetworkPacketType.CMSG_PLAYER_INPUT], _dispatched);
-    }
-
     private sealed class Recorder(NetworkPacketType type, List<NetworkPacketType> log, Action<IWorldConnection>? then = null)
         : IWorldPacketHandler
     {

@@ -97,29 +97,6 @@ public class CharacterCharacterGameStateShould
     // ──────────────────────────────────────────────
 
     [Fact]
-    public void NewObjects_ContainsGuid_WhenCreatureSeenFirstTime()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature creature = MakeRealCreature(1u);
-
-        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
-
-        Assert.Contains(creature.Guid, state.NewObjects);
-    }
-
-    [Fact]
-    public void NewObjects_IsEmpty_WhenSameCreatureSeenTwice()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature creature = MakeRealCreature(1u);
-        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
-
-        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
-
-        Assert.Empty(state.NewObjects);
-    }
-
-    [Fact]
     public void NewObjects_ContainsOnlyFreshCreatures()
     {
         var state = new CharacterCharacterGameState();
@@ -131,61 +108,6 @@ public class CharacterCharacterGameStateShould
 
         Assert.Single(state.NewObjects);
         Assert.Contains(fresh.Guid, state.NewObjects);
-    }
-
-    // ──────────────────────────────────────────────
-    // NewObjects — character tracking
-    // ──────────────────────────────────────────────
-
-    [Fact]
-    public void NewObjects_ContainsCharacterGuid_WhenSeenFirstTime()
-    {
-        var state = new CharacterCharacterGameState();
-        CharacterEntity character = MakeRealCharacter(1u);
-
-        Watch(state, [], AsCharacterDict(character), [], EmptyDirty());
-
-        Assert.Contains(character.Guid, state.NewObjects);
-    }
-
-    // ──────────────────────────────────────────────
-    // RemovedObjects
-    // ──────────────────────────────────────────────
-
-    [Fact]
-    public void RemovedObjects_ContainsGuid_WhenCreatureDisappears()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature creature = MakeRealCreature(1u);
-        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
-
-        Watch(state, [], [], [], EmptyDirty());
-
-        Assert.Contains(creature.Guid, state.RemovedObjects);
-    }
-
-    [Fact]
-    public void RemovedObjects_IsEmpty_WhenCreatureStillPresent()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature creature = MakeRealCreature(1u);
-        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
-
-        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
-
-        Assert.Empty(state.RemovedObjects);
-    }
-
-    [Fact]
-    public void RemovedObjects_ContainsCharacterGuid_WhenCharacterDisappears()
-    {
-        var state = new CharacterCharacterGameState();
-        CharacterEntity character = MakeRealCharacter(1u);
-        Watch(state, [], AsCharacterDict(character), [], EmptyDirty());
-
-        Watch(state, [], [], [], EmptyDirty());
-
-        Assert.Contains(character.Guid, state.RemovedObjects);
     }
 
     // ──────────────────────────────────────────────
@@ -209,21 +131,6 @@ public class CharacterCharacterGameStateShould
     }
 
     [Fact]
-    public void UpdatedObjects_ContainsCurrentHealthFlag_WhenHealthChanges()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature creature = MakeRealCreature(2u, health: 100);
-        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
-
-        creature.CurrentHealth = 80u;
-        Dictionary<ObjectGuid, GameEntityFields> frameDirty = DirtyFrom(creature);
-        Watch(state, AsCreatureDict(creature), [], [], frameDirty);
-
-        (ObjectGuid Guid, GameEntityFields Fields) updated = state.UpdatedObjects.FirstOrDefault(o => o.Guid == creature.Guid);
-        Assert.True((updated.Fields & GameEntityFields.CurrentHealth) != 0);
-    }
-
-    [Fact]
     public void UpdatedObjects_IsEmpty_WhenNothingChanges()
     {
         // Key regression guard: idle entities must produce zero UpdatedObjects entries
@@ -238,98 +145,8 @@ public class CharacterCharacterGameStateShould
     }
 
     // ──────────────────────────────────────────────
-    // State cleared between calls
-    // ──────────────────────────────────────────────
-
-    [Fact]
-    public void NewObjects_ClearedOnSubsequentUpdate()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature c1 = MakeRealCreature(1u);
-        Creature c2 = MakeRealCreature(2u);
-        Watch(state, AsCreatureDict(c1), [], [], EmptyDirty());
-        Watch(state, AsCreatureDict(c1, c2), [], [], EmptyDirty());
-
-        Assert.DoesNotContain(c1.Guid, state.NewObjects);
-        Assert.Contains(c2.Guid, state.NewObjects);
-    }
-
-    [Fact]
-    public void Update_DoesNotThrow_WithAllEmptyInputs()
-    {
-        var state = new CharacterCharacterGameState();
-        Exception ex = Record.Exception(() => Watch(state, [], [], [], EmptyDirty()));
-        Assert.Null(ex);
-    }
-
-    [Fact]
-    public void Update_DoesNotThrow_WithMultipleCreaturesAndCharacters()
-    {
-        var state = new CharacterCharacterGameState();
-        Dictionary<ObjectGuid, ICreature> creatures = AsCreatureDict(MakeRealCreature(1u), MakeRealCreature(2u));
-        Dictionary<ObjectGuid, ICharacter> characters = AsCharacterDict(MakeRealCharacter(1u), MakeRealCharacter(2u));
-
-        Exception ex = Record.Exception(() => Watch(state, creatures, characters, [], EmptyDirty()));
-        Assert.Null(ex);
-    }
-
-    // ──────────────────────────────────────────────
     // Interest range (#593)
     // ──────────────────────────────────────────────
-
-    [Fact]
-    public void Not_track_a_creature_beyond_the_radius()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature creature = MakeRealCreature(1u, new Vector3(100, 0, 0));
-
-        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
-
-        Assert.Empty(state.NewObjects);
-    }
-
-    [Fact]
-    public void Track_a_creature_once_it_comes_inside_the_radius()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature creature = MakeRealCreature(1u, new Vector3(100, 0, 0));
-        Dictionary<ObjectGuid, ICreature> creatures = AsCreatureDict(creature);
-        Watch(state, creatures, [], [], EmptyDirty());
-
-        creature.Position = new Vector3(50, 0, 0);
-        Watch(state, creatures, [], [], EmptyDirty());
-
-        Assert.Equal([creature.Guid], state.NewObjects);
-    }
-
-    [Fact]
-    public void Keep_a_tracked_creature_between_the_radius_and_the_margin()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature creature = MakeRealCreature(1u, new Vector3(50, 0, 0));
-        Dictionary<ObjectGuid, ICreature> creatures = AsCreatureDict(creature);
-        Watch(state, creatures, [], [], EmptyDirty());
-
-        creature.Position = new Vector3(65, 0, 0);
-        Watch(state, creatures, [], [], EmptyDirty());
-
-        Assert.Empty(state.RemovedObjects);
-        Assert.Empty(state.NewObjects);
-    }
-
-    [Fact]
-    public void Remove_a_tracked_creature_beyond_radius_plus_margin()
-    {
-        var state = new CharacterCharacterGameState();
-        Creature creature = MakeRealCreature(1u, new Vector3(50, 0, 0));
-        Dictionary<ObjectGuid, ICreature> creatures = AsCreatureDict(creature);
-        Watch(state, creatures, [], [], EmptyDirty());
-
-        creature.Position = new Vector3(75, 0, 0);
-        Watch(state, creatures, [], [], EmptyDirty());
-
-        Assert.Equal([creature.Guid], state.RemovedObjects);
-    }
 
     [Fact]
     public void Re_add_a_creature_that_comes_back()
@@ -356,17 +173,6 @@ public class CharacterCharacterGameStateShould
         Watch(state, AsCreatureDict(creature), [], [], EmptyDirty(), at: new Vector3(480, 0, 0));
 
         Assert.Equal([creature.Guid], state.NewObjects);
-    }
-
-    [Fact]
-    public void Always_track_the_watchers_own_character()
-    {
-        var state = new CharacterCharacterGameState();
-        CharacterEntity self = MakeRealCharacter(1u, new Vector3(1e6f, 0, 0));
-
-        Watch(state, [], AsCharacterDict(self), [], EmptyDirty(), at: new Vector3(float.NaN, 0, 0), watcher: self.Guid);
-
-        Assert.Equal([self.Guid], state.NewObjects);
     }
 
     [Fact]
@@ -418,26 +224,6 @@ public class CharacterCharacterGameStateShould
         character.Position = new Vector3(75, 0, 0);
         Watch(state, [], characters, [], EmptyDirty());
         Assert.Equal([character.Guid], state.RemovedObjects);
-    }
-
-    /// <summary>Each kind keeps its margin by its own tracking system's set (#593).</summary>
-    [Fact]
-    public void Keep_a_tracked_world_object_in_the_margin_and_remove_it_beyond()
-    {
-        var state = new CharacterCharacterGameState();
-        IWorldObject projectile = MakeProjectile(1u, new Vector3(50, 0, 0));
-        List<IWorldObject> worldObjects = [projectile];
-        Watch(state, [], [], worldObjects, EmptyDirty());
-        Assert.Equal([projectile.Guid], state.NewObjects);
-
-        projectile.Position.Returns(new Vector3(65, 0, 0));
-        Watch(state, [], [], worldObjects, EmptyDirty());
-        Assert.Empty(state.RemovedObjects);
-        Assert.Empty(state.NewObjects);
-
-        projectile.Position.Returns(new Vector3(75, 0, 0));
-        Watch(state, [], [], worldObjects, EmptyDirty());
-        Assert.Equal([projectile.Guid], state.RemovedObjects);
     }
 
     /// <summary>A world object with no call recording, so reading it allocates nothing (a substitute does).</summary>

@@ -23,57 +23,33 @@ public class PartyLootAllocatorShould
     private static PartyLootAllocator Allocator(ScriptedCombatRandom random) =>
         new(Options.Create(new GameConfiguration()), new FixedTimeProvider(s_now), random);
 
-    [Fact]
-    public void Reserve_a_solo_instances_drops_for_its_owner()
+    /// <summary>Every allocation that needs no draw; the scripted random has no number, so a draw would throw.</summary>
+    [Theory]
+    [InlineData(7u, null, new uint[] { 8 }, 7u, 30)]       // a solo instance: its owner's, for the grace period
+    [InlineData(null, null, new uint[] { 8 }, null, 0)]    // a town: free for all at once
+    [InlineData(null, 1u, new uint[] { 5 }, 5u, 30)]       // a party with one eligible member: no draw
+    [InlineData(null, 1u, new uint[0], null, 0)]           // a party kill nobody is eligible for: free for all at once
+    public void Allocate_without_a_draw(uint? owner, uint? party, uint[] eligible, uint? expected, int reservedSeconds)
     {
-        LootAllocation got = Allocator(new ScriptedCombatRandom()).Allocate(7, null, [Member(8)]);
+        LootAllocation got = Allocator(new ScriptedCombatRandom())
+            .Allocate(owner, party is { } id ? new PartyId(id) : null, eligible.Select(Member).ToList());
 
-        Assert.Equal(7u, got.OwnerCharacterId);
-        Assert.Equal(s_now.UtcDateTime + TimeSpan.FromSeconds(30), got.FreeForAllAt);
+        Assert.Equal(expected, got.OwnerCharacterId);
+        Assert.Equal(s_now.UtcDateTime + TimeSpan.FromSeconds(reservedSeconds), got.FreeForAllAt);
     }
 
     [Fact]
-    public void Make_a_towns_drops_free_for_all_at_once()
-    {
-        LootAllocation got = Allocator(new ScriptedCombatRandom()).Allocate(null, null, [Member(8)]);
-
-        Assert.Null(got.OwnerCharacterId);
-        Assert.Equal(s_now.UtcDateTime, got.FreeForAllAt);
-    }
-
-    [Fact]
-    public void Draw_one_eligible_member_per_drop_in_a_party_instance()
+    public void Draw_one_eligible_member_per_drop_in_a_party_instance_and_reserve_it_for_the_grace_period()
     {
         ScriptedCombatRandom random = new ScriptedCombatRandom().Longs(2, 0);
         PartyLootAllocator allocator = Allocator(random);
         ICharacter[] eligible = [Member(1), Member(2), Member(3)];
 
-        Assert.Equal(3u, allocator.Allocate(null, new PartyId(1), eligible).OwnerCharacterId);
+        LootAllocation first = allocator.Allocate(null, new PartyId(1), eligible);
+
+        Assert.Equal(3u, first.OwnerCharacterId);
+        Assert.Equal(s_now.UtcDateTime + TimeSpan.FromSeconds(30), first.FreeForAllAt);
         Assert.Equal(1u, allocator.Allocate(null, new PartyId(1), eligible).OwnerCharacterId);
         Assert.Equal([(0L, 2L), (0L, 2L)], random.WeaponRolls); // drawn over the three members' indices
-    }
-
-    [Fact]
-    public void Reserve_a_party_drop_for_the_grace_period()
-    {
-        ScriptedCombatRandom random = new ScriptedCombatRandom().Longs(1);
-
-        LootAllocation got = Allocator(random).Allocate(null, new PartyId(1), [Member(1), Member(2)]);
-
-        Assert.Equal(2u, got.OwnerCharacterId);
-        Assert.Equal(s_now.UtcDateTime + TimeSpan.FromSeconds(30), got.FreeForAllAt);
-    }
-
-    [Fact]
-    public void Draw_nothing_for_a_single_eligible_member() =>
-        Assert.Equal(5u, Allocator(new ScriptedCombatRandom()).Allocate(null, new PartyId(1), [Member(5)]).OwnerCharacterId);
-
-    [Fact]
-    public void Make_a_party_drop_free_for_all_when_nobody_is_eligible()
-    {
-        LootAllocation got = Allocator(new ScriptedCombatRandom()).Allocate(null, new PartyId(1), []);
-
-        Assert.Null(got.OwnerCharacterId);
-        Assert.Equal(s_now.UtcDateTime, got.FreeForAllAt);
     }
 }

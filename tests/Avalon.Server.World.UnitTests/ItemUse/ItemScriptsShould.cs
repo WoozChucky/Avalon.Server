@@ -51,23 +51,16 @@ public class ItemScriptsShould
     }
 
     [Theory]
-    [InlineData(PowerType.Fury)]
-    [InlineData(PowerType.None)]
-    public void Refuse_a_mana_potion_to_a_pool_it_cannot_fill(PowerType pool)
+    [InlineData(PowerType.Fury, 0u, "You cannot drink this.")]
+    [InlineData(PowerType.None, 0u, "You cannot drink this.")]
+    [InlineData(PowerType.Mana, 200u, "Your mana is already full.")]
+    public void Refuse_a_mana_potion_to_a_pool_it_cannot_fill_or_a_full_one(PowerType pool, uint power, string refusal)
     {
         _ctx.PowerType.Returns(pool);
-
-        Assert.Equal("You cannot drink this.", new RestorePower().CanUse(_ctx));
-    }
-
-    [Fact]
-    public void Refuse_a_mana_potion_at_full_power()
-    {
-        _ctx.PowerType.Returns(PowerType.Mana);
         _ctx.MaxPower.Returns(200u);
-        _ctx.Power.Returns(200u);
+        _ctx.Power.Returns(power);
 
-        Assert.Equal("Your mana is already full.", new RestorePower().CanUse(_ctx));
+        Assert.Equal(refusal, new RestorePower().CanUse(_ctx));
     }
 
     [Fact]

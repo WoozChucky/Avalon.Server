@@ -31,20 +31,17 @@ internal static class TestMapInstances
 {
     /// <summary>
     /// An instance the real cast handler can reach: the world's registry finds it, the script manager
-    /// finds the three shape scripts, and any <paramref name="extraScripts" />, by name, and the
-    /// navigator lets every ray through.
+    /// finds the three shape scripts by name, and the navigator lets every ray through.
     /// </summary>
     /// <param name="world">The world the instance belongs to; <see cref="MapInstanceClients.NewWorld" /> when omitted.</param>
     /// <param name="random">Every combat roll (#506); the instance's own no-proc fallback when omitted.</param>
     /// <param name="time">The container's clock; the system clock when omitted.</param>
     /// <param name="auraScripts">Runs the auras' scripts; none runs when omitted.</param>
     public static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal,
-        IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, AuraScripts? auraScripts = null,
-        params Type[] extraScripts)
+        IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, AuraScripts? auraScripts = null)
     {
         IScriptManager scripts = Substitute.For<IScriptManager>();
-        foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) }
-                     .Concat(extraScripts))
+        foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) })
         {
             scripts.GetAbilityScript(script.Name).Returns(script);
         }

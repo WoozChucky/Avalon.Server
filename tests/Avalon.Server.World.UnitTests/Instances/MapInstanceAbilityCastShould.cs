@@ -76,78 +76,6 @@ public class MapInstanceAbilityCastShould
         return template;
     }
 
-    private static IAbility HealAbility()
-    {
-        IAbility ability = Substitute.For<IAbility>();
-        ability.AbilityId.Returns(new AbilityId(232));
-        ability.Metadata.Returns(new AbilityMetadata { Name = "Heal", ScriptName = "x" });
-        return ability;
-    }
-
-    private static IAbility DamageAbility(uint id)
-    {
-        IAbility ability = Substitute.For<IAbility>();
-        ability.AbilityId.Returns(new AbilityId(id));
-        ability.Metadata.Returns(new AbilityMetadata { Name = "Strike", ScriptName = "x" });
-        return ability;
-    }
-
-    /// <summary>The heal path (#164): a healed character's health rides the entity state update, to itself too.</summary>
-    [Fact]
-    public void Send_a_heals_health_change_in_the_next_state_update()
-    {
-        using MapInstance instance = TestMapInstances.Build(NewWorld());
-        MapInstanceClient healed = Join(instance, 164_111);
-        MapInstanceClient watcher = Join(instance, 164_112);
-        healed.Character.Health = 100;
-        healed.Character.CurrentHealth = 40;
-        TickUntilBroadcast(instance);
-        healed.Sent.Clear();
-        watcher.Sent.Clear();
-
-        instance.CombatService.ApplyHeal(watcher.Character, healed.Character, 30, HealAbility());
-        TickUntilBroadcast(instance);
-
-        Assert.Contains(watcher.StateUpdates(), s => s.Guid == healed.Character.Guid.RawValue && s.CurrentHealth == 70u);
-        Assert.Contains(healed.StateUpdates(), s => s.Guid == healed.Character.Guid.RawValue && s.CurrentHealth == 70u);
-    }
-
-    /// <summary>#521 item 8: the victim learns which ability hit it.</summary>
-    [Fact]
-    public void Name_the_ability_on_the_victims_damage_packet()
-    {
-        using MapInstance instance = TestMapInstances.Build(NewWorld());
-        MapInstanceClient victim = Join(instance, 164_121);
-        victim.Character.Health = 100;
-        victim.Character.CurrentHealth = 100;
-        ICreature attacker = Substitute.For<ICreature>();
-        attacker.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_900u));
-
-        instance.CombatService.ApplyDamage(attacker, victim.Character, 10, DamageAbility(id: 211));
-
-        SCharacterDamagePacket damage = Assert.Single(victim.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
-        Assert.Equal(211u, damage.AbilityId);
-        Assert.Equal(90u, damage.CurrentHealth);
-    }
-
-    /// <summary>A swing names no ability (#521 item 8).</summary>
-    [Fact]
-    public void Name_no_ability_on_a_swings_damage_packet()
-    {
-        using MapInstance instance = TestMapInstances.Build(NewWorld());
-        MapInstanceClient victim = Join(instance, 164_131);
-        victim.Character.Health = 100;
-        victim.Character.CurrentHealth = 100;
-        ICreature attacker = Substitute.For<ICreature>();
-        attacker.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_901u));
-
-        instance.CombatService.ApplyDamage(attacker, victim.Character, 10);
-
-        SCharacterDamagePacket damage = Assert.Single(victim.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
-        Assert.Null(damage.AbilityId);
-        Assert.Equal(90u, damage.CurrentHealth);
-    }
-
     /// <summary>#521 item 9: other clients learn which ability a unit is casting, not just for how long.</summary>
     [Fact]
     public void Name_the_ability_on_the_start_cast_broadcast()
@@ -169,21 +97,6 @@ public class MapInstanceAbilityCastShould
             Assert.Equal(211u, start.AbilityId);
             Assert.Equal(0.6f, start.CastTime);
         }
-    }
-
-    [Fact]
-    public void Carry_the_ability_id_through_a_protobuf_round_trip()
-    {
-        var original = new SUnitStartCastPacket { Caster = 42UL, CastTime = 1.25f, AbilityId = 232 };
-        using var stream = new MemoryStream();
-        Serializer.Serialize(stream, original);
-        stream.Position = 0;
-
-        SUnitStartCastPacket decoded = Serializer.Deserialize<SUnitStartCastPacket>(stream);
-
-        Assert.Equal(232u, decoded.AbilityId);
-        Assert.Equal(42UL, decoded.Caster);
-        Assert.Equal(1.25f, decoded.CastTime);
     }
 
     /// <summary>The handler builds the shape script by name and the instance tells every client where it fired (#164).</summary>
@@ -212,27 +125,6 @@ public class MapInstanceAbilityCastShould
         // The watcher stands inside the circle, but an unflagged player is not hostile.
         Assert.Empty(watcher.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
         Assert.Equal(watcher.Character.Health, watcher.Character.CurrentHealth);
-    }
-
-    /// <summary>A projectile is a world object (#164): it enters every client's view, moves, and leaves it when it ends.</summary>
-    [Fact]
-    public void Spawn_move_and_despawn_a_projectile_through_the_world_object_path()
-    {
-        using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
-        MapInstanceClient caster = Join(instance, 164_151);
-        MapInstanceClient watcher = Join(instance, 164_152);
-        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f))]);
-
-        handler.Execute(caster.Connection,
-            new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
-        for (int i = 0; i < 30; i++)
-        {
-            instance.Update(s_tick);
-        }
-
-        Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
-        ObjectState projectile = Assert.Single(watcher.Added(), s => new ObjectGuid(s.Guid).Type == ObjectType.SpellProjectile);
-        Assert.Contains(projectile.Guid, watcher.Removed());
     }
 
     /// <summary>
@@ -296,104 +188,23 @@ public class MapInstanceAbilityCastShould
         ai.Received(1).OnHit(caster.Character, 10u);   // hit once
     }
 
-    /// <summary>End to end (#164): a cone hits what is in front of the caster and nothing behind it.</summary>
-    [Fact]
-    public void Cleave_the_creatures_in_front_and_leave_the_one_behind()
-    {
-        using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
-        MapInstanceClient warrior = Join(instance, 164_171);
-        warrior.Character.Orientation = new Vector3(0f, 0f, 0f);   // yaw 0: facing +Z
-        warrior.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Cone(200, reach: 2.5f, arc: 100f))]);
-        Creature ahead = AddCreature(instance, 164_971, new Vector3(0f, 0f, 2f), health: 50);
-        Creature behind = AddCreature(instance, 164_972, new Vector3(0f, 0f, -2f), health: 50);
-
-        handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });
-
-        Assert.Empty(warrior.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
-        Assert.Equal(40u, ahead.CurrentHealth);
-        Assert.Equal(50u, behind.CurrentHealth);
-    }
-
     /// <summary>
-    /// End to end (#164): a cast-time burst fires where it was aimed when the cast started, once the cast
-    /// time has run out, and not before. The caster turns round mid-cast and sends nothing new; the burst
-    /// still lands on the point sent at cast start, not ahead of where the caster now faces.
+    /// End to end (#164): two flagged players hurt each other outside a town, and never in one; the row outside it
+    /// keeps the town row from passing vacuously.
     /// </summary>
-    [Fact]
-    public void Fire_a_cast_time_burst_at_the_point_aimed_at_cast_start()
+    [Theory]
+    [InlineData(MapType.Normal, 90u, 1)]
+    [InlineData(MapType.Town, 100u, 0)]
+    public void Let_two_flagged_players_hurt_each_other_only_outside_a_town(MapType mapType, uint healthLeft, int damagePackets)
     {
-        using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
-        MapInstanceClient wizard = Join(instance, 164_181);
-        wizard.Character.Orientation = new Vector3(0f, 0f, 0f);   // yaw 0: facing +Z, towards the target
-        wizard.Character.Spells.Load(
-            [AbilityTestData.Game(Timed(AbilityTestData.AimedCircle(211, reach: 18f, radius: 3f), castTimeMs: 100))]);
-        Creature target = AddCreature(instance, 164_981, new Vector3(0f, 0f, 10f), health: 50);
-        Creature behind = AddCreature(instance, 164_982, new Vector3(0f, 0f, -10f), health: 50);
-
-        handler.Execute(wizard.Connection,
-            new CCastAbilityPacket { AbilityId = 211, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 10f } });
-        Assert.True(wizard.Character.Spells.IsCasting);
-        Assert.Equal(50u, target.CurrentHealth);   // still casting
-
-        wizard.Character.Orientation = new Vector3(0f, 180f, 0f);   // turned round: facing -Z, towards the other
-        for (int i = 0; i < 12; i++)
-        {
-            instance.Update(s_tick);
-        }
-
-        Assert.Empty(wizard.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
-        SAbilityFiredPacket fired = Assert.Single(wizard.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED));
-        Assert.Equal(10f, fired.Centre!.Z, 3);
-        Assert.Equal(40u, target.CurrentHealth);
-        Assert.Equal(50u, behind.CurrentHealth);
-        Assert.False(wizard.Character.Spells.IsCasting);
-    }
-
-    /// <summary>End to end (#521 item 4): one cast at a time, whatever the second ability is.</summary>
-    [Fact]
-    public void Refuse_a_second_cast_while_the_first_is_casting()
-    {
-        using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
-        MapInstanceClient wizard = Join(instance, 164_191);
-        wizard.Character.Spells.Load([
-            AbilityTestData.Game(Timed(AbilityTestData.AimedCircle(211), castTimeMs: 2000)),
-            AbilityTestData.Game(AbilityTestData.Circle(201)),
-        ]);
-
-        handler.Execute(wizard.Connection,
-            new CCastAbilityPacket { AbilityId = 211, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
-        wizard.Character.LastCastStartTime = DateTime.UtcNow.AddSeconds(-1);   // past the global cooldown
-        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 201 });
-
-        SAbilityNotReadyPacket refusal = Assert.Single(wizard.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
-        Assert.Equal(201u, refusal.AbilityId);
-        Assert.Equal(CastRejectReason.AlreadyCasting, refusal.Reason);
-    }
-
-    /// <summary>End to end (#164): in a town two players never hurt each other, even when both are flagged.</summary>
-    [Fact]
-    public void Never_let_players_hurt_each_other_in_a_town_even_when_both_are_flagged()
-    {
-        using MapInstance instance = BuildCasting(out CastAbilityHandler handler, MapType.Town);
+        using MapInstance instance = BuildCasting(out CastAbilityHandler handler, mapType);
         (MapInstanceClient a, MapInstanceClient b) = FlaggedPair(instance, 164_201, 164_202);
 
         handler.Execute(a.Connection, new CCastAbilityPacket { AbilityId = 201 });
 
         Assert.Empty(a.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
-        Assert.Equal(100u, b.Character.CurrentHealth);
-        Assert.Empty(b.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
-    }
-
-    /// <summary>The same cast outside a town does hurt, so the town case above is not vacuous.</summary>
-    [Fact]
-    public void Let_two_flagged_players_hurt_each_other_outside_a_town()
-    {
-        using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
-        (MapInstanceClient a, MapInstanceClient b) = FlaggedPair(instance, 164_211, 164_212);
-
-        handler.Execute(a.Connection, new CCastAbilityPacket { AbilityId = 201 });
-
-        Assert.Equal(90u, b.Character.CurrentHealth);
+        Assert.Equal(healthLeft, b.Character.CurrentHealth);
+        Assert.Equal(damagePackets, b.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED).Count);
     }
 
     /// <summary>Two flagged players a metre apart; the first holds a 3 m circle around itself (201).</summary>
@@ -408,30 +219,6 @@ public class MapInstanceAbilityCastShould
         b.Character.Position = new Vector3(1f, 0f, 0f);
         a.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f))]);
         return (a, b);
-    }
-
-    /// <summary>End to end (#164): a piercing projectile hits every unit on its line, each once.</summary>
-    [Fact]
-    public void Pierce_through_two_creatures_in_a_line()
-    {
-        using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
-        MapInstanceClient hunter = Join(instance, 164_221);
-        hunter.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 20f, speed: 20f, pierce: true))]);
-        Creature near = AddCreature(instance, 164_991, new Vector3(0f, 0f, 4f), health: 50);
-        Creature far = AddCreature(instance, 164_992, new Vector3(0f, 0f, 8f), health: 50);
-        Creature aside = AddCreature(instance, 164_993, new Vector3(5f, 0f, 6f), health: 50);
-
-        handler.Execute(hunter.Connection,
-            new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 20f } });
-        for (int i = 0; i < 90; i++)
-        {
-            instance.Update(s_tick);
-        }
-
-        Assert.Empty(hunter.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
-        Assert.Equal(40u, near.CurrentHealth);
-        Assert.Equal(40u, far.CurrentHealth);
-        Assert.Equal(50u, aside.CurrentHealth);
     }
 
     /// <summary>

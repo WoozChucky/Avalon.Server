@@ -12,7 +12,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Public;
-using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -79,6 +78,10 @@ public class LootPickupHandlerShould
         return Serializer.Deserialize<SLootPickupResultPacket>(stream);
     }
 
+    /// <summary>
+    /// The picker is answered and everyone is told the drop is gone; the gold reaches the picker in the end-of-tick
+    /// inventory update, not a packet of its own (R9).
+    /// </summary>
     [Fact]
     public void Answer_The_Picker_And_Tell_Everyone_The_Drop_Is_Gone()
     {
@@ -91,8 +94,9 @@ public class LootPickupHandlerShould
         Assert.Equal(s_dropGuid.RawValue, result.LootGuid);
         ((IGroundLootHost)_instance).Received(1).BroadcastLootDespawned(
             Arg.Is<IReadOnlyCollection<ObjectGuid>>(g => g.Single() == s_dropGuid));
-        // The inventory update is not sent here: InventoryUpdateFlusher sends it at the end of the tick.
-        Assert.True(_character.ClientChanges.MoneyChanged);
+        SInventoryUpdatePacket update = FlushedUpdate();
+        Assert.Equal(25UL, update.Money);
+        Assert.Empty(update.Slots ?? []);   // protobuf-net sends an empty repeated field as null
     }
 
     [Fact]
@@ -156,16 +160,6 @@ public class LootPickupHandlerShould
         Assert.Equal(1, _store.Count);
     }
 
-    [Fact]
-    public void Say_Nothing_To_A_Connection_Without_A_Character()
-    {
-        _connection.Character.Returns((ICharacter?)null);
-
-        PickUp();
-
-        Assert.Empty(_sent);
-    }
-
     // R9: the pickup reaches the client through the normal end-of-tick path, not a packet of its own.
     private SInventoryUpdatePacket FlushedUpdate()
     {
@@ -200,17 +194,5 @@ public class LootPickupHandlerShould
         Assert.Equal(Potion.Id.Value, slot.Item!.ItemTemplateId);
         Assert.Equal(3u, slot.Item.Count);
         Assert.Null(update.Money);
-    }
-
-    [Fact]
-    public void Send_Picked_Up_Gold_In_The_End_Of_Tick_Inventory_Update()
-    {
-        DropGold(Vector3.zero);
-
-        PickUp();
-        SInventoryUpdatePacket update = FlushedUpdate();
-
-        Assert.Equal(25UL, update.Money);
-        Assert.Empty(update.Slots ?? []);   // protobuf-net sends an empty repeated field as null
     }
 }

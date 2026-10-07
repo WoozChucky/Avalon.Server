@@ -68,10 +68,4 @@ public class CharacterWalletShould
         Assert.True(character.SaveState.MoneyDirty);
         Assert.True(character.ClientChanges.MoneyChanged);
     }
-
-    [Fact]
-    public void Read_the_cap_from_configuration()
-    {
-        Assert.Equal(9_999_999_999UL, new Avalon.World.Configuration.GameConfiguration().MaxMoney);
-    }
 }

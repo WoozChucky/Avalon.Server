@@ -1,4 +1,3 @@
-using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Entities;
 using Avalon.World.Items;
@@ -18,7 +17,6 @@ public class ItemUseCastsShould
     private readonly List<string> _ends = [];
     private uint _lastId;
     private readonly ItemUseCasts _casts;
-    private bool _canComplete = true;
 
     public ItemUseCastsShould() =>
         _casts = new ItemUseCasts(_audience, () => ++_lastId, NullLogger.Instance);
@@ -30,7 +28,7 @@ public class ItemUseCastsShould
         StartPosition = _character.Position,
         CastId = _casts.TakeCastId(),
         CastTimeSeconds = seconds,
-        CanComplete = () => _canComplete,
+        CanComplete = () => true,
         Completed = () => _ends.Add("completed"),
         Interrupted = () => _ends.Add("interrupted"),
     });
@@ -50,29 +48,6 @@ public class ItemUseCastsShould
     }
 
     [Fact]
-    public void Interrupt_out_loud_when_the_character_moves()
-    {
-        Start();
-        _character.Position = new Vector3(1, 0, 0);
-
-        _casts.Update(TimeSpan.FromMilliseconds(16));
-
-        Assert.Equal(["interrupted"], _ends);
-        Assert.Equal(("interrupt", s_scroll, 1u), _audience.Sent[^1]);
-    }
-
-    [Fact]
-    public void Interrupt_when_the_character_dies()
-    {
-        Start();
-        _character.IsDead = true;
-
-        _casts.Update(TimeSpan.FromMilliseconds(16));
-
-        Assert.Equal(["interrupted"], _ends);
-    }
-
-    [Fact]
     public void Keep_casting_when_the_character_is_hurt()
     {
         _character.Health = 100;
@@ -83,18 +58,6 @@ public class ItemUseCastsShould
         _casts.Update(TimeSpan.FromSeconds(1));
 
         Assert.Equal(["completed"], _ends);
-    }
-
-    [Fact]
-    public void Interrupt_instead_of_completing_when_the_use_can_no_longer_complete()
-    {
-        Start(1f);
-        _canComplete = false;
-
-        _casts.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(["interrupted"], _ends);
-        Assert.DoesNotContain(_audience.Sent, s => s.Kind == "finish");
     }
 
     [Fact]

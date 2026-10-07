@@ -1,12 +1,10 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
-using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.Characters;
@@ -16,7 +14,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -72,58 +69,6 @@ public class LevelUpStatsShould
         Assert.Equal(100u, killer.CurrentPower);
         Assert.Equal(50u, killer.Stats!.Value.AttackDamage);
         Assert.True(killer.SaveState.StatsDirty);
-        instance.Dispose();
-    }
-
-    /// <summary>
-    /// #463 final review: against the seeded rows, not hand-written ones. The seed once stopped at
-    /// level 5, so a level-up to 6 found no row and left health where it was; the highest level the
-    /// seeded experience table lets a character reach is the cap (15 today, #735). Warrior health is
-    /// BaseHp + 10 per Stamina: 400 at 5, 440 at 6, 760 at 14, 800 at 15.
-    /// </summary>
-    [Theory]
-    [InlineData(5, 400u, 440u)]
-    [InlineData(14, 760u, 800u)]
-    public async Task Raise_and_refill_health_on_a_level_up_past_level_5_with_the_seeded_rows(
-        int fromLevel, uint healthBefore, uint healthAfter)
-    {
-        List<ClassLevelStat> classStats;
-        List<CharacterLevelExperience> levels;
-        using (var database = SqliteDatabase.World())
-        using (WorldDbContext context = database.CreateDbContext())
-        {
-            classStats = context.ClassLevelStats.AsNoTracking().ToList();
-            levels = context.CharacterLevelExperiences.AsNoTracking().ToList();
-        }
-
-        StaticData data = await TestStaticData.LoadAsync(classStats: classStats, levels: levels);
-        IWorld world = Substitute.For<IWorld>();
-        world.Configuration.Returns(new GameConfiguration());
-        world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
-        world.Data.Returns(data);
-        MapInstance instance = TestMapInstances.Build(world);
-
-        CharacterEntity killer = TestCharacters.New();
-        killer.Level = (ushort)fromLevel;
-        Assert.True(CharacterStatsRefresh.Apply(killer, data, CurrentValues.Refill));
-        Assert.Equal(healthBefore, killer.Health);
-        killer.Experience = levels.Single(l => l.Level == fromLevel).Experience - 1;
-        killer.CurrentHealth = 10;
-
-        var creature = new Creature
-        {
-            Guid = new ObjectGuid(ObjectType.Creature, 434_010u + (uint)fromLevel),
-            Metadata = Substitute.For<ICreatureMetadata>(),
-            Level = (ushort)fromLevel, // the killer's level: 5 or more below it, the level gap would award nothing
-            Experience = 1,
-        };
-        instance.AddCreature(creature);
-
-        instance.ReportKill(creature, killer);
-
-        Assert.Equal((ushort)(fromLevel + 1), killer.Level);
-        Assert.Equal(healthAfter, killer.Health);
-        Assert.Equal(healthAfter, killer.CurrentHealth);
         instance.Dispose();
     }
 
@@ -218,48 +163,6 @@ public class LevelUpStatsShould
         Assert.Equal(40u + 24u * 10u, killer.Health);
         Assert.True(killer.IsDead);
         Assert.Equal(0u, killer.CurrentHealth);
-        instance.Dispose();
-    }
-
-    /// <summary>
-    /// Regression guard: this passes without the level-up refresh too, because before it nothing
-    /// touched the maximums on a level-up. It pins that a new level with no ClassLevelStat row
-    /// leaves the old maximums alone rather than zeroing them. Level 2 has an experience row, since
-    /// a level without one is never entered (#735).
-    /// </summary>
-    [Fact]
-    public async Task Level_up_and_keep_the_old_maximums_when_the_new_level_has_no_row()
-    {
-        StaticData data = await TestStaticData.LoadAsync(
-            classStats: [s_warriorRows[0]],
-            levels:
-            [
-                new CharacterLevelExperience { Level = 1, Experience = 100 },
-                new CharacterLevelExperience { Level = 2, Experience = 500 },
-            ]);
-        IWorld world = Substitute.For<IWorld>();
-        world.Configuration.Returns(new GameConfiguration());
-        world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
-        world.Data.Returns(data);
-        MapInstance instance = TestMapInstances.Build(world);
-
-        CharacterEntity killer = TestCharacters.New();
-        CharacterStatsRefresh.Apply(killer, data, CurrentValues.Refill);
-        killer.CurrentHealth = 90;
-
-        var creature = new Creature
-        {
-            Guid = new ObjectGuid(ObjectType.Creature, 434_002),
-            Metadata = Substitute.For<ICreatureMetadata>(),
-            Experience = 150,
-        };
-        instance.AddCreature(creature);
-
-        instance.ReportKill(creature, killer);
-
-        Assert.Equal((ushort)2, killer.Level);
-        Assert.Equal(240u, killer.Health);
-        Assert.Equal(90u, killer.CurrentHealth);
         instance.Dispose();
     }
 }

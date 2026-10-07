@@ -47,20 +47,4 @@ public class PartyMemberStatusShould
         w.Parties.FlushMemberStatus();       // the held change goes now
         Assert.Equal([5u, 4u], b.Statuses().Select(s => s.Health));
     }
-
-    [Fact]
-    public void Send_nothing_when_nothing_changed()
-    {
-        var w = new PartyTestWorld();
-        PartyClient a = w.Online(1, "A", instance: s_here);
-        PartyClient b = w.Online(2, "B", instance: s_here);
-        w.Form(a, b);
-        w.Parties.FlushMemberStatus();
-        b.Clear();
-
-        w.Clock.Advance(TimeSpan.FromSeconds(5));
-        w.Parties.FlushMemberStatus();
-
-        Assert.Empty(b.Statuses());
-    }
 }

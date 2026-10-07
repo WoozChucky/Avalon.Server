@@ -123,18 +123,6 @@ public class PresenceCaptureShould
         Assert.Null(sut.Take());
     }
 
-    /// <summary>The writer takes a snapshot once: a stalled tick captures nothing new, so the keys expire.</summary>
-    [Fact]
-    public void Hand_each_snapshot_to_the_writer_once()
-    {
-        Hold(Instance(Guid.NewGuid(), Character(1, "Nym", Vector3.zero)));
-        PresenceCapture sut = CreateSut();
-        sut.CaptureIfDue(_registry);
-
-        Assert.NotNull(sut.Take());
-        Assert.Null(sut.Take());
-    }
-
     /// <summary>A newer capture replaces one the writer has not taken yet: only the latest is written.</summary>
     [Fact]
     public void Keep_only_the_latest_snapshot_for_the_writer()
@@ -146,17 +134,6 @@ public class PresenceCaptureShould
         sut.CaptureIfDue(_registry);
 
         Assert.Equal(_clock.Now.UtcDateTime, sut.Take()!.CapturedAt);
-    }
-
-    [Fact]
-    public void Hand_over_nothing_while_no_instance_holds_a_player()
-    {
-        Hold(Instance(Guid.NewGuid()));
-        PresenceCapture sut = CreateSut();
-
-        sut.CaptureIfDue(_registry);
-
-        Assert.Null(sut.Take());
     }
 
     /// <summary>

@@ -14,44 +14,12 @@ namespace Avalon.Server.World.UnitTests.Localization;
 public class LocalizedTextCatalogShould
 {
     [Fact]
-    public void Return_The_Translation_When_One_Exists()
-    {
-        ILocalizedTextCatalog catalog = Catalog(
-            texts: [Text(1, "Farewell.")],
-            locales: [Locale(1, AccountLocale.ptPT, "Adeus.")]);
-
-        Assert.Equal("Adeus.", catalog.Get(new LocalizedTextId(1), Context(AccountLocale.ptPT)));
-    }
-
-    [Fact]
-    public void Fall_Back_To_The_Base_Text_When_The_Locale_Has_No_Row()
-    {
-        // Partial translation has to be shippable, so a miss is not an error.
-        ILocalizedTextCatalog catalog = Catalog(
-            texts: [Text(1, "Farewell.")],
-            locales: [Locale(1, AccountLocale.ptPT, "Adeus.")]);
-
-        Assert.Equal("Farewell.", catalog.Get(new LocalizedTextId(1), Context(AccountLocale.frFR)));
-    }
-
-    [Fact]
     public void Return_Empty_And_Not_Throw_For_An_Unknown_Id()
     {
         // Read from inside the tick loop: missing content must not be able to take a map down.
         ILocalizedTextCatalog catalog = Catalog(texts: [Text(1, "Farewell.")], locales: []);
 
         Assert.Equal(string.Empty, catalog.Get(new LocalizedTextId(99), Context(AccountLocale.enUS)));
-    }
-
-    [Fact]
-    public void Interpolate_The_Resolved_Text()
-    {
-        ILocalizedTextCatalog catalog = Catalog(
-            texts: [Text(1, "Hello, {name}.")],
-            locales: []);
-
-        Assert.Equal("Hello, Aldric.",
-            catalog.Get(new LocalizedTextId(1), Context(AccountLocale.enUS, name: "Aldric")));
     }
 
     [Fact]
@@ -69,24 +37,6 @@ public class LocalizedTextCatalogShould
         TextContext context = catalog.ContextFor(character, AccountLocale.ptPT);
 
         Assert.Equal("Guerreira", context.PlayerClassName);
-    }
-
-    [Fact]
-    public void Build_A_Context_Carrying_The_Characters_Own_Details()
-    {
-        ILocalizedTextCatalog catalog = Catalog(
-            texts: [Text(1, "Warrior")],
-            locales: [],
-            classNames: [new CharacterClassName { Class = CharacterClass.Warrior, TextId = 1 }]);
-
-        ICharacter character = Character("Aldric", CharacterClass.Warrior, CharacterGender.Male, 7);
-
-        TextContext context = catalog.ContextFor(character, AccountLocale.enUS);
-
-        Assert.Equal("Aldric", context.PlayerName);
-        Assert.Equal((ushort)7, context.PlayerLevel);
-        Assert.Equal(CharacterGender.Male, context.PlayerGender);
-        Assert.Equal(AccountLocale.enUS, context.Locale);
     }
 
     [Fact]

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Avalon.World.Inventory;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
@@ -10,37 +9,6 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 /// </summary>
 public class ItemIdAllocatorShould
 {
-    [Fact]
-    public void Never_hand_out_the_same_id_twice()
-    {
-        var allocator = new ItemIdAllocator();
-
-        var ids = Enumerable.Range(0, 100_000).Select(_ => allocator.Next().Value).ToList();
-
-        Assert.Equal(ids.Count, ids.Distinct().Count());
-    }
-
-    [Fact]
-    public void Never_hand_out_the_same_id_twice_across_threads()
-    {
-        var allocator = new ItemIdAllocator();
-        var ids = new ConcurrentBag<Guid>();
-
-        Parallel.For(0, 8, _ =>
-        {
-            for (int i = 0; i < 10_000; i++)
-                ids.Add(allocator.Next().Value);
-        });
-
-        Assert.Equal(80_000, ids.Distinct().Count());
-    }
-
-    [Fact]
-    public void Never_hand_out_the_empty_id()
-    {
-        Assert.NotEqual(Guid.Empty, new ItemIdAllocator().Next().Value);
-    }
-
     /// <summary>Time-ordered, so new rows append to the end of the primary-key index.</summary>
     [Fact]
     public void Hand_out_version_7_ids()

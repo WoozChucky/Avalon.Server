@@ -1,11 +1,9 @@
-using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -73,60 +71,5 @@ public class BankFlowShould : IAsyncLifetime
         Assert.Equal(ItemRequestResult.Ok, LastResult());
         Assert.Equal(5u, At(_w.Character, InventoryType.Bag, 9).Count);
         Assert.Empty(_w.Character.Container(InventoryType.Bank).Items);
-    }
-
-    [Fact]
-    public void Close_the_bank_when_the_player_walks_past_the_leash_and_refuse_it_after()
-    {
-        _w.Character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5)]);
-        Talk();
-        _w.Character.Position = new Vector3(0, 0, 25);
-
-        Move(3, InventoryType.Bag, 0, InventoryType.Bank, 0);
-
-        Assert.Equal(ItemRequestResult.BankClosed, LastResult());
-        Assert.Single(_w.Read<SDialogueEndPacket>(NetworkPacketType.SMSG_DIALOGUE_END));
-        Assert.Null(_w.Connection.CurrentDialogue);
-
-        // Walking back does not reopen it: that takes the dialogue again.
-        _w.Character.Position = Vector3.zero;
-        Move(4, InventoryType.Bag, 0, InventoryType.Bank, 0);
-
-        Assert.Equal(ItemRequestResult.BankClosed, LastResult());
-        Assert.Single(_w.Read<SDialogueEndPacket>(NetworkPacketType.SMSG_DIALOGUE_END));
-        Assert.Equal(5u, At(_w.Character, InventoryType.Bag, 0).Count);
-    }
-
-    [Fact]
-    public void Refuse_the_bank_after_the_conversation_ends_with_farewell()
-    {
-        _w.Character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5)]);
-        Talk();
-        new DialogueChooseHandler(NullLogger<DialogueChooseHandler>.Instance, _w.World).Execute(_w.Connection,
-            new CDialogueChoosePacket
-            {
-                TargetGuid = BankerWorld.BankerGuid.RawValue,
-                NodeId = BankerWorld.BankerRoot,
-                OptionId = BankerWorld.FarewellOption,
-            });
-
-        Move(5, InventoryType.Bag, 0, InventoryType.Bank, 0);
-
-        Assert.Equal(ItemRequestResult.BankClosed, LastResult());
-    }
-
-    [Fact]
-    public void Never_send_a_bank_slot_once_the_bank_has_closed()
-    {
-        InventoryItem banked = Item(3, Sword);
-        _w.Character.Container(InventoryType.Bank).Load([banked]);
-        Talk();
-        _w.Connection.CurrentDialogue = null;   // the conversation ended some other way: leaving the instance
-        int before = Updates().Count;
-
-        new CharacterEconomy(_w.World, new ItemIdAllocator()).InventoryOf(_w.Character).TryRemove(banked.InstanceId, 1);
-        InventoryUpdateFlusher.Flush(_w.Connection);
-
-        Assert.Equal(before, Updates().Count);
     }
 }

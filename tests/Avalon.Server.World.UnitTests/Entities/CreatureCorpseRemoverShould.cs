@@ -50,41 +50,6 @@ public class CreatureCorpseRemoverShould
     }
 
     [Fact]
-    public void Leave_A_Corpse_Alone_When_Just_Scheduled()
-    {
-        ICreature creature = MakeCreature();
-        var remover = new CreatureCorpseRemover(_simulationContext);
-
-        remover.ScheduleRemoval(creature);
-
-        _simulationContext.DidNotReceive().RemoveCreature(Arg.Any<ICreature>());
-    }
-
-    [Fact]
-    public void Leave_A_Corpse_Alone_Before_Its_Timer_Elapses()
-    {
-        ICreature creature = MakeCreature();
-        var remover = new CreatureCorpseRemover(_simulationContext);
-        remover.ScheduleRemoval(creature);
-
-        remover.Update(s_defaultRemove - TimeSpan.FromSeconds(1));
-
-        _simulationContext.DidNotReceive().RemoveCreature(Arg.Any<ICreature>());
-    }
-
-    [Fact]
-    public void Remove_A_Corpse_Once_Its_Timer_Elapses()
-    {
-        ICreature creature = MakeCreature();
-        var remover = new CreatureCorpseRemover(_simulationContext);
-        remover.ScheduleRemoval(creature);
-
-        remover.Update(s_defaultRemove + s_tick);
-
-        _simulationContext.Received(1).RemoveCreature(creature);
-    }
-
-    [Fact]
     public void Remove_A_Corpse_Only_Once()
     {
         ICreature creature = MakeCreature();

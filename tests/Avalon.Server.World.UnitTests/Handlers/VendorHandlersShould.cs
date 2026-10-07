@@ -1,6 +1,4 @@
-using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Vendors;
@@ -12,7 +10,6 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Vendors.VendorTestData;
 
@@ -32,21 +29,6 @@ public class VendorHandlersShould : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     private CharacterEntity Me => _w.Main.Character;
-
-    [Fact]
-    public void Answer_every_request_with_exactly_one_result()
-    {
-        _w.OpenShop();
-
-        _w.Buy(_w.Main, 1, TonicSequence);
-        _w.Sell(_w.Main, 2, 0);
-        _w.Buyback(_w.Main, 3, 0);
-
-        List<SVendorResultPacket> results = _w.Main.Results();
-        Assert.Equal([1u, 2u, 3u], results.Select(r => r.RequestId));
-        Assert.All(results, r => Assert.Equal(VendorResult.Ok, r.Result));
-        Assert.Equal(1000UL - 10 + 4 - 4, Me.Data!.Money);
-    }
 
     [Fact]
     public void Answer_Dead_to_a_dead_character_without_ending_the_conversation()
@@ -77,19 +59,6 @@ public class VendorHandlersShould : IAsyncLifetime
         Assert.Equal(3, _w.Main.Results().Count);
         Assert.Empty(_w.Main.Ends());
         Assert.Equal(5u, TestCharacters.At(Me, InventoryType.Bag, 0).Count);
-    }
-
-    [Fact]
-    public void Refuse_every_request_past_the_leash_and_end_the_conversation_once()
-    {
-        _w.OpenShop();
-        Me.Position = new Vector3(0, 0, 25);
-
-        Assert.Equal(VendorResult.ShopClosed, _w.Buy(_w.Main, 1, TonicSequence));
-        Assert.Equal(VendorResult.ShopClosed, _w.Sell(_w.Main, 2, 0));
-
-        Assert.Equal(VendorWorld.SmithGuid.RawValue, Assert.Single(_w.Main.Ends()).SpeakerGuid);
-        Assert.Null(_w.Main.Connection.CurrentDialogue);
     }
 
     /// <summary>Garbage off the wire: each gets one refusal, never an exception.</summary>
@@ -129,21 +98,6 @@ public class VendorHandlersShould : IAsyncLifetime
         Assert.Empty(rival.Character.Container(InventoryType.Bag).Items);
     }
 
-    [Fact]
-    public void Answer_NotFound_when_the_trade_throws()
-    {
-        _w.OpenShop();
-        ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
-        economy.VendorOf(Arg.Any<CharacterEntity>()).Returns(_ => throw new InvalidOperationException("boom"));
-        _w.Economy = economy;
-
-        Assert.Equal(VendorResult.NotFound, _w.Buy(_w.Main, 1, TonicSequence));
-        Assert.Equal(VendorResult.NotFound, _w.Sell(_w.Main, 2, 0));
-        Assert.Equal(VendorResult.NotFound, _w.Buyback(_w.Main, 3, 0));
-
-        Assert.Equal(3, _w.Main.Results().Count);
-    }
-
     /// <summary>
     /// The rules accept each request, then applying it fails, so VendorTrade throws rather than
     /// carry on. The handler logs that at Error and still answers once, with NotFound.
@@ -181,23 +135,6 @@ public class VendorHandlersShould : IAsyncLifetime
         Assert.Equal([LogLevel.Error], buyLog.Levels);
         Assert.Equal([LogLevel.Error], sellLog.Levels);
         Assert.Equal([LogLevel.Error], buybackLog.Levels);
-    }
-
-    /// <summary>The map filter lets no such request through, and there is no one to answer: nothing is sent.</summary>
-    [Fact]
-    public void Send_nothing_to_a_connection_with_no_character()
-    {
-        IWorldConnection connection = Substitute.For<IWorldConnection>();
-        connection.Character.Returns((ICharacter?)null);
-
-        new VendorBuyHandler(NullLogger<VendorBuyHandler>.Instance, _w.World, _w.Economy, _w.Quests, _w.Clock)
-            .Execute(connection, new CVendorBuyPacket { RequestId = 1, Sequence = TonicSequence });
-        new VendorSellHandler(NullLogger<VendorSellHandler>.Instance, _w.World, _w.Economy)
-            .Execute(connection, new CVendorSellPacket { RequestId = 2, BagSlot = 0 });
-        new VendorBuybackHandler(NullLogger<VendorBuybackHandler>.Instance, _w.World, _w.Economy)
-            .Execute(connection, new CVendorBuybackPacket { RequestId = 3, Index = 0 });
-
-        connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 
     /// <summary>

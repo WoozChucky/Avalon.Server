@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
@@ -17,117 +18,85 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 /// </summary>
 public class BankAccessShould
 {
-    [Fact]
-    public async Task Be_closed_with_no_conversation()
+    /// <summary>The bank is open only in the conversation that opened it; a closed bank leaves the conversation alone.</summary>
+    [Theory]
+    [InlineData("no conversation")]
+    [InlineData("a banker conversation that never opened the bank")]
+    [InlineData("a conversation with someone else")]
+    public async Task Stay_closed_outside_the_conversation_that_opened_it(string state)
     {
         BankerWorld w = await BankerWorld.CreateAsync();
-        w.Character.OpenBankNpc = BankerWorld.BankerGuid;
+        switch (state)
+        {
+            case "no conversation":
+                w.Character.OpenBankNpc = BankerWorld.BankerGuid;
+                break;
+            case "a banker conversation that never opened the bank":
+                w.Connection.CurrentDialogue = (BankerWorld.BankerGuid, new DialogueNodeId(BankerWorld.BankerRoot));
+                break;
+            default:
+                w.Character.OpenBankNpc = BankerWorld.BankerGuid;
+                w.Connection.CurrentDialogue = (BankerWorld.StrangerGuid, new DialogueNodeId(BankerWorld.StrangerRoot));
+                break;
+        }
+
+        (ObjectGuid Npc, DialogueNodeId Node)? conversation = w.Connection.CurrentDialogue;
 
         Assert.False(BankAccess.IsOpen(w.Connection, w.Character));
         Assert.False(BankAccess.TryUse(w.Connection, w.Character, w.World));
+        Assert.Equal(conversation, w.Connection.CurrentDialogue);
         Assert.Empty(w.Sent);
     }
 
-    [Fact]
-    public async Task Be_closed_in_a_banker_conversation_that_never_opened_the_bank()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        w.Connection.CurrentDialogue = (BankerWorld.BankerGuid, new DialogueNodeId(BankerWorld.BankerRoot));
-
-        Assert.False(BankAccess.IsOpen(w.Connection, w.Character));
-        Assert.False(BankAccess.TryUse(w.Connection, w.Character, w.World));
-        Assert.NotNull(w.Connection.CurrentDialogue);
-    }
-
-    [Fact]
-    public async Task Be_closed_in_a_conversation_with_someone_else()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        w.Character.OpenBankNpc = BankerWorld.BankerGuid;
-        w.Connection.CurrentDialogue = (BankerWorld.StrangerGuid, new DialogueNodeId(BankerWorld.StrangerRoot));
-
-        Assert.False(BankAccess.IsOpen(w.Connection, w.Character));
-    }
-
-    [Fact]
-    public async Task Be_usable_inside_the_leash()
+    /// <summary>5.5 m from the banker is too far to open a conversation, close enough to keep one; the leash is inclusive.</summary>
+    [Theory]
+    [InlineData(5.5f)]
+    [InlineData(NpcInteraction.LeashRange)]
+    public async Task Be_usable_anywhere_inside_the_leash(float distance)
     {
         BankerWorld w = await BankerWorld.CreateAsync();
         w.OpenBank();
+        w.Character.Position = new Vector3(0, 0, 3 + distance);
 
         Assert.True(BankAccess.IsOpen(w.Connection, w.Character));
         Assert.True(BankAccess.TryUse(w.Connection, w.Character, w.World));
         Assert.Empty(w.Sent);
     }
 
-    [Fact]
-    public async Task Stay_usable_after_a_step_back_past_the_interact_range()
-    {
-        // 5.5 m from the banker (at z = 3): too far to open a conversation, close enough to keep one.
-        BankerWorld w = await BankerWorld.CreateAsync();
-        w.OpenBank();
-        w.Character.Position = new Vector3(0, 0, 3 + 5.5f);
-
-        Assert.True(BankAccess.TryUse(w.Connection, w.Character, w.World));
-        Assert.Empty(w.Sent);
-    }
-
-    [Fact]
-    public async Task Be_usable_at_exactly_the_leash()
+    [Theory]
+    [InlineData("past the leash")]
+    [InlineData("not a banker")]
+    [InlineData("gone from the instance")]
+    [InlineData("dead")]
+    public async Task End_the_conversation_when_the_banker_can_no_longer_serve(string why)
     {
         BankerWorld w = await BankerWorld.CreateAsync();
         w.OpenBank();
-        w.Character.Position = new Vector3(0, 0, 3 + NpcInteraction.LeashRange);
-
-        Assert.True(BankAccess.TryUse(w.Connection, w.Character, w.World));
-    }
-
-    [Fact]
-    public async Task End_the_conversation_past_the_leash()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        w.OpenBank();
-        w.Character.Position = new Vector3(0, 0, 3 + NpcInteraction.LeashRange + 0.01f);
+        ObjectGuid npc = BankerWorld.BankerGuid;
+        switch (why)
+        {
+            case "past the leash":
+                w.Character.Position = new Vector3(0, 0, 3 + NpcInteraction.LeashRange + 0.01f);
+                break;
+            case "not a banker":
+                npc = BankerWorld.StrangerGuid;
+                w.Connection.CurrentDialogue = (npc, new DialogueNodeId(BankerWorld.StrangerRoot));
+                w.Character.OpenBankNpc = npc;
+                break;
+            case "gone from the instance":
+                w.Creatures.Remove(BankerWorld.BankerGuid);
+                break;
+            default:
+                w.Banker.CurrentHealth.Returns(0u);
+                break;
+        }
 
         Assert.False(BankAccess.TryUse(w.Connection, w.Character, w.World));
 
         Assert.Null(w.Connection.CurrentDialogue);
         Assert.Null(w.Character.OpenBankNpc);
         SDialogueEndPacket end = Assert.Single(w.Read<SDialogueEndPacket>(NetworkPacketType.SMSG_DIALOGUE_END));
-        Assert.Equal(BankerWorld.BankerGuid.RawValue, end.SpeakerGuid);
-    }
-
-    [Fact]
-    public async Task End_the_conversation_with_a_creature_that_is_not_a_banker()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        w.Connection.CurrentDialogue = (BankerWorld.StrangerGuid, new DialogueNodeId(BankerWorld.StrangerRoot));
-        w.Character.OpenBankNpc = BankerWorld.StrangerGuid;
-
-        Assert.False(BankAccess.TryUse(w.Connection, w.Character, w.World));
-        Assert.Null(w.Connection.CurrentDialogue);
-    }
-
-    [Fact]
-    public async Task End_the_conversation_when_the_banker_has_left_the_instance()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        w.OpenBank();
-        w.Creatures.Remove(BankerWorld.BankerGuid);
-
-        Assert.False(BankAccess.TryUse(w.Connection, w.Character, w.World));
-        Assert.Null(w.Connection.CurrentDialogue);
-    }
-
-    [Fact]
-    public async Task End_the_conversation_when_the_banker_is_dead()
-    {
-        BankerWorld w = await BankerWorld.CreateAsync();
-        w.OpenBank();
-        w.Banker.CurrentHealth.Returns(0u);
-
-        Assert.False(BankAccess.TryUse(w.Connection, w.Character, w.World));
-        Assert.Null(w.Connection.CurrentDialogue);
+        Assert.Equal(npc.RawValue, end.SpeakerGuid);
     }
 
     [Fact]
