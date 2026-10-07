@@ -454,14 +454,11 @@ public partial class CharacterEntity : ICharacter
             CurrentPower = 0;
     }
 
-    public void OnHit(IUnit attacker, uint damage) => OnHit(attacker, damage, abilityId: null);
-
     /// <summary>
-    /// Takes <paramref name="damage" /> from <paramref name="attacker" />; <paramref name="abilityId" /> names
-    /// the ability that dealt it, or null for a swing. It sends nothing: the combat service tells its own
-    /// instance, which sends the hit and the character's own damage packet (#546).
+    /// Takes <paramref name="damage" /> from <paramref name="attacker" />. It sends nothing: the combat service tells
+    /// its own instance, which sends the hit and the character's own damage packet, naming the ability (#546).
     /// </summary>
-    public void OnHit(IUnit attacker, uint damage, AbilityId? abilityId)
+    public void OnHit(IUnit attacker, uint damage)
     {
         if (IsDead) return; // corpse — no further state changes or broadcast
 
@@ -471,7 +468,7 @@ public partial class CharacterEntity : ICharacter
     }
 
     /// <summary>
-    /// Takes an aura's damage tick (auras), as <see cref="OnHit(IUnit, uint, AbilityId?)" /> takes a hit, with no attacker
+    /// Takes an aura's damage tick (auras), as <see cref="OnHit(IUnit, uint)" /> takes a hit, with no attacker
     /// to name. World-side, not on ICharacter.
     /// </summary>
     public void OnPeriodicHit(uint damage)

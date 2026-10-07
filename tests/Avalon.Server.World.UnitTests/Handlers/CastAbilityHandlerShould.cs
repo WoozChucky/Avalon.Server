@@ -16,6 +16,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using ProtoBuf;
 
@@ -32,9 +33,8 @@ public class CastAbilityHandlerShould
     public void Admit_a_god_mode_cast_despite_gcd_ability_cooldown_and_no_power()
     {
         var f = new GodFixture();
-        // A start in the future keeps the 200 ms global cooldown running however slow the runner is, so the bypass is
-        // really exercised.
-        f.Character.LastCastStartTime = DateTime.UtcNow.AddMinutes(1);
+        // 50 ms after the last start, inside the 200 ms global cooldown, so the bypass is really exercised.
+        f.Character.LastCastStartTime = f.Now.AddMilliseconds(-50);
         DateTime previousStart = f.Character.LastCastStartTime;
         f.Character.CurrentPower = 0;
         IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 30 });
@@ -83,6 +83,8 @@ public class CastAbilityHandlerShould
             new Character { Id = 627u, Health = 100 }, new RegenConfiguration());
         public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection>();
         public IMapInstance Instance { get; } = Substitute.For<IMapInstance>();
+        public FakeTimeProvider Clock { get; } = new();
+        public DateTime Now => Clock.GetUtcNow().UtcDateTime;
         private readonly CastAbilityHandler _handler;
 
         public GodFixture()
@@ -98,7 +100,7 @@ public class CastAbilityHandlerShould
             registry.GetInstanceById(Arg.Any<Guid>()).Returns(Instance);
             IWorld world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(registry);
-            _handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
+            _handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(), Clock);
         }
 
         public IAbility GiveAbility(AbilityMetadata metadata)
@@ -158,14 +160,40 @@ public class CastAbilityHandlerShould
     public void Answer_Gcd_with_the_time_left_during_the_global_cooldown()
     {
         var f = new Fixture();
-        f.Character.LastCastStartTime.Returns(DateTime.UtcNow.AddMilliseconds(-50));
+        f.Character.LastCastStartTime.Returns(f.Now.AddMilliseconds(-50));
         f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
         SAbilityNotReadyPacket refusal = f.SingleRefusal();
-        Assert.Equal(CastRejectReason.Gcd, refusal.Reason);
-        Assert.InRange(refusal.CooldownMs, 1u, new CombatConfig().GcdMs);
+        Assert.Equal((CastRejectReason.Gcd, new CombatConfig().GcdMs - 50), (refusal.Reason, refusal.CooldownMs));
+    }
+
+    /// <summary>
+    /// The global cooldown runs on the container's clock (#793): an accepted cast starts it at that clock's now, a
+    /// cast inside it is refused with the time left on that clock, and one once it has run out is taken.
+    /// </summary>
+    [Fact]
+    public void Time_the_global_cooldown_by_the_containers_clock()
+    {
+        var f = new Fixture();
+        uint gcdMs = new CombatConfig().GcdMs;
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+        DateTime started = f.Now;
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        f.Character.Received(1).LastCastStartTime = started;
+
+        f.Character.LastCastStartTime.Returns(started);
+        f.Clock.Advance(TimeSpan.FromMilliseconds(gcdMs - 80));
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        SAbilityNotReadyPacket refusal = f.SingleRefusal();
+        Assert.Equal((CastRejectReason.Gcd, 80u), (refusal.Reason, refusal.CooldownMs));
+
+        f.Clock.Advance(TimeSpan.FromMilliseconds(80));
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+        f.Instance.Received(2).RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability);
+        Assert.Single(f.SentPackets());
     }
 
     /// <summary>
@@ -238,7 +266,7 @@ public class CastAbilityHandlerShould
     {
         var f = new Fixture();
         f.Character.Spells.IsCasting.Returns(true);
-        f.Character.LastCastStartTime.Returns(DateTime.UtcNow.AddMilliseconds(-50));
+        f.Character.LastCastStartTime.Returns(f.Now.AddMilliseconds(-50));
         f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
@@ -367,9 +395,9 @@ public class CastAbilityHandlerShould
     }
 
     /// <summary>
-    /// A living Mana caster at the origin facing +Z (yaw 0), not casting, out of the GCD window and
-    /// with power to spare, in an instance the registry finds and whose cast system takes every cast.
-    /// Each test changes only what it is about.
+    /// A living Mana caster at the origin facing +Z (yaw 0), not casting, out of the GCD window on the fixture's
+    /// clock (which stands still unless a test advances it) and with power to spare, in an instance the registry
+    /// finds and whose cast system takes every cast. Each test changes only what it is about.
     /// </summary>
     private sealed class Fixture
     {
@@ -377,12 +405,14 @@ public class CastAbilityHandlerShould
         public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection>();
         public IMapInstance Instance { get; } = Substitute.For<IMapInstance>();
         public IInstanceRegistry Registry { get; } = Substitute.For<IInstanceRegistry>();
+        public FakeTimeProvider Clock { get; } = new();
+        public DateTime Now => Clock.GetUtcNow().UtcDateTime;
         public CastAbilityHandler Handler { get; }
 
         public Fixture()
         {
             Character.IsDead.Returns(false);
-            Character.LastCastStartTime.Returns(DateTime.UtcNow.AddSeconds(-10));
+            Character.LastCastStartTime.Returns(Now.AddSeconds(-10));
             Character.Position.Returns(Vector3.zero);
             Character.Orientation.Returns(Vector3.zero);
             Character.PowerType.Returns(PowerType.Mana);
@@ -399,7 +429,7 @@ public class CastAbilityHandlerShould
 
             IWorld world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(Registry);
-            Handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
+            Handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(), Clock);
         }
 
         public void Cast(CCastAbilityPacket packet) => Handler.Execute(Connection, packet);

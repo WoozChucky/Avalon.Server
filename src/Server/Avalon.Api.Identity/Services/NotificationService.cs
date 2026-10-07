@@ -34,7 +34,7 @@ public class NotificationService : INotificationService
     }
 
     public async Task RegisterSubscriptionAsync(Account account, string userAgent, PushSubscriptionRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
 
         List<Device> devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id, cancellationToken);

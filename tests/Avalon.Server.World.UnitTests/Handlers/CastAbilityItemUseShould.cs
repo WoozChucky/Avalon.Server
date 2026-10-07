@@ -7,6 +7,7 @@ using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Items;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 
@@ -21,12 +22,14 @@ public class CastAbilityItemUseShould
     [InlineData(false)]
     public void End_the_item_cast_only_when_an_ability_cast_is_accepted(bool accepted)
     {
-        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
+        var clock = new FakeTimeProvider();
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, time: clock);
         MapInstanceClient client = MapInstanceClients.Join(instance, 7);
         client.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(1))]);
-        // The handler measures the 200 ms global cooldown against DateTime.UtcNow, so "a cast just started" must not
-        // depend on how fast the runner is: a start in the future keeps the cooldown running however long the test takes.
-        client.Character.LastCastStartTime = accepted ? DateTime.UtcNow.AddSeconds(-10) : DateTime.UtcNow.AddMinutes(1);
+        // The handler measures the 200 ms global cooldown on the instance's clock, which stands still here: a start
+        // 10 s back has left it, one 50 ms back has not.
+        DateTime now = clock.GetUtcNow().UtcDateTime;
+        client.Character.LastCastStartTime = accepted ? now.AddSeconds(-10) : now.AddMilliseconds(-50);
         var ends = new List<string>();
         instance.ItemUses.Start(new PendingItemUse
         {

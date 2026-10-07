@@ -17,7 +17,7 @@ public class CreatureTemplatePaginateFilters : EntityPaginateFilter<CreatureTemp
         if (string.IsNullOrEmpty(SortBy))
             return t => t.Id;
 
-        return SortBy.ToLower() switch
+        return SortBy.ToLowerInvariant() switch
         {
             "name" => t => t.Name,
             "id" => t => t.Id,

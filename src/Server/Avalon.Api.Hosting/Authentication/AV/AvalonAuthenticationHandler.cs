@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Avalon.Common.Accounts;
@@ -65,15 +66,13 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, account.Id.Value.ToString()),
+            new(ClaimTypes.NameIdentifier, account.Id.Value.ToString(CultureInfo.InvariantCulture)),
             new(ClaimTypes.Name, account.Username),
-            // Account.Email is nullable and a claim's value is not: an account without an email throws here, as it
-            // always has. The code standard changes no behaviour (#791).
-#pragma warning disable CS8604
-            new(ClaimTypes.Email, account.Email),
-#pragma warning restore CS8604
-            new("pat_id", pat.Id.Value.ToString()),
         };
+        // A Steam-only account has no email until it adds recovery credentials: its principal carries no email claim.
+        if (account.Email is { } email)
+            claims.Add(new Claim(ClaimTypes.Email, email));
+        claims.Add(new Claim("pat_id", pat.Id.Value.ToString()));
         claims.AddRange(AccountAccessCheck.RoleClaims(effectiveRoles));
         AccountAccessCheck.Remember(Context, account);
 

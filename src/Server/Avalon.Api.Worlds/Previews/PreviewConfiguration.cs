@@ -31,6 +31,6 @@ public sealed partial class PreviewConfiguration
     private static string? Valid(string? colour) =>
         colour is not null && HexColour().IsMatch(colour) ? colour : null;
 
-    [GeneratedRegex("^#[0-9A-Fa-f]{6}$")]
+    [GeneratedRegex("^#[0-9A-Fa-f]{6}$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex HexColour();
 }

@@ -113,7 +113,7 @@ public static class ChunkCatalogSeeder
             var dupes = layout.Chunks.GroupBy(c => (c.GridX, c.GridZ)).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
             if (dupes.Count > 0)
                 throw new InvalidDataException($"{path}: duplicate (gridX, gridZ): {string.Join(", ", dupes)}");
-            var unknown = layout.Chunks.Select(c => c.ChunkName).Where(n => !chunkNames.Contains(n)).Distinct().ToList();
+            var unknown = layout.Chunks.Select(c => c.ChunkName).Where(n => !chunkNames.Contains(n)).Distinct(StringComparer.Ordinal).ToList();
             if (unknown.Count > 0)
                 throw new InvalidDataException($"{path}: unknown chunk names: {string.Join(", ", unknown)}");
             layouts.Add((path, layout));

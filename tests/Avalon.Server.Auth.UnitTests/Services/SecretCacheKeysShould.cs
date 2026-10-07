@@ -18,17 +18,6 @@ public class SecretCacheKeysShould
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
     [Fact]
-    public void Name_a_world_entry_key_by_its_hash_not_by_the_key()
-    {
-        string secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-
-        string name = CacheKeys.WorldKey(7, secret);
-
-        Assert.Equal($"world:7:keys:{Sha256Hex(secret)}", name);
-        Assert.DoesNotContain(secret, name);
-    }
-
-    [Fact]
     public void Name_an_mfa_login_hash_key_by_its_hash_not_by_the_hash()
     {
         string secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));

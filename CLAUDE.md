@@ -64,7 +64,7 @@ Target framework: .NET 10 (`global.json`). The long notes — every EF design-ti
 | Balance | `src/Server/Avalon.Balance.Core`, `.Balance.Data`, `.Balance.Contract`, `.Balance.Service` | Simulator library (Core references Combat and Domain only, `BalanceCoreAssemblyShould`), seed reader, DTOs, in-cluster service |
 | Aspire | `src/Server/Avalon`, `src/Server/Avalon.ServiceDefaults` | Local AppHost and shared service defaults |
 | Shared | `src/Shared/Avalon.Common`, `.Configuration`, `.Domain`, `.Metrics`, `.Network.Packets`, `.Network.Packets.Abstractions` | `ValueObject<T>` and utilities, options classes, the domain model, OpenTelemetry, packet contracts (protobuf-net) |
-| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking`, `Avalon.Commerce.Check`, `Avalon.EmailVerification.Check` |
+| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking` |
 | Vendored | `vendor/DotRecast` | Navmesh (Recast/Detour); not ours to restyle |
 
 `src/Server/Avalon.PluginFramework` is an empty placeholder project.

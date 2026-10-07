@@ -34,7 +34,7 @@ public class AccountPaginateFilters : EntityPaginateFilter<Account>
             return a => a.Username;
 
         // Map SortBy values to actual properties
-        return SortBy.ToLower() switch
+        return SortBy.ToLowerInvariant() switch
         {
             "username" => a => a.Username,
             // Account.Email is nullable; the query EF Core builds from this selector sorts a missing email as null.

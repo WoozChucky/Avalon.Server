@@ -182,7 +182,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         {
             bool wasDead = character.IsDead;
             uint characterHealthBefore = character.CurrentHealth;
-            character.OnHit(attacker, damage, abilityId);
+            character.OnHit(attacker, damage);
             if (!wasDead)
             {
                 GainFuryFromDamage(character, characterHealthBefore);

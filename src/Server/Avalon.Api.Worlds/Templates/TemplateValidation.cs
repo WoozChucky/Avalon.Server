@@ -240,8 +240,8 @@ public static class TemplateValidation
 
     private static void Flags<T>(TemplateErrors e, string field, T value) where T : struct, Enum
     {
-        long all = Enum.GetValues<T>().Aggregate(0L, (acc, v) => acc | Convert.ToInt64(v));
-        if ((Convert.ToInt64(value) & ~all) != 0) e.Add(field, "Contains a flag that does not exist.");
+        long all = Enum.GetValues<T>().Aggregate(0L, (acc, v) => acc | Convert.ToInt64(v, CultureInfo.InvariantCulture));
+        if ((Convert.ToInt64(value, CultureInfo.InvariantCulture) & ~all) != 0) e.Add(field, "Contains a flag that does not exist.");
     }
 
     private static void Classes(TemplateErrors e, List<Avalon.World.Public.Enums.CharacterClass>? classes)

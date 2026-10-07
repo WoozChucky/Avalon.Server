@@ -121,9 +121,9 @@ public class MFAService : IMFAService
             return new MFAVerifyResult(false, null, MfaCodeRefusal.Replayed);
         }
 
-        // One winner per hash (#478): the DEL spends the hash, not the read above, as #450 does for
-        // world keys. Two verifies of one hash, each with a code of its own step, can both get past
-        // the step check; only the caller whose delete removed the hash goes on.
+        // One winner per hash (#478): the DEL spends the hash, not the read above. Two verifies of
+        // one hash, each with a code of its own step, can both get past the step check; only the
+        // caller whose delete removed the hash goes on.
         if (!await _mfaHashService.TryConsumeAsync(hash, accountId))
         {
             _logger.LogWarning("Refused an MFA code for account {AccountId}: its hash was already spent", accountId);

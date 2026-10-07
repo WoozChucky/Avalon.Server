@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.Extensions.Logging;
@@ -28,7 +29,7 @@ public interface IMFAHashService
     /// <summary>
     /// Spends the hash: deletes it, and returns true only to the caller whose delete removed its
     /// reverse key. Redis tells exactly one caller that, so of two verifies racing on one hash,
-    /// only one may go on (#478, as #450 does for world keys).
+    /// only one may go on (#478).
     /// </summary>
     Task<bool> TryConsumeAsync(string hash, AccountId accountId);
 
@@ -61,7 +62,9 @@ public class MFAHashService : IMFAHashService
             // Reused only while it was issued at this row's credentials version (#495): a hash left
             // by a login with the old password must not be handed to a login with the new one.
             int existingVersion = await GetHashCredentialsVersionAsync(existingHash!);
-            if (DateTime.TryParse(expiry, out DateTime expiryDate) && expiryDate > DateTime.UtcNow
+            // Written below as a round-trip UTC string: read back as UTC, never shifted to the server's time zone.
+            if (DateTime.TryParse((string?)expiry, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTime expiryDate)
+                && expiryDate > DateTime.UtcNow
                 && existingVersion == account.CredentialsVersion)
             {
                 _logger.LogDebug("Returning existing hash");
@@ -86,7 +89,7 @@ public class MFAHashService : IMFAHashService
             {
                 new HashEntry("hash", hash),
                 new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
-                new HashEntry("accountId", account.Id.Value.ToString())
+                new HashEntry("accountId", account.Id.Value.ToString(CultureInfo.InvariantCulture))
             });
         _ = transaction.KeyExpireAsync(CacheKeys.AccountMfa(account.Id), _expiry);
         // The reverse key carries the version of the row whose password issued this very hash
@@ -94,7 +97,7 @@ public class MFAHashService : IMFAHashService
         // old password and one with the new, share the per-account record, but not this key.
         _ = transaction.StringSetAsync(
             CacheKeys.MfaReverseHash(hash),
-            CacheKeys.WorldKeyValue(account.Id!.Value, account.CredentialsVersion),
+            CacheKeys.AccountVersionValue(account.Id!.Value, account.CredentialsVersion),
             _expiry);
 
         bool committed = await transaction.ExecuteAsync();
@@ -118,7 +121,7 @@ public class MFAHashService : IMFAHashService
     public async Task<int> GetHashCredentialsVersionAsync(string hash)
     {
         string? value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
-        return CacheKeys.TryParseWorldKeyValue(value, out _, out int version) ? version : -1;
+        return CacheKeys.TryParseAccountVersionValue(value, out _, out int version) ? version : -1;
     }
 
     public Task<long> RecordAttemptAsync(AccountId accountId) =>

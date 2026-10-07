@@ -25,7 +25,8 @@ public sealed class PaymentReconciliationWorker(IPurchaseRepository purchases, I
         {
             try { await RunOnceAsync(stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception) { logger.LogWarning("Payment reconciliation storage is temporarily unavailable."); }
+            // Named by type only, here and below: a provider's or the store's exception may carry payment details.
+            catch (Exception e) { logger.LogWarning("A payment reconciliation pass failed ({ExceptionType}).", e.GetType().Name); }
         } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
@@ -41,7 +42,11 @@ public sealed class PaymentReconciliationWorker(IPurchaseRepository purchases, I
             try { result = await reconciliation.ProcessAsync(claim, deadline.Token); }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested) { result = new(false, "PROVIDER_TIMEOUT"); }
             catch (OperationCanceledException) { throw; }
-            catch (Exception) { result = new(false, "RECONCILIATION_UNAVAILABLE"); }
+            catch (Exception e)
+            {
+                logger.LogWarning("Payment event {EventId} could not be reconciled ({ExceptionType}).", claim.Event.Id, e.GetType().Name);
+                result = new(false, "RECONCILIATION_UNAVAILABLE");
+            }
             await purchases.CompleteEventAsync(claim.Event.Id, claim.LeaseId, result, ct);
             if (!result.Completed) logger.LogInformation("Payment event {EventId} awaits reconciliation with {Reason}.", claim.Event.Id, result.FailureCode);
         }));
@@ -57,7 +62,7 @@ public sealed class PaymentReconciliationWorker(IPurchaseRepository purchases, I
                 try { await reconciliation.SweepAsync(attempt, deadline.Token); }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
                 catch (OperationCanceledException) { throw; }
-                catch (Exception) { logger.LogWarning("Payment attempt {AttemptId} could not be reconciled.", attempt.Id); }
+                catch (Exception e) { logger.LogWarning("Payment attempt {AttemptId} could not be reconciled ({ExceptionType}).", attempt.Id, e.GetType().Name); }
             }));
         }
         Volatile.Write(ref _stats, await purchases.ReadQueueStatsAsync(ct));

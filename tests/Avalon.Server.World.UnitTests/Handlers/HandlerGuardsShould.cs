@@ -64,7 +64,7 @@ public class HandlerGuardsShould
         switch (request)
         {
             case NetworkPacketType.CMSG_CAST_ABILITY:
-                new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig())
+                new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(), TimeProvider.System)
                     .Execute(connection, new CCastAbilityPacket { AbilityId = 1 });
                 break;
             case NetworkPacketType.CMSG_CHAT_MESSAGE:
@@ -145,8 +145,6 @@ public class HandlerGuardsShould
                 break;
             case NetworkPacketType.CMSG_CHARACTER_CREATE:
                 new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, characters,
-                        Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterAbilityRepository>(),
-                        Substitute.For<ICharacterInventoryRepository>(), Substitute.For<IItemInstanceRepository>(),
                         Substitute.For<IItemIdAllocator>(), world)
                     .Execute(connection, new CCharacterCreatePacket());
                 break;

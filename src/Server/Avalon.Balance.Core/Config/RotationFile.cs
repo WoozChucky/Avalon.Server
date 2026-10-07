@@ -54,8 +54,8 @@ public sealed partial class RotationFile : Dictionary<CharacterClass, RotationEn
                 Match match = ConditionText().Match(text);
                 if (!match.Success)
                     throw new InvalidDataException($"{where}: '{text}' is not a comparison such as \">=2\"");
-                conditions.Add(new Condition(stat, match.Groups[1].Value,
-                    double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture)));
+                conditions.Add(new Condition(stat, match.Groups["op"].Value,
+                    double.Parse(match.Groups["value"].Value, CultureInfo.InvariantCulture)));
             }
 
             compiled.Add(new CompiledRotationEntry(entries[i].Ability, conditions));
@@ -64,6 +64,6 @@ public sealed partial class RotationFile : Dictionary<CharacterClass, RotationEn
         return compiled;
     }
 
-    [GeneratedRegex(@"^\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?)\s*$")]
+    [GeneratedRegex(@"^\s*(?<op>>=|<=|==|>|<)\s*(?<value>-?\d+(?:\.\d+)?)\s*$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex ConditionText();
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
@@ -39,7 +40,7 @@ public sealed class MaintenanceCommand(
         if (args.Length is 1 or 2 && string.Equals(args[0], "on", StringComparison.OrdinalIgnoreCase))
         {
             enabled = true;
-            if (args.Length == 2 && (!int.TryParse(args[1], out minutes) || minutes is < 1 or > 60))
+            if (args.Length == 2 && (!int.TryParse(args[1], CultureInfo.InvariantCulture, out minutes) || minutes is < 1 or > 60))
             {
                 ctx.Reply(Usage);
                 return;

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Authentication;
 using System.Text;
@@ -319,7 +320,7 @@ public class AccountService : IAccountService
         }
     }
 
-    public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken)
+    public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default)
     {
         return await _accountRepository.PaginateAsync(filters, false, cancellationToken);
     }
@@ -702,8 +703,8 @@ public class AccountService : IAccountService
         // A role change is a credentials change (#504), for a promotion as for a demotion. One
         // transaction: the level is written by column (#478), so a lock or a ban written since the
         // account was last read survives it, and the credentials version is raised in the same
-        // statement, which refuses every access token, refresh token, pending MFA hash and world key
-        // issued before it. Every refresh token and personal access token goes with it, as for a
+        // statement, which refuses every access token, refresh token and pending MFA hash issued
+        // before it. Every refresh token and personal access token goes with it, as for a
         // password change. The account then signs in again, which is what gets the new roles onto a
         // game-client connection (the TCP session holds the roles it logged in with).
         bool found = await _authTransaction.ExecuteAsync(async (context, token) =>
@@ -773,7 +774,7 @@ public class AccountService : IAccountService
         try
         {
             // Kick any live world session, the same way a ban or a password change does.
-            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString(CultureInfo.InvariantCulture));
         }
         catch (Exception ex)
         {

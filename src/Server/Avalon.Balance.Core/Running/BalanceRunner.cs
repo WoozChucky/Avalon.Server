@@ -42,7 +42,7 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
         }
         catch (PlanRefusedException e)
         {
-            throw new ArgumentException(e.Message);
+            throw new ArgumentException(e.Message, e);
         }
     }
 

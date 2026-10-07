@@ -129,12 +129,13 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public override Task StartAsync(CancellationToken token)
     {
-        base.StartAsync(token);
+        // Already complete: BackgroundService runs ExecuteAsync on the thread pool, and the host observes that task.
+        Task started = base.StartAsync(token);
 
         if (ListenOnStart)
             StartListening();
 
-        return Task.CompletedTask;
+        return started;
     }
 
     /// <summary>First wait after an accept failure that is not one peer's (#584); doubled each time.</summary>

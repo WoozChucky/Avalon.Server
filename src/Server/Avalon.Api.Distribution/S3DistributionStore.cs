@@ -43,9 +43,9 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
             return JsonSerializer.Deserialize<ChannelPointer>(json, s_json)
                 ?? throw new DistributionUnavailableException($"The {channel.Wire()} channel pointer is empty.");
         }
-        catch (JsonException)
+        catch (JsonException e)
         {
-            throw new DistributionUnavailableException($"The {channel.Wire()} channel pointer is not valid.");
+            throw new DistributionUnavailableException($"The {channel.Wire()} channel pointer is not valid.", e);
         }
     }
 
@@ -132,9 +132,9 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
         {
             doc = JsonSerializer.Deserialize<ManifestDocument>(json, s_json);
         }
-        catch (JsonException)
+        catch (JsonException e)
         {
-            throw new DistributionUnavailableException("A published manifest is not valid JSON.");
+            throw new DistributionUnavailableException("A published manifest is not valid JSON.", e);
         }
 
         if (doc is null || doc.Schema != 1)
@@ -183,7 +183,7 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
         }
         catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
         {
-            throw new DistributionUnavailableException("The published launcher release is not valid.");
+            throw new DistributionUnavailableException("The published launcher release is not valid.", e);
         }
     }
 

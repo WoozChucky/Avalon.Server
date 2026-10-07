@@ -140,18 +140,7 @@ public class CharacterSelectHandler(
     {
         // A repository call must never begin on the simulation tick. The completed result is
         // applied by the connection's continuation queue on a later tick.
-        Task<WorldEntryDecision> check = WorldDatabaseWork.ThreadPool.Run(async () =>
-        {
-            try
-            {
-                return await gate.CheckAsync(connection.AccountId!, CancellationToken.None)
-                    .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-            }
-            catch (Exception)
-            {
-                return default;
-            }
-        });
+        Task<WorldEntryDecision> check = gate.CheckOffTick(connection.AccountId!);
         _entryCheckInFlight.Add(connection, check);
         connection.EnqueueContinuation(check, decision =>
         {

@@ -57,7 +57,7 @@ public class ScriptCompiler : IScriptCompiler
         "Microsoft.Extensions.Logging"
     ];
 
-    private readonly ConcurrentDictionary<string, DateTime> _debounceDictionary = new();
+    private readonly ConcurrentDictionary<string, DateTime> _debounceDictionary = new(StringComparer.Ordinal);
 
     private readonly ILogger<ScriptCompiler> _logger;
     private readonly FileSystemWatcher _watcher;
@@ -139,7 +139,7 @@ public class ScriptCompiler : IScriptCompiler
 
             foreach (string defaultUsing in s_defaultUsings)
             {
-                if (!code.Contains($"using {defaultUsing};"))
+                if (!code.Contains($"using {defaultUsing};", StringComparison.Ordinal))
                 {
                     code = $"using {defaultUsing};\n{code}";
                 }

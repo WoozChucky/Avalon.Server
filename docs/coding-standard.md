@@ -126,11 +126,16 @@ and keep game-server hot paths (the tick, packet handling, replication) free of 
   build so the comments do not reach the OpenAPI document `Avalon.Api` serves.
 - When `CI` is `true` (GitHub Actions sets it) the same file turns on `TreatWarningsAsErrors`, so any warning, code
   style or compiler or analyzer, fails the build. Locally the warnings are only warnings.
-- Meziantou.Analyzer's CancellationToken rules (MA0032, MA0040, MA0045) are errors in CI as before. Its opinion and
-  design rules (file names, collection abstractions, `string.Equals`, method length and the like) are off in
-  `.editorconfig`: they are not part of this standard. Its correctness rules (MA0002, MA0009, MA0011, MA0022, MA0054,
-  MA0061, MA0074, MA0132, MA0134) stay on; the warnings that predate the standard are listed in `WarningsNotAsErrors`
-  in `src/Directory.Build.props`, so they show but do not fail CI until #793 fixes them and the list goes.
+- Meziantou.Analyzer runs on `src/` (`src/Directory.Build.props` adds it). Its CancellationToken rules (MA0032, MA0040,
+  MA0045) are errors in CI as before. Its opinion and design rules (file names, collection abstractions,
+  `string.Equals`, method length and the like) are off in `.editorconfig`: they are not part of this standard. Its
+  correctness rules stay on and, like any other warning, fail the CI build (#793): an explicit comparer or culture
+  wherever strings are compared, sorted, hashed, formatted or parsed (MA0002, MA0011, MA0074; ordinal and the
+  invariant culture unless the code means otherwise), a match timeout on every regex (MA0009,
+  `matchTimeoutMilliseconds: 1000` on a `[GeneratedRegex]`), the caught exception kept as the inner one (MA0054), a
+  completed task rather than null from a method that returns one (MA0022), an override's default values kept
+  (MA0061), no implicit conversion to `DateTimeOffset` (MA0132), and every task either awaited or discarded on purpose
+  with `_ =` and a comment saying what observes it (MA0134).
 
 ## Fixing violations locally
 
@@ -148,8 +153,7 @@ dotnet format whitespace Avalon.sln --verify-no-changes
 dotnet format style Avalon.sln --verify-no-changes
 ```
 
-`tools/Avalon.Commerce.Check` and `tools/Avalon.EmailVerification.Check` are not in the solution: pass their `.csproj`
-instead. Run `whitespace` and `style` rather than a bare `dotnet format`, whose `analyzers` pass would also apply
+Run `whitespace` and `style` rather than a bare `dotnet format`, whose `analyzers` pass would also apply
 third-party fixes (Meziantou's among them) that can change behaviour. `dotnet format` does not fix naming (IDE1006):
 rename in the IDE.
 

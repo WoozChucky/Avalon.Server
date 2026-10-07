@@ -242,10 +242,6 @@ public class CharacterSelectChainShould : IDisposable
         Step(2);
 
         new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, _characters,
-                Substitute.For<ICharacterStatsRepository>(),
-                Substitute.For<ICharacterAbilityRepository>(),
-                Substitute.For<ICharacterInventoryRepository>(),
-                Substitute.For<IItemInstanceRepository>(),
                 Substitute.For<IItemIdAllocator>(),
                 Substitute.For<IWorld>())
             .Execute(_connection, new CCharacterCreatePacket());

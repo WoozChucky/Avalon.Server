@@ -89,11 +89,11 @@ public class MapService : IMapService
         }
         catch (ProceduralGenerationFailedException ex)
         {
-            throw new BusinessException(ex.Message);
+            throw new BusinessException(ex.Message, ex);
         }
         catch (InvalidProceduralConfigException ex)
         {
-            throw new BusinessException(ex.Message);
+            throw new BusinessException(ex.Message, ex);
         }
     }
 

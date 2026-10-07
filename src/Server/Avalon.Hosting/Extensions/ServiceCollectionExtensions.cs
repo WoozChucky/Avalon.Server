@@ -60,7 +60,7 @@ public static class ServiceCollectionExtensions
                 .Where(x =>
                     x.IsAssignableTo(typeof(IPacketHandlerNew)) &&
                     x is { IsClass: true, IsAbstract: false, IsInterface: false })
-                .OrderBy(x => x.FullName)
+                .OrderBy(x => x.FullName, StringComparer.Ordinal)
                 .ToArray();
             return ActivatorUtilities.CreateInstance<PacketManager>(provider, packetTypes, handlerTypes);
         });

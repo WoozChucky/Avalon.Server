@@ -213,7 +213,7 @@ public class AuthServer(
     /// Listens on <see cref="CacheKeys.WorldAccountsDisconnectChannel"/> (#495). Everything that
     /// ends an account's sessions publishes there (a password change, an MFA reset or removal, a
     /// ban, a refresh-token reuse, a duplicate login), and a logged-in connection here is a session
-    /// too: left open, it could go on asking for world keys with the old credentials.
+    /// too: left open, it would go on as a session of the old credentials.
     /// </summary>
     public Task SubscribeToAccountDisconnectsAsync()
     {
@@ -231,9 +231,10 @@ public class AuthServer(
     /// When <paramref name="ownPublishAt"/> says this server published a duplicate-login disconnect
     /// for the account at some instant, a connection that logged in after it is spared (#495
     /// review): the message may be that very publish, made by its own first login attempt. The cost
-    /// is that a different publish for the account inside the window also spares it; world select
-    /// still checks the credentials version and the status, so such a connection gets no world key
-    /// for changed credentials or a banned account.
+    /// is that a different publish for the account inside the window also spares it; every later
+    /// request still passes <see cref="Handlers.PostLoginGuard"/>, which checks the credentials version
+    /// and the status, so such a connection can neither change MFA nor list the worlds once its
+    /// credentials changed or its account was banned.
     /// </para>
     /// <para>One connection that throws while closing is logged and does not stop the others.</para>
     /// </summary>

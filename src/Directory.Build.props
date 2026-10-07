@@ -21,13 +21,6 @@
   -->
   <PropertyGroup Condition="'$(CI)' == 'true'">
     <WarningsAsErrors>$(WarningsAsErrors);MA0032;MA0040;MA0045</WarningsAsErrors>
-    <!--
-      Meziantou.Analyzer's correctness rules (string comparers, regex timeouts, culture, inner exceptions, unobserved
-      tasks, default values, DateTimeOffset conversions) had about 45 warnings in src when the code standard came in
-      (#791). They are reported but not fatal until #793 fixes them; then this list goes. Its opinion rules are off
-      in .editorconfig.
-    -->
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);MA0002;MA0009;MA0011;MA0022;MA0054;MA0061;MA0074;MA0132;MA0134</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

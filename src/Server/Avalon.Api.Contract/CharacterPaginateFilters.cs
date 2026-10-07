@@ -36,7 +36,7 @@ public class CharacterPaginateFilters : EntityPaginateFilter<Character>
         if (string.IsNullOrEmpty(SortBy))
             return c => c.Name;
 
-        return SortBy.ToLower() switch
+        return SortBy.ToLowerInvariant() switch
         {
             "name" => c => c.Name,
             "level" => c => c.Level,

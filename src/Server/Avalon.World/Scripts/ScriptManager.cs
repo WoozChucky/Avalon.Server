@@ -42,11 +42,11 @@ public class ScriptManager : IScriptManager
     private readonly ILogger<ScriptManager> _logger;
 
     // Replaced whole, never changed in place: the hot reloader's thread registers while the tick thread reads.
-    private volatile IReadOnlyDictionary<string, Type> _aiScripts = new Dictionary<string, Type>();
-    private volatile IReadOnlyDictionary<string, Type> _abilityScripts = new Dictionary<string, Type>();
-    private volatile IReadOnlyDictionary<string, Type> _questScripts = new Dictionary<string, Type>();
-    private volatile IReadOnlyDictionary<string, Type> _itemScripts = new Dictionary<string, Type>();
-    private volatile IReadOnlyDictionary<string, Type> _auraScripts = new Dictionary<string, Type>();
+    private volatile IReadOnlyDictionary<string, Type> _aiScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
+    private volatile IReadOnlyDictionary<string, Type> _abilityScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
+    private volatile IReadOnlyDictionary<string, Type> _questScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
+    private volatile IReadOnlyDictionary<string, Type> _itemScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
+    private volatile IReadOnlyDictionary<string, Type> _auraScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
     private readonly object _registration = new();
 
     public ScriptManager(ILoggerFactory loggerFactory)
@@ -64,31 +64,31 @@ public class ScriptManager : IScriptManager
 
         _logger.LogInformation("Loaded {Count} AI scripts", aiScripts.Count);
 
-        _aiScripts = aiScripts.ToDictionary(t => t.Name, t => t);
+        _aiScripts = aiScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
 
         List<Type> abilityScripts = FindScriptTypes<AbilityScript>();
 
         _logger.LogInformation("Loaded {Count} ability scripts", abilityScripts.Count);
 
-        _abilityScripts = abilityScripts.ToDictionary(t => t.Name, t => t);
+        _abilityScripts = abilityScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
 
         List<Type> questScripts = FindScriptTypes<QuestScript>();
 
         _logger.LogInformation("Loaded {Count} quest scripts", questScripts.Count);
 
-        _questScripts = questScripts.ToDictionary(t => t.Name, t => t);
+        _questScripts = questScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
 
         List<Type> itemScripts = FindScriptTypes<ItemScript>();
 
         _logger.LogInformation("Loaded {Count} item scripts", itemScripts.Count);
 
-        _itemScripts = itemScripts.ToDictionary(t => t.Name, t => t);
+        _itemScripts = itemScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
 
         List<Type> auraScripts = FindScriptTypes<AuraScript>();
 
         _logger.LogInformation("Loaded {Count} aura scripts", auraScripts.Count);
 
-        _auraScripts = auraScripts.ToDictionary(t => t.Name, t => t);
+        _auraScripts = auraScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
     }
 
     public IReadOnlyList<string> AiScriptNames => Sorted(_aiScripts);
@@ -105,7 +105,7 @@ public class ScriptManager : IScriptManager
     {
         lock (_registration)
         {
-            Dictionary<string, Type> scripts = new(_aiScripts);
+            Dictionary<string, Type> scripts = new(_aiScripts, StringComparer.Ordinal);
             foreach (Type type in aiScriptTypes.Where(t => !t.IsDefined(typeof(ChainedScriptAttribute), inherit: false)))
             {
                 scripts[type.Name] = type;
