@@ -2,7 +2,6 @@ using Avalon.Common.Cryptography;
 using Avalon.Server.World.Handlers;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
-using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
@@ -12,7 +11,7 @@ public sealed class WorldHandshakeHandlerShould
     private static WorldHandshakeHandler Handler(string minimum = "0.0.1")
     {
         IWorld world = Substitute.For<IWorld>(); world.MinVersion.Returns(minimum);
-        return new(NullLogger<WorldHandshakeHandler>.Instance, world);
+        return new(world);
     }
     [Fact]
     public async Task Accept_supported_client_only_after_admission_and_request_the_initial_ping()

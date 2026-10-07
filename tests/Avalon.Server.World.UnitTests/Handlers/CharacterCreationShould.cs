@@ -122,15 +122,9 @@ public class CharacterCreationShould : IDisposable
             captured.Row.Id = new CharacterId(1);
             return Task.FromResult(new CharacterCreationReply(captured.Row));
         });
-        ICharacterStatsRepository stats = Substitute.For<ICharacterStatsRepository>();
-        ICharacterAbilityRepository abilities = Substitute.For<ICharacterAbilityRepository>();
-        ICharacterInventoryRepository inventory = Substitute.For<ICharacterInventoryRepository>();
-        IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
-
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = new(
-            NullLogger<CharacterCreateHandler>.Instance,
-            characters, stats, abilities, inventory, items, new ItemIdAllocator(), NewWorld(data));
+            NullLogger<CharacterCreateHandler>.Instance, characters, new ItemIdAllocator(), NewWorld(data));
 
         handler.Execute(connection, new CCharacterCreatePacket
         {
@@ -256,10 +250,7 @@ public class CharacterCreationShould : IDisposable
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = new(
-            NullLogger<CharacterCreateHandler>.Instance, characters,
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterAbilityRepository>(),
-            Substitute.For<ICharacterInventoryRepository>(), Substitute.For<IItemInstanceRepository>(),
-            new ItemIdAllocator(), NewWorld(data));
+            NullLogger<CharacterCreateHandler>.Instance, characters, new ItemIdAllocator(), NewWorld(data));
 
         handler.Execute(connection, new CCharacterCreatePacket
         {
@@ -334,10 +325,7 @@ public class CharacterCreationShould : IDisposable
             .Returns(Task.FromException<CharacterCreationReply>(new DbUpdateException("disk full")));
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = new(
-            NullLogger<CharacterCreateHandler>.Instance, characters,
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterAbilityRepository>(),
-            Substitute.For<ICharacterInventoryRepository>(), Substitute.For<IItemInstanceRepository>(),
-            new ItemIdAllocator(), NewWorld(data));
+            NullLogger<CharacterCreateHandler>.Instance, characters, new ItemIdAllocator(), NewWorld(data));
 
         handler.Execute(connection, new CCharacterCreatePacket
         {
@@ -411,10 +399,6 @@ public class CharacterCreationShould : IDisposable
     private CharacterCreateHandler NewHandler(StaticData data) => new(
         NullLogger<CharacterCreateHandler>.Instance,
         new CharacterRepository(_characters),
-        new CharacterStatsRepository(_characters),
-        new CharacterAbilityRepository(_characters),
-        new CharacterInventoryRepository(_characters),
-        new ItemInstanceRepository(_characters),
         new ItemIdAllocator(),
         NewWorld(data));
 
