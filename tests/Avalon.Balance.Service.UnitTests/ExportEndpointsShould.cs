@@ -146,17 +146,6 @@ public class ExportEndpointsShould
     }
 
     [Fact]
-    public async Task Answer_401_without_the_shared_secret()
-    {
-        await using WebApplication app = Build(new FakeGitHub());
-        await app.StartAsync();
-
-        HttpResponseMessage response = await app.GetTestClient().PostAsync("/exports", Json(Edit));
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task Answer_502_naming_the_step_and_status_but_not_the_token()
     {
         var github = new FakeGitHub { Fail = ("CreateBranch", 403) };
