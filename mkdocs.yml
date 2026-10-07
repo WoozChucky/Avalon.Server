@@ -81,6 +81,7 @@ nav:
     - Steam Account Links: steam-account-links.md
   - REST API:
     - API Reference: api-reference.md
+    - API Services: api-services.md
     - Authentication: api-authentication.md
     - Multi-world API: api-worlds.md
     - Live Template Editing: live-template-editing.md

@@ -1,8 +1,12 @@
 # Redis Cache Keys Reference
 
-This document is the authoritative reference for every Redis key and pub/sub channel used across the Avalon services.
-All string literals are centralized in `CacheKeys` (`src/Server/Avalon.Infrastructure/CacheKeys.cs`). Any rename or
-addition must start there.
+This document is the reference for the Redis keys and pub/sub channels used across the Avalon services. Most literals
+are centralized in `CacheKeys` (`src/Server/Avalon.Infrastructure/CacheKeys.cs`), and any rename or addition should
+start there. A few are still written where they are used: the game-context revocation channel
+(`GameContextRevocations.Channel`, `world:game-context:revoke`), commerce's checkout budget
+(`CheckoutBudget`, `commerce:{environment}:checkout:*`), identity's email-verification send budgets
+(`AccountEmailVerificationService`, `email-verification:account:{accountId}` and `email-verification:source:{source}`)
+and the World server's delete of `account:{accountId}:inWorld`.
 
 ---
 
@@ -15,6 +19,24 @@ Avalon uses Redis for three distinct purposes:
 | Ephemeral session tokens | `SET` / `GET` / `DEL` with TTL | World entry keys, session mutex |
 | Cross-component presence signalling | Pub/Sub channels | disconnect request, account online event, world-select notification |
 | Short-lived structured state | Redis Hash with per-field access | MFA flow (hash + expiry + accountId) |
+
+---
+
+## Keys by API service
+
+The REST API runs as four services ([API services](api-services.md)), each using only its own keys; a process
+connects to Redis only when one of its services needs it. While production runs all four in one process (#802), that
+process uses all of them.
+
+| Service | Keys it reads and writes | Channels |
+|---|---|---|
+| identity | the login and registration budgets (`auth:source:{source}:failedLogins`, `auth:username:{sha256}:failedLogins`, `auth:source:{source}:accountsCreated`), MFA state (`auth:account:{accountId}:mfa`, `auth:mfa:hash:{hash}`), email change (`auth:emailChange:{sha256}`, `auth:account:{accountId}:emailChangePending`, `auth:account:{accountId}:emailChangeSends`, `auth:email:{sha256}:emailChangeSends`), the email-verification send budgets (`email-verification:*`), launcher codes (`auth:launcherCode:{hash}`), game tickets (`auth:gameTicket:{hash}`, `auth:gameTicketIssue:{familyId}`), the game-auth records (`game-auth:{environment}:*`); reads `world:{worldId}:ready` | publishes `world:accounts:disconnect` and `world:game-context:revoke` |
+| worlds | reads `world:{worldId}:ready`, `world:{worldId}:presence`, `presence:world:{worldId}:character:{characterId}` and `world:{worldId}:scripts` | publishes `world:{worldId}:maintenance` and `world:{worldId}:reload`; subscribes to `world:{worldId}:reload:result` |
+| commerce | the checkout budget (`commerce:{environment}:checkout:*`) | none |
+| distribution | none: it runs without `Application:Cache` and holds no Redis password | none |
+
+The login budgets and the MFA keys are shared with the TCP auth server, which runs the same login policy, so a guess
+over REST and one over TCP spend one budget ([REST API authentication](api-authentication.md)).
 
 ---
 
@@ -32,6 +54,10 @@ String keys map a single value to a single Redis string. All carry a TTL to prev
 | **Consumer (reader/deleter)** | World server — `ExchangeWorldKeyHandler` |
 | **Value** | Account ID as a decimal string |
 | **TTL** | 5 minutes |
+
+> **Retired.** No server writes or reads this key since the TLS join-ticket admission replaced the TCP world-key
+> handoff (`CWorldSelectHandler` and `ExchangeWorldKeyHandler` are gone; `CacheKeys.WorldKey` has no caller). The
+> description below is the old flow.
 
 **Purpose:** One-time handoff token issued at world selection. The Auth server writes the key immediately after
 verifying access; the World server looks it up once when the client presents it during the crypto-key exchange phase,
@@ -62,6 +88,9 @@ World server (ExchangeWorldKeyHandler)
 | **Value** | `"1"` (sentinel) |
 | **TTL** | 5 minutes |
 
+> **Retired with the world key above.** Nothing sets it any more; the World server still deletes the literal key when
+> a connection closes (`WorldServer.ClearInWorldFlagAsync`). The description below is the old flow.
+
 **Purpose:** Mutual exclusion lock that prevents an account from holding more than one active world-entry attempt
 concurrently. Written with `SETNX` (SET if Not eXists): if the key already exists, the second world-select request is
 rejected with `DuplicateSession`. The World server removes the key after a successful key exchange, freeing the slot.
@@ -91,8 +120,8 @@ fields atomic and inspectable.
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.AccountMfa(long accountId)` |
 | **Type** | Hash |
-| **Owner (writer + reader)** | Auth server — `MFAHashService` |
-| **Consumer (deleter)** | Auth server — `MFAHashService.CleanupHash` |
+| **Owner (writer + reader)** | Auth server and the API's identity service — `MFAHashService` |
+| **Consumer (deleter)** | Auth server and the API's identity service — `MFAHashService.CleanupHash` |
 | **TTL** | 2 minutes (set on the whole key via `EXPIRE` after `EXEC`) |
 
 **Hash fields:**
@@ -123,14 +152,14 @@ subscribers active at the time of publish.
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldAccountsDisconnectChannel` |
-| **Publisher** | Auth server — `CAuthHandler` (duplicate login path) |
-| **Subscriber** | World server — `WorldServer.CacheSubscribeAsync` |
+| **Publisher** | Auth server — `GameLoginCompletion` (duplicate login path); the API's identity service on a credentials change, a ban or refresh-token reuse (`AccountService`, `AccountRefreshController`, `ClientAuthController`); `MFAService` on an MFA reset, on either server |
+| **Subscriber** | World server — `WorldServer.CacheSubscribeAsync`; Auth server — `AuthServer` |
 | **Message format** | Account ID as a decimal string |
 
-**Purpose:** Signals all World server instances that a previously authenticated account has logged in again from a
-different connection. The World server searches its active connections for a matching `AccountId` and closes it
-gracefully (sends `SDisconnectPacket` with reason `DuplicateLogin` before closing the socket). This is the cross-server
-half of the duplicate-login guard; the Auth server handles the Auth-side connection directly.
+**Purpose:** Asks every server to drop the account's sessions. The original use is the cross-server half of the
+duplicate-login guard: an account that logs in again from a different connection. The World server searches its
+active connections for a matching `AccountId` and closes them; the Auth server closes that account's logged-in TCP
+connections. The message is the bare account id, so it cannot say why.
 
 **Flow:**
 ```
@@ -150,7 +179,7 @@ World server (WorldServer, DelayedDisconnect)
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.AuthAccountsOnlineChannel` |
-| **Publisher** | Auth server — `CAuthHandler` (successful login path) |
+| **Publisher** | Auth server — `GameLoginCompletion` (successful login path) |
 | **Subscriber** | *(currently none — reserved for future components)* |
 | **Message format** | Account ID as a decimal string |
 
@@ -165,7 +194,7 @@ API-layer invalidation of cached account state.
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldSelectChannel(ushort worldId)` |
-| **Publisher** | Auth server — `CWorldSelectHandler` |
+| **Publisher** | None since the TCP world select was retired (`CWorldSelectHandler` is gone); the description below is the old one |
 | **Subscriber** | *(currently none — reserved for future cross-shard coordination)* |
 | **Message format** | `account:{accountId}:worldKey:{worldKeyBase64}` |
 
@@ -180,8 +209,8 @@ shard registry needs to know which shard should expect the arriving client.
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.LauncherAuthCode(string codeHash)` |
 | **Type** | String (one-time token) |
-| **Owner (writer)** | API: `LauncherAuthCodes.IssueAsync` (`POST client/auth/code`) |
-| **Consumer (deleter)** | API: `LauncherAuthCodes.RedeemAsync` (`POST client/auth/token`) |
+| **Owner (writer)** | API, identity: `LauncherAuthCodes.IssueAsync` (`POST client/auth/code`) |
+| **Consumer (deleter)** | API, identity: `LauncherAuthCodes.RedeemAsync` (`POST client/auth/token`) |
 | **Value** | `accountId|credentialsVersion|challenge|redirectPort` |
 | **TTL** | 60 seconds |
 
@@ -197,13 +226,13 @@ shard registry needs to know which shard should expect the arriving client.
 
 | Key pattern | Type | TTL | Writer | Consumer |
 |---|---|---|---|---|
-| `world:{id}:keys:{base64}` | String | 5 min | Auth / `CWorldSelectHandler` | World / `ExchangeWorldKeyHandler` |
-| `account:{id}:inWorld` | String | 5 min | Auth / `CWorldSelectHandler` | World / `ExchangeWorldKeyHandler` |
-| `auth:account:{id}:mfa` | Hash | 2 min | Auth / `MFAHashService` | Auth / `MFAHashService` |
-| `auth:launcherCode:{hash}` | String | 60 s | API / `LauncherAuthCodes` | API / `LauncherAuthCodes` |
-| `world:accounts:disconnect` | Pub/Sub channel | — | Auth / `CAuthHandler` | World / `WorldServer` |
-| `auth:accounts:online` | Pub/Sub channel | — | Auth / `CAuthHandler` | *(reserved)* |
-| `world:{id}:select` | Pub/Sub channel | — | Auth / `CWorldSelectHandler` | *(reserved)* |
+| `world:{id}:keys:{base64}` | String | 5 min | *(retired)* | *(retired)* |
+| `account:{id}:inWorld` | String | 5 min | *(retired)* | World deletes it on close |
+| `auth:account:{id}:mfa` | Hash | 2 min | Auth, API identity / `MFAHashService` | Auth, API identity / `MFAHashService` |
+| `auth:launcherCode:{hash}` | String | 60 s | API identity / `LauncherAuthCodes` | API identity / `LauncherAuthCodes` |
+| `world:accounts:disconnect` | Pub/Sub channel | — | Auth / `GameLoginCompletion`; API identity; `MFAService` | World / `WorldServer`; Auth / `AuthServer` |
+| `auth:accounts:online` | Pub/Sub channel | — | Auth / `GameLoginCompletion` | *(reserved)* |
+| `world:{id}:select` | Pub/Sub channel | — | *(none)* | *(reserved)* |
 
 ---
 

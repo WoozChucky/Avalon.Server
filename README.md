@@ -31,7 +31,9 @@ Server layer:
 | Project | Role |
 |---|---|
 | `src/Server/Avalon` | [Aspire](https://dotnet.microsoft.com/en-us/apps/aspire) host for all server components |
-| `src/Server/Avalon.Api` | ASP.NET Core REST API; OpenAPI generation; JWT issuance; JSON serialization |
+| `src/Server/Avalon.Api` | ASP.NET Core REST API host: runs the API services `Application:Services` names (all four when unset); OpenAPI generation |
+| `src/Server/Avalon.Api.Identity`, `.Worlds`, `.Commerce`, `.Distribution` | The four API services ([API services](docs/api-services.md)): accounts, tokens and game admission; world content and characters; checkout and payments; launcher and client distribution |
+| `src/Server/Avalon.Api.Hosting`, `.Contract` | What every API service runs on (pipeline, startup, token validation, rate limiting, world databases); the REST contract (DTOs) |
 | `src/Server/Avalon.Server.Auth` | Hosted service wrapping AuthServer (packet dispatcher, login flow, MFA) |
 | `src/Server/Avalon.Server.World` | Hosted service running the simulation loop (maps, entities, spells, spawning) |
 | `src/Server/Avalon.World` | Core world implementation (maps, grid, entities, spells, sessions, connections) |
@@ -61,7 +63,8 @@ Tooling & Tests:
 | `tests/Avalon.Shared.UnitTests` | Unit tests for shared libraries |
 | `tests/Avalon.Server.Auth.UnitTests` | Unit tests for authentication server components |
 | `tests/Avalon.Server.World.UnitTests` | Unit tests for world server and simulation logic |
-| `tests/Avalon.Api.UnitTests` | Unit tests for the REST API |
+| `tests/Avalon.Api.UnitTests` | REST API host-level tests: the contract, route ownership, each service's host |
+| `tests/Avalon.Api.Hosting.UnitTests`, `tests/Avalon.Api.<Service>.UnitTests` | The shared API hosting's tests, and each API service's |
 
 ## Core Cross-Cutting Concepts
 

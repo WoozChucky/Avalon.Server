@@ -17,7 +17,7 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
 
 # Infrastructure (Redis + Postgres; compose password 123), then the servers
 docker compose up -d redis postgres
-dotnet run --project src/Server/Avalon.Api          # needs a JWT signing key, see below
+dotnet run --project src/Server/Avalon.Api          # all four API services; needs a JWT signing key, see below
 dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
 dotnet run --project src/Server/Avalon             # Aspire AppHost: everything at once
@@ -48,8 +48,10 @@ Target framework: .NET 10 (`global.json`). The long notes — every EF design-ti
 
 | Component | Project | Role |
 |---|---|---|
-| REST API | `src/Server/Avalon.Api` | HTTPS/JWT: accounts, MFA, tokens, client auth and game admission, commerce, distribution, world content admin, public tooltips; OpenAPI with Scalar at `/scalar`; applies EF migrations at startup |
-| Auth server | `src/Server/Avalon.Server.Auth` | TCP login, MFA, world list and select, world-key issuance |
+| REST API host | `src/Server/Avalon.Api` | Runs the API services `Application:Services` names, all four in one process when unset (production until #802); the `avalon-api` chart and its route manifest (`files/routes.json`); OpenAPI with Scalar at `/scalar`; the EF design-time startup project ([docs/api-services.md](docs/api-services.md)) |
+| API services | `src/Server/Avalon.Api.Identity`, `.Worlds`, `.Commerce`, `.Distribution` | identity (accounts, MFA, tokens, client auth, game admission; migrates the auth schema), worlds (world content, characters, public tooltips), commerce (checkout, payments), distribution (launcher, releases, channels); none references another (`ApiServiceBoundariesShould`) |
+| API shared | `src/Server/Avalon.Api.Hosting`, `src/Server/Avalon.Api.Contract` | The host builder, pipeline, startup, token validation, rate limiting and world database plumbing every service runs on; the REST contract (DTOs) |
+| Auth server | `src/Server/Avalon.Server.Auth` | TCP login (password, or a ticket from the REST client auth), MFA, the world list; world entry is the REST game admission (join and reconnect tickets) |
 | World server | `src/Server/Avalon.Server.World` | Tick loop host, connections, packet dispatch, world lifecycle |
 | Core world | `src/Server/Avalon.World` | Instances, entities, abilities, creatures and AI, parties, quests, auras, items, chat commands |
 | Modding API | `src/Server/Avalon.World.Public` | The future public surface for scripts and addons (see Working rules) |
@@ -67,7 +69,7 @@ Target framework: .NET 10 (`global.json`). The long notes — every EF design-ti
 
 `src/Server/Avalon.PluginFramework` is an empty placeholder project.
 
-Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and per world a `WorldDbContext` (reference data) and a `CharacterDbContext` (characters, items). A world server holds one world's pair (`Database:World`, `Database:Characters`); the REST API holds one pair per world under `Database:Worlds:<id>` ([docs/api-worlds.md](docs/api-worlds.md)). EF sensitive-data logging is on only in Development, and `Microsoft.EntityFrameworkCore` logs at Warning and above.
+Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and per world a `WorldDbContext` (reference data) and a `CharacterDbContext` (characters, items). A world server holds one world's pair (`Database:World`, `Database:Characters`); the REST API holds them per world under `Database:Worlds:<id>`, worlds both and identity only Characters ([docs/api-worlds.md](docs/api-worlds.md)). EF sensitive-data logging is on only in Development, and `Microsoft.EntityFrameworkCore` logs at Warning and above.
 
 ## Working rules
 
@@ -99,11 +101,12 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 - [Packet handlers, session filters, reflection-bound registration](docs/packet-handlers.md): auth handlers implement `IAuthPacketHandler<T>` (DI); world handlers `IWorldPacketHandler<T>` or `WorldPacketHandler<T>` with `[PacketHandler(NetworkPacketType.X)]`, built by `ActivatorUtilities`.
 
 ### Auth and accounts
-- [Auth server login flow](docs/auth-server.md): handshake, password and MFA login, world list and select, the one-time world key (its `DEL` spends it), per-source and per-username login budgets (`SourceBudget`, `UsernameBudget`), `Online` owned by one connection, the online sweep, unique usernames and emails, single-use TOTP, `PostLoginGuard`, and the Redis keys. Exactly one auth server is supported.
+- [Auth server login flow](docs/auth-server.md): handshake, password, ticket and MFA login, the world list (world entry is the REST game admission, see [API services](docs/api-services.md)), per-source and per-username login budgets (`SourceBudget`, `UsernameBudget`), `Online` owned by one connection, the online sweep, unique usernames and emails, single-use TOTP, `PostLoginGuard`, and the Redis keys. Exactly one auth server is supported.
 - [REST API authentication](docs/api-authentication.md): access JWTs and PATs revalidated per request (`AccountAccessCheck`), refresh rotation with a 5 s grace, the shared login policy, reauthentication for sensitive actions, rate limiting, registration budgets, credentials version (`cver`), email change.
-- [Redis keys](docs/redis-cache-keys.md) (every literal lives in `CacheKeys`), [session management](docs/security-session-management.md), Steam: [authentication](docs/steam-authentication.md), [workloads](docs/steam-authentication-workloads.md), [account links](docs/steam-account-links.md).
+- [Redis keys](docs/redis-cache-keys.md) (most literals live in `CacheKeys`), [session management](docs/security-session-management.md), Steam: [authentication](docs/steam-authentication.md), [workloads](docs/steam-authentication-workloads.md), [account links](docs/steam-account-links.md).
 
 ### REST API
+- [API services](docs/api-services.md): identity, worlds, commerce and distribution, one binary; `Application:Services`; the route manifest (a new endpoint needs an owner in `RouteOwnershipShould`); the chart's `services`, `routes` and `networkPolicy`; the rollout (#802).
 - [API reference](docs/api-reference.md) and the published OpenAPI document (the Avalon.Dashboard repository generates its client from it).
 - [Multi-world API](docs/api-worlds.md): `/world/{worldId}/...` routes on `[WorldScoped]` controllers, `WorldRouteMiddleware` (non-disclosing 404 before 503), per-world databases, public routes and link previews.
 - [Live template editing](docs/live-template-editing.md): `PUT` item, ability, creature and aura templates with `If-Match`; only worlds in `Application:Templates:EditableWorlds`; reload requested over Redis.
@@ -139,7 +142,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 - xUnit with NSubstitute; files are `<Subject>Should.cs`, methods `Should_<verb>_<condition>` or a descriptive sentence.
 - No real Redis or Postgres in unit tests: external dependencies are substituted (database tests use SQLite in memory).
 - Auth handler tests build handlers directly (`new CAuthHandler(...)` with `NullLoggerFactory` and substitutes).
-- Guard tests protect invariants that are easy to break silently: `ModelDriftShould`, `SeedIntegrityShould`, `WireSchemaShould`, the `*ConstructibilityShould` script tests, `WorldHostGraphShould`, `CommandsNeverBlockTheTickShould`, `ApiContractShould`, `CombatAssemblyShould`, `BalanceCoreAssemblyShould`, `SimulatorParityShould`. Never delete one to make a change pass.
+- Guard tests protect invariants that are easy to break silently: `ModelDriftShould`, `SeedIntegrityShould`, `WireSchemaShould`, the `*ConstructibilityShould` script tests, `WorldHostGraphShould`, `CommandsNeverBlockTheTickShould`, `ApiContractShould`, `CombatAssemblyShould`, `BalanceCoreAssemblyShould`, `SimulatorParityShould`, and the API split's (`RouteOwnershipShould`, `EveryRouteReachableShould`, `ApiHostGraphShould`, `ApiServiceBoundariesShould`, `CrossServiceAuthenticationShould`). Never delete one to make a change pass.
 
 ## Open work
 

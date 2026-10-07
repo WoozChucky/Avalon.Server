@@ -14,7 +14,14 @@ dotnet test --no-build
 dotnet test tests/Avalon.Server.Auth.UnitTests
 dotnet test tests/Avalon.Server.World.UnitTests
 dotnet test tests/Avalon.Shared.UnitTests
+# The REST API: the host level (contract, route ownership, each service's host), the shared hosting, and each
+# service's own tests (see docs/api-services.md)
 dotnet test tests/Avalon.Api.UnitTests
+dotnet test tests/Avalon.Api.Hosting.UnitTests
+dotnet test tests/Avalon.Api.Identity.UnitTests
+dotnet test tests/Avalon.Api.Worlds.UnitTests
+dotnet test tests/Avalon.Api.Commerce.UnitTests
+dotnet test tests/Avalon.Api.Distribution.UnitTests
 
 # Run a specific test class or method
 dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAuthHandlerShould"
@@ -22,10 +29,16 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
 # Start infrastructure (Redis + Postgres)
 docker compose up -d redis postgres
 
-# Run individual servers
+# Run individual servers. The API runs all four of its services on http://localhost:5210 unless
+# Application:Services names some (docs/api-services.md), e.g. one alone:
+#   Application__Services__0=worlds dotnet run --project src/Server/Avalon.Api
 dotnet run --project src/Server/Avalon.Api
 dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
+
+# Read-only smoke check of a deployed API, every route group (the script's header lists its options; its expected
+# statuses are a configured deployment's, so a local API without a build store or worlds 2 and 3 fails some lines)
+BASE=https://avalon.example/api tools/api-smoke/smoke.sh
 
 # Publish (Release)
 dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release
@@ -51,7 +64,9 @@ dotnet run --project tools/Avalon.ChunkGen -- town [--maps <dir>]
 
 # Add a migration (EF design-time)
 # Avalon.Api is the startup project by design (early-development convenience).
-# Migrations are applied automatically when Avalon.Api starts.
+# Auth migrations are applied automatically when an API process running identity starts (by default every
+# process runs it; a process without it waits for them), and by the auth server; each world server applies
+# its own World and Characters migrations.
 dotnet ef migrations add <Name> \
   --project src/Server/Avalon.Database.Auth \
   --startup-project src/Server/Avalon.Api \
@@ -90,7 +105,7 @@ Target framework: **.NET 10**. Docker compose credentials default to password `1
 
 ### REST API signing key
 
-`Avalon.Api` will not start without a JWT signing key, and none is committed (#482). The setting is `Application:Authentication:IssuerSigningKey` (environment variable `Application__Authentication__IssuerSigningKey`). `JwtSigningKey.Create` refuses a key that is missing, has leading or trailing whitespace, is under 32 bytes in UTF-8, or is on `JwtSigningKey.BlockedKeyHashes` (the SHA-256 of the one that used to sit in `appsettings.json`, public now), and the error names the setting. `AddAuth` registers the resulting `SymmetricSecurityKey` as a singleton, which `JwtUtils` signs with and the bearer handler validates with. Set it once per machine:
+`Avalon.Api` will not start without a JWT signing key, and none is committed (#482). Every API process needs it, whichever services it runs ([API services](api-services.md)): identity signs access tokens with it and every service validates them with it, until #801 moves the signing to an ES256 key pair. The setting is `Application:Authentication:IssuerSigningKey` (environment variable `Application__Authentication__IssuerSigningKey`). `JwtSigningKey.Create` refuses a key that is missing, has leading or trailing whitespace, is under 32 bytes in UTF-8, or is on `JwtSigningKey.BlockedKeyHashes` (the SHA-256 of the one that used to sit in `appsettings.json`, public now), and the error names the setting. `AddApiAuthentication` (`Avalon.Api.Hosting`) registers the resulting `SymmetricSecurityKey` as a singleton, which identity's `JwtUtils` signs with and every service's bearer handler validates with; identity's game-auth cryptography derives its keys from it too. The services are one project, so one user-secret serves every process. Set it once per machine:
 
 ```bash
 # Local runs (dotnet run, or the Aspire AppHost in src/Server/Avalon): Development loads user-secrets.
@@ -113,6 +128,6 @@ helm install ... --set existingSecret=avalon-api-secrets
 helm install ... --set-file authentication.issuerSigningKey=./jwt.key
 ```
 
-Rotating the key: with a chart-managed Secret, `helm upgrade` with the new file restarts the pods (a checksum annotation). With `existingSecret`, the chart cannot see the change, so after updating the Secret run `kubectl rollout restart deployment/<release>-avalon-api` (the chart's fullname; the chart renders a Deployment).
+Rotating the key: with a chart-managed Secret, `helm upgrade` with the new file restarts the pods (a checksum annotation). With `existingSecret`, the chart cannot see the change, so after updating the Secret run `kubectl rollout restart deployment/<release>-avalon-api` (the chart's fullname; the chart renders a Deployment). Once the services run in releases of their own, every release that runs one holds the key: restart each, so they validate with the key identity signs with.
 
-`docker-compose.yml` runs only Redis and Postgres, so it needs no key. EF design-time commands (`dotnet ef migrations ...` with `--startup-project src/Server/Avalon.Api`) need no key either: they build each context through its `IDesignTimeDbContextFactory` and never run `AddAuth`. Tests never read one: `ApiAuthHost` and the other API tests make their own key in code. Changing the key invalidates every access token already issued; clients get a 401 and refresh.
+`docker-compose.yml` runs only Redis and Postgres, so it needs no key. EF design-time commands (`dotnet ef migrations ...` with `--startup-project src/Server/Avalon.Api`) need no key either: they build each context through its `IDesignTimeDbContextFactory` and never run the API host's registrations. Tests never read one: `ApiTestHost` (`tests/Avalon.Api.Testing`) and the other API tests make their own key in code. Changing the key invalidates every access token already issued; clients get a 401 and refresh.
