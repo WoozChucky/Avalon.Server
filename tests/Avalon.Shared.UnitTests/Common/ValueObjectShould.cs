@@ -6,44 +6,31 @@ namespace Avalon.Shared.UnitTests.Common;
 public class ValueObjectShould
 {
     private class TestValueObject(int value) : ValueObject<int>(value);
+
     private class TestStringValueObject(string value) : ValueObject<string>(value);
 
     [Fact]
-    public void BeEqualWhenValuesAreEqual()
+    public void Compare_by_value()
     {
-        var vo1 = new TestValueObject(1);
-        var vo2 = new TestValueObject(1);
+        var one = new TestValueObject(1);
+        var alsoOne = new TestValueObject(1);
+        var two = new TestValueObject(2);
+        TestValueObject? none = null;
 
-        Assert.Equal(vo1, vo2);
-        Assert.True(vo1 == vo2);
-        Assert.False(vo1 != vo2);
-        Assert.True(vo1.Equals(vo2));
-    }
-
-    [Fact]
-    public void NotBeEqualWhenValuesAreDifferent()
-    {
-        var vo1 = new TestValueObject(1);
-        var vo2 = new TestValueObject(2);
-
-        Assert.NotEqual(vo1, vo2);
-        Assert.False(vo1 == vo2);
-        Assert.True(vo1 != vo2);
-        Assert.False(vo1.Equals(vo2));
-    }
-
-    [Fact]
-    public void HandleNullComparison()
-    {
-        var vo1 = new TestValueObject(1);
-        TestValueObject? vo2 = null;
-
-        Assert.False(vo1 == vo2);
-        Assert.True(vo1 != vo2);
-        Assert.False(vo1.Equals(vo2));
-
-        Assert.True(vo2 == null);
-        Assert.False(vo2 != null);
+        Assert.Equal(one, alsoOne);
+        Assert.True(one == alsoOne);
+        Assert.False(one != alsoOne);
+        Assert.True(one.Equals(alsoOne));
+        Assert.Equal(one.GetHashCode(), alsoOne.GetHashCode());
+        Assert.NotEqual(one, two);
+        Assert.False(one == two);
+        Assert.True(one != two);
+        Assert.False(one.Equals(two));
+        Assert.False(one == none);
+        Assert.True(one != none);
+        Assert.False(one.Equals(none));
+        Assert.True(none == null);
+        Assert.False(none != null);
     }
 
     [Fact]
@@ -53,27 +40,12 @@ public class ValueObjectShould
     }
 
     [Fact]
-    public void ReturnCorrectHashCode()
-    {
-        var vo1 = new TestValueObject(1);
-        var vo2 = new TestValueObject(1);
-
-        Assert.Equal(vo1.GetHashCode(), vo2.GetHashCode());
-    }
-
-    [Fact]
-    public void ReturnCorrectToString()
-    {
-        var vo1 = new TestValueObject(123);
-        Assert.Equal("123", vo1.ToString());
-    }
-
-    [Fact]
-    public void ImplicitlyConvertToUnderlyingType()
+    public void Read_as_its_value()
     {
         var vo = new TestValueObject(123);
         int value = vo;
 
         Assert.Equal(123, value);
+        Assert.Equal("123", vo.ToString());
     }
 }

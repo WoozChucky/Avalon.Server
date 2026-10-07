@@ -6,107 +6,54 @@ namespace Avalon.Shared.UnitTests.Common.Utils;
 public class IntervalTimerShould
 {
     [Fact]
-    public void StartAtZero()
+    public void Accumulate_from_zero_and_never_go_below_it()
     {
         var timer = new IntervalTimer();
-
         Assert.Equal(0L, timer.GetCurrent());
         Assert.Equal(0L, timer.GetInterval());
-    }
 
-    [Fact]
-    public void AccumulateDiffOnUpdate()
-    {
-        var timer = new IntervalTimer();
+        timer.Update(-50);
+        Assert.Equal(0L, timer.GetCurrent());
+
         timer.SetInterval(100);
-
         timer.Update(40);
         timer.Update(30);
-
         Assert.Equal(70L, timer.GetCurrent());
     }
 
-    [Fact]
-    public void ReturnFalseFromPassedBeforeIntervalReached()
+    [Theory]
+    [InlineData(99, false)]
+    [InlineData(100, true)]
+    [InlineData(200, true)]
+    public void Pass_once_the_interval_is_reached(long elapsed, bool passed)
     {
         var timer = new IntervalTimer();
         timer.SetInterval(100);
-        timer.Update(99);
+        timer.Update(elapsed);
 
-        Assert.False(timer.Passed());
+        Assert.Equal(passed, timer.Passed());
     }
 
-    [Fact]
-    public void ReturnTrueFromPassedAtExactInterval()
+    /// <summary>A reset keeps the time past the interval (150 % 100 = 50) and leaves a timer that has not passed alone.</summary>
+    [Theory]
+    [InlineData(150, 50)]
+    [InlineData(100, 0)]
+    [InlineData(60, 60)]
+    public void Carry_the_remainder_over_a_reset(long elapsed, long afterReset)
     {
         var timer = new IntervalTimer();
         timer.SetInterval(100);
-        timer.Update(100);
-
-        Assert.True(timer.Passed());
-    }
-
-    [Fact]
-    public void ReturnTrueFromPassedWhenCurrentExceedsInterval()
-    {
-        var timer = new IntervalTimer();
-        timer.SetInterval(100);
-        timer.Update(200);
-
-        Assert.True(timer.Passed());
-    }
-
-    [Fact]
-    public void ClampCurrentToZeroOnNegativeDiff()
-    {
-        var timer = new IntervalTimer();
-        timer.Update(-50);
-
-        Assert.Equal(0L, timer.GetCurrent());
-    }
-
-    [Fact]
-    public void CarryOverRemainderOnReset()
-    {
-        var timer = new IntervalTimer();
-        timer.SetInterval(100);
-        timer.Update(150);
+        timer.Update(elapsed);
 
         timer.Reset();
 
-        // 150 % 100 == 50
-        Assert.Equal(50L, timer.GetCurrent());
-    }
-
-    [Fact]
-    public void NotModifyCurrentOnResetWhenNotPassed()
-    {
-        var timer = new IntervalTimer();
-        timer.SetInterval(100);
-        timer.Update(60);
-
-        timer.Reset();
-
-        Assert.Equal(60L, timer.GetCurrent());
-    }
-
-    [Fact]
-    public void ResetToZeroWhenCurrentEqualsInterval()
-    {
-        var timer = new IntervalTimer();
-        timer.SetInterval(100);
-        timer.Update(100);
-
-        timer.Reset();
-
-        Assert.Equal(0L, timer.GetCurrent());
+        Assert.Equal(afterReset, timer.GetCurrent());
     }
 
     [Fact]
     public void RespectSetCurrentAndSetInterval()
     {
         var timer = new IntervalTimer();
-
         timer.SetCurrent(75);
         timer.SetInterval(100);
 

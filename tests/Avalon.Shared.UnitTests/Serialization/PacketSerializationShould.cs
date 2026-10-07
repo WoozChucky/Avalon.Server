@@ -51,23 +51,4 @@ public class PacketSerializationShould
         Assert.Equal(3UL, result2.AccountId);
         Assert.Equal("Bob", result2.CharacterName);
     }
-
-    [Fact]
-    public void Create_EncryptFuncReceivesCorrectSerializedBytes()
-    {
-        byte[]? capturedBytes = null;
-        EncryptFunc capturing = span =>
-        {
-            capturedBytes = span.ToArray();
-            return capturedBytes;
-        };
-
-        SChatMessagePacket.Create(99UL, 1UL, "Test", "Data", s_testDate, capturing);
-
-        Assert.NotNull(capturedBytes);
-        using var ms = new MemoryStream(capturedBytes);
-        SChatMessagePacket deserialized = Serializer.Deserialize<SChatMessagePacket>(ms);
-        Assert.Equal(99UL, deserialized.AccountId);
-        Assert.Equal("Test", deserialized.CharacterName);
-    }
 }

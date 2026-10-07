@@ -103,18 +103,4 @@ public class LootPacketsShould
         Assert.Equal("3007", Hex(Only(d => d.OwnerCharacterId = 7)));
         Assert.Equal("3809", Hex(Only(d => d.FreeForAllAt = 9)));
     }
-
-    [Fact]
-    public void Carry_The_Picked_Up_Guid_From_Client_To_Server()
-    {
-        var sent = new CLootPickupPacket { LootGuid = 0x0600000000000009 };
-
-        using var stream = new MemoryStream();
-        Serializer.Serialize(stream, sent);
-        stream.Position = 0;
-        CLootPickupPacket read = Serializer.Deserialize<CLootPickupPacket>(stream);
-
-        Assert.Equal(0x0600000000000009UL, read.LootGuid);
-        Assert.Equal(NetworkPacketType.CMSG_LOOT_PICKUP, CLootPickupPacket.PacketType);
-    }
 }

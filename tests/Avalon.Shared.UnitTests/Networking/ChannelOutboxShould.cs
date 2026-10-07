@@ -17,27 +17,6 @@ public class ChannelOutboxShould
     /// </summary>
     private static readonly TimeSpan s_deadlockGuard = TimeSpan.FromSeconds(30);
 
-    [Fact(Skip = "Flaky: polls only 2s for the background drain loop to write, which a loaded " +
-                 "runner can exceed. Disabled rather than retuned; see the deadline below.")]
-    public async Task WriteEnqueuedPacket_ToStream_AfterConnect()
-    {
-        var ms = new MemoryStream();
-        var stream = new PacketStream(ms);
-        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64);
-
-        outbox.Connect(stream);
-
-        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
-
-        // Poll until bytes arrive or 2s elapses
-        DateTime deadline = DateTime.UtcNow.AddSeconds(2);
-        while (ms.Length == 0 && DateTime.UtcNow < deadline)
-            await Task.Delay(10);
-
-        Assert.True(ms.Length > 0, "Expected bytes written to stream");
-        await outbox.DisposeAsync();
-    }
-
     /// <summary>
     /// A rejection packet is queued and the connection closed on the next line, so disposal
     /// races the drain loop. The write is slow enough that the loop cannot have finished it

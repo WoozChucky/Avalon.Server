@@ -12,15 +12,6 @@ public class LockedQueueShould
     }
 
     [Fact]
-    public void BeEmptyInitially()
-    {
-        var queue = new LockedQueue<Item>();
-
-        Assert.True(queue.IsEmpty());
-        Assert.False(queue.Next(out _));
-    }
-
-    [Fact]
     public void ReturnItemsInFifoOrder()
     {
         var queue = new LockedQueue<Item>();
@@ -32,74 +23,53 @@ public class LockedQueueShould
         queue.Add(second);
         queue.Add(third);
 
+        Assert.False(queue.IsEmpty());
         Assert.True(queue.Next(out Item? r1));
         Assert.True(queue.Next(out Item? r2));
         Assert.True(queue.Next(out Item? r3));
-
         Assert.Same(first, r1);
         Assert.Same(second, r2);
         Assert.Same(third, r3);
     }
 
     [Fact]
-    public void ReturnFalseFromNextWhenEmpty()
+    public void Hand_out_nothing_from_an_empty_queue()
     {
         var queue = new LockedQueue<Item>();
 
-        bool result = queue.Next(out Item? item);
-
-        Assert.False(result);
-        Assert.Null(item);
-    }
-
-    [Fact]
-    public void DequeueWhenPredicatePasses()
-    {
-        var queue = new LockedQueue<Item>();
-        var item = new Item("ready");
-        queue.Add(item);
-
-        bool result = queue.Next(out Item? dequeued, _ => true);
-
-        Assert.True(result);
-        Assert.Same(item, dequeued);
         Assert.True(queue.IsEmpty());
+        Assert.False(queue.Next(out Item? item));
+        Assert.Null(item);
+        Assert.False(queue.Next(out Item? checkedItem, _ => true));
+        Assert.Null(checkedItem);
     }
 
-    [Fact]
-    public void NotDequeueWhenPredicateFails()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Dequeue_only_when_the_predicate_passes(bool passes)
     {
         var queue = new LockedQueue<Item>();
-        var item = new Item("not-ready");
+        var item = new Item("head");
         queue.Add(item);
 
-        bool result = queue.Next(out Item? dequeued, _ => false);
+        bool result = queue.Next(out Item? dequeued, _ => passes);
 
-        Assert.False(result);
-        Assert.Null(dequeued);
-        Assert.False(queue.IsEmpty());
+        Assert.Equal(passes, result);
+        Assert.Equal(passes ? item : null, dequeued);
+        Assert.Equal(passes, queue.IsEmpty());
     }
 
     [Fact]
-    public void PeekReturnsFrontWithoutRemoving()
+    public void Peek_at_and_pop_the_front()
     {
         var queue = new LockedQueue<Item>();
-        var item = new Item("peek-me");
-        queue.Add(item);
-
-        Item peeked = queue.Peek();
-
-        Assert.Same(item, peeked);
-        Assert.False(queue.IsEmpty());
-    }
-
-    [Fact]
-    public void PopFrontRemovesLeadingItem()
-    {
-        var queue = new LockedQueue<Item>();
-        queue.Add(new Item("a"));
+        Assert.Null(Record.Exception(() => queue.PopFront()));
+        var a = new Item("a");
+        queue.Add(a);
         queue.Add(new Item("b"));
 
+        Assert.Same(a, queue.Peek());
         queue.PopFront();
 
         Assert.True(queue.Next(out Item? remaining));
@@ -107,45 +77,11 @@ public class LockedQueueShould
     }
 
     [Fact]
-    public void PopFrontIsNoOpOnEmptyQueue()
-    {
-        var queue = new LockedQueue<Item>();
-
-        Exception exception = Record.Exception(() => queue.PopFront());
-
-        Assert.Null(exception);
-    }
-
-    [Fact]
     public void ReportCancelledStateCorrectly()
     {
         var queue = new LockedQueue<Item>();
-
         Assert.False(queue.IsCancelled());
-
         queue.Cancel();
-
         Assert.True(queue.IsCancelled());
     }
-
-    [Fact]
-    public void BeNotEmptyAfterAdd()
-    {
-        var queue = new LockedQueue<Item>();
-        queue.Add(new Item("x"));
-
-        Assert.False(queue.IsEmpty());
-    }
-
-    [Fact]
-    public void NextWithPredicateOnEmptyQueueReturnsFalse()
-    {
-        var queue = new LockedQueue<Item>();
-
-        bool result = queue.Next(out Item? item, _ => true);
-
-        Assert.False(result);
-        Assert.Null(item);
-    }
-
 }
