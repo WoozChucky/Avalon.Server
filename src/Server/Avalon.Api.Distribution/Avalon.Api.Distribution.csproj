@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The distribution API service (#794, design section 2.1): the launcher's self-update, releases, the changelog,
+    channels and their manifests, read from the build store (homelab Garage). No Redis and no world database of its
+    own; it reads the auth database only to check a caller's credentials. It references the shared hosting, never
+    another API service.
+  -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Web SDK's implicit usings, which the code moved here from Avalon.Api was written against. -->
+    <Using Include="Microsoft.AspNetCore.Builder"/>
+    <Using Include="Microsoft.AspNetCore.Hosting"/>
+    <Using Include="Microsoft.AspNetCore.Http"/>
+    <Using Include="Microsoft.AspNetCore.Routing"/>
+    <Using Include="Microsoft.Extensions.Configuration"/>
+    <Using Include="Microsoft.Extensions.DependencyInjection"/>
+    <Using Include="Microsoft.Extensions.Hosting"/>
+    <Using Include="Microsoft.Extensions.Logging"/>
+    <Using Include="System.Net.Http.Json"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
+    <ProjectReference Include="..\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>
+  </ItemGroup>
+
+</Project>

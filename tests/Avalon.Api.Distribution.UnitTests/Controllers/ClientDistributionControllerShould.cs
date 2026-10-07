@@ -1,14 +1,13 @@
 using System.Security.Claims;
 using System.Text.Json;
-using Avalon.Api.Controllers;
-using Avalon.Api.Distribution;
+using Avalon.Api.Distribution.Controllers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using NSubstitute;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Controllers;
+namespace Avalon.Api.Distribution.UnitTests.Controllers;
 
 public class ClientDistributionControllerShould
 {

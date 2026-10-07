@@ -115,14 +115,6 @@ public static class ServiceRegistration
 
         services.AddMemoryCache();
 
-        // Game distribution (homelab Garage). Without it the /client endpoints answer 503.
-        Distribution.DistributionConfiguration distribution = config.Distribution ?? new();
-        if (distribution.IsConfigured)
-            services.AddSingleton<Distribution.IDistributionStore>(new Distribution.S3DistributionStore(distribution));
-        else
-            services.AddSingleton<Distribution.IDistributionStore, Distribution.UnconfiguredDistributionStore>();
-        services.AddSingleton<Distribution.ClientDistributionService>();
-
         // The balance workbench's service (in-cluster). Without it the /balance endpoints answer 503.
         Balance.BalanceConfiguration balance = config.Balance ?? new();
         if (balance.IsConfigured)

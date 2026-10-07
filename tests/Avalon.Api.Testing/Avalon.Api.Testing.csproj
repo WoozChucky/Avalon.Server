@@ -38,7 +38,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The host, for the monolith's service until each service moves into its own library (T3.1 to T3.4). -->
+    <!-- The host, for the services it runs (ApiServices.All) and the monolith's until each service moves into its own
+         library (T3.1 to T3.4). -->
     <ProjectReference Include="..\..\src\Server\Avalon.Api\Avalon.Api.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Database\Avalon.Database.csproj"/>

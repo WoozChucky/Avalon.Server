@@ -50,7 +50,7 @@ public class ExceptionHandlerMiddlewareShould
     {
         var middleware = new ExceptionHandlerMiddleware(
             _ => throw new Avalon.Api.Distribution.DistributionUnavailableException("Downloads are not available right now."),
-            NullLoggerFactory.Instance, MonolithApi.ProblemMappers);
+            NullLoggerFactory.Instance, [new Avalon.Api.Distribution.DistributionProblemMapper()]);
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
 

@@ -18,9 +18,10 @@ using Xunit;
 namespace Avalon.Api.UnitTests.Hosting;
 
 /// <summary>
-/// The monolith adds to the shared hosting what Avalon.Api had built into it before the split (#794): its exceptions'
-/// answers, its game servers' rate-limit partition, the Steam callback's query kept out of the request log, its
-/// startup checks, and observability's per-world layout inputs. Built as the host builds it.
+/// The API's services add to the shared hosting what Avalon.Api had built into it before the split (#794): their
+/// exceptions' answers, the game servers' rate-limit partition, the Steam callback's query kept out of the request log,
+/// the startup checks, and observability's per-world layout inputs. Built as the host builds it, for every service it
+/// runs (<see cref="ApiServices.All"/>).
 /// </summary>
 public sealed class MonolithCompositionShould : IAsyncDisposable
 {
@@ -29,7 +30,7 @@ public sealed class MonolithCompositionShould : IAsyncDisposable
     public MonolithCompositionShould()
     {
         WebApplicationBuilder builder = AvalonApiHost.CreateBuilder(
-            new WebApplicationOptions { EnvironmentName = Environments.Production }, [MonolithApi.Service], configure: b =>
+            new WebApplicationOptions { EnvironmentName = Environments.Production }, ApiServices.All, configure: b =>
             {
                 b.WebHost.UseTestServer();
                 b.Logging.ClearProviders();

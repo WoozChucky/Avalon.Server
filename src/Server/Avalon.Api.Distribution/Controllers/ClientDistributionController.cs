@@ -1,11 +1,10 @@
-using Avalon.Api.Distribution;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Controllers;
 using Avalon.Common.Accounts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Avalon.Api.Controllers;
+namespace Avalon.Api.Distribution.Controllers;
 
 /// <summary>
 /// Game distribution: the launcher installer (public), its update feed (public), recent builds'

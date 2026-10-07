@@ -34,9 +34,10 @@ namespace Avalon.Api.Testing;
 
 /// <summary>
 /// An in-memory API built as the API builds itself (#794): <see cref="AvalonApiHost.CreateBuilder(WebApplicationOptions, IReadOnlyList{IApiService}, Action{WebApplicationBuilder}?)"/>
-/// for the services it is given (the monolith unless a test names others) and the one pipeline,
-/// <see cref="ApiPipeline"/>, on a test server. What the services reach outside the process is substituted by default:
-/// the account and personal access token repositories, the cache, and the account, refresh, MFA and token services.
+/// for the services it is given (every service the API runs, <see cref="ApiServices.All"/>, unless a test names
+/// others) and the one pipeline, <see cref="ApiPipeline"/>, on a test server. What the services reach outside the
+/// process is substituted by default: the account and personal access token repositories, the cache, and the account,
+/// refresh, MFA and token services.
 /// Requests go over HTTP, so the bearer handler, its events, the policies and <see cref="AvalonAuthHandler"/> all run
 /// as they do in production. A few minimal endpoints stand in for "any endpoint behind policy X".
 /// </summary>
@@ -108,14 +109,14 @@ public sealed class ApiTestHost : IAsyncDisposable
     /// <summary>Every endpoint the host maps, as routing sees them.</summary>
     public IReadOnlyList<Endpoint> Endpoints => _app.Services.GetRequiredService<EndpointDataSource>().Endpoints;
 
-    /// <summary>The monolith.</summary>
+    /// <summary>Every service the API runs (<see cref="ApiServices.All"/>).</summary>
     /// <param name="cache">The cache the login policy counts on; a plain substitute when not given.</param>
     /// <param name="configure">
     /// Runs after the host's own registrations, so a test can put a real service, or an email
     /// sender, in place of a substitute.
     /// </param>
     public static Task<ApiTestHost> StartAsync(IReplicatedCache? cache = null, Action<IServiceCollection>? configure = null) =>
-        StartAsync([MonolithApi.Service], new ApiTestHostOptions { Cache = cache, Configure = configure });
+        StartAsync(ApiServices.All, new ApiTestHostOptions { Cache = cache, Configure = configure });
 
     /// <summary>The services <paramref name="services"/> names, in that order.</summary>
     public static async Task<ApiTestHost> StartAsync(IReadOnlyList<IApiService> services, ApiTestHostOptions? options = null)

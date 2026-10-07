@@ -1,10 +1,9 @@
-using Avalon.Api.Distribution;
 using Avalon.Common.Accounts;
 using Microsoft.Extensions.Caching.Memory;
 using NSubstitute;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Distribution;
+namespace Avalon.Api.Distribution.UnitTests;
 
 /// <summary>
 /// Game distribution (homelab spec 2026-09-27): which channels an account sees, and the presigned
