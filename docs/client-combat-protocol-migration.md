@@ -21,7 +21,7 @@ This document describes how the client must change to align with the server's V1
 |---|---|
 | `CCharacterAttackPacket` (`CMSG_ATTACK`, was `0x2100`) | `CCastAbilityPacket` (`CMSG_CAST_ABILITY`, `0x2101`) |
 
-The client must DELETE its emitter for `CCharacterAttackPacket`. Every attack action — including basic attack — now emits `CCastAbilityPacket` with the appropriate ability id. The old enum value `0x2100` is retired and explicitly marked as such in `NetworkPacketType.cs`; do not reuse it.
+The client must DELETE its emitter for `CCharacterAttackPacket`. Every attack action — including basic attack — now emits `CCastAbilityPacket` with the appropriate ability id. The old enum value `0x2100` is retired and deleted from `NetworkPacketType` (#697: a retired opcode is deleted outright, and its number may be reused once clients have re-vendored the schema without it).
 
 ## 3. Renamed Packets and Fields
 

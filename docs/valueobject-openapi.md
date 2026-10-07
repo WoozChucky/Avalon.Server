@@ -1,14 +1,23 @@
-# ValueObject — OpenAPI Integration
+# ValueObject — boundaries and OpenAPI
 
-With .NET 10's `Microsoft.AspNetCore.OpenApi` pipeline, `ValueObject<T>` types must be represented as their underlying scalar in the generated schema — not as wrapper objects like `{ value: 123 }`.
+`ValueObject<TPrimitive>` (in `Avalon.Common`) wraps primitives such as `AccountId`, `WorldId` and `CharacterId`.
+**Value objects live inside the server and stop at every boundary**: each edge unwraps them explicitly rather than
+relying on automatic serialization.
 
-## Transformer Pattern
+| Boundary | How |
+|---|---|
+| Database | EF `HasConversion` registrations in the three `DbContext`s |
+| Protobuf wire | packet contracts declare primitives; handlers pass `.Value` |
+| REST JSON | DTOs (`Avalon.Api.Contract`) declare primitives; mappers pass `.Value`. Enforced by `ApiContractShould` |
 
-Implement `IOpenApiSchemaTransformer` (`ValueObjectOpenapiSchemaTransformer`):
+Nothing on a value object makes it serialize as its primitive by itself: no attribute, no global converter.
+`Avalon.Common.Converters.ValueObjectJsonConverterFactory` does it, but only for a `JsonSerializerOptions` that
+registers it, and its one caller is the item-catalog export (`tools/Avalon.Exporter`), which serializes
+`ItemTemplate` entities directly. Serialized without it, a value object comes out as `{"value":42}`.
 
-- Register via `options.AddSchemaTransformer<ValueObjectOpenapiSchemaTransformer>()`
-- During transformation: detect inheritance chain for `ValueObject<>`, clear the object schema shape, copy underlying primitive semantics (enum, number, string, etc.)
+## OpenAPI
 
-This produces clean scalar schemas. Runtime JSON serialization already emits raw primitive values via `ValueObjectJsonConverterFactory`.
-
-> **Note:** Do not use legacy Swashbuckle methods (e.g., `GetOrCreateSchemaAsync`) — they are not compatible with the .NET 10 OpenAPI pipeline.
+The API registers neither that converter nor an OpenAPI schema transformer (`AvalonApiHost` says where the converter
+would go), because nothing on its surface is a value object, so the published OpenAPI document has nothing to
+flatten. If a DTO ever needs to expose one, `ApiContractShould` fails and says so: that is the signal to register the
+converter and add a schema transformer that describes the value object as its primitive, not to delete the test.

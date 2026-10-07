@@ -23,6 +23,8 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | `CacheConfiguration`        | `Avalon.Infrastructure.Configuration` | `Cache` (Auth, World); `Application:Cache` (API) | API (identity, worlds, commerce), Auth, World | `ValidateOnStart` (`Host` required) in all three hosts; in the API only in a process whose services need Redis |
 | `HostingConfiguration`      | `Avalon.Configuration`             | `Hosting` (with `Hosting:ProxyProtocol` and `Hosting:Telemetry`) | Auth, World | `ValidateOnStart` on its own properties. The nested `ProxyProtocol` is not annotation-checked: a trusted network that is not valid CIDR throws when the TCP server is built |
 | `HostingSecurity`           | `Avalon.Server.Auth.Configuration` | `Hosting:Security` | Auth | `ValidateOnStart` (`CertificatePath` required) |
+| `WorldHostingSecurity`      | `Avalon.World.GameAuth`            | `Hosting:Security` | World | `ValidateOnStart` (`CertificatePath` required: the world's TLS certificate, a current leaf with its private key, loaded before it listens) |
+| `GameAdmissionOptions`      | `Avalon.World.GameAuth`            | `World:Admission` (`ApiUrl`, `ServerId`, `ClientCertificatePath`, `ClientCertificatePassword`, `ApiCertificateSha256`; `WorldId` from `Game:WorldId`) | World | `ValidateOnStart`: a fixed HTTPS origin, a server id, the workload client certificate and the API leaf's SHA-256 pin. See [game server admission](steam-authentication-workloads.md#world-transport-and-coordinated-protocol-cutover) |
 | `AuthConfiguration`         | `Avalon.Server.Auth.Configuration` | `Application` | Auth | `ValidateOnStart` |
 | `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
 | `RegenConfiguration`        | `Avalon.World.Configuration`       | `Regen` | World | `ValidateOnStart` |
@@ -63,7 +65,6 @@ Section in `appsettings.json`: `"Application"`
 | `FailedLoginSourceWindowMinutes` | int | `15`   | The window, fixed from a source's first attempt, those are counted over |
 | `MaxFailedMfaAttempts`      | int    | `5`       | Codes one MFA hash allows; the last wrong one deletes the hash |
 | `OnlineSweepIntervalSeconds` | int  | `30`      | How often the auth server clears `Online` on accounts whose session is none of its live connections (#555) |
-| `MaxWorldSelectsPerMinute`  | int    | `10`      | World selects one auth connection may make per minute, a window fixed from its first select; the select past it closes the connection before any read (#574) |
 | `Issuer`                    | string | `"Avalon"` | Issuer name embedded in MFA OTP URIs           |
 
 The five login limits are shared with the REST API (#478): both servers spend the same Redis budgets, so
@@ -80,7 +81,6 @@ the API's `Application:Authentication` values of the same names must match these
   "FailedLoginSourceWindowMinutes": 15,
   "MaxFailedMfaAttempts": 5,
   "OnlineSweepIntervalSeconds": 30,
-  "MaxWorldSelectsPerMinute": 10,
   "Issuer": "Avalon"
 }
 ```
@@ -89,7 +89,6 @@ the API's `Application:Authentication` values of the same names must match these
 - `MinClientVersion`, `ServerVersion`: required, must match `^\d+\.\d+\.\d+$` (SemVer).
 - The five login limits: minimum `1`.
 - `OnlineSweepIntervalSeconds`: minimum `1`.
-- `MaxWorldSelectsPerMinute`: minimum `1`.
 - `Issuer`: required, non-empty.
 
 ---
@@ -125,7 +124,8 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 - `SendBufferCapacity`: minimum `10`, maximum `10000`.
 - `TcpKeepAliveTimeSeconds`, `TcpKeepAliveIntervalSeconds`: minimum `1`, maximum `32767`; `TcpKeepAliveRetryCount`: minimum `1`, maximum `127`. Checked at startup, which names the setting. An option the platform cannot set is skipped with one Warning, and the connection is still served.
 - Keepalive covers the TCP connection the server accepted. Behind a proxy that terminates TCP it covers only the proxy-to-server leg; the client-to-proxy leg needs the proxy's own keepalive or idle timeout.
-- `Security:CertificatePath` (auth server): required. `Security:CertificatePassword` is optional.
+- `Security:CertificatePath`: required on both servers (the auth server's TLS certificate, and the world server's, which
+  must be current and carry its private key). `Security:CertificatePassword` is optional.
 
 ---
 
@@ -371,9 +371,9 @@ Admin operators can use `POST /world/{id}/maintenance` with optional JSON `{"gra
 
 The public `WorldStatus` is derived: an active cutoff gives `Maintenance`; before the deadline a fresh ready heartbeat gives `Online`, and no heartbeat gives `Offline`. The world refreshes a five-second Redis heartbeat each second only while its listener is open and simulation ticks complete. The API's `WorldDto.Ready` reports that heartbeat separately from `Available`, which means the API process serving the request has that world configured and reached its databases at startup. World create and general update requests cannot set status.
 
-At enable, the world broadcasts a System chat warning. It warns again at three minutes, one minute, thirty seconds, and every second from ten through zero that falls within the grace. At zero it sends the warning before a maintenance disconnect, stops processing authenticated non-Admin packets, then runs the normal despawn and save path. Admin sessions remain connected. Auth selection, world key exchange, character select, and final spawn enforce the deadline; if the authoritative maintenance row cannot be read, a new entry is refused.
+At enable, the world broadcasts a System chat warning. It warns again at three minutes, one minute, thirty seconds, and every second from ten through zero that falls within the grace. At zero it sends the warning before a maintenance disconnect, stops processing authenticated non-Admin packets, then runs the normal despawn and save path. Admin sessions remain connected. The REST game admission (the world list it offers, a join ticket's issue and its redemption), character select, and final spawn enforce the deadline; if the authoritative maintenance row cannot be read, a new entry is refused.
 
-The client must understand `WorldSelectResult.Maintenance` and `DisconnectReason.Maintenance` from the shared wire schema and show a maintenance message for both.
+A non-Admin gets no join ticket for a world past its deadline (`WorldUnavailable`), and the auth server's world list shows that world as `Maintenance`, so the client should show a maintenance message for such a world. It must also understand `DisconnectReason.Maintenance` from the shared wire schema and show a maintenance message for it.
 
 ## World Shutdown Drain
 

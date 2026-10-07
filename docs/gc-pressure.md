@@ -1,5 +1,14 @@
 # GC Pressure & Heap Allocation Findings
 
+> **Dated review (April 2026, statuses last updated 2026-04-16).** The findings below describe the code as it was then
+> and are kept as a record. Since then: the line numbers no longer match; the client-side types it names
+> (`AvalonSession`, `AvalonTcpClient`) belong to the retired Unity client, and the packet registry types
+> (`IPacketHandler`, `IPacketRegistry`, `PacketRegistry`) are deleted; the accept path is one awaited
+> `AcceptTcpClientAsync` loop (#578, #584), not `OnClientAccepted`; every outbound queue is a bounded `Channel`
+> (`ChannelOutbox`, `TickDrivenOutbox`); entity state is the `ObjectState` message (GC-002); and GC-014's LINQ is gone:
+> `SInstanceStateRemovePacket.Create` fills a list sized to the removes (#640), so one `List<ulong>` per remove packet
+> is what remains.
+
 Findings from a full-scope static analysis of the World server — network layer, packet
 pipeline, and simulation tick loop. Issues are ordered by severity / frequency.
 Each entry tracks its current status so they can be resolved one at a time.

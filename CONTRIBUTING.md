@@ -98,7 +98,7 @@ set it once per machine (step 4 of [Local Setup](#local-setup)). Specifically:
 | Area | Path | Notes |
 |---|---|---|
 | REST API | `src/Server/Avalon.Api` | ASP.NET Core, JWT, OpenAPI |
-| Auth Server | `src/Server/Avalon.Server.Auth` | TCP login, MFA, world-key issuance |
+| Auth Server | `src/Server/Avalon.Server.Auth` | TCP login, MFA, world list |
 | World Server | `src/Server/Avalon.Server.World` | 60 Hz simulation loop |
 | Core world logic | `src/Server/Avalon.World` | Maps, entities, spells, AI scripts |
 | Shared libraries | `src/Shared/` | Domain, networking, config, metrics |
@@ -123,10 +123,10 @@ For a full architectural walkthrough see `README.md` and the documents under `do
 
 1. Define the packet contract in `src/Shared/Avalon.Network.Packets` and add a `NetworkPacketType` enum value.
 2. For **Auth**: implement `IAuthPacketHandler<TPacket>` in `src/Server/Avalon.Server.Auth/Handlers/`.
-3. For **World** (server layer): implement `IWorldPacketHandler<TPacket>` in `src/Server/Avalon.Server.World/Handlers/` and decorate with `[PacketHandler(NetworkPacketType.X)]`.
-4. For **World** (core layer): implement `WorldPacketHandler<TPacket>` in `src/Server/Avalon.World/Handlers/`.
+3. For **World**, the connection layer (admission and the version handshake): implement the generic `IWorldPacketHandler<TPacket>` in `src/Server/Avalon.Server.World/Handlers/`.
+4. For **World**, the game layer: implement `WorldPacketHandler<TPacket>` in `src/Server/Avalon.World/Handlers/`, decorate it with `[PacketHandler(NetworkPacketType.X)]`, and give the opcode a session filter entry (`MapSessionFilter` or `WorldSessionFilter`).
 
-See [networking-packet-protocol.md](networking-packet-protocol.md) for the full protocol reference.
+See [packet handlers](https://github.com/WoozChucky/Avalon.Server/blob/main/docs/packet-handlers.md) for the full rules.
 
 ### Adding a world script
 
@@ -228,7 +228,7 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
 
 ## Reporting Issues
 
-- Use [GitHub Issues](../../issues) to report bugs or request features.
+- Use [GitHub Issues](https://github.com/WoozChucky/Avalon.Server/issues) to report bugs or request features.
 - For bugs, include the component (API / Auth Server / World Server), steps to reproduce, expected vs. actual behaviour, and relevant log output.
 - Search the existing issues before opening a feature request — it may already be tracked.
 
@@ -236,4 +236,4 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
 
 ## License
 
-By contributing you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing you agree that your contributions will be licensed under the [MIT License](https://github.com/WoozChucky/Avalon.Server/blob/main/LICENSE).

@@ -1,33 +1,40 @@
 # Character Login Flow
 
-This document describes the full sequence from world-select to the player being in the world.
+This document describes the full sequence from world admission to the player being in the world. How the client gets its join ticket from the REST API is in [Auth server: World entry](auth-server.md#world-entry).
 
 ---
 
 ## Full Login Sequence
 
 ```
-Game Client              World Server                  Databases / Redis
+Game Client              World Server                  Databases / API
     │                        │                               │
-    │  TCP connect           │                               │
+    │  TLS connect           │                               │
     │───────────────────────>│                               │
-    │                        │ Validate world key            │
-    │                        │──────────────────────────────>│ GET world:key
-    │                        │<──────────────────────────────│ accountId
-    │                        │ DEL world:key                 │
-    │                        │──────────────────────────────>│
+    │  CGameAdmissionPacket  │                               │
+    │  (join ticket + key)   │ redeem the ticket, activate   │
+    │───────────────────────>│ the session (off the tick) ──>│ API /internal/game
+    │                        │<──────────────────────────────│ account, session, fence
+    │  SGameAdmissionPacket  │                               │
+    │<───────────────────────│                               │
+    │  CWorldHandshakePacket │                               │
+    │───────────────────────>│ version check                 │
+    │  SWorldHandshakePacket │                               │
+    │<───────────────────────│                               │
     │                        │                               │
     │  CCharacterListPacket  │                               │
     │───────────────────────>│                               │
-    │                        │ CharacterRepository.GetByAccountId
+    │                        │ CharacterRepository.FindByAccountAsync
     │                        │──────────────────────────────>│
     │                        │<──────────────────────────────│ List<Character>
     │  SCharacterListPacket  │                               │
     │<───────────────────────│                               │
     │                        │                               │
     │  CCharacterSelectedPacket                              │
-    │───────────────────────>│                               │
-    │                        │ CharacterRepository.FindByIdAndAccountAsync
+    │───────────────────────>│ entry gate (maintenance),     │
+    │                        │ kick the account's other      │
+    │                        │ sessions, wait for saves      │
+    │                        │ CharacterRepository.FindForGameplayAsync
     │                        │──────────────────────────────>│
     │                        │<──────────────────────────────│ Character
     │                        │                               │
@@ -41,7 +48,7 @@ Game Client              World Server                  Databases / Redis
     │  SChunkLayoutPacket    │                               │
     │<───────────────────────│                               │
     │                        │                               │
-    │                        │ CharacterRepository.UpdateAsync (still offline;
+    │                        │ CharacterRepository.UpdateForGameplayAsync (still offline;
     │                        │──────────────────────────────>│  SpawnInInstance sets Online later)
     │                        │                               │
     │                        │ CharacterInventoryRepository.GetByCharacterIdAsync
@@ -74,6 +81,9 @@ Game Client              World Server                  Databases / Redis
     │                        │<──────────────────────────────│ ignored characters
     │  SIgnoreListPacket (the whole list, empty too)          │
     │<───────────────────────│                               │
+    │                        │ CharacterAuraRepository.GetByCharacterIdAsync
+    │                        │──────────────────────────────>│
+    │                        │<──────────────────────────────│ saved auras (AuraRestore)
     │                        │                               │
     │  CCharacterLoadedPacket│                               │
     │───────────────────────>│  world.SpawnInInstance(conn)  │
@@ -103,7 +113,7 @@ Sent immediately after the character entity is built and spawned. Contains:
 | `MapId`            | `character.Map`                         |
 | `InstanceId`       | See [Instance ID section](#instance-id) |
 
-Immediately after `SCharacterSelectedPacket`, the server emits `SChunkLayoutPacket` carrying the chunk layout (chunks, entry spawn, cell size, portal placements). The client's `AuthFlowOrchestrator` pre-subscribes to this packet BEFORE sending `CCharacterSelected` so the dispatcher's fire-and-forget delivery doesn't drop it during the scene-load gap; the captured packet stashes on `GameSession.InitialChunkLayout` for the in-scene `PlayerMovementPredictor` / `ClientMapNavigator` / `ChunkLayoutVisualizer` / `ChunkMarkerVisualizer` to consume on `Start`. See **[Map Generation](map-generation.md)** for the full layout pipeline.
+Immediately after `SCharacterSelectedPacket`, in the same continuation, the server sends `SChunkLayoutPacket` carrying the chunk layout (chunks, entry spawn, cell size, portal placements). A client must be ready for it as soon as it sends `CMSG_CHARACTER_SELECTED`, since it can arrive while the client is still loading the scene; the client composes the map and bakes its navmesh from it. See **[Map Generation](map-generation.md)** for the full layout pipeline.
 
 Selecting a character does not put it in the world. The entity is held out of its instance until
 the client sends `CMSG_CHARACTER_LOADED`, or until the wait expires. See
@@ -131,9 +141,8 @@ sent. `OnItemInstancesReceived` correlates the two results (`InventoryAssembler`
 (logged as a warning either way — a bad row must not corrupt or oversize a container). The result
 loads all three containers: `entity[InventoryType.Equipment]`, `.Bag`, and `.Bank`.
 
-The bank is loaded into its container but **never sent** — opening it is a separate interaction
-the client does not yet have, so telling it about items it cannot show would leave it with nothing
-useful to do with that information.
+The bank is loaded into its container but **not sent** at login: its slots reach the client only
+while the bank is open at a banker ([inventory and saves](inventory-and-saves.md)).
 
 ### `SInventorySnapshotPacket`
 
@@ -201,8 +210,8 @@ public class InventorySlotUpdateDto
 }
 ```
 
-Several changes to one slot within a tick arrive as that slot's final value. Bank slots are never
-sent.
+Several changes to one slot within a tick arrive as that slot's final value. Bank slots are sent
+only while the bank is open.
 
 ---
 
@@ -223,15 +232,24 @@ unless the connection is closed instead.
   in case is `NameAlreadyExists` (1). Every lookup by name (`/w`, `/invite`, `/kick`, `/promote`,
   `/ignore`, `/unignore`) finds the character whatever case is typed.
 - **Answer order:** the checks run in this order, and the first that fails answers:
-  1. not logged in to the world, or a character selected, being selected or leaving: the
-     connection is closed, with no answer;
+  1. not logged in to the world, a character selected, being selected or leaving, or the
+     connection closing: the connection is closed, with no answer;
   2. a gender the enum does not define: `InvalidClass` (4);
   3. the name rule: `NameTooShort` (2), `NameTooLong` (3) or `NameInvalid` (8);
-  4. the account already holds the maximum number of characters: `MaxCharactersReached` (5);
-  5. a character already has the name, in any case: `NameAlreadyExists` (1);
-  6. the class has no creation data or no level 1 stats: `InternalDatabaseError` (7);
-  7. another create took the name between step 5 and the insert: `NameAlreadyExists` (1);
-  8. `Success` (0) once the character, its stats, abilities and starting items are written.
+  4. no gameplay authority for the connection's account (no admitted session): the connection is
+     closed, with no answer;
+  5. the class has no creation data or no level 1 stats: `InternalDatabaseError` (7);
+  6. then one transaction under the account's gameplay guard
+     (`ICharacterRepository.CreateForGameplayAsync`): the account already holds the maximum number of
+     characters, `MaxCharactersReached` (5);
+  7. a character already has the name, in any case (the unique index on the name key refuses the
+     insert, whoever created it first): `NameAlreadyExists` (1);
+  8. `Success` (0) once the character, its stats, abilities, starting items and their Bag slots are
+     written, all in that transaction.
+
+  Any other failure is `InternalDatabaseError` (7). A write the account's gameplay guard refuses (the
+  session was replaced, or its lease ran out) is answered `InternalDatabaseError` too, and the
+  connection is closed.
 - **Other results:** `AlreadyInGame` (6) is defined but not sent today (a create while a character
   is selected closes the connection, step 1). `SCharacterCreateResult` is append-only.
 - **Renames through the REST API** (`PATCH /world/{worldId}/character/{id}`, `name`, owner or admin)
@@ -301,59 +319,29 @@ Game Client                      World Server                         Character 
 
 ## Instance ID
 
-All characters entering the default open world share one well-known instance GUID derived from the `WorldId`:
-
-```csharp
-// Deterministic GUID from WorldId
-private static Guid GetMainWorldInstanceId(WorldId worldId)
-    => new Guid(worldId.ToString("N").PadLeft(32, '0'));
-```
-
-Set in `OnCharacterReceived` using `IInstanceRegistry.GetOrCreateTownInstance` — see [instanced-maps.md](instanced-maps.md) for the full instance routing design.
-
-### Instanced Content (future)
-
-When instanced zones are introduced, `IInstanceRegistry.GetOrCreateNormalInstance` handles private per-player instances with a 15-minute re-entry window.
+Every `MapInstance` has its own `InstanceId`, a random GUID (`Guid.NewGuid()`), sent in `MapInfo.InstanceId` and
+`SChunkLayoutPacket`. Login always lands in a town: the select resolves the character's town (walking a non-town
+map back to its town) and joins the town's one shared, persistent instance
+(`IInstanceRegistry.GetOrCreateTownInstanceAsync`), so every character in that town shares its id. Normal maps are
+entered later through portals, into a per-character instance (`GetOrCreateNormalInstanceAsync`, with a 15-minute
+re-entry window) or the party's ([instanced maps](instanced-maps.md)).
 
 ---
 
-## Movement Validation
+## Movement
 
-`CharacterMovementHandler` computes an interpolated server position and compares it to the client-reported position. A warning is logged if the distance difference exceeds `MaxDistanceDiffCheck (1.0f)`. The client position is always accepted.
-
-### Planned Authoritative Validation
-
-```
-Client sends CPlayerMovementPacket
-  │
-  ├── Compute interpolatedPosition (existing)
-  ├── Raycast from current position to clientSentPosition via IChunkNavigator
-  │   ├── Navmesh allows path → accept client position
-  │   └── Navmesh blocks path (collision)
-  │         ├── Log anti-cheat event
-  │         ├── connection.Character.Position = last valid server position
-  │         └── Send SPositionCorrectionPacket (corrected position back to client)
-  │
-  └── If differenceDistances >= MaxDistanceDiffCheck (speed hack)
-        ├── Log + send correction
-        └── Increment per-connection rejection counter
-              └── N consecutive rejections → flag / disconnect
-```
-
-### `SPositionCorrectionPacket`
-
-| Field       | Type    | Description                          |
-|-------------|---------|--------------------------------------|
-| `X`         | `float` | Server-authoritative X position      |
-| `Y`         | `float` | Server-authoritative Y position      |
-| `Z`         | `float` | Server-authoritative Z position      |
-| `Timestamp` | `long`  | Server tick time for client reconciliation |
+Movement is server-authoritative. The client sends its input (`CPlayerInputPacket`: a sequence number, a direction
+and a yaw); `PlayerInputHandler` drops input from a dead character and any sequence at or below the last one handled,
+clamps the direction to unit length, steps the character at its movement speed for one tick, stops the step at walls
+with the instance navmesh's `RaycastWalkable`, snaps it to the ground with `SampleGroundHeight`, and answers
+`SPlayerStateAckPacket` with the authoritative position, velocity and yaw, tagged with the sequence it handled. The
+client predicts from its own copy of the navmesh and reconciles against the acknowledgement.
 
 ---
 
 ## Maintenance Admission
 
-The Auth server lists each world with a derived status. During the scheduled countdown, a ready world remains `Online` and non-Admins may still select and enter it. At the stored UTC deadline, its status becomes `Maintenance` and a non-Admin selecting it receives `WorldSelectResult.Maintenance`; a world without a fresh ready heartbeat returns `WorldUnavailable`. The world rechecks the persisted maintenance row at key exchange, before character selection, and before releasing a pending spawn. These decisions expire after at most five seconds and, for players, no later than the deadline. This also covers a connection returned to character selection by the leave flow. Admins may enter a ready world after the deadline. A failed authoritative read refuses new entry.
+The auth server's world list shows each world with a derived status. During the scheduled countdown, a ready world remains `Online` and non-Admins may still get a join ticket and enter it. At the stored UTC deadline its status becomes `Maintenance`, and the REST game admission neither lists it nor issues a join ticket for it to a non-Admin; a world without a fresh ready heartbeat is not offered to anyone (a join ticket request answers `WorldUnavailable`). The ticket's redemption checks the same again, and the world rechecks the persisted maintenance row before character selection and before releasing a pending spawn. These decisions expire after at most five seconds and, for players, no later than the deadline. This also covers a connection returned to character selection by the leave flow. Admins may enter a ready world after the deadline. A failed authoritative read refuses new entry.
 
 Players already in-game receive System chat countdown warnings at enable, three minutes, one minute, thirty seconds, and each second from ten to zero. At zero the world stops dispatching queued and new packets from authenticated non-Admins, sends `DisconnectReason.Maintenance`, closes their connections, and completes the usual despawn and save. The process and its listener remain up for Admin verification. Disabling maintenance during the countdown cancels it.
 
@@ -365,21 +353,15 @@ Players already in-game receive System chat countdown warnings at enable, three 
 |--------------------------------------------------------|------|
 | Two characters same world → same `InstanceId`         | see [instanced-maps.md](instanced-maps.md) |
 | 2 equipment + 3 bag items → `SInventorySnapshotPacket` carries exactly 5, bank excluded, every field (`Container`, `Slot`, `ItemTemplateId`, `ItemInstanceId`, `Count`, `Durability`, `Flags`) asserted on at least one slot | `CharacterSelectHandlerShould.Send_Equipment_And_Bag_Items_In_The_Snapshot_But_Not_The_Bank` |
-| Empty inventory → packet still sent, `Items` empty (`null` on the wire, per protobuf-net's empty-repeated-field encoding) | `CharacterSelectHandlerShould.Send_An_Empty_Snapshot_When_The_Character_Has_No_Items` |
-| The character's `Money` crosses in the snapshot | `CharacterSelectHandlerShould.Send_The_Characters_Money_In_The_Snapshot` |
+| Empty inventory → packet still sent, carrying the character's `Money`, `Items` empty (`null` on the wire, per protobuf-net's empty-repeated-field encoding) | `CharacterSelectHandlerShould.Send_the_money_in_the_snapshot_even_with_no_items` |
 | Several changes to one slot in a tick → one `SInventoryUpdatePacket` entry at the final value; emptied slot → no `Item`; `Money` only when it changed; nothing sent when nothing changed | `InventoryUpdateFlusherShould` |
 | The tick drains a character's inventory changes | `WorldServerBarrierTickShould.Send_a_characters_inventory_changes_on_the_tick_they_were_made` |
 | Equipment, bag and bank all load into their own containers via the real select chain (`Load()`, not the packet) | `CharacterSelectChainShould.Load_Equipment_Bag_And_Bank_Into_Their_Containers` |
 | Orphan row (no matching `ItemInstance`) → skipped, remaining items unaffected | `InventoryAssemblerShould.Skip_A_Row_Whose_Instance_Is_Missing` |
 | Slot `>= MaxSlots` → dropped on `Load`, container size unaffected | `CharacterInventoryContainerShould.Refuse_A_Slot_Beyond_Its_Capacity` |
-| Container round trip: `Load` then `Items`/`TryGet` returns what went in | `CharacterInventoryContainerShould.Return_What_It_Was_Loaded_With` |
+| `Load` replaces a container's whole contents; `Items`/`TryGet` return what went in | `CharacterInventoryContainerShould.Replace_Its_Whole_Contents_On_Reload` |
 | Change Character: leave, answered `Left` only after the logout save commits, then list and select another character on the same connection | `CharacterLeaveShould.Leave_answer_Left_after_the_logout_save_then_list_and_select_on_the_same_connection` |
 | A select of the leaving character from another session waits for the logout save | `CharacterLeaveShould.Hold_a_reselect_of_the_same_character_until_the_logout_save_commits` |
 | Every leave result, and a failed save closing with `CharacterSaveFailed` | `CharacterLeaveHandlerShould`, `CharacterLeaveShould` |
 | In-map packets before a leave run first; those behind it are dropped | `CharacterLeaveQueueShould` |
-| Valid navmesh movement → client position accepted      |      |
-| Movement through wall → correction packet sent         |      |
-| `N` consecutive rejections → connection flagged        |      |
-
-The last three rows describe the **planned** authoritative movement validation above and are not
-yet implemented or tested; `CharacterMovementHandler` currently always accepts the client position.
+| Input stepped on the server, stopped at walls, acknowledged; dead or stale input dropped | `PlayerInputHandlerShould` |

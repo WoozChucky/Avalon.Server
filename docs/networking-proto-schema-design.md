@@ -1,5 +1,12 @@
 # Wire Schema as `.proto` — Design Spec
 
+> **Dated design note (2026-09-10), since implemented.** The wire schema is generated from the packet types by
+> `tools/Avalon.Exporter` (`proto`, `opcodes`, `corpus`; [tooling](tooling.md)) into `schema/`, and `WireSchemaShould`
+> fails when it is stale. Entity state is the `ObjectState` message, written by `ObjectStateWriter`; the
+> `WorldObjectWriter` and `WorldObjectReader` named below are gone. The Unity client is retired, and the game client
+> (the C++ engine, repository Avalon.Client) vendors the schema. Line references and measurements below are as they
+> were on that date.
+
 **Date:** 2026-09-10
 **Status:** Approved (awaiting plan). Branch target: `feat/proto-wire-schema`.
 **Scope:** making a generated `.proto` the shared definition of the wire protocol, and replacing the entity-field blob that a schema cannot describe.

@@ -1,100 +1,74 @@
 # Security — Session & Authentication Management
 
-This document covers the authentication pipeline, world session security, and MFA flow for the Avalon server.
+This document covers the authentication pipeline, how world entry is secured, and the MFA flow for the Avalon server.
 
 ---
 
 ## Authentication Flow
 
 ```
-Game Client          Auth Server                Redis               World Server
-    |                    |                         |                     |
-    | CRequestServerInfo |                         |                     |
-    |------------------>|                         |                     |
-    |  SServerInfoPacket |                         |                     |
-    | (version + pubkey) |                         |                     |
-    |<------------------|                         |                     |
-    |                    |                         |                     |
-    |   CAuthPacket      |                         |                     |
-    | (user + encrypted  |                         |                     |
-    |   password)        |                         |                     |
-    |------------------>|                         |                     |
-    |                    | BCrypt.Verify           |                     |
-    |                    |-------+                 |                     |
-    |                    |       |                 |                     |
-    |                    | [MFA enabled?]          |                     |
-    |                    | --- Yes: ephemeral hash |                     |
-    |                    |-------->SetAsync(hash)  |                     |
-    |  SAuthResultPacket |                         |                     |
-    |  (MFA_REQUIRED)    |                         |                     |
-    |<------------------|                         |                     |
-    |  CMFAVerifyPacket  |                         |                     |
-    |------------------>|                         |                     |
-    |                    | GetAsync(hash)          |                     |
-    |                    |<------------------------|                     |
-    |                    | ValidateOTP             |                     |
-    |                    |------+                  |                     |
-    |  SAuthResultPacket |      |                  |                     |
-    |  (OK + world list) |                         |                     |
-    |<------------------|                         |                     |
-    |                    |                         |                     |
-    |  CWorldSelectPacket|                         |                     |
-    |------------------>|                         |                     |
-    |                    | CSPRNG 32-byte key      |                     |
-    |                    | SetAsync(world:key, ...) |                    |
-    |                    |----------------------->|                     |
-    |                    | Publish(world:select)   |                     |
-    |                    |----------------------->|-------------------->|
-    |  SWorldSelectPacket|                         |                     |
-    |  (world key)       |                         |                     |
-    |<------------------|                         |                     |
-    |                    |          Game Client connects to World Server |
+Game Client                Auth Server                          Redis
+    |                          |                                  |
+    | CRequestServerInfoPacket |                                  |
+    |------------------------->| version check                    |
+    | SServerInfoPacket        |                                  |
+    | (version + public key)   |                                  |
+    |<-------------------------|                                  |
+    | CClientInfoPacket        |                                  |
+    | (client public key)      |                                  |
+    |------------------------->| session crypto                   |
+    | SHandshakePacket         |                                  |
+    |<-------------------------|                                  |
+    | CHandshakePacket         |                                  |
+    |------------------------->| handshake data checked           |
+    | SHandshakeResultPacket   |                                  |
+    |<-------------------------|                                  |
+    | CAuthPacket              |                                  |
+    | (user + password)        |                                  |
+    |------------------------->| source and username budgets      |
+    |                          |--------------------------------->|
+    |                          | BCrypt verify, status            |
+    |                          | [MFA confirmed?]                 |
+    |                          | --- yes: ephemeral hash          |
+    |                          |--------------------------------->|
+    | SAuthResultPacket        |                                  |
+    | (MFA_REQUIRED + hash)    |                                  |
+    |<-------------------------|                                  |
+    | CMFAVerifyPacket         |                                  |
+    | (hash + code)            |                                  |
+    |------------------------->| attempt count, TOTP, spend hash  |
+    |                          |--------------------------------->|
+    | SAuthResultPacket        |                                  |
+    | (SUCCESS + account id)   |                                  |
+    |<-------------------------|                                  |
+    | CWorldListPacket         |                                  |
+    |------------------------->| PostLoginGuard, readiness        |
+    | SWorldListPacket         |                                  |
+    |<-------------------------|                                  |
 ```
+
+An account without confirmed MFA gets `SUCCESS` straight from `CAuthPacket`. The auth server's part ends there: world
+entry is the REST game admission, below.
 
 ---
 
-## World Key Security
+## World Entry
 
-World keys are generated using `RandomNumberGenerator.GetBytes(32)` (OS CSPRNG). The previous `System.Random` implementation has been replaced.
+The auth server no longer issues world keys. The TCP world select, the world-key exchange and the `SETNX` duplicate
+session mutex were replaced by the TLS join-ticket admission of the REST API's identity service, which also replaced
+their guarantees:
 
-```csharp
-byte[] worldKey = RandomNumberGenerator.GetBytes(32); // System.Security.Cryptography
-```
+- **One-time, short-lived entry.** A join ticket (`POST /game/join-tickets`) is a random token kept in Redis only as
+  its digest, bound to the game context, the world, the character and the world server, valid for at most 30 seconds
+  and redeemed once, by the world server it names, over that server's mutually authenticated workload connection.
+- **One session per account.** Redeeming a ticket reserves the account's game session with a fencing token; a live
+  session elsewhere refuses a new ticket (`ActiveGameSession`) unless the client confirms the takeover, and every
+  character save checks the fence, so a replaced session can no longer write.
+- **Current access.** Issue and redemption both re-read the account (Active, unlocked, at the context's credentials
+  version), the world's access level and maintenance cutoff, and the world's readiness.
 
-`RandomNumberGenerator.GetBytes` is backed by the OS CSPRNG and produces cryptographically unpredictable values regardless of timing.
-
-### Key Lifecycle
-
-| Phase              | Action                                                                      |
-|--------------------|-----------------------------------------------------------------------------|
-| Issued             | Auth server writes `world:{worldId}:keys:{base64Key}` → `accountId` in Redis, TTL 5 min |
-| Consumed           | World server validates key on first connect, deletes the Redis entry         |
-| Expired            | TTL expiry automatically invalidates unclaimed keys                          |
-| Logout / Crash     | World server publishes `world:accounts:disconnect`; Auth server clears state |
-
----
-
-## Duplicate World Session Guard
-
-`CWorldSelectHandler` uses a Redis `SETNX` mutex to prevent an account from obtaining two in-flight world keys simultaneously:
-
-```
-SETNX account:{id}:inWorld 1 EX 300
-```
-
-If `SETNX` returns `0` (key exists), the request is rejected. The flag is cleared when the World server accepts the connection or expires after 5 minutes.
-
-### Flow
-
-```
-CWorldSelectHandler.ExecuteAsync
-  1. SETNX account:{id}:inWorld 1 EX 300
-     └─ Returns 0 → send error and return
-  2. Generate world key (CSPRNG)
-  3. SET world:{worldId}:keys:{key} {accountId} EX 300
-  4. Publish world:{worldId}:select
-  5. Send SWorldSelectPacket to client
-```
+[Auth server: World entry](auth-server.md#world-entry) has the client's steps, and
+[game server admission](steam-authentication-workloads.md) the session lease, heartbeat and save fencing.
 
 ---
 
@@ -134,8 +108,7 @@ Client               Auth Server           Redis
 - Ephemeral hash TTL: 2 minutes.
 - The hash is single-use, and the delete decides who used it (#478): once a right code's step is
   accepted, it spends the hash with `IMFAHashService.TryConsumeAsync`, and only the caller whose `DEL`
-  removed the reverse key goes on, as the world key's exchange does (#450). Two verifies sent together
-  with one hash can no longer both win.
+  removed the reverse key goes on. Two verifies sent together with one hash can no longer both win.
 - The step is accepted before the hash is spent, so a replayed code (right, but already used) is refused
   without spending the hash, and the owner's own code can still finish the login. A replay, and a right
   code that lost the hash to another verify, are not failed logins: their budget slots come back and the
@@ -259,7 +232,7 @@ The access JWT in use is not revoked by any of these; it lives out its `AccessTo
 
 The API never writes back an account row it read (#478, as the Auth server since #484). A login and an MFA
 verify write `TryRecordApiLoginAsync`, a password change `AccountRepository.SetPasswordAsync`, an email
-change `SetEmailAsync`, a role change `SetAccessLevelAsync`: each an `ExecuteUpdate` of its own columns, so a
+change `SetConfirmedEmailAsync`, a role change `SetAccessLevelAsync`: each an `ExecuteUpdate` of its own columns, so a
 ban or a lock written between the read and the write survives.
 
 ### JWT Signing Key
@@ -277,7 +250,7 @@ the API refuses to start, with an error naming the setting, when the key is:
 - the value that used to be committed to `appsettings.json`, which is public.
 
 The key never appears in logs. Changing it invalidates every access token already issued; clients get a 401
-and refresh. Setup commands: README "Running Locally", CONTRIBUTING "Local Setup".
+and refresh. Setup commands: [Development setup](development-setup.md#rest-api-signing-key).
 
 ---
 
@@ -285,10 +258,8 @@ and refresh. Setup commands: README "Running Locally", CONTRIBUTING "Local Setup
 
 | Scenario                                             | Expected Result              |
 |------------------------------------------------------|------------------------------|
-| World key from `RandomNumberGenerator`               | Unpredictable 32-byte key    |
-| Two rapid world-selects for the same account         | Second request rejected      |
 | Account with confirmed MFA                           | `MFA_REQUIRED` response      |
-| Account without MFA                                  | `OK` + world list            |
+| Account without MFA                                  | `SUCCESS`                    |
 | Correct TOTP submitted                               | Auth success                 |
 | Incorrect TOTP submitted                             | Auth fail                    |
 | Expired MFA hash                                     | Auth fail                    |

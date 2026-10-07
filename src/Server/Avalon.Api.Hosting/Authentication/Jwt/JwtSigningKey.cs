@@ -29,7 +29,8 @@ public static class JwtSigningKey
     private static readonly string s_howToSet =
         $"Set {SettingName} to a random value of at least {MinimumBytes} bytes: in development run " +
         $"`dotnet user-secrets set \"{SettingName}\" \"<key>\" --project src/Server/Avalon.Api`, " +
-        $"elsewhere set the environment variable {EnvironmentVariableName}. See CLAUDE.md, \"REST API signing key\".";
+        $"elsewhere set the environment variable {EnvironmentVariableName}. " +
+        "See docs/development-setup.md, \"REST API signing key\".";
 
     /// <summary>
     /// The signing key for <paramref name="config"/>, or an <see cref="InvalidOperationException"/>

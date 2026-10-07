@@ -86,7 +86,7 @@ silent case.
 1. **Dead**: the caster is dead.
 2. **AlreadyCasting**: a cast-time cast is still in progress (#521 item 4).
 3. **Gcd**: the global cooldown (`CombatConfig.GcdMs`, default 200 ms) since the last cast start has
-   not run out; the answer carries the time left, rounded up.
+   not run out, measured on the container's `TimeProvider` (#793); the answer carries the time left, rounded up.
 4. **NotOwned**: the caster does not hold the skill.
 5. **Cooldown**: the skill's own cooldown is running; the answer carries the time left, rounded up.
 6. **RequiresOutOfCombat** / **RequiresInCombat**: the skill's combat flags.
@@ -157,7 +157,7 @@ refused: its cost and cooldown are spent all the same.
   on each hostile unit, with the usual threat, encounter, combat tag, death and invulnerable rules.
   Each unit's hit resolves on its own (#506): `EffectValue + ScalingCoefficient x stat +
   BaseDamageCoefficient x base damage roll`, then the unit's dodge, the caster's crit, the unit's block and
-  its armour, floored with a minimum of 1 (0 on a dodge). See CLAUDE.md's combat-formula bullet.
+  its armour, floored with a minimum of 1 (0 on a dodge). See "Combat reads the derived stats" in [World simulation](world-simulation.md).
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
   `min(Health, CurrentHealth + heal)`, the heal being the same base as damage and then a crit roll,
   never dodged, blocked or reduced by armour (#506). It never lowers health (a unit at or above its maximum

@@ -76,6 +76,7 @@ nav:
     - Auth Server: auth-server.md
     - Security & Sessions: security-session-management.md
     - Redis Cache Keys: redis-cache-keys.md
+    - Email Verification: email-verification.md
     - Steam Authentication: steam-authentication.md
     - Steam Workloads: steam-authentication-workloads.md
     - Steam Account Links: steam-account-links.md

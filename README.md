@@ -9,7 +9,7 @@ telemetry, and extensibility frameworks.
 Avalon is split into bounded components that can scale and evolve independently:
 
 - Public REST API (account + meta operations)
-- Real‑time Auth server (login / token / world selection)
+- Real‑time Auth server (login, MFA, world list; world entry is the REST game admission)
 - Real‑time World server (simulation, state replication, gameplay logic)
 - Shared foundational libraries (domain model, networking, value objects, metrics, configuration)
 - Infrastructure services (Redis, Postgres)
@@ -82,11 +82,11 @@ JWT issuance and validation, MFA (Otp.NET) with Redis-backed ephemeral secrets, 
 
 ### Networking
 
-Custom TCP layer (`Avalon.Network.Tcp`) with Protobuf-net serialization and reflection-based packet handler registration. Auth and World servers share packet abstractions via `Avalon.Network.Packets`. See → [Networking — Packet Protocol](docs/networking-packet-protocol.md)
+Custom TCP layer inside TLS (`Avalon.Hosting/Networking`: `ServerBase`, `Connection`) with Protobuf-net serialization and reflection-based packet handler registration. Auth and World servers share packet abstractions via `Avalon.Network.Packets`. See → [Networking — Packet Protocol](docs/networking-packet-protocol.md)
 
 ### Caching & Pub/Sub
 
-Redis (via `IReplicatedCache`) manages ephemeral session keys, MFA secrets, world exchange tokens, and cross-service pub/sub events. See → [Redis Cache Keys](docs/redis-cache-keys.md)
+Redis (via `IReplicatedCache`) holds the login budgets, MFA state, launcher codes, game tickets and join tickets, world readiness and presence, and carries cross-service pub/sub events. See → [Redis Cache Keys](docs/redis-cache-keys.md)
 
 ### Persistence
 
@@ -197,9 +197,9 @@ Use to regress-check simulation hot paths.
 
 | Document | Description |
 |---|---|
-| [Networking — Packet Protocol](docs/networking-packet-protocol.md) | Header fields, auth lifecycle, world handoff, Redis patterns, failure modes |
+| [Networking — Packet Protocol](docs/networking-packet-protocol.md) | Header fields, auth lifecycle, world admission, Redis patterns, failure modes |
 | [Networking — Graceful Shutdown](docs/networking-graceful-shutdown.md) | Connection lifecycle, `SDisconnectPacket` schema, shutdown sequences |
-| [Security — Session Management](docs/security-session-management.md) | Auth flow, world key CSPRNG, bearer token validation, duplicate session guard |
+| [Security — Session Management](docs/security-session-management.md) | Auth flow, world entry through join tickets, MFA, REST API authentication |
 | [Architecture — Startup Flow](docs/architecture-startup-flow.md) | Bootstrap sequence for API, Auth Server, and World Server |
 | [Map Generation](docs/map-generation.md) | Chunk authoring, town + procedural pipelines, end-to-end Unity → bake → playable, troubleshooting |
 | [Instanced Map System](docs/instanced-maps.md) | Instance lifecycle: town routing, normal map re-entry, expiry, transitions, logout |
@@ -208,10 +208,10 @@ Use to regress-check simulation hot paths.
 | [Redis Cache Keys](docs/redis-cache-keys.md) | All Redis key patterns and pub/sub channels: purpose, TTL, writer/consumer |
 | [Spell System](docs/spell-system.md) | Spell lifecycle, power cost deduction, AoE targeting, creature spell support |
 | [Creature System](docs/creature-system.md) | Creature lifecycle, AI scripting, XP rewards, respawn/remove timers |
-| [Character Login Flow](docs/character-login-flow.md) | World-select → spawn sequence, inventory on login, instance ID design |
+| [Character Login Flow](docs/character-login-flow.md) | World admission → spawn sequence, inventory on login, instance IDs, movement |
 | [Architecture Decisions](docs/architecture-decisions.md) | ADRs: World/Auth DB decoupling, chat command handler pattern, specializations |
 
-Pending work is tracked in [GitHub Issues](../../issues).
+Pending work is tracked in [GitHub Issues](https://github.com/WoozChucky/Avalon.Server/issues).
 
 ## Roadmap
 

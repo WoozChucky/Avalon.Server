@@ -20,9 +20,13 @@ This document records significant architectural decisions, their rationale, and 
 
 ### Root Cause
 
-`IAccountRepository` (Auth) is used in the World server for:
-1. Reading account online status on character selection.
-2. Setting `account.Online = false` on disconnect.
+The World server reads the auth database; it no longer writes it (world entry and the game session come from the
+REST game admission, not from the database). It reads:
+1. the account's locale at character select (`IAccountRepository`, in `CharacterSelectHandler`);
+2. the account's access level, for the maintenance entry gate (`WorldEntryGate`);
+3. the world's maintenance row (`IWorldMaintenanceRepository`).
+
+The table below predates the game admission: the `Online` writes it lists are gone, so only the reads remain to move.
 
 ### Decision
 
@@ -38,7 +42,7 @@ The Auth server remains the **sole writer** of `AuthDbContext`. It listens on Re
 
 ### Migration Path
 
-1. Auth server: on successful auth, write `account:{id}:session` JSON (containing `AccountId`, `WorldId`, `LoginTime`) to Redis.
+1. Auth server: on successful auth, write `account:{id}:session` JSON (containing the account id, the world id and the login time) to Redis.
 2. World server: read Redis for session validation; no `AuthDbContext`.
 3. Auth server: subscribe to `world:characters:disconnect` and clear DB online state.
 4. Remove `AddAuthDatabase()` from World DI.
@@ -100,29 +104,17 @@ services.AddSingleton<ICommand, InviteCommand>();
 
 ## ADR-003 — World Timer Constants
 
-**Status:** Planned
+**Status:** Obsolete
 
-### Context
-
-`World.cs` defines `WorldTimersCount = 5` and only names `HotReloadTimer = 0`. Timers 1–4 are either unnamed or unused.
-
-### Decision
-
-Audit and name all timers. If fewer than 5 are used, reduce `WorldTimersCount`.
-
-```csharp
-private const ushort WorldTimersCount  = 2; // adjust after audit
-private const ushort HotReloadTimer    = 0;
-private const ushort WorldSaveTimer    = 1; // periodic state persistence (if used)
-```
-
-All `_timers[N]` accesses must use the named constant. This is primarily a code clarity change with no runtime behaviour impact.
+`World` no longer keeps an array of timers to name: the AI script hot reload, the one timer in use, is its own
+`IntervalTimer`, polled every `Game:ScriptHotReloadIntervalSeconds`.
 
 ---
 
 ## ADR-004 — `CharacterSpell` Specializations
 
-**Status:** Design decision pending
+**Status:** Design decision pending. Spells are abilities since #163 (`CharacterAbility`, `AbilityTemplate`,
+`AbilityScript`); the names below are the original proposal's, and none of its types exists yet.
 
 ### Context
 
@@ -258,12 +250,12 @@ The details, the route table and the deployment are in [API services](api-servic
 ┌───────────────────────────────────────────────────────────────────────┐
 │                         Game Client                                    │
 └──────────────────────────────┬────────────────────────────────────────┘
-                               │ TCP (custom packet protocol)
+                               │ TCP + TLS (custom packet protocol)
           ┌────────────────────┼───────────────────────┐
           ▼                    │                        ▼
 ┌─────────────────┐            │             ┌──────────────────────┐
 │  Auth Server    │◄───────────┘             │    World Server      │
-│ (ticket issuer) │  ──── Redis pub/sub ────►│ (simulation engine)  │
+│ (login, worlds) │  ──── Redis pub/sub ────►│ (simulation engine)  │
 │                 │  ◄─── Redis pub/sub ────  │                      │
 └────────┬────────┘                          └──────────┬───────────┘
          │ EF Core                                      │ EF Core
@@ -283,4 +275,7 @@ The details, the route table and the deployment are in [API services](api-servic
                 Both databases + Redis
 ```
 
-> The World server currently has a direct coupling to `AuthDbContext` (via `AddAuthDatabase()`). ADR-001 describes the plan to replace this with Redis-only communication.
+> The game client also calls the REST API's identity service for its game context and join tickets, and the World
+> server redeems those tickets and renews its game sessions there over mutual TLS
+> ([game server admission](steam-authentication-workloads.md)). The World server still has a direct coupling to
+> `AuthDbContext` (via `AddAuthDatabase()`). ADR-001 describes the plan to replace this with Redis-only communication.

@@ -5,7 +5,7 @@
 
 This is the client contract for auras. The wire schema is `schema/avalon.proto` (re-exported with
 `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]` numbers in it. Server-side rules are
-described in `CLAUDE.md` under "Auras".
+described in [Auras (server design)](auras.md).
 
 ## 1. What an aura is
 

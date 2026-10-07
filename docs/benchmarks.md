@@ -450,7 +450,7 @@ allocation does not appear in steady-state measurements.
 - **Medium packet: 600 B → 256 B (57% less allocation, 11% faster)** — `SChatMessagePacket`
   (two `ulong`s, two `string`s, `DateTime`, ~70 bytes serialized). The MemoryStream buffer grows
   to hold the larger payload, so the absolute saving scales with packet size.
-- **Gen0 rate halved** — `Gen0` drops from 0.0117 to 0.0076 (small) and 0.0381 to 0.0162
+- **Gen0 rate halved** — Gen0 drops from 0.0117 to 0.0076 (small) and 0.0381 to 0.0162
   (medium). Fewer Gen0 collections means less STW pause time during state broadcasts.
 - **Speed improvement is a side effect, not the goal** — the primary win is GC pressure.
   The pooled path is also faster because `ArrayPool` and span operations have better cache
@@ -776,7 +776,7 @@ await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _stoppingToken.To
 
 - **39% faster** — 39.90 ns → 24.50 ns (Ratio = 0.61). `MethodInfo.Invoke` carries measurable overhead even on a pre-reflected, warm cache; a single virtual dispatch via an interface is significantly cheaper for the JIT to schedule.
 - **50% less allocation** — 128 B → 64 B per dispatch. The 64 B eliminated is the `new object[2]` args array and the boxed `CancellationToken` that `MethodInfo.Invoke` required on every call.
-- **Gen0 rate halved** — `Gen0` drops from 0.0081 to 0.0041 per 1 000 operations. Fewer Gen0 collections means less STW pause time during packet processing.
+- **Gen0 rate halved** — Gen0 drops from 0.0081 to 0.0041 per 1 000 operations. Fewer Gen0 collections means less STW pause time during packet processing.
 - **At dispatch scale** — at 50 players × 10 packets/s = 500 `CallListener` dispatches/s, the legacy path allocates ~64 KB/s of short-lived Gen0 objects from this site alone. The DIM path reduces that to ~32 KB/s, a saving of ~32 KB/s.
 - **Dead code removed** — `IPacketHandler`/`IPacketRegistry`/`PacketRegistry`/`AvalonTcpClient` (all unreferenced in production) deleted alongside the fix, reducing build surface and eliminating dead maintenance burden.
 

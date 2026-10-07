@@ -15,7 +15,7 @@ For a project overview, see the [README](https://github.com/WoozChucky/Avalon.Se
 | Component | Role |
 |---|---|
 | **REST API** | HTTPS/JWT accounts, MFA, tokens, client auth and game admission, commerce, world content administration, public tooltips; OpenAPI. Four services from one binary ([API Services](api-services.md)) |
-| **Auth Server** | TCP login flow, MFA, world list and select, world-key issuance |
+| **Auth Server** | TCP login flow, MFA, the world list (world entry is the REST game admission) |
 | **World Server** | Tick loop, connections, packet dispatch, world lifecycle |
 | **Core World** | Instances, creatures and AI, abilities and combat, parties, quests, auras, items, chat |
 
