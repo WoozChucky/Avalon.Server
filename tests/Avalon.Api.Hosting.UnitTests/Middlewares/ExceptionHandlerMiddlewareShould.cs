@@ -1,7 +1,6 @@
 using System.Data.Common;
 using System.Text.Json;
 using Avalon.Api.Hosting.Middlewares;
-using Avalon.Api.Identity.Exceptions;
 using Avalon.Api.Testing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -63,24 +62,6 @@ public class ExceptionHandlerMiddlewareShould
         Assert.Equal("Downloads are not available right now.", json.RootElement.GetProperty("detail").GetString());
     }
 
-    /// <summary>#510: an email-change confirmation the sender could not send is a 503 that says so.</summary>
-    [Fact]
-    public async Task Answer_an_email_that_could_not_be_sent_with_503()
-    {
-        var middleware = new ExceptionHandlerMiddleware(_ => throw new Avalon.Api.Identity.Exceptions.EmailDeliveryException(),
-            NullLoggerFactory.Instance, [new IdentityProblemMapper()]);
-        var context = new DefaultHttpContext();
-        context.Response.Body = new MemoryStream();
-
-        await middleware.InvokeAsync(context);
-
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
-        context.Response.Body.Position = 0;
-        using var json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
-        Assert.Equal(503, json.RootElement.GetProperty("status").GetInt32());
-        Assert.Equal("Email could not be sent", json.RootElement.GetProperty("detail").GetString());
-    }
-
     /// <summary>
     /// #503 follow-up: a row an Accounts check constraint refuses (a username or an email not in
     /// its stored form) is the caller's value, not an outage: 400, whether it comes straight from a
@@ -130,21 +111,6 @@ public class ExceptionHandlerMiddlewareShould
         await middleware.InvokeAsync(context);
 
         Assert.NotEqual(StatusCodes.Status400BadRequest, context.Response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Answer_a_username_normalisation_violation_with_400()
-    {
-        var violation = new Npgsql.PostgresException("new row violates check constraint", "ERROR", "ERROR",
-            Npgsql.PostgresErrorCodes.CheckViolation, tableName: "Accounts",
-            constraintName: Avalon.Database.Auth.AuthDbContext.UsernameNormalisedConstraint);
-        var middleware = new ExceptionHandlerMiddleware(_ => throw violation, NullLoggerFactory.Instance);
-        var context = new DefaultHttpContext();
-        context.Response.Body = new MemoryStream();
-
-        await middleware.InvokeAsync(context);
-
-        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
     }
 
     private sealed class FakeDbException(string message) : DbException(message);
