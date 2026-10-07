@@ -8,7 +8,7 @@ namespace Avalon.ChunkGen;
 
 /// <summary>
 /// Bakes chunks with the World server's own ChunkLayoutNavmeshBuilder, reading Maps/Chunks/&lt;name&gt;.obj under
-/// <paramref name="contentRoot" /> through its ForTesting factory rather than the process working directory, so a test
+/// <c>contentRoot</c> through its ForTesting factory rather than the process working directory, so a test
 /// running the tool beside other tests changes nothing they read. Throws (NavmeshBuildFailedException) when no navmesh
 /// comes out.
 /// </summary>

@@ -562,7 +562,7 @@ public class CreatureSpawnerShould
     }
 
     /// <summary>
-    /// Like <see cref="SpawnerOver"/>, but the template and base-stat repositories read through
+    /// Like <see cref="SpawnerOver(CreatureTemplate, DialogueNode[])"/>, but the template and base-stat repositories read through
     /// <see cref="MutableRepos"/> so a trap-regression test can change what the next
     /// <c>StaticData.PrepareAsync</c> reads and reload it into the same <c>StaticData</c> the
     /// spawner already holds.

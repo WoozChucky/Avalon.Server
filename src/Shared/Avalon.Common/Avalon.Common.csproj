@@ -8,6 +8,8 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
     <PublicSign>true</PublicSign>
+    <!-- CS8002: the vendored DotRecast.Core it references has no strong name. -->
+    <NoWarn>$(NoWarn);CS8002</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

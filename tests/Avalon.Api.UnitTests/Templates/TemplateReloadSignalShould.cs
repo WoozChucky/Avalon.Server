@@ -67,7 +67,7 @@ public class TemplateReloadSignalShould
     }
 
     private void Answer(Guid requestId, params ReloadOutcomeMessage[] outcomes) =>
-        _handlers[0](CacheKeys.WorldReloadResultChannel(World),
+        _handlers[0](new RedisChannel(CacheKeys.WorldReloadResultChannel(World), RedisChannel.PatternMode.Auto),
             ReloadMessageJson.Serialize(new ReloadResultMessage(requestId, outcomes)));
 
     [Fact]

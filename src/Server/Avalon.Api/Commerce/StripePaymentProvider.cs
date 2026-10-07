@@ -96,7 +96,11 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
         }
 
         var lines = new List<LineItem>();
+        // Stripe's replacement is SessionLineItemService.ListAutoPagingAsync; moving to it is a change to verify
+        // against Stripe, outside the code standard (#791).
+#pragma warning disable CS0618
         await foreach (LineItem? line in client.V1.Checkout.Sessions.ListLineItemsAutoPagingAsync(session.Id, new() { Limit = 100 }, cancellationToken: ct))
+#pragma warning restore CS0618
         {
             lines.Add(line);
             if (lines.Count > 1) throw new PaymentProviderException("INVALID_PAYMENT_LINES");

@@ -312,18 +312,18 @@ public class ReplicatedCache : IReplicatedCache
     {
         ISubscriber sub = _redis.GetSubscriber();
         // await sub.SubscribeAsync(new RedisChannel(channel, RedisChannel.PatternMode.Auto));
-        await sub.SubscribeAsync(channel, handler);
+        await sub.SubscribeAsync(new RedisChannel(channel, RedisChannel.PatternMode.Auto), handler);
     }
 
     public async Task UnsubscribeAsync(string channel, Action<RedisChannel, RedisValue> handler)
     {
         ISubscriber sub = _redis.GetSubscriber();
-        await sub.UnsubscribeAsync(channel, handler);
+        await sub.UnsubscribeAsync(new RedisChannel(channel, RedisChannel.PatternMode.Auto), handler);
     }
 
     public async Task PublishAsync(string channel, string message)
     {
         ISubscriber sub = _redis.GetSubscriber();
-        await sub.PublishAsync(channel, message);
+        await sub.PublishAsync(new RedisChannel(channel, RedisChannel.PatternMode.Auto), message);
     }
 }

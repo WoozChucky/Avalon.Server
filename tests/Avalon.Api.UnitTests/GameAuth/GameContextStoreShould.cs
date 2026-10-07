@@ -240,7 +240,7 @@ public class GameContextStoreShould
             Assert.NotNull(await Service().GetContextByIdAsync(context.Id, true, CancellationToken.None));
             _clock.Advance(TimeSpan.FromMinutes(1));
             Assert.Null(await Service().GetContextByIdAsync(context.Id, true, CancellationToken.None));
-            await _revocations.DidNotReceiveWithAnyArgs().PublishAsync(default, default);
+            await _revocations.DidNotReceiveWithAnyArgs().PublishAsync(default!, default);
         }
     }
 

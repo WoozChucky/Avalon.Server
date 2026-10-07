@@ -20,7 +20,7 @@ public class ExceptionHandlerMiddlewareShould
     public static TheoryData<Exception> Outages => new()
     {
         new FakeDbException(s_secret),
-        new RedisConnectionException(ConnectionFailureType.UnableToConnect, s_secret),
+        new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, s_secret),
     };
 
     [Theory]

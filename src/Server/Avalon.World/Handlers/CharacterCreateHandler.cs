@@ -14,11 +14,15 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
 
+// The four unread repositories stay: the code standard does not change the constructor ActivatorUtilities
+// builds (#791).
+#pragma warning disable CS9113
 [PacketHandler(NetworkPacketType.CMSG_CHARACTER_CREATE)]
 public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logger, ICharacterRepository characterRepository,
     ICharacterStatsRepository characterStatsRepository, ICharacterAbilityRepository characterAbilityRepository,
     ICharacterInventoryRepository characterInventoryRepository, IItemInstanceRepository itemInstanceRepository,
     IItemIdAllocator itemIds, IWorld world) : WorldPacketHandler<CCharacterCreatePacket>
+#pragma warning restore CS9113
 {
     public override void Execute(IWorldConnection connection, CCharacterCreatePacket packet)
     {

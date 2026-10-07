@@ -9,7 +9,11 @@ public static class MappingExtensions
     {
         Id = account.Id,
         Username = account.Username,
+        // AccountDto.Email is declared non-nullable but carries the account's nullable email as it is; the code
+        // standard changes no contract (#791).
+#pragma warning disable CS8601
         Email = account.Email,
+#pragma warning restore CS8601
         EmailVerifiedAt = account.EmailVerifiedAt,
         JoinDate = account.JoinDate,
         LastIp = account.LastIp,

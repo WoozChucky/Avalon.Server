@@ -545,7 +545,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     {
         IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         cache.GetAsync(Arg.Any<string>())
-            .Returns(Task.FromException<string?>(new RedisServerException("WRONGTYPE")));
+            .Returns(Task.FromException<string?>(new RedisServerException(RedisErrorKind.Unknown, CommandFlags.CommandRetryNever, "WRONGTYPE")));
         _catalog.Real = new WorldScriptCatalog(cache, new LoggerOf<WorldScriptCatalog>(_logs.CreateLogger("test")));
         (JsonObject json, string version, ulong id) = await ReadFirstAsync(kind);
         json["scriptName"] = Unlisted;
@@ -1129,7 +1129,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     {
         // The losing side of two concurrent saves of one version: Postgres fails its UPDATE with 40001.
         TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(
-            new FailingSave(PostgresErrorCodes.SerializationFailure, null));
+            new FailingSave(PostgresErrorCodes.SerializationFailure, null!));
 
         Assert.Equal(TemplateEditOutcome.Conflict, result.Outcome);
         Assert.Empty(_signal.Requests);

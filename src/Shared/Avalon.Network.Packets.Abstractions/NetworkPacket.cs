@@ -5,7 +5,10 @@ namespace Avalon.Network.Packets.Abstractions;
 [ProtoContract]
 public class NetworkPacket
 {
+    // The wire contract stays as it is: IsRequired would change what is serialized (WireSchemaShould pins it).
+#pragma warning disable PBN0022
     [ProtoMember(1)] public NetworkPacketHeader Header { get; set; } = new();
+#pragma warning restore PBN0022
     [ProtoMember(2)] public byte[] Payload { get; set; } = [];
 
     public int Size => Header?.Size + Payload?.Length ?? 0;

@@ -19,7 +19,10 @@ internal static class GameLoginCompletion
             connection.Server?.NoteOwnDisconnectPublish(account.Id);
             await cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.ToString());
 
+            // Server is declared non-null; only the ?. above makes the flow analysis doubt it.
+#pragma warning disable CS8602
             IAuthConnection? connectedSession = connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
+#pragma warning restore CS8602
             if (connectedSession != null)
             {
                 connectedSession.Close();

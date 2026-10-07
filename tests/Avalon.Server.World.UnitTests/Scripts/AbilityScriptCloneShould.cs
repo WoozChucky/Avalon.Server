@@ -25,7 +25,7 @@ public class AbilityScriptCloneShould
         protected override bool ShouldRun() => true;
         // intentionally no Clone() override — uses base implementation
 
-        public List<AbilityScript> Chain => ChainedScripts;
+        public new List<AbilityScript> Chain => ChainedScripts;
         public IAbility ExposedAbility => Ability;
     }
 

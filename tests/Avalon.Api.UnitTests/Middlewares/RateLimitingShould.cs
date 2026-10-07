@@ -322,7 +322,7 @@ public sealed class RateLimitingShould
         Assert.Equal(HttpStatusCode.OK, await SendAsync(host, token: PatToken, scheme: "Avalon"));
 
         await host.Pats.DidNotReceiveWithAnyArgs().FindByRawTokenAsync(default!, default);
-        await host.Pats.DidNotReceiveWithAnyArgs().TouchLastUsedAsync(default, default);
+        await host.Pats.DidNotReceiveWithAnyArgs().TouchLastUsedAsync(default!, default);
     }
 
     private static HttpContext PatRequest(Microsoft.AspNetCore.Authentication.IAuthenticationService authentication,

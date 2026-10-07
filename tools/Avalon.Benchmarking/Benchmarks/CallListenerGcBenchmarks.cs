@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Avalon.Benchmarking.Benchmarks;
 
 /// <summary>
-/// Compares <see cref="MethodInfo.Invoke"/> dispatch (legacy <c>CallListener</c>) against
+/// Compares <see cref="MethodBase.Invoke(object, object[])"/> dispatch (legacy <c>CallListener</c>) against
 /// direct <see cref="IPacketHandlerNew.ExecuteAsync"/> virtual dispatch (GC-011 fix).
 /// Both paths call the same <see cref="CClientInfoHandler"/>; allocation difference is the
 /// eliminated <c>new object[2]</c> args array and boxed <see cref="CancellationToken"/>.

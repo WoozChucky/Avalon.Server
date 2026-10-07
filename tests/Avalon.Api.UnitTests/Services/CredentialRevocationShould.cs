@@ -135,7 +135,7 @@ public sealed class CredentialRevocationShould : IDisposable
         Account account = await AccountAsync();
         string pat = await MintPatAsync(account.Id);
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
 
         await ChangePasswordAsync(account.Id);
 
@@ -189,7 +189,7 @@ public sealed class CredentialRevocationShould : IDisposable
         string[] codes = await EnrolAsync(account);
         string pat = await MintPatAsync(account.Id);
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
 
         MFAResetResult reset = await MfaService().ResetMFAAsync(account.Id, 0, codes[0], codes[1], codes[2]);
 

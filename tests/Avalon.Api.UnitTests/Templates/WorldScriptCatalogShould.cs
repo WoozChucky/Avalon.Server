@@ -25,10 +25,10 @@ public sealed class WorldScriptCatalogShould
     public static TheoryData<Exception> Failures => new()
     {
 #pragma warning disable CS0618 // the overload the other Redis failure tests use
-        new RedisConnectionException(ConnectionFailureType.UnableToConnect, Payload),
+        new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, Payload),
 #pragma warning restore CS0618
-        new RedisTimeoutException(Payload, CommandStatus.Unknown),
-        new RedisServerException("WRONGTYPE " + Payload),
+        new RedisTimeoutException(CommandFlags.CommandRetryNever, Payload, CommandStatus.Unknown),
+        new RedisServerException(RedisErrorKind.Unknown, CommandFlags.CommandRetryNever, "WRONGTYPE " + Payload),
     };
 
     [Theory]
@@ -46,7 +46,7 @@ public sealed class WorldScriptCatalogShould
     public async Task Log_a_warning_naming_the_world_and_never_the_error_text()
     {
         _cache.GetAsync(Arg.Any<string>())
-            .Returns(Task.FromException<string?>(new RedisServerException("WRONGTYPE " + Payload)));
+            .Returns(Task.FromException<string?>(new RedisServerException(RedisErrorKind.Unknown, CommandFlags.CommandRetryNever, "WRONGTYPE " + Payload)));
 
         await new WorldScriptCatalog(_cache, _log).GetAsync(new WorldId(World), CancellationToken.None);
 

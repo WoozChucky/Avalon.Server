@@ -72,8 +72,11 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
         {
             try
             {
+                // Cached reads a nullable T; the listing it wraps never returns null.
+#pragma warning disable CS8619
                 IReadOnlyList<StoredObject> listed =
                     await Cached(("dist-list", channel), () => store.ListManifestsAsync(channel, ct)) ?? [];
+#pragma warning restore CS8619
                 foreach (StoredObject obj in listed.OrderByDescending(o => o.Modified).Take(limit))
                 {
                     StoredManifest? manifest = await ManifestAsync(obj.Key, ct);
@@ -124,8 +127,11 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
         {
             try
             {
+                // Cached reads a nullable T; the listing it wraps never returns null.
+#pragma warning disable CS8619
                 IReadOnlyList<StoredObject> listed =
                     await Cached(("changelog-list", prefix), () => store.ListChangelogAsync(prefix, ct)) ?? [];
+#pragma warning restore CS8619
                 var read = new ChangelogEntryDto?[listed.Count];
                 // In parallel, a few at a time: the first request after a restart reads the whole history.
                 await Parallel.ForEachAsync(Enumerable.Range(0, listed.Count),

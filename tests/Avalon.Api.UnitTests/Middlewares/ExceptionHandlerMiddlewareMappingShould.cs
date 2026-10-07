@@ -48,7 +48,7 @@ public class ExceptionHandlerMiddlewareMappingShould
         { OtherCheckViolation(), 503, "ServiceUnavailable", "Service unavailable", ServiceUnavailableDetail, "Database unavailable" },
         { new RetryLimitExceededException("retries spent"), 503, "ServiceUnavailable", "Service unavailable", ServiceUnavailableDetail, "Database unavailable" },
         {
-            new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"), 503, "ServiceUnavailable",
+            new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"), 503, "ServiceUnavailable",
             "Service unavailable", ServiceUnavailableDetail, "Cache unavailable"
         },
         {

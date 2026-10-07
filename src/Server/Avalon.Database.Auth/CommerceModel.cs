@@ -53,7 +53,7 @@ internal static class CommerceModel
         EntityTypeBuilder<PaymentRefund> refund = model.Entity<PaymentRefund>();
         Scoped(refund);
         refund.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
-        refund.Property(x => x.RequestedBy).HasConversion(x => x.Value, x => new AccountId(x));
+        refund.Property(x => x.RequestedBy).HasConversion(x => x!.Value, x => new AccountId(x));
         refund.Property(x => x.Reason).HasMaxLength(500);
         refund.Property(x => x.OperationKey).HasMaxLength(128);
         refund.Property(x => x.ExternalReference).HasMaxLength(256);

@@ -365,7 +365,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Chooses the locomotion implementation per <see cref="GameConfiguration.CreatureLocomotion" />.
-    /// <see cref="CrowdLocomotion" /> needs a non-null baked <see cref="DtNavMesh" />, but the
+    /// <see cref="CrowdLocomotion" /> needs a non-null baked <see cref="DotRecast.Detour.DtNavMesh" />, but the
     /// navigator handed to this instance is only an <see cref="IMapNavigator" /> — tests substitute
     /// it, and even a real <see cref="MapNavigator" /> can have nothing baked into it yet — so a
     /// configured crowd degrades to <see cref="WaypointLocomotion" /> instead of throwing out of the

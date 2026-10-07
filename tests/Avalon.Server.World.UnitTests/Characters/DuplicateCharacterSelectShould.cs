@@ -501,7 +501,7 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         await first.CloseAsync().WaitAsync(s_limit);
         server.Tick();
-        despawnSaver.ReceivedWithAnyArgs(1).SaveOnDespawnAsync(default!, default, default);
+        _ = despawnSaver.ReceivedWithAnyArgs(1).SaveOnDespawnAsync(default!, default, default);
     }
 
     /// <summary>Waits, bounded, for the kick's close to drop the socket. The test never closes it itself.</summary>

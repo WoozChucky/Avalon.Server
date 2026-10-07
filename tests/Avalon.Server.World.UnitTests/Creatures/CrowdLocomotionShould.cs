@@ -228,7 +228,7 @@ public class CrowdLocomotionShould
 
     /// <summary>
     /// The tolerance this class advertises has to actually describe its own arrival decision — the
-    /// same value <see cref="Arrived" /> in the production class uses internally, not a
+    /// same value <c>CrowdLocomotion.Arrived</c> in the production class uses internally, not a
     /// coincidentally similar one — or a caller relying on it (CreatureCombatScript's in-range
     /// check) would under-trust how close "arrived" really means and never consider itself close
     /// enough. Registers with the default production agent radius (0.6f, larger than the 0.3f

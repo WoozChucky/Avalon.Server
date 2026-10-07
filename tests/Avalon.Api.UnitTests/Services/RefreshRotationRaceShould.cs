@@ -121,7 +121,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
             [service.RotateAsync(issued.RawToken, s_tab), service.RotateAsync(issued.RawToken, s_tab)];
         try { await Task.WhenAll(rotations); } catch { /* inspected below */ }
 
-        Assert.Single(rotations, r => r.IsCompletedSuccessfully);
+        _ = Assert.Single(rotations, r => r.IsCompletedSuccessfully);
         Task loser = Assert.Single(rotations, r => r.IsFaulted);
         // Inside the grace window: a plain 401, not a reuse, so the winner's session survives.
         Assert.IsType<RefreshAlreadyRotatedException>(loser.Exception!.InnerException);

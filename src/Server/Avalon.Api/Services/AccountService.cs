@@ -307,7 +307,7 @@ public class AccountService : IAccountService
             await AttemptBudget.GiveBackAsync(_cache, creationKey);
             if (await _accountRepository.FindByUserNameAsync(account.Username, cancellationToken) != null)
                 throw new BusinessException(UsernameTaken, ex);
-            if (await _accountRepository.FindByEmailAsync(account.Email, cancellationToken) != null)
+            if (await _accountRepository.FindByEmailAsync(account.Email!, cancellationToken) != null)
                 throw new BusinessException(EmailTaken, ex);
             throw;
         }

@@ -132,8 +132,8 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
     public async Task Say_published_false_instead_of_failing_when_redis_cannot_be_read(bool wrongType)
     {
         Exception failure = wrongType
-            ? new StackExchange.Redis.RedisServerException("WRONGTYPE")
-            : new StackExchange.Redis.RedisTimeoutException("timeout", StackExchange.Redis.CommandStatus.Unknown);
+            ? new StackExchange.Redis.RedisServerException(StackExchange.Redis.RedisErrorKind.Unknown, StackExchange.Redis.CommandFlags.CommandRetryNever, "WRONGTYPE")
+            : new StackExchange.Redis.RedisTimeoutException(StackExchange.Redis.CommandFlags.CommandRetryNever, "timeout", StackExchange.Redis.CommandStatus.Unknown);
         _cache.GetAsync(CacheKeys.WorldScriptCatalog(Two)).Returns(Task.FromException<string?>(failure));
 
         HttpResponseMessage response = await Get($"/world/{Two}/scripts", AccountAccessLevel.GameMaster);

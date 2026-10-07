@@ -10,10 +10,10 @@
     <!--
       IDE0005 (unnecessary using directive) needs documentation comments parsed to run in the build. It also checks
       the XML doc comments that exist (malformed XML, unknown parameters, unresolved crefs); a public member without
-      one is fine (CS1591).
+      one is fine (CS1591), and so is a parameter left out of a member's comment (CS1573).
     -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
     <!-- The documentation file is there for the analyzers; nothing ships it. -->
     <PublishDocumentationFile>false</PublishDocumentationFile>
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>

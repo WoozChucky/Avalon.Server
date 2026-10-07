@@ -162,7 +162,7 @@ public sealed class RoleChangeShould : IDisposable
     {
         Account account = await AccountAsync(GameMaster);
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
 
         await DemoteAsync(account.Id);
 

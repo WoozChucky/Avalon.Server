@@ -51,7 +51,11 @@ public class JwtUtils : IJwtUtils
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()),
             new(JwtRegisteredClaimNames.Name, account.Username),
+            // Account.Email is nullable and a claim's value is not: an account without an email throws here, as it
+            // always has. The code standard changes no behaviour (#791).
+#pragma warning disable CS8604
             new(JwtRegisteredClaimNames.Email, account.Email),
+#pragma warning restore CS8604
             new(CredentialsVersionClaim,
                 account.CredentialsVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ClaimValueTypes.Integer32),

@@ -68,7 +68,10 @@ public static class CrowdBudgetHarness
         // One logical CPU, so a hybrid CPU cannot move the tick between performance and efficiency cores
         // mid-run (CROWD_AFFINITY is a hex mask; the default, 0x4, is logical CPU 2).
         string mask = Environment.GetEnvironmentVariable("CROWD_AFFINITY") ?? "4";
+        // Best effort: where processor affinity is unsupported the setter throws and the catch moves on.
+#pragma warning disable CA1416
         try { self.ProcessorAffinity = (IntPtr)long.Parse(mask, NumberStyles.HexNumber, CultureInfo.InvariantCulture); }
+#pragma warning restore CA1416
         catch { /* best effort */ }
         Console.WriteLine($"affinity=0x{mask}");
 

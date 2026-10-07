@@ -580,7 +580,7 @@ public sealed class EmailChangeShould : IDisposable
         _mail.FailFor = to => to == "new@avalon.monster";
         _cache.RemoveAsync(Arg.Is<string>(k => k.StartsWith("auth:emailChange:", StringComparison.Ordinal)))
             .Returns<bool>(_ => throw new StackExchange.Redis.RedisConnectionException(
-                StackExchange.Redis.ConnectionFailureType.UnableToConnect, "down"));
+                StackExchange.Redis.ConnectionFailureType.UnableToConnect, StackExchange.Redis.CommandFlags.CommandRetryNever, "down"));
 
         await Assert.ThrowsAsync<EmailDeliveryException>(() => StartWithAsync(account, "new@avalon.monster"));
 

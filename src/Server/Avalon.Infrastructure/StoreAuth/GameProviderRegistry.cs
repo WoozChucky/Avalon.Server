@@ -7,8 +7,8 @@ public sealed class GameProviderRegistry
     private readonly IReadOnlyDictionary<string, IGameLicenseProvider> _licenses;
     public GameProviderRegistry(IEnumerable<IGameIdentityProvider> identities, IEnumerable<IGameLicenseProvider> licenses)
     {
-        this._identities = identities.ToDictionary(x => Validate(x.Provider), StringComparer.Ordinal);
-        this._licenses = licenses.ToDictionary(x => Validate(x.Provider), StringComparer.Ordinal);
+        _identities = identities.ToDictionary(x => Validate(x.Provider), StringComparer.Ordinal);
+        _licenses = licenses.ToDictionary(x => Validate(x.Provider), StringComparer.Ordinal);
     }
     public IGameIdentityProvider? Identity(string provider) => _identities.GetValueOrDefault(provider);
     public IGameLicenseProvider? License(string provider) => _licenses.GetValueOrDefault(provider);

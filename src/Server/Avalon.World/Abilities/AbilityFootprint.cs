@@ -8,7 +8,7 @@ namespace Avalon.World.Abilities;
 
 /// <summary>
 /// Where an ability lands (#648), resolved once from its row, its aim and where its caster stood when the
-/// cast started. The shape scripts fire with exactly what <see cref="Resolve" /> answers, and a cast-time
+/// cast started. The shape scripts fire with exactly what <see cref="Resolve(AbilityMetadata, AbilityAim, Vector3, IMapNavigator)" /> answers, and a cast-time
 /// cast's start broadcast carries the same answer, so the telegraph a client draws is what hits.
 /// </summary>
 /// <param name="Direction">

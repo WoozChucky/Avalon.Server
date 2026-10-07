@@ -4,7 +4,10 @@ using Avalon.World;
 
 namespace Avalon.Server.World.Handlers;
 
+// The unread logger stays: the code standard does not change the constructor ActivatorUtilities builds (#791).
+#pragma warning disable CS9113
 public sealed class WorldHandshakeHandler(Microsoft.Extensions.Logging.ILogger<WorldHandshakeHandler> logger, IWorld world) : IWorldPacketHandler<CWorldHandshakePacket>
+#pragma warning restore CS9113
 {
     public Task ExecuteAsync(WorldPacketContext<CWorldHandshakePacket> ctx, CancellationToken token = default)
     {

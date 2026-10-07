@@ -24,7 +24,10 @@ public class SAbilityFiredPacket : Packet
     [ProtoMember(2)] public uint AbilityId { get; set; }
 
     /// <summary>The caster's position when it fired.</summary>
+    // The wire contract stays as it is: IsRequired would change what is serialized (WireSchemaShould pins it).
+#pragma warning disable PBN0022
     [ProtoMember(3)] public Vector3Dto Origin { get; set; } = new();
+#pragma warning restore PBN0022
 
     /// <summary>A cone's direction, a unit vector on X/Z; absent for a circle.</summary>
     [ProtoMember(4)] public Vector3Dto? Direction { get; set; }

@@ -90,7 +90,7 @@ public class AccountServiceShould
     {
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
             .Returns<Task>(_ => throw new StackExchange.Redis.RedisConnectionException(
-                StackExchange.Redis.ConnectionFailureType.UnableToConnect, "down"));
+                StackExchange.Redis.ConnectionFailureType.UnableToConnect, StackExchange.Redis.CommandFlags.CommandRetryNever, "down"));
 
         await CreateService().UpdateStatusAsync(new AccountId(7), Contract.AccountStatus.Banned, "spam", new AccountId(1));
     }

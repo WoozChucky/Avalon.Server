@@ -86,7 +86,7 @@ public sealed class JoinTicketStoreShould
         Assert.Equal(_h.Clock.GetUtcNow().UtcDateTime.AddSeconds(30), reply.ExpiresAt);
         JoinRedemptionReceipt[] attempts = await Task.WhenAll(Enumerable.Range(0, 256).Select(_ =>
             _h.Tickets.RedeemAsync(reply.JoinTicket!, "world-1", Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None)));
-        JoinRedemptionReceipt winner = Assert.Single(attempts.Where(r => r.Error is null));
+        JoinRedemptionReceipt winner = Assert.Single(attempts, r => r.Error is null);
         Assert.Equal("7", winner.AccountId);
         Assert.Equal("1", winner.FencingToken);
         Assert.NotNull(winner.GameSessionId);

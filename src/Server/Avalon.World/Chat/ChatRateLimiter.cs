@@ -6,7 +6,7 @@ namespace Avalon.World.Chat;
 /// <summary>
 /// One budget per sending character for every player chat message (#722): plain chat, party chat (/p) and whispers
 /// (/w), and /ignore (#723), which may query the database. Other commands are not counted. A sliding window over <see cref="Window" />, measured on the injected
-/// <see cref="TimeProvider">, with no timers: a queue of send times per character, pruned on each call. The size of
+/// <see cref="TimeProvider" />, with no timers: a queue of send times per character, pruned on each call. The size of
 /// the budget is <c>Game:ChatMessagesPerMinute</c>, read on every call; 0 or below turns the limit off.
 /// </summary>
 /// <remarks>

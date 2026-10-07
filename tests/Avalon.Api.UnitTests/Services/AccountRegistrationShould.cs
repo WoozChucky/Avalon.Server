@@ -162,7 +162,7 @@ public class AccountRegistrationShould : IDisposable
         Task[] both = [first, second];
         try { await Task.WhenAll(both); } catch { /* inspected below */ }
 
-        Assert.Single(both, t => t.IsCompletedSuccessfully);
+        _ = Assert.Single(both, t => t.IsCompletedSuccessfully);
         Task loser = Assert.Single(both, t => t.IsFaulted);
         BusinessException taken = Assert.IsType<BusinessException>(loser.Exception!.InnerException);
         Assert.Equal("Username already exists", taken.Message);

@@ -58,7 +58,11 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
         {
             new(ClaimTypes.NameIdentifier, account.Id.Value.ToString()),
             new(ClaimTypes.Name, account.Username),
+            // Account.Email is nullable and a claim's value is not: an account without an email throws here, as it
+            // always has. The code standard changes no behaviour (#791).
+#pragma warning disable CS8604
             new(ClaimTypes.Email, account.Email),
+#pragma warning restore CS8604
             new("pat_id", pat.Id.Value.ToString()),
         };
         claims.AddRange(AccountAccessCheck.RoleClaims(effectiveRoles));

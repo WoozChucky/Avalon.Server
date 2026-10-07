@@ -35,7 +35,11 @@ public sealed class SteamWebCallbackShould
         SteamWebLinkStart transaction = (await store.StartAsync(Guid.NewGuid(), root, "browser", default))!;
         Assert.True(await store.ChallengeAsync(transaction.Id, transaction.Cookie, default));
         var provider = new ValidSteamResponse();
+        // The test still hosts on the WebHostBuilder test server; moving it to the generic host is a test rewrite,
+        // outside the code standard (#791).
+#pragma warning disable ASPDEPR004, ASPDEPR008
         using var server = new TestServer(new WebHostBuilder().ConfigureServices(services =>
+#pragma warning restore ASPDEPR004, ASPDEPR008
         {
             services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {

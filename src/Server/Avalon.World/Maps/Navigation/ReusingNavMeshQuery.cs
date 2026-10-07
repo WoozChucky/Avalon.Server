@@ -8,7 +8,7 @@ namespace Avalon.World.Maps.Navigation;
 /// <summary>
 /// A <see cref="DtNavMeshQuery" /> with a surface move that reuses its search queue (#638).
 /// <see cref="DtNavMeshQuery.MoveAlongSurface" /> builds a new <c>LinkedList</c> and a node per
-/// polygon it visits on every call, and <see cref="MapNavigator.FindPath" /> calls it once per half
+/// polygon it visits on every call, and <see cref="MapNavigator.FindPath(Avalon.Common.Mathematics.Vector3, Avalon.Common.Mathematics.Vector3)" /> calls it once per half
 /// metre of route, which made it most of what a re-path allocated once the path lists were reused.
 /// </summary>
 /// <remarks>

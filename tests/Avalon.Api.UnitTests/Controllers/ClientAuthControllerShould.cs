@@ -295,7 +295,7 @@ public class ClientAuthControllerShould
         _codes.RedeemAsync(Arg.Any<string>(), Arg.Any<string>()).Returns((LauncherGrant?)null);
 
         AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "spent", Verifier = Verifier }));
-        await _refresh.DidNotReceiveWithAnyArgs().IssueLauncherAsync(default, default, default);
+        await _refresh.DidNotReceiveWithAnyArgs().IssueLauncherAsync(default!, default, default);
     }
 
     [Fact]
@@ -305,7 +305,7 @@ public class ClientAuthControllerShould
         AccountIs(MakeAccount(credentialsVersion: 4));
 
         AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, RedirectPort = 50000 }));
-        await _refresh.DidNotReceiveWithAnyArgs().IssueLauncherAsync(default, default, default);
+        await _refresh.DidNotReceiveWithAnyArgs().IssueLauncherAsync(default!, default, default);
     }
 
     [Fact]
@@ -462,7 +462,7 @@ public class ClientAuthControllerShould
         ObjectResult result = Assert.IsType<ObjectResult>(await Sut(MakeAccount()).Code(new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000 }));
 
         Assert.Equal(StatusCodes.Status403Forbidden, result.StatusCode);
-        await _codes.DidNotReceiveWithAnyArgs().IssueAsync(default, default, default!, default);
+        await _codes.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default!, default);
     }
 
     [Fact]
@@ -483,7 +483,7 @@ public class ClientAuthControllerShould
         AccountIs(MakeAccount());
 
         AssertInvalidGrant(await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, RedirectPort = 50001 }));
-        await _refresh.DidNotReceiveWithAnyArgs().IssueLauncherAsync(default, default, default);
+        await _refresh.DidNotReceiveWithAnyArgs().IssueLauncherAsync(default!, default, default);
     }
 
     [Fact]
@@ -496,7 +496,7 @@ public class ClientAuthControllerShould
 
         await Assert.ThrowsAsync<AuthenticationException>(() => Sut(MakeAccount())
             .Code(new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000, CurrentPassword = "wrong" }));
-        await _codes.DidNotReceiveWithAnyArgs().IssueAsync(default, default, default!, default);
+        await _codes.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default!, default);
     }
 
     [Fact]

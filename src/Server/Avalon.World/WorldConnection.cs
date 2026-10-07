@@ -168,7 +168,10 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <inheritdoc />
     public long CurrentPacketArrivedTicks { get; private set; }
     public bool InGame => Character != null;
+    // InGame means Character, which is _characterEntity, is set, so the ?. never yields null here.
+#pragma warning disable CS8604
     public bool InMap => InGame && _characterEntity?.Map > 0;
+#pragma warning restore CS8604
 
     // Set by a packet handler and taken by the tick. Both run on the tick thread -- handlers are
     // dispatched from ProcessQueue -- so this needs no interlocking, and would need it the day they

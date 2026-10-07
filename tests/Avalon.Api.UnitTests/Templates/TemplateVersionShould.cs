@@ -57,6 +57,8 @@ public class TemplateVersionShould
         Assert.NotEqual(TemplateVersion.Of(a), TemplateVersion.Of(b));
     }
 
+    // kind only names each case in the test results; the theories read the column.
+#pragma warning disable xUnit1026
     [Theory]
     [MemberData(nameof(ItemColumns))]
     public void Change_with_any_item_column(string kind, string column) =>
@@ -76,6 +78,7 @@ public class TemplateVersionShould
     [MemberData(nameof(AuraColumns))]
     public void Change_with_any_aura_column(string kind, string column) =>
         AssertChanges(Aura, TemplateVersion.Of, column);
+#pragma warning restore xUnit1026
 
     [Fact]
     public void Cover_the_base_damage_coefficient_of_an_aura() =>

@@ -29,7 +29,10 @@ public class Vector3Dto
 public class PortalPlacementDto
 {
     [ProtoMember(1)] public byte Role { get; set; }
+    // The wire contract stays as it is: IsRequired would change what is serialized (WireSchemaShould pins it).
+#pragma warning disable PBN0022
     [ProtoMember(2)] public Vector3Dto WorldPos { get; set; } = new();
+#pragma warning restore PBN0022
     [ProtoMember(3)] public float Radius { get; set; }
     [ProtoMember(4)] public ushort TargetMapId { get; set; }
 }
@@ -45,7 +48,10 @@ public class SChunkLayoutPacket : Packet
     [ProtoMember(2)] public Guid InstanceId { get; set; }
     [ProtoMember(3)] public float CellSize { get; set; }
     [ProtoMember(4)] public List<PlacedChunkDto> Chunks { get; set; } = new();
+    // The wire contract stays as it is: IsRequired would change what is serialized (WireSchemaShould pins it).
+#pragma warning disable PBN0022
     [ProtoMember(5)] public Vector3Dto EntrySpawn { get; set; } = new();
+#pragma warning restore PBN0022
     [ProtoMember(6)] public List<PortalPlacementDto> Portals { get; set; } = new();
     [ProtoMember(7)] public ushort MapId { get; set; }
 
