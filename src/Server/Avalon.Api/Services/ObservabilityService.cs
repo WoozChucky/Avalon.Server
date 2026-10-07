@@ -1,6 +1,3 @@
-// Licensed to the Avalon MMORPG Game under one or more agreements.
-// Avalon MMORPG Game licenses this file to you under the MIT license.
-
 using Avalon.Api.Contract;
 using Avalon.Api.Worlds;
 using Avalon.Common.Accounts;

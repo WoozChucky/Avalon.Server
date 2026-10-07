@@ -1,6 +1,3 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
