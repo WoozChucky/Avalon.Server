@@ -1,7 +1,6 @@
 using Avalon.Common;
 using Avalon.World.Instances;
 using Avalon.World.Public.Enums;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 

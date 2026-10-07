@@ -6,7 +6,6 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Maps.Navigation;
 using DotRecast.Detour;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 

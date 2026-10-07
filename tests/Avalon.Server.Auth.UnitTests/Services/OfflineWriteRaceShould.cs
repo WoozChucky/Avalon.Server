@@ -1,5 +1,4 @@
 using System.Text;
-using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth;
@@ -15,7 +14,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using AvalonWorld = Avalon.Domain.Auth.World;
 
 namespace Avalon.Server.Auth.UnitTests.Services;
 

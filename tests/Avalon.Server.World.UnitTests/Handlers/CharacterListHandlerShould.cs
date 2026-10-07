@@ -12,7 +12,6 @@ using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ProtoBuf;
-using Xunit;
 using CharacterRow = Avalon.Domain.Characters.Character;
 
 namespace Avalon.Server.World.UnitTests.Handlers;

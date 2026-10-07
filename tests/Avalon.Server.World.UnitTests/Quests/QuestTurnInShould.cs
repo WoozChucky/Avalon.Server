@@ -8,7 +8,6 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;

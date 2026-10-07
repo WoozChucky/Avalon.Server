@@ -8,7 +8,6 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
@@ -18,8 +17,6 @@ using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
-using Avalon.World.Configuration;
-using Avalon.World.Creatures;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -29,9 +26,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
-using CreatureRarity = Avalon.World.Public.Enums.CreatureRarity;
 
 namespace Avalon.Server.World.UnitTests.Balance;
 

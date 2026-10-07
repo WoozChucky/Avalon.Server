@@ -5,7 +5,6 @@ using Avalon.Server.World.UnitTests.Chat;
 using Avalon.World.Chat;
 using Avalon.World.Parties;
 using Avalon.World.Public.Enums;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Parties;
 

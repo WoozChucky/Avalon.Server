@@ -1,4 +1,3 @@
-using Avalon.Api;
 using Avalon.Api.Authentication;
 using Avalon.Api.Middlewares;
 using Avalon.Infrastructure.GameAuth;

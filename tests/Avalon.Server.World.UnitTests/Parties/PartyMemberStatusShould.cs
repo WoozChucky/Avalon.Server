@@ -1,5 +1,4 @@
 using Avalon.World.Parties;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Parties;
 

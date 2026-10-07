@@ -2,7 +2,6 @@ using System.Reflection;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Creatures;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 

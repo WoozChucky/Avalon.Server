@@ -22,7 +22,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.Core;
 using ProtoBuf;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 

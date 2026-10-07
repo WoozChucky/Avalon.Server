@@ -1,7 +1,6 @@
 using Avalon.Domain.World;
 using Avalon.World.Loot;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Loot.LootTestData;
 
 namespace Avalon.Server.World.UnitTests.Loot;

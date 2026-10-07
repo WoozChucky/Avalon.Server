@@ -1,6 +1,5 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Server.World.UnitTests.Quests;
 

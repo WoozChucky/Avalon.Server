@@ -1,6 +1,4 @@
 using System.Diagnostics.Metrics;
-using Avalon.Hosting.Networking;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 

@@ -1,6 +1,5 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
-using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

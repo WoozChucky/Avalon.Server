@@ -8,7 +8,6 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World;
 using Avalon.Database.World.Extensions;
 using Avalon.Domain.Auth;
-using Avalon.Domain.World;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;

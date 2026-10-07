@@ -4,7 +4,6 @@ using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Parties;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Parties;
 

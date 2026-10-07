@@ -1,4 +1,3 @@
-using System.Globalization;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;

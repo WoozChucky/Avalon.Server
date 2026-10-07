@@ -11,7 +11,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Parties;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Social;
 

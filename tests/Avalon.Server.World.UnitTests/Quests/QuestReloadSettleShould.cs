@@ -7,7 +7,6 @@ using Avalon.World.Inventory;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;

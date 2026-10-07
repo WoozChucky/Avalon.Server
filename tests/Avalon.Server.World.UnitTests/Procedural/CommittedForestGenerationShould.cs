@@ -6,7 +6,6 @@ using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.ChunkLayouts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 

@@ -2,7 +2,6 @@ using System.Reflection;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
 using Avalon.World.Serialization;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Serialization;
 

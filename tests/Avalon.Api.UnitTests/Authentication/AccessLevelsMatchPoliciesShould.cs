@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Avalon.Api;
 using Avalon.Api.Authentication;
 using Avalon.Api.Config;
 using Avalon.Common.Accounts;

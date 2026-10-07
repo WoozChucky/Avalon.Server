@@ -6,7 +6,6 @@ using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
 using Avalon.World.Maps.Navigation;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 

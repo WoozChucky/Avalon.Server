@@ -10,7 +10,6 @@ using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;

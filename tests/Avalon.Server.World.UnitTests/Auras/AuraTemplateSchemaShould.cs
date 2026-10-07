@@ -5,7 +5,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Public.Abilities;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 

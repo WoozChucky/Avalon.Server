@@ -3,7 +3,6 @@ using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

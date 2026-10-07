@@ -1,9 +1,6 @@
 using Avalon.Combat;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
-using Avalon.World.Combat;
-using Avalon.World.Creatures;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

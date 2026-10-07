@@ -1,13 +1,10 @@
-using Avalon.Api;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Worlds;
-using Avalon.Configuration;
 using Avalon.Hosting;
 using Avalon.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Hosting;

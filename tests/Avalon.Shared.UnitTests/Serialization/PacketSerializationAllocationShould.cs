@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Avalon.Common;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;

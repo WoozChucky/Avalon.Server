@@ -1,11 +1,9 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Avalon.Balance.Contract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
-using Polly.Retry;
 using Polly.Timeout;
 
 namespace Avalon.Api.Balance;

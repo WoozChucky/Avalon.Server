@@ -13,7 +13,6 @@ using Avalon.Infrastructure;
 using Avalon.Infrastructure.Presence;
 using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using AvalonWorld = Avalon.Domain.Auth.World;
 

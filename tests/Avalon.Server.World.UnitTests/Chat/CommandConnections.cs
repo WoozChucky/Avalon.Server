@@ -1,4 +1,3 @@
-using System.IO;
 using Avalon.Common.Accounts;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;

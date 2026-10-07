@@ -1,6 +1,5 @@
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Api.Contract.Mappers;
 

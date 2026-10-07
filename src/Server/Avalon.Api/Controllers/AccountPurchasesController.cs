@@ -1,7 +1,6 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Commerce;
 using Avalon.Api.Contract.Commerce;
-using Avalon.Infrastructure;
 using Avalon.Infrastructure.Login;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

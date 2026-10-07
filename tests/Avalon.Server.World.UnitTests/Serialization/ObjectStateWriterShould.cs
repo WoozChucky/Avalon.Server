@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-using System.Linq;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
@@ -13,7 +10,6 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Serialization;
 using NSubstitute;
 using ProtoBuf;
-using Xunit;
 using WireRarity = Avalon.Network.Packets.State.CreatureRarity;
 using WorldRarity = Avalon.World.Public.Enums.CreatureRarity;
 

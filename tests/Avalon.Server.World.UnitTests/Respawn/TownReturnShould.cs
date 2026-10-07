@@ -10,7 +10,6 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
 using NSubstitute;
 using NSubstitute.ClearExtensions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Respawn;
 

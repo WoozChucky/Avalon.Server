@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;

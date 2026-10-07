@@ -12,13 +12,10 @@ using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
-using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

@@ -1,7 +1,6 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
-using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
@@ -9,14 +8,12 @@ using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
-using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Auras;

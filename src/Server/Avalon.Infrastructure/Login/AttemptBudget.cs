@@ -1,5 +1,3 @@
-using Avalon.Infrastructure;
-
 namespace Avalon.Infrastructure.Login;
 
 /// <summary>

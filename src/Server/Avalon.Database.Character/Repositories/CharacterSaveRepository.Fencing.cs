@@ -1,4 +1,3 @@
-using Avalon.Common.GameAuth;
 using Avalon.Domain.Characters;
 using Microsoft.EntityFrameworkCore;
 

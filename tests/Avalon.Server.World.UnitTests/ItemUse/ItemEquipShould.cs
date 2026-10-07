@@ -8,7 +8,6 @@ using Avalon.World.Items;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Inventory.EquipTemplates;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 

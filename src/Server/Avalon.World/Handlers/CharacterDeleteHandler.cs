@@ -1,5 +1,4 @@
 using Avalon.Database.Character.Repositories;
-using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;

@@ -7,7 +7,6 @@ using DotRecast.Core.Numerics;
 using DotRecast.Detour;
 using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Maps.Navigation;
 

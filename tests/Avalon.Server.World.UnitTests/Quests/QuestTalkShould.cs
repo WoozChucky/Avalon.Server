@@ -5,7 +5,6 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;

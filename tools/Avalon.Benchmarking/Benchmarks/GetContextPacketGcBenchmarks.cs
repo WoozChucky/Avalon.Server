@@ -1,4 +1,3 @@
-using System;
 using System.Reflection;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets;

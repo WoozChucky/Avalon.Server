@@ -7,7 +7,6 @@ using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Items;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 

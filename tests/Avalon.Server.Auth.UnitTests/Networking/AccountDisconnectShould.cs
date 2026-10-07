@@ -2,7 +2,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure;
-using Avalon.Network.Packets;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

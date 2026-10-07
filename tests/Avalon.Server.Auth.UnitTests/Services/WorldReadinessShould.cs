@@ -1,7 +1,6 @@
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Services;
 

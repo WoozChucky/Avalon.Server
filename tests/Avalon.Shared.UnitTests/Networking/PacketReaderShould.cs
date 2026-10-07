@@ -1,7 +1,5 @@
-using System.IO;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Microsoft.Extensions.Logging.Abstractions;

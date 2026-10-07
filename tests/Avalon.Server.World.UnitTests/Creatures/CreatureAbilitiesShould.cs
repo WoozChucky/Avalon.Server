@@ -7,7 +7,6 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 

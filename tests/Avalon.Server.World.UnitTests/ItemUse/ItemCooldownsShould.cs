@@ -1,6 +1,5 @@
 using Avalon.Common.ValueObjects;
 using Avalon.World.Items;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;
 

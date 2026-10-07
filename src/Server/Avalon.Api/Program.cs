@@ -7,7 +7,6 @@ using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Api.Worlds;
 using Avalon.Hosting;
-using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;

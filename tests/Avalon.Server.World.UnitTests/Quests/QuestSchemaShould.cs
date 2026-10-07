@@ -3,7 +3,6 @@ using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Quests;
 

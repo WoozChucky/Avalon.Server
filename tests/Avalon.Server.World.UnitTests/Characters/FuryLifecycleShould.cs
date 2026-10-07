@@ -11,7 +11,6 @@ using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Characters;

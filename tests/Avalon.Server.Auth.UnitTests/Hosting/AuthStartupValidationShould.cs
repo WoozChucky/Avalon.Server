@@ -1,15 +1,10 @@
-using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Network.Packets.Abstractions.Attributes;
-using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Extensions;
-using Avalon.Server.Auth.Handlers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Hosting;
 

@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Hosting.Networking;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;

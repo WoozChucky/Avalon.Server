@@ -2,7 +2,6 @@
 // Avalon ARPG Game licenses this file to you under the MIT license.
 
 using Avalon.Network.Packets.Auth;
-using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.Auth.Telemetry;
 

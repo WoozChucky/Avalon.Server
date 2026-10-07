@@ -5,7 +5,6 @@ using Avalon.Api.Commerce;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Commerce;
 using Avalon.Api.Middlewares;
-using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using Avalon.Configuration;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
@@ -15,6 +14,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
+using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 
 /// <summary>Local, one-actor fixture host. Authentication is deliberately a fixture; payments/storage are real.</summary>
 internal static class SandboxHost

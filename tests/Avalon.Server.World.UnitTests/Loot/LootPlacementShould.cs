@@ -5,7 +5,6 @@ using Avalon.Network.Packets.Loot;
 using Avalon.World.Loot;
 using Avalon.World.Public.Maps;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Loot;
 

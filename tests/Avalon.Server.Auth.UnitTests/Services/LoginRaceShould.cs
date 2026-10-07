@@ -1,7 +1,5 @@
-using System.Linq.Expressions;
 using System.Text;
 using Avalon.Common.ValueObjects;
-using Avalon.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;

@@ -3,11 +3,9 @@ using Avalon.Domain.Characters;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

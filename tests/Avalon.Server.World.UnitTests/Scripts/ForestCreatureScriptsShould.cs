@@ -17,7 +17,6 @@ using Avalon.World.Scripts.Creatures.Forest;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Scripts;
 

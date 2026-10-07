@@ -1,5 +1,4 @@
 using Avalon.Database.Auth.Repositories;
-using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.ChunkLayouts;

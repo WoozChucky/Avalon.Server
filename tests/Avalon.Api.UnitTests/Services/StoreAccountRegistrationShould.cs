@@ -3,7 +3,6 @@ using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Server.Auth.UnitTests.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Services;

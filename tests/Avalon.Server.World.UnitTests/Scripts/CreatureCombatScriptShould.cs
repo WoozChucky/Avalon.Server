@@ -1,4 +1,3 @@
-using System;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
@@ -17,7 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ReceivedExtensions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Scripts;
 

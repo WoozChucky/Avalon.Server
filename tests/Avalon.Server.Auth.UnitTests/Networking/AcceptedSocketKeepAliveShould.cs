@@ -2,16 +2,12 @@ using System.Net;
 using System.Net.Sockets;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
-using Avalon.Hosting.Networking;
-using Avalon.Network.Packets;
-using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 

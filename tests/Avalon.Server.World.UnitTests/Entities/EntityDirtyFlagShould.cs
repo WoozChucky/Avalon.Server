@@ -1,9 +1,7 @@
-using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

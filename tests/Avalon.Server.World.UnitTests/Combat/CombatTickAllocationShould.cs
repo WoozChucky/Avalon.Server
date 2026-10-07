@@ -7,7 +7,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

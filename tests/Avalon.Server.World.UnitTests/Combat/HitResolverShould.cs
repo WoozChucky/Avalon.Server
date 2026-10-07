@@ -3,7 +3,6 @@ using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Abilities;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

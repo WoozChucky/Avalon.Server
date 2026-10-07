@@ -3,7 +3,6 @@ using Avalon.Balance.Core;
 using Avalon.World.Creatures;
 using Avalon.World.Scripts.Creatures;
 using Avalon.World.Scripts.Creatures.Forest;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Balance;
 

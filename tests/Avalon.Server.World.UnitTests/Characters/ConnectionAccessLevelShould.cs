@@ -3,12 +3,10 @@ using System.Net.Sockets;
 using System.Reflection;
 using Avalon.Common.Accounts;
 using Avalon.Hosting.Networking;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

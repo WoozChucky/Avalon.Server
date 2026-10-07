@@ -5,7 +5,6 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
-using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -20,7 +19,6 @@ using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;

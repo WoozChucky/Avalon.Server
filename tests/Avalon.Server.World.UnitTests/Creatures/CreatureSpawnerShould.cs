@@ -3,7 +3,6 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
-using Avalon.World.Creatures;
 using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -13,7 +12,6 @@ using Avalon.World.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 

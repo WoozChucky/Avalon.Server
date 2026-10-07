@@ -5,7 +5,6 @@ using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 

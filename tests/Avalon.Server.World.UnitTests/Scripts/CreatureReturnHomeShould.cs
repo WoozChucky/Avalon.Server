@@ -18,7 +18,6 @@ using DotRecast.Recast.Toolset.Builder;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Scripts;
 

@@ -1,10 +1,8 @@
 using Avalon.Common;
 using Avalon.Common.Accounts;
-using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
@@ -18,7 +16,6 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Dialogue;
 

@@ -8,7 +8,6 @@ using Avalon.World.Entities;
 using Avalon.World.Persistence;
 using Avalon.World.Quests;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Persistence;
 

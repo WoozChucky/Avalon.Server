@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using OpenTelemetry.Instrumentation.AspNetCore;
 
 namespace Avalon.Api.Authentication;

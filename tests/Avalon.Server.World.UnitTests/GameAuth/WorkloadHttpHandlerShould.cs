@@ -5,7 +5,6 @@ using System.Security.Cryptography.X509Certificates;
 using Avalon.World.GameAuth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;

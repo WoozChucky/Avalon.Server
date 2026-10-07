@@ -1,5 +1,4 @@
 using Avalon.Common.GameAuth;
-using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;

@@ -2,7 +2,6 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Items;
 using Avalon.World.Items.Scripts;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;
 

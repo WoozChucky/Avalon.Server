@@ -1,5 +1,4 @@
 using System.Net;
-using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;

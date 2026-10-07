@@ -3,7 +3,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Exporter;
 using Avalon.World.Public.Enums;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

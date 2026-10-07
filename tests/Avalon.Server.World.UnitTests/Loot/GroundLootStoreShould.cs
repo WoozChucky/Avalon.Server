@@ -1,7 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Loot;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Loot;
 

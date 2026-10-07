@@ -5,7 +5,6 @@ using System.Security.Cryptography.X509Certificates;
 using Avalon.Common.Telemetry;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
-using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
 using Avalon.Infrastructure;

@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services.Email;

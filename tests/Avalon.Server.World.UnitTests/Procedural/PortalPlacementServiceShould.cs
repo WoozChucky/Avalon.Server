@@ -4,7 +4,6 @@ using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 

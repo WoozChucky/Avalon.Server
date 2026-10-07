@@ -1,5 +1,4 @@
 using Avalon.Common.Utils;
-using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Handshake;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Options;

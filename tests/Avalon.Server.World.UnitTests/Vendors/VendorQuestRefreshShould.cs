@@ -1,14 +1,11 @@
 using Avalon.Domain.Characters;
-using Avalon.Domain.World;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.Vendor;
-using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World.Handlers;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Vendors.VendorTestData;
 
 namespace Avalon.Server.World.UnitTests.Vendors;

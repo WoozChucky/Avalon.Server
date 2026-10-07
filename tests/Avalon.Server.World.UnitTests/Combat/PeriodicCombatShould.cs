@@ -1,6 +1,5 @@
 using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
@@ -10,11 +9,9 @@ using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

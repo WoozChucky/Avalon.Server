@@ -7,7 +7,6 @@ using Avalon.World.Public.Characters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 

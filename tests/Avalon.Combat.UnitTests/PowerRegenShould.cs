@@ -1,5 +1,4 @@
 using Avalon.World.Public.Enums;
-using Xunit;
 
 namespace Avalon.Combat.UnitTests;
 

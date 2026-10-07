@@ -20,7 +20,6 @@ using Avalon.Infrastructure;
 using Avalon.Infrastructure.Configuration;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Infrastructure.Login;
-using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Primitives;

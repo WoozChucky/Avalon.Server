@@ -1,7 +1,6 @@
 using Avalon.Common.Cryptography;
 using Avalon.Infrastructure;
 using Avalon.Metrics;
-using Avalon.Network;
 using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Serialization;
 using Avalon.World.Configuration;

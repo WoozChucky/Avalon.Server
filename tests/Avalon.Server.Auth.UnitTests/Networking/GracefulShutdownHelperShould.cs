@@ -1,10 +1,6 @@
-using Avalon.Common.Cryptography;
-using Avalon.Network.Packets;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 

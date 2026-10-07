@@ -5,7 +5,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 

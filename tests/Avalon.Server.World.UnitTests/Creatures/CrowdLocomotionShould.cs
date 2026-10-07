@@ -11,7 +11,6 @@ using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 

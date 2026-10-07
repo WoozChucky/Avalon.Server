@@ -1,14 +1,11 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
-using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
-using Avalon.World.Parties;
 using Avalon.World.Public.Creatures;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Parties;
 

@@ -14,7 +14,6 @@ using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Presence;
 

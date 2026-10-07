@@ -1,4 +1,3 @@
-using System.Reflection;
 using Avalon.Hosting;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using Avalon.Server.World.Extensions;
@@ -11,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Hosting;
 

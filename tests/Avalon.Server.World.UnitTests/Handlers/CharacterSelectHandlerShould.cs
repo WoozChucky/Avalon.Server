@@ -1,4 +1,3 @@
-using System.IO;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Accounts;
@@ -28,7 +27,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Quests;

@@ -1,5 +1,4 @@
 using Avalon.World;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.World;
 

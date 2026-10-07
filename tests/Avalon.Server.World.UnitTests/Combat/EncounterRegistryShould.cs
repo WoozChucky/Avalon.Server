@@ -2,7 +2,6 @@ using Avalon.World.Combat;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Units;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

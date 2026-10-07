@@ -4,7 +4,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

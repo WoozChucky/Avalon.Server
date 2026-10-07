@@ -6,7 +6,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Handlers;

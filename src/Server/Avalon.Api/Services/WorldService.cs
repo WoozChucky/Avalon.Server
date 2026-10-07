@@ -4,7 +4,6 @@ using Avalon.Api.Worlds;
 using Avalon.Common.Accounts;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
-using Avalon.Database.Extensions;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;

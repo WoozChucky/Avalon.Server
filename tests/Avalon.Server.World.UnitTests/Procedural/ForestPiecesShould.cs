@@ -2,7 +2,6 @@ using System.Text.Json;
 using Avalon.ChunkGen;
 using Avalon.Common.Mathematics;
 using Avalon.World.Maps.Navigation;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 

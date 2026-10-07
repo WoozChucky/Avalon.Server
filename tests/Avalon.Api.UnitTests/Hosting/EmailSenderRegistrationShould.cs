@@ -1,4 +1,3 @@
-using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Services.Email;
 using Microsoft.Extensions.Configuration;

@@ -1,5 +1,4 @@
 using Avalon.Common.Cryptography;
-using Avalon.Network.Packets.Auth;
 using Avalon.Server.World.Handlers;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;

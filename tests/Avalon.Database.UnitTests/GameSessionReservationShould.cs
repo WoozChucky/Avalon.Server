@@ -1,5 +1,4 @@
 using Avalon.Database.Auth.Repositories;
-using Avalon.Domain.Auth;
 using Xunit;
 
 namespace Avalon.Database.UnitTests;

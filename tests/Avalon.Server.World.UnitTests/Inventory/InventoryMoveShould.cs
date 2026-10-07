@@ -2,7 +2,6 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using static Avalon.Server.World.UnitTests.Inventory.EquipTemplates;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;

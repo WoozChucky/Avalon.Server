@@ -1,4 +1,3 @@
-using Avalon.Api;
 using Avalon.Infrastructure.StoreAuth;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

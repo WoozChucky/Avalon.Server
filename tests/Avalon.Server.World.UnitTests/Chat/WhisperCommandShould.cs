@@ -5,7 +5,6 @@ using Avalon.World.Chat;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Chat;
 

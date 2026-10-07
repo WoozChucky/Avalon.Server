@@ -1,6 +1,5 @@
 using System.Data.Common;
 using System.Net;
-using System.Net.Http.Headers;
 using Avalon.Api.Authentication;
 using Avalon.Api.Services;
 using Avalon.Common.Accounts;

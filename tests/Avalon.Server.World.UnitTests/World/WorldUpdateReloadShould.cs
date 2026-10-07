@@ -1,7 +1,6 @@
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
-using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Loot;

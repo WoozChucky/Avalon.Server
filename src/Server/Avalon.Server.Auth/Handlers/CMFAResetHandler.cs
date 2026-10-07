@@ -1,7 +1,6 @@
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
-using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.Auth.Handlers;
 

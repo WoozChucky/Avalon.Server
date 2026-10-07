@@ -5,7 +5,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Dialogue;
 using Avalon.World.Public.Dialogue;
-using Avalon.World.Public.Enums;
 using Avalon.World.Vendors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;

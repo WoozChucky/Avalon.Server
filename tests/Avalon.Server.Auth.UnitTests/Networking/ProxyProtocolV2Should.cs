@@ -1,6 +1,4 @@
 using System.Net;
-using Avalon.Hosting.Networking;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 

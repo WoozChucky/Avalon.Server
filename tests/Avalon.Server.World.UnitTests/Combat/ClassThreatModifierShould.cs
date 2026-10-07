@@ -1,6 +1,5 @@
 using Avalon.World.Combat;
 using Avalon.World.Public.Enums;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

@@ -1,16 +1,12 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Encodings.Web;
-using Avalon.Api.Authentication;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services.Email;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
-using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;

@@ -1,4 +1,3 @@
-using System;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;

@@ -2,7 +2,6 @@ using Avalon.Domain.World;
 using Avalon.World.Instances;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
-using Avalon.World.Public;
 using DotRecast.Detour;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

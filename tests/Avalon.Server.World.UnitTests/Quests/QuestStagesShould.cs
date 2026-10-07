@@ -3,7 +3,6 @@ using Avalon.Domain.World;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;

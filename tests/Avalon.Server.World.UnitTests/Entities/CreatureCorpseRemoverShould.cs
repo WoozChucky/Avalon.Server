@@ -2,7 +2,6 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

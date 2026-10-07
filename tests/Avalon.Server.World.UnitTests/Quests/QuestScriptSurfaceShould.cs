@@ -6,7 +6,6 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Quests;
 

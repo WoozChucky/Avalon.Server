@@ -13,7 +13,6 @@ using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Seeding;
 

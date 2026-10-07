@@ -1,7 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Server.World.UnitTests.Serialization;
 

@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Hosting.Networking;

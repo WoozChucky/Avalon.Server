@@ -1,8 +1,5 @@
-using System;
-using System.Linq;
 using Avalon.Exporter;
 using Avalon.Network.Packets.Auth;
-using Avalon.Network.Packets.State;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Xunit;

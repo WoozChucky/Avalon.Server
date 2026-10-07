@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using Avalon.Common.ValueObjects;
 using Avalon.Infrastructure;
-using StackExchange.Redis;
 
 namespace Avalon.Api.Commerce;
 

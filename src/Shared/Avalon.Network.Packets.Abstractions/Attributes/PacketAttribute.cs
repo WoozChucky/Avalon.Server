@@ -1,5 +1,3 @@
-using System;
-
 namespace Avalon.Network.Packets.Abstractions.Attributes;
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]

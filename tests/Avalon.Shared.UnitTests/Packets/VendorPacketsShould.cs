@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Vendor;

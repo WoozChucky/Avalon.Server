@@ -1,4 +1,3 @@
-using Avalon.Api;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Worlds;

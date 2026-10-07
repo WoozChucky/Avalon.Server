@@ -1,7 +1,6 @@
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
-using Xunit;
 
 namespace Avalon.Combat.UnitTests;
 

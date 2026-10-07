@@ -9,7 +9,6 @@ using Avalon.Database.World.Seeding;
 using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;

@@ -7,7 +7,6 @@ using Avalon.Database;
 using Avalon.Database.Extensions;
 using Avalon.Database.World.Repositories;
 using Avalon.World.ChunkLayouts;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Services;

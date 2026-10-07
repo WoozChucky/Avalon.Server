@@ -1,6 +1,5 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;

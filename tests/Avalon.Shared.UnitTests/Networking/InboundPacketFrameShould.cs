@@ -1,4 +1,3 @@
-using System.IO;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;

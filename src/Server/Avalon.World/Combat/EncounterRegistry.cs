@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Units;
 

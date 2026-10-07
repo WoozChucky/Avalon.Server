@@ -5,7 +5,6 @@ using Avalon.Domain.World;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

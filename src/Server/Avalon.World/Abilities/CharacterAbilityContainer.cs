@@ -1,7 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Abilities;

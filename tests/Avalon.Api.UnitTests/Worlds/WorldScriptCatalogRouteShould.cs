@@ -5,7 +5,6 @@ using Avalon.Api.Contract;
 using Avalon.Api.Templates;
 using Avalon.Api.UnitTests.Authentication;
 using Avalon.Api.Worlds;
-using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;

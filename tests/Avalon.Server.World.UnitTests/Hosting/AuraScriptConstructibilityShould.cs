@@ -10,7 +10,6 @@ using Avalon.World.Scripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Hosting;
 

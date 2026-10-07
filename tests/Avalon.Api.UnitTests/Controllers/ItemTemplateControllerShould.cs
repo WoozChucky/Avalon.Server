@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using Avalon.Api.Authentication;
-using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;

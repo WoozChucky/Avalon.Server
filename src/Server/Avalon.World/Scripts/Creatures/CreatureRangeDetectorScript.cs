@@ -1,5 +1,4 @@
 using Avalon.Common.Mathematics;
-using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;

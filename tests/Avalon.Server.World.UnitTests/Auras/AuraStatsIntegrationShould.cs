@@ -11,7 +11,6 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 

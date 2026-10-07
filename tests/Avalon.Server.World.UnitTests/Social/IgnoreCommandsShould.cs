@@ -1,16 +1,13 @@
-using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World.Chat;
 using Avalon.World.Configuration;
-using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Social;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Social;
 

@@ -3,17 +3,12 @@
 
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalon.Configuration;
 using Avalon.Database.Character.Repositories;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
-using Avalon.Network.Packets;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.Configuration;
-using Avalon.World.Entities;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -25,7 +20,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 

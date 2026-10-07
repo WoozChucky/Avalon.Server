@@ -1,4 +1,3 @@
-using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
@@ -14,7 +13,6 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Social;
 

@@ -1,5 +1,4 @@
 using Avalon.World.Chat;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Chat;
 

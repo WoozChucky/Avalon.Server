@@ -6,7 +6,6 @@ using Avalon.World.Parties;
 using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Loot;
 

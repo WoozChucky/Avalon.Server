@@ -2,7 +2,6 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
 using Avalon.World.Social;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Social;
 

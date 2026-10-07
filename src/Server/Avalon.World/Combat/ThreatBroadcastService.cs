@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Avalon.Common;
 using Avalon.Network.Packets.Combat;
 using Avalon.World.Public;

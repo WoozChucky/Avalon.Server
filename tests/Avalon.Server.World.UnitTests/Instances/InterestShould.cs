@@ -2,7 +2,6 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Instances;
 using Avalon.World.Public.Instances;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 

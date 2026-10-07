@@ -20,14 +20,10 @@ using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
-using DotRecast.Detour;
 using DotRecast.Detour.Crowd;
-using DotRecast.Recast.Geom;
-using DotRecast.Recast.Toolset.Builder;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 

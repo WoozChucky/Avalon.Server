@@ -5,7 +5,6 @@ using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Reload;
 

@@ -1,4 +1,3 @@
-using Avalon.Api;
 using Avalon.Api.Config;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

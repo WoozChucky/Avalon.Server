@@ -1,4 +1,3 @@
-using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Entities;
@@ -6,7 +5,6 @@ using Avalon.World.Items;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;
 

@@ -1,6 +1,5 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.ChunkLayouts;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 

@@ -1,4 +1,3 @@
-using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Handshake;
 
 namespace Avalon.Server.Auth.Handlers;

@@ -1,7 +1,6 @@
 using System.Reflection;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

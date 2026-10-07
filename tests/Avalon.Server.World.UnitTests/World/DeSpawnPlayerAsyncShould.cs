@@ -4,7 +4,6 @@ using Avalon.Domain.World;
 using Avalon.World.Public.Characters;
 using Avalon.World.Respawn;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.World;
 

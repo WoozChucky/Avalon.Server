@@ -2,11 +2,9 @@ using System.Reflection;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Entities;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Units;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

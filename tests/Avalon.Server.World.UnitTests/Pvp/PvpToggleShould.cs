@@ -4,7 +4,6 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Pvp;
 using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Pvp;
 

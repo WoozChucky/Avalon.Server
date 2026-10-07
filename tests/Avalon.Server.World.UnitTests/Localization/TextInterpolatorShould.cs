@@ -2,7 +2,6 @@ using Avalon.Common.Accounts;
 using Avalon.World.Localization;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Localization;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Localization;
 

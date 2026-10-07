@@ -3,7 +3,6 @@ using System.Security.Cryptography.X509Certificates;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

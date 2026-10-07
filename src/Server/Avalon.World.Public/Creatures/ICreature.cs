@@ -1,4 +1,3 @@
-using System;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;

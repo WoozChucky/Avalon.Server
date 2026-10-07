@@ -1,6 +1,5 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.Abilities.Targeting;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 

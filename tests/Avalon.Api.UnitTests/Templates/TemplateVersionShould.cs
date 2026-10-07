@@ -1,4 +1,3 @@
-using System.Collections;
 using Avalon.Api.Templates;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;

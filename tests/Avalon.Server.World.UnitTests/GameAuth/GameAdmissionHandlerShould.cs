@@ -1,6 +1,5 @@
 using Avalon.Common.Cryptography;
 using Avalon.Infrastructure.GameAuth;
-using Avalon.Network.Packets.Auth;
 using Avalon.Server.World.Handlers;
 using Avalon.World.GameAuth;
 using NSubstitute;

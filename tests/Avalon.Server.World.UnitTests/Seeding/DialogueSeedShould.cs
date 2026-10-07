@@ -4,7 +4,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Seeding;
 

@@ -1,4 +1,3 @@
-using Avalon.Api;
 using Avalon.Api.Commerce;
 using Avalon.Configuration;
 using Avalon.Database.Extensions;

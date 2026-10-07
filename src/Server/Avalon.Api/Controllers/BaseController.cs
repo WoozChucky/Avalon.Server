@@ -3,7 +3,6 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions;
 using Avalon.Domain.Auth;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Avalon.Api.Controllers;

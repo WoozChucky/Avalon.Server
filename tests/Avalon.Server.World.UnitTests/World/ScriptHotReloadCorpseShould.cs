@@ -14,7 +14,6 @@ using Avalon.World.Public.Units;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Scripts.Creatures;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.World;

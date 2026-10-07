@@ -8,7 +8,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Enums;
 using Avalon.World.Scripts.Abstractions;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.World;

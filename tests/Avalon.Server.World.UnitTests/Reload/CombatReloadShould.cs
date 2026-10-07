@@ -7,7 +7,6 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
 namespace Avalon.Server.World.UnitTests.Reload;

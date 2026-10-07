@@ -2,10 +2,8 @@ using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Server.World.UnitTests.Combat;
-using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Scripts.Abilities;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 

@@ -2,7 +2,6 @@ using Avalon.Infrastructure;
 using Avalon.Server.World.Presence;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Presence;
 

@@ -3,7 +3,6 @@ using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Enums;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 

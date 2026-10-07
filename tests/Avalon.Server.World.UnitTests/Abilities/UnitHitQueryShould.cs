@@ -3,10 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
-using Avalon.World.Public.Units;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 

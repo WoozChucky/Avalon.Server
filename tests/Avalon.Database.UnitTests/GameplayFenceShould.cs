@@ -1,6 +1,5 @@
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
-using Avalon.Database;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;

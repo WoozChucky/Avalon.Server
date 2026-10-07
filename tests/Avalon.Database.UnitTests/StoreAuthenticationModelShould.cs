@@ -1,5 +1,4 @@
 using Avalon.Common.ValueObjects;
-using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;

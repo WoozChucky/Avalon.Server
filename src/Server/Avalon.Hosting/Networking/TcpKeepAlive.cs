@@ -1,6 +1,4 @@
-using System;
 using System.Net.Sockets;
-using System.Threading;
 using Avalon.Configuration;
 using Microsoft.Extensions.Logging;
 

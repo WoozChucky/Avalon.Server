@@ -1,6 +1,4 @@
-using Avalon.Hosting.Networking;
 using Microsoft.Extensions.Logging;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 

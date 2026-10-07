@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Threading;
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World.Combat;
@@ -7,9 +5,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Units;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

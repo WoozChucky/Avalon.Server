@@ -1,5 +1,4 @@
 using Avalon.Database.Auth.Repositories;
-using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 

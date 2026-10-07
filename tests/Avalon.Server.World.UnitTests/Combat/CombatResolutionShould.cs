@@ -23,7 +23,6 @@ using Avalon.World.Public.Units;
 using Avalon.World.Reload;
 using Avalon.World.Scripts.Creatures;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 

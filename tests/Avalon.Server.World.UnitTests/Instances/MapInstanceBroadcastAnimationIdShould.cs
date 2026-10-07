@@ -1,8 +1,6 @@
-using Avalon.Common.ValueObjects;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 

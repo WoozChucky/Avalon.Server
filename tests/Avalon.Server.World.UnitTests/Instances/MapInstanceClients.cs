@@ -1,4 +1,3 @@
-using System.IO;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.State;

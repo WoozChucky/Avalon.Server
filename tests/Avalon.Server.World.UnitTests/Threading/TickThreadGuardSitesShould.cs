@@ -1,6 +1,5 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
-using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.World;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
@@ -11,7 +10,6 @@ using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Social;
