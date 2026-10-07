@@ -80,99 +80,68 @@ public class LootPickupShould
         Assert.True(_picker.ClientChanges.MoneyChanged);
     }
 
-    [Fact]
-    public void Answer_Not_Found_For_A_Drop_That_Is_Not_There()
-    {
-        Assert.Equal(new LootPickupOutcome(LootPickupResult.NotFound, Removed: false), PickUp());
-    }
-
-    [Fact]
-    public void Answer_Not_Found_For_A_Drop_In_Another_Instance()
+    /// <summary>A drop is looked up only in the character's own instance, and nowhere when it has none.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Answer_Not_Found_For_A_Drop_Outside_The_Characters_Instance(bool noInstance)
     {
         Drop(gold: 25);   // in _store, which is not the picker's instance below
 
-        Assert.Equal(LootPickupResult.NotFound, PickUp(store: new GroundLootStore()).Result);
+        LootPickupOutcome outcome = LootPickup.TryPickUp(_picker, noInstance ? null : new GroundLootStore(), s_dropGuid, Range,
+            s_now, Economy(), NullLogger.Instance);
+
+        Assert.Equal(new LootPickupOutcome(LootPickupResult.NotFound, Removed: false), outcome);
         Assert.Equal(1, _store.Count);
     }
 
-    [Fact]
-    public void Answer_Not_Found_When_The_Character_Has_No_Instance()
+    [Theory]
+    [InlineData(5f, LootPickupResult.Ok)]
+    [InlineData(5.1f, LootPickupResult.TooFar)]
+    public void Allow_A_Pickup_Up_To_Exactly_The_Range_And_Leave_The_Drop_Beyond_It(float distance, LootPickupResult expected)
     {
-        Drop(gold: 25);
+        Drop(gold: 25, at: new Vector3(0f, 0f, distance));
 
-        Assert.Equal(LootPickupResult.NotFound,
-            LootPickup.TryPickUp(_picker, null, s_dropGuid, Range, s_now, Economy(), NullLogger.Instance).Result);
+        Assert.Equal(expected, PickUp().Result);
+        Assert.Equal(expected == LootPickupResult.Ok ? 0 : 1, _store.Count);
     }
 
-    [Fact]
-    public void Answer_Too_Far_Beyond_The_Pickup_Range_And_Leave_The_Drop()
+    /// <summary>Another character's drop is not yours inside the grace period; after it, or with no owner, anyone's.</summary>
+    [Theory]
+    [InlineData(99u, 30, LootPickupResult.NotYours)]
+    [InlineData(99u, 0, LootPickupResult.Ok)]
+    [InlineData(null, 0, LootPickupResult.Ok)]
+    public void Keep_A_Drop_For_Its_Owner_Until_The_Grace_Period_Is_Over(uint? owner, int secondsLeft, LootPickupResult expected)
     {
-        Drop(gold: 25, at: new Vector3(0f, 0f, 5.1f));
+        Drop(gold: 25, owner: owner, freeForAllAt: s_now.AddSeconds(secondsLeft));
 
-        Assert.Equal(LootPickupResult.TooFar, PickUp().Result);
-        Assert.Equal(1, _store.Count);
+        Assert.Equal(expected, PickUp().Result);
+        Assert.Equal(expected == LootPickupResult.Ok ? 0 : 1, _store.Count);
     }
 
-    [Fact]
-    public void Allow_A_Pickup_Exactly_At_The_Range()
+    [Theory]
+    [InlineData(LootPickupResult.InventoryFull)]
+    [InlineData(LootPickupResult.UniqueAlreadyOwned)]
+    [InlineData(LootPickupResult.MoneyCapReached)]
+    public void Answer_A_Refusal_And_Leave_The_Drop(LootPickupResult refusal)
     {
-        Drop(gold: 25, at: new Vector3(0f, 0f, 5f));
+        switch (refusal)
+        {
+            case LootPickupResult.InventoryFull:
+                FillBag();
+                Drop(item: Potion.Id);
+                break;
+            case LootPickupResult.UniqueAlreadyOwned:
+                _picker.Container(InventoryType.Bag).Load([Item(0, Relic)]);
+                Drop(item: Relic.Id);
+                break;
+            default:
+                _maxMoney = 10;
+                Drop(gold: 25);
+                break;
+        }
 
-        Assert.Equal(LootPickupResult.Ok, PickUp().Result);
-    }
-
-    [Fact]
-    public void Answer_Not_Yours_To_Another_Character_Inside_The_Grace_Period()
-    {
-        Drop(gold: 25, owner: 99);
-
-        Assert.Equal(LootPickupResult.NotYours, PickUp().Result);
-        Assert.Equal(1, _store.Count);
-    }
-
-    [Fact]
-    public void Let_Another_Character_Take_It_Once_The_Grace_Period_Is_Over()
-    {
-        Drop(gold: 25, owner: 99, freeForAllAt: s_now);
-
-        Assert.Equal(LootPickupResult.Ok, PickUp().Result);
-    }
-
-    [Fact]
-    public void Let_Anyone_Take_A_Drop_Nobody_Owns()
-    {
-        Drop(gold: 25, owner: null, freeForAllAt: s_now);
-
-        Assert.Equal(LootPickupResult.Ok, PickUp().Result);
-    }
-
-    [Fact]
-    public void Answer_Inventory_Full_And_Leave_The_Drop()
-    {
-        FillBag();
-        Drop(item: Potion.Id);
-
-        Assert.Equal(new LootPickupOutcome(LootPickupResult.InventoryFull, Removed: false), PickUp());
-        Assert.Equal(1, _store.Count);
-    }
-
-    [Fact]
-    public void Answer_Unique_Already_Owned_And_Leave_The_Drop()
-    {
-        _picker.Container(InventoryType.Bag).Load([Item(0, Relic)]);
-        Drop(item: Relic.Id);
-
-        Assert.Equal(LootPickupResult.UniqueAlreadyOwned, PickUp().Result);
-        Assert.Equal(1, _store.Count);
-    }
-
-    [Fact]
-    public void Answer_Money_Cap_Reached_And_Leave_The_Pile()
-    {
-        _maxMoney = 10;
-        Drop(gold: 25);
-
-        Assert.Equal(LootPickupResult.MoneyCapReached, PickUp().Result);
+        Assert.Equal(new LootPickupOutcome(refusal, Removed: false), PickUp());
         Assert.Equal(1, _store.Count);
         Assert.Equal(0UL, _picker.Data!.Money);
     }

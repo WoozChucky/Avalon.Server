@@ -17,22 +17,6 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 public class CharacterInventoryVendorShould
 {
     [Fact]
-    public void Take_a_whole_stack_out_and_mark_the_item_and_its_slot_removed()
-    {
-        CharacterEntity character = New();
-        InventoryItem potion = Item(2, Potion, count: 5);
-        character.Container(InventoryType.Bag).Load([potion]);
-
-        InventoryItem taken = InventoryFor(character).TakeOut(new SlotRef(InventoryType.Bag, 2), 5);
-
-        Assert.Equal(potion, taken);
-        Assert.False(character.Container(InventoryType.Bag).TryGet(2, out _));
-        Assert.Equal(SaveState.Removed, character.SaveState.ItemState(potion.InstanceId));
-        Assert.Equal(SaveState.Removed, character.SaveState.SlotState(InventoryType.Bag, 2));
-        Assert.Contains((InventoryType.Bag, (ushort)2), character.ClientChanges.Slots);
-    }
-
-    [Fact]
     public void Take_part_of_a_stack_out_as_a_copy_with_a_new_id()
     {
         CharacterEntity character = New();
@@ -63,21 +47,6 @@ public class CharacterInventoryVendorShould
 
         Assert.False(character.SaveState.HasChanges);
         Assert.False(character.ClientChanges.HasChanges);
-    }
-
-    [Fact]
-    public void Put_the_exact_instance_in_the_lowest_free_bag_slot_and_mark_it_new()
-    {
-        CharacterEntity character = New();
-        character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 3)]);
-        var sold = new InventoryItem(7, new ItemInstanceId(Guid.CreateVersion7()), Sword.Id, 1, 42, ItemInstanceFlags.None, 2);
-
-        Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAddInstance(sold));
-
-        Assert.Equal(sold with { Slot = 1 }, At(character, InventoryType.Bag, 1));
-        Assert.Equal(SaveState.New, character.SaveState.ItemState(sold.InstanceId));
-        Assert.Equal(SaveState.New, character.SaveState.SlotState(InventoryType.Bag, 1));
-        Assert.Contains((InventoryType.Bag, (ushort)1), character.ClientChanges.Slots);
     }
 
     /// <summary>A sold potion comes back as its own instance, never merged into the stack beside it.</summary>

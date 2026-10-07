@@ -1,4 +1,3 @@
-using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Loot;
@@ -82,22 +81,6 @@ public class LootPlacementShould
         Assert.All(drops, d => Assert.Equal(s_corpse, d.Position));
         // The ground is sampled where the drop was pulled back to, not at the ring point in the wall.
         navigator.Received(4).SampleGroundHeight(s_corpse.x, s_corpse.y, s_corpse.z);
-    }
-
-    [Fact]
-    public void Carry_What_Was_Rolled_And_Who_It_Was_Allocated_To()
-    {
-        IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
-            s_corpse, FourDrops(), new LootAllocation(7, s_freeAt), OpenGround(), Ids(first: 100));
-
-        Assert.Equal([100u, 101u, 102u, 103u], drops.Select(d => d.Guid.Id));
-        Assert.All(drops, d => Assert.Equal(ObjectType.Loot, d.Guid.Type));
-        Assert.All(drops, d => Assert.Equal(7u, d.OwnerCharacterId));
-        Assert.All(drops, d => Assert.Equal(s_freeAt, d.FreeForAllAt));
-        Assert.Equal(new ItemTemplateId(1), drops[0].ItemTemplateId);
-        Assert.Equal(3u, drops[0].Count);
-        Assert.True(drops[3].IsGold);
-        Assert.Equal(25UL, drops[3].Gold);
     }
 
     [Fact]

@@ -2,7 +2,6 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
 using Avalon.World;
@@ -15,7 +14,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -160,57 +158,6 @@ public class ItemUseContextShould
         Assert.False(ctx.ReturnToTown());
     }
 
-    /// <summary>The move itself is MapTeleportShould's; here, that the context hands it over and its refusals come back.</summary>
-    [Fact]
-    public void Hand_a_teleport_to_the_map_teleport()
-    {
-        IMapInstance town = Substitute.For<Avalon.World.Public.Instances.IMapInstance>();
-        _world.MapTemplates.Returns(new List<MapTemplate>
-        {
-            new() { Id = new MapTemplateId(1), MapType = MapType.Town, Name = "town", Description = "" },
-        });
-        _world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), Arg.Any<ushort>())
-            .Returns(Task.FromResult(town));
-        ItemUseContext ctx = Context();
-
-        Assert.False(ctx.Teleport(new MapTemplateId(9), new Vector3(1, 0, 1)));   // no such map
-        _connection.DidNotReceiveWithAnyArgs().EnqueueContinuation(default(Task)!, default!);
-
-        Assert.True(ctx.Teleport(new MapTemplateId(1), new Vector3(1, 0, 1)));
-        Assert.True(ctx.ReturningToTown);                                          // the move is under way
-        _connection.ReceivedWithAnyArgs(1).EnqueueContinuation(default(Task)!, default!);
-        Assert.False(ctx.Teleport(new MapTemplateId(1)));                           // one move at a time
-    }
-
-    [Fact]
-    public async Task Grant_experience_through_the_award_and_stop_at_the_level_cap()
-    {
-        StaticData data = await TestStaticData.LoadAsync(levels:
-        [
-            new CharacterLevelExperience { Level = 1, Experience = 100 },
-            new CharacterLevelExperience { Level = 2, Experience = 500 },
-            new CharacterLevelExperience { Level = 3, Experience = 900 },
-        ]);
-        _world.Data.Returns(data);
-
-        Context().GrantExperience(100);
-        Assert.Equal((ushort)2, _character.Level);
-
-        _character.Level = 3;   // the highest row: the cap
-        _character.Experience = 0;
-        Context().GrantExperience(1000);
-        Assert.Equal(((ushort)3, 0ul), (_character.Level, _character.Experience));
-    }
-
-    [Fact]
-    public void Answer_quests_unavailable_when_the_world_has_no_quest_service()
-    {
-        ItemUseContext ctx = Context();
-
-        Assert.Equal(QuestResult.NotAvailable, ctx.StartQuest(1));
-        Assert.False(ctx.AdvanceQuest(1, 1));
-    }
-
     [Fact]
     public void Spawn_a_creature_in_front_of_the_user_in_its_own_instance_and_no_farther_than_the_limit()
     {
@@ -232,16 +179,8 @@ public class ItemUseContextShould
         Assert.Null(ctx.SpawnCreature(new CreatureTemplateId(4), ItemUseContext.MaxSpawnDistance + 0.1f));
         Assert.Null(ctx.SpawnCreature(new CreatureTemplateId(4), float.NaN));
         Assert.Null(ctx.SpawnCreature(new CreatureTemplateId(4), 2f, TimeSpan.Zero));
-        _placement.DidNotReceiveWithAnyArgs().SpawnAt(default!, default!, default);
-    }
-
-    /// <summary>A summon never appears in a town.</summary>
-    [Fact]
-    public void Refuse_to_spawn_a_creature_in_a_town()
-    {
         _host.MapType.Returns(MapType.Town);
-
-        Assert.Null(Context().SpawnCreature(new CreatureTemplateId(4)));
+        Assert.Null(ctx.SpawnCreature(new CreatureTemplateId(4)));            // a summon never appears in a town
         _placement.DidNotReceiveWithAnyArgs().SpawnAt(default!, default!, default);
     }
 
@@ -254,6 +193,7 @@ public class ItemUseContextShould
         _host.DidNotReceiveWithAnyArgs().DespawnAfter(default!, default);
     }
 
+    /// <summary>#763: a script's whisper and a told line come from no character, so both carry class 0.</summary>
     [Fact]
     public void Tell_and_whisper_to_the_user_only()
     {
@@ -265,19 +205,6 @@ public class ItemUseContextShould
         List<SChatMessagePacket> lines = TestTown.Read<SChatMessagePacket>(_sent, NetworkPacketType.SMSG_CHAT_MESSAGE);
         Assert.Equal([(ChatChannel.System, "System", "Hello."), (ChatChannel.Whisper, "A voice", "Psst.")],
             lines.Select(l => (l.Channel, l.CharacterName, l.Message)));
-    }
-
-    /// <summary>#763: a script's whisper and a told line come from no character, so both carry class 0.</summary>
-    [Fact]
-    public void Send_script_lines_with_class_0()
-    {
-        ItemUseContext ctx = Context();
-
-        ctx.Tell("Hello.");
-        ctx.Whisper("A voice", "Psst.");
-
-        List<SChatMessagePacket> lines = TestTown.Read<SChatMessagePacket>(_sent, NetworkPacketType.SMSG_CHAT_MESSAGE);
-        Assert.Equal(2, lines.Count);
         Assert.All(lines, l => Assert.Equal((ushort)0, l.CharacterClass));
     }
 

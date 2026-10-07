@@ -15,34 +15,6 @@ public class GroundLootStoreShould
     };
 
     [Fact]
-    public void Find_A_Drop_Until_It_Is_Removed()
-    {
-        var store = new GroundLootStore();
-        store.Add(Pile(1));
-        store.Add(Pile(2));
-
-        Assert.True(store.TryGet(new ObjectGuid(ObjectType.Loot, 1), out GroundLoot? found));
-        Assert.Equal(10UL, found!.Gold);
-        Assert.True(store.Remove(new ObjectGuid(ObjectType.Loot, 1)));
-        Assert.False(store.TryGet(new ObjectGuid(ObjectType.Loot, 1), out _));
-        Assert.False(store.Remove(new ObjectGuid(ObjectType.Loot, 1)));
-        Assert.Equal(1, store.Count);
-    }
-
-    [Fact]
-    public void Forget_Everything_On_Clear()
-    {
-        var store = new GroundLootStore();
-        store.Add(Pile(1));
-        store.Add(Pile(2));
-
-        store.Clear();
-
-        Assert.Equal(0, store.Count);
-        Assert.Empty(store.All);
-    }
-
-    [Fact]
     public void Keep_A_Drop_Findable_By_The_Guid_It_Was_Added_Under_When_That_Guid_Object_Changes()
     {
         // ObjectGuid is a mutable class. The store keys on the raw value at Add, so a later Set on

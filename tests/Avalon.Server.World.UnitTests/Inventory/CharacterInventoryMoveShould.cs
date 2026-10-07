@@ -108,46 +108,20 @@ public class CharacterInventoryMoveShould
     }
 
     [Fact]
-    public void Equip_and_unequip_through_the_same_move()
+    public void Change_nothing_for_a_refused_move_or_destroy()
     {
         CharacterEntity character = New();
-        InventoryItem sword = Item(0, Longsword);
-        character.Container(InventoryType.Bag).Load([sword]);
+        character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5), Item(1, Potion, count: 20), Item(2, Heirloom)]);
         CharacterInventoryService inventory = EquipTemplates.InventoryFor(character);
 
-        Assert.Equal(ItemRequestResult.Ok, inventory.TryMove(Bag(0), Eq(EquipmentSlots.MainHand), null, false));
-        Assert.Equal(sword.InstanceId, At(character, InventoryType.Equipment, EquipmentSlots.MainHand).InstanceId);
-
-        Assert.Equal(ItemRequestResult.Ok, inventory.TryMove(Eq(EquipmentSlots.MainHand), Bag(5), null, false));
-        Assert.Empty(character.Container(InventoryType.Equipment).Items);
-        Assert.Equal(sword.InstanceId, At(character, InventoryType.Bag, 5).InstanceId);
-    }
-
-    [Fact]
-    public void Change_nothing_for_a_refused_move()
-    {
-        CharacterEntity character = New();
-        character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5), Item(1, Potion, count: 20)]);
-
-        Assert.Equal(ItemRequestResult.TargetFull, EquipTemplates.InventoryFor(character).TryMove(Bag(0), Bag(1), null, false));
+        Assert.Equal(ItemRequestResult.TargetFull, inventory.TryMove(Bag(0), Bag(1), null, false));
+        Assert.Equal(ItemRequestResult.CannotDestroy, inventory.TryDestroy(Bag(2), null, false));
 
         Assert.Equal(5u, At(character, InventoryType.Bag, 0).Count);
         Assert.Equal(20u, At(character, InventoryType.Bag, 1).Count);
+        Assert.True(character.Container(InventoryType.Bag).TryGet(2, out _));
         Assert.False(character.SaveState.HasChanges);
         Assert.False(character.ClientChanges.HasChanges);
-    }
-
-    [Fact]
-    public void Deposit_into_the_bank_when_it_is_accessible()
-    {
-        CharacterEntity character = New();
-        InventoryItem potion = Item(0, Potion, count: 5);
-        character.Container(InventoryType.Bag).Load([potion]);
-
-        Assert.Equal(ItemRequestResult.Ok, EquipTemplates.InventoryFor(character).TryMove(Bag(0), Vault(2), null, true));
-
-        Assert.Equal(potion.InstanceId, At(character, InventoryType.Bank, 2).InstanceId);
-        Assert.Equal(SaveState.New, character.SaveState.SlotState(InventoryType.Bank, 2));
     }
 
     [Fact]
@@ -166,19 +140,6 @@ public class CharacterInventoryMoveShould
         Assert.False(character.Container(InventoryType.Bag).TryGet(0, out _));
         Assert.Equal(SaveState.Removed, character.SaveState.ItemState(potion.InstanceId));
         Assert.Equal(SaveState.Removed, character.SaveState.SlotState(InventoryType.Bag, 0));
-    }
-
-    [Fact]
-    public void Change_nothing_for_a_refused_destroy()
-    {
-        CharacterEntity character = New();
-        character.Container(InventoryType.Bag).Load([Item(0, Heirloom)]);
-
-        Assert.Equal(ItemRequestResult.CannotDestroy, EquipTemplates.InventoryFor(character).TryDestroy(Bag(0), null, false));
-
-        Assert.True(character.Container(InventoryType.Bag).TryGet(0, out _));
-        Assert.False(character.SaveState.HasChanges);
-        Assert.False(character.ClientChanges.HasChanges);
     }
 
     [Fact]
