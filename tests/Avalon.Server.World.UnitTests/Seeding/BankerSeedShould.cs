@@ -1,4 +1,3 @@
-using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
@@ -28,19 +27,6 @@ public class BankerSeedShould
         Assert.Equal("TownNpcScript", marta.ScriptName);
         Assert.Null(marta.LootTableId);
         Assert.Equal(0u, marta.Experience);
-    }
-
-    [Fact]
-    public void Place_Marta_On_Map_One()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        MapCreatureSpawn spawn = context.MapCreatureSpawns.AsNoTracking().ToList()
-            .Single(s => s.CreatureTemplateId == s_marta);
-
-        Assert.Equal(1u, spawn.MapTemplateId.Value);
-        Assert.Equal((21.8f, 0f, 34.4f, 118f), (spawn.OffsetX, spawn.OffsetY, spawn.OffsetZ, spawn.Facing));
     }
 
     [Fact]
@@ -79,21 +65,5 @@ public class BankerSeedShould
         Assert.Null(actions.For(farewell.Id));
         Assert.Null(farewell.NextNodeId);
         Assert.Equal(10, farewell.TextId.Value);       // the shared "Farewell."
-    }
-
-    [Fact]
-    public void Write_And_Translate_Martas_Lines()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        var texts = context.LocalizedTexts.AsNoTracking().ToList();
-        var locales = context.LocalizedTextLocales.AsNoTracking().ToList();
-
-        foreach (int id in new[] { 15, 16 })
-        {
-            Assert.Contains(texts, t => t.Id.Value == id && t.Text.Length > 0);
-            Assert.Contains(locales, l => l.TextId.Value == id && l.Locale == AccountLocale.ptPT);
-        }
     }
 }

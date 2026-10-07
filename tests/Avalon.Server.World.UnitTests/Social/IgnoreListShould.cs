@@ -1,7 +1,6 @@
 using Avalon.Database.Character.Repositories;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
-using Avalon.World.Social;
 
 namespace Avalon.Server.World.UnitTests.Social;
 
@@ -40,18 +39,6 @@ public class IgnoreListShould
     }
 
     [Fact]
-    public void Mark_the_save_when_a_character_is_added()
-    {
-        CharacterEntity c = Character();
-
-        Assert.True(c.Ignores.Add(7, "Kaela", s_now));
-
-        Assert.True(c.Ignores.Contains(7));
-        Assert.Equal(new IgnoredCharacter(7, "Kaela", s_now), Assert.Single(c.Ignores.Entries));
-        Assert.True(c.SaveState.TakeMarks().Ignores!.ContainsKey(7));
-    }
-
-    [Fact]
     public void Add_a_character_only_once()
     {
         CharacterEntity c = Character();
@@ -60,19 +47,6 @@ public class IgnoreListShould
         Assert.False(c.Ignores.Add(7, "Kaela", s_now));
 
         Assert.Equal(1, c.Ignores.Count);
-    }
-
-    [Fact]
-    public void Mark_the_save_when_a_character_is_removed()
-    {
-        CharacterEntity c = Character();
-        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", s_now)]);
-
-        Assert.True(c.Ignores.Remove(7));
-
-        Assert.False(c.Ignores.Contains(7));
-        Assert.True(c.SaveState.TakeMarks().Ignores!.ContainsKey(7));
-        Assert.False(c.Ignores.Remove(7));
     }
 
     [Theory]

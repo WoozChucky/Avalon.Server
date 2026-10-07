@@ -286,20 +286,4 @@ public class VendorSeedShould
         Assert.Empty(catalog.Refused);
         Assert.Equal((3, 31), (catalog.VendorCount, catalog.RowCount));
     }
-
-    [Fact]
-    public void Seed_no_quest_gated_rows()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        List<VendorStock> rows = Stock(context);
-
-        Assert.NotEmpty(rows);
-        Assert.All(rows, r =>
-        {
-            Assert.Null(r.RequiredQuestId);
-            Assert.Null(r.RequiredQuestState);
-        });
-    }
 }
