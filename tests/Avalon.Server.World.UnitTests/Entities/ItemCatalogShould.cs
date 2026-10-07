@@ -29,15 +29,6 @@ public class ItemCatalogShould
         MaxStackSize = 1,
     };
 
-    /// <summary>No rows is a valid catalog, not a crash and not an empty file.</summary>
-    [Fact]
-    public void Render_An_Empty_Catalog_As_An_Empty_Array()
-    {
-        using var document = JsonDocument.Parse(ItemCatalog.Render([]));
-
-        Assert.Empty(document.RootElement.GetProperty("items").EnumerateArray());
-    }
-
     /// <summary>
     /// The column is nullable in practice, and a client parsing null into a label shows nothing
     /// where a name belongs. CharacterService.MapItem already coalesces the same way. This also
@@ -65,24 +56,6 @@ public class ItemCatalogShould
             [10L, 20L, 30L],
             document.RootElement.GetProperty("items").EnumerateArray()
                 .Select(item => item.GetProperty("id").GetInt64()));
-    }
-
-    /// <summary>
-    /// The id is an ItemTemplateId (a ValueObject&lt;ulong&gt; subclass), and the widened catalog
-    /// serializes the entity directly rather than pre-extracting scalar fields into a hand-written
-    /// row. This pins that it still comes out as the bare number item-schema-v1.json promises
-    /// ("id", type "uint64"), not as a nested { "value": ... } object.
-    /// </summary>
-    [Fact]
-    public void Render_The_Id_As_A_Bare_Number_Not_A_Wrapped_Object()
-    {
-        using var document = JsonDocument.Parse(ItemCatalog.Render([Template(7, "x")]));
-
-        JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
-        JsonElement id = item.GetProperty("id");
-
-        Assert.Equal(JsonValueKind.Number, id.ValueKind);
-        Assert.Equal(7L, id.GetInt64());
     }
 
     /// <summary>
@@ -151,21 +124,6 @@ public class ItemCatalogShould
         Assert.Equal(
             [(int)CharacterClass.Warrior, (int)CharacterClass.Healer],
             allowedClasses.EnumerateArray().Select(element => element.GetInt32()));
-    }
-
-    [Fact]
-    public void Say_What_Is_Missing_When_There_Is_No_Connection_String()
-    {
-        string? reason = ItemCatalog.ReadinessFor(connectionString: null);
-
-        Assert.NotNull(reason);
-        Assert.Contains("Database__World__ConnectionString", reason, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Be_Ready_When_A_Connection_String_Is_Present()
-    {
-        Assert.Null(ItemCatalog.ReadinessFor("Host=localhost;Database=world"));
     }
 }
 

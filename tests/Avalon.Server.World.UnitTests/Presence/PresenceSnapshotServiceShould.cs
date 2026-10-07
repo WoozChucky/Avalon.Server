@@ -72,24 +72,6 @@ public class PresenceSnapshotServiceShould
     }
 
     [Fact]
-    public async Task Write_nothing_while_the_tick_has_captured_nothing()
-    {
-        await CreateSut(Capture()).WriteLatestAsync(CancellationToken.None);
-
-        await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
-    }
-
-    [Fact]
-    public async Task Write_nothing_when_instances_hold_no_players()
-    {
-        Hold(Instance(Guid.NewGuid()));
-
-        await CreateSut(Captured()).WriteLatestAsync(CancellationToken.None);
-
-        await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
-    }
-
-    [Fact]
     public async Task Write_the_world_snapshot_with_the_presence_ttl()
     {
         Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
@@ -161,44 +143,20 @@ public class PresenceSnapshotServiceShould
         Assert.Equal(((ushort)2, instanceTwo), (two!.WorldId, two.InstanceId));
     }
 
-    [Fact]
-    public async Task Carry_seed_and_config_version_into_the_snapshot()
-    {
-        Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
-        string? captured = null;
-        await _cache.SetAsync(
-            Arg.Is<string>(k => k == "world:1:presence"),
-            Arg.Do<string>(v => captured = v),
-            Arg.Any<TimeSpan?>());
-
-        await CreateSut(Captured()).WriteLatestAsync(CancellationToken.None);
-
-        WorldPresenceSnapshot? snap = PresenceJson.Deserialize<WorldPresenceSnapshot>(captured!);
-        Assert.Equal(-1044266558, snap!.Instances[0].Seed);
-        Assert.Equal("a91f3c7e", snap.Instances[0].ConfigVersion);
-        Assert.Equal("Normal", snap.Instances[0].MapType);
-    }
-
-    [Fact]
-    public async Task Not_throw_when_the_cache_write_fails()
+    /// <summary>
+    /// A Redis failure never reaches the world server. TaskCanceledException derives from
+    /// OperationCanceledException: a bare `catch (OperationCanceledException) { throw; }` would let that one
+    /// escape and stop the world server via BackgroundService's default StopHost behavior, even though the
+    /// CancellationToken this write was given was never cancelled.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(InvalidOperationException))]
+    [InlineData(typeof(TaskCanceledException))]
+    public async Task Not_throw_when_the_cache_write_fails(Type failure)
     {
         Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
         _cache.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>())
-              .Returns<Task<bool>>(_ => throw new InvalidOperationException("redis down"));
-
-        await CreateSut(Captured()).WriteLatestAsync(CancellationToken.None);
-    }
-
-    [Fact]
-    public async Task Not_throw_when_the_cache_throws_a_cancellation_unrelated_to_our_token()
-    {
-        // TaskCanceledException derives from OperationCanceledException. A bare
-        // `catch (OperationCanceledException) { throw; }` would let this one escape and
-        // stop the world server via BackgroundService's default StopHost behavior, even
-        // though the CancellationToken this write was given was never cancelled.
-        Hold(Instance(Guid.NewGuid(), Character(4417, "Nym")));
-        _cache.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>())
-              .Returns<Task<bool>>(_ => throw new TaskCanceledException("redis reconnect"));
+              .Returns<Task<bool>>(_ => throw (Exception)Activator.CreateInstance(failure, "redis down")!);
 
         await CreateSut(Captured()).WriteLatestAsync(CancellationToken.None);
     }

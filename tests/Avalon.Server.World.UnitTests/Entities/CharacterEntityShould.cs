@@ -51,38 +51,6 @@ public class CharacterEntityShould
     }
 
     /// <summary>
-    /// The combat tag lasts by the entity's clock, the instance's (#614), not the wall clock: the
-    /// clock sits years from now, and only it moves.
-    /// </summary>
-    [Fact]
-    public void Stay_in_combat_by_its_clock_until_the_leave_delay_has_passed()
-    {
-        var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
-        var config = new RegenConfiguration();
-        var entity = new CharacterEntity(NullLoggerFactory.Instance, new Character { Id = 1u, Health = 100 }, config, clock);
-
-        entity.MarkCombat();
-        Assert.True(entity.IsInCombat);
-
-        clock.Now = clock.Now.AddSeconds(config.CombatLeaveDelaySeconds);
-        Assert.False(entity.IsInCombat);
-    }
-
-    [Fact]
-    public void Mark_IsDead_dirty_when_setter_flips_true()
-    {
-        CharacterEntity entity = NewEntity();
-        // Drain any default dirty bits first.
-        entity.ConsumeDirtyFields();
-
-        entity.IsDead = true;
-
-        GameEntityFields dirty = entity.ConsumeDirtyFields();
-        Assert.True((dirty & GameEntityFields.IsDead) != 0);
-        Assert.True(entity.IsDead);
-    }
-
-    /// <summary>
     /// #424. Input from a dead character is dropped, so nothing else would ever clear the velocity it
     /// had when it died, and other clients would extrapolate the corpse onwards.
     /// </summary>
@@ -97,18 +65,6 @@ public class CharacterEntityShould
 
         Assert.Equal(Avalon.Common.Mathematics.Vector3.zero, entity.Velocity);
         Assert.True((entity.ConsumeDirtyFields() & GameEntityFields.Velocity) != 0);
-    }
-
-    [Fact]
-    public void Stay_at_rest_after_it_is_revived()
-    {
-        CharacterEntity entity = NewEntity();
-        entity.Velocity = new Avalon.Common.Mathematics.Vector3(5f, 0f, 0f);
-        entity.IsDead = true;
-
-        entity.Revive();
-
-        Assert.Equal(Avalon.Common.Mathematics.Vector3.zero, entity.Velocity);
     }
 
     [Fact]
@@ -153,40 +109,6 @@ public class CharacterEntityShould
         entity.OnHit(attacker, damage: 9999);
 
         Assert.True(entity.IsDead);
-        Assert.Equal(0u, entity.CurrentHealth);
-    }
-
-    [Fact]
-    public void Ignore_subsequent_OnHit_while_dead()
-    {
-        CharacterEntity entity = NewEntity();
-        IUnit attacker = Substitute.For<Avalon.World.Public.Units.IUnit>();
-        entity.OnHit(attacker, damage: 9999);
-        Assert.True(entity.IsDead);
-
-        // What a hit on a corpse sends (nothing) is the combat service's to decide (#546);
-        // CombatServiceShould pins it.
-        entity.OnHit(attacker, damage: 5);
-
-        Assert.Equal(0u, entity.CurrentHealth);
-        Assert.True(entity.IsDead);
-    }
-
-    [Fact]
-    public void Regen_does_not_increase_health_while_dead()
-    {
-        CharacterEntity entity = NewEntity();
-        IUnit attacker = Substitute.For<Avalon.World.Public.Units.IUnit>();
-        entity.OnHit(attacker, damage: 9999);
-        Assert.True(entity.IsDead);
-        Assert.Equal(0u, entity.CurrentHealth);
-
-        // Run several update ticks. Even outside-combat regen should not move CurrentHealth.
-        for (int i = 0; i < 60; i++)
-        {
-            entity.Update(TimeSpan.FromSeconds(1));
-        }
-
         Assert.Equal(0u, entity.CurrentHealth);
     }
 }

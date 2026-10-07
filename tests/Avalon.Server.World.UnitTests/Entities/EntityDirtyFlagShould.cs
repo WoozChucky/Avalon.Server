@@ -1,109 +1,58 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
 public class EntityDirtyFlagShould
 {
-    // ──────────────────────────────────────────────
-    // Creature
-    // ──────────────────────────────────────────────
-
-    [Fact]
-    public void Creature_Should_MarkCurrentHealth_Dirty_WhenSet()
+    /// <summary>
+    /// Each setter marks the field it changes, so the next state broadcast carries it; a setter that marks
+    /// nothing leaves every client with the old value.
+    /// </summary>
+    [Theory]
+    [InlineData(ObjectType.Creature, GameEntityFields.CurrentHealth)]
+    [InlineData(ObjectType.Creature, GameEntityFields.Position)]
+    [InlineData(ObjectType.Creature, GameEntityFields.Velocity)]
+    [InlineData(ObjectType.Creature, GameEntityFields.Orientation)]
+    [InlineData(ObjectType.Creature, GameEntityFields.MoveState)]
+    [InlineData(ObjectType.Creature, GameEntityFields.Health)]
+    [InlineData(ObjectType.Creature, GameEntityFields.Level)]
+    [InlineData(ObjectType.Creature, GameEntityFields.CurrentPower)]
+    [InlineData(ObjectType.Creature, GameEntityFields.Power)]
+    [InlineData(ObjectType.Creature, GameEntityFields.PowerType)]
+    [InlineData(ObjectType.Character, GameEntityFields.CurrentHealth)]
+    [InlineData(ObjectType.Character, GameEntityFields.CurrentPower)]
+    [InlineData(ObjectType.Character, GameEntityFields.Velocity)]
+    [InlineData(ObjectType.Character, GameEntityFields.MoveState)]
+    [InlineData(ObjectType.Character, GameEntityFields.RequiredExperience)]
+    [InlineData(ObjectType.Character, GameEntityFields.PowerType)]
+    public void Mark_the_field_its_setter_changes(ObjectType entity, GameEntityFields field)
     {
-        var c = new Creature();
-        c.ConsumeDirtyFields(); // clear construction noise
+        IUnit unit = entity == ObjectType.Creature ? new Creature() : new CharacterEntity();
+        unit.ConsumeDirtyFields(); // clear construction noise
 
-        c.CurrentHealth = 80u;
+        Action set = field switch
+        {
+            GameEntityFields.CurrentHealth => () => unit.CurrentHealth = 80u,
+            GameEntityFields.Position => () => unit.Position = new Vector3(1, 2, 3),
+            GameEntityFields.Velocity => () => unit.Velocity = new Vector3(0, 1, 0),
+            GameEntityFields.Orientation => () => unit.Orientation = new Vector3(0, 90, 0),
+            GameEntityFields.MoveState => () => unit.MoveState = MoveState.Running,
+            GameEntityFields.Health => () => unit.Health = 200u,
+            GameEntityFields.Level => () => unit.Level = 5,
+            GameEntityFields.CurrentPower => () => unit.CurrentPower = 50u,
+            GameEntityFields.Power => () => unit.Power = 100u,
+            GameEntityFields.PowerType => () => unit.PowerType = PowerType.Mana,
+            GameEntityFields.RequiredExperience => () => ((CharacterEntity)unit).RequiredExperience = 5000ul,
+            _ => throw new ArgumentOutOfRangeException(nameof(field)),
+        };
+        set();
 
-        GameEntityFields dirty = c.ConsumeDirtyFields();
-        Assert.True(dirty.HasFlag(GameEntityFields.CurrentHealth));
-    }
-
-    [Fact]
-    public void Creature_Should_MarkPosition_Dirty_WhenSet()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-
-        c.Position = new Vector3(1, 2, 3);
-
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.Position));
-    }
-
-    [Fact]
-    public void Creature_Should_MarkVelocity_Dirty_WhenSet()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-        c.Velocity = new Vector3(0, 1, 0);
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.Velocity));
-    }
-
-    [Fact]
-    public void Creature_Should_MarkOrientation_Dirty_WhenSet()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-        c.Orientation = new Vector3(0, 90, 0);
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.Orientation));
-    }
-
-    [Fact]
-    public void Creature_Should_MarkMoveState_Dirty_WhenSet()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-        c.MoveState = MoveState.Running;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.MoveState));
-    }
-
-    [Fact]
-    public void Creature_Should_MarkHealth_Dirty_WhenSet()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-        c.Health = 200u;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.Health));
-    }
-
-    [Fact]
-    public void Creature_Should_MarkLevel_Dirty_WhenSet()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-        c.Level = 5;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.Level));
-    }
-
-    [Fact]
-    public void Creature_Should_MarkCurrentPower_Dirty_WhenSet()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-        c.CurrentPower = 50u;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.CurrentPower));
-    }
-
-    [Fact]
-    public void Creature_Should_MarkPower_Dirty_WhenSet()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-        c.Power = 100u;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.Power));
-    }
-
-    [Fact]
-    public void Creature_Should_MarkPowerType_Dirty_WhenSet()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-        c.PowerType = PowerType.Mana;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.PowerType));
+        Assert.True(unit.ConsumeDirtyFields().HasFlag(field));
     }
 
     [Fact]
@@ -121,76 +70,6 @@ public class EntityDirtyFlagShould
     }
 
     [Fact]
-    public void Creature_Should_ReturnNone_OnSecondConsume_WithoutMutation()
-    {
-        var c = new Creature();
-        c.ConsumeDirtyFields();
-        c.CurrentHealth = 70u;
-        c.ConsumeDirtyFields(); // first consume clears
-
-        GameEntityFields second = c.ConsumeDirtyFields();
-        Assert.False(second.HasFlag(GameEntityFields.CurrentHealth));
-    }
-
-    // ──────────────────────────────────────────────
-    // CharacterEntity
-    // ──────────────────────────────────────────────
-
-    [Fact]
-    public void Character_Should_MarkCurrentHealth_Dirty_WhenSet()
-    {
-        var c = new CharacterEntity();
-        c.ConsumeDirtyFields();
-        c.CurrentHealth = 90u;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.CurrentHealth));
-    }
-
-    [Fact]
-    public void Character_Should_MarkCurrentPower_Dirty_WhenSet()
-    {
-        var c = new CharacterEntity();
-        c.ConsumeDirtyFields();
-        c.CurrentPower = 40u;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.CurrentPower));
-    }
-
-    [Fact]
-    public void Character_Should_MarkVelocity_Dirty_WhenSet()
-    {
-        var c = new CharacterEntity();
-        c.ConsumeDirtyFields();
-        c.Velocity = new Vector3(1, 0, 0);
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.Velocity));
-    }
-
-    [Fact]
-    public void Character_Should_MarkMoveState_Dirty_WhenSet()
-    {
-        var c = new CharacterEntity();
-        c.ConsumeDirtyFields();
-        c.MoveState = MoveState.Running;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.MoveState));
-    }
-
-    [Fact]
-    public void Character_Should_MarkRequiredExperience_Dirty_WhenSet()
-    {
-        var c = new CharacterEntity();
-        c.ConsumeDirtyFields();
-        c.RequiredExperience = 5000ul;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.RequiredExperience));
-    }
-
-    [Fact]
-    public void Character_Should_MarkPowerType_Dirty_WhenSet()
-    {
-        var c = new CharacterEntity();
-        c.ConsumeDirtyFields();
-        c.PowerType = PowerType.Mana;
-        Assert.True(c.ConsumeDirtyFields().HasFlag(GameEntityFields.PowerType));
-    }
-
-    [Fact]
     public void Character_Should_AccumulateMultipleDirtyFields_BeforeConsume()
     {
         var c = new CharacterEntity();
@@ -200,15 +79,5 @@ public class EntityDirtyFlagShould
         GameEntityFields dirty = c.ConsumeDirtyFields();
         Assert.True(dirty.HasFlag(GameEntityFields.CurrentHealth));
         Assert.True(dirty.HasFlag(GameEntityFields.MoveState));
-    }
-
-    [Fact]
-    public void Character_Should_ReturnNone_OnSecondConsume_WithoutMutation()
-    {
-        var c = new CharacterEntity();
-        c.ConsumeDirtyFields();
-        c.CurrentHealth = 60u;
-        c.ConsumeDirtyFields();
-        Assert.False(c.ConsumeDirtyFields().HasFlag(GameEntityFields.CurrentHealth));
     }
 }

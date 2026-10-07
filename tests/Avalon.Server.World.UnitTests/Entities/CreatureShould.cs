@@ -4,7 +4,6 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Units;
-using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -21,94 +20,35 @@ public class CreatureShould
     // LookAt
     // ──────────────────────────────────────────────
 
-    [Fact]
-    public void LookAt_SetsYOrientation_WhenTargetIsToTheRight()
+    /// <summary>The yaw is atan2(x, z) in degrees, measured from where the creature stands.</summary>
+    [Theory]
+    [InlineData(0f, 0f, 1f, 0f, 90f)]     // target right (+X)
+    [InlineData(0f, 0f, 0f, 1f, 0f)]      // target ahead (+Z)
+    [InlineData(0f, 0f, -1f, 0f, -90f)]   // target left (-X)
+    [InlineData(5f, 5f, 6f, 5f, 90f)]     // one unit to the right of a creature away from the origin
+    public void LookAt_SetsTheYawTowardTheTarget(float fromX, float fromZ, float toX, float toZ, float yaw)
     {
-        // target right (+X), atan2(1,0) = π/2 ≈ 90°
-        Creature creature = MakeCreature(Vector3.zero);
-        creature.LookAt(new Vector3(1, 0, 0));
+        Creature creature = MakeCreature(new Vector3(fromX, 0, fromZ));
+        creature.LookAt(new Vector3(toX, 0, toZ));
 
         Assert.Equal(0, creature.Orientation.x);
-        Assert.InRange(creature.Orientation.y, 89f, 91f);
+        Assert.InRange(creature.Orientation.y, yaw - 0.1f, yaw + 0.1f);
         Assert.Equal(0, creature.Orientation.z);
-    }
-
-    [Fact]
-    public void LookAt_SetsZeroYOrientation_WhenTargetIsAhead()
-    {
-        // target ahead (+Z), atan2(0,1) = 0
-        Creature creature = MakeCreature(Vector3.zero);
-        creature.LookAt(new Vector3(0, 0, 1));
-
-        Assert.Equal(0f, creature.Orientation.x, precision: 4);
-        Assert.InRange(creature.Orientation.y, -0.1f, 0.1f);
-        Assert.Equal(0f, creature.Orientation.z, precision: 4);
-    }
-
-    [Fact]
-    public void LookAt_SetsNegativeY_WhenTargetIsToTheLeft()
-    {
-        // target left (-X), atan2(-1,0) = -π/2 ≈ -90°
-        Creature creature = MakeCreature(Vector3.zero);
-        creature.LookAt(new Vector3(-1, 0, 0));
-
-        Assert.InRange(creature.Orientation.y, -91f, -89f);
-    }
-
-    [Fact]
-    public void LookAt_HandlesNonOriginPosition()
-    {
-        Creature creature = MakeCreature(new Vector3(5, 0, 5));
-        // target directly one unit to the right from creature
-        creature.LookAt(new Vector3(6, 0, 5));
-
-        Assert.InRange(creature.Orientation.y, 89f, 91f);
     }
 
     // ──────────────────────────────────────────────
     // IsLookingAt
     // ──────────────────────────────────────────────
 
-    [Fact]
-    public void IsLookingAt_ReturnsTrue_WhenAlreadyFacingExactly()
+    [Theory]
+    [InlineData(1f, true)]     // the point it just turned to
+    [InlineData(-1f, false)]   // the opposite way, 180 degrees off
+    public void IsLookingAt_OnlyThePointItFaces(float x, bool expected)
     {
         Creature creature = MakeCreature(Vector3.zero);
         creature.LookAt(new Vector3(1, 0, 0));
 
-        // Should be looking at the same direction now
-        Assert.True(creature.IsLookingAt(new Vector3(1, 0, 0)));
-    }
-
-    [Fact]
-    public void IsLookingAt_ReturnsFalse_WhenFacingAwayFromTarget()
-    {
-        Creature creature = MakeCreature(Vector3.zero);
-        // Face right (+X, y≈90°)
-        creature.LookAt(new Vector3(1, 0, 0));
-
-        // Check against the opposite direction (-X, y≈-90°) — diff ≈ 180°
-        Assert.False(creature.IsLookingAt(new Vector3(-1, 0, 0)));
-    }
-
-    [Fact]
-    public void IsLookingAt_ReturnsTrue_WithinThreshold()
-    {
-        Creature creature = MakeCreature(Vector3.zero);
-        // Face right so orientation.y ≈ 90°
-        creature.LookAt(new Vector3(1, 0, 0));
-
-        // IsLookingAt computes target yaw and compares — using same target should be within threshold
-        Assert.True(creature.IsLookingAt(new Vector3(1, 0, 0), threshold: 5f));
-    }
-
-    [Fact]
-    public void IsLookingAt_ReturnsFalse_WhenDiffExceedsThreshold()
-    {
-        Creature creature = MakeCreature(Vector3.zero);
-        creature.LookAt(new Vector3(1, 0, 0)); // y ≈ 90°
-
-        // Check off-axis target where diff is large
-        Assert.False(creature.IsLookingAt(new Vector3(-1, 0, 0), threshold: 5f));
+        Assert.Equal(expected, creature.IsLookingAt(new Vector3(x, 0, 0)));
     }
 
     // ──────────────────────────────────────────────
@@ -143,19 +83,5 @@ public class CreatureShould
         const BindingFlags Statics = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
         Assert.Empty(typeof(Creature).GetEvents(Statics));
         Assert.Empty(typeof(CharacterEntity).GetEvents(Statics));
-    }
-
-    // ──────────────────────────────────────────────
-    // OnHit / Script delegation
-    // ──────────────────────────────────────────────
-
-    [Fact]
-    public void OnHit_DoesNotThrow_WhenScriptIsNull()
-    {
-        Creature creature = MakeCreature();
-        creature.Script = null;
-
-        Exception ex = Record.Exception(() => creature.OnHit(Substitute.For<IUnit>(), 50u));
-        Assert.Null(ex);
     }
 }

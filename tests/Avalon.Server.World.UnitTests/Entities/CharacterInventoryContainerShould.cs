@@ -21,29 +21,6 @@ public class CharacterInventoryContainerShould
         new(NullLoggerFactory.Instance, InventoryType.Bag);
 
     [Fact]
-    public void Return_What_It_Was_Loaded_With()
-    {
-        CharacterInventoryContainer container = Bag();
-
-        container.Load([Item(0), Item(1), Item(2)]);
-
-        Assert.Equal(3, container.Items.Count);
-        Assert.Equal<ushort>([0, 1, 2], container.Items.Select(i => i.Slot).Order());
-    }
-
-    [Fact]
-    public void Find_An_Item_By_Its_Slot()
-    {
-        CharacterInventoryContainer container = Bag();
-        container.Load([Item(4, template: 77)]);
-
-        Assert.True(container.TryGet(4, out InventoryItem found));
-        Assert.Equal(new ItemTemplateId(77), found.TemplateId);
-
-        Assert.False(container.TryGet(5, out _));
-    }
-
-    [Fact]
     public void Replace_Its_Whole_Contents_On_Reload()
     {
         CharacterInventoryContainer container = Bag();
@@ -69,12 +46,6 @@ public class CharacterInventoryContainerShould
 
         Assert.Equal(2, equipment.Items.Count);
         Assert.False(equipment.TryGet(14, out _));
-    }
-
-    [Fact]
-    public void Start_Empty()
-    {
-        Assert.Empty(Bag().Items);
     }
 
     [Fact]

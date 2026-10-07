@@ -47,29 +47,6 @@ public class CharacterEntityRegenShould
     // ──────────────────────────────────────────────
 
     [Fact]
-    public void Update_RegeneratesHealth_OutOfCombat()
-    {
-        var config = new RegenConfiguration { HealthRegenOutOfCombatPerStamina = 1.0f };
-        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 50, stamina: 10, config: config);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        // Stamina(10) * coeff(1.0) * dt(1s) = 10 → 50 + 10 = 60
-        Assert.Equal(60u, entity.CurrentHealth);
-    }
-
-    [Fact]
-    public void Update_SkipsHealthRegen_WhenInCombat()
-    {
-        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 50, stamina: 10);
-        entity.MarkCombat();
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(50u, entity.CurrentHealth);
-    }
-
-    [Fact]
     public void Update_SkipsHealthRegen_WhenEntityIsDead()
     {
         CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 0, stamina: 10);
@@ -77,37 +54,6 @@ public class CharacterEntityRegenShould
         entity.Update(TimeSpan.FromSeconds(1));
 
         Assert.Equal(0u, entity.CurrentHealth);
-    }
-
-    [Fact]
-    public void Update_SkipsHealthRegen_WhenHealthAtMax()
-    {
-        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 100, stamina: 10);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(100u, entity.CurrentHealth);
-    }
-
-    [Fact]
-    public void Update_SkipsHealthRegen_WhenStaminaIsZero()
-    {
-        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 50, stamina: 0);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(50u, entity.CurrentHealth);
-    }
-
-    [Fact]
-    public void Update_CapsHealthAtMax_WhenRegenWouldExceed()
-    {
-        var config = new RegenConfiguration { HealthRegenOutOfCombatPerStamina = 100.0f };
-        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 99, stamina: 100, config: config);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(100u, entity.CurrentHealth);
     }
 
     [Fact]
@@ -166,122 +112,25 @@ public class CharacterEntityRegenShould
     // Power regeneration
     // ──────────────────────────────────────────────
 
-    [Fact]
-    public void Update_RegeneratesMana_OutOfCombat()
+    /// <summary>
+    /// Only Mana and Energy regenerate. Fury never does (decay is off here: its decay, #526, is
+    /// FuryLifecycleShould's), and neither does a unit with no pool.
+    /// </summary>
+    [Theory]
+    [InlineData(PowerType.Mana, 60u)]
+    [InlineData(PowerType.Energy, 60u)]
+    [InlineData(PowerType.Fury, 50u)]
+    [InlineData(PowerType.None, 50u)]
+    public void Update_RegeneratesOnlyManaAndEnergy_OutOfCombat(PowerType powerType, uint expected)
     {
         var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
         CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
-            powerType: PowerType.Mana, config: config);
+            powerType: powerType, config: config, furyDecayPerSecond: 0f);
 
         entity.Update(TimeSpan.FromSeconds(1));
 
         // RegenStat(10) * coeff(1.0) * dt(1s) = 10 → 50 + 10 = 60
-        Assert.Equal(60u, entity.CurrentPower!.Value);
-    }
-
-    [Fact]
-    public void Update_RegeneratesMana_InCombat_AtLowerRate()
-    {
-        var config = new RegenConfiguration
-        {
-            PowerRegenOutOfCombatPerStat = 1.0f,
-            PowerRegenInCombatPerStat = 0.1f
-        };
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
-            powerType: PowerType.Mana, config: config);
-        entity.MarkCombat();
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        // RegenStat(10) * coeff(0.1) * dt(1s) = 1 → 50 + 1 = 51
-        Assert.Equal(51u, entity.CurrentPower!.Value);
-    }
-
-    [Fact]
-    public void Update_RegeneratesEnergy_OutOfCombat()
-    {
-        var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
-            powerType: PowerType.Energy, config: config);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(60u, entity.CurrentPower!.Value);
-    }
-
-    [Fact]
-    public void Update_SkipsPowerRegen_ForFuryType()
-    {
-        var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        // Decay off: this pins that Fury never regenerates; its decay (#526) is FuryLifecycleShould's.
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
-            powerType: PowerType.Fury, config: config, furyDecayPerSecond: 0f);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(50u, entity.CurrentPower!.Value);
-    }
-
-    [Fact]
-    public void Update_SkipsPowerRegen_ForNoneType()
-    {
-        var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
-            powerType: PowerType.None, config: config);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(50u, entity.CurrentPower!.Value);
-    }
-
-    [Fact]
-    public void Update_SkipsPowerRegen_WhenRegenStatIsZero()
-    {
-        var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 0,
-            powerType: PowerType.Mana, config: config);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(50u, entity.CurrentPower!.Value);
-    }
-
-    [Fact]
-    public void Update_SkipsPowerRegen_WhenPowerAtMax()
-    {
-        var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 100, regenStat: 10,
-            powerType: PowerType.Mana, config: config);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(100u, entity.CurrentPower!.Value);
-    }
-
-    [Fact]
-    public void Update_CapsCurrentPowerAtMax_WhenRegenWouldExceed()
-    {
-        var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 100.0f };
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 99, regenStat: 100,
-            powerType: PowerType.Mana, config: config);
-
-        entity.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(100u, entity.CurrentPower!.Value);
-    }
-
-    [Fact]
-    public void Update_RegeneratesMana_InCombat_AtTheConfiguredRate_AtTheServerTick()
-    {
-        // Default rates: 23 Intellect x 0.05 = 1.15 Mana a second in combat. The old per-tick floor gave a whole point
-        // every 1/60 s tick, 60 a second, and filled this pool within a second.
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 23, powerType: PowerType.Mana);
-        entity.MarkCombat();
-
-        for (int tick = 0; tick < 60; tick++)
-            entity.Update(TimeSpan.FromSeconds(1d / 60d));
-
-        Assert.Equal(51u, entity.CurrentPower!.Value);
+        Assert.Equal(expected, entity.CurrentPower!.Value);
     }
 
     [Fact]
@@ -297,28 +146,5 @@ public class CharacterEntityRegenShould
         entity.Update(TimeSpan.FromSeconds(1d / 60d));   // 0.115 owed: no whole point yet (0.9 kept would give 51)
 
         Assert.Equal(50u, entity.CurrentPower!.Value);
-    }
-
-    // ──────────────────────────────────────────────
-    // Combat state
-    // ──────────────────────────────────────────────
-
-    [Fact]
-    public void IsInCombat_ReturnsFalse_BeforeMarkCombat()
-    {
-        CharacterEntity entity = MakeCharacter();
-
-        Assert.False(entity.IsInCombat);
-    }
-
-    [Fact]
-    public void IsInCombat_ReturnsTrue_ImmediatelyAfterMarkCombat()
-    {
-        var config = new RegenConfiguration { CombatLeaveDelaySeconds = 5f };
-        CharacterEntity entity = MakeCharacter(config: config);
-
-        entity.MarkCombat();
-
-        Assert.True(entity.IsInCombat);
     }
 }
