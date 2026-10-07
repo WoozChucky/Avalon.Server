@@ -3,8 +3,8 @@ using Avalon.Common.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Characters;
-using Avalon.World.Public;
 using Avalon.World.Maintenance;
+using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;

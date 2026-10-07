@@ -1,7 +1,7 @@
 using System;
 using System.IO;
-using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.Serialization;
+using Avalon.Network.Packets.Social;
 using ProtoBuf;
 using Xunit;
 

@@ -5,11 +5,11 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
-using MapType = Avalon.World.Public.Enums.MapType;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
+using MapType = Avalon.World.Public.Enums.MapType;
 
 namespace Avalon.Api.UnitTests.Services;
 

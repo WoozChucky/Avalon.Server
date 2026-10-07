@@ -1,16 +1,16 @@
-using Avalon.Api.Config;
-using Avalon.Api.Contract;
-using Avalon.Common.ValueObjects;
-using Avalon.Database.Auth.Repositories;
-using Avalon.Infrastructure;
-using Avalon.Infrastructure.Login;
-using Avalon.Api.Exceptions;
-using Avalon.Domain.Auth;
-using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
-using AccountStatus = Avalon.Domain.Auth.AccountStatus;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using Avalon.Api.Config;
+using Avalon.Api.Contract;
+using Avalon.Api.Exceptions;
+using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
+using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
+using AccountStatus = Avalon.Domain.Auth.AccountStatus;
 
 namespace Avalon.Api.Services.Email;
 

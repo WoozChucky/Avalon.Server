@@ -4,15 +4,15 @@ using Avalon.Api.Controllers;
 using Avalon.Api.Services;
 using Avalon.Api.UnitTests.Services;
 using Avalon.Common.Accounts;
+using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
-using Avalon.Database;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.WorldMaintenance;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Xunit;
 using NSubstitute;
+using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
 

@@ -1,10 +1,10 @@
-using Avalon.World.Public.Enums;
-using Avalon.Server.World.UnitTests.Chat;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
+using Avalon.Server.World.UnitTests.Chat;
 using Avalon.World.Chat;
 using Avalon.World.Parties;
+using Avalon.World.Public.Enums;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Parties;

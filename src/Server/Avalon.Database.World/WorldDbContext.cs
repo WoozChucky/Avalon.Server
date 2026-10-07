@@ -4,7 +4,6 @@ using Avalon.Configuration;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
-using PowerType = Avalon.Network.Packets.State.PowerType;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +14,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PowerType = Avalon.Network.Packets.State.PowerType;
 
 namespace Avalon.Database.World;
 

@@ -1,8 +1,8 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Entities;
 using NSubstitute;
 using Xunit;
 

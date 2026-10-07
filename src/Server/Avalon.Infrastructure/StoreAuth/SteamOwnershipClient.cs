@@ -1,5 +1,5 @@
-using Avalon.Common.GameAuth;
 using System.Globalization;
+using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Microsoft.Extensions.Options;
 

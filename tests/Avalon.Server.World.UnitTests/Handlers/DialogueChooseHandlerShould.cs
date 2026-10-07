@@ -1,4 +1,3 @@
-using Avalon.Server.World.UnitTests.Loot;
 using System.IO;
 using Avalon.Common;
 using Avalon.Common.Accounts;
@@ -8,6 +7,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Dialogue;
 using Avalon.World.Handlers;

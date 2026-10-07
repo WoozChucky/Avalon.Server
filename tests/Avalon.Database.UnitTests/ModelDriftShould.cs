@@ -1,5 +1,5 @@
-using Avalon.Database.Character;
 using Avalon.Database.Auth;
+using Avalon.Database.Character;
 using Avalon.Database.World;
 using Microsoft.EntityFrameworkCore;
 using Xunit;

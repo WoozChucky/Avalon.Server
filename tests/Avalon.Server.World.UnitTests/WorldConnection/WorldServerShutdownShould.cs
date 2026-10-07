@@ -12,11 +12,13 @@ using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Parties;
-using Avalon.World.Quests;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Pvp;
+using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -24,8 +26,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
-using Avalon.World.Configuration;
-using Avalon.World.Pvp;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 

@@ -1,7 +1,7 @@
-using Xunit;
 using System.Text.Json;
 using Avalon.Balance.Core;
 using Avalon.World.Public.Enums;
+using Xunit;
 
 namespace Avalon.Balance.UnitTests;
 

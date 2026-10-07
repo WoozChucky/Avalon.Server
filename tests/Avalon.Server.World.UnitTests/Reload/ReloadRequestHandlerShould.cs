@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Avalon.Infrastructure;
+using Avalon.World.Configuration;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Avalon.World.Configuration;
 using NSubstitute;
 using Xunit;
 

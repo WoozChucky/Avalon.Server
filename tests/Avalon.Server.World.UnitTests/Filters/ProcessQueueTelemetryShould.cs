@@ -1,4 +1,3 @@
-using Avalon.Server.World.UnitTests.GameAuth;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
@@ -10,6 +9,7 @@ using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Movement;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Public;

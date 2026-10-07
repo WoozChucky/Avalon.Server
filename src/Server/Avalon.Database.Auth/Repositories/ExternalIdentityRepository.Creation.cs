@@ -1,5 +1,5 @@
-using Avalon.Common.GameAuth;
 using Avalon.Common.Accounts;
+using Avalon.Common.GameAuth;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;

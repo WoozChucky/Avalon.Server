@@ -1,8 +1,8 @@
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.State;
 using ProtoBuf;
-using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Character;
 

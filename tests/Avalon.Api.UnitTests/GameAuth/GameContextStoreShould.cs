@@ -1,8 +1,8 @@
-using Avalon.Infrastructure;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.GameTickets;
 using Avalon.Infrastructure.StoreAuth;

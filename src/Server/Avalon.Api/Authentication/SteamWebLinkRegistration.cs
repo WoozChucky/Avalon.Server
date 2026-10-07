@@ -1,7 +1,7 @@
-using Avalon.Common.GameAuth;
 using System.Security.Claims;
 using AspNet.Security.OpenId;
 using AspNet.Security.OpenId.Steam;
+using Avalon.Common.GameAuth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.WebUtilities;

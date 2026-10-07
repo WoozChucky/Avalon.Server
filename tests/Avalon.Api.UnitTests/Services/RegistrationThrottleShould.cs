@@ -1,8 +1,8 @@
 using System.Net;
+using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
-using Avalon.Api;
 using Avalon.Api.Services;
 using Avalon.Database;
 using Avalon.Database.Auth;

@@ -1,3 +1,4 @@
+using Avalon.Api.UnitTests.StoreAuth;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
@@ -7,7 +8,6 @@ using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.StoreAuth;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-using Avalon.Api.UnitTests.StoreAuth;
 using NSubstitute;
 using Xunit;
 

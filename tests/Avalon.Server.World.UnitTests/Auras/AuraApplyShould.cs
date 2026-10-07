@@ -1,10 +1,10 @@
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Server.World.UnitTests.Combat;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
-using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Xunit;

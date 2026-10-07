@@ -1,5 +1,5 @@
-using Avalon.Common.GameAuth;
 using System.Text.Json;
+using Avalon.Common.GameAuth;
 
 namespace Avalon.Infrastructure.GameAuth;
 

@@ -1,5 +1,5 @@
-using Avalon.Common.GameAuth;
 using System.Net;
+using Avalon.Common.GameAuth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Login;

@@ -1,4 +1,3 @@
-using Avalon.Common.GameAuth;
 using System.Data.Common;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -8,6 +7,7 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
+using Avalon.Common.GameAuth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Authentication;

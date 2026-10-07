@@ -1,9 +1,8 @@
-using Avalon.Common.GameAuth;
-using Avalon.Server.World.UnitTests.GameAuth;
 using System.IO;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Accounts;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
@@ -16,6 +15,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Quests;

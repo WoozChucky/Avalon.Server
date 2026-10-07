@@ -1,4 +1,3 @@
-using Avalon.Common.GameAuth;
 using System.Data.Common;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -6,6 +5,7 @@ using System.Text.Json;
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;

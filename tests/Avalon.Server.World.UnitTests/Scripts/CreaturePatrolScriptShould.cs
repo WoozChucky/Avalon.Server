@@ -1,11 +1,11 @@
 using System;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
-using Avalon.Network.Packets.State;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;

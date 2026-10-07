@@ -1,12 +1,12 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
-using Avalon.World.Inventory;
-using Microsoft.Extensions.Logging;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
+using Avalon.World.Inventory;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
+using Microsoft.Extensions.Logging;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 

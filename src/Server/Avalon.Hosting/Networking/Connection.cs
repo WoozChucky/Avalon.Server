@@ -8,12 +8,11 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
+using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-
-using Avalon.Hosting.Telemetry;
 
 namespace Avalon.Hosting.Networking;
 

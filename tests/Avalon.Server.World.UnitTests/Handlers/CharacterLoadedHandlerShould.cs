@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Characters;
 using Avalon.World;
 using Avalon.World.Handlers;
 using Avalon.World.Public;

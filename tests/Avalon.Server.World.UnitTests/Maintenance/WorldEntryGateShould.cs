@@ -2,9 +2,9 @@ using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Maintenance;
 using NSubstitute;
-using Avalon.Server.World.UnitTests.Loot;
 
 namespace Avalon.Server.World.UnitTests.Maintenance;
 

@@ -1,7 +1,7 @@
-using Avalon.Common.GameAuth;
 using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 
 namespace Avalon.Infrastructure.StoreAuth;

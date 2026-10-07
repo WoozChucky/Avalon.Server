@@ -1,7 +1,7 @@
-using Avalon.Common.GameAuth;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Common.GameAuth;
 
 namespace Avalon.World.GameAuth;
 

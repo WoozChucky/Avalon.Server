@@ -1,5 +1,5 @@
-using Avalon.Common.ValueObjects;
 using Avalon.Common.GameAuth;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;

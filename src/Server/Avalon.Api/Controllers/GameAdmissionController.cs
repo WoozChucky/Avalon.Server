@@ -1,8 +1,8 @@
-using Avalon.Common.GameAuth;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Middlewares;
+using Avalon.Common.GameAuth;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

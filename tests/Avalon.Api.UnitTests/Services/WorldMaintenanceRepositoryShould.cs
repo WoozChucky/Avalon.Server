@@ -1,5 +1,5 @@
-using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Auth.Migrations;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Xunit;

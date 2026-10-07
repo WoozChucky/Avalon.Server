@@ -1,7 +1,7 @@
 using System.Net;
 using System.Reflection;
-using System.Security.Claims;
 using System.Security.Authentication;
+using System.Security.Claims;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
@@ -12,7 +12,6 @@ using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
-using AccountStatus = Avalon.Domain.Auth.AccountStatus;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.GameTickets;
 using Microsoft.AspNetCore.Builder;
@@ -22,6 +21,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
+using AccountStatus = Avalon.Domain.Auth.AccountStatus;
 
 namespace Avalon.Api.UnitTests.Controllers;
 

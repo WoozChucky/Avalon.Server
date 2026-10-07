@@ -1,6 +1,6 @@
-using Avalon.Common.GameAuth;
 using System.Security.Cryptography;
 using System.Text;
+using Avalon.Common.GameAuth;
 
 namespace Avalon.Infrastructure.GameAuth;
 

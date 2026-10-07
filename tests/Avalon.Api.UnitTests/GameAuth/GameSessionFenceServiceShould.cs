@@ -1,11 +1,11 @@
-using Avalon.Infrastructure.GameAuth;
 using Avalon.Api.Services;
 using Avalon.Api.Worlds;
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
-using Avalon.Database.Character.Repositories;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure.GameAuth;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;

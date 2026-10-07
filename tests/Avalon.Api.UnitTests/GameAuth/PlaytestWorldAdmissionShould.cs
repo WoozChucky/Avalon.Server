@@ -1,6 +1,5 @@
-using Avalon.Api.Services;
-using GameContextCredentialRequest = Avalon.Api.Contract.GameContextCredentialRequest;
 using Avalon.Api.Controllers;
+using Avalon.Api.Services;
 using Avalon.Api.Worlds;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
@@ -12,12 +11,13 @@ using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.StoreAuth;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Time.Testing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
+using GameContextCredentialRequest = Avalon.Api.Contract.GameContextCredentialRequest;
 
 namespace Avalon.Api.UnitTests.GameAuth;
 

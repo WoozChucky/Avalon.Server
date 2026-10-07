@@ -1,13 +1,13 @@
-using Avalon.Server.World.UnitTests.GameAuth;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
-using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Movement;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Filters;

@@ -1,7 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using AuthenticateRequest = Avalon.Api.Contract.AuthenticateRequest;
-using RefreshResponse = Avalon.Api.Contract.RefreshResponse;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
@@ -12,6 +10,8 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
 using static Avalon.Api.UnitTests.Authentication.ApiAuthHost;
+using AuthenticateRequest = Avalon.Api.Contract.AuthenticateRequest;
+using RefreshResponse = Avalon.Api.Contract.RefreshResponse;
 
 namespace Avalon.Api.UnitTests.Authentication;
 

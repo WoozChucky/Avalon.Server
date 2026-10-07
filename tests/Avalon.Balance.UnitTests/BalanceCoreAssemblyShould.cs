@@ -1,6 +1,6 @@
 using System.Reflection;
-using Xunit;
 using Avalon.Balance.Core;
+using Xunit;
 
 namespace Avalon.Balance.UnitTests;
 

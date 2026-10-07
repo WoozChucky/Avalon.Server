@@ -1,11 +1,11 @@
 using System.Net;
 using System.Text;
+using AspNet.Security.OpenId.Steam;
 using Avalon.Api.Authentication;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameAuth;
-using AspNet.Security.OpenId.Steam;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

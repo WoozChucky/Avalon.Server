@@ -1,4 +1,3 @@
-using Avalon.Common.GameAuth;
 using System.Security.Authentication;
 using System.Security.Claims;
 using Avalon.Api.Authentication;
@@ -9,6 +8,7 @@ using Avalon.Api.Exceptions;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Common.Accounts;
+using Avalon.Common.GameAuth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;

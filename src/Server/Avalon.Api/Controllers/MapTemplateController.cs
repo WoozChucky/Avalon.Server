@@ -1,7 +1,7 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
-using Avalon.Api.Worlds;
 using Avalon.Api.Services;
+using Avalon.Api.Worlds;
 using Avalon.Database;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

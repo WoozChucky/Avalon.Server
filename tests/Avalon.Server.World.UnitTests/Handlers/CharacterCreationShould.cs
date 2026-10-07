@@ -1,7 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common.Cryptography;
-using Avalon.Common.ValueObjects;
 using Avalon.Common.GameAuth;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World;

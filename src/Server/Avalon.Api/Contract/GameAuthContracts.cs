@@ -1,6 +1,6 @@
-using Avalon.Common.GameAuth;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using Avalon.Common.GameAuth;
 
 namespace Avalon.Api.Contract;
 

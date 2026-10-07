@@ -1,4 +1,3 @@
-using Avalon.World.Public;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -9,6 +8,7 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
+using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;

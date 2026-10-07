@@ -2,11 +2,11 @@ using Avalon.Database;
 using Avalon.Database.Auth.Extensions;
 using Avalon.Database.Extensions;
 using Avalon.Infrastructure.Extensions;
+using Avalon.Infrastructure.GameTickets;
+using Avalon.Infrastructure.Login;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using Avalon.Infrastructure.Login;
-using Avalon.Infrastructure.GameTickets;
 
 namespace Avalon.Server.Auth.Extensions;
 

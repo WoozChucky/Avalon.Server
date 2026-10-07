@@ -1,5 +1,5 @@
-using Avalon.Common.GameAuth;
 using System.Net;
+using Avalon.Common.GameAuth;
 using OpenTelemetry;
 
 namespace Avalon.Api.Authentication;

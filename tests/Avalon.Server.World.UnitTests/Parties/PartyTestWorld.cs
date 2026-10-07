@@ -1,5 +1,6 @@
 using System.IO;
 using Avalon.Common.Accounts;
+using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
@@ -10,7 +11,6 @@ using Avalon.World.Instances;
 using Avalon.World.Parties;
 using Avalon.World.Public;
 using Avalon.World.Public.Instances;
-using Avalon.Common.ValueObjects;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

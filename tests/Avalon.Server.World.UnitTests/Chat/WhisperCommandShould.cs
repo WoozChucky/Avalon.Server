@@ -1,9 +1,9 @@
-using Avalon.World.Public.Enums;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World.Chat;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
 using NSubstitute;
 using Xunit;
 
