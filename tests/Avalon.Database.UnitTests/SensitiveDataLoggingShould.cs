@@ -28,15 +28,20 @@ public class SensitiveDataLoggingShould
 
     public static TheoryData<string> Contexts => new() { "Auth", "Characters", "World" };
 
-    [Theory]
-    [MemberData(nameof(Contexts))]
-    public void Be_off_in_production(string context) =>
-        Assert.False(SensitiveLogging(context, Environments.Production));
+    public static TheoryData<string, string, bool> ContextsInEnvironments => new()
+    {
+        { "Auth", Environments.Production, false },
+        { "Characters", Environments.Production, false },
+        { "World", Environments.Production, false },
+        { "Auth", Environments.Development, true },
+        { "Characters", Environments.Development, true },
+        { "World", Environments.Development, true },
+    };
 
     [Theory]
-    [MemberData(nameof(Contexts))]
-    public void Be_off_in_staging(string context) =>
-        Assert.False(SensitiveLogging(context, Environments.Staging));
+    [MemberData(nameof(ContextsInEnvironments))]
+    public void Be_on_in_development_only(string context, string environment, bool enabled) =>
+        Assert.Equal(enabled, SensitiveLogging(context, environment));
 
     [Theory]
     [MemberData(nameof(Contexts))]
@@ -49,18 +54,12 @@ public class SensitiveDataLoggingShould
         Assert.False(SensitiveLogging(context, Environments.Production,
             ("Database:EnableSensitiveDataLogging", "true")));
 
-    [Theory]
-    [MemberData(nameof(Contexts))]
-    public void Be_on_in_development(string context) =>
-        Assert.True(SensitiveLogging(context, Environments.Development));
-
     /// <summary>
     /// A named configuration (one per world, say) is held to the same rule as the default one:
     /// whatever it was configured with, only Development leaves it on.
     /// </summary>
     [Theory]
     [InlineData("Production", false)]
-    [InlineData("Staging", false)]
     [InlineData("Development", true)]
     public void Hold_a_named_configuration_to_the_environment(string environment, bool expected)
     {

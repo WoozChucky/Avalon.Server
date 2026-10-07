@@ -44,8 +44,10 @@ public class LootTableRepositoryShould
         Assert.Empty(tables.Single(t => t.Id == new LootTableId(900)).Entries);
     }
 
-    [Fact]
-    public async Task Refuse_An_Entry_That_Names_Both_An_Item_And_A_Table()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Refuse_An_Entry_That_Names_Both_Or_Neither_Of_An_Item_And_A_Table(bool both)
     {
         using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
@@ -54,31 +56,19 @@ public class LootTableRepositoryShould
         write.LootTables.Add(new LootTable
         {
             Id = 901,
-            Name = "both",
+            Name = both ? "both" : "neither",
             Entries =
             [
                 new LootTableEntry
                 {
-                    Sequence = 1, ItemTemplateId = new ItemTemplateId(1), ReferenceTableId = new LootTableId(900),
-                    Chance = 10f, MinCount = 1, MaxCount = 1
-                }
-            ]
-        });
-
-        await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
-    }
-
-    [Fact]
-    public async Task Refuse_An_Entry_That_Names_Neither_An_Item_Nor_A_Table()
-    {
-        using var database = SqliteDatabase.World();
-        await using WorldDbContext write = database.CreateDbContext();
-
-        write.LootTables.Add(new LootTable
-        {
-            Id = 901,
-            Name = "neither",
-            Entries = [new LootTableEntry { Sequence = 1, Chance = 10f, MinCount = 1, MaxCount = 1 }]
+                    Sequence = 1,
+                    ItemTemplateId = both ? new ItemTemplateId(1) : null,
+                    ReferenceTableId = both ? new LootTableId(900) : null,
+                    Chance = 10f,
+                    MinCount = 1,
+                    MaxCount = 1,
+                },
+            ],
         });
 
         await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());

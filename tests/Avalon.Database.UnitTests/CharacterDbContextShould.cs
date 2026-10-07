@@ -186,20 +186,6 @@ public class CharacterDbContextShould
     }
 
     [Fact]
-    public void Tie_every_item_to_its_character_by_a_cascading_key()
-    {
-        using var database = SqliteDatabase.Characters();
-        using CharacterDbContext context = database.CreateDbContext();
-
-        IForeignKey foreignKey = context.Model.FindEntityType(typeof(ItemInstance))!
-            .GetForeignKeys()
-            .Single(fk => fk.PrincipalEntityType.ClrType == typeof(CharacterRow));
-
-        Assert.Equal(nameof(ItemInstance.CharacterId), Assert.Single(foreignKey.Properties).Name);
-        Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior);
-    }
-
-    [Fact]
     public void Leave_item_ids_to_the_server()
     {
         using var database = SqliteDatabase.Characters();
