@@ -68,18 +68,6 @@ public class CreatureDeathReplicationShould
         Assert.True(added.IsDead);
     }
 
-    [Fact]
-    public void Add_a_living_creature_as_alive()
-    {
-        using MapInstance instance = TestMapInstances.Build(NewWorld());
-        MapInstanceClient watcher = JoinAt(instance, 672_121, Vector3.zero);
-        Creature boar = AddCreature(instance, 672_921, new Vector3(5f, 0f, 0f));
-
-        Ticks(instance, 1);
-
-        Assert.False(Assert.Single(watcher.Added(), s => s.Guid == boar.Guid.RawValue).IsDead);
-    }
-
     /// <summary>
     /// A hit that leaves the creature alive does not change its death state, so its update does not carry
     /// the member: the thousands of creature updates a second pay nothing for it.

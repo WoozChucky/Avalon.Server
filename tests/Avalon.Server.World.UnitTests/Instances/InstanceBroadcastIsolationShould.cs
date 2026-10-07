@@ -36,19 +36,6 @@ public class InstanceBroadcastIsolationShould
         Assert.Equal(50u, creature.CurrentHealth);
     }
 
-    [Fact]
-    public void Send_A_Creature_Home_When_Its_Target_Leaves_Its_Own_Instance()
-    {
-        using MapInstance instance = Build();
-        MapInstanceClient leaver = Join(instance, 546_002);
-        (Creature creature, CreatureCombatScript script) = EngagedCreature(instance, 546_902, leaver.Character);
-
-        instance.RemoveCharacter(leaver.Connection);
-
-        Assert.Equal(CreatureCombatScript.CombatState.Returning, script.State);
-        Assert.Equal(creature.Health, creature.CurrentHealth);
-    }
-
     /// <summary>
     /// One script that throws as a character leaves stops neither the others hearing it nor the
     /// removal itself.

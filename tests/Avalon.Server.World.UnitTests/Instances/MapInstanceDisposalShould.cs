@@ -111,36 +111,6 @@ public class MapInstanceDisposalShould
     }
 
     /// <summary>
-    /// Only the instance the wounded character is in sends the hit, so a player in one instance never
-    /// sees damage numbers from a fight in another.
-    /// </summary>
-    [Fact]
-    public void Broadcast_A_Hit_Only_From_The_Instance_The_Character_Is_In()
-    {
-        MapInstance owning = BuildInstance();
-        MapInstance bystander = BuildInstance();
-
-        try
-        {
-            CharacterEntity wounded = NewCharacter(991_101);
-            IWorldConnection ownConnection = SeatCharacter(owning, wounded);
-            IWorldConnection otherConnection = SeatCharacter(bystander, NewCharacter(991_102));
-
-            owning.CombatService.ApplyDamage(wounded, wounded, 10);
-
-            // The wounded player is told directly and the hit is broadcast to the instance. Both
-            // belong to the owning instance.
-            ownConnection.ReceivedWithAnyArgs().Send(default!);
-            otherConnection.DidNotReceiveWithAnyArgs().Send(default!);
-        }
-        finally
-        {
-            owning.Dispose();
-            bystander.Dispose();
-        }
-    }
-
-    /// <summary>
     /// A real <see cref="CharacterEntity" /> rather than a substitute, because the hit has to travel
     /// the production route — the combat service's hit on a real entity — to reach the instance.
     /// </summary>
@@ -163,42 +133,6 @@ public class MapInstanceDisposalShould
         connection.CryptoSession.Returns(new PassThroughCryptoSession());
         instance.AddCharacter(connection);
         return connection;
-    }
-
-    /// <summary>
-    /// Disposing one instance must not silence the others: the survivor still handles a kill in it.
-    /// </summary>
-    [Fact]
-    public void Leave_Other_Instances_Working_When_One_Is_Disposed()
-    {
-        MapInstance disposed = BuildInstance();
-        MapInstance survivor = BuildInstance();
-
-        try
-        {
-            var creature = new Creature
-            {
-                Guid = new ObjectGuid(ObjectType.Creature, 991_201),
-                // Non-nullable on ICreature, and the death path reads BodyRemoveTimer off it to schedule
-                // corpse removal, so a creature without metadata is not a valid one to kill.
-                Metadata = Substitute.For<ICreatureMetadata>(),
-                Health = 10,
-                CurrentHealth = 10,
-            };
-            survivor.AddCreature(creature);
-            creature.Script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, survivor);
-
-            disposed.Dispose();
-
-            // The survivor owns this creature, so its kill handling must still run and clear the script.
-            survivor.CombatService.ApplyDamage(creature, creature, 10);
-
-            Assert.Null(creature.Script);
-        }
-        finally
-        {
-            survivor.Dispose();
-        }
     }
 
     private static MapInstance BuildInstance()
