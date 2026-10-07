@@ -22,3 +22,6 @@ tests/Avalon.Balance.UnitTests/Golden/*.csv text eol=lf
 # byte: LF on every platform, so a regeneration on any machine is an empty diff.
 src/Server/Avalon.Server.World/Maps/**/*.obj text eol=lf
 src/Server/Avalon.Server.World/Maps/**/*.json text eol=lf
+
+# The pre-split OpenAPI golden (#794) is the docs build's document byte for byte: LF on every platform.
+tests/Avalon.Api.UnitTests/Contracts/openapi.pre-split.json text eol=lf
