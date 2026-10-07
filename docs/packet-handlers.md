@@ -4,15 +4,15 @@ How a packet reaches its handler, the session filters that gate it, the rule for
 
 ## Packet Protocol
 
-All client↔server communication is custom TCP with Protobuf-net. Every packet wraps a `NetworkPacket` (header + payload). The header carries `NetworkPacketType` (opcode), `NetworkPacketFlags` (encryption/compression bitmask), `NetworkProtocol` (channel grouping), and `Version`.
+All client↔server communication is custom TCP, inside TLS, with Protobuf-net. Every packet wraps a `NetworkPacket` (header + payload). The header carries `NetworkPacketType` (opcode), `NetworkPacketFlags` (encryption/compression bitmask), `NetworkProtocol` (channel grouping), and `Version`.
 
 **Adding a packet handler:**
 1. Define the packet contract in `Avalon.Network.Packets` with a `NetworkPacketType` enum value.
 2. For Auth: implement `IAuthPacketHandler<TPacket>` in `Avalon.Server.Auth/Handlers/`.
-3. For World (server layer): implement `IWorldPacketHandler<TPacket>` in `Avalon.Server.World/Handlers/`, decorated with `[PacketHandler(NetworkPacketType.X)]` — handlers are registered via reflection scan in `WorldServer` constructor.
-4. For World (core layer): implement `WorldPacketHandler<TPacket>` in `Avalon.World/Handlers/`, also discovered by attribute scan.
+3. For World, the connection layer (admission and the version handshake, before any gameplay): implement the generic `IWorldPacketHandler<TPacket>` (`Avalon.World/WorldPacketHandler.cs`) in `Avalon.Server.World/Handlers/`, as `GameAdmissionHandler` and `WorldHandshakeHandler` do.
+4. For World, the game layer (everything a character does): implement `WorldPacketHandler<TPacket>` in `Avalon.World/Handlers/`, decorated with `[PacketHandler(NetworkPacketType.X)]`, and give the opcode a session filter entry (below).
 
-Auth handlers are registered in DI and resolved manually; World handlers use `ActivatorUtilities.CreateInstance` in `WorldServer`.
+Auth handlers and the World connection-layer handlers are found by `PacketManager` (`AddCoreServices`): each packet type marked for the server (`[Packet(HandleOn = ...)]`) maps to the class implementing `IPacketHandlerNew` for it (by the interface's type argument; when two do, the last by ordinal full name wins, #793). `ServerBase.CallListener` builds one per packet with `ActivatorUtilities.CreateFactory`, in a new DI scope, and awaits it as the packet arrives. The game-layer handlers are found by the attribute scan in the `WorldServer` constructor and built once with `ActivatorUtilities.CreateInstance` (given the server itself when a constructor asks for `IWorldServer`); their packets are queued per connection and run on the tick. A World connection drops every packet but `CMSG_GAME_ADMISSION`, and `CMSG_WORLD_HANDSHAKE` once admitted, until it is admitted and its version handshake accepted (`WorldConnection.IsGameplayAuthorized`).
 
 **A retired opcode is deleted, not kept (owner decision, #697).** `NetworkPacketType` holds only opcodes in use: one that nothing sends or handles any more is deleted, with its packet class, and the wire schema re-exported (`tools/Avalon.Exporter -- proto opcodes corpus`). Its number may be reused once clients have re-vendored the schema without it. Nothing in `NetworkPacketType` is `[Obsolete]`. The unused chat-window packets (`CMSG_CHAT_OPEN` 0x2008, `CMSG_CHAT_CLOSE` 0x2009, `SMSG_CHAT_OPEN` 0x300A, `SMSG_CHAT_CLOSE` 0x300B) and the retired group opcodes went this way. The unused quest requests (`CMSG_QUEST_STATUS` 0x2040, `CMSG_QUEST_LIST` 0x2041, `CMSG_QUEST_QUERY_AVAILABLE` 0x2042) went this way with #433.
 

@@ -66,7 +66,7 @@ singletons as in every host. Only their context factories differ in the API, whi
   even while it is unavailable. The auth row is read before the configuration is asked, so an unconfigured world
   costs the same lookup as a restricted one.
 - **The world rule is a mask test**, `AccessLevels.ForWorld(world.AccessLevelRequired).Allows(callerLevel)`, the same
-  rule the auth server applies to its world list and world select. Never compare levels with `>=`:
+  rule the auth server applies to its world list and the game admission to its world list and join tickets. Never compare levels with `>=`:
   `AccountAccessLevel` is `[Flags]`, and PTR (32) and Tournament (16) are numerically above Admin (4).
 - **Character ids are unique only within one world** (each world has its own characters database). Anything that
   keys a character, in the API, Redis or a client, keys it by `(worldId, id)`, never by `id` alone (#556).

@@ -5,8 +5,8 @@ Guidance for agents working in this repository. Avalon is an MMORPG server: a TC
 ## Commands
 
 ```bash
-# Restore, build, test. Build with CI=true before pushing: src/Directory.Build.props promotes
-# MA0032, MA0040 and MA0045 (cancellation-token hygiene) to errors only when CI is true.
+# Restore, build, test. Build with CI=true before pushing: with CI=true every warning is an error
+# (Directory.Build.props), and local builds only show them.
 dotnet restore
 CI=true dotnet build --no-restore
 CI=true dotnet test --no-build
@@ -51,7 +51,7 @@ Target framework: .NET 10 (`global.json`). The long notes — every EF design-ti
 | REST API host | `src/Server/Avalon.Api` | Runs the API services `Application:Services` names, all four in one process when unset (production until #802); the `avalon-api` chart and its route manifest (`files/routes.json`); OpenAPI with Scalar at `/scalar`; the EF design-time startup project ([docs/api-services.md](docs/api-services.md)) |
 | API services | `src/Server/Avalon.Api.Identity`, `.Worlds`, `.Commerce`, `.Distribution` | identity (accounts, MFA, tokens, client auth, game admission; migrates the auth schema), worlds (world content, characters, public tooltips), commerce (checkout, payments), distribution (launcher, releases, channels); none references another (`ApiServiceBoundariesShould`) |
 | API shared | `src/Server/Avalon.Api.Hosting`, `src/Server/Avalon.Api.Contract` | The host builder, pipeline, startup, token validation, rate limiting and world database plumbing every service runs on; the REST contract (DTOs) |
-| Auth server | `src/Server/Avalon.Server.Auth` | TCP login (password, or a ticket from the REST client auth), MFA, the world list; world entry is the REST game admission (join and reconnect tickets) |
+| Auth server | `src/Server/Avalon.Server.Auth` | TCP login (password, then MFA), MFA management, the world list; world entry is the REST game admission (join and reconnect tickets), not the auth server |
 | World server | `src/Server/Avalon.Server.World` | Tick loop host, connections, packet dispatch, world lifecycle |
 | Core world | `src/Server/Avalon.World` | Instances, entities, abilities, creatures and AI, parties, quests, auras, items, chat commands |
 | Modding API | `src/Server/Avalon.World.Public` | The future public surface for scripts and addons (see Working rules) |
@@ -64,7 +64,7 @@ Target framework: .NET 10 (`global.json`). The long notes — every EF design-ti
 | Balance | `src/Server/Avalon.Balance.Core`, `.Balance.Data`, `.Balance.Contract`, `.Balance.Service` | Simulator library (Core references Combat and Domain only, `BalanceCoreAssemblyShould`), seed reader, DTOs, in-cluster service |
 | Aspire | `src/Server/Avalon`, `src/Server/Avalon.ServiceDefaults` | Local AppHost and shared service defaults |
 | Shared | `src/Shared/Avalon.Common`, `.Configuration`, `.Domain`, `.Metrics`, `.Network.Packets`, `.Network.Packets.Abstractions` | `ValueObject<T>` and utilities, options classes, the domain model, OpenTelemetry, packet contracts (protobuf-net) |
-| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking` |
+| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking`, `api-smoke` (read-only API smoke check), `release` (CI version and registry scripts) ([docs/tooling.md](docs/tooling.md)) |
 | Vendored | `vendor/DotRecast` | Navmesh (Recast/Detour); not ours to restyle |
 
 `src/Server/Avalon.PluginFramework` is an empty placeholder project.
@@ -101,9 +101,9 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 - [Packet handlers, session filters, reflection-bound registration](docs/packet-handlers.md): auth handlers implement `IAuthPacketHandler<T>` (DI); world handlers `IWorldPacketHandler<T>` or `WorldPacketHandler<T>` with `[PacketHandler(NetworkPacketType.X)]`, built by `ActivatorUtilities`.
 
 ### Auth and accounts
-- [Auth server login flow](docs/auth-server.md): handshake, password, ticket and MFA login, the world list (world entry is the REST game admission, see [API services](docs/api-services.md)), per-source and per-username login budgets (`SourceBudget`, `UsernameBudget`), `Online` owned by one connection, the online sweep, unique usernames and emails, single-use TOTP, `PostLoginGuard`, and the Redis keys. Exactly one auth server is supported.
+- [Auth server login flow](docs/auth-server.md): handshake, password and MFA login, the world list (world entry is the REST game admission, see [API services](docs/api-services.md)), per-source and per-username login budgets (`SourceBudget`, `UsernameBudget`), `Online` owned by one connection, the online sweep, unique usernames and emails, single-use TOTP, `PostLoginGuard`, and the Redis keys. Exactly one auth server is supported.
 - [REST API authentication](docs/api-authentication.md): access JWTs and PATs revalidated per request (`AccountAccessCheck`), refresh rotation with a 5 s grace, the shared login policy, reauthentication for sensitive actions, rate limiting, registration budgets, credentials version (`cver`), email change.
-- [Redis keys](docs/redis-cache-keys.md) (most literals live in `CacheKeys`), [session management](docs/security-session-management.md), Steam: [authentication](docs/steam-authentication.md), [workloads](docs/steam-authentication-workloads.md), [account links](docs/steam-account-links.md).
+- [Redis keys](docs/redis-cache-keys.md) (most literals live in `CacheKeys`), [session management](docs/security-session-management.md), [email verification](docs/email-verification.md), Steam: [authentication](docs/steam-authentication.md), [workloads](docs/steam-authentication-workloads.md), [account links](docs/steam-account-links.md).
 
 ### REST API
 - [API services](docs/api-services.md): identity, worlds, commerce and distribution, one binary; `Application:Services`; the route manifest (a new endpoint needs an owner in `RouteOwnershipShould`); the chart's `services`, `routes` and `networkPolicy`; the rollout (#802).

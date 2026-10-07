@@ -11,35 +11,47 @@ Custom TCP layer with Protobuf-net serialization. Every client↔server message 
 | `Protocol` | `NetworkProtocol` | Logical channel grouping (Authentication, World, Social, Character) |
 | `Version` | `int` | Protocol version for backward compatibility |
 
-Transport: plain TCP sockets (one connection per phase: Auth, then World). Ordering guaranteed by TCP.  
-Encryption: session crypto negotiated via ephemeral public key exchange during handshake stages.  
+Transport: TCP inside TLS, one connection per phase (Auth, then World). The auth server wraps every accepted socket in
+TLS 1.2 with its certificate, the world server in TLS 1.2 or 1.3 with its own (both `Hosting:Security:CertificatePath`),
+and a client pins the world's leaf named in its join reply. Ordering guaranteed by TCP.  
+Encryption: inside TLS, session crypto negotiated via ephemeral public key exchange during handshake stages.  
 Size calculation uses fixed field lengths; header marshaled first enabling preallocation.
 
 ## Auth Phase Lifecycle
 
-1. `CClientInfoPacket` — client sends its ephemeral public key.
-2. `SHandshakePacket` — server returns handshake data (server challenge).
-3. `CHandshakePacket` — client proves possession / echoes handshake data.
-4. `SHandshakeResultPacket` — indicates success and signals encryption activation.
-5. `CAuthPacket` — credentials (username + password; server BCrypt verifies).
-6. `SAuthResultPacket` — status (`SUCCESS`, `LOCKED`, `MFA_REQUIRED`, etc.) and `AccountId` on success.
-7. `CWorldListPacket` — client requests accessible world list.
-8. `SWorldListPacket` — worlds filtered by account access level.
-9. `CWorldSelectPacket(WorldId)` — client chooses target world.
-10. `SWorldSelectPacket(worldKey, Result)` — on `Success` the server issues a short-lived base64 `worldKey` stored in Redis (5 min TTL). Otherwise `worldKey` is empty and `Result` says why: `DuplicateSession` (the account already holds the inWorld slot) or `WorldUnavailable` (#554: a world id the server does not know, or a world the account's access level may not enter; both get this one answer, so a restricted world cannot be told from a missing one). The connection stays open after either, so the client can pick another world. `WorldSelectResult` is append-only: 0 `Success`, 1 `DuplicateSession`, 2 `WorldUnavailable`. A client should not retry `DuplicateSession` automatically (the inWorld slot lasts up to 5 minutes) and should back off after `WorldUnavailable`: every select counts against the connection's budget (`Application:MaxWorldSelectsPerMinute`, default 10 per minute, #574), and the select past it closes the connection.
+1. `CRequestServerInfoPacket` — client sends its version; `SServerInfoPacket` answers with the server's version and
+   public key, or refuses a client below `Application:MinClientVersion` and closes.
+2. `CClientInfoPacket` — client sends its ephemeral public key.
+3. `SHandshakePacket` — server returns handshake data (server challenge).
+4. `CHandshakePacket` — client proves possession / echoes handshake data.
+5. `SHandshakeResultPacket` — indicates success and signals encryption activation.
+6. `CAuthPacket` — credentials (username + password; server BCrypt verifies).
+7. `SAuthResultPacket` — status (`SUCCESS`, `LOCKED`, `MFA_REQUIRED`, etc.) and `AccountId` on success; with
+   `MFA_REQUIRED`, an MFA hash that `CMFAVerifyPacket` sends back with the code.
+8. `CWorldListPacket` — client requests accessible world list.
+9. `SWorldListPacket` — worlds filtered by account access level, each with its derived status.
 
-## World Handoff
+The auth phase ends there: the TCP world select and world-key handoff were retired with the TLS join-ticket admission,
+and their opcodes are unassigned. [Auth server login flow](auth-server.md) has the rules of each step.
 
-11. Client opens new TCP connection to World server.
-12. `CExchangeWorldKeyPacket(worldKey, publicKey)` — provides issued key + new ephemeral public key for world session.
-13. World server validates key via Redis (single-use), loads account, initializes crypto.
-14. `SExchangeWorldKeyPacket(serverPublicKey)` — confirms acceptance & provides server public key.
-15. Subsequent packets (character list, selection, movement, chat) proceed under world session context.
+## World Admission
+
+10. The client gets a join ticket from the REST API (`POST /game/join-tickets`, against its game context), bound to one
+    world, character and world server, for at most 30 seconds.
+11. Client opens a TCP connection to that world server and completes TLS.
+12. `CGameAdmissionPacket(JoinTicket, PublicKey)` — clear text inside TLS: the ticket and a new ephemeral public key.
+13. The world server redeems the ticket and activates the session through the API's internal admission routes, off the
+    tick, then initializes the session crypto.
+14. `SGameAdmissionPacket(PublicKey, Result)` — `Accepted` with the server's public key; otherwise `InvalidRequest`,
+    `AuthorizationRequired` or `ServiceUnavailable`, and the connection is closed.
+15. `CWorldHandshakePacket(Version)` / `SWorldHandshakePacket` — encrypted; the client's version must be at least 0.2.0
+    and the world's `MinVersion`, or the connection is closed.
+16. Subsequent packets (character list, selection, movement, chat) proceed under the admitted session.
 
 ## Redis Usage in Flow
 
-- `world:{worldId}:keys:{worldKeyBase64}` → `accountId` (TTL ~5 min) — deleted immediately after successful world key exchange.
-- `account:{accountId}:inWorld` — SETNX duplicate-session mutex written during `CWorldSelect`, cleared after successful key exchange (5 min TTL).
+- `auth:account:{accountId}:mfa` and `auth:mfa:hash:{sha256}` — the MFA step's state.
+- `game-auth:{environment}:join-ticket:{digest}` — a join ticket, stored by its digest, redeemed once.
 - `auth:accounts:online` / `world:accounts:disconnect` — pub/sub channels for cross-component presence coordination.
 
 See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
@@ -48,7 +60,8 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
 
 - Invalid handshake data → connection closed (avoid resource waste).
 - Wrong key size → rejected prior to crypto init.
-- Invalid or expired world key → silent reject (prevents brute-force enumeration).
+- A malformed, expired, spent or foreign join ticket → `SGameAdmissionPacket` refusal and the connection closed; a
+  world connection that is not admitted within 15 seconds is closed.
 - Multiple logins for same account → previously connected session force-disconnected via pub/sub event.
 
 ## Open Defect — a `DateTime` loses its kind
@@ -81,10 +94,11 @@ in it, so a fix will turn that test red rather than pass unnoticed.
 
 ## Security Considerations
 
-- Single-use world keys mitigate replay (removed after exchange).
-- Separation of Auth and World keys limits blast radius of a compromised session token.
+- Single-use join tickets mitigate replay: a ticket lives at most 30 seconds, is bound to one world server, and is
+  redeemed once, by that server, over its mutually authenticated workload connection.
+- Separation of the auth and world sessions limits the blast radius of a compromised session token.
 - Public key re-exchange on world join prevents key reuse across phases.
-- Planned: rate limiting handshake attempts and exponential backoff on auth failures.
+- Auth failures are budgeted per source and per username ([auth server](auth-server.md)).
 
 ## Extensibility
 
@@ -98,10 +112,12 @@ in it, so a fix will turn that test red rather than pass unnoticed.
 sequenceDiagram
     participant Client
     participant Auth as Auth Server
-    participant Redis
+    participant Api as REST API (identity)
     participant World as World Server
 
-    Client->>Auth: TCP Connect
+    Client->>Auth: TLS connect
+    Client->>Auth: CRequestServerInfo(version)
+    Auth-->>Client: SServerInfo(version, publicKey)
     Client->>Auth: CClientInfo(publicKey)
     Auth-->>Client: SHandshake(handshakeData)
     Client->>Auth: CHandshake(handshakeData)
@@ -110,22 +126,22 @@ sequenceDiagram
     Auth-->>Client: SAuthResult(SUCCESS, accountId)
     Client->>Auth: CWorldList()
     Auth-->>Client: SWorldList(worlds[])
-    Client->>Auth: CWorldSelect(worldId)
-    Auth->>Redis: SET world:{id}:keys:{worldKey}=accountId TTL=5m
-    Auth-->>Client: SWorldSelect(worldKey)
-    Client->>World: TCP Connect
-    Client->>World: CExchangeWorldKey(worldKey, publicKey)
-    World->>Redis: GET world:{id}:keys:{worldKey}
-    Redis-->>World: accountId
-    World->>Redis: DEL world:{id}:keys:{worldKey}
-    World-->>Client: SExchangeWorldKey(serverPublicKey)
+    Client->>Api: POST /game/join-tickets (game context, world, character)
+    Api-->>Client: join ticket, world host, TLS pin
+    Client->>World: TLS connect
+    Client->>World: CGameAdmission(joinTicket, publicKey)
+    World->>Api: POST /internal/game/join-tickets/redeem, sessions/activate (mTLS)
+    Api-->>World: account, session, fencing token, lease
+    World-->>Client: SGameAdmission(serverPublicKey)
+    Client->>World: CWorldHandshake(version)
+    World-->>Client: SWorldHandshake
     Client->>World: (Character/Gameplay packets...)
 ```
 
 Flow summary:
 1. Secure ephemeral key negotiation (Auth)
 2. Credentials verification & session marking
-3. World discovery & selection with access filtering
-4. One-time world key issuance (Redis-backed)
-5. World server validation + second crypto establishment
+3. World discovery with access filtering
+4. One-time join ticket issuance (REST game admission)
+5. World server redemption + second crypto establishment
 6. Transition to gameplay channel
