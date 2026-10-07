@@ -21,9 +21,7 @@ public class ApplicationConfig
     public CacheConfiguration? Cache { get; set; }
     public ForwardedHeadersConfig? ForwardedHeaders { get; set; }
     public EmailConfig? Email { get; set; }
-    public Distribution.DistributionConfiguration? Distribution { get; set; }
     public Balance.BalanceConfiguration? Balance { get; set; }
-    public Commerce.CommerceConfiguration? Commerce { get; set; }
 
     /// <summary>The "Application" section, bound as the services still in Avalon.Api read it.</summary>
     public static ApplicationConfig Bind(IConfiguration configuration)

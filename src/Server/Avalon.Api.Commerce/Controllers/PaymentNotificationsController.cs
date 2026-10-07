@@ -1,8 +1,7 @@
-using Avalon.Api.Commerce;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Avalon.Api.Controllers;
+namespace Avalon.Api.Commerce.Controllers;
 
 [AllowAnonymous]
 [ApiController]

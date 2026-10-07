@@ -1,4 +1,3 @@
-using Avalon.Api.Commerce;
 using Avalon.Api.Contract.Commerce;
 using Avalon.Common.GameAuth;
 using Avalon.Database.Auth;
@@ -9,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Commerce;
+namespace Avalon.Api.Commerce.UnitTests;
 
 public sealed class PaymentReconciliationShould
 {
@@ -300,9 +299,54 @@ public sealed class PaymentReconciliationShould
         Assert.Single(await db.GameLicenses.ToListAsync());
     }
 
+    /// <summary>
+    /// Two reconciliation workers over one database, as the monolith's and commerce's may run side by side while the
+    /// split rolls out (#794), never both complete one event: a claim is a lease. While one worker holds it the other
+    /// passes the event over; once the lease has run out the other takes the event, and the first worker's late
+    /// completion is refused.
+    /// </summary>
+    [Fact]
+    public async Task Never_let_two_workers_complete_one_event()
+    {
+        using PurchaseServiceShould.Fixture f = await Setup();
+        var repo = new PurchaseRepository(f.Db, f.Clock);
+        PaymentEvent row = await AcceptEvent(f, repo);
+        var reconciliation = new HeldReconciliation();
+        using PaymentReconciliationWorker first = Worker(f, repo, reconciliation);
+        using PaymentReconciliationWorker second = Worker(f, repo, reconciliation);
+
+        Task firstRun = first.RunOnceAsync(CancellationToken.None);
+        await reconciliation.FirstEntered.WaitAsync(TimeSpan.FromSeconds(30));
+        await second.RunOnceAsync(CancellationToken.None);
+        Assert.Equal(1, reconciliation.Calls);
+
+        f.Clock.Now = f.Clock.Now.AddMinutes(3);
+        await second.RunOnceAsync(CancellationToken.None);
+        reconciliation.ReleaseFirst();
+        await firstRun;
+
+        await using AuthDbContext db = f.Db.CreateDbContext();
+        PaymentEvent stored = await db.PaymentEvents.SingleAsync(x => x.Id == row.Id);
+        Assert.Equal(2, reconciliation.Calls);
+        Assert.Equal(PaymentEventState.Completed, stored.State);
+        // Each completion counts one attempt: the second worker's is the only one recorded.
+        Assert.Equal(1, stored.RetryCount);
+    }
+
     internal static async Task<PaymentProcessingResult> Process(PurchaseServiceShould.Fixture f)
     {
         var repo = new PurchaseRepository(f.Db, f.Clock);
+        PaymentEvent row = await AcceptEvent(f, repo);
+        PaymentEventClaim claim = (await repo.ClaimEventsAsync(f.Clock.Now, 10, TimeSpan.FromMinutes(2))).Single(x => x.Event.Id == row.Id);
+        var service = new PaymentReconciliationService(repo, new PaymentProviderRegistry([f.Provider]), Options.Create(f.Config), f.Clock);
+        PaymentProcessingResult result = await service.ProcessAsync(claim, CancellationToken.None);
+        await repo.CompleteEventAsync(row.Id, claim.LeaseId, result);
+        return result;
+    }
+
+    /// <summary>A paid notification for the fixture's checkout, accepted into the inbox and due now.</summary>
+    private static async Task<PaymentEvent> AcceptEvent(PurchaseServiceShould.Fixture f, PurchaseRepository repo)
+    {
         PaymentSnapshot snapshot = f.Provider.Snapshot!;
         var row = new PaymentEvent
         {
@@ -321,12 +365,41 @@ public sealed class PaymentReconciliationShould
             NextAttemptAt = f.Clock.Now
         };
         await repo.AcceptEventAsync(row);
-        PaymentEventClaim claim = (await repo.ClaimEventsAsync(f.Clock.Now, 10, TimeSpan.FromMinutes(2))).Single(x => x.Event.Id == row.Id);
-        var service = new PaymentReconciliationService(repo, new PaymentProviderRegistry([f.Provider]), Options.Create(f.Config), f.Clock);
-        PaymentProcessingResult result = await service.ProcessAsync(claim, CancellationToken.None);
-        await repo.CompleteEventAsync(row.Id, claim.LeaseId, result);
-        return result;
+        return row;
     }
+
+    private static PaymentReconciliationWorker Worker(PurchaseServiceShould.Fixture f, PurchaseRepository repo,
+        IPaymentReconciliationService reconciliation) =>
+        new(repo, reconciliation, Options.Create(f.Config), f.Clock,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaymentReconciliationWorker>.Instance);
     private static RefundProviderResult Refund(PaymentRefundState state) => new("refund", "payment", 800, "eur", state);
     private static PaymentDisputeSnapshot Dispute(string id, PaymentDisputeState state) => new(id, "payment", 800, "eur", state);
+
+    /// <summary>Completes every event it is given; the first one waits until the test releases it.</summary>
+    private sealed class HeldReconciliation : IPaymentReconciliationService
+    {
+        private readonly TaskCompletionSource _firstEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _firstReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        public Task FirstEntered => _firstEntered.Task;
+
+        public void ReleaseFirst() => _firstReleased.SetResult();
+
+        public async Task<PaymentProcessingResult> ProcessAsync(PaymentEventClaim claim, CancellationToken ct)
+        {
+            if (Interlocked.Increment(ref _calls) == 1)
+            {
+                _firstEntered.SetResult();
+                await _firstReleased.Task;
+            }
+
+            return new PaymentProcessingResult(Completed: true);
+        }
+
+        public Task<PaymentProcessingResult> SweepAsync(PaymentAttempt attempt, CancellationToken ct) =>
+            Task.FromResult(new PaymentProcessingResult(Completed: false, FailureCode: "NOT_DISPATCHED"));
+    }
 }

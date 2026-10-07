@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using Avalon.Api.Config;
-using Avalon.Api.Controllers;
 using Avalon.Api.Hosting;
 using Avalon.Api.Testing;
 using Microsoft.AspNetCore.Builder;
@@ -16,9 +15,9 @@ namespace Avalon.Api.UnitTests.Contracts;
 
 /// <summary>
 /// An in-memory api that maps what Program.cs maps (<c>/health</c>, <c>/alive</c>, the OpenAPI document, Scalar and
-/// every controller), with Program's OpenAPI setup and authentication schemes and nothing below the controllers:
-/// enough to read its endpoints, the document it serves and which endpoint a request reaches, not to answer API
-/// requests (#794).
+/// every controller of every service, <see cref="ApiServices.All"/>), with Program's OpenAPI setup and authentication
+/// schemes and nothing below the controllers: enough to read its endpoints, the document it serves and which endpoint
+/// a request reaches, not to answer API requests (#794).
 /// </summary>
 public sealed class ContractHost : IAsyncDisposable
 {
@@ -38,7 +37,9 @@ public sealed class ContractHost : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Logging.ClearProviders();
         builder.AddDefaultHealthChecks();
-        builder.Services.AddControllers().AddApplicationPart(typeof(AccountController).Assembly);
+        IMvcBuilder mvc = builder.Services.AddControllers();
+        foreach (IApiService service in ApiServices.All)
+            mvc.AddApplicationPart(service.ControllerAssembly);
         builder.Services.AddAvalonOpenApi();
         // Program's authentication schemes: the document carries the bearer scheme only when one is registered.
         builder.Services.AddAuth(new ApplicationConfig { Authentication = ApiTestHost.AuthConfig });

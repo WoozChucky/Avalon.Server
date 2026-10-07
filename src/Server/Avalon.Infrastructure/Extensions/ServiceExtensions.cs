@@ -1,8 +1,10 @@
+using Avalon.Configuration;
 using Avalon.Infrastructure.Configuration;
 using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Infrastructure.WorldMaintenance;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Infrastructure.Extensions;
 
@@ -48,6 +50,28 @@ public static class ServiceExtensions
     {
         services.AddSingleton<ISecureRandom, SecureRandom>();
         return services;
+    }
+
+    /// <summary>
+    /// Binds <c>Application:StoreAuthentication</c> to <see cref="StoreAuthenticationConfiguration"/> once per service
+    /// collection, however many API services ask (#794): identity and commerce both read it, and a process may run both.
+    /// A second bind would append every array entry again (a playtest's or an additional application's allowed
+    /// worlds), and the section's own rules refuse the duplicates. A caller adds its validation to the builder returned.
+    /// </summary>
+    public static OptionsBuilder<StoreAuthenticationConfiguration> AddStoreAuthenticationOptions(this IServiceCollection services)
+    {
+        OptionsBuilder<StoreAuthenticationConfiguration> options = services.AddOptions<StoreAuthenticationConfiguration>();
+        if (services.Any(service => service.ServiceType == typeof(StoreAuthenticationSection)))
+            return options;
+
+        services.AddSingleton(new StoreAuthenticationSection());
+        return options.BindConfiguration(StoreAuthenticationSection.Path);
+    }
+
+    /// <summary>Marks the store authentication section as bound in a service collection.</summary>
+    private sealed class StoreAuthenticationSection
+    {
+        public const string Path = "Application:StoreAuthentication";
     }
 
 }

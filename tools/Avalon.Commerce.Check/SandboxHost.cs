@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using Avalon.Api;
 using Avalon.Api.Commerce;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Commerce;

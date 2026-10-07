@@ -1,7 +1,6 @@
-using Avalon.Api.Distribution;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Distribution;
+namespace Avalon.Api.Distribution.UnitTests;
 
 /// <summary>
 /// The S3 (Garage) store: reads over the in-cluster endpoint, but presigns for the public host a

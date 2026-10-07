@@ -1,8 +1,6 @@
 using System.Reflection;
 using Avalon.Api.Authentication;
-using Avalon.Api.Commerce;
 using Avalon.Api.Config;
-using Avalon.Api.Distribution;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Middlewares;
@@ -14,9 +12,10 @@ using Avalon.Infrastructure.Login;
 namespace Avalon.Api;
 
 /// <summary>
-/// Every API service in one, as Avalon.Api ran before the split (#794): what <see cref="ServiceRegistration"/>
-/// registers, the game workload listener, the Steam callback before authentication and the workload authentication
-/// after it. Temporary: each service moves out into its own library, with its own descriptor, and this goes.
+/// The API services still in Avalon.Api, as it ran before the split (#794): identity and worlds, which is what
+/// <see cref="ServiceRegistration"/> registers, the game workload listener, the Steam callback before authentication
+/// and the workload authentication after it. Temporary: each service moves out into its own library,
+/// with its own descriptor (<see cref="ApiServices"/> lists them), and this goes.
 /// </summary>
 public sealed class MonolithApi : IApiService
 {
@@ -29,10 +28,8 @@ public sealed class MonolithApi : IApiService
     /// <summary>How the services' own exceptions are answered, in the order the middleware asks.</summary>
     public static IReadOnlyList<IExceptionProblemMapper> ProblemMappers { get; } =
     [
-        new CommerceProblemMapper(),
         new IdentityProblemMapper(),
         new WorldsProblemMapper(),
-        new DistributionProblemMapper(),
     ];
 
     private MonolithApi()

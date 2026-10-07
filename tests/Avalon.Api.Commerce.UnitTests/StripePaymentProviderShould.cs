@@ -2,14 +2,13 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Avalon.Api.Commerce;
 using Avalon.Domain.Commerce;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Stripe;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Commerce;
+namespace Avalon.Api.Commerce.UnitTests;
 
 public sealed class StripePaymentProviderShould
 {

@@ -1,4 +1,3 @@
-using Avalon.Api.Commerce;
 using Avalon.Api.Contract.Commerce;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Controllers;
@@ -6,7 +5,7 @@ using Avalon.Database;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Avalon.Api.Controllers;
+namespace Avalon.Api.Commerce.Controllers;
 
 [Authorize(Policy = AvalonRoles.Admin)]
 [ApiController]

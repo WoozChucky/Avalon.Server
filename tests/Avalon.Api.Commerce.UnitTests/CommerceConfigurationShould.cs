@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Avalon.Api.Commerce;
 using Avalon.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -7,7 +6,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Commerce;
+namespace Avalon.Api.Commerce.UnitTests;
 
 public sealed class CommerceConfigurationShould
 {

@@ -1,6 +1,5 @@
 using System.Reflection;
-using Avalon.Api.Commerce;
-using Avalon.Api.Controllers;
+using Avalon.Api.Commerce.Controllers;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Commerce;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +9,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Commerce;
+namespace Avalon.Api.Commerce.UnitTests;
 
 public sealed class PaymentNotificationShould
 {
