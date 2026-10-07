@@ -22,11 +22,12 @@
   <PropertyGroup Condition="'$(CI)' == 'true'">
     <WarningsAsErrors>$(WarningsAsErrors);MA0032;MA0040;MA0045</WarningsAsErrors>
     <!--
-      Meziantou.Analyzer's other rules that are on by default, with the warnings src had when the code standard came
-      in (#791): reported, not fatal, until each is fixed or given a severity of its own. They are not part of the
-      standard; the CancellationToken rules above are.
+      Meziantou.Analyzer's correctness rules (string comparers, regex timeouts, culture, inner exceptions, unobserved
+      tasks, default values, DateTimeOffset conversions) had about 45 warnings in src when the code standard came in
+      (#791). They are reported but not fatal until #793 fixes them; then this list goes. Its opinion rules are off
+      in .editorconfig.
     -->
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);MA0002;MA0006;MA0008;MA0009;MA0010;MA0011;MA0012;MA0015;MA0016;MA0021;MA0022;MA0025;MA0026;MA0046;MA0048;MA0051;MA0054;MA0061;MA0069;MA0074;MA0077;MA0084;MA0088;MA0099;MA0132;MA0134;MA0158</WarningsNotAsErrors>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);MA0002;MA0009;MA0011;MA0022;MA0054;MA0061;MA0074;MA0132;MA0134</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

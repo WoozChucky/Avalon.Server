@@ -126,10 +126,11 @@ and keep game-server hot paths (the tick, packet handling, replication) free of 
   build so the comments do not reach the OpenAPI document `Avalon.Api` serves.
 - When `CI` is `true` (GitHub Actions sets it) the same file turns on `TreatWarningsAsErrors`, so any warning, code
   style or compiler or analyzer, fails the build. Locally the warnings are only warnings.
-- Meziantou.Analyzer's CancellationToken rules (MA0032, MA0040, MA0045) are errors in CI as before. Its other rules
-  that are on by default are not part of this standard; they predate it and are listed in `WarningsNotAsErrors` in
-  `src/Directory.Build.props`, so they still show as warnings but do not fail CI until each is fixed or given a
-  severity of its own.
+- Meziantou.Analyzer's CancellationToken rules (MA0032, MA0040, MA0045) are errors in CI as before. Its opinion and
+  design rules (file names, collection abstractions, `string.Equals`, method length and the like) are off in
+  `.editorconfig`: they are not part of this standard. Its correctness rules (MA0002, MA0009, MA0011, MA0022, MA0054,
+  MA0061, MA0074, MA0132, MA0134) stay on; the warnings that predate the standard are listed in `WarningsNotAsErrors`
+  in `src/Directory.Build.props`, so they show but do not fail CI until #793 fixes them and the list goes.
 
 ## Fixing violations locally
 

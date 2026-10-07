@@ -297,6 +297,28 @@ dotnet_diagnostic.MA0049.severity = none
 # awaits. Capture is a no-op everywhere -> rule is pure noise.
 dotnet_diagnostic.MA0004.severity = none
 
+# Meziantou's opinion and design rules are not part of the code standard (docs/coding-standard.md, #791), which is
+# Microsoft's C# conventions plus the cancellation-token rules above. Left on, they were about 1,600 warnings that
+# nobody acted on, which hides the warnings that matter. Its correctness rules stay on (src/Directory.Build.props).
+dotnet_diagnostic.MA0006.severity = none
+dotnet_diagnostic.MA0008.severity = none
+dotnet_diagnostic.MA0010.severity = none
+dotnet_diagnostic.MA0012.severity = none
+dotnet_diagnostic.MA0015.severity = none
+dotnet_diagnostic.MA0016.severity = none
+dotnet_diagnostic.MA0021.severity = none
+dotnet_diagnostic.MA0025.severity = none
+dotnet_diagnostic.MA0026.severity = none
+dotnet_diagnostic.MA0046.severity = none
+dotnet_diagnostic.MA0048.severity = none
+dotnet_diagnostic.MA0051.severity = none
+dotnet_diagnostic.MA0069.severity = none
+dotnet_diagnostic.MA0077.severity = none
+dotnet_diagnostic.MA0084.severity = none
+dotnet_diagnostic.MA0088.severity = none
+dotnet_diagnostic.MA0099.severity = none
+dotnet_diagnostic.MA0158.severity = none
+
 # Mock-chain calls in tests and benchmark setup don't need CT annotation noise.
 [{tests,tools}/**/*.cs]
 dotnet_diagnostic.MA0032.severity = none
