@@ -1,0 +1,264 @@
+using System.Security.Authentication;
+using System.Security.Cryptography;
+using System.Text;
+using Avalon.Api.Identity.Exceptions;
+using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
+using Avalon.Infrastructure.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Avalon.Api.Identity.Services;
+
+public interface IRefreshTokenService
+{
+    /// <summary>
+    /// Opens a refresh-token family for a login that proved the credentials at
+    /// <paramref name="credentialsVersion"/>. Refused with <see cref="AuthenticationException"/>
+    /// (401) when the account's version has moved since (#495).
+    /// </summary>
+    Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
+        CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Opens a launcher's session (#591): a family of <see cref="SessionClient.Launcher"/> tokens, which
+    /// only <see cref="RotateLauncherAsync"/> rotates, named after <paramref name="deviceName"/>.
+    /// </summary>
+    Task<RefreshIssueResult> IssueLauncherAsync(AccountId accountId, int credentialsVersion, string? deviceName,
+        CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Rotates the token for <paramref name="caller"/>, who is recorded on the child, so a replay of
+    /// the parent inside the grace window is forgiven only for that same caller (#495 review).
+    /// </summary>
+    /// <remarks>The website's tokens only: a launcher's is refused as unknown, before anything else (#591).</remarks>
+    Task<RefreshRotateResult> RotateAsync(string rawToken, RefreshCaller caller,
+        CancellationToken cancellationToken = default);
+    /// <summary>As <see cref="RotateAsync"/>, for a launcher's tokens only (#591).</summary>
+    Task<RefreshRotateResult> RotateLauncherAsync(string rawToken, RefreshCaller caller,
+        CancellationToken cancellationToken = default);
+    Task RevokeAsync(string rawToken, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Signs a launcher out (#591): revokes the whole launcher session <paramref name="rawToken"/> belongs to.
+    /// A website token is left alone: each client's session is ended only by that client.
+    /// </summary>
+    Task RevokeLauncherSessionAsync(string rawToken, CancellationToken cancellationToken = default);
+    Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Who is presenting a refresh token: their source (the login budget's source form, an IPv4 address
+/// or an IPv6 /64; null when the transport gave no address) and a hash of their User-Agent.
+/// </summary>
+public sealed record RefreshCaller(string? Source, byte[] UserAgentHash)
+{
+    public static RefreshCaller From(System.Net.IPAddress? address, string? userAgent) =>
+        new(address is null ? null : Avalon.Infrastructure.Login.RemoteAddress.SourceOf(address),
+            SHA256.HashData(Encoding.UTF8.GetBytes(userAgent ?? string.Empty)));
+
+    /// <summary>Whether <paramref name="child"/> was inserted by a rotation from this very caller.</summary>
+    public bool Rotated(RefreshToken child) =>
+        Source is not null
+        && string.Equals(child.RotatedBySource, Source, StringComparison.Ordinal)
+        && child.RotatedByAgentHash is { } hash
+        && CryptographicOperations.FixedTimeEquals(hash, UserAgentHash);
+}
+
+public sealed record RefreshIssueResult(string RawToken, DateTime ExpiresAt, Guid FamilyId);
+/// <param name="CredentialsVersion">The version the rotation held: the access token minted with it must carry it.</param>
+public sealed record RefreshRotateResult(string RawToken, DateTime ExpiresAt, AccountId AccountId, int CredentialsVersion,
+    Guid FamilyId);
+
+public sealed class RefreshTokenService : IRefreshTokenService
+{
+    public static readonly TimeSpan DefaultLifetime = TimeSpan.FromDays(30);
+    public const string CredentialsChanged = "Credentials changed; sign in again";
+
+    /// <summary>
+    /// How long after a rotation its parent may be presented again without being taken for a
+    /// reuse, while the child it produced is still unused (#495 review): a second tab refreshing
+    /// at the same moment, or a client retrying a refresh whose answer it lost. It gets 401 and
+    /// nothing more; the family, and the session that won, survive.
+    /// </summary>
+    public static readonly TimeSpan RotationGrace = TimeSpan.FromSeconds(5);
+
+    private readonly IRefreshTokenRepository _repository;
+    private readonly ISecureRandom _random;
+    private readonly TimeProvider _time;
+    private readonly ILogger _logger;
+
+    public RefreshTokenService(IRefreshTokenRepository repository, ISecureRandom random, TimeProvider time,
+        ILogger<RefreshTokenService>? logger = null)
+    {
+        _repository = repository;
+        _random = random;
+        _time = time;
+        _logger = logger ?? NullLogger<RefreshTokenService>.Instance;
+    }
+
+    public Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
+        CancellationToken cancellationToken = default) =>
+        IssueAsync(accountId, credentialsVersion, SessionClient.Web, null, cancellationToken);
+
+    public Task<RefreshIssueResult> IssueLauncherAsync(AccountId accountId, int credentialsVersion, string? deviceName,
+        CancellationToken cancellationToken = default) =>
+        IssueAsync(accountId, credentialsVersion, SessionClient.Launcher, deviceName, cancellationToken);
+
+    private async Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
+        SessionClient client, string? deviceName, CancellationToken cancellationToken)
+    {
+        DateTime now = _time.GetUtcNow().UtcDateTime;
+        (string? raw, byte[]? hash) = Generate();
+        // Not a secret (tokens are looked up by hash); time-ordered because (AccountId, FamilyId) is indexed.
+        var familyId = Guid.CreateVersion7();
+
+        bool issued = await _repository.CreateIfCredentialsCurrentAsync(new RefreshToken
+        {
+            AccountId = accountId,
+            FamilyId = familyId,
+            Index = 0,
+            Hash = hash,
+            Revoked = false,
+            Usages = 0,
+            CreatedAt = now,
+            ExpiresAt = now + DefaultLifetime,
+            CredentialsVersion = credentialsVersion,
+            Client = client,
+            DeviceName = CleanDeviceName(deviceName),
+        }, cancellationToken);
+        if (!issued)
+            throw new AuthenticationException(CredentialsChanged);
+
+        return new RefreshIssueResult(raw, now + DefaultLifetime, familyId);
+    }
+
+    public Task<RefreshRotateResult> RotateAsync(string rawToken, RefreshCaller caller,
+        CancellationToken cancellationToken = default) =>
+        RotateAsync(rawToken, caller, SessionClient.Web, cancellationToken);
+
+    public Task<RefreshRotateResult> RotateLauncherAsync(string rawToken, RefreshCaller caller,
+        CancellationToken cancellationToken = default) =>
+        RotateAsync(rawToken, caller, SessionClient.Launcher, cancellationToken);
+
+    private async Task<RefreshRotateResult> RotateAsync(string rawToken, RefreshCaller caller, SessionClient expected,
+        CancellationToken cancellationToken)
+    {
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        RefreshToken row = await _repository.FindByHashAsync(hash, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Unknown refresh token");
+        // Another client's token is unknown here (#591): refused before the revoked check, so the
+        // website's session is never taken for stolen, and ended, by a launcher presenting it.
+        if (row.Client != expected)
+            throw new UnauthorizedAccessException("Unknown refresh token");
+
+        DateTime now = _time.GetUtcNow().UtcDateTime;
+        if (row.ExpiresAt <= now) throw new UnauthorizedAccessException("Refresh token expired");
+
+        if (row.Revoked)
+            await RefuseRevokedParentAsync(row, caller, now, cancellationToken);
+
+        (string? newRaw, byte[]? newHash) = Generate();
+        var child = new RefreshToken
+        {
+            AccountId = row.AccountId,
+            FamilyId = row.FamilyId,
+            Index = row.Index + 1,
+            Hash = newHash,
+            Revoked = false,
+            Usages = 0,
+            CreatedAt = now,
+            ExpiresAt = row.ExpiresAt,
+            CredentialsVersion = row.CredentialsVersion,
+            RotatedBySource = caller.Source,
+            RotatedByAgentHash = caller.UserAgentHash,
+            Client = row.Client,
+            DeviceName = row.DeviceName,
+        };
+
+        switch (await _repository.RotateAsync(row, child, now, cancellationToken))
+        {
+            case RefreshRotation.Rotated:
+                return new RefreshRotateResult(newRaw, row.ExpiresAt, row.AccountId, row.CredentialsVersion, row.FamilyId);
+            case RefreshRotation.CredentialsChanged:
+                // The family was opened before a password change or an MFA reset (#495). That
+                // change revoked the token already; this refuses a rotation that read it just before.
+                throw new UnauthorizedAccessException("Refresh token predates a credentials change");
+            default:
+                // Revoked between the read above and the write: another rotation of this token won
+                // (#495), or it was revoked. Answered exactly as if it had arrived after that.
+                await RefuseRevokedParentAsync(row, caller, now, cancellationToken);
+                throw new UnauthorizedAccessException("Refresh token revoked");
+        }
+    }
+
+    /// <summary>
+    /// Refuses a token that is no longer live. Inside <see cref="RotationGrace"/> of the rotation
+    /// that replaced it, with that rotation's child still unused and presented by the caller that
+    /// rotated it (same source, same User-Agent), it is a plain 401: two tabs or a retry, not a thief. Otherwise it is a reuse: the family is revoked and the caller is told
+    /// (<see cref="RefreshTheftException"/>), which also ends the account's world sessions.
+    /// </summary>
+    private async Task RefuseRevokedParentAsync(RefreshToken row, RefreshCaller caller, DateTime now,
+        CancellationToken cancellationToken)
+    {
+        RefreshToken? child = await _repository.FindChildAsync(row.FamilyId, row.Index, cancellationToken);
+        // And only for the caller whose rotation it was (#495 review): the same source and the same
+        // User-Agent. Anyone else presenting the old token is a thief with a copy of it.
+        if (child is { Revoked: false, Usages: 0 } && now - child.CreatedAt < RotationGrace && caller.Rotated(child))
+            throw new RefreshAlreadyRotatedException();
+
+        await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
+        // The one trace a reuse leaves: without it, a session ended by two tabs refreshing at once
+        // could not be told from one ended by a sign-out. Ids and the reason only, never the caller's
+        // address or the token.
+        _logger.LogWarning(
+            "Refresh token reuse on account {AccountId} ({Client}): family {FamilyId} revoked at token {Index}, not forgiven because {Reason}",
+            row.AccountId.Value, row.Client, row.FamilyId, row.Index, WhyNotForgiven(child, caller, now));
+        throw new RefreshTheftException(row.AccountId);
+    }
+
+    /// <summary>Which condition of the grace a refused replay missed, for the reuse warning.</summary>
+    private static string WhyNotForgiven(RefreshToken? child, RefreshCaller caller, DateTime now) => child switch
+    {
+        null => "it has no successor",
+        { Revoked: true } => "its successor is revoked",
+        { Usages: > 0 } => "its successor was already used",
+        _ when now - child.CreatedAt >= RotationGrace => "it came after the grace",
+        _ when caller.Source is null => "the caller has no source",
+        _ => "the caller is not the one that rotated it",
+    };
+
+    public async Task RevokeAsync(string rawToken, CancellationToken cancellationToken = default)
+    {
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        RefreshToken? row = await _repository.FindByHashAsync(hash, cancellationToken);
+        if (row is null || row.Revoked) return;
+
+        row.Revoked = true;
+        await _repository.UpdateAsync(row, cancellationToken);
+    }
+
+    public async Task RevokeLauncherSessionAsync(string rawToken, CancellationToken cancellationToken = default)
+    {
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        RefreshToken? row = await _repository.FindByHashAsync(hash, cancellationToken);
+        if (row is not { Client: SessionClient.Launcher }) return;
+
+        await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
+    }
+
+    public Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default) =>
+        _repository.RevokeAllForAccountAsync(accountId, cancellationToken);
+
+    private static string? CleanDeviceName(string? name)
+    {
+        string trimmed = (name ?? string.Empty).Trim();
+        if (trimmed.Length == 0) return null;
+        return trimmed.Length <= RefreshToken.DeviceNameMaxLength ? trimmed : trimmed[..RefreshToken.DeviceNameMaxLength];
+    }
+
+    private (string RawToken, byte[] Hash) Generate()
+    {
+        byte[] bytes = _random.GetBytes(32);
+        string raw = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+        return (raw, hash);
+    }
+}

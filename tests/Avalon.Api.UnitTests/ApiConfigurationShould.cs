@@ -1,5 +1,5 @@
-using Avalon.Api.Config;
 using Avalon.Api.Hosting.Config;
+using Avalon.Api.Identity.Config;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Xunit;

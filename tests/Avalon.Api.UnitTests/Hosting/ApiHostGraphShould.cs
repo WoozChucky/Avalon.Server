@@ -1,8 +1,9 @@
-using Avalon.Api.Config;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Identity;
+using Avalon.Api.Identity.Config;
 using Avalon.Api.Worlds;
 using Avalon.Hosting;
 using Avalon.Infrastructure.Configuration;
@@ -46,7 +47,7 @@ public class ApiHostGraphShould
         // The shared hosting for the needs of the api's services, as the host registers it before them, then the
         // services' own registrations (#794).
         services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
-        services.AddInfrastructure(config);
+        services.AddIdentity(config);
         services.AddWorlds(configuration);
 
         ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);
@@ -85,7 +86,7 @@ public class ApiHostGraphShould
         // The shared hosting for the needs of the api's services, as the host registers it before them, then the
         // services' own registrations (#794).
         services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
-        services.AddInfrastructure(config);
+        services.AddIdentity(config);
         services.AddWorlds(configuration);
 
         using ServiceProvider provider = services.BuildServiceProvider();
@@ -131,7 +132,7 @@ public class ApiHostGraphShould
         // The shared hosting for the needs of the api's services, as the host registers it before them, then the
         // services' own registrations (#794).
         services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
-        services.AddInfrastructure(config);
+        services.AddIdentity(config);
         services.AddWorlds(configuration);
 
         using ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);

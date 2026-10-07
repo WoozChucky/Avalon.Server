@@ -1,7 +1,8 @@
-using Avalon.Api.Config;
 using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Identity;
+using Avalon.Api.Identity.Config;
 using Avalon.Api.Testing;
 using Avalon.Api.Worlds;
 using Avalon.Domain.Auth;
@@ -256,7 +257,7 @@ public class ApiStartupValidationShould
         // The shared hosting for the needs of the api's services, as the host registers it before them, then the
         // services' own registrations (#794).
         services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
-        services.AddInfrastructure(config);
+        services.AddIdentity(config);
         services.AddWorlds(configuration);
         configure?.Invoke(services);
 

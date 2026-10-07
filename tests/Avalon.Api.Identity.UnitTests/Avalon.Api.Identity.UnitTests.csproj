@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The identity API service's tests (#794, design section 11.1): token minting and the signing key, the login limits,
+    accounts and their credentials, MFA, personal access tokens, refresh and launcher sessions, email, the account
+    and personal access token authorization, store and Steam sign-in, account links and consolidation, game contexts,
+    admission and the game workload listener.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.12"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12"/>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1"/>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0"/>
+    <PackageReference Include="NSubstitute" Version="6.2.0"/>
+    <PackageReference Include="NSubstitute.Analyzers.CSharp" Version="1.0.17">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector" Version="10.1.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="xunit" Version="2.9.3"/>
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ApiTestHost, which runs every service the API runs, the SQLite auth database, and the Auth tests' counter fake
+         and stale-read repository. -->
+    <ProjectReference Include="..\Avalon.Api.Testing\Avalon.Api.Testing.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Api.Identity\Avalon.Api.Identity.csproj"/>
+  </ItemGroup>
+
+</Project>

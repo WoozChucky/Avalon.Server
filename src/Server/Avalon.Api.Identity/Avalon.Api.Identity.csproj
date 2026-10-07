@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The identity API service (#794, design section 2.1): accounts and their credentials, MFA, personal access tokens,
+    web and launcher sessions and token minting, store and Steam sign-in, account links and consolidation, game
+    contexts, join tickets, game admission and the game workload listener, email verification and change, and push
+    device registration. It references the shared hosting, never another API service.
+  -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Web SDK's implicit usings, which the code moved here from Avalon.Api was written against. -->
+    <Using Include="Microsoft.AspNetCore.Builder"/>
+    <Using Include="Microsoft.AspNetCore.Hosting"/>
+    <Using Include="Microsoft.AspNetCore.Http"/>
+    <Using Include="Microsoft.AspNetCore.Routing"/>
+    <Using Include="Microsoft.Extensions.Configuration"/>
+    <Using Include="Microsoft.Extensions.DependencyInjection"/>
+    <Using Include="Microsoft.Extensions.Hosting"/>
+    <Using Include="Microsoft.Extensions.Logging"/>
+    <Using Include="System.Net.Http.Json"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- AngleSharp pins the version AspNet.Security.OpenId.Steam brings in. -->
+    <PackageReference Include="AngleSharp"/>
+    <PackageReference Include="AspNet.Security.OpenId.Steam"/>
+    <PackageReference Include="BCrypt.Net-Next"/>
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt"/>
+    <PackageReference Include="WebPush"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
+    <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
+    <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj"/>
+    <ProjectReference Include="..\Avalon.Api.Contract\Avalon.Api.Contract.csproj"/>
+    <ProjectReference Include="..\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>
+    <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj"/>
+    <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
+    <ProjectReference Include="..\Avalon.Database.Character\Avalon.Database.Character.csproj"/>
+    <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>
+  </ItemGroup>
+
+</Project>

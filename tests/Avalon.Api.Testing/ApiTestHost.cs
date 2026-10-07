@@ -3,15 +3,15 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Claims;
 using System.Text;
-using Avalon.Api.Authentication;
-using Avalon.Api.Authentication.Jwt;
-using Avalon.Api.Config;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Authentication.AV;
 using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Hosting.Worlds;
-using Avalon.Api.Services;
+using Avalon.Api.Identity.Authentication;
+using Avalon.Api.Identity.Authentication.Jwt;
+using Avalon.Api.Identity.Config;
+using Avalon.Api.Identity.Services;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
@@ -86,7 +86,7 @@ public sealed class ApiTestHost : IAsyncDisposable
         ["Database:Auth:ConnectionString"] = "Host=127.0.0.1;Port=1;Database=none",
         ["Application:Cache:Host"] = "127.0.0.1:1",
         ["Application:Templates:ReloadTimeout"] = "00:00:10",
-        // Sections the monolith registers as they are bound, as appsettings.json has them.
+        // Sections identity registers as they are bound, as appsettings.json has them.
         ["Application:Environment:Name"] = "Development",
         ["Application:Notification:Subject"] = "https://avalon.monster",
     };

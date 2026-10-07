@@ -82,11 +82,11 @@ public class ApiEfLoggingShould
         Assert.True(logger.IsEnabled(LogLevel.Information));
     }
 
-    /// <summary>The logging line of Program.cs.</summary>
+    /// <summary>The logging line of the host, <see cref="AvalonApiHost"/>.</summary>
     private static WebApplication Build(string[] args)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-        builder.AddLoggingAndServiceDefaults(builder.Configuration);
+        builder.AddApiLoggingAndServiceDefaults(builder.Configuration);
         return builder.Build();
     }
 }
