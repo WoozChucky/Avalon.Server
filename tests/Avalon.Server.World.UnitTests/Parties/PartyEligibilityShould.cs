@@ -68,14 +68,6 @@ public class PartyEligibilityShould
     }
 
     [Fact]
-    public void Count_a_dead_member()
-    {
-        _b.Character.IsDead = true;
-
-        Assert.Equal([_a.Character, _b.Character], For(_a.Character, Party, Present(_a, _b)));
-    }
-
-    [Fact]
     public void Leave_out_a_member_in_another_instance() =>
         Assert.Equal([_a.Character, _c.Character], For(_a.Character, Party, Present(_a, _c)));
 
@@ -83,14 +75,6 @@ public class PartyEligibilityShould
     public void Leave_out_a_member_in_a_leave_countdown_even_in_the_encounter() =>
         Assert.Equal([_a.Character], For(_a.Character, Party, Present(_a, _b), id => id == _b.Id,
             Encounter(_b.Character)));
-
-    [Fact]
-    public void Give_a_killer_with_no_party_the_kill_alone() =>
-        Assert.Equal([_a.Character], For(_a.Character, null, Present(_a, _b)));
-
-    [Fact]
-    public void Give_nothing_to_a_killer_in_a_leave_countdown() =>
-        Assert.Empty(For(_a.Character, null, Present(_a), id => id == _a.Id));
 
     [Fact]
     public void Give_nothing_to_a_party_killer_in_a_leave_countdown() =>

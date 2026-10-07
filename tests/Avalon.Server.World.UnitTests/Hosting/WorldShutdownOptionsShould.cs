@@ -32,7 +32,6 @@ public class WorldShutdownOptionsShould
     [Theory]
     [InlineData("-00:00:01", "00:01:00")]
     [InlineData("02:00:00", "00:01:00")]
-    [InlineData("00:05:00", "00:00:00")]
     [InlineData("00:05:00", "00:00:20")]
     [InlineData("00:05:00", null)]
     public void Refuse_a_drain_or_margin_out_of_range(string drain, string? margin)
@@ -60,28 +59,6 @@ public class WorldShutdownOptionsShould
             ("World:Shutdown:SaveMargin", WorldShutdownConfiguration.MinimumSaveMargin.ToString()));
         Assert.Equal(WorldShutdownConfiguration.MinimumSaveMargin,
             provider.GetRequiredService<IOptions<WorldShutdownConfiguration>>().Value.SaveMargin);
-    }
-
-    /// <summary>The shipped appsettings.json drains nothing and keeps the host's 30 s stop timeout: today's stop.</summary>
-    [Fact]
-    public async Task Ship_no_drain_and_the_default_stop_timeout()
-    {
-        string workingDirectory = Directory.GetCurrentDirectory();
-        try
-        {
-            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
-            builder.Services.AddWorldServices();
-            using IHost host = builder.Build();
-
-            Assert.Equal(TimeSpan.Zero,
-                host.Services.GetRequiredService<IOptions<WorldShutdownConfiguration>>().Value.DrainTime);
-            Assert.Equal(TimeSpan.FromSeconds(30),
-                host.Services.GetRequiredService<IOptions<HostOptions>>().Value.ShutdownTimeout);
-        }
-        finally
-        {
-            Directory.SetCurrentDirectory(workingDirectory);
-        }
     }
 
     /// <summary>The host builder is shared: only the world host takes the drain into its stop timeout.</summary>

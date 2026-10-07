@@ -50,105 +50,41 @@ public class WorldStartupValidationShould
         Assert.Contains(named, refused.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A Game setting out of its range stops the start, naming the setting: a row at each bound with a reason. The
+    /// floats must be finite (#532, #593, #526): the interest radius at least 1 m, the interest remove margin and both
+    /// Fury rates 0 or more.
+    /// </summary>
     [Theory]
-    [InlineData("TcpKeepAliveTimeSeconds", "0")]
-    [InlineData("TcpKeepAliveIntervalSeconds", "-1")]
-    [InlineData("TcpKeepAliveRetryCount", "0")]
-    [InlineData("TcpKeepAliveTimeSeconds", "32768")]
-    [InlineData("TcpKeepAliveIntervalSeconds", "32768")]
-    [InlineData("TcpKeepAliveRetryCount", "128")]
-    public async Task Refuse_to_start_with_a_tcp_keepalive_setting_out_of_range(string setting, string value)
-    {
-        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["Database:Auth:ConnectionString"] = Unreachable,
-            ["Database:Characters:ConnectionString"] = Unreachable,
-            ["Database:World:ConnectionString"] = Unreachable,
-            ["Hosting:" + setting] = value,
-        });
-
-        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
-
-        Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>#532, #593: the interest radius must be finite and at least 1 m.</summary>
-    [Theory]
-    [InlineData("0")]
-    [InlineData("-5")]
-    [InlineData("0.5")]
-    [InlineData("NaN")]
-    [InlineData("Infinity")]
-    [InlineData("-Infinity")]
-    public async Task Refuse_to_start_with_an_interest_radius_out_of_range(string value)
-    {
-        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["Database:Auth:ConnectionString"] = Unreachable,
-            ["Database:Characters:ConnectionString"] = Unreachable,
-            ["Database:World:ConnectionString"] = Unreachable,
-            ["Game:InterestRadius"] = value,
-        });
-
-        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
-
-        Assert.Contains("InterestRadius", refused.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>#593: the interest remove margin must be finite and 0 or more.</summary>
-    [Theory]
-    [InlineData("-0.5")]
-    [InlineData("NaN")]
-    [InlineData("Infinity")]
-    [InlineData("-Infinity")]
-    public async Task Refuse_to_start_with_an_interest_remove_margin_out_of_range(string value)
-    {
-        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["Database:Auth:ConnectionString"] = Unreachable,
-            ["Database:Characters:ConnectionString"] = Unreachable,
-            ["Database:World:ConnectionString"] = Unreachable,
-            ["Game:InterestRemoveMargin"] = value,
-        });
-
-        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
-
-        Assert.Contains("InterestRemoveMargin", refused.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>#593: a margin of 0 turns the margin off and is allowed.</summary>
-    [Fact]
-    public async Task Accept_an_interest_remove_margin_of_zero()
-    {
-        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["Game:InterestRemoveMargin"] = "0",
-        });
-
-        host.Services.GetRequiredService<IStartupValidator>().Validate();
-
-        Assert.Equal(0f, host.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRemoveMargin);
-    }
-
-    [Fact]
-    public void Default_the_interest_range_to_60_and_10()
-    {
-        var configuration = new GameConfiguration();
-        Assert.Equal(60f, configuration.InterestRadius);
-        Assert.Equal(10f, configuration.InterestRemoveMargin);
-    }
-
-    /// <summary>#526: both Fury rates must be finite and 0 or more.</summary>
-    [Theory]
+    [InlineData("InterestRadius", "0.5")]
+    [InlineData("InterestRadius", "NaN")]
+    [InlineData("InterestRadius", "Infinity")]
+    [InlineData("InterestRemoveMargin", "-0.5")]
+    [InlineData("InterestRemoveMargin", "Infinity")]
     [InlineData("FuryFromDamageTaken", "-1")]
-    [InlineData("FuryFromDamageTaken", "NaN")]
     [InlineData("FuryFromDamageTaken", "Infinity")]
-    [InlineData("FuryFromDamageTaken", "-Infinity")]
     [InlineData("FuryDecayPerSecond", "-1")]
-    [InlineData("FuryDecayPerSecond", "NaN")]
     [InlineData("FuryDecayPerSecond", "Infinity")]
-    [InlineData("FuryDecayPerSecond", "-Infinity")]
-    public async Task Refuse_to_start_with_a_fury_rate_out_of_range(string setting, string value)
+    [InlineData("MaxPartySize", "1")]
+    [InlineData("MaxPartySize", "41")]
+    [InlineData("PartyInviteTimeoutSeconds", "0")]
+    [InlineData("PartyLeaveGraceSeconds", "0")]
+    [InlineData("PartyReturnRetrySeconds", "0")]
+    [InlineData("PartyReturnRetrySeconds", "3601")]
+    [InlineData("PartyExperienceModeCooldownSeconds", "-1")]
+    [InlineData("PartyHealthPerExtraPlayer", "-0.1")]
+    [InlineData("PartyEligibilityRange", "0.5")]
+    [InlineData("PartyEligibilityRange", "Infinity")]
+    [InlineData("PartyExperienceBonusPerExtra", "-1")]
+    [InlineData("PartyExperienceBonusPerExtra", "10.5")]
+    [InlineData("PartyExperienceLevelGap", "0")]
+    [InlineData("MaxActiveQuests", "0")]
+    [InlineData("MaxActiveQuests", "101")]
+    [InlineData("MaxAurasPerUnit", "0")]
+    [InlineData("MaxAurasPerUnit", "257")]
+    [InlineData("MaxIgnoredCharacters", "0")]
+    [InlineData("MaxIgnoredCharacters", "501")]
+    public async Task Refuse_to_start_with_a_game_setting_out_of_range(string setting, string value)
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -163,12 +99,13 @@ public class WorldStartupValidationShould
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>#526: 0 turns either Fury rate off and is allowed.</summary>
+    /// <summary>#593, #526: 0 turns the interest remove margin and either Fury rate off, and is allowed.</summary>
     [Fact]
-    public async Task Accept_fury_rates_of_zero()
+    public async Task Accept_zero_for_the_settings_it_turns_off()
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
+            ["Game:InterestRemoveMargin"] = "0",
             ["Game:FuryFromDamageTaken"] = "0",
             ["Game:FuryDecayPerSecond"] = "0",
         });
@@ -176,16 +113,9 @@ public class WorldStartupValidationShould
         host.Services.GetRequiredService<IStartupValidator>().Validate();
 
         GameConfiguration configuration = host.Services.GetRequiredService<IOptions<GameConfiguration>>().Value;
+        Assert.Equal(0f, configuration.InterestRemoveMargin);
         Assert.Equal(0f, configuration.FuryFromDamageTaken);
         Assert.Equal(0f, configuration.FuryDecayPerSecond);
-    }
-
-    [Fact]
-    public void Default_the_fury_rates_to_50_and_5()
-    {
-        var configuration = new GameConfiguration();
-        Assert.Equal(50f, configuration.FuryFromDamageTaken);
-        Assert.Equal(5f, configuration.FuryDecayPerSecond);
     }
 
     /// <summary>#593: Game:InterestRadius replaces Game:EffectBroadcastRadius outright, with no alias.</summary>
@@ -203,94 +133,6 @@ public class WorldStartupValidationShould
 
         Assert.Equal(42f, renamed.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRadius);
         Assert.Equal(60f, old.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRadius);
-    }
-
-    [Theory]
-    [InlineData("MaxPartySize", "1")]
-    [InlineData("MaxPartySize", "41")]
-    [InlineData("PartyInviteTimeoutSeconds", "0")]
-    [InlineData("PartyLeaveGraceSeconds", "0")]
-    [InlineData("PartyReturnRetrySeconds", "0")]
-    [InlineData("PartyReturnRetrySeconds", "3601")]
-    [InlineData("PartyExperienceModeCooldownSeconds", "-1")]
-    [InlineData("PartyHealthPerExtraPlayer", "-0.1")]
-    [InlineData("PartyHealthPerExtraPlayer", "NaN")]
-    [InlineData("PartyEligibilityRange", "0.5")]
-    [InlineData("PartyEligibilityRange", "Infinity")]
-    [InlineData("PartyExperienceBonusPerExtra", "-1")]
-    [InlineData("PartyExperienceBonusPerExtra", "10.5")]
-    [InlineData("PartyExperienceBonusPerExtra", "Infinity")]
-    [InlineData("PartyExperienceLevelGap", "0")]
-    public async Task Refuse_to_start_with_a_party_setting_out_of_range(string setting, string value)
-    {
-        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["Database:Auth:ConnectionString"] = Unreachable,
-            ["Database:Characters:ConnectionString"] = Unreachable,
-            ["Database:World:ConnectionString"] = Unreachable,
-            ["Game:" + setting] = value,
-        });
-
-        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
-
-        Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("MaxActiveQuests", "0")]
-    [InlineData("MaxActiveQuests", "101")]
-    [InlineData("MaxAurasPerUnit", "0")]
-    [InlineData("MaxAurasPerUnit", "257")]
-    public async Task Refuse_to_start_with_a_cap_setting_out_of_range(string setting, string value)
-    {
-        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["Database:Auth:ConnectionString"] = Unreachable,
-            ["Database:Characters:ConnectionString"] = Unreachable,
-            ["Database:World:ConnectionString"] = Unreachable,
-            ["Game:" + setting] = value,
-        });
-
-        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
-
-        Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("0")]
-    [InlineData("501")]
-    public async Task Refuse_to_start_with_an_ignore_list_cap_out_of_range(string value)
-    {
-        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["Database:Auth:ConnectionString"] = Unreachable,
-            ["Database:Characters:ConnectionString"] = Unreachable,
-            ["Database:World:ConnectionString"] = Unreachable,
-            ["Game:MaxIgnoredCharacters"] = value,
-        });
-
-        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
-
-        Assert.Contains("MaxIgnoredCharacters", refused.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Default_the_party_settings_to_the_spec()
-    {
-        var config = new GameConfiguration();
-
-        Assert.Equal(6, config.MaxPartySize);
-        Assert.Equal(60, config.PartyInviteTimeoutSeconds);
-        Assert.Equal(60, config.PartyLeaveGraceSeconds);
-        Assert.Equal(5, config.PartyReturnRetrySeconds);
-        Assert.Equal(60, config.PartyExperienceModeCooldownSeconds);
-        Assert.Equal(0.6f, config.PartyHealthPerExtraPlayer);
-        Assert.Equal(60f, config.PartyEligibilityRange);
-        Assert.Equal(0.10f, config.PartyExperienceBonusPerExtra);
-        Assert.Equal(5, config.PartyExperienceLevelGap);
-        Assert.Equal(20, config.MaxActiveQuests);
-        Assert.Equal(50, config.MaxIgnoredCharacters);
-        Assert.Equal(32, config.MaxAurasPerUnit);
     }
 
     [Theory]

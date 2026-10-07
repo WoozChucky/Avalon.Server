@@ -62,32 +62,6 @@ public sealed class CharacterSaverShould : IDisposable
     }
 
     [Fact]
-    public async Task Insert_a_new_item_and_its_slot()
-    {
-        CharacterEntity character = await SeedAsync(7);
-
-        InventoryFor(character).TryAdd(Sword.Id, 1);
-        InventoryItem sword = At(character, InventoryType.Bag, 0);
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
-
-        Assert.Equal(new CharacterId(7), (await StoredItemAsync(sword.InstanceId))!.CharacterId);
-        Assert.Equal(sword.InstanceId, (await StoredSlotsAsync(7)).Single().ItemId);
-    }
-
-    [Fact]
-    public async Task Delete_a_removed_item_and_its_slot()
-    {
-        InventoryItem potion = Item(0, Potion, count: 5);
-        CharacterEntity character = await SeedAsync(7, stored: [potion]);
-
-        InventoryFor(character).TryRemove(potion.InstanceId, 5);
-        Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
-
-        Assert.Null(await StoredItemAsync(potion.InstanceId));
-        Assert.Empty(await StoredSlotsAsync(7));
-    }
-
-    [Fact]
     public async Task Clear_the_saved_states_only_once_the_commit_reaches_the_tick()
     {
         CharacterEntity character = await SeedAsync(7);

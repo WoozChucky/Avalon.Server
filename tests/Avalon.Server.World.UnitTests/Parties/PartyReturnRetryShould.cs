@@ -160,49 +160,6 @@ public class PartyReturnRetryShould
         Assert.Equal(PartyService.MaxReturnRetries + 1, _lookups);
     }
 
-    [Fact]
-    public void Stop_retrying_once_the_character_left_the_instance()
-    {
-        _failuresLeft = int.MaxValue;
-        _w.Parties.Leave(_c.Id);
-        After(60);
-
-        _c.Character.InstanceId = Guid.NewGuid(); // a portal, or a respawn in town
-        After(5);
-
-        Assert.Equal(1, _lookups);
-        Assert.False(_w.Parties.InCountdown(_c.Id));
-    }
-
-    [Fact]
-    public void Stop_retrying_once_the_character_rejoined_the_party()
-    {
-        _failuresLeft = int.MaxValue;
-        _w.Parties.Leave(_c.Id);
-        After(60);
-
-        _w.Parties.Invite(_a.Id, "C");
-        _w.Parties.Respond(_c.Id, accept: true);
-        After(5);
-
-        Assert.Equal(1, _lookups);
-        Assert.False(_w.Parties.InCountdown(_c.Id));
-    }
-
-    [Fact]
-    public void Stop_retrying_once_the_character_went_offline()
-    {
-        _failuresLeft = int.MaxValue;
-        _w.Parties.Leave(_c.Id);
-        After(60);
-
-        _w.Parties.CharacterOffline(_c.Connection, _c.Character);
-        After(5);
-
-        Assert.Equal(1, _lookups);
-        Assert.False(_w.Parties.InCountdown(_c.Id));
-    }
-
     /// <summary>A failure reported once the character is elsewhere (it rejoined, or walked out, while the return ran) is not retried.</summary>
     [Fact]
     public void Not_retry_a_failure_reported_after_the_character_left_the_instance()

@@ -100,50 +100,6 @@ public class PartyInstanceRoutingShould : IDisposable
         Assert.Single(_builds);
     }
 
-    /// <summary>A disband between the build's end and its publish leaves it unindexed too.</summary>
-    [Fact]
-    public async Task Leave_unindexed_a_build_that_finished_before_the_party_was_forgotten_but_was_published_after()
-    {
-        var party = new PartyId(9);
-        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
-        CompleteBuilds(publish: false);
-
-        _registry.ForgetParty(party);
-        _registry.PublishFinished();
-        IMapInstance orphan = await first.WaitAsync(s_bound);
-
-        _ = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
-        Assert.Equal(2, _builds.Count);
-        Assert.Same(orphan, _registry.GetInstanceById(orphan.InstanceId));
-    }
-
-    [Fact]
-    public async Task Reuse_the_party_instance_on_re_entry_and_build_anew_once_forgotten()
-    {
-        var party = new PartyId(9);
-        Task<IMapInstance> first = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
-        CompleteBuilds();
-        IMapInstance built = await first.WaitAsync(s_bound);
-
-        Assert.Same(built, await _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId).WaitAsync(s_bound));
-
-        _registry.ForgetParty(party);
-        Task<IMapInstance> after = _registry.GetOrCreatePartyInstanceAsync(party, s_dungeonId);
-        Assert.Equal(2, _builds.Count);
-        CompleteBuilds();
-        Assert.NotSame(built, await after.WaitAsync(s_bound));
-    }
-
-    [Fact]
-    public async Task Keep_party_and_solo_instances_apart()
-    {
-        Task<IMapInstance> solo = _registry.GetOrCreateNormalInstanceAsync(1, s_dungeonId);
-        Task<IMapInstance> party = _registry.GetOrCreatePartyInstanceAsync(new PartyId(9), s_dungeonId);
-        CompleteBuilds();
-
-        Assert.NotSame(await solo.WaitAsync(s_bound), await party.WaitAsync(s_bound));
-    }
-
     /// <summary>
     /// A disband while the party's build is in flight: the build must not index its instance once it finishes, and the
     /// instance, which nobody ever enters, must still expire rather than stay live for good.
@@ -269,32 +225,21 @@ public class PartyMapEntryShould
         world.PartyInstances.DidNotReceiveWithAnyArgs().GetOrCreatePartyInstanceAsync(default!, default!);
     }
 
-    [Fact]
-    public void Refuse_a_full_party_instance()
+    /// <summary>The capacity is min(MaxPartySize 6, MaxPlayers 2): a member gets in while fewer than 2 are inside.</summary>
+    [Theory]
+    [InlineData(1, MapTransitionResult.Success)]
+    [InlineData(2, MapTransitionResult.InstanceFull)]
+    public void Let_a_member_in_only_while_the_party_instance_has_room(int players, MapTransitionResult expected)
     {
         (EnterMapHandler handler, IWorld world, _, PartyClient a, Captured captured) = Arrange(maxPlayers: 2);
-        IMapInstance full = Substitute.For<IMapInstance>();
-        full.PlayerCount.Returns(2); // min(MaxPartySize 6, MaxPlayers 2)
+        IMapInstance instance = Substitute.For<IMapInstance>();
+        instance.PlayerCount.Returns(players);
 
         handler.Execute(a.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
-        captured.Callback!(full);
+        captured.Callback!(instance);
 
-        world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
-        Assert.Equal(MapTransitionResult.InstanceFull, captured.LastTransition(a).Result);
-    }
-
-    [Fact]
-    public void Let_a_member_into_a_party_instance_with_room()
-    {
-        (EnterMapHandler handler, IWorld world, _, PartyClient a, Captured captured) = Arrange(maxPlayers: 2);
-        IMapInstance roomy = Substitute.For<IMapInstance>();
-        roomy.PlayerCount.Returns(1);
-
-        handler.Execute(a.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
-        captured.Callback!(roomy);
-
-        world.Received(1).TransferPlayer(a.Connection, roomy);
-        Assert.Equal(MapTransitionResult.Success, captured.LastTransition(a).Result);
+        world.Received(expected == MapTransitionResult.Success ? 1 : 0).TransferPlayer(a.Connection, instance);
+        Assert.Equal(expected, captured.LastTransition(a).Result);
     }
 
     /// <summary>

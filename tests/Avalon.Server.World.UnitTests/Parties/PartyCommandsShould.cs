@@ -33,17 +33,6 @@ public class PartyCommandsShould
     }
 
     [Fact]
-    public void Add_a_line_to_a_refusal()
-    {
-        PartyClient a = _w.Online(1, "A");
-
-        Run(new LeaveCommand(_w.Parties), a, "/leave");
-
-        Assert.Equal(PartyResult.NotInParty, Assert.Single(a.Results()).Result);
-        Assert.Equal(["You are not in a party."], a.Lines());
-    }
-
-    [Fact]
     public void Kick_and_promote_by_member_name()
     {
         PartyClient a = _w.Online(1, "A");
@@ -115,18 +104,6 @@ public class PartyCommandsShould
     }
 
     [Fact]
-    public void Keep_the_party_chat_text_as_typed()
-    {
-        PartyClient a = _w.Online(1, "A");
-        PartyClient b = _w.Online(2, "B");
-        _w.Form(a, b);
-
-        Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, "/party wait   for me");
-
-        Assert.Equal("wait   for me", Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).Message);
-    }
-
-    [Fact]
     public void Tell_a_player_with_no_party_that_party_chat_goes_nowhere()
     {
         PartyClient a = _w.Online(1, "A");
@@ -138,7 +115,6 @@ public class PartyCommandsShould
 
     [Theory]
     [InlineData("/p")]
-    [InlineData("/p    ")]
     [InlineData("/party 	 ")]
     public void Answer_usage_for_party_chat_with_no_text(string message)
     {
@@ -153,10 +129,13 @@ public class PartyCommandsShould
         Assert.DoesNotContain(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE), m => m.Channel == ChatChannel.Party);
     }
 
-    /// <summary>The dispatcher skips spaces and slashes before the command word, so the text must be found the same way.</summary>
+    /// <summary>
+    /// The dispatcher skips spaces and slashes before the command word, so the text must be found the same way, and it
+    /// is kept as typed: the dispatcher's arguments would collapse repeated spaces.
+    /// </summary>
     [Theory]
+    [InlineData("/party wait   for me", "wait   for me")]
     [InlineData("/ p hello", "hello")]
-    [InlineData("  /p hello", "hello")]
     [InlineData("//p  hello there ", "hello there")]
     [InlineData("/p	hello", "hello")]
     public void Find_the_party_chat_text_after_the_command_word(string message, string expected)

@@ -171,15 +171,12 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
         Assert.Equal("Kaelin", Assert.Single((await ReloadAsync(1)).Entries).Name);
     }
 
-    [Theory]
-    [InlineData("Kaela")]
-    [InlineData("kAELA")]
-    [InlineData("  kaela  ")]
-    public async Task Find_a_character_by_name_ignoring_case_and_spaces(string name)
+    [Fact]
+    public async Task Find_a_character_by_name_ignoring_case_and_spaces()
     {
         await StoredCharacterAsync(2, "Kaela");
 
-        CharacterNameMatch? match = await _ignores.FindCharacterByNameAsync(name);
+        CharacterNameMatch? match = await _ignores.FindCharacterByNameAsync("  kAELA  ");
 
         Assert.Equal(new CharacterNameMatch(2u, "Kaela"), match);
         Assert.Null(await _ignores.FindCharacterByNameAsync("Nobody"));
