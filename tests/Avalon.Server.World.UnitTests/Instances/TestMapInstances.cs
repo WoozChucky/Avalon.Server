@@ -52,7 +52,9 @@ internal static class TestMapInstances
         MapInstance instance = Build(world, scripts, navigator, mapType: mapType, time: time, random: random,
             auraScripts: auraScripts);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
-        handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
+        // The handler and the instance share the container's clock, as in production.
+        handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(),
+            time ?? TimeProvider.System);
         return instance;
     }
 

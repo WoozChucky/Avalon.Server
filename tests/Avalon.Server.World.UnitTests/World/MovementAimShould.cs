@@ -53,7 +53,7 @@ public class MovementAimShould
         registry.GetInstanceById(Arg.Any<Guid>()).Returns(instance);
         IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
-        _handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
+        _handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(), TimeProvider.System);
 
         // The caster at the origin, facing +Z (yaw 0); one creature ahead of it on +Z, one behind on -Z.
         _caster = _arena.Player(1, 0f, 0f);

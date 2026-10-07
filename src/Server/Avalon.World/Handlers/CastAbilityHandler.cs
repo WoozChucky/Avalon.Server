@@ -20,11 +20,11 @@ namespace Avalon.World.Handlers;
 /// who it affects. <c>TargetGuid</c> is ignored, and there is no range or facing check. A Movement skill
 /// aims toward <c>GroundPos</c> when the cast sends one, and along the caster's yaw otherwise (#716). Every refusal
 /// is answered with exactly one SAbilityNotReadyPacket naming its reason (#512); the only silent path
-/// is a connection with no character.
+/// is a connection with no character. The global cooldown is timed by the container's <see cref="TimeProvider" />.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_CAST_ABILITY)]
-public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world, CombatConfig combatConfig)
-    : WorldPacketHandler<CCastAbilityPacket>
+public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world, CombatConfig combatConfig,
+    TimeProvider time) : WorldPacketHandler<CCastAbilityPacket>
 {
     public override void Execute(IWorldConnection connection, CCastAbilityPacket packet)
     {
@@ -50,7 +50,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             return;
         }
 
-        double sinceLastCast = (DateTime.UtcNow - caster.LastCastStartTime).TotalMilliseconds;
+        double sinceLastCast = (time.GetUtcNow().UtcDateTime - caster.LastCastStartTime).TotalMilliseconds;
         if (!godMode && sinceLastCast < combatConfig.GcdMs)
         {
             // Rounded up: a sub-millisecond remainder must not read as 0 ("ready") on the wire.
@@ -165,7 +165,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         caster.MarkCombat();
 
         // GCD anchor: stamps the start of this cast for the next GCD calculation.
-        if (!godMode) caster.LastCastStartTime = DateTime.UtcNow;
+        if (!godMode) caster.LastCastStartTime = time.GetUtcNow().UtcDateTime;
     }
 
     /// <summary>A present point whose three components are finite. Its height is kept but no shape reads it.</summary>

@@ -64,7 +64,7 @@ public class HandlerGuardsShould
         switch (request)
         {
             case NetworkPacketType.CMSG_CAST_ABILITY:
-                new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig())
+                new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(), TimeProvider.System)
                     .Execute(connection, new CCastAbilityPacket { AbilityId = 1 });
                 break;
             case NetworkPacketType.CMSG_CHAT_MESSAGE:

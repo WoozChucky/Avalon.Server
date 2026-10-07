@@ -208,7 +208,7 @@ public class AbilityAuraShould
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 203 });
         Assert.Equal(1, boar.Auras.Count);
 
-        warrior.Character.LastCastStartTime = DateTime.UtcNow.AddSeconds(-1);
+        warrior.Character.LastCastStartTime = _clock.GetUtcNow().UtcDateTime.AddSeconds(-1);
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 203 });
 
         Assert.Equal(0u, boar.CurrentHealth);

@@ -659,8 +659,9 @@ public class SimulatorParityShould
     /// <summary>
     /// Drives the simulator and the real instance side by side, one tick at a time. Each tick the simulator ticks
     /// first; then every entry of its rotation, in order, is offered to the real handler, with the simulator's own
-    /// global cooldown (the handler's clock is the wall clock, so the last cast start is set the simulated time since
-    /// it back from now). The entry the simulator started this tick must be accepted; every entry before it, or every
+    /// global cooldown (the handler reads the instance's clock, <paramref name="clock" /> when given and the system
+    /// clock otherwise, so the last cast start is set the simulated time since it back from that clock's now). The
+    /// entry the simulator started this tick must be accepted; every entry before it, or every
     /// entry when it started nothing, must be refused, so the server can start neither later nor earlier than the
     /// simulator. Then the instance ticks, and each ability's cooldown and the casting state must match.
     /// </summary>
@@ -688,7 +689,8 @@ public class SimulatorParityShould
 
             foreach (CompiledRotationEntry entry in rotation)
             {
-                real.Character.LastCastStartTime = DateTime.UtcNow - (lastStart is { } last ? Ticks(tick - last) : TimeSpan.FromHours(1));
+                real.Character.LastCastStartTime = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime
+                    - (lastStart is { } last ? Ticks(tick - last) : TimeSpan.FromHours(1));
                 int sentBefore = real.Sent.Count;
                 handler.Execute(real.Connection, new CCastAbilityPacket { AbilityId = entry.AbilityId, GroundPos = groundPos });
                 int refused = real.Sent.Skip(sentBefore).Count(p => p.Header.Type == NetworkPacketType.SMSG_ABILITY_NOT_READY);
