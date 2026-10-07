@@ -1,0 +1,83 @@
+# Rendering only: the shape of the values the homelab release passes today (apps/avalon/api.yml),
+# with test names and identifiers, no credentials. ci/test.sh renders it with no services (the one
+# process the homelab runs) and with each service alone.
+existingSecret: avalon-api
+worlds:
+  "1": {}
+  "2": {}
+  "3": {}
+publicWorldId: 2
+distribution:
+  endpoint: http://garage.distribution.svc:3900
+  publicUrl: https://dist.example.test
+  accessKeyId: GKtest
+otel:
+  endpoint: http://otel-collector.monitoring:4317
+  resourceAttributes:
+    deployment.environment: test
+cache:
+  host: avalon-redis:6379
+balance:
+  url: http://avalon-balance.avalon.svc:8080
+publicSiteUrl: https://avalon.example.test
+commerce:
+  enabled: true
+  allowExistingAccountSandbox: true
+  provider: stripe
+  paymentEnvironment: sandbox
+  licenseEnvironment: production
+  amountMinor: 800
+  currency: eur
+  quantity: 1
+  product: avalon.base
+  providerProduct: base
+  publicSiteOrigin: https://avalon.example.test
+  offerId: test-offer
+  providerPriceId: price_test
+  providerCatalogProductId: prod_test
+  providerAccountId: acct_test
+  paymentMethods: [card]
+  existingSecret: test-commerce
+  apiKeyKey: stripe-api-key
+  webhookSecretKey: stripe-webhook-secret
+email:
+  sender: Resend
+  from: noreply@avalon.example.test
+  fromName: Avalon
+  verificationSiteOrigin: https://avalon.example.test
+  existingSecret: avalon-api
+  resendApiKeyKey: resend-api-key
+templates:
+  editableWorlds: [1, 3]
+forwardedHeaders:
+  knownNetworks:
+    - 10.42.0.0/16
+  forwardLimit: 2
+storeAuthentication:
+  steamAppId: 123456
+  steamPlaytest:
+    enabled: true
+    appId: 654321
+    allowedWorldIds: [3]
+  existingSecret: test-steam-credentials
+  publisherKeyKey: steam-publisher-key
+  environment: production
+  steamIdentityPrefix: avalon-auth-test
+  policyVersion: 1
+steamWebLink:
+  callbackUrl: https://avalon.example.test/api/account/links/steam/callback
+  siteUrl: https://avalon.example.test
+gameAdmission:
+  port: 9443
+  tlsExistingSecret: test-api-tls
+  bindingsExistingSecret: test-workload-bindings
+  servers:
+    - serverId: world-dev
+      worldId: 1
+      tlsServerName: dev.example.test
+    - serverId: world-live
+      worldId: 2
+      tlsServerName: live.example.test
+    - serverId: world-ptr
+      worldId: 3
+      tlsServerName: ptr.example.test

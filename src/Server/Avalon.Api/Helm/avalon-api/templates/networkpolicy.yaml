@@ -1,0 +1,47 @@
+{{- /*
+Who may reach the API pods (#794, hardening; off by default): on the API's port, the ingress
+controller, plus the public site (link previews) where worlds runs; on the game admission port,
+where identity runs, the world servers. Refused without the peers a port needs: a rule with no
+peer would admit every source.
+*/}}
+{{- $services := include "avalon-api.services" . | fromJsonArray }}
+{{- $policy := .Values.networkPolicy | default dict }}
+{{- if and $services $policy.enabled }}
+{{- $identity := has "identity" $services }}
+{{- if not $policy.ingressController }}
+{{- fail "networkPolicy.ingressController lists no peer: name the ingress controller's pods (podSelector, namespaceSelector), or every source would reach the API." }}
+{{- end }}
+{{- if and $identity (not $policy.worldServers) }}
+{{- fail "networkPolicy.worldServers lists no peer: name the world servers' pods, the only callers of game admission, or every source would reach it." }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "avalon-api.fullname" . }}
+  labels:
+    {{- include "avalon-api.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "avalon-api.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml $policy.ingressController | nindent 8 }}
+        {{- if has "worlds" $services }}
+        {{- with $policy.publicSite }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+    {{- if $identity }}
+    - from:
+        {{- toYaml $policy.worldServers | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.gameAdmission.port }}
+    {{- end }}
+{{- end }}

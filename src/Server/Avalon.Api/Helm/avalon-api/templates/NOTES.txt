@@ -1,16 +1,23 @@
-1. Get the application URL by running these commands:
-{{- if contains "NodePort" .Values.service.type }}
-  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "avalon-api.fullname" . }})
-  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
-  echo http://$NODE_IP:$NODE_PORT
-{{- else if contains "LoadBalancer" .Values.service.type }}
-     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
-           You can watch the status of by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "avalon-api.fullname" . }}'
-  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "avalon-api.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
-  echo http://$SERVICE_IP:{{ .Values.service.port }}
-{{- else if contains "ClusterIP" .Values.service.type }}
-  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "avalon-api.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
-  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
-  echo "Visit http://127.0.0.1:8080 to use your application"
-  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
+{{- $services := include "avalon-api.services" . | fromJsonArray }}
+{{- $name := include "avalon-api.fullname" . }}
+{{- if eq (include "avalon-api.routesMode" .) "true" }}
+{{- $manifest := .Files.Get "files/routes.json" | fromJson }}
+The IngressRoute {{ $name }} routes {{ .Values.routes.pathPrefix | default "/" }} on {{ join ", " .Values.routes.hosts }} by the
+route manifest; it runs no API pods. Requests go to:
+{{- range $service := keys .Values.routes.backends | sortAlpha }}
+  {{ $service }}: {{ get $.Values.routes.backends $service }}{{ if eq $service $manifest.default }} (and every path no rule names){{ end }}
+{{- end }}
+{{- range $override := .Values.routes.overrides | default list }}
+  {{ $override.path }} ({{ $override.service }}): {{ $override.backend }}
+{{- end }}
+
+  kubectl --namespace {{ .Release.Namespace }} get ingressroute {{ $name }} -o yaml
+{{- else }}
+{{ $name }} runs these API services: {{ join ", " $services }}{{ if not .Values.services }} (services is left out, so all of them, in one process){{ end }}.
+Inside the cluster: http://{{ $name }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+{{- if has "identity" $services }}; game admission (mTLS): https://{{ $name }}.{{ .Release.Namespace }}.svc:{{ .Values.gameAdmission.port }}{{ end }}.
+From this machine:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ $name }} 18080:{{ .Values.service.port }}
+  curl http://127.0.0.1:18080/health
 {{- end }}

@@ -1,0 +1,41 @@
+# The read-only smoke check of the API (#794): smoke.sh sends each line, a GET, and compares the status.
+# Columns, tab-separated: group, method, path, expected statuses, auth.
+#   group     the API service the route manifest (Helm/avalon-api/files/routes.json) sends the path to;
+#             AVALON_SMOKE_GROUPS picks groups. Every rule of the manifest has a line (SmokeCoverageShould).
+#   method    GET only.
+#   path      as the API sees it, query string included, appended to BASE.
+#   expected  comma-separated statuses, or classes such as 2xx. A 405 on a POST-only route, or a 403 that
+#             only identity gives, shows the request reached the service that maps the route; any other
+#             service would answer 404.
+#   auth      none, or pat: sent with AVALON_SMOKE_PAT, an Admin personal access token.
+# group	method	path	expected	auth
+identity	GET	/account	200	pat
+identity	GET	/mfa/status	200	pat
+identity	GET	/pat	200	pat
+identity	GET	/client/auth/sessions	403	pat
+identity	GET	/notification/register	405	none
+identity	GET	/game/worlds	405	none
+identity	GET	/internal/game/sessions/heartbeat	404,405	none
+worlds	GET	/world	401	none
+worlds	GET	/world	200	pat
+worlds	GET	/world/1/item-template?pageSize=1	200	pat
+worlds	GET	/world/2/item-template?pageSize=1	200	pat
+worlds	GET	/world/3/item-template?pageSize=1	200	pat
+worlds	GET	/world/1/map-template	200	pat
+worlds	GET	/character	200	pat
+worlds	GET	/observability/online	200	pat
+worlds	GET	/public/world	200	none
+worlds	GET	/public/world/2/item/1	200,404	none
+worlds	GET	/public/preview/item/1	200	none
+worlds	GET	/balance/catalog	200,503	pat
+commerce	GET	/account/game-license	200	pat
+commerce	GET	/admin/purchases	200	pat
+commerce	GET	/account/purchases/checkout	405	none
+commerce	GET	/payments/notifications/stripe	405	none
+distribution	GET	/client/launcher/update	200,204	none
+distribution	GET	/client/releases	200	none
+distribution	GET	/client/changelog	200	none
+distribution	GET	/client/channels	200	pat
+distribution	GET	/client/channels/dev/manifest	200,404	pat
+distribution	GET	/client/channels/ptr/manifest	200,404	pat
+distribution	GET	/client/channels/live/manifest	200,404	pat

@@ -2,6 +2,8 @@
 # Renders the chart the way homelab and the release use it and asserts on the output.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Git Bash on Windows would otherwise rewrite arguments such as pathPrefix=/api into Windows paths.
+export MSYS_NO_PATHCONV=1
 
 # Supply mandatory authentication settings for renders and unrelated refusal checks.
 AUTHENTICATION=(--values ci/authentication-values.yaml)
@@ -211,4 +213,159 @@ for worlds in '[]' '[0]' '[3,3]' '[65536]' '[1.5]' '[true]'; do
   must_fail "invalid Playtest worlds $worlds must fail" --set existingSecret=x "${W1[@]}" "${profile[@]}" --set storeAuthentication.steamPlaytest.enabled=true --set-json "storeAuthentication.steamPlaytest.allowedWorldIds=$worlds"
 done
 must_fail "invalid disabled profile must fail" --set existingSecret=x "${W1[@]}" --set storeAuthentication.steamPlaytest.appId=-1
+
+# ---------------------------------------------------------------------------------------------------
+# Service modes and routes (#794, design D9.2, D7.2). One case per mode.
+
+# The substance of a render, one sorted line per fact: each setting the container reads, with its
+# value or its Secret reference, its ports, mounts, volumes and probes, and the Service's ports.
+shape() {
+  awk '
+    /^kind: / { kind = $2; print "kind " kind; section = "" }
+    kind == "Deployment" && /^          [a-zA-Z]+:/ { section = $1; sub(/:$/, "", section) }
+    kind == "Deployment" && section == "env" && /^            - name: / { name = $3 }
+    kind == "Deployment" && section == "env" && /^              value: / { v = $0; sub(/^ *value: /, "", v); print "env " name "=" v }
+    kind == "Deployment" && section == "env" && /^                  name: / { secret = $2 }
+    kind == "Deployment" && section == "env" && /^                  key: / { print "env " name " <- " secret "/" $2 }
+    kind == "Deployment" && section == "env" && /^                  optional: true$/ { print "env " name " optional" }
+    kind == "Deployment" && section == "ports" && /^            - name: / { port = $3 }
+    kind == "Deployment" && section == "ports" && /containerPort: / { print "port " port " " $2 }
+    kind == "Deployment" && section == "volumeMounts" && /mountPath: / { print "mount " $2 }
+    kind == "Deployment" && section ~ /Probe$/ && /path: / { probe = section " " $2 }
+    kind == "Deployment" && section ~ /Probe$/ && /failureThreshold: / { print "probe " probe " " $2 }
+    kind == "Deployment" && /^            secretName: / { print "volume " $2 }
+    kind == "Service" && /^    - port: / { servicePort = $3 }
+    kind == "Service" && /^      name: / { print "service-port " $2 " " servicePort }
+  ' | LC_ALL=C sort
+}
+HOMELAB=(--values ci/homelab-values.yaml)
+# A Windows checkout holds the chart with CRLF line ends; compare what it says, not how lines end.
+render() { helm template t . "$@" | tr -d '\r'; }
+EXPECTED=$(tr -d '\r' < ci/homelab-render.txt)
+
+# The release homelab runs today names no services: it must render exactly what it rendered before the
+# split (ci/homelab-render.txt, taken from the chart before #794), one process running all four
+# services, with no Application__Services and no startup probe. Naming all four changes nothing else.
+mono=$(render "${HOMELAB[@]}")
+diff <(shape <<<"$mono") <(echo "$EXPECTED")                      || { echo "the release without services must render what it rendered before the split"; exit 1; }
+four=$(render "${HOMELAB[@]}" --set-json 'services=["identity","worlds","commerce","distribution"]')
+diff <(shape <<<"$mono") <(shape <<<"$four" | grep -v '^env Application__Services__') \
+                                                                      || { echo "naming all four services must render the same process"; exit 1; }
+[ "$(shape <<<"$four" | grep -c '^env Application__Services__')" = 4 ] || { echo "the four services must render as Application__Services__<n>"; exit 1; }
+
+# Each service alone reads exactly the settings and Secret keys design D9.4 gives it, out of what the
+# one process reads; only identity has the game admission port, its certificate and no schema wait.
+owners() {
+  case "$1" in
+    Application__StoreAuthentication__Environment|Application__StoreAuthentication__SteamIdentityPrefix) echo "identity commerce" ;;
+    Application__StoreAuthentication__*|Application__Email__*|Application__Notification__*|Application__SteamWebLink__*|Application__GameWorkloads__*|Kestrel__Endpoints__GameInternal__*|Application__RateLimiting__ClientAuthPermitsPerMinute) echo identity ;;
+    Database__Worlds__*__Characters__*) echo "identity worlds" ;;
+    Database__Worlds__*__World__*|Application__Templates__*|Application__MapAssets__*|Application__Balance__*|Application__PublicWorldId|Application__PublicSiteUrl) echo worlds ;;
+    Application__Commerce__*) echo commerce ;;
+    Application__Distribution__*) echo distribution ;;
+    Application__Cache__*) echo "identity worlds commerce" ;;
+    Database__Auth__*|Application__Authentication__*|Application__ForwardedHeaders__*|Application__RateLimiting__*|Kestrel__Endpoints__Public__*|ASPNETCORE_ENVIRONMENT|DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE|OTEL_*) echo "identity worlds commerce distribution" ;;
+  esac
+}
+expected_for() {
+  local service=$1 line rest
+  while IFS= read -r line; do
+    case "$line" in
+      "env "*) rest=${line#env }; [[ " $(owners "${rest%%[= ]*}") " == *" $service "* ]] && echo "$line" ;;
+      "port game-internal "*|"service-port game-internal "*|"mount "*|"volume "*) [ "$service" = identity ] && echo "$line" ;;
+      *) echo "$line" ;;
+    esac
+  done <<<"$EXPECTED"
+  echo "env Application__Services__0=\"$service\""
+  if [ "$service" != identity ]; then
+    echo 'env Application__Startup__AuthSchemaWaitSeconds="300"'
+    echo "probe startupProbe /alive 72"
+  fi
+}
+union=""
+for service in identity worlds commerce distribution; do
+  alone=$(render "${HOMELAB[@]}" --set-json "services=[\"$service\"]")
+  diff <(shape <<<"$alone") <(expected_for "$service" | LC_ALL=C sort) || { echo "$service alone must read exactly its own settings (design D9.4)"; exit 1; }
+  union+=$(shape <<<"$alone" | grep -v -e '^env Application__Services__' -e '^env Application__Startup__' -e '^probe startupProbe ')$'\n'
+  helm lint . --quiet "${HOMELAB[@]}" --set-json "services=[\"$service\"]" >/dev/null || { echo "helm lint failed for $service"; exit 1; }
+done
+diff <(LC_ALL=C sort -u <<<"$union" | sed '/^$/d') <(echo "$EXPECTED") || { echo "every setting of the one process must reach the service that reads it"; exit 1; }
+# A chart-managed Secret holds only the keys of the release's services (design D9.3).
+SECRETS=(--set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set cache.password=p --set notification.privateKey=n
+         --set distribution.secretAccessKey=d --set balance.sharedSecret=b)
+for expect in "identity:cache-password database-auth-connection-string database-characters-1-connection-string jwt-signing-key notification-private-key" \
+              "worlds:balance-shared-secret cache-password database-auth-connection-string database-characters-1-connection-string database-world-1-connection-string jwt-signing-key" \
+              "commerce:cache-password database-auth-connection-string jwt-signing-key" \
+              "distribution:database-auth-connection-string distribution-secret-key jwt-signing-key"; do
+  service=${expect%%:*}
+  keys=$(render "${AUTHENTICATION[@]}" $CACHE "${SECRETS[@]}" --set-json "services=[\"$service\"]" --show-only templates/secret.yaml \
+    | awk '/^stringData:/{f=1; next} f && /^  [a-z]/{sub(/:.*/, ""); print $1}' | LC_ALL=C sort | tr '\n' ' ')
+  [ "$keys" = "${expect#*:} " ] || { echo "$service's Secret must hold only its keys, not: $keys"; exit 1; }
+done
+# A service's values are required only where it runs: distribution starts from the auth string and the
+# signing key alone, with no world, cache, store or game admission values.
+helm template t . --set existingSecret=x --set-json 'services=["distribution"]' >/dev/null || { echo "distribution alone must not need other services' values"; exit 1; }
+must_fail "an empty services list outside a routes release must fail" --set existingSecret=x "${W1[@]}" --set-json 'services=[]'
+must_fail "an unknown service must fail"                              --set existingSecret=x "${W1[@]}" --set-json 'services=["billing"]'
+
+# A routes release renders the IngressRoute alone (design D7.2): one route per manifest rule, a deeper
+# rule outranking a shallower one, the default at the bottom and the rollout overrides on top, each
+# on both hosts, through the Middleware, to the Service of the rule's service.
+ROUTES=(--values ci/routes-values.yaml)
+routes=$(render "${ROUTES[@]}")
+[ "$(grep '^kind: ' <<<"$routes")" = "kind: IngressRoute" ] || { echo "a routes release must render the IngressRoute alone"; exit 1; }
+table=$(awk '
+  /^    - kind: Rule$/ { if (match_) print priority, backend, middleware, match_; match_ = ""; middleware = "" }
+  /^      match: / { if (index($0, "match: \"(Host(`avalon.example.test`) || Host(`admin.avalon.example.test`)) && PathRegexp(`") != 7)
+                       print "a route without both hosts: " $0
+                     match_ = $0; sub(/.*PathRegexp\(`/, "", match_); sub(/`\)"$/, "", match_) }
+  /^      priority: / { priority = $2 }
+  /^      (middlewares|services):$/ { list = $1 }
+  /^        - name: / { if (list == "middlewares:") middleware = middleware $3; else backend = $3 }
+  /^          port: / { backend = backend ":" $2 }
+  END { print priority, backend, middleware, match_ }
+' <<<"$routes" | LC_ALL=C sort)
+diff <(echo "$table") - <<'EOF' || { echo "routes must follow the manifest (design D7.2)"; exit 1; }
+10000 api-identity:8080 avalon-strip-api ^/api(/|$)
+10010 api-identity:8080 avalon-strip-api ^/api/(?i)account(/|$)
+10010 api-identity:8080 avalon-strip-api ^/api/(?i)game(/|$)
+10010 api-identity:8080 avalon-strip-api ^/api/(?i)mfa(/|$)
+10010 api-identity:8080 avalon-strip-api ^/api/(?i)notification(/|$)
+10010 api-identity:8080 avalon-strip-api ^/api/(?i)pat(/|$)
+10010 api-worlds:8080 avalon-strip-api ^/api/(?i)balance(/|$)
+10010 api-worlds:8080 avalon-strip-api ^/api/(?i)character(/|$)
+10010 api-worlds:8080 avalon-strip-api ^/api/(?i)observability(/|$)
+10010 api-worlds:8080 avalon-strip-api ^/api/(?i)public(/|$)
+10010 api-worlds:8080 avalon-strip-api ^/api/(?i)world(/|$)
+10020 api-commerce:8080 avalon-strip-api ^/api/(?i)account/game-license(/|$)
+10020 api-commerce:8080 avalon-strip-api ^/api/(?i)account/purchases(/|$)
+10020 api-commerce:8080 avalon-strip-api ^/api/(?i)admin/purchases(/|$)
+10020 api-commerce:8080 avalon-strip-api ^/api/(?i)payments/notifications(/|$)
+10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/changelog(/|$)
+10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/channels(/|$)
+10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/launcher(/|$)
+10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/releases(/|$)
+10020 api-identity:8080 avalon-strip-api ^/api/(?i)client/auth(/|$)
+20020 api-worlds-next:8080 avalon-strip-api ^/api/(?i)world/1(/|$)
+20030 api-distribution-next:8080 avalon-strip-api ^/api/(?i)client/channels/dev(/|$)
+EOF
+helm lint . --quiet "${ROUTES[@]}" >/dev/null || { echo "helm lint failed for the routes release"; exit 1; }
+# An override that would send another service's paths, or an internal one, somewhere else refuses to
+# render; so does turning routes on in a release that runs services, which would remove its pods.
+must_fail_routes() { local why=$1; shift; if helm template t . "${ROUTES[@]}" "$@" >/dev/null 2>&1; then echo "$why"; exit 1; fi; }
+must_fail_routes "an override of a path another service owns must fail" --set-json 'routes.overrides=[{"path":"/account/purchases","service":"identity","backend":"x"}]'
+must_fail_routes "an override over another service's rules must fail"  --set-json 'routes.overrides=[{"path":"/account","service":"identity","backend":"x"}]'
+must_fail_routes "an override of an internal path must fail"           --set-json 'routes.overrides=[{"path":"/internal/game","service":"identity","backend":"x"}]'
+must_fail_routes "a missing backend must fail"                         --set routes.backends.commerce=null
+must_fail_routes "routes with a service listed must fail"              --set-json 'services=["worlds"]'
+must_fail "routes in a release that leaves services out must fail" --set existingSecret=x "${W1[@]}" --set routes.enabled=true --set-json 'routes.hosts=["a.example.test"]'
+
+# The NetworkPolicy (off by default) refuses to render a port with no peer, which would admit every source.
+POLICY=(--set networkPolicy.enabled=true --set-json 'networkPolicy.ingressController=[{"podSelector":{"matchLabels":{"app":"traefik"}}}]')
+policy=$(render "${HOMELAB[@]}" --set-json 'services=["identity"]' "${POLICY[@]}" --set-json 'networkPolicy.worldServers=[{"podSelector":{"matchLabels":{"app":"world"}}}]' --show-only templates/networkpolicy.yaml)
+awk '/^    - from:/ { rule++ } /app: world/ { peer = rule } /port: 9443/ { port = rule } END { exit !(peer && peer == port) }' <<<"$policy" \
+                                                                          || { echo "game admission must admit the world servers"; exit 1; }
+! grep -q "kind: NetworkPolicy" <<<"$mono"                               || { echo "the NetworkPolicy must be off by default"; exit 1; }
+must_fail "a policy with no world servers must fail where identity runs" "${HOMELAB[@]}" --set-json 'services=["identity"]' "${POLICY[@]}"
+must_fail "a policy with no ingress controller must fail"                "${HOMELAB[@]}" --set-json 'services=["worlds"]' --set networkPolicy.enabled=true
 echo "avalon-api chart OK"

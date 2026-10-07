@@ -12,7 +12,63 @@
 #    a checksum annotation restarts the pods whenever it changes.
 #    Pass them from files, not the command line, so they stay out of shell history:
 #    --set-file authentication.issuerSigningKey=./jwt.key (a trailing newline is trimmed).
+# A release that names its services (services, below) reads only their keys (#794):
+#  - every service: database-auth-connection-string and jwt-signing-key (every service checks
+#    access tokens with it until #801 signs them with ES256);
+#  - identity: each world's characters key, cache-password, notification-private-key;
+#  - worlds: each world's world and characters keys, cache-password, balance-shared-secret;
+#  - commerce: cache-password (its provider keys are in commerce.existingSecret);
+#  - distribution: distribution-secret-key.
 existingSecret: ""
+
+# The API services this release runs (#794): any of identity, worlds, commerce and distribution,
+# rendered as Application__Services__<n>. Left out, the release runs all four in one process, as
+# before the split. A service's values below reach the pod only when it is listed, so one release
+# per service holds only that service's settings and Secret keys. Only identity serves game
+# admission (gameAdmission, port 9443) and migrates the auth database; a release without it waits
+# for those migrations at startup (startup.authSchemaWaitSeconds). An empty list renders no pods
+# and is accepted only with routes.enabled.
+# services: [identity, worlds, commerce, distribution]
+
+startup:
+  # How long a release without identity waits at startup for identity to apply the auth database's
+  # migrations (Application:Startup:AuthSchemaWaitSeconds, whole seconds, at least 1) before it
+  # fails and restarts; its startupProbe allows this long and a minute more.
+  authSchemaWaitSeconds: 300
+
+# Routes mode (#794): a release with routes.enabled and services: [] renders only a Traefik
+# IngressRoute and no pods. It sends each path under pathPrefix on hosts to the Service of the API
+# service that owns it, by the route manifest files/routes.json (a rule /x matches /x and the paths
+# under it, ignoring case after the prefix; the deepest rule wins; identity takes the rest).
+routes:
+  enabled: false
+  # The hosts the routes answer on, e.g. [avalon.example, admin.avalon.example]. Required.
+  hosts: []
+  # The prefix the API is served under on those hosts, with no '/' at the end; empty for the root.
+  pathPrefix: /api
+  # Traefik Middlewares, in the release's namespace, each route passes through, e.g. the one that
+  # strips pathPrefix: [avalon-strip-api].
+  middlewares: []
+  # The Service each API service's requests go to, reached on service.port; all four required,
+  # e.g. {identity: avalon-api, worlds: avalon-api-worlds, commerce: avalon-api, distribution: avalon-api}.
+  backends: {}
+  # Rollout moves: a path inside one service's rules sent to another Service, ahead of every rule,
+  # e.g. [{path: /world/1, service: worlds, backend: avalon-api-worlds}]. The path is written as the
+  # manifest writes rules; one the manifest gives to another service, or with another service's
+  # rule under it, refuses to render.
+  overrides: []
+
+# NetworkPolicy for the API pods, off by default (#794 hardening). On, the API's port admits only
+# ingressController (and, where worlds runs, publicSite, for link previews), and the game admission
+# port, where identity runs, only worldServers. Each is a list of NetworkPolicy peers
+# (podSelector, namespaceSelector, ipBlock); the chart refuses to enable it without the peers a port
+# needs, since a rule with none would admit every source. Probes come from the node: add its range
+# to ingressController if your network policy implementation does not admit node traffic.
+networkPolicy:
+  enabled: false
+  ingressController: []
+  publicSite: []
+  worldServers: []
 
 # The shared auth database. Unless existingSecret is set, the chart refuses to render without it
 # (#564); pass it from a file: --set-file database.auth.connectionString=./auth.cs (a trailing

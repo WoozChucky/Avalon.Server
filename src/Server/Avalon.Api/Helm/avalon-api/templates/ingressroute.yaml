@@ -1,0 +1,40 @@
+{{- /*
+Routes mode (#794, design D7.2): one Traefik IngressRoute that sends every path under
+routes.pathPrefix on routes.hosts to the Service of the API service that owns it, by the route
+manifest (files/routes.json): a rule /x matches /x and the paths under it, ignoring case after the
+prefix, and a deeper rule outranks a shallower one; the manifest's default service takes the rest of
+the prefix. The priorities sit above any Ingress router. A rollout override (design section 10)
+outranks every rule. No route names an internal path.
+*/}}
+{{- if eq (include "avalon-api.routesMode" .) "true" }}
+{{- include "avalon-api.refuseSecretValues" . }}
+{{- include "avalon-api.validateRoutes" . }}
+{{- $manifest := .Files.Get "files/routes.json" | fromJson }}
+{{- $routes := .Values.routes }}
+{{- $hosts := list }}
+{{- range $host := $routes.hosts }}
+{{- $hosts = append $hosts (printf "Host(`%s`)" $host) }}
+{{- end }}
+{{- $on := printf "(%s)" (join " || " $hosts) }}
+{{- $prefix := $routes.pathPrefix | default "" | toString | regexQuoteMeta }}
+{{- $port := .Values.service.port }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "avalon-api.fullname" . }}
+  labels:
+    {{- include "avalon-api.labels" . | nindent 4 }}
+spec:
+  routes:
+    {{- include "avalon-api.route" (dict "match" (printf "%s && PathRegexp(`^%s(/|$)`)" $on $prefix) "priority" 10000 "middlewares" $routes.middlewares "backend" (get $routes.backends $manifest.default) "port" $port) | nindent 4 }}
+    {{- range $service, $rules := $manifest.services }}
+    {{- range $rule := $rules }}
+    {{- $priority := add 10000 (mul 10 (len (splitList "/" (trimPrefix "/" $rule)))) }}
+    {{- include "avalon-api.route" (dict "match" (printf "%s && PathRegexp(`^%s/(?i)%s(/|$)`)" $on $prefix (trimPrefix "/" $rule)) "priority" $priority "middlewares" $routes.middlewares "backend" (get $routes.backends $service) "port" $port) | nindent 4 }}
+    {{- end }}
+    {{- end }}
+    {{- range $override := $routes.overrides | default list }}
+    {{- $priority := add 20000 (mul 10 (len (splitList "/" (trimPrefix "/" $override.path)))) }}
+    {{- include "avalon-api.route" (dict "match" (printf "%s && PathRegexp(`^%s/(?i)%s(/|$)`)" $on $prefix (trimPrefix "/" $override.path)) "priority" $priority "middlewares" $routes.middlewares "backend" $override.backend "port" $port) | nindent 4 }}
+    {{- end }}
+{{- end }}

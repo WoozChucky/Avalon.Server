@@ -1,14 +1,40 @@
-{{- include "avalon-api.validateWorlds" . }}
+{{- /*
+The API process (#794): the services listed in services, or all four when it is left out. Each
+service's values reach the pod only when it is listed (design D9.2), so a pod reads only the
+settings and Secret keys of its own services. A routes release renders no pod.
+*/}}
+{{- $services := include "avalon-api.services" . | fromJsonArray }}
+{{- if $services }}
+{{- $identity := has "identity" $services }}
+{{- $worlds := has "worlds" $services }}
+{{- $commerce := has "commerce" $services }}
+{{- $distribution := has "distribution" $services }}
+{{- $cache := or $identity $worlds $commerce }}
+{{- $parts := include "avalon-api.worldParts" $services | fromJsonArray }}
+{{- include "avalon-api.refuseSecretValues" . }}
+{{- include "avalon-api.validateWorlds" (list . $parts) }}
+{{- if $identity }}
 {{- include "avalon-api.validateEmail" . }}
+{{- end }}
+{{- if $commerce }}
 {{- include "avalon-api.validateCommerce" . }}
+{{- end }}
+{{- $steamAppId := 0 }}
+{{- if $identity }}
 {{- $configuredSteamAppId := required "storeAuthentication.steamAppId is required" .Values.storeAuthentication.steamAppId }}
-{{- $steamAppId := int64 $configuredSteamAppId }}
+{{- $steamAppId = int64 $configuredSteamAppId }}
 {{- /* Emit canonical decimal, even when YAML decodes a large App ID as float64; never truncate a fraction. */}}
 {{- if or (le $steamAppId 0) (gt $steamAppId 4294967295) (ne (float64 $configuredSteamAppId) (float64 $steamAppId)) }}
 {{- fail "storeAuthentication.steamAppId is required and must be a positive 32-bit integer" }}
 {{- end }}
 {{- include "avalon-api.validateSteamPlaytest" . }}
+{{- end }}
 {{- $playtest := .Values.storeAuthentication.steamPlaytest | default dict }}
+{{- /* Without identity the process reads the auth schema identity migrates, and waits for it at startup (#794, design D5.2). */}}
+{{- $schemaWait := (.Values.startup | default dict).authSchemaWaitSeconds | toString }}
+{{- if and (not $identity) (not (regexMatch "^[1-9][0-9]{0,6}$" $schemaWait)) }}
+{{- fail "startup.authSchemaWaitSeconds is a whole number of seconds, at least 1: how long a process without identity waits for identity's auth database migrations." }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -48,6 +74,16 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            {{- /* Only when services lists them: left out, the process runs every service (#794). */}}
+            {{- range $i, $service := .Values.services }}
+            - name: Application__Services__{{ $i }}
+              value: {{ $service | toString | trim | lower | quote }}
+            {{- end }}
+            {{- if not $identity }}
+            - name: Application__Startup__AuthSchemaWaitSeconds
+              value: {{ $schemaWait | quote }}
+            {{- end }}
+            {{- if $commerce }}
             - name: Application__Commerce__Enabled
               value: {{ .Values.commerce.enabled | quote }}
             - name: Application__Commerce__AllowExistingAccountSandbox
@@ -72,6 +108,8 @@ spec:
                   name: {{ .Values.commerce.existingSecret | quote }}
                   key: {{ .Values.commerce.webhookSecretKey | quote }}
             {{- end }}
+            {{- end }}
+            {{- if $identity }}
             - name: Application__StoreAuthentication__SteamAppId
               value: {{ $steamAppId | quote }}
             - name: Application__StoreAuthentication__SteamPlaytest__Enabled
@@ -87,14 +125,20 @@ spec:
                 secretKeyRef:
                   name: {{ required "storeAuthentication.existingSecret is required" .Values.storeAuthentication.existingSecret | quote }}
                   key: {{ required "storeAuthentication.publisherKeyKey is required" .Values.storeAuthentication.publisherKeyKey | quote }}
+            {{- end }}
+            {{- if or $identity $commerce }}
             - name: Application__StoreAuthentication__Environment
               value: {{ .Values.storeAuthentication.environment | quote }}
             - name: Application__StoreAuthentication__SteamIdentityPrefix
               value: {{ .Values.storeAuthentication.steamIdentityPrefix | quote }}
+            {{- end }}
+            {{- if $identity }}
             - name: Application__StoreAuthentication__PolicyVersion
               value: {{ .Values.storeAuthentication.policyVersion | quote }}
+            {{- end }}
             - name: Kestrel__Endpoints__Public__Url
               value: {{ printf "http://0.0.0.0:%v" .Values.service.port | quote }}
+            {{- if $identity }}
             - name: Application__Email__Sender
               value: {{ .Values.email.sender | quote }}
             - name: Application__Email__VerificationCooldownSeconds
@@ -122,6 +166,7 @@ spec:
                   name: {{ .Values.email.existingSecret | quote }}
                   key: {{ .Values.email.resendApiKeyKey | quote }}
             {{- end }}
+            {{- /* Kestrel binds every endpoint under Kestrel:Endpoints, so the workload listener exists only with identity (#794). */}}
             - name: Kestrel__Endpoints__GameInternal__Url
               value: {{ printf "https://0.0.0.0:%v" .Values.gameAdmission.port | quote }}
             - name: Kestrel__Endpoints__GameInternal__Certificate__Path
@@ -153,6 +198,7 @@ spec:
                   name: {{ $.Values.gameAdmission.bindingsExistingSecret | quote }}
                   key: {{ printf "%s-client-sha256" $server.serverId | quote }}
             {{- end }}
+            {{- end }}
             # Secrets come from the Secret (templates/secret.yaml or existingSecret), never as
             # plain values in the pod spec (#482).
             - name: Database__Auth__ConnectionString
@@ -160,31 +206,40 @@ spec:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" . }}
                   key: database-auth-connection-string
+            {{- if $parts }}
             {{- range $id, $entry := .Values.worlds }}
             # World {{ $id }} (Database:Worlds, #523).
+            {{- if has "world" $parts }}
             - name: Database__Worlds__{{ $id }}__World__ConnectionString
               valueFrom:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" $ }}
                   key: {{ include "avalon-api.worldKey" (list $id $entry) | quote }}
+            {{- end }}
             - name: Database__Worlds__{{ $id }}__Characters__ConnectionString
               valueFrom:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" $ }}
                   key: {{ include "avalon-api.charactersKey" (list $id $entry) | quote }}
             {{- end }}
+            {{- end }}
+            {{- if $cache }}
             - name: Application__Cache__Password
               valueFrom:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" . }}
                   key: cache-password
                   optional: true
+            {{- end }}
+            {{- if $identity }}
             - name: Application__Notification__PrivateKey
               valueFrom:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" . }}
                   key: notification-private-key
                   optional: true
+            {{- end }}
+            {{- if $worlds }}
             - name: Application__Balance__SharedSecret
               valueFrom:
                 secretKeyRef:
@@ -195,6 +250,8 @@ spec:
             - name: Application__Balance__Url
               value: {{ . | quote }}
             {{- end }}
+            {{- end }}
+            {{- if $distribution }}
             {{- with .Values.distribution.endpoint }}
             - name: Application__Distribution__Endpoint
               value: {{ . | quote }}
@@ -212,18 +269,24 @@ spec:
                   name: {{ include "avalon-api.secretName" $ }}
                   key: distribution-secret-key
             {{- end }}
+            {{- end }}
+            {{- /* Every service validates access tokens with it (HS256) until #801 moves them to ES256. */}}
             - name: Application__Authentication__IssuerSigningKey
               valueFrom:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" . }}
                   key: jwt-signing-key
             # Not secret.
+            {{- if $cache }}
             - name: Application__Cache__Host
               value: {{ required "cache.host is required: host:port of Redis" .Values.cache.host | quote }}
+            {{- end }}
+            {{- if $identity }}
             - name: Application__Notification__Subject
               value: {{ .Values.notification.subject | quote }}
             - name: Application__Notification__PublicKey
               value: {{ .Values.notification.publicKey | quote }}
+            {{- end }}
             {{- range $i, $proxy := .Values.forwardedHeaders.knownProxies }}
             - name: Application__ForwardedHeaders__KnownProxies__{{ $i }}
               value: {{ $proxy | quote }}
@@ -248,10 +311,11 @@ spec:
             - name: Application__RateLimiting__AuthenticatedPermitsPerMinute
               value: {{ $rateLimiting.authenticatedPermitsPerMinute | quote }}
             {{- end }}
-            {{- if not (kindIs "invalid" $rateLimiting.clientAuthPermitsPerMinute) }}
+            {{- if and $identity (not (kindIs "invalid" $rateLimiting.clientAuthPermitsPerMinute)) }}
             - name: Application__RateLimiting__ClientAuthPermitsPerMinute
               value: {{ $rateLimiting.clientAuthPermitsPerMinute | quote }}
             {{- end }}
+            {{- if $worlds }}
             {{- range $i, $id := .Values.templates.editableWorlds }}
             - name: {{ printf "Application__Templates__EditableWorlds__%d" $i }}
               value: {{ $id | toString | quote }}
@@ -260,6 +324,8 @@ spec:
             - name: Application__Templates__ReloadTimeout
               value: {{ . | quote }}
             {{- end }}
+            {{- end }}
+            {{- if $identity }}
             {{- $steamWebLink := .Values.steamWebLink | default dict }}
             {{- with $steamWebLink.callbackUrl }}
             - name: Application__SteamWebLink__CallbackUrl
@@ -269,6 +335,8 @@ spec:
             - name: Application__SteamWebLink__SiteUrl
               value: {{ . | quote }}
             {{- end }}
+            {{- end }}
+            {{- if $worlds }}
             {{- with .Values.publicSiteUrl }}
             - name: Application__PublicSiteUrl
               value: {{ . | quote }}
@@ -276,6 +344,7 @@ spec:
             {{- if not (kindIs "invalid" .Values.publicWorldId) }}
             - name: Application__PublicWorldId
               value: {{ .Values.publicWorldId | quote }}
+            {{- end }}
             {{- end }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
@@ -295,19 +364,36 @@ spec:
             {{- end }}
             - name: ASPNETCORE_ENVIRONMENT
               value: {{ .Values.environment | quote }}
+            {{- if $worlds }}
             - name: Application__MapAssets__ChunkAssetRoot
               value: {{ .Values.mapAssets.chunkAssetRoot | quote }}
+            {{- end }}
+          {{- if $identity }}
           volumeMounts:
             - name: api-admission-credentials
               mountPath: /run/avalon-auth
               readOnly: true
+          {{- end }}
           ports:
+            {{- if $identity }}
             - name: game-internal
               containerPort: {{ .Values.gameAdmission.port }}
               protocol: TCP
+            {{- end }}
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          {{- if not $identity }}
+          # Allows the wait for identity's migrations (startup.authSchemaWaitSeconds) and a minute more,
+          # before the liveness probe takes over.
+          startupProbe:
+            httpGet:
+              path: /alive
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: {{ add (div (add (atoi $schemaWait) 4) 5) 12 }}
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /alive
@@ -326,6 +412,7 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      {{- if $identity }}
       volumes:
         - name: api-admission-credentials
           secret:
@@ -333,3 +420,5 @@ spec:
             items:
               - key: tls.pfx
                 path: api-workload.pfx
+      {{- end }}
+{{- end }}
