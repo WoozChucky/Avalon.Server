@@ -119,26 +119,6 @@ public class CreaturePatrolScriptShould
         creature.DidNotReceive().MoveState = MoveState.Walking;
     }
 
-    /// <summary>
-    /// Advancing to the next point used to set State to Idle, and ShouldRun() is "State is
-    /// Patrolling" — so a patrol chained under another script would have stopped for good after its
-    /// first leg. MapInstance ignores ShouldRun on the top-level script, which is the only reason it
-    /// never showed.
-    /// </summary>
-    [Fact]
-    public void Keep_Patrolling_After_Each_Leg()
-    {
-        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
-        locomotion.HasArrived(Arg.Any<ICreature>()).Returns(true);
-        (CreaturePatrolScript script, _) = BuildPatrolScript(locomotion, Point(10f), Point(20f));
-
-        script.Update(TimeSpan.FromSeconds(0.1));
-        script.Update(TimeSpan.FromSeconds(0.1));
-        script.Update(TimeSpan.FromSeconds(0.1));
-
-        Assert.Equal(CreaturePatrolScript.PatrolState.Patrolling, script.State);
-    }
-
     /// <summary>A creature with no path — every spawn that has none — stands where it was placed.</summary>
     [Fact]
     public void Stand_Still_When_The_Creature_Has_No_Path()

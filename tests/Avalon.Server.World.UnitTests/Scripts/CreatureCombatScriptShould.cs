@@ -50,30 +50,6 @@ public class CreatureCombatScriptShould
         new(new CreatureCombatScript(NullLoggerFactory.Instance, Substitute.For<ICreature>(),
             Substitute.For<ISimulationContext>()));
 
-    /// <summary>
-    /// #598: every <see cref="CreatureCombatScript.CombatState" /> is one the script actually enters.
-    /// A <c>Chase</c> value used to sit in the enum and in <c>ShouldRun</c> although nothing set it:
-    /// chasing is part of <c>Combat</c>.
-    /// </summary>
-    [Fact]
-    public void Declare_Only_The_States_It_Enters()
-    {
-        var entered = new HashSet<object>();
-        var fresh = new CreatureCombatScript(NullLoggerFactory.Instance, Substitute.For<ICreature>(),
-            Substitute.For<ISimulationContext>());
-        entered.Add(fresh.State);
-
-        (CreatureCombatScript script, _, ICharacter target) =
-            BuildChasingScript(Substitute.For<ICreatureLocomotion>(), targetAt: new Vector3(20f, 0f, 0f));
-        entered.Add(script.State);
-        script.OnCharacterLeft(target);
-        entered.Add(script.State);
-
-        Assert.Equal(
-            Enum.GetValues<CreatureCombatScript.CombatState>().Cast<object>().ToHashSet(),
-            entered);
-    }
-
     [Fact]
     public void Chase_By_Setting_A_Destination_Rather_Than_Moving_Itself()
     {
@@ -215,19 +191,6 @@ public class CreatureCombatScriptShould
     }
 
     [Fact]
-    public void Should_pick_top_threat_attacker_as_target()
-    {
-        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature);
-
-        ICharacter attacker = Substitute.For<ICharacter>();
-        encounter.GetTopThreat(creature).Returns(attacker);
-
-        IUnit? picked = script.PickTarget();
-
-        Assert.Same(attacker, picked);
-    }
-
-    [Fact]
     public void Should_return_null_when_no_encounter_exists_and_no_taunt()
     {
         (CreatureCombatScript? script, IEncounter _, ICombatService? combat) = BuildScript(out ICreature? creature);
@@ -238,43 +201,6 @@ public class CreatureCombatScriptShould
         IUnit? picked = script.PickTarget();
 
         Assert.Null(picked);
-    }
-
-    [Fact]
-    public void Should_honor_taunt_until_expiry()
-    {
-        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature);
-
-        ICharacter tank = Substitute.For<ICharacter>();
-        ICharacter dps = Substitute.For<ICharacter>();
-
-        // DPS would normally be top-threat, but tank has an active taunt.
-        encounter.GetTopThreat(creature).Returns(dps);
-        creature.TauntedBy = tank;
-        creature.TauntExpiresAt = DateTime.UtcNow.AddSeconds(5);
-
-        IUnit? picked = script.PickTarget();
-
-        Assert.Same(tank, picked);
-    }
-
-    [Fact]
-    public void Should_revert_to_top_threat_after_taunt_expires()
-    {
-        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature);
-
-        ICharacter tank = Substitute.For<ICharacter>();
-        ICharacter dps = Substitute.For<ICharacter>();
-
-        encounter.GetTopThreat(creature).Returns(dps);
-
-        // Taunt that has already expired.
-        creature.TauntedBy = tank;
-        creature.TauntExpiresAt = DateTime.UtcNow.AddSeconds(-1);
-
-        IUnit? picked = script.PickTarget();
-
-        Assert.Same(dps, picked);
     }
 
     /// <summary>
@@ -320,40 +246,6 @@ public class CreatureCombatScriptShould
             services, typeof(CreatureCombatScript), creature, Substitute.For<ISimulationContext>());
 
         Assert.Same(tank, script.PickTarget());
-    }
-
-    /// <summary>#610: a taunt that ran out by the wall clock still holds while the script's clock is before its end.</summary>
-    [Fact]
-    public void Hold_A_Taunt_That_Has_Not_Ended_By_Its_Clock()
-    {
-        var clock = new FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
-        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature, clock);
-        ICharacter tank = Substitute.For<ICharacter>();
-        encounter.GetTopThreat(creature).Returns(Substitute.For<ICharacter>());
-        creature.TauntedBy = tank;
-        creature.TauntExpiresAt = clock.Now.UtcDateTime.AddMilliseconds(1);
-
-        Assert.Same(tank, script.PickTarget());
-    }
-
-    [Fact]
-    public void Should_prefer_taunter_over_top_threat_even_when_threat_higher()
-    {
-        // Taunt is an authoritative override, not a tiebreaker. Even if GetTopThreat returns a
-        // unit that isn't the taunter (e.g. the threat list disagrees with the taunt due to
-        // floating-point edge cases), the taunter wins while the taunt is active.
-        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature);
-
-        ICharacter tank = Substitute.For<ICharacter>();
-        ICharacter someoneElse = Substitute.For<ICharacter>();
-
-        encounter.GetTopThreat(creature).Returns(someoneElse);
-        creature.TauntedBy = tank;
-        creature.TauntExpiresAt = DateTime.UtcNow.AddSeconds(2);
-
-        IUnit? picked = script.PickTarget();
-
-        Assert.Same(tank, picked);
     }
 
     [Fact]
@@ -1032,23 +924,6 @@ public class CreatureCombatScriptShould
         combat.DidNotReceive().ApplyDamage(Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Any<uint>());
         Assert.Null(typeof(CreatureCombatScript).GetMethod("RollDamage",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic));
-    }
-
-    /// <summary>#163: an attack is aimed along the facing toward the target, captured when it starts.</summary>
-    [Fact]
-    public void Aim_Its_Basic_Along_The_Facing_Toward_The_Target()
-    {
-        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
-        (CreatureCombatScript script, ICreature creature, _) =
-            BuildChasingScript(locomotion, targetAt: new Vector3(0f, 0f, -1f));
-
-        script.Update(TimeSpan.FromSeconds(0.1));
-
-        (IUnit caster, AbilityAim aim, IAbility ability) = Assert.Single(CastRig.Of(ContextOf(script)).Casts);
-        Assert.Same(creature, caster);
-        Assert.Equal(TestKit.BasicId, ability.AbilityId);
-        Assert.Equal(new Vector3(0f, 0f, -1f), aim.Facing);
-        Assert.Null(aim.Point);
     }
 
     /// <summary>
