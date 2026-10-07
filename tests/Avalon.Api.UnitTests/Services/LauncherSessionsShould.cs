@@ -1,4 +1,5 @@
 using System.Text;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;

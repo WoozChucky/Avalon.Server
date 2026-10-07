@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using NSubstitute;
 using Xunit;
@@ -16,13 +17,13 @@ namespace Avalon.Api.UnitTests.Authentication;
 /// </summary>
 public sealed class RegistrationValidationShould : IAsyncLifetime
 {
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
     public async Task InitializeAsync()
     {
-        _host = await ApiAuthHost.StartAsync();
+        _host = await ApiTestHost.StartAsync();
         _host.Accounts.Register(Arg.Any<RegisterRequest>(), Arg.Any<string>(), Arg.Any<IPAddress>(), Arg.Any<CancellationToken>())
-            .Returns((new RegisterResponse { Token = "jwt" }, new AccountId(ApiAuthHost.AccountIdValue)));
+            .Returns((new RegisterResponse { Token = "jwt" }, new AccountId(ApiTestHost.AccountIdValue)));
         _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new RefreshIssueResult("refresh", DateTime.UtcNow.AddDays(30), Guid.NewGuid()));
     }

@@ -1,3 +1,4 @@
+using Avalon.Api.Testing;
 using Avalon.Database.Auth.Migrations;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;

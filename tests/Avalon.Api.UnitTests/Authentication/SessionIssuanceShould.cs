@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
@@ -9,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
-using static Avalon.Api.UnitTests.Authentication.ApiAuthHost;
+using static Avalon.Api.Testing.ApiTestHost;
 using AuthenticateRequest = Avalon.Api.Contract.AuthenticateRequest;
 using RefreshResponse = Avalon.Api.Contract.RefreshResponse;
 
@@ -24,9 +25,9 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
 {
     private const string RefreshCookie = "refresh-raw";
 
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
-    public async Task InitializeAsync() => _host = await ApiAuthHost.StartAsync();
+    public async Task InitializeAsync() => _host = await ApiTestHost.StartAsync();
 
     public async Task DisposeAsync() => await _host.DisposeAsync();
 
@@ -91,12 +92,12 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
         using HttpResponseMessage response = await PostRefreshAsync();
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.Equal(Middlewares.RefreshRaceBody.ContentType, response.Content.Headers.ContentType?.ToString());
+        Assert.Equal(RefreshRaceBody.ContentType, response.Content.Headers.ContentType?.ToString());
         string body = await response.Content.ReadAsStringAsync();
         using var json = System.Text.Json.JsonDocument.Parse(body);
         string traceId = json.RootElement.GetProperty("traceId").GetString()!;
         Assert.False(string.IsNullOrEmpty(traceId));
-        Assert.Equal(Middlewares.RefreshRaceBody.For(traceId), body);
+        Assert.Equal(RefreshRaceBody.For(traceId), body);
     }
 
     /// <summary>

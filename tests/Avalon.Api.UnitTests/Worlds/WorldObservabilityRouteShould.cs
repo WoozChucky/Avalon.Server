@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
@@ -34,7 +34,7 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
     private readonly List<WorldEntity> _rows = [];
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -54,7 +54,7 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
         Presence(Down, s_instanceOne, "Down");
         Presence(Staff, s_instanceOne, "Staff");
 
-        _host = await ApiAuthHost.StartAsync(_cache, services =>
+        _host = await ApiTestHost.StartAsync(_cache, services =>
         {
             services.AddWorldDatabases(databases);
             services.AddSingleton(_authWorlds);
@@ -95,9 +95,9 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
 
     private Task<HttpResponseMessage> Get(string path)
     {
-        Account account = ApiAuthHost.MakeAccount(AccountAccessLevel.GameMaster);
+        Account account = ApiTestHost.MakeAccount(AccountAccessLevel.GameMaster);
         _host.AccountNowIs(account);
-        return _host.GetAsync(path, ApiAuthHost.Mint(account));
+        return _host.GetAsync(path, ApiTestHost.Mint(account));
     }
 
     [Fact]

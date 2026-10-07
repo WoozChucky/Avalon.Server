@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
@@ -42,7 +42,7 @@ public sealed class WorldRouteShould : IAsyncLifetime
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
     private readonly IItemTemplateRepository _items = Substitute.For<IItemTemplateRepository>();
     private readonly ICharacterService _characters = Substitute.For<ICharacterService>();
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -62,7 +62,7 @@ public sealed class WorldRouteShould : IAsyncLifetime
         _characters.PaginateAsync(Arg.Any<Avalon.Api.Contract.CharacterPaginateFilters>(), Arg.Any<CancellationToken>())
             .Returns(new PagedResult<Character>(1, 50, 0, new List<Character>()));
 
-        _host = await ApiAuthHost.StartAsync(configure: services =>
+        _host = await ApiTestHost.StartAsync(configure: services =>
         {
             services.AddWorldDatabases(databases);
             services.AddSingleton(_authWorlds);
@@ -87,9 +87,9 @@ public sealed class WorldRouteShould : IAsyncLifetime
 
     private string TokenFor(AccountAccessLevel level)
     {
-        Account account = ApiAuthHost.MakeAccount(level);
+        Account account = ApiTestHost.MakeAccount(level);
         _host.AccountNowIs(account);
-        return ApiAuthHost.Mint(account);
+        return ApiTestHost.Mint(account);
     }
 
     private Task<HttpResponseMessage> Item(string world, AccountAccessLevel level) =>
@@ -201,7 +201,7 @@ public sealed class WorldRouteShould : IAsyncLifetime
         _host.PatIs(Token, new PersonalAccessToken
         {
             Id = new PersonalAccessTokenId(5),
-            AccountId = new AccountId(ApiAuthHost.AccountIdValue),
+            AccountId = new AccountId(ApiTestHost.AccountIdValue),
             TokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(Token)),
             Name = "ci",
             TokenPrefix = Token[..8],
@@ -209,7 +209,7 @@ public sealed class WorldRouteShould : IAsyncLifetime
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(1),
         });
-        _host.AccountNowIs(ApiAuthHost.MakeAccount(AccountAccessLevel.Player));
+        _host.AccountNowIs(ApiTestHost.MakeAccount(AccountAccessLevel.Player));
 
         async Task<HttpStatusCode> WithPat(ushort world)
         {

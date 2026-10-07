@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Avalon.Api.Testing;
 using Avalon.Configuration;
 using Avalon.Infrastructure.StoreAuth;
 using Microsoft.Extensions.Options;

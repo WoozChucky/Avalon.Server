@@ -1,6 +1,6 @@
 using System.Net;
 using Avalon.Api.Hosting.Worlds;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth;
@@ -167,15 +167,15 @@ public class ApiDatabaseMigratorShould
         items.FindByIdAsync(Arg.Any<ItemTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new ItemTemplate { Id = new ItemTemplateId(1), Name = "Lantern" });
 
-        await using ApiAuthHost host = await ApiAuthHost.StartAsync(configure: services =>
+        await using ApiTestHost host = await ApiTestHost.StartAsync(configure: services =>
         {
             services.AddWorldDatabases(worlds);
             services.AddSingleton(authWorlds);
             services.AddSingleton(items);
         });
-        Account account = ApiAuthHost.MakeAccount();
+        Account account = ApiTestHost.MakeAccount();
         host.AccountNowIs(account);
-        string token = ApiAuthHost.Mint(account);
+        string token = ApiTestHost.Mint(account);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, (await host.GetAsync("/world/2/item-template/1", token)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await host.GetAsync("/world/1/item-template/1", token)).StatusCode);

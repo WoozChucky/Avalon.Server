@@ -4,6 +4,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;

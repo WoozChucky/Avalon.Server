@@ -2,7 +2,7 @@ using System.Net.Http.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Hosting.Worlds;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,7 +18,7 @@ public sealed class PublicWorldListShould
 {
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
 
-    private async Task<ApiAuthHost> Start(ushort? defaultWorld)
+    private async Task<ApiTestHost> Start(ushort? defaultWorld)
     {
         WorldDatabases databases = new(new ushort[] { 1, 2, 3 }
             .Select(id => new ConfiguredWorld(new WorldId(id), $"Host=w{id}", $"Host=c{id}")));
@@ -26,7 +26,7 @@ public sealed class PublicWorldListShould
         Row(2, "Asthoria", AccountAccessLevel.Player);
         Row(3, "Public Test Realm", AccountAccessLevel.PTR);
 
-        return await ApiAuthHost.StartAsync(configure: services =>
+        return await ApiTestHost.StartAsync(configure: services =>
         {
             services.AddWorldDatabases(databases);
             services.AddSingleton(_authWorlds);
@@ -49,7 +49,7 @@ public sealed class PublicWorldListShould
     [Fact]
     public async Task List_only_the_worlds_every_player_may_enter_for_an_anonymous_caller()
     {
-        await using ApiAuthHost host = await Start(defaultWorld: 2);
+        await using ApiTestHost host = await Start(defaultWorld: 2);
 
         PublicWorldsDto dto = (await host.Client.GetFromJsonAsync<PublicWorldsDto>("/public/world"))!;
 
@@ -60,7 +60,7 @@ public sealed class PublicWorldListShould
     [Fact]
     public async Task Never_be_shared_by_a_cache()
     {
-        await using ApiAuthHost host = await Start(defaultWorld: 2);
+        await using ApiTestHost host = await Start(defaultWorld: 2);
 
         HttpResponseMessage response = await host.Client.GetAsync("/public/world");
 
@@ -71,11 +71,11 @@ public sealed class PublicWorldListShould
     [Fact]
     public async Task List_every_world_a_signed_in_caller_may_enter()
     {
-        await using ApiAuthHost host = await Start(defaultWorld: 2);
-        Account admin = ApiAuthHost.MakeAccount(AccountAccessLevel.Admin);
+        await using ApiTestHost host = await Start(defaultWorld: 2);
+        Account admin = ApiTestHost.MakeAccount(AccountAccessLevel.Admin);
         host.AccountNowIs(admin);
 
-        HttpResponseMessage response = await host.GetAsync("/public/world", ApiAuthHost.Mint(admin));
+        HttpResponseMessage response = await host.GetAsync("/public/world", ApiTestHost.Mint(admin));
         PublicWorldsDto dto = (await response.Content.ReadFromJsonAsync<PublicWorldsDto>())!;
 
         // AccessLevels.ForWorld(PTR) is PTR | GameMaster, and the GameMaster mask includes Admin.
@@ -88,7 +88,7 @@ public sealed class PublicWorldListShould
     [InlineData((ushort)1)]
     public async Task Fall_back_to_the_first_readable_world(ushort? configured)
     {
-        await using ApiAuthHost host = await Start(defaultWorld: configured);
+        await using ApiTestHost host = await Start(defaultWorld: configured);
 
         PublicWorldsDto dto = (await host.Client.GetFromJsonAsync<PublicWorldsDto>("/public/world"))!;
 

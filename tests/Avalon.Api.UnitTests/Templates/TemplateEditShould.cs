@@ -6,8 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Templates;
-using Avalon.Api.UnitTests.Authentication;
-using Avalon.Api.UnitTests.Worlds;
+using Avalon.Api.Testing;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World;
 using Avalon.Database.World.Extensions;
@@ -43,7 +42,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     private readonly RecordingSignal _signal = new();
     private readonly FakeCatalog _catalog = new();
     private readonly CapturingLogs _logs = new();
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
     public TemplateEditShould() => _worlds = new CountingWorlds(_sqlite);
 
@@ -79,7 +78,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             db.SaveChanges();
         }
 
-        _host = await ApiAuthHost.StartAsync(configure: services =>
+        _host = await ApiTestHost.StartAsync(configure: services =>
         {
             services.AddWorldDatabases(new WorldDatabases(
             [
@@ -121,9 +120,9 @@ public sealed class TemplateEditShould : IAsyncLifetime
 
     private string Token(AccountAccessLevel level)
     {
-        Account account = ApiAuthHost.MakeAccount(level);
+        Account account = ApiTestHost.MakeAccount(level);
         _host.AccountNowIs(account);
-        return ApiAuthHost.Mint(account);
+        return ApiTestHost.Mint(account);
     }
 
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, AccountAccessLevel level,
@@ -1060,7 +1059,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal("Item", entry.State["Kind"]);
         Assert.Equal(id, entry.State["TemplateId"]);
         Assert.Equal(Editable, entry.State["WorldId"]);
-        Assert.Equal(ApiAuthHost.AccountIdValue, entry.State["AccountId"]);
+        Assert.Equal(ApiTestHost.AccountIdValue, entry.State["AccountId"]);
         IReadOnlyList<TemplateChange> changes = Assert.IsAssignableFrom<IReadOnlyList<TemplateChange>>(entry.State["@Changes"]);
         Assert.Equal(
             [new TemplateChange("maxStackSize", oldSell.ToString(), (oldSell + 7).ToString()),

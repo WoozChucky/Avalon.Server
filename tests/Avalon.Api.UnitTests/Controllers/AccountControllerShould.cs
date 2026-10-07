@@ -5,6 +5,7 @@ using Avalon.Api.Controllers;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
+using Avalon.Api.Testing;
 using Avalon.Api.UnitTests.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;

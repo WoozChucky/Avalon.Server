@@ -7,7 +7,7 @@ using Avalon.Api.Exceptions;
 using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth;
@@ -24,7 +24,6 @@ using NSubstitute;
 using StackExchange.Redis;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
-using CapturingLogs = Avalon.Api.UnitTests.Middlewares.ForwardedHeadersShould.CapturingLogs;
 
 namespace Avalon.Api.UnitTests.Services;
 
@@ -676,7 +675,7 @@ public sealed class EmailChangeShould : IDisposable
     public async Task Answer_both_endpoints_with_501_over_http_when_no_sender_is_configured()
     {
         Account account = await AccountAsync();
-        await using ApiAuthHost host = await ApiAuthHost.StartAsync(_cache, services =>
+        await using ApiTestHost host = await ApiTestHost.StartAsync(_cache, services =>
         {
             services.AddScoped<IAccountService>(_ => Service());
             // Authentication reads the account through the repository (#794).
@@ -692,7 +691,7 @@ public sealed class EmailChangeShould : IDisposable
             }),
         };
         start.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
-            ApiAuthHost.Mint(account));
+            ApiTestHost.Mint(account));
         HttpResponseMessage started = await host.Client.SendAsync(start);
         HttpResponseMessage confirmed = await host.Client.PostAsync("/account/email/confirm",
             System.Net.Http.Json.JsonContent.Create(new { token = "tok" }));
@@ -721,7 +720,7 @@ public sealed class EmailChangeShould : IDisposable
             }, TimeProvider.System);
         try
         {
-            await using ApiAuthHost host = await ApiAuthHost.StartAsync(_cache, services =>
+            await using ApiTestHost host = await ApiTestHost.StartAsync(_cache, services =>
             {
                 services.AddSingleton<IEmailSender>(sender);
                 services.AddScoped<IAccountService>(_ => Service(sender: sender));
@@ -738,7 +737,7 @@ public sealed class EmailChangeShould : IDisposable
                 }),
             };
             start.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
-                ApiAuthHost.Mint(account));
+                ApiTestHost.Mint(account));
             HttpResponseMessage started = await host.Client.SendAsync(start);
             string startBody = await started.Content.ReadAsStringAsync();
 

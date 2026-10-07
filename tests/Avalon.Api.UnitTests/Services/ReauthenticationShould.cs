@@ -4,6 +4,7 @@ using System.Text;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;

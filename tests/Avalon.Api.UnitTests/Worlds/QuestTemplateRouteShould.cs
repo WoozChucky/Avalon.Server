@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Worlds;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World.Extensions;
@@ -26,14 +26,14 @@ public sealed class QuestTemplateRouteShould : IAsyncLifetime
 
     private readonly SqliteWorlds _sqlite = new(Open, Staff);
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
     public async Task InitializeAsync()
     {
         Row(Open, AccountAccessLevel.Player);
         Row(Staff, AccountAccessLevel.Admin);
 
-        _host = await ApiAuthHost.StartAsync(configure: services =>
+        _host = await ApiTestHost.StartAsync(configure: services =>
         {
             services.AddWorldDatabases(new WorldDatabases(
             [
@@ -66,9 +66,9 @@ public sealed class QuestTemplateRouteShould : IAsyncLifetime
 
     private Task<HttpResponseMessage> Get(string path, AccountAccessLevel level)
     {
-        Account account = ApiAuthHost.MakeAccount(level);
+        Account account = ApiTestHost.MakeAccount(level);
         _host.AccountNowIs(account);
-        return _host.GetAsync(path, ApiAuthHost.Mint(account));
+        return _host.GetAsync(path, ApiTestHost.Mint(account));
     }
 
     /// <summary>The seeded "The Alpha's Howl": three stages, a talk objective, an item reward, English texts.</summary>

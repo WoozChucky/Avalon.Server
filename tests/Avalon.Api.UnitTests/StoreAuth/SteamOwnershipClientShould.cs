@@ -1,4 +1,5 @@
 using System.Net;
+using Avalon.Api.Testing;
 using Avalon.Infrastructure.StoreAuth;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
+using Avalon.Api.Testing;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure.GameAuth;

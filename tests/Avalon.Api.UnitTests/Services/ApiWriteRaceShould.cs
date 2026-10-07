@@ -6,6 +6,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth;

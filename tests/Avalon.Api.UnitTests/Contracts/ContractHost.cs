@@ -2,7 +2,7 @@ using System.Text.Json.Nodes;
 using Avalon.Api.Config;
 using Avalon.Api.Controllers;
 using Avalon.Api.Hosting;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -41,7 +41,7 @@ public sealed class ContractHost : IAsyncDisposable
         builder.Services.AddControllers().AddApplicationPart(typeof(AccountController).Assembly);
         builder.Services.AddAvalonOpenApi();
         // Program's authentication schemes: the document carries the bearer scheme only when one is registered.
-        builder.Services.AddAuth(new ApplicationConfig { Authentication = ApiAuthHost.AuthConfig });
+        builder.Services.AddAuth(new ApplicationConfig { Authentication = ApiTestHost.AuthConfig });
 
         WebApplication app = builder.Build();
         app.UseRouting();

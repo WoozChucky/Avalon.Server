@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Avalon.Api.Balance;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Balance.Contract;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Auth;
@@ -29,22 +29,22 @@ public sealed class BalanceControllerShould
 
     private static readonly AccountAccessLevel s_admin = AccountAccessLevel.Player | AccountAccessLevel.Admin;
 
-    private static async Task<HttpResponseMessage> SendAsync(ApiAuthHost host, string method, string path, string body,
+    private static async Task<HttpResponseMessage> SendAsync(ApiTestHost host, string method, string path, string body,
         AccountAccessLevel? level)
     {
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
         if (level is { } l)
         {
-            Account account = ApiAuthHost.MakeAccount(l);
+            Account account = ApiTestHost.MakeAccount(l);
             host.AccountNowIs(account);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiAuthHost.Mint(account));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiTestHost.Mint(account));
         }
         if (body.Length > 0) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
         return await host.Client.SendAsync(request);
     }
 
-    private static Task<ApiAuthHost> Host(IBalanceClient client) =>
-        ApiAuthHost.StartAsync(configure: s =>
+    private static Task<ApiTestHost> Host(IBalanceClient client) =>
+        ApiTestHost.StartAsync(configure: s =>
         {
             s.AddSingleton(client);
             // As Program.cs: the API's own serializer drops nulls, which the forwarded bodies must keep.
@@ -57,7 +57,7 @@ public sealed class BalanceControllerShould
     {
         IBalanceClient client = Substitute.For<IBalanceClient>();
         client.CatalogAsync(Arg.Any<CancellationToken>()).Returns(new BalanceResponse<CatalogDto>(200, s_catalog, """{"version":"1.0.0","commit":"abc"}"""));
-        await using ApiAuthHost host = await Host(client);
+        await using ApiTestHost host = await Host(client);
 
         using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/catalog", "", s_admin);
 
@@ -72,7 +72,7 @@ public sealed class BalanceControllerShould
         IBalanceClient client = Substitute.For<IBalanceClient>();
         client.StartRunAsync(Arg.Any<RunRequestDto>(), Arg.Any<CancellationToken>())
             .Returns(new BalanceResponse<RunAcceptedDto>(202, new RunAcceptedDto("r1"), """{"runId":"r1"}"""));
-        await using ApiAuthHost host = await Host(client);
+        await using ApiTestHost host = await Host(client);
 
         using HttpResponseMessage response = await SendAsync(host, "POST", "/balance/runs", "{}", s_admin);
 
@@ -87,7 +87,7 @@ public sealed class BalanceControllerShould
         IBalanceClient client = Substitute.For<IBalanceClient>();
         client.GetRunAsync("r1", Arg.Any<CancellationToken>())
             .Returns(new BalanceResponse<RunStatusDto>(200, new RunStatusDto("r1", "running", 0, 4, null, []), Raw));
-        await using ApiAuthHost host = await Host(client);
+        await using ApiTestHost host = await Host(client);
 
         using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/runs/r1", "", s_admin);
 
@@ -100,7 +100,7 @@ public sealed class BalanceControllerShould
     {
         IBalanceClient client = Substitute.For<IBalanceClient>();
         client.CancelRunAsync("r1", Arg.Any<CancellationToken>()).Returns(new BalanceResponse(204, null));
-        await using ApiAuthHost host = await Host(client);
+        await using ApiTestHost host = await Host(client);
 
         using HttpResponseMessage response = await SendAsync(host, "DELETE", "/balance/runs/r1", "", s_admin);
 
@@ -111,7 +111,7 @@ public sealed class BalanceControllerShould
     [MemberData(nameof(Routes))]
     public async Task Refuse_a_player_with_403(string method, string path, string body)
     {
-        await using ApiAuthHost host = await Host(Substitute.For<IBalanceClient>());
+        await using ApiTestHost host = await Host(Substitute.For<IBalanceClient>());
 
         using HttpResponseMessage response = await SendAsync(host, method, path, body, AccountAccessLevel.Player);
 
@@ -122,7 +122,7 @@ public sealed class BalanceControllerShould
     [MemberData(nameof(Routes))]
     public async Task Refuse_an_anonymous_caller_with_401(string method, string path, string body)
     {
-        await using ApiAuthHost host = await Host(Substitute.For<IBalanceClient>());
+        await using ApiTestHost host = await Host(Substitute.For<IBalanceClient>());
 
         using HttpResponseMessage response = await SendAsync(host, method, path, body, null);
 
@@ -148,7 +148,7 @@ public sealed class BalanceControllerShould
         client.GetRunAsync(default!, default).ReturnsForAnyArgs(new BalanceResponse<RunStatusDto>(status, null, json));
         client.CancelRunAsync(default!, default).ReturnsForAnyArgs(new BalanceResponse(status, json));
         client.ExportAsync(default!, default).ReturnsForAnyArgs(new BalanceResponse<ExportResultDto>(status, null, json));
-        await using ApiAuthHost host = await Host(client);
+        await using ApiTestHost host = await Host(client);
 
         using HttpResponseMessage response = await SendAsync(host, method, path, body, s_admin);
 
@@ -161,7 +161,7 @@ public sealed class BalanceControllerShould
     [MemberData(nameof(Routes))]
     public async Task Answer_503_when_the_service_is_not_configured(string method, string path, string body)
     {
-        await using ApiAuthHost host = await ApiAuthHost.StartAsync(
+        await using ApiTestHost host = await ApiTestHost.StartAsync(
             configure: s => s.AddSingleton<IBalanceClient, UnconfiguredBalanceClient>());
 
         using HttpResponseMessage response = await SendAsync(host, method, path, body, s_admin);
@@ -177,7 +177,7 @@ public sealed class BalanceControllerShould
         IBalanceClient client = Substitute.For<IBalanceClient>();
         client.CatalogAsync(Arg.Any<CancellationToken>())
             .Returns<BalanceResponse<CatalogDto>>(_ => throw new BalanceUnavailableException("balance service unavailable"));
-        await using ApiAuthHost host = await Host(client);
+        await using ApiTestHost host = await Host(client);
 
         using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/catalog", "", s_admin);
 

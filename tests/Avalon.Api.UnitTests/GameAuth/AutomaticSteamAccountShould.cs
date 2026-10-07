@@ -1,3 +1,4 @@
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;

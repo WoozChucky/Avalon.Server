@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Worlds;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World.Repositories;
@@ -32,7 +32,7 @@ public sealed class PublicRouteShould : IAsyncLifetime
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
     private readonly IItemTemplateRepository _items = Substitute.For<IItemTemplateRepository>();
     private readonly IAbilityTemplateRepository _abilities = Substitute.For<IAbilityTemplateRepository>();
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -52,7 +52,7 @@ public sealed class PublicRouteShould : IAsyncLifetime
         _abilities.FindByIdAsync(new AbilityId(210), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate { Id = new AbilityId(210), Name = "Cleave" });
 
-        _host = await ApiAuthHost.StartAsync(configure: services =>
+        _host = await ApiTestHost.StartAsync(configure: services =>
         {
             services.AddWorldDatabases(databases);
             services.AddSingleton(_authWorlds);
@@ -79,9 +79,9 @@ public sealed class PublicRouteShould : IAsyncLifetime
 
     private Task<HttpResponseMessage> As(AccountAccessLevel level, string path)
     {
-        Account account = ApiAuthHost.MakeAccount(level);
+        Account account = ApiTestHost.MakeAccount(level);
         _host.AccountNowIs(account);
-        return _host.GetAsync(path, ApiAuthHost.Mint(account));
+        return _host.GetAsync(path, ApiTestHost.Mint(account));
     }
 
     [Fact]

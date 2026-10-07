@@ -1,3 +1,4 @@
+using Avalon.Api.Testing;
 using Microsoft.Extensions.Hosting;
 using Xunit;
 

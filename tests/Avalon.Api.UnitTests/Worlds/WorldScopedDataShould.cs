@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Worlds;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World;
@@ -21,7 +21,7 @@ public sealed class WorldScopedDataShould : IAsyncLifetime
 {
     private readonly SqliteWorlds _sqlite = new(1, 2);
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -44,7 +44,7 @@ public sealed class WorldScopedDataShould : IAsyncLifetime
                 });
         }
 
-        _host = await ApiAuthHost.StartAsync(configure: services =>
+        _host = await ApiTestHost.StartAsync(configure: services =>
         {
             services.AddWorldDatabases(new WorldDatabases(
             [
@@ -66,9 +66,9 @@ public sealed class WorldScopedDataShould : IAsyncLifetime
     [Fact]
     public async Task Read_each_worlds_own_rows_for_the_same_route()
     {
-        Account account = ApiAuthHost.MakeAccount();
+        Account account = ApiTestHost.MakeAccount();
         _host.AccountNowIs(account);
-        string token = ApiAuthHost.Mint(account);
+        string token = ApiTestHost.Mint(account);
 
         HttpResponseMessage one = await _host.GetAsync("/world/1/item-template/1", token);
         HttpResponseMessage two = await _host.GetAsync("/world/2/item-template/1", token);

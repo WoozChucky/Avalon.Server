@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Avalon.Api.Contract;
+using Avalon.Api.Testing;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Contracts;
