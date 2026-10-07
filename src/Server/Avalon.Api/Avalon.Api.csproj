@@ -12,7 +12,6 @@
     <PackageReference Include="AngleSharp" />
     <PackageReference Include="AspNet.Security.OpenId.Steam" />
     <PackageReference Include="AWSSDK.S3" />
-    <PackageReference Include="LinqKit" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
     <!-- Emits the OpenAPI document during build so the docs site and the dashboard's
@@ -56,6 +55,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
+    <ProjectReference Include="..\Avalon.Api.Contract\Avalon.Api.Contract.csproj"/>
     <ProjectReference Include="..\Avalon.Balance.Contract\Avalon.Balance.Contract.csproj"/>
     <ProjectReference Include="..\Avalon.Combat\Avalon.Combat.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
