@@ -79,7 +79,9 @@ public static class WireMapping
                     classes.Add(parsed);
                 }
                 else
+                {
                     issues.Add(new IssueDto("filter.classes", $"Unknown class '{name}'"));
+                }
             }
         }
 

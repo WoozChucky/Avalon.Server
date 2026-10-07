@@ -89,7 +89,9 @@ public class ChunkLibrary : IChunkLibrary
         foreach (ChunkGroup group in pool.Groups)
         {
             if (ChunkGroupDefinition.From(group, _templates) is { } definition)
+            {
                 groups.Add(definition);
+            }
             else
             {
                 _logger.LogWarning(

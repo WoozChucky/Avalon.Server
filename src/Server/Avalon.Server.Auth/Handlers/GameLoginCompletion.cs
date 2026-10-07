@@ -52,11 +52,17 @@ internal static class GameLoginCompletion
                     refusal = AuthResult.INVALID_CREDENTIALS;
                 }
                 else if (current.Status != AccountStatus.Active)
+                {
                     refusal = current.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
+                }
                 else if (current.Online)
+                {
                     refusal = AuthResult.ALREADY_CONNECTED;
+                }
                 else if (current.IsLockedAt(DateTime.UtcNow))
+                {
                     refusal = AuthResult.LOCKED;
+                }
             }
             logger.LogWarning("Account {AccountId} could not claim a game login", account.Id);
             connection.Send(SAuthResultPacket.Create(null, null, refusal, connection.CryptoSession.Encrypt));

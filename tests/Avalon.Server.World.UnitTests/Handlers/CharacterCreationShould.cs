@@ -20,7 +20,6 @@ using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using NSubstitute.Core;
 using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.Handlers;

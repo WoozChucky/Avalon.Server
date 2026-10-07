@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Avalon.Database.World;
-using Avalon.Domain.World;
 using Avalon.Exporter;
 using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Handlers;

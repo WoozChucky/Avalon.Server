@@ -1,5 +1,4 @@
 using Avalon.Common.GameAuth;
-using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Microsoft.EntityFrameworkCore;
 

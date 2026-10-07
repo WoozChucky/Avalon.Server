@@ -21,13 +21,13 @@ public sealed class CharacterConsolidationShould
         for (uint id = 1; id <= 13; id++)
         {
             db.Characters.Add(new CharacterRow
-        {
-            Id = new CharacterId(id),
-            AccountId = id <= 8 ? _source : _target,
-            Name = "Transfer" + id,
-            CreationDate = _clock.GetUtcNow().UtcDateTime,
-            Money = id
-        });
+            {
+                Id = new CharacterId(id),
+                AccountId = id <= 8 ? _source : _target,
+                Name = "Transfer" + id,
+                CreationDate = _clock.GetUtcNow().UtcDateTime,
+                Money = id
+            });
         }
 
         db.ItemInstances.Add(new ItemInstance

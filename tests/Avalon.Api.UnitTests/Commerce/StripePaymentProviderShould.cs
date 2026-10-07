@@ -210,17 +210,17 @@ public sealed class StripePaymentProviderShould
             else if (path.StartsWith("/v1/prices/", StringComparison.Ordinal))
             {
                 payload = new
-            {
-                id = "price_test",
-                @object = "price",
-                active = true,
-                livemode = Live,
-                type = "one_time",
-                currency = Currency,
-                unit_amount = Gross,
-                tax_behavior = TaxBehavior,
-                product = "prod_test"
-            };
+                {
+                    id = "price_test",
+                    @object = "price",
+                    active = true,
+                    livemode = Live,
+                    type = "one_time",
+                    currency = Currency,
+                    unit_amount = Gross,
+                    tax_behavior = TaxBehavior,
+                    product = "prod_test"
+                };
             }
             else if (path.StartsWith("/v1/products/", StringComparison.Ordinal))
             {
@@ -229,25 +229,25 @@ public sealed class StripePaymentProviderShould
             else if (path.StartsWith("/v1/payment_intents/", StringComparison.Ordinal))
             {
                 payload = new
-            {
-                id = "pi_test",
-                @object = "payment_intent",
-                livemode = false,
-                amount = Gross,
-                amount_received = Paid ? Gross : 0,
-                currency = Currency,
-                status = Paid ? "succeeded" : "processing"
-            };
+                {
+                    id = "pi_test",
+                    @object = "payment_intent",
+                    livemode = false,
+                    amount = Gross,
+                    amount_received = Paid ? Gross : 0,
+                    currency = Currency,
+                    status = Paid ? "succeeded" : "processing"
+                };
             }
             else if (path.EndsWith("/line_items", StringComparison.Ordinal))
             {
                 payload = new
-            {
-                @object = "list",
-                has_more = false,
-                data = MissingLines ? Array.Empty<object>() : new object[] {
+                {
+                    @object = "list",
+                    has_more = false,
+                    data = MissingLines ? Array.Empty<object>() : new object[] {
                 new { id = "li_test", @object = "item", quantity = 1, amount_total = Gross, currency = Currency, price = new { id = "price_test", @object = "price", product = "prod_test" } } }
-            };
+                };
             }
             else if (path == "/v1/refunds" && request.Method == HttpMethod.Post)
             {
@@ -258,12 +258,12 @@ public sealed class StripePaymentProviderShould
             else if (path == "/v1/refunds")
             {
                 payload = new
-            {
-                @object = "list",
-                has_more = !request.RequestUri.Query.Contains("starting_after", StringComparison.Ordinal),
-                data = new[] {
+                {
+                    @object = "list",
+                    has_more = !request.RequestUri.Query.Contains("starting_after", StringComparison.Ordinal),
+                    data = new[] {
                 new { id = request.RequestUri.Query.Contains("starting_after", StringComparison.Ordinal) ? "re_two" : "re_one", @object = "refund", status = Refunded ? "succeeded" : "failed", amount = Gross, currency = Currency, payment_intent = "pi_test", livemode = false } }
-            };
+                };
             }
             else if (path == "/v1/disputes")
             {

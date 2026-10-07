@@ -550,7 +550,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                 {
                     long sleepTicks = remaining - SpinThresholdTicks;
                     if (OperatingSystem.IsWindows() && _waitableTimer != IntPtr.Zero)
+                    {
                         WaitHighRes(_waitableTimer, sleepTicks);
+                    }
                     else
                     {
                         // Dedicated tick thread loop: Task.Delay would hop threads and add jitter

@@ -446,7 +446,9 @@ public sealed class FightSimulator
                 (double damage, _) = HitResolver.ResolvePeriodic(aura.Snapshot.Attacker, unit.Defence, amount, _formula, _rng);
                 uint points = AuraRules.TakeTick(damage, ref carry, lastTick);
                 if (unit is SimPlayer player)
+                {
                     Add(_taken, aura.Template.Name, CombatRules.HitPlayer(player, points));
+                }
                 else
                 {
                     Add(_dealt, aura.Template.Name, CombatRules.PeriodicHitCreature((SimCreature)unit, points,
