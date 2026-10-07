@@ -300,7 +300,7 @@ of it; `appsettings.json` keeps every service's non-secret defaults.
 | `Application:Templates:*`, `Application:MapAssets:*`, `Application:PublicWorldId`, `Application:PublicSiteUrl`, `Application:Previews:*`, `Application:Balance:*` | | yes | | |
 | `Application:Commerce:*` | | | yes | |
 | `Application:Distribution:*` | | | | yes |
-| `Application:ForwardedHeaders:*`, `Application:RateLimiting:{Enabled,AnonymousPermitsPerMinute,AuthenticatedPermitsPerMinute}` | yes | yes | yes | yes |
+| `Application:ForwardedHeaders:*`, `Application:RateLimiting:{Enabled,AnonymousPermitsPerMinute,AuthenticatedPermitsPerMinute}`, `Application:ApiDocs:Enabled` | yes | yes | yes | yes |
 | `Application:RateLimiting:{ClientAuthPermitsPerMinute,WorkloadPermitsPerMinute}` | yes | | | |
 | `Application:Startup:AuthSchemaWaitSeconds` | | yes | yes | yes |
 
@@ -438,6 +438,14 @@ are plain values (`authentication.signingKeyId`, `authentication.validationKeys.
 to ES256, `authentication.legacyIssuerSigningKey: true` also renders the HS256 key (`jwt-signing-key`) as
 `IssuerSigningKey` in every service. A release given none of these values renders only the HS256 key, as before #801,
 which this API refuses to start with. Key generation and rotation: [Development setup](development-setup.md#rest-api-signing-key).
+
+---
+
+## REST API Docs
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `Application:ApiDocs:Enabled` | bool | `false` | Serves the OpenAPI document (`/openapi/v1.json`) and Scalar (`/scalar`) outside Development (#803). In Development they are always served; elsewhere only with this on. The Helm chart never sets it. The published document comes from the docs build (`AVALON_OPENAPI_GENERATION_ONLY`), which does not depend on it |
 
 ---
 

@@ -15,8 +15,9 @@ namespace Avalon.Api.UnitTests.Routing;
 /// all-in-one process maps, at the endpoint's sample path, goes where the ingress sends it: to the owner the route
 /// manifest gives its path (the ingress strips <c>/api</c>, so the services see the paths they map). The process of
 /// that service, running it alone, routes the request to that endpoint, and no other service's process routes it
-/// anywhere; what every process maps (<c>/health</c>, <c>/alive</c>, the OpenAPI document and Scalar), every process
-/// routes. How the chart renders the manifest as ingress rules is the chart's own test, and which port may reach the
+/// anywhere; what every process maps (<c>/health</c>, <c>/alive</c>), every process routes. The processes run as in
+/// production, so they map no API docs (#803, RouteOwnershipShould). How the chart renders the manifest as ingress rules
+/// is the chart's own test, and which port may reach the
 /// game workload routes, which identity routes too, is InternalEndpointsShould's.
 /// </summary>
 public sealed class EveryRouteReachableShould

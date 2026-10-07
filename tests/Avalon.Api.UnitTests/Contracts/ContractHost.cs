@@ -5,18 +5,18 @@ using Avalon.Api.Identity.Config;
 using Avalon.Api.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Scalar.AspNetCore;
 
 namespace Avalon.Api.UnitTests.Contracts;
 
 /// <summary>
-/// An in-memory api that maps what Program.cs maps (<c>/health</c>, <c>/alive</c>, the OpenAPI document, Scalar and
-/// every controller of every service, <see cref="ApiServices.All"/>), with Program's OpenAPI setup and authentication
-/// schemes and nothing below the controllers: enough to read the document it serves, not to answer API requests
-/// (#794).
+/// An in-memory api that maps what Program.cs maps (<c>/health</c>, <c>/alive</c>, the OpenAPI document and Scalar,
+/// which it serves where <see cref="ApiDocs.EnabledSetting"/> turns them on as this host does, and every controller of
+/// every service, <see cref="ApiServices.All"/>), with Program's OpenAPI setup and authentication schemes and nothing
+/// below the controllers: enough to read the document it serves, not to answer API requests (#794, #803).
 /// </summary>
 public sealed class ContractHost : IAsyncDisposable
 {
@@ -29,6 +29,11 @@ public sealed class ContractHost : IAsyncDisposable
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Logging.ClearProviders();
+        // Production, with the docs turned on by their setting: the docs are off by default there (#803).
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [ApiDocs.EnabledSetting] = "true",
+        });
         builder.AddDefaultHealthChecks();
         IMvcBuilder mvc = builder.Services.AddControllers();
         foreach (IApiService service in ApiServices.All)
@@ -40,8 +45,8 @@ public sealed class ContractHost : IAsyncDisposable
         WebApplication app = builder.Build();
         app.UseRouting();
         app.MapDefaultEndpoints();
-        app.MapOpenApi();
-        app.MapScalarApiReference();
+        if (ApiDocs.AreServed(app.Environment, app.Configuration))
+            ApiDocs.Map(app);
         app.MapControllers();
         await app.StartAsync();
         return new ContractHost(app);

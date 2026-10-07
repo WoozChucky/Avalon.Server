@@ -16,7 +16,8 @@ The document it reads, `api/openapi.json`, is emitted by `Avalon.Api`'s own buil
 `.github/workflows/docs.yml`. No server, database or cache is involved
 (`AVALON_OPENAPI_GENERATION_ONLY=true`). The build sets no `Application:Services`, so
 the host runs all four API services (identity, worlds, commerce and distribution, see
-`api-services.md`) and the document is the whole contract. A running process serves at
+`api-services.md`) and the document is the whole contract. A running process in
+Development (or with `Application:ApiDocs:Enabled`; production serves none, #803) serves at
 `/openapi/v1.json` only the routes of the services it runs; the one that runs all four
 serves this document, which differs only in having no `servers` block, because at build
 time there is no address to report.

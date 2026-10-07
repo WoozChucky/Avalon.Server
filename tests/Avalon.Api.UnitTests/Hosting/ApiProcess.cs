@@ -22,10 +22,10 @@ namespace Avalon.Api.UnitTests.Hosting;
 internal static class ApiProcess
 {
     public static WebApplication Build(IApiService? service, Action<IServiceCollection>? configure = null,
-        IReadOnlyDictionary<string, string?>? settings = null)
+        IReadOnlyDictionary<string, string?>? settings = null, string? environment = null)
     {
         WebApplicationBuilder builder = AvalonApiHost.CreateBuilder(
-            new WebApplicationOptions { EnvironmentName = Environments.Production }, ApiServices.All, b =>
+            new WebApplicationOptions { EnvironmentName = environment ?? Environments.Production }, ApiServices.All, b =>
             {
                 b.WebHost.UseTestServer();
                 b.Configuration.AddInMemoryCollection(SettingsFor(service, settings));
