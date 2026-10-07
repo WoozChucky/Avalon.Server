@@ -138,21 +138,6 @@ public class FuryLifecycleShould
         Assert.Equal(50u, warrior.CurrentPower);
     }
 
-    /// <summary>The same expectation as CharacterEntityRegenShould's out-of-combat Mana regeneration.</summary>
-    [Theory]
-    [InlineData(PowerType.Mana)]
-    [InlineData(PowerType.Energy)]
-    public void Leave_Mana_And_Energy_Regeneration_Unchanged(PowerType pool)
-    {
-        var clock = new FixedTimeProvider(s_start);
-        CharacterEntity caster = Character(clock, current: 50, pool, regenStat: 10,
-            regen: new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f });
-
-        caster.Update(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(60u, caster.CurrentPower);
-    }
-
     [Fact]
     public void Zero_Fury_On_Death()
     {

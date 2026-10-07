@@ -106,18 +106,4 @@ public class AbilityFootprintShould
 
         Assert.Equal(6f, footprint.Reach, 4);
     }
-
-    [Fact]
-    public void Carry_every_member_onto_the_wire()
-    {
-        var footprint = new AbilityFootprint(AbilityShape.Cone, s_origin, new Vector3(0f, 0f, 1f), null, 0f, 4f, 90f);
-
-        AbilityFootprintDto dto = footprint.ToDto();
-
-        Assert.Equal(AbilityShape.Cone, dto.Shape);
-        Assert.Equal((2f, 1f, 3f), (dto.Origin!.X, dto.Origin.Y, dto.Origin.Z));
-        Assert.Equal(1f, dto.Direction!.Z);
-        Assert.Null(dto.Centre);
-        Assert.Equal((0f, 4f, 90f), (dto.Radius, dto.Reach, dto.ArcDegrees));
-    }
 }

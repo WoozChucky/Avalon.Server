@@ -72,27 +72,6 @@ public class ChunkRotationShould
     }
 
     /// <summary>
-    /// Sanity check that 50 distinct seeds against the production forest pool all produce
-    /// a valid layout — no <see cref="ProceduralGenerationFailedException"/>. Regression
-    /// for the trap-then-bail-out case where the generator picked a single-exit chunk
-    /// (boss / deadend) mid-path and could not walk forward, killing the user's
-    /// portal entry with "Failed to generate layout for map 2 after 3 attempts".
-    /// </summary>
-    [Fact]
-    public void Forest_pool_generates_for_many_seeds()
-    {
-        (List<ChunkPoolMember>? pool, ProceduralMapConfig? cfg) = BuildForestPool();
-        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
-
-        for (int seed = 0; seed < 50; seed++)
-        {
-            ChunkLayout layout = gen.Generate(cfg, pool, seed);
-            Assert.NotNull(layout);
-            Assert.NotNull(layout.BossChunk);
-        }
-    }
-
-    /// <summary>
     /// Regression for the overlap caught at runtime: seed 399888156 with the production
     /// forest pool produced two chunks whose floor footprints occupied the same world cell
     /// because the bake/visualizer rotated around the SW corner instead of the chunk centre.

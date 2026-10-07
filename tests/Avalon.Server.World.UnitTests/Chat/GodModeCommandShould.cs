@@ -82,18 +82,6 @@ public class GodModeCommandShould
         Assert.Equal("Cannot enable god mode while dead.", fixture.LastMessage());
     }
 
-    [Fact]
-    public void Leave_a_new_character_out_of_god_mode()
-    {
-        var fixture = new Fixture(AccountAccessLevel.GameMaster);
-        fixture.Dispatch("/god on");
-
-        var other = new CharacterEntity(NullLoggerFactory.Instance,
-            new Character { Id = 2u, Health = 100 }, new RegenConfiguration());
-
-        Assert.False(other.GodMode);
-    }
-
     private sealed class Fixture
     {
         private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();

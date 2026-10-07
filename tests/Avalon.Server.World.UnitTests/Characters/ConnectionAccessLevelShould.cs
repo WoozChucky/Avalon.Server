@@ -26,10 +26,9 @@ public class ConnectionAccessLevelShould
     public void Default_A_Connections_Access_Level_To_Player()
     {
         // So a GM whose account read has not landed (or never lands) is denied, never the reverse.
-        // Driven against the real connection, not a substitute, for the same reason
-        // CharacterLocaleAndGenderShould.Default_A_Connections_Locale_To_enUS is: a substituted
-        // interface property just echoes back whatever value was configured, which would never
-        // exercise the production `= AccountAccessLevel.Player` initializer at all.
+        // Driven against the real connection, not a substitute: a substituted interface property just
+        // echoes back whatever value was configured, which would never exercise the production
+        // `= AccountAccessLevel.Player` initializer at all.
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 

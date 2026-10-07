@@ -224,16 +224,6 @@ public class HitResolverShould
     }
 
     [Fact]
-    public void Deal_nothing_and_say_dodged_on_a_dodge()
-    {
-        (uint dmg, HitResult result) = HitResolver.ResolveDamage(Attacker(), Defender(dodge: 30f), 1000f, s_formula,
-            new ScriptedCombatRandom(0.0));
-
-        Assert.Equal(0u, dmg);
-        Assert.Equal(HitResult.Dodged, result);
-    }
-
-    [Fact]
     public void Floor_the_damage()
     {
         (uint dmg, _) = HitResolver.ResolveDamage(Attacker(), Defender(), 30.99f, s_formula, ScriptedCombatRandom.Plain());

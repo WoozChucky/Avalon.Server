@@ -15,29 +15,18 @@ public class ChunkLayoutSourceResolverShould
         Name = "test"
     };
 
-    [Fact]
-    public void Return_predefined_source_for_town_maps()
+    [Theory]
+    [InlineData(MapType.Town, ChunkLayoutSourceKind.Predefined)]
+    [InlineData(MapType.Normal, ChunkLayoutSourceKind.Procedural)]
+    public void Return_the_source_for_the_maps_type(MapType type, ChunkLayoutSourceKind expected)
     {
         IChunkLayoutSource predefined = Substitute.For<IChunkLayoutSource>();
         IChunkLayoutSource procedural = Substitute.For<IChunkLayoutSource>();
         var resolver = new ChunkLayoutSourceResolver(predefined, procedural);
 
-        IChunkLayoutSource result = resolver.Resolve(Template(MapType.Town), out ChunkLayoutSourceKind kind);
+        IChunkLayoutSource result = resolver.Resolve(Template(type), out ChunkLayoutSourceKind kind);
 
-        Assert.Same(predefined, result);
-        Assert.Equal(ChunkLayoutSourceKind.Predefined, kind);
-    }
-
-    [Fact]
-    public void Return_procedural_source_for_normal_maps()
-    {
-        IChunkLayoutSource predefined = Substitute.For<IChunkLayoutSource>();
-        IChunkLayoutSource procedural = Substitute.For<IChunkLayoutSource>();
-        var resolver = new ChunkLayoutSourceResolver(predefined, procedural);
-
-        IChunkLayoutSource result = resolver.Resolve(Template(MapType.Normal), out ChunkLayoutSourceKind kind);
-
-        Assert.Same(procedural, result);
-        Assert.Equal(ChunkLayoutSourceKind.Procedural, kind);
+        Assert.Same(expected == ChunkLayoutSourceKind.Predefined ? predefined : procedural, result);
+        Assert.Equal(expected, kind);
     }
 }
