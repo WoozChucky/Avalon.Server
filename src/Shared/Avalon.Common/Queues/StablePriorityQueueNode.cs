@@ -1,10 +1,9 @@
-namespace Avalon.Common.Queues
+namespace Avalon.Common.Queues;
+
+public class StablePriorityQueueNode : FastPriorityQueueNode
 {
-    public class StablePriorityQueueNode : FastPriorityQueueNode
-    {
-        /// <summary>
-        /// Represents the order the node was inserted in
-        /// </summary>
-        public long InsertionIndex { get; internal set; }
-    }
+    /// <summary>
+    /// Represents the order the node was inserted in
+    /// </summary>
+    public long InsertionIndex { get; internal set; }
 }
