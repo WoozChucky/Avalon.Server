@@ -45,7 +45,7 @@ public class ExitMaskShould
     [Fact]
     public void GridDir_N_is_pos_z()
     {
-        var (dx, dz) = ExitMask.GridDir(ExitSide.N);
+        (int dx, int dz) = ExitMask.GridDir(ExitSide.N);
         Assert.Equal(0, dx);
         Assert.Equal(1, dz);
     }

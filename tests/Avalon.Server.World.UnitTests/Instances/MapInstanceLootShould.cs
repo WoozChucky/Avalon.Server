@@ -57,7 +57,7 @@ public class MapInstanceLootShould
 
         IWorld world = NewWorld(data);
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         serviceProvider.GetService(typeof(ILootRoller))
@@ -71,7 +71,7 @@ public class MapInstanceLootShould
         }
 
         // Open, flat ground: every ring point is reachable and the height search returns its centre.
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci => ci.ArgAt<Vector3>(1));
         navigator.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>())
             .Returns(ci => ci.ArgAt<float>(1));
@@ -105,7 +105,7 @@ public class MapInstanceLootShould
     [Fact]
     public async Task Roll_A_Real_Kills_Loot_Once_Before_The_Encounter_Death_And_The_Death_Broadcast()
     {
-        var roller = Substitute.For<ILootRoller>();
+        ILootRoller roller = Substitute.For<ILootRoller>();
         using MapInstance instance = await Build(roller: roller);
         MapInstanceClient killer = Join(instance, 460_111);
         var creature = new Creature
@@ -241,7 +241,7 @@ public class MapInstanceLootShould
         PartyClient a = party.Online(1, "A");
         PartyClient b = party.Online(2, "B");
         party.Form(a, b);
-        var random = new ScriptedCombatRandom().Longs(1, 0);
+        ScriptedCombatRandom random = new ScriptedCombatRandom().Longs(1, 0);
         using MapInstance instance = await Build(owner: null, ownerParty: party.Parties.PartyOf(a.Id)!.Id,
             parties: party.Parties, random: random);
         Join(instance, a.Character);
@@ -374,7 +374,7 @@ public class MapInstanceLootShould
     [Fact]
     public async Task Still_Award_Experience_When_Rolling_Loot_Throws()
     {
-        var roller = Substitute.For<ILootRoller>();
+        ILootRoller roller = Substitute.For<ILootRoller>();
         roller.Roll(Arg.Any<CreatureTemplate>(), Arg.Any<LootCatalog>(), Arg.Any<IReadOnlyCollection<ItemTemplate>>())
             .Returns(_ => throw new InvalidOperationException("bad table"));
         using MapInstance instance = await Build(roller: roller);

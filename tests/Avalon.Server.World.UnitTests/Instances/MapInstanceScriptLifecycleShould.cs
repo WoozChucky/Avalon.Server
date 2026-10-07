@@ -47,7 +47,7 @@ public class MapInstanceScriptLifecycleShould
             Health = 100,
             CurrentHealth = 100,
         };
-        var script = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
+        AiScript script = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
         creature.Script = script;   // a creature takes its damage through its script
         instance.AddCreature(creature);
         return (creature, script);
@@ -185,7 +185,7 @@ public class MapInstanceScriptLifecycleShould
         handler.Execute(failing.Connection, CastAt(541, 0f, 10f));   // first, so it throws ahead of the other
         handler.Execute(other.Connection, CastAt(210, 0f, 10f));
         Ticks(instance, 7);
-        List<ulong> seen = watcher.Added().Where(s => IsProjectile(s.Guid)).Select(s => s.Guid).ToList();
+        var seen = watcher.Added().Where(s => IsProjectile(s.Guid)).Select(s => s.Guid).ToList();
         Assert.Equal(2, seen.Count);
 
         Ticks(instance, 180);   // the broken script throws on its tenth update

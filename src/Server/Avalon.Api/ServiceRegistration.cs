@@ -233,7 +233,7 @@ public static class ServiceRegistration
     {
         if (context.Request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues authHeader))
         {
-            var value = authHeader.ToString();
+            string value = authHeader.ToString();
             // Only extract the token when the scheme is Bearer (JWT).
             // Avalon-scheme headers (PATs) are handled by AvalonAuthenticationHandler;
             // passing them to JwtBearer causes a Fail() result and a spurious 401.
@@ -378,7 +378,7 @@ public static class ServiceRegistration
 
     private static void ValidateEmailVerification(EmailConfig config, IHostEnvironment environment)
     {
-        foreach (var (name, value) in new[] {
+        foreach ((string? name, int value) in new[] {
             (nameof(config.VerificationCooldownSeconds), config.VerificationCooldownSeconds),
             (nameof(config.MaxVerificationSendsPerAccount), config.MaxVerificationSendsPerAccount),
             (nameof(config.MaxVerificationSendsPerSource), config.MaxVerificationSendsPerSource) })
@@ -386,7 +386,7 @@ public static class ServiceRegistration
         // Omitting the origin disables current-address verification without disabling existing email change.
         if (config.VerificationSiteOrigin is null) return;
         string origin = config.VerificationSiteOrigin;
-        if (origin != origin.Trim() || !Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+        if (origin != origin.Trim() || !Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri)
             || (uri.Scheme != Uri.UriSchemeHttps && !(environment.IsDevelopment() && uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback))
             || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0 || uri.AbsolutePath != "/")
             throw new InvalidOperationException($"{EmailConfig.Section}:VerificationSiteOrigin must be an HTTPS origin.");

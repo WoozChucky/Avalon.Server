@@ -397,7 +397,7 @@ public sealed class StablePriorityQueue<T> : IFixedSizePriorityQueue<T, float>
         }
 #endif
 
-        T[] newArray = new T[maxNodes + 1];
+        var newArray = new T[maxNodes + 1];
         int highestIndexToCopy = Math.Min(maxNodes, _numNodes);
         Array.Copy(_nodes, newArray, highestIndexToCopy + 1);
         _nodes = newArray;

@@ -104,7 +104,7 @@ public class RemoveMfaAuthorizationShould
             AuthenticateResult.Success(new AuthenticationTicket(user, JwtBearerDefaults.AuthenticationScheme)),
             context, resource: null);
 
-        var reachedAction = false;
+        bool reachedAction = false;
         await sp.GetRequiredService<IAuthorizationMiddlewareResultHandler>().HandleAsync(_ =>
         {
             reachedAction = true;

@@ -110,7 +110,7 @@ public class CharacterService : ICharacterService
         if (string.Equals(display, character.Name, StringComparison.Ordinal))
             return;
 
-        var existing = await _characterRepository.FindByNameAsync(name, cancellationToken);
+        Character? existing = await _characterRepository.FindByNameAsync(name, cancellationToken);
         if (existing is not null && existing.Id != character.Id)
             throw new BusinessException(NameTaken);
 
@@ -130,15 +130,15 @@ public class CharacterService : ICharacterService
 
     public async Task<CharacterInventoryDto?> GetInventoryAsync(CharacterId id, CancellationToken cancellationToken = default)
     {
-        var character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
+        Character? character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
         if (character is null) return null;
 
-        var inventoryRows = await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken);
-        var instances = await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken);
+        IReadOnlyCollection<CharacterInventory> inventoryRows = await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken);
+        IReadOnlyList<ItemInstance> instances = await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken);
 
         // Instances live in the Character database and templates in the World database, so the
         // template is looked up by id rather than joined.
-        var templates = await _itemTemplateRepository.GetByIdsAsync(
+        IReadOnlyList<ItemTemplate> templates = await _itemTemplateRepository.GetByIdsAsync(
             instances.Select(i => i.TemplateId), cancellationToken);
 
         var instanceById = instances.ToDictionary(i => i.Id);
@@ -156,8 +156,8 @@ public class CharacterService : ICharacterService
         Dictionary<ItemInstanceId, ItemInstance> instanceById,
         Dictionary<ItemTemplateId, ItemTemplate> templateById)
     {
-        instanceById.TryGetValue(row.ItemId, out var instance);
-        ItemTemplate? template = instance is not null && templateById.TryGetValue(instance.TemplateId, out var found)
+        instanceById.TryGetValue(row.ItemId, out ItemInstance? instance);
+        ItemTemplate? template = instance is not null && templateById.TryGetValue(instance.TemplateId, out ItemTemplate? found)
             ? found
             : null;
 
@@ -183,7 +183,7 @@ public class CharacterService : ICharacterService
 
     public async Task<CharacterStatsDto?> GetStatsAsync(CharacterId id, CancellationToken cancellationToken = default)
     {
-        var stats = await _statsRepository.GetByCharacterIdAsync(id, cancellationToken);
+        CharacterStats? stats = await _statsRepository.GetByCharacterIdAsync(id, cancellationToken);
         if (stats is null) return null;
 
         return new CharacterStatsDto
@@ -241,16 +241,16 @@ public class CharacterService : ICharacterService
 
     public async Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default)
     {
-        var character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
+        Character? character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
         if (character is null) return null;
 
-        var abilityRows = await _characterAbilityRepository.GetCharacterAbilitiesAsync(id, cancellationToken);
-        var templates = await _abilityTemplateRepository.GetByIdsAsync(
+        IReadOnlyCollection<CharacterAbility> abilityRows = await _characterAbilityRepository.GetCharacterAbilitiesAsync(id, cancellationToken);
+        IReadOnlyList<AbilityTemplate> templates = await _abilityTemplateRepository.GetByIdsAsync(
             abilityRows.Select(s => s.AbilityId), cancellationToken);
         var templateById = templates.ToDictionary(t => t.Id);
 
-        var stats = await _statsRepository.GetByCharacterIdAsync(id, cancellationToken);
-        var (weaponMin, weaponMax) = await MainHandRangeAsync(id, cancellationToken);
+        CharacterStats? stats = await _statsRepository.GetByCharacterIdAsync(id, cancellationToken);
+        (uint weaponMin, uint weaponMax) = await MainHandRangeAsync(id, cancellationToken);
 
         return new CharacterAbilitiesDto
         {
@@ -273,7 +273,7 @@ public class CharacterService : ICharacterService
         var instances = (await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken))
             .Where(i => worn.Contains(i.Id))
             .ToList();
-        var templates = await _itemTemplateRepository.GetByIdsAsync(instances.Select(i => i.TemplateId), cancellationToken);
+        IReadOnlyList<ItemTemplate> templates = await _itemTemplateRepository.GetByIdsAsync(instances.Select(i => i.TemplateId), cancellationToken);
 
         ItemTemplate? weapon = templates.FirstOrDefault(t => t.Slot == Avalon.Domain.World.ItemSlotType.MainHand);
         uint max = weapon?.DamageMax1 ?? 0;
@@ -282,8 +282,8 @@ public class CharacterService : ICharacterService
 
     private static CharacterAbilityAmountDto AmountFor(AbilityTemplate t, CharacterStats? stats, uint weaponMin, uint weaponMax)
     {
-        var kind = AbilityAmountMath.KindOf(t.ScriptName, t.Affects, t.Effects);
-        var (min, max) = AbilityAmountMath.Range(kind, t.EffectValue, t.ScalingStat, t.ScalingCoefficient,
+        Network.Packets.Abilities.AbilityAmountKind kind = AbilityAmountMath.KindOf(t.ScriptName, t.Affects, t.Effects);
+        (uint min, uint max) = AbilityAmountMath.Range(kind, t.EffectValue, t.ScalingStat, t.ScalingCoefficient,
             t.BaseDamageCoefficient, stats?.AttackDamage ?? 0, stats?.AbilityDamage ?? 0, weaponMin, weaponMax);
         return new CharacterAbilityAmountDto { Kind = (Avalon.Api.Contract.AbilityAmountKind)kind, Min = min, Max = max };
     }
@@ -293,7 +293,7 @@ public class CharacterService : ICharacterService
         Dictionary<AbilityId, AbilityTemplate> templateById,
         CharacterStats? stats, uint weaponMin, uint weaponMax)
     {
-        templateById.TryGetValue(row.AbilityId, out var template);
+        templateById.TryGetValue(row.AbilityId, out AbilityTemplate? template);
         return new CharacterAbilityDto
         {
             AbilityId = row.AbilityId.Value,

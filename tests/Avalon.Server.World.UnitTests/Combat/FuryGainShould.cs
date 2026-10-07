@@ -10,6 +10,7 @@ using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
+using Avalon.World.Abilities;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -87,7 +88,7 @@ public class FuryGainShould
 
     private static ICreature Attacker(uint id)
     {
-        var attacker = Substitute.For<ICreature>();
+        ICreature attacker = Substitute.For<ICreature>();
         attacker.Guid.Returns(new ObjectGuid(ObjectType.Creature, id));
         return attacker;
     }
@@ -165,7 +166,7 @@ public class FuryGainShould
         instance.AddCreature(returning);
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });
-        var cleave = AbilityTestData.Game(Cleave());
+        GameAbility cleave = AbilityTestData.Game(Cleave());
         instance.CombatService.ApplyDamage(warrior.Character, npc, 10, cleave);
         instance.CombatService.ApplyDamage(warrior.Character, corpse, 10, cleave);
         instance.CombatService.ApplyDamage(warrior.Character, returning, 10, cleave);

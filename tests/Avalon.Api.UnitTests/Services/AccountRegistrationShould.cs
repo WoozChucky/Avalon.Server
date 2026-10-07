@@ -91,7 +91,7 @@ public class AccountRegistrationShould : IDisposable
             IPAddress.Loopback,
             CancellationToken.None);
 
-        Device device = (Device)spy.ReceivedCalls()
+        var device = (Device)spy.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IDeviceRepository.CreateAsync))
             .GetArguments()[0]!;
 

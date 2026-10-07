@@ -151,7 +151,7 @@ public class CharacterMovementSpeedShould
         Assert.True(Drift(0f, float.PositiveInfinity) < CharacterMovement.ClientSnapThreshold,
             $"the default MoveSpeedCap {Seeded.MoveSpeedCap} % drifts {Drift(0f, float.PositiveInfinity)} m over a round trip");
 
-        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
         foreach (ItemTemplate item in context.ItemTemplates.ToList())
         {
@@ -179,16 +179,16 @@ public class CharacterMovementSpeedShould
     public void Keep_the_drift_of_each_seeded_movement_aura_over_one_round_trip_under_the_clients_snap()
     {
         const float roundTrip = 0.1f;
-        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
-        List<AuraTemplate> movement = context.AuraTemplates.Include(a => a.Modifiers).AsEnumerable()
+        var movement = context.AuraTemplates.Include(a => a.Modifiers).AsEnumerable()
             .Where(a => a.Modifiers.Any(m => m.Stat == AuraStat.MovementSpeed))
             .ToList();
         Assert.NotEmpty(movement);
 
         foreach (AuraTemplate aura in movement)
         {
-            AuraStatTotals totals = AuraStatTotals.Of([(aura.Modifiers, Math.Max(1u, aura.MaxStacks))]);
+            var totals = AuraStatTotals.Of([(aura.Modifiers, Math.Max(1u, aura.MaxStacks))]);
             float pct = AuraStats.Apply(0f, totals, AuraStat.MovementSpeed);
             float drift = MathF.Abs(CharacterMovement.SpeedFor(pct, Seeded) - CharacterMovement.SpeedFor(0f, Seeded)) * roundTrip;
             Assert.True(drift < CharacterMovement.ClientSnapThreshold,
@@ -204,14 +204,14 @@ public class CharacterMovementSpeedShould
         character.InstanceId = Guid.NewGuid();
         character.ApplyStats(Stats(10f), CurrentValues.EnterWorld, Seeded);
 
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(call => call.ArgAt<Vector3>(1));
         navigator.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(0f);
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(navigator);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.GetInstanceById(character.InstanceId).Returns(instance);
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 

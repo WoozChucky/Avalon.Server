@@ -17,7 +17,7 @@ public sealed class CharacterInventoryOpenApiShould(OpenApiDocumentFixture fixtu
             .GetProperty("properties").GetProperty("slotType");
 
         // The same shape as ItemTemplateDto.slot: null, or a reference to the slot-type enum.
-        List<JsonElement> options = property.GetProperty("oneOf").EnumerateArray().ToList();
+        var options = property.GetProperty("oneOf").EnumerateArray().ToList();
         Assert.Contains(options, o => o.TryGetProperty("type", out JsonElement type) && type.GetString() == "null");
 
         string reference = options.Single(o => o.TryGetProperty("$ref", out _)).GetProperty("$ref").GetString()!;

@@ -93,7 +93,7 @@ public class TemplateReloadSignalShould
         // The world's answer can beat PublishAsync's own completion: the request must already be pending.
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(call =>
         {
-            var request = JsonSerializer.Deserialize<ReloadRequestMessage>(call.ArgAt<string>(1), ReloadMessageJson.Options)!;
+            ReloadRequestMessage request = JsonSerializer.Deserialize<ReloadRequestMessage>(call.ArgAt<string>(1), ReloadMessageJson.Options)!;
             Answer(request.RequestId, new ReloadOutcomeMessage("Items", true, "instant"));
             return Task.CompletedTask;
         });

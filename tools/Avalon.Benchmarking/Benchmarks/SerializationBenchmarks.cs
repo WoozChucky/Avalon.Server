@@ -3,6 +3,8 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Handshake;
 using BenchmarkDotNet.Attributes;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Parameters;
 using ProtoBuf;
 
 namespace Avalon.Benchmarking.Benchmarks;
@@ -29,13 +31,13 @@ public class SerializationBenchmarks
         Serializer.SerializeWithLengthPrefix(_unencryptedPacket, CClientInfoPacket.Create(new byte[] { 0x04, 0x10 }), PrefixStyle.Base128);
         _unencryptedPacket.Seek(0, SeekOrigin.Begin);
 
-        var serverKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
-        var serverPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair);
-        var serverPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(serverPublicKey);
+        AsymmetricCipherKeyPair serverKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
+        ECPublicKeyParameters serverPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair);
+        byte[] serverPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(serverPublicKey);
 
-        var clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
-        var clientPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeyPair);
-        var clientPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(clientPublicKey);
+        AsymmetricCipherKeyPair clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
+        ECPublicKeyParameters clientPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeyPair);
+        byte[] clientPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(clientPublicKey);
 
         // Both ends of one exchange. A session seals with its own direction's key and opens with
         // the other's, so a single session cannot read what it wrote.
@@ -53,7 +55,7 @@ public class SerializationBenchmarks
     [Benchmark]
     public void Serialize_NoEncryption()
     {
-        var packet = CClientInfoPacket.Create(new byte[] { 0x04, 0x10 });
+        NetworkPacket packet = CClientInfoPacket.Create(new byte[] { 0x04, 0x10 });
 
         using var memoryStream = new MemoryStream();
 
@@ -63,7 +65,7 @@ public class SerializationBenchmarks
     [Benchmark]
     public void Serialize_Encrypted()
     {
-        var packet = CCharacterListPacket.Create(_client.Encrypt);
+        NetworkPacket packet = CCharacterListPacket.Create(_client.Encrypt);
 
         using var memoryStream = new MemoryStream();
 
@@ -75,14 +77,14 @@ public class SerializationBenchmarks
     {
         _encryptedPacket.Seek(0, SeekOrigin.Begin);
 
-        var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket, PrefixStyle.Base128);
+        NetworkPacket packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket, PrefixStyle.Base128);
 
         byte[] decryptedBytes = new byte[packet.Payload.Length];
         int len = _server.Decrypt(packet.Payload.AsSpan(), decryptedBytes);
 
         using var memoryStream = new MemoryStream(decryptedBytes, 0, len);
 
-        var innerPacket = Serializer.Deserialize<CCharacterLoadedPacket>(memoryStream);
+        CCharacterLoadedPacket? innerPacket = Serializer.Deserialize<CCharacterLoadedPacket>(memoryStream);
         if (innerPacket is null)
         {
             throw new Exception("Failed to deserialize packet");
@@ -93,10 +95,10 @@ public class SerializationBenchmarks
     public void Deserialize_NoEncryption()
     {
         _unencryptedPacket.Seek(0, SeekOrigin.Begin);
-        var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_unencryptedPacket, PrefixStyle.Base128);
+        NetworkPacket packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_unencryptedPacket, PrefixStyle.Base128);
 
         using var memoryStream = new MemoryStream(packet.Payload);
-        var innerPacket = Serializer.Deserialize<CCharacterListPacket>(memoryStream);
+        CCharacterListPacket? innerPacket = Serializer.Deserialize<CCharacterListPacket>(memoryStream);
         if (innerPacket is null)
         {
             throw new Exception("Failed to deserialize packet");

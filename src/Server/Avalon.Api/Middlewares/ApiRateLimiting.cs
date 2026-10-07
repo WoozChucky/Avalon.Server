@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
 namespace Avalon.Api.Middlewares;
@@ -258,7 +259,7 @@ public static class ApiRateLimiting
         });
 
     private static bool CarriesPersonalAccessToken(HttpRequest request) =>
-        request.Headers.TryGetValue(HeaderNames.Authorization, out var value)
+        request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues value)
         && value.ToString().StartsWith(PersonalAccessTokenHeaderPrefix, StringComparison.OrdinalIgnoreCase);
 
     private static string? AccountIdOf(ClaimsPrincipal? principal) =>

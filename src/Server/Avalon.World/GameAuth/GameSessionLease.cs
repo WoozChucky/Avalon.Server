@@ -65,11 +65,11 @@ public sealed class GameSessionLease
     public static GameSessionLease? TryCreate(SessionLeaseResponse response, string serverId, ushort worldId, TimeProvider clock)
     {
         if (!ValidDeadline(response, clock.GetUtcNow().UtcDateTime) || response.ServerId != serverId || response.WorldId != worldId ||
-            !Positive(response.AccountId, out var account) || !Positive(response.FencingToken, out var fence) ||
-            !long.TryParse(response.SessionEpoch, NumberStyles.None, CultureInfo.InvariantCulture, out var epoch) || epoch < 0 ||
+            !Positive(response.AccountId, out long account) || !Positive(response.FencingToken, out long fence) ||
+            !long.TryParse(response.SessionEpoch, NumberStyles.None, CultureInfo.InvariantCulture, out long epoch) || epoch < 0 ||
             epoch.ToString(CultureInfo.InvariantCulture) != response.SessionEpoch || response.CredentialsVersion is null or < 0 ||
-            !Guid.TryParseExact(response.GameSessionId, "D", out var session) || session == Guid.Empty ||
-            !Guid.TryParseExact(response.GameContextId, "D", out var context) || context == Guid.Empty ||
+            !Guid.TryParseExact(response.GameSessionId, "D", out Guid session) || session == Guid.Empty ||
+            !Guid.TryParseExact(response.GameContextId, "D", out Guid context) || context == Guid.Empty ||
             response.AccessLevel is not { } access || (access & (ushort)AccountAccessLevel.Player) == 0 || (access & ~(ushort)(AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin | AccountAccessLevel.Console | AccountAccessLevel.Tournament | AccountAccessLevel.PTR)) != 0)
             return null;
         return new(response, new(new AccountId(account), session, fence), clock);

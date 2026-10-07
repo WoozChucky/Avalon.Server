@@ -141,7 +141,7 @@ public sealed class RegistrationThrottleShould : IDisposable
     {
         var config = new AuthenticationConfig { MaxAccountsCreatedPerSource = max, AccountCreationWindowMinutes = window };
 
-        var refused = Assert.Throws<InvalidOperationException>(() => ServiceRegistration.ValidateAccountCreationCap(config));
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => ServiceRegistration.ValidateAccountCreationCap(config));
 
         Assert.Contains(setting, refused.Message);
     }

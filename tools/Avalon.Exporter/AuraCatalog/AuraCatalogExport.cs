@@ -40,7 +40,7 @@ public static class AuraCatalogExport
         });
 
         using var context = new WorldDbContext(NullLoggerFactory.Instance, options);
-        List<AuraTemplate> auras = context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList();
+        var auras = context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList();
 
         Lf.Write(path, Render(auras));
         Console.WriteLine($"wrote {path} ({auras.Count} aura templates)");

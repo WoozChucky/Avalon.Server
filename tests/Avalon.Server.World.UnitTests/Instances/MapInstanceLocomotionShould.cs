@@ -177,7 +177,7 @@ public class MapInstanceLocomotionShould
     public void Use_The_Locomotion_Its_Hook_Returns()
     {
         ICreatureLocomotion? handed = null;
-        var replacement = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion replacement = Substitute.For<ICreatureLocomotion>();
 
         MapInstance instance = BuildInstance(new GameConfiguration
         {
@@ -520,7 +520,7 @@ public class MapInstanceLocomotionShould
     /// </summary>
     private static Creature RealCreatureAt(Vector3 position, uint id, float speed = 4f)
     {
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.SpeedWalk.Returns(speed / 2f);
         metadata.SpeedRun.Returns(speed);
 
@@ -545,14 +545,14 @@ public class MapInstanceLocomotionShould
     /// </summary>
     private static (MapInstance Instance, ICharacter Target) BuildKillableInstance(GameConfiguration? config = null)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(config ?? new GameConfiguration());
 
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(call => StepwisePath(call.ArgAt<Vector3>(0), call.ArgAt<Vector3>(1)));
 
@@ -577,11 +577,11 @@ public class MapInstanceLocomotionShould
             navigator,
             seed: 0);
 
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, 700_800));
         character.Position.Returns(new Vector3(10f, 0f, 0f));
         character.IsDead.Returns(false);
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         instance.AddCharacter(connection);
 
@@ -636,11 +636,11 @@ public class MapInstanceLocomotionShould
         ILoggerFactory? loggerFactory = null,
         Func<ICreatureLocomotion, ICreatureLocomotion>? locomotion = null)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(config);
 
         if (navigator is null)
@@ -742,18 +742,18 @@ public class MapInstanceLocomotionShould
     private static (MapInstance Instance, ICreature Creature) BuildInstanceWithCreature(
         bool crowdIncludesPlayers = false)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CrowdIncludesPlayers = crowdIncludesPlayers });
 
         // A NSubstitute IMapNavigator returns an empty path from FindPath by default, which
         // WaypointLocomotion reads as "nowhere to go" and resolves via its come-to-rest path
         // without ever writing Position. Stub a real waypoint, far enough from the origin that
         // the 0.1f arrival epsilon does not immediately consume it on the first tick.
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(new List<Vector3> { new Vector3(5f, 0f, 0f) });
 
@@ -778,15 +778,15 @@ public class MapInstanceLocomotionShould
             navigator,
             seed: 0);
 
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, 424_242));
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         instance.AddCharacter(connection);
 
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 424_243));
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.SpeedWalk.Returns(2f);
         metadata.SpeedRun.Returns(4f);
         creature.Metadata.Returns(metadata);

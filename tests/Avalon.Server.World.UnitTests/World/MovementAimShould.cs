@@ -40,18 +40,18 @@ public class MovementAimShould
 
     public MovementAimShould()
     {
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAbilityScript(nameof(ConeAbilityScript)).Returns(typeof(ConeAbilityScript));
         _casts = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), scripts, _arena);
 
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.RunInstantAbility(default!, default, default!).ReturnsForAnyArgs(ci =>
             _casts.RunInstant(ci.ArgAt<IUnit>(0), ci.ArgAt<AbilityAim>(1), ci.ArgAt<IAbility>(2)));
         instance.QueueAbility(default!, default, default!).ReturnsForAnyArgs(ci =>
             _casts.QueueAbility(ci.ArgAt<IUnit>(0), ci.ArgAt<AbilityAim>(1), ci.ArgAt<IAbility>(2)));
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.GetInstanceById(Arg.Any<Guid>()).Returns(instance);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
         _handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
 

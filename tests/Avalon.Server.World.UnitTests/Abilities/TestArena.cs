@@ -123,7 +123,7 @@ internal sealed class TestArena : IAbilityArena
 
     public ICreature Creature(float x, float z, float body = 0.5f, bool invulnerable = false, uint health = 10)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, _nextCreature++));
         creature.Position.Returns(new Vector3(x, 0f, z));
         creature.BodyRadius.Returns(body);

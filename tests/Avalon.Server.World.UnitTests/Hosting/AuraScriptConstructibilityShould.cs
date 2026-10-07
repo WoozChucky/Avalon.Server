@@ -35,7 +35,7 @@ public class AuraScriptConstructibilityShould
     public void Build_every_aura_script_the_seed_names()
     {
         string[] named;
-        using (SqliteDatabase<WorldDbContext> database = SqliteDatabase.World())
+        using (var database = SqliteDatabase.World())
         using (WorldDbContext context = database.CreateDbContext())
             named = context.AuraTemplates.AsNoTracking().ToList()
                 .Where(a => a.ScriptName != null).Select(a => a.ScriptName!).Distinct().ToArray();

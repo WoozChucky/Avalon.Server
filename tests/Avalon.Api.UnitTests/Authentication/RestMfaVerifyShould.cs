@@ -98,7 +98,7 @@ public sealed class RestMfaVerifyShould : IAsyncLifetime
     {
         AccountIs();
 
-        for (var i = 1; i < AuthConfig.MaxFailedLoginAttempts; i++)
+        for (int i = 1; i < AuthConfig.MaxFailedLoginAttempts; i++)
         {
             using HttpResponseMessage wrong = await VerifyAsync("000000");
             Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);

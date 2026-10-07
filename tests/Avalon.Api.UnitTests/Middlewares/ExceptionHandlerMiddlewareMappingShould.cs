@@ -78,7 +78,7 @@ public class ExceptionHandlerMiddlewareMappingShould
         Assert.Equal(status, context.Response.StatusCode);
         Assert.Equal("application/json; charset=utf-8", context.Response.ContentType);
         context.Response.Body.Position = 0;
-        using JsonDocument json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
+        using var json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
         JsonElement root = json.RootElement;
         Assert.Equal(status, root.GetProperty("status").GetInt32());
         Assert.Equal(type, root.GetProperty("type").GetString());

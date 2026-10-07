@@ -34,7 +34,7 @@ public class MapTemplateController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get([FromRoute] ushort id, CancellationToken ct)
     {
-        var template = await _service.GetAsync(id, ct);
+        MapTemplateDto? template = await _service.GetAsync(id, ct);
         return template is null ? NotFound() : Ok(template);
     }
 
@@ -57,7 +57,7 @@ public class MapTemplateController : BaseController
         [FromQuery] int? seed,
         CancellationToken ct)
     {
-        var layout = await _service.PreviewLayoutAsync(id, seed, ct);
+        LayoutPreviewDto? layout = await _service.PreviewLayoutAsync(id, seed, ct);
         return layout is null ? NotFound() : Ok(layout);
     }
 
@@ -76,7 +76,7 @@ public class MapTemplateController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ChunkAsset([FromRoute] string filename, CancellationToken ct)
     {
-        var asset = await _service.GetChunkAssetAsync(filename, ct);
+        ChunkAssetResult? asset = await _service.GetChunkAssetAsync(filename, ct);
         return asset is null ? NotFound() : File(asset.Bytes, asset.ContentType);
     }
 }

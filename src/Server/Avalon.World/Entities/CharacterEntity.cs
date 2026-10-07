@@ -424,7 +424,7 @@ public partial class CharacterEntity : ICharacter
 
     public GameEntityFields ConsumeDirtyFields()
     {
-        var dirty = _dirtyFields;
+        GameEntityFields dirty = _dirtyFields;
         _dirtyFields = GameEntityFields.None;
         return dirty;
     }

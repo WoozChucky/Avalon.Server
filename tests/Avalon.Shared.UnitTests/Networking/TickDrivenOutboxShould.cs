@@ -76,8 +76,8 @@ public class TickDrivenOutboxShould
     [Fact]
     public void EnqueueThenFlush_WritesAllPacketsToStream()
     {
-        var faultCalled = false;
-        var (stream, ms) = MakeSyncStream();
+        bool faultCalled = false;
+        (PacketStream? stream, MemoryStream? ms) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
             onFault: () => faultCalled = true);
         outbox.Connect(stream);
@@ -123,7 +123,7 @@ public class TickDrivenOutboxShould
     [Fact]
     public void Continuation_ClearsInFlightFlag_OnSuccess_AllowingNextFlush()
     {
-        var (stream, ms) = MakeSyncStream();
+        (PacketStream? stream, MemoryStream? ms) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
             onFault: () => { });
         outbox.Connect(stream);
@@ -143,7 +143,7 @@ public class TickDrivenOutboxShould
     [Fact]
     public async Task Continuation_TriggersOnFault_OnIOException_AndLeavesFlagSet()
     {
-        var faultCalled = false;
+        bool faultCalled = false;
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
             onFault: () => faultCalled = true);
         outbox.Connect(new PacketStream(new FaultingStream()));
@@ -159,7 +159,7 @@ public class TickDrivenOutboxShould
     [Fact]
     public void Enqueue_WhenAtCapacity_DropsOldestAndDoesNotThrow()
     {
-        var (stream, _) = MakeSyncStream();
+        (PacketStream? stream, MemoryStream _) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 2,
             onFault: () => { });
         outbox.Connect(stream);
@@ -180,7 +180,7 @@ public class TickDrivenOutboxShould
     [Fact]
     public async Task DisposeAsync_WritesPacketsQueuedSinceTheLastFlush()
     {
-        var (stream, ms) = MakeSyncStream();
+        (PacketStream? stream, MemoryStream? ms) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
             onFault: () => { });
         outbox.Connect(stream);
@@ -197,8 +197,8 @@ public class TickDrivenOutboxShould
     [Fact]
     public async Task DisposeAsync_ReturnsWithinBudget_WhenTheFinalWriteStalls()
     {
-        TimeSpan flush = TimeSpan.FromMilliseconds(100);
-        TimeSpan grace = TimeSpan.FromMilliseconds(20);
+        var flush = TimeSpan.FromMilliseconds(100);
+        var grace = TimeSpan.FromMilliseconds(20);
 
         var slow = new SlowStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
@@ -255,7 +255,7 @@ public class TickDrivenOutboxShould
     [Fact]
     public async Task DisposeAsync_CompletesPromptly_WhenNoWriteInFlight()
     {
-        var (stream, _) = MakeSyncStream();
+        (PacketStream? stream, MemoryStream _) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
             onFault: () => { }, flushTimeout: LongBudget);
         outbox.Connect(stream);

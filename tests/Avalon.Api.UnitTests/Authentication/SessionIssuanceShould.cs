@@ -51,7 +51,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
     }
 
     private static bool SetsRefreshCookie(HttpResponseMessage response, string value) =>
-        response.Headers.TryGetValues("Set-Cookie", out var cookies)
+        response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? cookies)
         && cookies.Any(c => c.StartsWith($"{AuthConfig.RefreshCookieName}={value}", StringComparison.Ordinal));
 
     // Lifetime validation must not lock a client out of renewing: refresh is anonymous and reads
@@ -251,5 +251,5 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
     }
 
     private static bool SetsAnyCookie(HttpResponseMessage response) =>
-        response.Headers.TryGetValues("Set-Cookie", out var cookies) && cookies.Any();
+        response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? cookies) && cookies.Any();
 }

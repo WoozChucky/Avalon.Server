@@ -24,7 +24,7 @@ public class CLogoutPacket : Packet
 
         Serializer.Serialize(memoryStream, authPacket);
 
-        var buffer = encryptFunc(memoryStream.ToArray());
+        byte[] buffer = encryptFunc(memoryStream.ToArray());
 
         return new NetworkPacket
         {

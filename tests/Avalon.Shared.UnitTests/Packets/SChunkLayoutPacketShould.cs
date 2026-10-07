@@ -24,7 +24,7 @@ public class SChunkLayoutPacketShould
         using var ms = new MemoryStream();
         Serializer.Serialize(ms, pkt);
         ms.Position = 0;
-        var round = Serializer.Deserialize<SChunkLayoutPacket>(ms);
+        SChunkLayoutPacket round = Serializer.Deserialize<SChunkLayoutPacket>(ms);
 
         Assert.Equal(pkt.Seed, round.Seed);
         Assert.Equal(pkt.InstanceId, round.InstanceId);
@@ -58,7 +58,7 @@ public class SChunkLayoutPacketShould
         using var ms = new MemoryStream();
         Serializer.Serialize(ms, pkt);
         ms.Position = 0;
-        var round = Serializer.Deserialize<SChunkLayoutPacket>(ms);
+        SChunkLayoutPacket round = Serializer.Deserialize<SChunkLayoutPacket>(ms);
 
         Assert.Single(round.Portals);
         Assert.Equal(1, round.Portals[0].Role);

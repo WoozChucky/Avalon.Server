@@ -13,7 +13,7 @@ using Avalon.World.Public.Enums;
 
 try
 {
-    CliOptions options = CliOptions.Parse(args);
+    var options = CliOptions.Parse(args);
     if (options.Help)
     {
         Console.WriteLine("Usage: Avalon.Balance [--class C] [--scenario ID] [--runs N] [--seed N] [--overrides FILE] [--out DIR]");

@@ -343,7 +343,7 @@ public sealed class GenericPriorityQueue<TItem, TPriority> : IFixedSizePriorityQ
 #endif
     private bool HasHigherPriority(TItem higher, TItem lower)
     {
-        var cmp = _comparer(higher.Priority, lower.Priority);
+        int cmp = _comparer(higher.Priority, lower.Priority);
         return (cmp < 0 || (cmp == 0 && higher.InsertionIndex < lower.InsertionIndex));
     }
 
@@ -410,7 +410,7 @@ public sealed class GenericPriorityQueue<TItem, TPriority> : IFixedSizePriorityQ
         }
 #endif
 
-        TItem[] newArray = new TItem[maxNodes + 1];
+        var newArray = new TItem[maxNodes + 1];
         int highestIndexToCopy = Math.Min(maxNodes, _numNodes);
         Array.Copy(_nodes, newArray, highestIndexToCopy + 1);
         _nodes = newArray;

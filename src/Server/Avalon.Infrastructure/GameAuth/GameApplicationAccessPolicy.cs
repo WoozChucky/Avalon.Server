@@ -13,18 +13,18 @@ public sealed class GameApplicationAccessPolicy(IOptions<StoreAuthenticationConf
     public bool RequiresLicenseForWorldListing(string? applicationKey) => options.Value.ResolveApplication(applicationKey)?.Restricted == true;
     public bool AllowsWorldAccess(string? applicationKey, ushort worldId, AccountAccessLevel required, AccountAccessLevel accountAccess)
     {
-        var application = options.Value.ResolveApplication(applicationKey);
+        GameApplicationSelection? application = options.Value.ResolveApplication(applicationKey);
         if (application?.AllowsWorld(worldId) != true) return false;
-        var effectiveAccess = application.Restricted ? accountAccess | AccountAccessLevel.PTR : accountAccess;
+        AccountAccessLevel effectiveAccess = application.Restricted ? accountAccess | AccountAccessLevel.PTR : accountAccess;
         return AccessLevels.ForWorld(required).Allows(effectiveAccess);
     }
 
     /// <summary>World eligibility for an already verified, licensed context; never changes account or session roles.</summary>
     public bool AllowsWorldAccess(uint appId, ushort worldId, AccountAccessLevel required, AccountAccessLevel accountAccess)
     {
-        var application = options.Value.ResolveSteamApplication(appId);
+        SteamApplicationSelection? application = options.Value.ResolveSteamApplication(appId);
         if (application?.AllowsWorld(worldId) != true) return false;
-        var effectiveAccess = application.Restricted ? accountAccess | AccountAccessLevel.PTR : accountAccess;
+        AccountAccessLevel effectiveAccess = application.Restricted ? accountAccess | AccountAccessLevel.PTR : accountAccess;
         return AccessLevels.ForWorld(required).Allows(effectiveAccess);
     }
 }

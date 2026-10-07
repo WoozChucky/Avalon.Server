@@ -97,9 +97,9 @@ public sealed class OfflineWriteRaceShould : IDisposable
         IAuthConnection connection = Substitute.For<IAuthConnection>();
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.RemoteEndPoint.Returns("127.0.0.1:12345");
-        var hosting = Substitute.For<IOptions<HostingConfiguration>>();
+        IOptions<HostingConfiguration> hosting = Substitute.For<IOptions<HostingConfiguration>>();
         hosting.Value.Returns(new HostingConfiguration { Port = 0, Host = "127.0.0.1" });
-        var security = Substitute.For<IOptions<HostingSecurity>>();
+        IOptions<HostingSecurity> security = Substitute.For<IOptions<HostingSecurity>>();
         security.Value.Returns(new HostingSecurity());
         var server = new AuthServer(Substitute.For<IServiceProvider>(), Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance, Substitute.For<IAccountRepository>(), Substitute.For<IReplicatedCache>(),

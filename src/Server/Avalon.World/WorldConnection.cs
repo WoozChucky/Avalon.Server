@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net.Security;
 using System.Net.Sockets;
 using Avalon.Common;
 using Avalon.Common.Accounts;
@@ -11,6 +12,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
+using Avalon.World.GameAuth;
 using Avalon.World.Maintenance;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -337,8 +339,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     protected override async Task<PacketStream> GetStream(TcpClient client)
     {
-        var transport = ((WorldServer)Server).TlsTransport;
-        var stream = await GameAuth.WorldTlsTransport.AuthenticateAsync(new NetworkStream(client.Client, true), transport.Certificate);
+        WorldTlsTransport transport = ((WorldServer)Server).TlsTransport;
+        SslStream stream = await GameAuth.WorldTlsTransport.AuthenticateAsync(new NetworkStream(client.Client, true), transport.Certificate);
         _transportReadyTicks = TimeProvider.System.GetTimestamp();
         _tlsAuthenticated = true;
         return new PacketStream(stream);

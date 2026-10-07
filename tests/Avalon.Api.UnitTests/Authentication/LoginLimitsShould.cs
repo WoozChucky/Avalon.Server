@@ -33,7 +33,7 @@ public class LoginLimitsShould
     [InlineData(nameof(AuthenticationConfig.MaxFailedMfaAttempts))]
     public void Refuse_to_start_with_a_limit_below_one(string setting)
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => StartWith(setting, "0"));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(setting, "0"));
 
         Assert.Contains($"Application:Authentication:{setting}", ex.Message, StringComparison.Ordinal);
     }
@@ -63,7 +63,7 @@ public class LoginLimitsShould
 
         Avalon.Infrastructure.Login.LoginLimitsValidation.LogAtStartup(logger, limits, "Application:Authentication");
 
-        var (level, message) = Assert.Single(logger.Entries);
+        (Microsoft.Extensions.Logging.LogLevel level, string? message) = Assert.Single(logger.Entries);
         Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Information, level);
         foreach (string expected in new[]
                  {

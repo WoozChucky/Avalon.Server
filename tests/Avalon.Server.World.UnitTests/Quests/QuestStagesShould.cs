@@ -20,7 +20,7 @@ public class QuestStagesShould
             // Howl runs the sample script, so a test can drive progress from inside its real stage-start hook.
             List<QuestTemplate> quests = Chain();
             quests.Single(q => q.Id.Value == Howl).ScriptName = nameof(SampleQuestScript);
-            var scripts = Substitute.For<IScriptManager>();
+            IScriptManager scripts = Substitute.For<IScriptManager>();
             scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
             w = await QuestTestWorld.CreateAsync(quests, scripts: scripts,
                 services: new ServiceCollection().AddSingleton<Microsoft.Extensions.Logging.ILogger<SampleQuestScript>>(recorder).BuildServiceProvider());

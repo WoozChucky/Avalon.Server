@@ -35,7 +35,7 @@ public class HitResolverShould
     [Fact]
     public void Add_the_weapon_roll_alone_when_the_skill_has_no_scaling()
     {
-        var rng = new ScriptedCombatRandom().Longs(6);
+        ScriptedCombatRandom rng = new ScriptedCombatRandom().Longs(6);
 
         float b = HitResolver.AbilityBase(Attacker(attack: 46, weaponMin: 4, weaponMax: 7), 12f, ScalingStat.Attack, 0f, 1.5f, rng);
 
@@ -67,7 +67,7 @@ public class HitResolverShould
     [Fact]
     public void Add_all_three_terms_for_cleave_with_a_starter_sword()
     {
-        var rng = new ScriptedCombatRandom().Longs(5);
+        ScriptedCombatRandom rng = new ScriptedCombatRandom().Longs(5);
 
         float b = HitResolver.AbilityBase(Attacker(attack: 46, weaponMin: 4, weaponMax: 7), 12f, ScalingStat.Attack, 0.3f, 1f, rng);
 

@@ -2,8 +2,10 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Avalon.Api.Services;
 using Avalon.Common.Accounts;
+using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
 namespace Avalon.Api.Authentication.AV;
@@ -29,23 +31,23 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.Headers.TryGetValue(HeaderNames.Authorization, out var value))
+        if (!Request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues value))
             return AuthenticateResult.NoResult();
 
-        var parts = value.ToString().Split(' ', 2);
+        string[] parts = value.ToString().Split(' ', 2);
         if (parts.Length != 2 || !string.Equals(parts[0], "Avalon", StringComparison.OrdinalIgnoreCase))
             return AuthenticateResult.NoResult();
 
-        var token = parts[1];
+        string token = parts[1];
         if (!token.StartsWith(Prefix, StringComparison.Ordinal) || token.Length != ExpectedLength)
             return AuthenticateResult.Fail("invalid token format");
 
-        var pat = await _pats.FindByRawTokenAsync(token, Context.RequestAborted);
+        PersonalAccessToken? pat = await _pats.FindByRawTokenAsync(token, Context.RequestAborted);
         if (pat is null) return AuthenticateResult.Fail("invalid token");
         if (pat.RevokedAt is not null) return AuthenticateResult.Fail("token revoked");
         if (pat.ExpiresAt is { } exp && exp < DateTime.UtcNow) return AuthenticateResult.Fail("token expired");
 
-        var account = await _accounts.FindByIdAsync(pat.AccountId, Context.RequestAborted);
+        Account? account = await _accounts.FindByIdAsync(pat.AccountId, Context.RequestAborted);
         // A token never carries more than the account holds now: the mint-time cap in
         // PersonalAccessTokenService is not enough on its own, because the account can be
         // demoted afterwards (#451). The token keeps its narrower scope otherwise.

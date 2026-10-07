@@ -25,7 +25,7 @@ public class RefreshTokenServiceShould
     {
         var service = new RefreshTokenService(_repo, _random, TimeProvider.System);
 
-        var result = await service.IssueAsync(new AccountId(1L), 0);
+        RefreshIssueResult result = await service.IssueAsync(new AccountId(1L), 0);
 
         // The family id is not a secret; v7 keeps the (AccountId, FamilyId) index append-friendly.
         Assert.Equal(7, result.FamilyId.Version);
@@ -104,7 +104,7 @@ public class RefreshTokenServiceShould
         _repo.RotateAsync(Arg.Any<RefreshToken>(), Arg.Any<RefreshToken>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns(RefreshRotation.Rotated);
 
-        var result = await new RefreshTokenService(_repo, _random, TimeProvider.System)
+        RefreshRotateResult result = await new RefreshTokenService(_repo, _random, TimeProvider.System)
             .RotateLauncherAsync("raw", RefreshCaller.From(null, "ua"));
 
         Assert.Equal(familyId, result.FamilyId);

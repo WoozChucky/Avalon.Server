@@ -294,7 +294,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     private Encounter ResolveOrSpawn(IUnit attacker, IUnit target)
     {
-        Encounter? existing = (_registry.FindEncounterContaining(attacker)
+        var existing = (_registry.FindEncounterContaining(attacker)
                             ?? _registry.FindEncounterContaining(target)) as Encounter;
 
         // Classify each participant by TYPE, not by ROLE — so creature-attacks-player and
@@ -306,7 +306,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         if (wouldExceedCap)
         {
-            Encounter spillover = (Encounter)_registry.CreateEncounter();
+            var spillover = (Encounter)_registry.CreateEncounter();
             ClassifyAndAdd(spillover, attacker);
             ClassifyAndAdd(spillover, target);
             return spillover;
@@ -375,14 +375,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         var enc = _registry.FindEncounterContaining(target) as Encounter;
         if (enc is null) return;
 
-        List<IUnit> fighting = enc.Hostiles.Where(h => !IsReturningHome(h)).ToList();
+        var fighting = enc.Hostiles.Where(h => !IsReturningHome(h)).ToList();
         if (fighting.Count == 0) return;
 
-        var healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Healer;
+        CharacterClass healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Healer;
         float perHostile = restored * healThreatPerHp * ClassThreatModifier.Get(healerClass) / fighting.Count;
 
         if (!enc.Players.Contains(healer)) enc.AddPlayer(healer);
-        foreach (var h in fighting)
+        foreach (IUnit? h in fighting)
             enc.AddThreat(h, healer, perHostile);
     }
 
@@ -587,14 +587,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         var enc = _registry.FindEncounterContaining(target) as Encounter;
         if (enc is null) return;
 
-        var threats = enc.GetThreatList(creature);
+        IReadOnlyDictionary<IUnit, float> threats = enc.GetThreatList(creature);
         float top = 0;
-        foreach (var t in threats.Values)
+        foreach (float t in threats.Values)
             if (t > top) top = t;
 
         if (!enc.Players.Contains(caster)) enc.AddPlayer(caster);
 
-        threats.TryGetValue(caster, out var current);
+        threats.TryGetValue(caster, out float current);
         float deltaToBecomeTop = (top + 1.0f) - current;
         enc.AddThreat(creature, caster, deltaToBecomeTop);
 

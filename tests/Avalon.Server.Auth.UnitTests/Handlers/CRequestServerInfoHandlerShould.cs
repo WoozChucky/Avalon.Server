@@ -18,7 +18,7 @@ public class CRequestServerInfoHandlerShould
 
     private static CRequestServerInfoHandler CreateHandler(string minClientVersion = "0.0.1", string serverVersion = "1.0.0")
     {
-        var options = Options.Create(new AuthConfiguration
+        IOptions<AuthConfiguration> options = Options.Create(new AuthConfiguration
         {
             MinClientVersion = minClientVersion,
             ServerVersion = serverVersion
@@ -45,7 +45,7 @@ public class CRequestServerInfoHandlerShould
     [InlineData("not-a-version")]  // unparseable
     public async Task SendRejectionPacket_AndCloseConnection_WhenClientVersionIsTooOldOrInvalid(string clientVersion)
     {
-        var handler = CreateHandler(minClientVersion: "1.0.0", serverVersion: "1.0.0");
+        CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "1.0.0", serverVersion: "1.0.0");
         NetworkPacket? sent = null;
         _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent = ci.Arg<NetworkPacket>());
 
@@ -53,14 +53,14 @@ public class CRequestServerInfoHandlerShould
 
         _connection.Received(1).Close();
         Assert.NotNull(sent);
-        var packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.Payload));
+        SServerInfoPacket packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.Payload));
         Assert.Equal(ServerInfoResult.ClientVersionTooOld, packet.Result);
     }
 
     [Fact]
     public async Task SendRejectionPacket_BeforeClosingConnection_WhenClientVersionIsTooOld()
     {
-        var handler = CreateHandler(minClientVersion: "1.0.0");
+        CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "1.0.0");
         bool packetSentBeforeClose = false;
         bool packetSent = false;
 
@@ -75,14 +75,14 @@ public class CRequestServerInfoHandlerShould
     [Fact]
     public async Task IncludeServerVersion_InRejectionPacket()
     {
-        var handler = CreateHandler(minClientVersion: "2.0.0", serverVersion: "3.1.4");
+        CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "2.0.0", serverVersion: "3.1.4");
         NetworkPacket? sent = null;
         _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent = ci.Arg<NetworkPacket>());
 
         await handler.ExecuteAsync(Ctx("1.0.0"));
 
         Assert.NotNull(sent);
-        var packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.Payload));
+        SServerInfoPacket packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.Payload));
         Assert.Equal(SemVerPacker.Pack("3.1.4"), packet.ServerVersion);
         Assert.Equal(ServerInfoResult.ClientVersionTooOld, packet.Result);
     }
@@ -92,7 +92,7 @@ public class CRequestServerInfoHandlerShould
     [Fact]
     public async Task SendServerInfo_WhenClientVersionEqualsMinimum()
     {
-        var handler = CreateHandler(minClientVersion: "0.0.1");
+        CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "0.0.1");
         await handler.ExecuteAsync(Ctx("0.0.1"));
 
         _connection.DidNotReceive().Close();
@@ -103,7 +103,7 @@ public class CRequestServerInfoHandlerShould
     [Fact]
     public async Task SendServerInfo_WhenClientVersionIsNewerThanMinimum()
     {
-        var handler = CreateHandler(minClientVersion: "0.0.1");
+        CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "0.0.1");
         await handler.ExecuteAsync(Ctx("2.0.0"));
 
         _connection.DidNotReceive().Close();
@@ -113,14 +113,14 @@ public class CRequestServerInfoHandlerShould
     [Fact]
     public async Task SendSemverPackedServerVersion_InServerInfoPacket()
     {
-        var handler = CreateHandler(minClientVersion: "1.2.3", serverVersion: "2.5.10");
+        CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "1.2.3", serverVersion: "2.5.10");
         NetworkPacket? sent = null;
         _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent = ci.Arg<NetworkPacket>());
 
         await handler.ExecuteAsync(Ctx("1.2.3"));
 
         Assert.NotNull(sent);
-        var packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.Payload));
+        SServerInfoPacket packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.Payload));
         // 2.5.10 = (2 << 24) | (5 << 16) | 10 = 0x02_05_000A = 33,882,122
         Assert.Equal((2u << 24) | (5u << 16) | 10u, packet.ServerVersion);
         Assert.Equal(ServerInfoResult.Success, packet.Result);

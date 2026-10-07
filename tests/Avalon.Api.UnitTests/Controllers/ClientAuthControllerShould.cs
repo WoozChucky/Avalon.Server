@@ -78,7 +78,7 @@ public class ClientAuthControllerShould
 
     private static void AssertInvalidGrant(IActionResult result)
     {
-        var problem = Assert.IsType<ObjectResult>(result);
+        ObjectResult problem = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
         Assert.Equal("invalid_grant", Assert.IsType<ProblemDetails>(problem.Value).Title);
     }
@@ -93,7 +93,7 @@ public class ClientAuthControllerShould
         IActionResult result = await Sut(MakeAccount()).Code(
             new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000, CurrentPassword = "hunter22" });
 
-        var ok = Assert.IsType<OkObjectResult>(result);
+        OkObjectResult ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal("the-code", Assert.IsType<ClientAuthCodeResponse>(ok.Value).Code);
     }
 
@@ -108,7 +108,7 @@ public class ClientAuthControllerShould
 
         IActionResult result = await Sut(MakeAccount()).Code(new ClientAuthCodeRequest { Challenge = "x", RedirectPort = 50000, CurrentPassword = "hunter22" });
 
-        var problem = Assert.IsType<ObjectResult>(result);
+        ObjectResult problem = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
     }
 
@@ -123,7 +123,7 @@ public class ClientAuthControllerShould
 
         IActionResult result = await Sut().Token(new ClientAuthTokenRequest { Code = "the-code", Verifier = Verifier, RedirectPort = 50000, DeviceName = "MOTHERSHIP" });
 
-        var tokens = Assert.IsType<ClientAuthTokens>(Assert.IsType<OkObjectResult>(result).Value);
+        ClientAuthTokens tokens = Assert.IsType<ClientAuthTokens>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal("jwt", tokens.AccessToken);
         Assert.Equal("refresh-1", tokens.RefreshToken);
         Assert.Equal(new DateTimeOffset(refreshExpiry).ToUnixTimeSeconds(), tokens.RefreshExpiresAt);
@@ -135,7 +135,7 @@ public class ClientAuthControllerShould
     public async Task Issue_a_game_ticket_only_for_a_live_launcher_session()
     {
         var family = Guid.Parse("12345678-1234-1234-1234-123456789abc");
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
         _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
         _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
@@ -146,7 +146,7 @@ public class ClientAuthControllerShould
 
         IActionResult result = await Sut(account).GameTicket();
 
-        var response = Assert.IsType<ClientGameTicketResponse>(Assert.IsType<OkObjectResult>(result).Value);
+        ClientGameTicketResponse response = Assert.IsType<ClientGameTicketResponse>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal("the-ticket", response.Ticket);
         Assert.InRange(response.ExpiresAt, DateTimeOffset.UtcNow.AddSeconds(55).ToUnixTimeSeconds(),
             DateTimeOffset.UtcNow.AddSeconds(65).ToUnixTimeSeconds());
@@ -162,7 +162,7 @@ public class ClientAuthControllerShould
     public async Task Issue_a_game_ticket_for_each_player_policy_role(Avalon.Common.Accounts.AccountAccessLevel access)
     {
         var family = Guid.NewGuid();
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.AccessLevel = access;
         _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
         _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
@@ -178,7 +178,7 @@ public class ClientAuthControllerShould
     public async Task Refuse_a_game_ticket_without_a_launcher_session_claim()
     {
         _http.User = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "jwt"));
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
 
         IActionResult result = await Sut(account).GameTicket();
@@ -193,7 +193,7 @@ public class ClientAuthControllerShould
         _http.User = new ClaimsPrincipal(new ClaimsIdentity([
             new Claim(JwtUtils.LauncherFamilyClaim, family.ToString()), new Claim("pat_id", "1"),
         ], "pat"));
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
         _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns(true);
@@ -208,7 +208,7 @@ public class ClientAuthControllerShould
     {
         var family = Guid.NewGuid();
         _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
         _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns(false);
@@ -223,7 +223,7 @@ public class ClientAuthControllerShould
     public async Task Return_service_unavailable_when_ticket_storage_fails()
     {
         var family = Guid.NewGuid();
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
         _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
         _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
@@ -241,7 +241,7 @@ public class ClientAuthControllerShould
     public async Task Refuse_game_ticket_for_an_inactive_account()
     {
         var family = Guid.NewGuid();
-        var account = MakeAccount(status: AccountStatus.Banned);
+        Account account = MakeAccount(status: AccountStatus.Banned);
         account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
         _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
 
@@ -255,7 +255,7 @@ public class ClientAuthControllerShould
     public async Task Limit_game_ticket_issuance_per_launcher_family()
     {
         var family = Guid.NewGuid();
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.AccessLevel = Avalon.Common.Accounts.AccountAccessLevel.Player;
         _http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(JwtUtils.LauncherFamilyClaim, family.ToString())], "jwt"));
         _refreshRepository.IsLiveLauncherFamilyAsync(account.Id, family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
@@ -272,7 +272,7 @@ public class ClientAuthControllerShould
     public async Task Mint_launcher_access_token_for_the_issued_family()
     {
         var familyId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _codes.RedeemAsync("the-code", Verifier).Returns(new LauncherGrant(account.Id, 3, 50000));
         AccountIs(account);
         _refresh.IssueLauncherAsync(account.Id, 3, Arg.Any<string?>(), Arg.Any<CancellationToken>())
@@ -340,7 +340,7 @@ public class ClientAuthControllerShould
 
         IActionResult result = await Sut().Refresh(new ClientAuthRefreshRequest { RefreshToken = "refresh-1" });
 
-        var tokens = Assert.IsType<ClientAuthTokens>(Assert.IsType<OkObjectResult>(result).Value);
+        ClientAuthTokens tokens = Assert.IsType<ClientAuthTokens>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal("refresh-2", tokens.RefreshToken);
         Assert.Equal("family-jwt", tokens.AccessToken);
         await _refresh.DidNotReceiveWithAnyArgs().RotateAsync(default!, default!);
@@ -459,7 +459,7 @@ public class ClientAuthControllerShould
         // A token for scripts must not become a full-role launcher session that outlives it (#591 review).
         SignedInWithPersonalAccessToken();
 
-        var result = Assert.IsType<ObjectResult>(await Sut(MakeAccount()).Code(new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000 }));
+        ObjectResult result = Assert.IsType<ObjectResult>(await Sut(MakeAccount()).Code(new ClientAuthCodeRequest { Challenge = Challenge, RedirectPort = 50000 }));
 
         Assert.Equal(StatusCodes.Status403Forbidden, result.StatusCode);
         await _codes.DidNotReceiveWithAnyArgs().IssueAsync(default, default, default!, default);

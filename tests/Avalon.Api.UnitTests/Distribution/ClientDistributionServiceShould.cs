@@ -124,7 +124,7 @@ public class ClientDistributionServiceShould
     [Fact]
     public async Task Not_remember_a_missing_manifest_so_a_just_completed_release_is_served()
     {
-        var doc = Doc("live", "b1", T0, ("runtime.exe", "aa"));
+        ManifestDocument doc = Doc("live", "b1", T0, ("runtime.exe", "aa"));
         _store.GetPointerAsync(Channel.Live, Arg.Any<CancellationToken>()).Returns(new ChannelPointer("b1", "manifests/live/b1.json"));
         _store.GetManifestAsync("manifests/live/b1.json", Arg.Any<CancellationToken>())
             .Returns((StoredManifest?)null, new StoredManifest(doc, "{}", "sig"));
@@ -177,7 +177,7 @@ public class ClientDistributionServiceShould
     {
         var objects = entries.Select(e => new StoredObject($"{prefix}{e.Build ?? e.Version}.json", e.PublishedAt)).ToList();
         _store.ListChangelogAsync(prefix, Arg.Any<CancellationToken>()).Returns(objects);
-        foreach (var (obj, e) in objects.Zip(entries))
+        foreach ((StoredObject? obj, ChangelogEntryDto? e) in objects.Zip(entries))
             _store.GetChangelogEntryAsync(obj.Key, Arg.Any<CancellationToken>()).Returns(e);
     }
 
@@ -227,8 +227,8 @@ public class ClientDistributionServiceShould
         Changelog("changelog/server/", Entry("server", null, "0.7.0", T0));
         Changelog("changelog/server/dev/", Entry("server", "dev", "0.7.1-dev.6", T0.AddHours(1)));
 
-        var live = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", Channel.Live, 20, null), CancellationToken.None);
-        var dev = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", Channel.Dev, 20, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> live = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", Channel.Live, 20, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> dev = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", Channel.Dev, 20, null), CancellationToken.None);
 
         Assert.Equal(["0.7.0"], live.Select(e => e.Version));
         Assert.Equal(["0.7.1-dev.6"], dev.Select(e => e.Version));
@@ -270,8 +270,8 @@ public class ClientDistributionServiceShould
         Changelog("changelog/client/ptr/", Entry("client", "ptr", "0.1.0", T0.AddHours(1)));
         Changelog("changelog/client/live/", Entry("client", "live", "0.1.0", T0.AddHours(2)));
 
-        var servers = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", null, 20, null), CancellationToken.None);
-        var ptr = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("client", Channel.Ptr, 20, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> servers = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("server", null, 20, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> ptr = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery("client", Channel.Ptr, 20, null), CancellationToken.None);
 
         Assert.Equal(["server"], servers.Select(e => e.Product));
         Assert.Equal(["ptr"], ptr.Select(e => e.Channel));
@@ -283,8 +283,8 @@ public class ClientDistributionServiceShould
         EmptyChangelog();
         Changelog("changelog/server/", Enumerable.Range(0, 5).Select(h => Entry("server", null, $"0.{h}.0", T0.AddHours(h))).ToArray());
 
-        var first = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, null), CancellationToken.None);
-        var second = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, first[^1].PublishedAt), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> first = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> second = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, first[^1].PublishedAt), CancellationToken.None);
 
         Assert.Equal(["0.4.0", "0.3.0"], first.Select(e => e.Version));
         Assert.Equal(["0.2.0", "0.1.0"], second.Select(e => e.Version));
@@ -298,7 +298,7 @@ public class ClientDistributionServiceShould
         _store.ListChangelogAsync("changelog/client/dev/", Arg.Any<CancellationToken>())
             .Returns<IReadOnlyList<StoredObject>>(_ => throw new DistributionUnavailableException("down"));
 
-        var feed = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
         Assert.Equal(["server"], feed.Select(e => e.Product));
 
         foreach (string prefix in ChangelogPrefixes)
@@ -343,7 +343,7 @@ public class ClientDistributionServiceShould
         EmptyChangelog();
         Changelog("changelog/client/ptr/", Entry("client", "ptr", "0.1.0", T0));
 
-        var feed = await _service.ListChangelogAsync(AccountAccessLevel.PTR, new ChangelogQuery("client", Channel.Ptr, 20, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(AccountAccessLevel.PTR, new ChangelogQuery("client", Channel.Ptr, 20, null), CancellationToken.None);
 
         Assert.Equal("client/ptr/0.1.0+1.abc", Assert.Single(feed).Id);
     }
@@ -354,8 +354,8 @@ public class ClientDistributionServiceShould
         EmptyChangelog();
         Changelog("changelog/server/", Entry("server", null, "0.1.0", T0), Entry("server", null, "0.2.0", T0), Entry("server", null, "0.3.0", T0));
 
-        var first = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, null), CancellationToken.None);
-        var second = await _service.ListChangelogAsync(null,
+        IReadOnlyList<ChangelogEntryDto> first = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> second = await _service.ListChangelogAsync(null,
             new ChangelogQuery("server", null, 2, first[^1].PublishedAt, first[^1].Id), CancellationToken.None);
 
         Assert.Equal(3, first.Concat(second).Select(e => e.Id).Distinct().Count());
@@ -368,7 +368,7 @@ public class ClientDistributionServiceShould
         EmptyChangelog();
         Changelog("changelog/server/", Entry("server", null, "0.6.0", T0), Entry("client", "dev", "0.1.0", T0.AddHours(1)));
 
-        var feed = await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
+        IReadOnlyList<ChangelogEntryDto> feed = await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
 
         Assert.Equal(["server"], feed.Select(e => e.Product));
     }

@@ -13,7 +13,7 @@ public class AbilityCostShould
 {
     private static IUnit Caster(PowerType type, uint? power)
     {
-        var unit = Substitute.For<IUnit>();
+        IUnit unit = Substitute.For<IUnit>();
         unit.PowerType.Returns(type);
         unit.CurrentPower.Returns(power);
         return unit;

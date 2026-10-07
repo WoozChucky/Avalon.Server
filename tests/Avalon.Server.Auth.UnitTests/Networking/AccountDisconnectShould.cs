@@ -22,9 +22,9 @@ public sealed class AccountDisconnectShould
 
     private AuthServer Server()
     {
-        var hosting = Substitute.For<IOptions<HostingConfiguration>>();
+        IOptions<HostingConfiguration> hosting = Substitute.For<IOptions<HostingConfiguration>>();
         hosting.Value.Returns(new HostingConfiguration { Port = 0, Host = "127.0.0.1" });
-        var security = Substitute.For<IOptions<HostingSecurity>>();
+        IOptions<HostingSecurity> security = Substitute.For<IOptions<HostingSecurity>>();
         security.Value.Returns(new HostingSecurity());
         return new AuthServer(Substitute.For<IServiceProvider>(), Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance, Substitute.For<IAccountRepository>(), _cache, hosting, security);

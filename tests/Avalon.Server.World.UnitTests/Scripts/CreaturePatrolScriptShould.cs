@@ -16,7 +16,7 @@ public class CreaturePatrolScriptShould
     [Fact]
     public void Ask_Locomotion_For_The_Next_Waypoint_Rather_Than_Moving_Itself()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         locomotion.HasArrived(Arg.Any<ICreature>()).Returns(true);
         (CreaturePatrolScript script, ICreature creature) = BuildPatrolScript(locomotion,
             Point(10f), Point(20f));
@@ -35,7 +35,7 @@ public class CreaturePatrolScriptShould
     [Fact]
     public void Not_Recalculate_The_Path_Every_Tick_While_Still_Travelling()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         // Tick 1: nothing requested yet -> "arrived" (trivially) triggers the first MoveTo.
         // Ticks 2-3: still mid-journey -> locomotion reports it has not arrived.
         locomotion.HasArrived(Arg.Any<ICreature>()).Returns(true, false, false);
@@ -57,7 +57,7 @@ public class CreaturePatrolScriptShould
     [Fact]
     public void Advance_To_The_Next_Waypoint_Once_Locomotion_Has_Nothing_Left_To_Walk()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         locomotion.HasArrived(Arg.Any<ICreature>()).Returns(true);
         (CreaturePatrolScript script, ICreature creature) = BuildPatrolScript(locomotion,
             Point(10f), Point(20f));
@@ -78,7 +78,7 @@ public class CreaturePatrolScriptShould
     [Fact]
     public void Wait_At_A_Point_For_Its_Pause_Before_Walking_On()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         locomotion.HasArrived(Arg.Any<ICreature>()).Returns(true);
         (CreaturePatrolScript script, ICreature creature) = BuildPatrolScript(locomotion,
             Point(10f, wait: TimeSpan.FromSeconds(2)), Point(20f));
@@ -104,7 +104,7 @@ public class CreaturePatrolScriptShould
     [Fact]
     public void Not_Claim_To_Be_Walking_While_It_Pauses()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         locomotion.HasArrived(Arg.Any<ICreature>()).Returns(true);
         (CreaturePatrolScript script, ICreature creature) = BuildPatrolScript(locomotion,
             Point(10f, wait: TimeSpan.FromSeconds(5)), Point(20f));
@@ -128,7 +128,7 @@ public class CreaturePatrolScriptShould
     [Fact]
     public void Keep_Patrolling_After_Each_Leg()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         locomotion.HasArrived(Arg.Any<ICreature>()).Returns(true);
         (CreaturePatrolScript script, _) = BuildPatrolScript(locomotion, Point(10f), Point(20f));
 
@@ -143,7 +143,7 @@ public class CreaturePatrolScriptShould
     [Fact]
     public void Stand_Still_When_The_Creature_Has_No_Path()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         locomotion.HasArrived(Arg.Any<ICreature>()).Returns(true);
         (CreaturePatrolScript script, _) = BuildPatrolScript(locomotion);
 
@@ -365,7 +365,7 @@ public class CreaturePatrolScriptShould
 
             Creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 600));
             Creature.Position.Returns(_ => CreatureAt);
-            var metadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
             metadata.SpeedRun.Returns(4f);
             metadata.SpeedWalk.Returns(2f);
             Creature.Metadata.Returns(metadata);
@@ -420,7 +420,7 @@ public class CreaturePatrolScriptShould
         creature.PatrolPath.Returns(path);
         creature.CurrentHealth = 100;   // alive: a patrol never walks a corpse
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.Locomotion.Returns(locomotion);
 
         var script = new KitPatrolScript(creature, context);

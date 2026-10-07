@@ -49,16 +49,16 @@ public class CreatureRangeDetectorScript : AiScript
 
         _searchTimer = 0.0f;
 
-        var characters = Context.Characters.Values;
-        foreach (var character in characters)
+        IEnumerable<ICharacter> characters = Context.Characters.Values;
+        foreach (ICharacter character in characters)
         {
             // Don't aggro on dead characters — they're stuck in the respawn modal until they
             // click the button or force-quit, and the combat handlers already drop their
             // input/attack packets. Aggroing would just queue a kill on a corpse.
             if (character.IsDead) continue;
 
-            var characterPosition = character.Position;
-            var distance = Vector3.Distance(Creature.Position, characterPosition);
+            Vector3 characterPosition = character.Position;
+            float distance = Vector3.Distance(Creature.Position, characterPosition);
             if (distance <= _aggroRange)
             {
                 if (!Context.GetNavigatorForPosition(Creature.Position).HasVisibility(Creature.Position, characterPosition)) continue;

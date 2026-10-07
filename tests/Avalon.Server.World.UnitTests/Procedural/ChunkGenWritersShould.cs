@@ -149,7 +149,7 @@ public class ChunkGenWritersShould
         var group = new ChunkGroupPiece("test_group", [(0, 0, Side.S), (1, 1, Side.N)],
             [new CylinderBlocker(45, 45, 2)], [new Slot("pack", 40, 10), new Slot("leader", 10, 40)], ["forest"]);
 
-        List<(ChunkPiece Piece, int CellX, int CellZ)> members = group.Members().ToList();
+        var members = group.Members().ToList();
 
         Assert.Equal(["test_group_sw", "test_group_se", "test_group_nw", "test_group_ne"], members.Select(m => m.Piece.Name));
         ChunkPiece ne = members.Single(m => m.CellX == 1 && m.CellZ == 1).Piece;
@@ -170,7 +170,7 @@ public class ChunkGenWritersShould
     [InlineData(10f, float.PositiveInfinity)]
     public void Refuse_a_group_blocker_whose_bounds_are_not_finite(float x, float z)
     {
-        var refusal = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException refusal = Assert.Throws<InvalidOperationException>(() =>
             new ChunkGroupPiece("bad", [(0, 0, Side.S)], [new CylinderBlocker(x, z, 2)], [], ["forest"]).Members().ToList());
         Assert.Contains("not finite", refusal.Message, StringComparison.Ordinal);
     }
@@ -191,9 +191,9 @@ public class ChunkGenWritersShould
     [Fact]
     public void Refuse_a_single_piece_blocker_outside_its_cell()
     {
-        var piece = Sample with { Name = "bad", Blockers = [new BoxBlocker(25, 32, 5, 10)] };
+        ChunkPiece piece = Sample with { Name = "bad", Blockers = [new BoxBlocker(25, 32, 5, 10)] };
 
-        var refusal = Assert.Throws<InvalidOperationException>(() => ChunkFiles.For([piece]));
+        InvalidOperationException refusal = Assert.Throws<InvalidOperationException>(() => ChunkFiles.For([piece]));
         Assert.Contains("bad", refusal.Message, StringComparison.Ordinal);
     }
 
@@ -203,7 +203,7 @@ public class ChunkGenWritersShould
     [InlineData(float.NaN, 5f)]
     public void Refuse_a_single_piece_slot_outside_its_cell(float x, float z)
     {
-        var piece = Sample with { Name = "bad", Slots = [new Slot("pack", x, z)] };
+        ChunkPiece piece = Sample with { Name = "bad", Slots = [new Slot("pack", x, z)] };
 
         Assert.Throws<InvalidOperationException>(() => ChunkFiles.For([piece]));
     }
@@ -231,7 +231,7 @@ public class ChunkGenWritersShould
     public void Refuse_a_piece_within_two_metres_of_a_wall()
     {
         // A crate 0.75 m from Wall_S (Z -0.25..0.25).
-        var refusal = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException refusal = Assert.Throws<InvalidOperationException>(() =>
             TownRules.Check(Square(new BoxPiece("Crate", "crate", Material.Wood, 10, 11, 1, 2, 0, 1))));
         Assert.Contains("Wall_S", refusal.Message, StringComparison.Ordinal);
     }
@@ -304,11 +304,11 @@ public class ChunkGenWritersShould
         string[] lines = obj.Split('\n');
 
         Assert.Equal("# Avalon chunk: town_test_01", lines[0]);
-        List<string> objects = lines.Where(l => l.StartsWith("o ", StringComparison.Ordinal)).Select(l => l[2..]).ToList();
+        var objects = lines.Where(l => l.StartsWith("o ", StringComparison.Ordinal)).Select(l => l[2..]).ToList();
         Assert.Equal(["Floor", "Wall_N_L", "Wall_N_R", "Wall_E_L", "Wall_E_R", "Wall_S", "Wall_W",
             "House_body", "House_roof", "House_post_1", "House_post_2", "House_porch_deck"], objects);
 
-        List<string> materials = lines.Where(l => l.StartsWith("usemtl ", StringComparison.Ordinal)).Select(l => l[7..]).ToList();
+        var materials = lines.Where(l => l.StartsWith("usemtl ", StringComparison.Ordinal)).Select(l => l[7..]).ToList();
         Assert.Equal(["stone", "stone", "stone", "stone", "stone", "stone", "plaster", "roof", "wood", "wood", "wood"], materials);
         Assert.DoesNotContain(lines, l => l.StartsWith("mtllib", StringComparison.Ordinal));
 
@@ -337,7 +337,7 @@ public class ChunkGenWritersShould
         List<Vector3> vertices = Vertices(ObjWriter.Write(SampleSquare))["House_roof"];
 
         Assert.Equal(6, vertices.Count);
-        List<Vector3> ridge = vertices.Where(v => v.y == 5f).ToList();
+        var ridge = vertices.Where(v => v.y == 5f).ToList();
         Assert.Equal(2, ridge.Count);
         Assert.All(ridge, v => Assert.Equal(7f, v.x));          // the footprint is 6.6 x 8.6: the ridge runs along Z, at the X middle
         Assert.Equal([3.7f, 12.3f], ridge.Select(v => v.z).Order());

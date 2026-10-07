@@ -356,7 +356,7 @@ public class EffectBroadcastRadiusShould
 
     private static IAbility Ability()
     {
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(532));
         ability.Metadata.Returns(new AbilityMetadata { AnimationId = 3u, CastTime = 1000f });
         return ability;

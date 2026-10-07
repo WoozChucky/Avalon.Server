@@ -30,7 +30,7 @@ public sealed class GameContextRevocations(IReplicatedCache cache, ILogger<GameC
     {
         accountId = null!; contextId = default;
         if (message.Length > MaximumMessageCharacters) return false;
-        var parts = message.Split('|');
+        string[] parts = message.Split('|');
         if (parts.Length != 2 || !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out long id) || id <= 0 ||
             id.ToString(CultureInfo.InvariantCulture) != parts[0] || parts[1].Length != 32 || !Guid.TryParseExact(parts[1], "N", out contextId)) return false;
         accountId = new AccountId(id); return true;

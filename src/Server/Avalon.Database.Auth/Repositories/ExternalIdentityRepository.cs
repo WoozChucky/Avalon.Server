@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace Avalon.Database.Auth.Repositories;
@@ -28,7 +29,7 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
 {
     public async Task<ExternalIdentity?> FindAsync(string provider, string subject, CancellationToken cancellationToken = default)
     {
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(
             x => x.Provider == provider && x.ProviderSubject == subject, cancellationToken);
     }
@@ -39,8 +40,8 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
         if (string.IsNullOrWhiteSpace(provider) || provider.Length > 32 ||
             string.IsNullOrWhiteSpace(subject) || subject.Length > 128)
             throw new ArgumentException("Invalid provider identity shape.");
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        var conflict = await FindConflictAsync(db, accountId, provider, subject, cancellationToken);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        IdentityLinkResult? conflict = await FindConflictAsync(db, accountId, provider, subject, cancellationToken);
         if (conflict is not null) return conflict;
         var identity = new ExternalIdentity
         {
@@ -59,8 +60,8 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
         catch (DbUpdateException error) when (error.InnerException is not PostgresException pg || pg.SqlState == PostgresErrorCodes.UniqueViolation)
         {
             // A competing insert may have won either unique index. Query in a fresh context after the failed write.
-            await using var read = await factory.CreateDbContextAsync(cancellationToken);
-            var raced = await FindConflictAsync(read, accountId, provider, subject, cancellationToken);
+            await using AuthDbContext read = await factory.CreateDbContextAsync(cancellationToken);
+            IdentityLinkResult? raced = await FindConflictAsync(read, accountId, provider, subject, cancellationToken);
             if (raced is null) throw;
             return raced;
         }
@@ -73,30 +74,30 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
             operation.Provider != operation.Provider.Trim() || string.IsNullOrWhiteSpace(operation.Subject) || operation.Subject.Length > 128 || operation.Subject != operation.Subject.Trim() ||
             operation.SessionEpoch < 0 || operation.SessionEpoch == long.MaxValue)
             throw new ArgumentException("Invalid identity link operation.");
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         bool ProofExpired() => operation.ProofExpiresAt.Kind != DateTimeKind.Utc ||
             operation.ProofExpiresAt <= (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
-        var current = await AccountRepository.HoldGameAuthorityAsync(db, operation.AccountId,
+        bool current = await AccountRepository.HoldGameAuthorityAsync(db, operation.AccountId,
             operation.CredentialsVersion, operation.SessionEpoch, now, cancellationToken);
         if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
         if (!current)
         {
             // A response can be lost after PostgreSQL commits and before Redis publishes the result.
             // Only the exact durable operation may finish that link at the epoch it advanced.
-            var retry = await AccountRepository.HoldGameAuthorityAsync(db, operation.AccountId,
+            bool retry = await AccountRepository.HoldGameAuthorityAsync(db, operation.AccountId,
                 operation.CredentialsVersion, operation.SessionEpoch + 1, now, cancellationToken);
             if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
-            var completed = retry ? await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(
+            ExternalIdentity? completed = retry ? await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(
                 x => x.Id == operation.OperationId && x.AccountId == operation.AccountId &&
                      x.Provider == operation.Provider && x.ProviderSubject == operation.Subject, cancellationToken) : null;
             return new(completed is null ? IdentityLinkStatus.AuthorityChanged : IdentityLinkStatus.AlreadyLinked, completed);
         }
-        var confirmedMfa = await db.MfaSetups.AsNoTracking().Where(x => x.AccountId == operation.AccountId &&
+        Guid? confirmedMfa = await db.MfaSetups.AsNoTracking().Where(x => x.AccountId == operation.AccountId &&
             x.Status == MfaSetupStatus.Confirmed).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(cancellationToken);
         if (confirmedMfa != operation.ConfirmedMfaId) return new(IdentityLinkStatus.AuthorityChanged, null);
-        var conflict = await FindConflictAsync(db, operation.AccountId, operation.Provider, operation.Subject, cancellationToken);
+        IdentityLinkResult? conflict = await FindConflictAsync(db, operation.AccountId, operation.Provider, operation.Subject, cancellationToken);
         if (conflict is not null) return conflict;
         var identity = new ExternalIdentity
         {
@@ -119,8 +120,8 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
         catch (DbUpdateException error) when (error.InnerException is not PostgresException pg || pg.SqlState == PostgresErrorCodes.UniqueViolation)
         {
             await transaction.RollbackAsync(cancellationToken);
-            await using var read = await factory.CreateDbContextAsync(cancellationToken);
-            var raced = await FindConflictAsync(read, operation.AccountId, operation.Provider, operation.Subject, cancellationToken);
+            await using AuthDbContext read = await factory.CreateDbContextAsync(cancellationToken);
+            IdentityLinkResult? raced = await FindConflictAsync(read, operation.AccountId, operation.Provider, operation.Subject, cancellationToken);
             if (raced is null) throw;
             return raced;
         }
@@ -128,11 +129,11 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
     private static async Task<IdentityLinkResult?> FindConflictAsync(AuthDbContext db, AccountId accountId,
         string provider, string subject, CancellationToken cancellationToken)
     {
-        var subjectLink = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(
+        ExternalIdentity? subjectLink = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(
             x => x.Provider == provider && x.ProviderSubject == subject, cancellationToken);
         if (subjectLink is not null)
             return new(subjectLink.AccountId == accountId ? IdentityLinkStatus.AlreadyLinked : IdentityLinkStatus.SubjectTaken, subjectLink);
-        var accountLink = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(
+        ExternalIdentity? accountLink = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(
             x => x.Provider == provider && x.AccountId == accountId, cancellationToken);
         return accountLink is null ? null : new(IdentityLinkStatus.AccountProviderTaken, accountLink);
     }

@@ -19,7 +19,7 @@ public class EntityDirtyFlagShould
 
         c.CurrentHealth = 80u;
 
-        var dirty = c.ConsumeDirtyFields();
+        GameEntityFields dirty = c.ConsumeDirtyFields();
         Assert.True(dirty.HasFlag(GameEntityFields.CurrentHealth));
     }
 
@@ -115,7 +115,7 @@ public class EntityDirtyFlagShould
         c.CurrentHealth = 50u;
         c.Position = new Vector3(5, 0, 5);
 
-        var dirty = c.ConsumeDirtyFields();
+        GameEntityFields dirty = c.ConsumeDirtyFields();
         Assert.True(dirty.HasFlag(GameEntityFields.CurrentHealth));
         Assert.True(dirty.HasFlag(GameEntityFields.Position));
     }
@@ -128,7 +128,7 @@ public class EntityDirtyFlagShould
         c.CurrentHealth = 70u;
         c.ConsumeDirtyFields(); // first consume clears
 
-        var second = c.ConsumeDirtyFields();
+        GameEntityFields second = c.ConsumeDirtyFields();
         Assert.False(second.HasFlag(GameEntityFields.CurrentHealth));
     }
 
@@ -197,7 +197,7 @@ public class EntityDirtyFlagShould
         c.ConsumeDirtyFields();
         c.CurrentHealth = 50u;
         c.MoveState = MoveState.Running;
-        var dirty = c.ConsumeDirtyFields();
+        GameEntityFields dirty = c.ConsumeDirtyFields();
         Assert.True(dirty.HasFlag(GameEntityFields.CurrentHealth));
         Assert.True(dirty.HasFlag(GameEntityFields.MoveState));
     }

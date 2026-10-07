@@ -78,7 +78,7 @@ public class MapInstanceAbilityCastShould
 
     private static IAbility HealAbility()
     {
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(232));
         ability.Metadata.Returns(new AbilityMetadata { Name = "Heal", ScriptName = "x" });
         return ability;
@@ -86,7 +86,7 @@ public class MapInstanceAbilityCastShould
 
     private static IAbility DamageAbility(uint id)
     {
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(id));
         ability.Metadata.Returns(new AbilityMetadata { Name = "Strike", ScriptName = "x" });
         return ability;
@@ -120,7 +120,7 @@ public class MapInstanceAbilityCastShould
         MapInstanceClient victim = Join(instance, 164_121);
         victim.Character.Health = 100;
         victim.Character.CurrentHealth = 100;
-        var attacker = Substitute.For<ICreature>();
+        ICreature attacker = Substitute.For<ICreature>();
         attacker.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_900u));
 
         instance.CombatService.ApplyDamage(attacker, victim.Character, 10, DamageAbility(id: 211));
@@ -138,7 +138,7 @@ public class MapInstanceAbilityCastShould
         MapInstanceClient victim = Join(instance, 164_131);
         victim.Character.Health = 100;
         victim.Character.CurrentHealth = 100;
-        var attacker = Substitute.For<ICreature>();
+        ICreature attacker = Substitute.For<ICreature>();
         attacker.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_901u));
 
         instance.CombatService.ApplyDamage(attacker, victim.Character, 10);
@@ -155,7 +155,7 @@ public class MapInstanceAbilityCastShould
         using MapInstance instance = TestMapInstances.Build(NewWorld());
         MapInstanceClient caster = Join(instance, 164_101);
         MapInstanceClient watcher = Join(instance, 164_102);
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(211));
         ability.Metadata.Returns(new AbilityMetadata { Name = "Flame Burst", ScriptName = "x", CastTime = 0.75f });
         ability.CastTimeTimer.Returns(0.6f);   // #627: the time the cast system set, haste included
@@ -254,7 +254,7 @@ public class MapInstanceAbilityCastShould
             Health = 100,
             CurrentHealth = 100,
         };
-        var ai = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
+        AiScript ai = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
         creature.Script = ai;   // a creature takes its damage through its script
         instance.AddCreature(creature);
         caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f))]);

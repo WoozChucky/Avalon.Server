@@ -46,7 +46,7 @@ public class AbilityTemplateController : BaseController
             PageSize = pageSize is < 1 or > 50 ? 50 : pageSize,
         };
 
-        var result = await _repository.PaginateAsync(filter, track: false, ct);
+        PagedResult<AbilityTemplate> result = await _repository.PaginateAsync(filter, track: false, ct);
         return result.MapTo(ToDto);
     }
 
@@ -55,7 +55,7 @@ public class AbilityTemplateController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get([FromRoute] uint id, CancellationToken ct)
     {
-        var template = await _repository.FindByIdAsync(new AbilityId(id), track: false, ct);
+        AbilityTemplate? template = await _repository.FindByIdAsync(new AbilityId(id), track: false, ct);
         if (template is null)
             return NotFound();
 

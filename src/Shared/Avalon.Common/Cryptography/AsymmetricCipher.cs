@@ -2,10 +2,12 @@ using System.Security.Cryptography;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.EC;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509;
@@ -24,12 +26,12 @@ public class AsymmetricCipher
             case 128:
             {
                 // Use a curve with a 128-bit security level
-                var curve = CustomNamedCurves.GetByName("secp128r1");
+                X9ECParameters curve = CustomNamedCurves.GetByName("secp128r1");
                 var domainParams = new ECDomainParameters(curve.Curve, curve.G, curve.N, curve.H);
 
                 // Generate key pairs
                 var keyGenerationParameters = new ECKeyGenerationParameters(domainParams, new SecureRandom());
-                var keyPairGenerator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
+                IAsymmetricCipherKeyPairGenerator keyPairGenerator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
                 keyPairGenerator.Init(keyGenerationParameters);
 
                 return keyPairGenerator.GenerateKeyPair();
@@ -40,7 +42,7 @@ public class AsymmetricCipher
             {
                 // Use a curve with a 256-bit security level
                 var keyGenParams = new ECKeyGenerationParameters(SecObjectIdentifiers.SecP256r1, new SecureRandom());
-                var keyPairGen = GeneratorUtilities.GetKeyPairGenerator("ECDH");
+                IAsymmetricCipherKeyPairGenerator keyPairGen = GeneratorUtilities.GetKeyPairGenerator("ECDH");
                 keyPairGen.Init(keyGenParams);
 
                 return keyPairGen.GenerateKeyPair();
@@ -58,7 +60,7 @@ public class AsymmetricCipher
 
     public static byte[] GetPublicKeyBytes(ECPublicKeyParameters publicKey)
     {
-        var publicKeyInfo = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(publicKey);
+        SubjectPublicKeyInfo publicKeyInfo = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(publicKey);
         return publicKeyInfo.GetDerEncoded();
     }
 
@@ -95,7 +97,7 @@ public class AsymmetricCipher
         if (!IsExpectedCurve(publicKey.Parameters))
             throw new CryptographicException("Invalid public key: not on P-256");
 
-        var point = publicKey.Q;
+        Org.BouncyCastle.Math.EC.ECPoint point = publicKey.Q;
 
         if (point == null || point.IsInfinity)
             throw new CryptographicException("Invalid public key: point at infinity");
@@ -111,7 +113,7 @@ public class AsymmetricCipher
 
     private static bool IsExpectedCurve(ECDomainParameters parameters)
     {
-        var expected = CustomNamedCurves.GetByName(P256);
+        X9ECParameters expected = CustomNamedCurves.GetByName(P256);
 
         return parameters != null
                && parameters.Curve.Equals(expected.Curve)
@@ -129,7 +131,7 @@ public class AsymmetricCipher
         agreement.Init(ownKeyPair.Private);
 
         // Calculate the shared secret using the other end's public key
-        var secret = agreement.CalculateAgreement(otherPublicKey);
+        BigInteger secret = agreement.CalculateAgreement(otherPublicKey);
 
         // FIXED WIDTH, leading zeros kept. A P-256 x-coordinate is a 256-bit number, so about one in
         // 256 of them has a zero top byte -- and a minimal encoding drops it, yielding 31 bytes where

@@ -47,9 +47,9 @@ public class JwtUtilsShould
     public void EmitPlayerGroupSidClaim_WhenAccountHasPlayerFlagOnly()
     {
         var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
-        var token = sut.GenerateJwtToken(MakeAccount(AccountAccessLevel.Player));
+        string token = sut.GenerateJwtToken(MakeAccount(AccountAccessLevel.Player));
 
-        var groupSids = ReadGroupSids(token);
+        string[] groupSids = ReadGroupSids(token);
 
         Assert.Contains("Player", groupSids);
     }
@@ -58,10 +58,10 @@ public class JwtUtilsShould
     public void EmitAllMatchingGroupSidClaims_WhenAccountHasMultipleFlags()
     {
         var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
-        var token = sut.GenerateJwtToken(MakeAccount(
+        string token = sut.GenerateJwtToken(MakeAccount(
             AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
 
-        var groupSids = ReadGroupSids(token);
+        string[] groupSids = ReadGroupSids(token);
 
         Assert.Contains("Player", groupSids);
         Assert.Contains("GameMaster", groupSids);
@@ -72,11 +72,11 @@ public class JwtUtilsShould
     public void EmitLauncherFamilyOnlyForLauncherToken()
     {
         var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
-        var account = MakeAccount(AccountAccessLevel.Player);
+        Account account = MakeAccount(AccountAccessLevel.Player);
         var familyId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
 
-        var website = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateJwtToken(account));
-        var launcher = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateLauncherJwtToken(account, familyId));
+        JwtSecurityToken website = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateJwtToken(account));
+        JwtSecurityToken launcher = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateLauncherJwtToken(account, familyId));
 
         Assert.DoesNotContain(website.Claims, claim => claim.Type == JwtUtils.LauncherFamilyClaim);
         Assert.Equal(familyId.ToString(), launcher.Claims.Single(claim => claim.Type == JwtUtils.LauncherFamilyClaim).Value);

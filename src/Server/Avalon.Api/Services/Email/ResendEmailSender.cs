@@ -27,10 +27,10 @@ public sealed class ResendEmailSender(HttpClient http, EmailConfig config) : IEm
         });
         try
         {
-            using var response = await http.SendAsync(request, ct);
+            using HttpResponseMessage response = await http.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode) throw new EmailDeliveryException();
-            using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            if (json.RootElement.ValueKind != JsonValueKind.Object || !json.RootElement.TryGetProperty("id", out var id)
+            using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            if (json.RootElement.ValueKind != JsonValueKind.Object || !json.RootElement.TryGetProperty("id", out JsonElement id)
                 || id.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(id.GetString()))
                 throw new EmailDeliveryException();
         }

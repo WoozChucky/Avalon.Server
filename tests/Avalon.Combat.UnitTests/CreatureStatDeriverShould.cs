@@ -38,7 +38,7 @@ public class CreatureStatDeriverShould
         uint? exp = null,
         float armor = 1f)
     {
-        var template = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata template = Substitute.For<ICreatureMetadata>();
         template.ArmorModifier.Returns(armor);
         template.Rarity.Returns(rarity);
         template.HealthModifier.Returns(health);

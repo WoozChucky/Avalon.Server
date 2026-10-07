@@ -57,7 +57,7 @@ public class TownNpcPlacementShould
 
     private static TownGeometry ReadTown()
     {
-        using JsonDocument layout = JsonDocument.Parse(File.ReadAllText(Path.Combine(MapsDir, "TownLayouts", "1.json")));
+        using var layout = JsonDocument.Parse(File.ReadAllText(Path.Combine(MapsDir, "TownLayouts", "1.json")));
         float cellSize = layout.RootElement.GetProperty("cellSize").GetSingle();
         Vector3? entry = null;
         var walls = new List<WallBox>();
@@ -152,7 +152,7 @@ public class TownNpcPlacementShould
         File.WriteAllText(combined, sb.ToString());
         try
         {
-            var result = new TileNavMeshBuilder().Build(RcSampleInputGeomProvider.LoadFile(combined), NavmeshBuildSettings.Create());
+            NavMeshBuildResult result = new TileNavMeshBuilder().Build(RcSampleInputGeomProvider.LoadFile(combined), NavmeshBuildSettings.Create());
             Assert.NotNull(result?.NavMesh);
             return result!.NavMesh;
         }
@@ -167,9 +167,9 @@ public class TownNpcPlacementShould
 
     private static List<MapCreatureSpawn> ReadTownSpawns()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<MapCreatureSpawn> spawns = context.MapCreatureSpawns.AsNoTracking().ToList()
+        var spawns = context.MapCreatureSpawns.AsNoTracking().ToList()
             .Where(s => s.MapTemplateId.Value == 1).ToList();
         Assert.NotEmpty(spawns);
         return spawns;

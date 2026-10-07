@@ -18,15 +18,15 @@ public class DialogueSeedShould
     [Fact]
     public void Point_Every_Node_At_A_Real_Creature_Template_And_A_Real_String()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<DialogueNode> nodes = context.DialogueNodes.AsNoTracking().ToList();
+        var nodes = context.DialogueNodes.AsNoTracking().ToList();
         Assert.NotEmpty(nodes);
 
-        HashSet<ulong> templates = context.CreatureTemplates.AsNoTracking().ToList()
+        var templates = context.CreatureTemplates.AsNoTracking().ToList()
             .Select(t => t.Id.Value).ToHashSet();
-        HashSet<int> texts = context.LocalizedTexts.AsNoTracking().ToList()
+        var texts = context.LocalizedTexts.AsNoTracking().ToList()
             .Select(t => t.Id.Value).ToHashSet();
 
         foreach (DialogueNode node in nodes)
@@ -44,15 +44,15 @@ public class DialogueSeedShould
     {
         // A node with no options leaves the client showing text it cannot dismiss — a soft-lock
         // the server cannot detect and the player cannot escape.
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<int> nodeIds = context.DialogueNodes.AsNoTracking().ToList()
+        var nodeIds = context.DialogueNodes.AsNoTracking().ToList()
             .Select(n => n.Id.Value).ToList();
-        HashSet<int> nodesWithOptions = context.DialogueOptions.AsNoTracking().ToList()
+        var nodesWithOptions = context.DialogueOptions.AsNoTracking().ToList()
             .Select(o => o.NodeId.Value).ToHashSet();
 
-        List<int> dangling = nodeIds.Where(id => !nodesWithOptions.Contains(id)).ToList();
+        var dangling = nodeIds.Where(id => !nodesWithOptions.Contains(id)).ToList();
 
         Assert.True(dangling.Count == 0,
             "these dialogue nodes offer no options, so a player cannot dismiss them: "
@@ -62,15 +62,15 @@ public class DialogueSeedShould
     [Fact]
     public void Resolve_Every_Option_Target_And_Text()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<DialogueOption> options = context.DialogueOptions.AsNoTracking().ToList();
+        var options = context.DialogueOptions.AsNoTracking().ToList();
         Assert.NotEmpty(options);
 
-        HashSet<int> nodeIds = context.DialogueNodes.AsNoTracking().ToList()
+        var nodeIds = context.DialogueNodes.AsNoTracking().ToList()
             .Select(n => n.Id.Value).ToHashSet();
-        HashSet<int> texts = context.LocalizedTexts.AsNoTracking().ToList()
+        var texts = context.LocalizedTexts.AsNoTracking().ToList()
             .Select(t => t.Id.Value).ToHashSet();
 
         foreach (DialogueOption option in options)
@@ -89,13 +89,13 @@ public class DialogueSeedShould
     [Fact]
     public void Give_Exactly_One_Root_To_Every_Creature_That_Talks()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        var byTemplate = context.DialogueNodes.AsNoTracking().ToList()
+        IEnumerable<IGrouping<ulong, DialogueNode>> byTemplate = context.DialogueNodes.AsNoTracking().ToList()
             .GroupBy(n => n.CreatureTemplateId.Value);
 
-        foreach (var group in byTemplate)
+        foreach (IGrouping<ulong, DialogueNode> group in byTemplate)
         {
             int roots = group.Count(n => n.IsRoot);
             Assert.True(roots == 1,
@@ -107,11 +107,11 @@ public class DialogueSeedShould
     public void Leave_No_Node_Unreachable_From_Its_Root()
     {
         // Orphan content is invisible: it ships, costs translation effort, and no player sees it.
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<DialogueNode> nodes = context.DialogueNodes.AsNoTracking().ToList();
-        List<DialogueOption> options = context.DialogueOptions.AsNoTracking().ToList();
+        var nodes = context.DialogueNodes.AsNoTracking().ToList();
+        var options = context.DialogueOptions.AsNoTracking().ToList();
 
         var reachable = new HashSet<int>();
         var queue = new Queue<int>(nodes.Where(n => n.IsRoot).Select(n => n.Id.Value));
@@ -127,7 +127,7 @@ public class DialogueSeedShould
             }
         }
 
-        List<int> orphans = nodes.Select(n => n.Id.Value).Where(id => !reachable.Contains(id)).ToList();
+        var orphans = nodes.Select(n => n.Id.Value).Where(id => !reachable.Contains(id)).ToList();
 
         Assert.True(orphans.Count == 0,
             "these dialogue nodes cannot be reached from any root: " + string.Join(", ", orphans));
@@ -137,13 +137,13 @@ public class DialogueSeedShould
     public void Name_Every_Character_Class()
     {
         // A class with no name row renders {class} as nothing at all.
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        HashSet<CharacterClass> named = context.CharacterClassNames.AsNoTracking().ToList()
+        var named = context.CharacterClassNames.AsNoTracking().ToList()
             .Select(n => n.Class).ToHashSet();
 
-        List<CharacterClass> missing = Enum.GetValues<CharacterClass>()
+        var missing = Enum.GetValues<CharacterClass>()
             .Where(c => !named.Contains(c)).ToList();
 
         Assert.True(missing.Count == 0,
@@ -156,16 +156,16 @@ public class DialogueSeedShould
     {
         // ptPT is the seeded account's locale. Seeding it fully means the translation path runs
         // against shipped data rather than only against test fixtures.
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        HashSet<int> all = context.LocalizedTexts.AsNoTracking().ToList()
+        var all = context.LocalizedTexts.AsNoTracking().ToList()
             .Select(t => t.Id.Value).ToHashSet();
-        HashSet<int> translated = context.LocalizedTextLocales.AsNoTracking().ToList()
+        var translated = context.LocalizedTextLocales.AsNoTracking().ToList()
             .Where(l => l.Locale == AccountLocale.ptPT)
             .Select(l => l.TextId.Value).ToHashSet();
 
-        List<int> untranslated = all.Where(id => !translated.Contains(id)).ToList();
+        var untranslated = all.Where(id => !translated.Contains(id)).ToList();
 
         Assert.True(untranslated.Count == 0,
             "these strings have no ptPT translation: " + string.Join(", ", untranslated));
@@ -177,7 +177,7 @@ public class DialogueSeedShould
     public void Use_Only_Known_Tokens_In_Every_String()
     {
         // A typo like {nmae} otherwise ships and is discovered by a player, in one language.
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         var offenders = new List<string>();
@@ -211,10 +211,10 @@ public class DialogueSeedShould
         // A translator dropping {name} is a silent content bug visible only in that language.
         // Gender selects are deliberately NOT compared: they are per-language grammar, and
         // Portuguese needs {g:vindo|vinda} in a greeting where English needs nothing at all.
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        Dictionary<int, string> baseTexts = context.LocalizedTexts.AsNoTracking().ToList()
+        var baseTexts = context.LocalizedTexts.AsNoTracking().ToList()
             .ToDictionary(t => t.Id.Value, t => t.Text);
 
         var mismatches = new List<string>();
@@ -223,8 +223,8 @@ public class DialogueSeedShould
         {
             if (!baseTexts.TryGetValue(locale.TextId.Value, out string? baseText)) continue;
 
-            HashSet<string> expected = ValueTokens(baseText).ToHashSet();
-            HashSet<string> actual = ValueTokens(locale.Text).ToHashSet();
+            var expected = ValueTokens(baseText).ToHashSet();
+            var actual = ValueTokens(locale.Text).ToHashSet();
 
             if (!expected.SetEquals(actual))
             {
@@ -246,7 +246,7 @@ public class DialogueSeedShould
         // {g:o|a} needs exactly one '|' to split its two branches. Either branch may be empty
         // (Caçador{g:|a} has no masculine suffix, and that is correct), but zero or two-or-more
         // separators — {g:vindo} or {g:o|a|x} — render literally to players, in one language.
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         var offenders = new List<string>();

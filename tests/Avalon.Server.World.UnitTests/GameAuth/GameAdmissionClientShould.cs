@@ -11,7 +11,7 @@ public sealed class GameAdmissionClientShould
     [Fact]
     public void Refuse_admission_configuration_without_an_explicit_API_certificate_pin()
     {
-        var options = Options();
+        GameAdmissionOptions options = Options();
         options.ApiCertificateSha256 = string.Empty;
         Assert.False(options.IsValid());
     }
@@ -47,7 +47,7 @@ public sealed class GameAdmissionClientShould
     [Fact]
     public async Task Retry_only_the_exact_redemption_and_never_admit_a_pending_receipt()
     {
-        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); var receipt = Receipt(connection, redemption);
+        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); JoinRedemptionReceipt receipt = Receipt(connection, redemption);
         using var handler = new RecordingHandler((call, _) => call switch
         {
             1 => Json(JoinRedemptionReceipt.Failure("IN_PROGRESS"), HttpStatusCode.Conflict),
@@ -56,7 +56,7 @@ public sealed class GameAdmissionClientShould
         });
         using var http = new HttpClient(handler);
         var client = new GameAdmissionClient(http, Options(), TimeProvider.System);
-        var result = await client.AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
+        WorldAdmissionResult result = await client.AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
         Assert.NotNull(result.Lease); Assert.Null(result.Error);
         Assert.Equal(handler.Bodies[0], handler.Bodies[1]);
         Assert.Equal("/internal/game/sessions/activate", handler.Paths[2]);
@@ -69,7 +69,7 @@ public sealed class GameAdmissionClientShould
     [InlineData("world")]
     public async Task Never_activate_a_receipt_for_another_workload_or_connection(string mismatch)
     {
-        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); var receipt = Receipt(connection, redemption);
+        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); JoinRedemptionReceipt receipt = Receipt(connection, redemption);
         receipt = mismatch switch
         {
             "server" => receipt with { ServerId = "world-two" },
@@ -79,15 +79,15 @@ public sealed class GameAdmissionClientShould
         };
         using var handler = new RecordingHandler((_, _) => Json(receipt));
         using var http = new HttpClient(handler);
-        var result = await new GameAdmissionClient(http, Options(), TimeProvider.System).AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
+        WorldAdmissionResult result = await new GameAdmissionClient(http, Options(), TimeProvider.System).AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
         Assert.Null(result.Lease); Assert.Equal("INVALID_ADMISSION", result.Error);
         Assert.Single(handler.Paths);
     }
     [Fact]
     public async Task Reject_success_shaped_http_error_and_oversized_body_and_redirect()
     {
-        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); var receipt = Receipt(connection, redemption);
-        foreach (var mode in new[] { "error", "large", "redirect" })
+        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); JoinRedemptionReceipt receipt = Receipt(connection, redemption);
+        foreach (string? mode in new[] { "error", "large", "redirect" })
         {
             using var handler = new RecordingHandler((_, _) => mode switch
             {
@@ -96,17 +96,17 @@ public sealed class GameAdmissionClientShould
                 _ => new(HttpStatusCode.TemporaryRedirect) { Headers = { Location = new Uri("https://attacker.example/") } }
             });
             using var http = new HttpClient(handler);
-            var result = await new GameAdmissionClient(http, Options(), TimeProvider.System).AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
+            WorldAdmissionResult result = await new GameAdmissionClient(http, Options(), TimeProvider.System).AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
             Assert.Null(result.Lease); Assert.Equal("SERVICE_UNAVAILABLE", result.Error); Assert.Single(handler.Paths);
         }
     }
     [Fact]
     public async Task Reject_replaced_identity_during_activation()
     {
-        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); var receipt = Receipt(connection, redemption);
+        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); JoinRedemptionReceipt receipt = Receipt(connection, redemption);
         using var handler = new RecordingHandler((call, _) => call == 1 ? Json(receipt) : Json(Active(receipt) with { AccountId = "43" }));
         using var http = new HttpClient(handler);
-        var result = await new GameAdmissionClient(http, Options(), TimeProvider.System).AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
+        WorldAdmissionResult result = await new GameAdmissionClient(http, Options(), TimeProvider.System).AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
         Assert.Null(result.Lease); Assert.Equal("INVALID_ADMISSION", result.Error);
     }
     private static HttpResponseMessage Json<T>(T value, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = JsonContent.Create(value) };

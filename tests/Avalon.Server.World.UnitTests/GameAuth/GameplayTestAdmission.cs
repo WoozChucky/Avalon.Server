@@ -12,14 +12,14 @@ internal static class GameplayTestAdmission
     {
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using var temporary = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
+        using X509Certificate2 temporary = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
         return new(X509CertificateLoader.LoadPkcs12(temporary.Export(X509ContentType.Pfx), null));
     }
     public static GameSessionLease Admit(Avalon.World.WorldConnection connection, AccountId? account = null, TimeProvider? clock = null)
     {
         clock ??= TimeProvider.System; account ??= connection.AccountId ?? new AccountId(42);
         typeof(Avalon.World.WorldConnection).GetField("_tlsAuthenticated", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(connection, true);
-        var lease = GameSessionLease.TryCreate(new()
+        GameSessionLease lease = GameSessionLease.TryCreate(new()
         {
             State = "active",
             AccountId = account.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),

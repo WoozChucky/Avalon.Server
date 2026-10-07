@@ -20,7 +20,7 @@ internal static class PieceBake
             new ChunkTemplateId(i + 1), (short)c.GridX, (short)c.GridZ, 0,
             new Vector3(c.GridX * ChunkPiece.CellSize, 0f, c.GridZ * ChunkPiece.CellSize))).ToList();
         var layout = new ChunkLayout(0, placed, placed[0], null, [], Vector3.zero, ChunkPiece.CellSize);
-        ChunkLayoutNavmeshBuilder builder = ChunkLayoutNavmeshBuilder.ForTesting(
+        var builder = ChunkLayoutNavmeshBuilder.ForTesting(
             NullLoggerFactory.Instance, new NamesLibrary(chunks.Select(c => c.Name).ToList()), contentRoot);
 
         builder.BuildAsync(layout, CancellationToken.None).GetAwaiter().GetResult();

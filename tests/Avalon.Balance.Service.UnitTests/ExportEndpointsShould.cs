@@ -56,7 +56,7 @@ public class ExportEndpointsShould
         var github = new FakeGitHub();
         await using WebApplication app = Build(github);
         FakeGitHub seeded = GitHubWithDefaults(app.Services.GetRequiredService<BalanceHost>());
-        foreach (var file in seeded.FilesAtCommit)
+        foreach (KeyValuePair<string, (string Sha, string Text)> file in seeded.FilesAtCommit)
             github.FilesAtCommit[file.Key] = file.Value;
         await app.StartAsync();
 
@@ -162,7 +162,7 @@ public class ExportEndpointsShould
         var github = new FakeGitHub { Fail = ("CreateBranch", 403) };
         await using WebApplication app = Build(github);
         FakeGitHub seeded = GitHubWithDefaults(app.Services.GetRequiredService<BalanceHost>());
-        foreach (var file in seeded.FilesAtCommit)
+        foreach (KeyValuePair<string, (string Sha, string Text)> file in seeded.FilesAtCommit)
             github.FilesAtCommit[file.Key] = file.Value;
         await app.StartAsync();
 
@@ -184,7 +184,7 @@ public class ExportEndpointsShould
             ["Balance:GitHubToken"] = Token,
         });
         FakeGitHub seeded = GitHubWithDefaults(app.Services.GetRequiredService<BalanceHost>());
-        foreach (var file in seeded.FilesAtCommit)
+        foreach (KeyValuePair<string, (string Sha, string Text)> file in seeded.FilesAtCommit)
             github.FilesAtCommit[file.Key] = file.Value;
         await app.StartAsync();
         HttpClient client = Client(app);

@@ -1,6 +1,8 @@
 using Avalon.Api.Config;
 using Avalon.Api.Services;
+using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Server.Auth.UnitTests.Services;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -20,10 +22,10 @@ public sealed class StoreAccountRegistrationShould : IDisposable
     [Fact]
     public async Task Create_a_store_only_root_atomically_without_recovery_credentials()
     {
-        var result = await _service.CreateFromSteamAsync(Guid.NewGuid(), "76561198000000001", _clock.GetUtcNow().UtcDateTime.AddMinutes(5), "127.0.0.1", CancellationToken.None);
+        IdentityLinkResult result = await _service.CreateFromSteamAsync(Guid.NewGuid(), "76561198000000001", _clock.GetUtcNow().UtcDateTime.AddMinutes(5), "127.0.0.1", CancellationToken.None);
         Assert.Equal(IdentityLinkStatus.Linked, result.Status);
-        await using var db = _db.CreateDbContext();
-        var root = await db.Accounts.SingleAsync(x => x.Id == result.Identity!.AccountId);
+        await using AuthDbContext db = _db.CreateDbContext();
+        Account root = await db.Accounts.SingleAsync(x => x.Id == result.Identity!.AccountId);
         Assert.True(root.IsStoreGenerated);
         Assert.Null(root.Email); Assert.Empty(root.Salt); Assert.Empty(root.Verifier);
         Assert.Single(await db.StoreAccountCreations.ToListAsync());
@@ -33,7 +35,7 @@ public sealed class StoreAccountRegistrationShould : IDisposable
     public async Task Share_the_creation_budget_and_recover_the_original_operation_without_spending_another_slot()
     {
         var op = Guid.NewGuid();
-        var deadline = _clock.GetUtcNow().UtcDateTime.AddMinutes(5);
+        DateTime deadline = _clock.GetUtcNow().UtcDateTime.AddMinutes(5);
         Assert.Equal(IdentityLinkStatus.Linked, (await _service.CreateFromSteamAsync(op, "76561198000000001", deadline, "127.0.0.1", CancellationToken.None)).Status);
         Assert.Equal(IdentityLinkStatus.AlreadyLinked, (await _service.CreateFromSteamAsync(op, "76561198000000001", deadline, "127.0.0.1", CancellationToken.None)).Status);
         Assert.Equal(IdentityLinkStatus.CreationRefused, (await _service.CreateFromSteamAsync(Guid.NewGuid(), "76561198000000002", deadline, "127.0.0.1", CancellationToken.None)).Status);

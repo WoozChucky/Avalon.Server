@@ -26,19 +26,19 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
 
     public async Task ExecuteAsync(AuthPacketContext<CWorldListPacket> ctx, CancellationToken token = default)
     {
-        var account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
+        Account? account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
             "world list", token);
         if (account == null)
             return;
 
-        var worlds = await _worldRepository.FindAllAsync(false, token);
+        List<Domain.Auth.World> worlds = await _worldRepository.FindAllAsync(false, token);
 
         // A mask test, never "<=": AccountAccessLevel is [Flags] (#447).
         worlds = worlds.Where(w => AccessLevels.ForWorld(w.AccessLevelRequired).Allows(account.AccessLevel)).ToList();
 
         var worldsInfo = new List<WorldInfo>(worlds.Count);
         DateTime nowUtc = _time.GetUtcNow().UtcDateTime;
-        foreach (var w in worlds)
+        foreach (Domain.Auth.World w in worlds)
         {
             bool ready = await _readiness.IsReadyAsync(w.Id.Value, token);
             var state = new WorldMaintenanceState(w.MaintenanceEnabled, w.MaintenanceRevision,

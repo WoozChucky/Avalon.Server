@@ -7,6 +7,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Auras;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Units;
@@ -253,7 +254,7 @@ public class PeriodicCombatShould
         boar.Script = new RecordingAiScript(boar);
         var dodging = new CombatService(new CombatConfig(), _registry, outcomes: _outcomes, time: _time,
             random: new ScriptedCombatRandom(0.0));
-        var ability = Substitute.For<Avalon.World.Public.Abilities.IAbility>();
+        IAbility ability = Substitute.For<Avalon.World.Public.Abilities.IAbility>();
         ability.Metadata.Returns(new Avalon.World.Public.Abilities.AbilityMetadata { Name = "Cleave" });
 
         Assert.Equal(HitOutcome.Dodged, dodging.ApplyDamageWithOutcome(Warrior(), boar, 10, ability));

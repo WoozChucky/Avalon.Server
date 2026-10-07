@@ -425,12 +425,12 @@ public class AuraTickShould
     /// <summary>A combat script over the harness's real combat service, standing at the origin, routes always reaching.</summary>
     private static KitCombatScript ScriptOf(Creature creature, AuraHarness h)
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         Vector3? requested = null;
         locomotion.When(l => l.MoveTo(creature, Arg.Any<Vector3>())).Do(ci => requested = ci.ArgAt<Vector3>(1));
         locomotion.ResolvedDestination(creature).Returns(_ => requested);
         locomotion.HasArrived(creature).Returns(true);
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(h.Combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(new MeleeSlots(6, radius: 1.5f));
@@ -448,7 +448,7 @@ public class AuraTickShould
     {
         var time = new FakeTimeProvider(AuraHarness.T0);
         var pvp = new PvpToggle(Options.Create(new GameConfiguration()), time);
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.MapType.Returns(mapType);
         var combat = new CombatService(new CombatConfig(), new EncounterRegistry(new CombatConfig(), time), instance, pvp,
             time: time);

@@ -102,13 +102,13 @@ public sealed class WorldMaintenanceTickThreadShould
 
     private static void AssertRefusedOffTick(Action call, string operation)
     {
-        var refused = Assert.IsType<InvalidOperationException>(TickThreadGuardProbe.OffThread(call));
+        InvalidOperationException refused = Assert.IsType<InvalidOperationException>(TickThreadGuardProbe.OffThread(call));
         Assert.Contains(operation, refused.Message, StringComparison.Ordinal);
     }
 
     private static IWorldConnection Connection(AccountAccessLevel access)
     {
-        var connection = Substitute.For<IWorldConnection, IMaintenanceBlockable>();
+        IWorldConnection connection = Substitute.For<IWorldConnection, IMaintenanceBlockable>();
         connection.AccountId.Returns(new AccountId(42));
         connection.AccessLevel.Returns(access);
         connection.IsConnected.Returns(true);

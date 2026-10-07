@@ -52,9 +52,9 @@ public class WorldPartyContainmentShould
     {
         using MapInstance town = TestMapInstances.Build(NewWorld(), mapType: MapType.Town);
         MapInstanceClient inTown = Join(town, 700_001);
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([new MapTemplate { Id = TownId, MapType = MapType.Town }]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(town);
         Avalon.World.World world = await BuildAsync(mapManager, factory);
         await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).Published(world);
@@ -92,7 +92,7 @@ public class WorldPartyContainmentShould
         Avalon.World.World world = await BuildAsync();
         (IWorldConnection a, CharacterEntity character) = InParty();
         IMapInstance target = Substitute.For<IMapInstance>();
-        Guid targetId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
         target.InstanceId.Returns(targetId);
         _clock.Broken = true;
 

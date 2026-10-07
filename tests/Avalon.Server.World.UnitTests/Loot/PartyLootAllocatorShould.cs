@@ -44,7 +44,7 @@ public class PartyLootAllocatorShould
     [Fact]
     public void Draw_one_eligible_member_per_drop_in_a_party_instance()
     {
-        var random = new ScriptedCombatRandom().Longs(2, 0);
+        ScriptedCombatRandom random = new ScriptedCombatRandom().Longs(2, 0);
         PartyLootAllocator allocator = Allocator(random);
         ICharacter[] eligible = [Member(1), Member(2), Member(3)];
 
@@ -56,7 +56,7 @@ public class PartyLootAllocatorShould
     [Fact]
     public void Reserve_a_party_drop_for_the_grace_period()
     {
-        var random = new ScriptedCombatRandom().Longs(1);
+        ScriptedCombatRandom random = new ScriptedCombatRandom().Longs(1);
 
         LootAllocation got = Allocator(random).Allocate(null, new PartyId(1), [Member(1), Member(2)]);
 

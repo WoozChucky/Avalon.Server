@@ -40,7 +40,7 @@ public class CMFAConfirmHandlerShould
     [Fact]
     public async Task SendRecoveryCodes_WhenCodeIsValid()
     {
-        var codes = new[] { "code1", "code2", "code3" };
+        string[] codes = new[] { "code1", "code2", "code3" };
         _mfaService.ConfirmMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), "123456", Arg.Any<CancellationToken>())
             .Returns(new MFAConfirmResult(true, codes, MFAOperationResult.Success));
 

@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
@@ -9,6 +10,7 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Items;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Creatures;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -109,7 +111,7 @@ public class MapInstanceItemUseShould
     {
         MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _);
         MapInstanceClient client = Join(instance, 7);
-        var row = AbilityTestData.Circle(1);
+        AbilityTemplate row = AbilityTestData.Circle(1);
         row.Cost = 30;
         row.CostPowerType = PowerType.Mana;
         row.CastTime = castTimeMs;
@@ -282,10 +284,10 @@ public class MapInstanceItemUseShould
         // Once armed, its health reads 100 when the expired summons are gathered and throws when the removal reads it.
         bool armed = false;
         int reads = 0;
-        var broken = Substitute.For<Avalon.World.Public.Creatures.ICreature>();
+        ICreature broken = Substitute.For<Avalon.World.Public.Creatures.ICreature>();
         broken.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 94));
         broken.Name.Returns("Broken");
-        var metadata = Substitute.For<Avalon.World.Public.Creatures.ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<Avalon.World.Public.Creatures.ICreatureMetadata>();
         metadata.Id.Returns(new CreatureTemplateId(4));
         broken.Metadata.Returns(metadata);
         broken.CurrentHealth.Returns(_ => armed && ++reads == 2 ? throw new InvalidOperationException("boom") : 100u);

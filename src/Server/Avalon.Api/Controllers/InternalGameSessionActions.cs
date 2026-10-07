@@ -32,16 +32,16 @@ public sealed partial class InternalGameAdmissionController
     private async Task<IActionResult> SessionAction(GameSessionControlRequest request,
         Func<string, AccountId, Guid, long, CancellationToken, Task<GameSessionLeaseReply>> action, CancellationToken cancellationToken)
     {
-        var serverId = User.FindFirst(GameServerAuthHandler.ServerIdClaim)?.Value;
+        string? serverId = User.FindFirst(GameServerAuthHandler.ServerIdClaim)?.Value;
         if (!Request.IsHttps || serverId is null) return Unauthorized(GameSessionLeaseReply.Failure(GameAuthErrors.WorkloadAuthenticationRequired));
-        if (!long.TryParse(request.AccountId, NumberStyles.None, CultureInfo.InvariantCulture, out var accountId) || accountId <= 0 ||
+        if (!long.TryParse(request.AccountId, NumberStyles.None, CultureInfo.InvariantCulture, out long accountId) || accountId <= 0 ||
             accountId.ToString(CultureInfo.InvariantCulture) != request.AccountId ||
-            !long.TryParse(request.FencingToken, NumberStyles.None, CultureInfo.InvariantCulture, out var fence) || fence <= 0 ||
+            !long.TryParse(request.FencingToken, NumberStyles.None, CultureInfo.InvariantCulture, out long fence) || fence <= 0 ||
             fence.ToString(CultureInfo.InvariantCulture) != request.FencingToken || request.GameSessionId == Guid.Empty)
             return BadRequest(GameSessionLeaseReply.Failure(GameAuthErrors.InvalidRequest));
         try
         {
-            var reply = await action(serverId, new AccountId(accountId), request.GameSessionId, fence, cancellationToken);
+            GameSessionLeaseReply reply = await action(serverId, new AccountId(accountId), request.GameSessionId, fence, cancellationToken);
             return reply.Error switch
             {
                 null => Ok(reply),

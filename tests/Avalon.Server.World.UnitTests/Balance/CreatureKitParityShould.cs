@@ -12,7 +12,7 @@ public class CreatureKitParityShould
     [Fact]
     public void Match_every_script_kit()
     {
-        Dictionary<string, CreatureAbilityKit> scripts = typeof(AggroDefendScript).Assembly.GetTypes()
+        var scripts = typeof(AggroDefendScript).Assembly.GetTypes()
             .Where(t => !t.IsNested)
             .Select(t => (t.Name, Kit: t.GetProperty("Kit", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as CreatureAbilityKit))
             .Where(p => p.Kit is not null)

@@ -42,6 +42,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Org.BouncyCastle.Crypto;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -381,7 +382,7 @@ public class CharacterLeaveShould : IDisposable
             : base(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>())
         {
             // A session reports its public key only once initialized, so each end's is taken from its pair.
-            var clientKeys = AsymmetricCipher.GenerateECDHKeyPair();
+            AsymmetricCipherKeyPair clientKeys = AsymmetricCipher.GenerateECDHKeyPair();
             _client = new AvalonCryptoSession(CryptoRole.Client, clientKeys);
             CryptoSession.Initialize(PublicKey(clientKeys));
             _client.Initialize(PublicKey(ServerCrypto.GetKeyPair()));
@@ -407,7 +408,7 @@ public class CharacterLeaveShould : IDisposable
                 byte[] payload = p.Payload;
                 if (p.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
                 {
-                    var plain = new byte[p.Payload.Length];
+                    byte[] plain = new byte[p.Payload.Length];
                     int length = _client.Decrypt(p.Payload, plain);
                     payload = plain[..length];
                 }
@@ -424,15 +425,15 @@ public class CharacterLeaveShould : IDisposable
     /// <summary>The real world, for its real despawn. It reads the instance registry, which only exists after LoadAsync.</summary>
     private static async Task<Avalon.World.World> LoadedWorldAsync(ICharacterSaver saver, MapInstance? town)
     {
-        var scopedProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider scopedProvider = Substitute.For<IServiceProvider>();
         scopedProvider.GetService(typeof(ICharacterSaver)).Returns(saver);
         scopedProvider.GetService(typeof(IRespawnTargetResolver)).Returns(Substitute.For<IRespawnTargetResolver>());
-        var scope = Substitute.For<IServiceScope>();
+        IServiceScope scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(scopedProvider);
-        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        IServiceScopeFactory scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
 
-        var worldRepository = Substitute.For<IWorldRepository>();
+        IWorldRepository worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Auth.World
             {
@@ -443,45 +444,45 @@ public class CharacterLeaveShould : IDisposable
                 Version = "1.0.0"
             });
 
-        var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<Avalon.Domain.World.CharacterLevelExperience>());
-        var stats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository stats = Substitute.For<IClassLevelStatRepository>();
         stats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<Avalon.Domain.World.ClassLevelStat>());
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(Array.Empty<Avalon.Domain.World.CharacterCreateInfo>());
-        var items = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<Avalon.Domain.World.ItemTemplate>());
-        var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<Avalon.Domain.World.AbilityTemplate>());
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedText>>([]));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedTextLocale>>([]));
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CharacterClassName>>([]));
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.DialogueNode>>([]));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.DialogueOption>>([]));
-        var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
         creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<Avalon.Domain.World.CreatureTemplate>()));
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CreatureBaseStat>>(
                 [new Avalon.Domain.World.CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CreatureRarityModifier>>([]));
 
         // The town, when a test has one, is what the registry builds for map template 1.
-        var mapManager = Substitute.For<IAvalonMapManager>();
-        var layouts = Substitute.For<IChunkLayoutInstanceFactory>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
+        IChunkLayoutInstanceFactory layouts = Substitute.For<IChunkLayoutInstanceFactory>();
         if (town is not null)
         {
             mapManager.Templates.Returns(new List<MapTemplate>
@@ -491,7 +492,7 @@ public class CharacterLeaveShould : IDisposable
             layouts.BuildAsync(Arg.Any<MapTemplate>(), Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(town);
         }
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory)).Returns(layouts);
 
         var world = new Avalon.World.World(
@@ -523,12 +524,12 @@ public class CharacterLeaveShould : IDisposable
     /// <summary>A real instance, so what leaving it removes, and what its tick still reaches, is observed.</summary>
     private static MapInstance Town(ICharacterSaveScheduler scheduler)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         serviceProvider.GetService(typeof(ICharacterSaveScheduler)).Returns(scheduler);
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);

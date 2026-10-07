@@ -24,7 +24,7 @@ public class InvulnerablePatrolShould
     public void Ignore_Hits_And_Keep_Patrolling()
     {
         // Open ground: every leg is one straight step to its point.
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci => [ci.ArgAt<Vector3>(1)]);
         using MapInstance instance = TestMapInstances.Build(NewWorld(), navigator: navigator);
         MapInstanceClient attacker = Join(instance, 600_201);

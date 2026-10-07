@@ -189,7 +189,7 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
 
     private static LauncherRelease ReadLauncher(string json)
     {
-        using JsonDocument doc = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
         JsonElement root = doc.RootElement;
         JsonElement windows = root.GetProperty("platforms").GetProperty("windows-x86_64");
         JsonElement installer = root.GetProperty("installer");

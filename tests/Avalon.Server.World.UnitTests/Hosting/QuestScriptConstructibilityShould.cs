@@ -41,7 +41,7 @@ public class QuestScriptConstructibilityShould
             // finds the test assembly's scripts, but a test's deliberately unbuildable one is not the server's, and
             // walking every loaded assembly's GetTypes() can throw ReflectionTypeLoadException, which ScriptManager
             // catches and this test would not.
-            List<Type> shipped = typeof(ScriptManager).Assembly.GetTypes()
+            var shipped = typeof(ScriptManager).Assembly.GetTypes()
                 .Where(t => t.IsSubclassOf(typeof(QuestScript)) && !t.IsAbstract)
                 .Append(typeof(SampleQuestScript))
                 .ToList();
@@ -106,7 +106,7 @@ public class QuestScriptConstructibilityShould
     public async Task Build_every_quest_script_the_seed_names()
     {
         string[] named;
-        using (SqliteDatabase<WorldDbContext> database = SqliteDatabase.World())
+        using (var database = SqliteDatabase.World())
         using (WorldDbContext context = database.CreateDbContext())
             named = context.QuestTemplates.AsNoTracking().Where(q => q.ScriptName != null).Select(q => q.ScriptName!).Distinct().ToArray();
 

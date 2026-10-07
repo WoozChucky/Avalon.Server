@@ -69,7 +69,7 @@ public class AbilityAuraShould
 
     private async Task<(MapInstance Instance, CastAbilityHandler Handler)> InstanceAsync(ICombatRandom? random = null)
     {
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAuraScript(Arg.Any<string>()).Returns(call => AuraHarness.TestScript(call.Arg<string>()));
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             scripts: scripts,

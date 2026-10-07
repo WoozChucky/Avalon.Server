@@ -16,7 +16,7 @@ public class AuraCatalogExportShould
 {
     private static List<JsonElement> Rows(string json)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json);
         return document.RootElement.GetProperty("auras").EnumerateArray().Select(r => r.Clone()).ToList();
     }
 
@@ -49,9 +49,9 @@ public class AuraCatalogExportShould
     [Fact]
     public void Match_the_committed_catalog()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<AuraTemplate> seeded = context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList();
+        var seeded = context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList();
 
         string committed = File.ReadAllText(Path.Combine(RepositoryRoot(), "schema", AuraCatalogExport.DirectoryName,
             AuraCatalogExport.FileName));

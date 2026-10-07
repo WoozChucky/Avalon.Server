@@ -133,7 +133,7 @@ public class VendorHandlersShould : IAsyncLifetime
     public void Answer_NotFound_when_the_trade_throws()
     {
         _w.OpenShop();
-        var economy = Substitute.For<ICharacterEconomy>();
+        ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
         economy.VendorOf(Arg.Any<CharacterEntity>()).Returns(_ => throw new InvalidOperationException("boom"));
         _w.Economy = economy;
 
@@ -155,12 +155,12 @@ public class VendorHandlersShould : IAsyncLifetime
         Me.Container(InventoryType.Bag).Load([TestCharacters.Item(0, Tonic, count: 5)]);
         Me.Buyback.Push(new BuybackEntry(TestCharacters.Item(3, Tonic, count: 1), 4));
 
-        var inventory = Substitute.For<IInventoryService>();
+        IInventoryService inventory = Substitute.For<IInventoryService>();
         inventory.TryAdd(Arg.Any<ItemTemplateId>(), Arg.Any<uint>()).Returns(InventoryAddResult.InventoryFull);
         inventory.TryAddInstance(Arg.Any<InventoryItem>()).Returns(InventoryAddResult.InventoryFull);
         inventory.TakeOut(Arg.Any<SlotRef>(), Arg.Any<uint>()).Returns(_ => throw new InvalidOperationException("boom"));
         IWallet wallet = new CharacterEconomy(_w.World, new ItemIdAllocator()).WalletOf(Me);
-        var economy = Substitute.For<ICharacterEconomy>();
+        ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
         economy.VendorOf(Me).Returns(_ => new VendorTrade(Me, inventory, wallet, Find, 1_000_000));
 
         var buyLog = new LevelLogger<VendorBuyHandler>();
@@ -187,7 +187,7 @@ public class VendorHandlersShould : IAsyncLifetime
     [Fact]
     public void Send_nothing_to_a_connection_with_no_character()
     {
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns((ICharacter?)null);
 
         new VendorBuyHandler(NullLogger<VendorBuyHandler>.Instance, _w.World, _w.Economy, _w.Quests, _w.Clock)

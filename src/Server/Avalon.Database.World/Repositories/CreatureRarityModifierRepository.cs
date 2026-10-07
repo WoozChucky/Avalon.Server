@@ -13,7 +13,7 @@ public class CreatureRarityModifierRepository(IDbContextFactory<WorldDbContext> 
 {
     public async Task<IReadOnlyCollection<CreatureRarityModifier>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.CreatureRarityModifiers
             .AsNoTracking()

@@ -48,7 +48,7 @@ public class VendorListBuilderShould : IAsyncLifetime
     [Fact]
     public void List_a_gated_row_once_its_quest_is_met()
     {
-        var quests = Substitute.For<IQuestProgress>();
+        IQuestProgress quests = Substitute.For<IQuestProgress>();
         quests.IsMet(_w.Main.Character, GatedQuest, QuestRequirementState.Completed).Returns(true);
 
         SVendorListPacket list = Build(quests);

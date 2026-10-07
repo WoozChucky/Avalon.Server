@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
 using BenchmarkDotNet.Attributes;
+using Org.BouncyCastle.Crypto;
 
 namespace Avalon.Benchmarking.Benchmarks;
 
@@ -37,12 +38,12 @@ public class SessionCipherBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var serverKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
-        var serverPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(
+        AsymmetricCipherKeyPair serverKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
+        byte[] serverPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(
             AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair));
 
-        var clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
-        var clientPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(
+        AsymmetricCipherKeyPair clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
+        byte[] clientPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(
             AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeyPair));
 
         // Both ends of one exchange. A session seals with its own direction's key and opens with
@@ -84,7 +85,7 @@ public class SessionCipherBenchmarks
     [Benchmark]
     public byte[] AesGcm_Encrypt()
     {
-        var result = new byte[NonceSize + PayloadSize + TagSize];
+        byte[] result = new byte[NonceSize + PayloadSize + TagSize];
 
         RandomNumberGenerator.Fill(result.AsSpan(0, NonceSize));
 

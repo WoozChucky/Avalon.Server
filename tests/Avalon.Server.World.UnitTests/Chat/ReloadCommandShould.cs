@@ -12,7 +12,7 @@ public class ReloadCommandShould
     [Fact]
     public void Reply_With_The_Summary_When_Dialogue_Reloads_Successfully()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Dialogue, true, "14 texts, 6 nodes, 9 options", TimeSpan.FromMilliseconds(38), null));
 
@@ -29,7 +29,7 @@ public class ReloadCommandShould
     [Fact]
     public void Reply_With_A_Next_Kill_Caveat_When_Loot_Reloads_Successfully()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Loot, true, "8 tables, 40 entries", TimeSpan.FromMilliseconds(12), null));
 
@@ -43,7 +43,7 @@ public class ReloadCommandShould
     [Fact]
     public void Reply_With_A_Stock_Caveat_When_Vendors_Reload_Successfully()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Vendors, true, "3 vendors, 31 rows", TimeSpan.FromMilliseconds(9), null));
 
@@ -57,7 +57,7 @@ public class ReloadCommandShould
     [Fact]
     public void Reach_the_combat_area_and_say_it_is_forward_only()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Combat, true, "1 formula, 4 class stat factors", TimeSpan.FromMilliseconds(3), null));
 
@@ -74,7 +74,7 @@ public class ReloadCommandShould
     [Fact]
     public void Reply_With_A_Spawn_Caveat_When_Creatures_Reload_Successfully()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Creatures, true, "10 templates, 10 base stats, 4 rarities", TimeSpan.FromMilliseconds(21), null));
 
@@ -91,7 +91,7 @@ public class ReloadCommandShould
     [Fact]
     public void Reply_With_The_Exception_Type_When_A_Reload_Fails()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Creatures, false, string.Empty, TimeSpan.FromMilliseconds(5),
             new InvalidOperationException("boom")));
@@ -108,7 +108,7 @@ public class ReloadCommandShould
     {
         // Defends against outcome.Error?.GetType().Name throwing, or producing garbage, when a
         // failed outcome carries no exception at all.
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Creatures, false, string.Empty, TimeSpan.Zero, null));
 
@@ -121,7 +121,7 @@ public class ReloadCommandShould
     [Fact]
     public void Reply_With_One_Line_Per_Area_In_Order_For_All()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Returns(
             new ReloadOutcome(ReloadArea.Dialogue, true, "1 texts, 1 nodes, 1 options", TimeSpan.FromMilliseconds(1), null),
             new ReloadOutcome(ReloadArea.Creatures, false, string.Empty, TimeSpan.FromMilliseconds(2),
@@ -152,7 +152,7 @@ public class ReloadCommandShould
     [InlineData("chunks")]
     public void Refuse_To_Reload_Maps_Or_Chunks(string area)
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
 
         fixture.Execute(area);
 
@@ -169,7 +169,7 @@ public class ReloadCommandShould
     [InlineData("99")]
     public void Reply_With_Usage_For_An_Unrecognized_Area(string area)
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
 
         fixture.Execute(area);
 
@@ -182,7 +182,7 @@ public class ReloadCommandShould
     [Fact]
     public void Accept_Area_Names_Case_Insensitively()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Returns(new ReloadOutcome(
             ReloadArea.Dialogue, true, "1 texts, 1 nodes, 1 options", TimeSpan.FromMilliseconds(1), null));
 
@@ -196,7 +196,7 @@ public class ReloadCommandShould
     [Fact]
     public void Require_Game_Master_Access()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
 
         Assert.Equal(AccessLevels.GameMaster, fixture.Command.RequiredAccess);
     }
@@ -204,7 +204,7 @@ public class ReloadCommandShould
     [Fact]
     public void Hand_a_failed_reload_task_to_the_failure_path()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Reloader.ReloadAsync(Arg.Any<IReadOnlyList<ReloadArea>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException<ReloadReport>(new InvalidOperationException("db down")));
 

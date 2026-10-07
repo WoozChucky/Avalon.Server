@@ -43,7 +43,7 @@ public static class WorldDatabaseSettings
         [NotNullWhen(false)] out string? refusal)
     {
         worlds = [];
-        List<IConfigurationSection> entries = configuration.GetSection(Section).GetChildren().ToList();
+        var entries = configuration.GetSection(Section).GetChildren().ToList();
         if (entries.Count == 0)
         {
             refusal =

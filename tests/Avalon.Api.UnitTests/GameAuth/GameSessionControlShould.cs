@@ -34,7 +34,7 @@ public sealed class GameSessionControlShould
     public async Task Deny_untrusted_transport_and_noncanonical_identifiers_before_repository_access(bool https, bool server, string account, string fence)
     {
         var h = new JoinHarness();
-        var sessions = Substitute.For<IGameSessionRepository>();
+        IGameSessionRepository sessions = Substitute.For<IGameSessionRepository>();
         var service = new GameSessionFenceService(sessions, h.Authorization, Substitute.For<IWorldRepositories>(),
             Substitute.For<IAccountRepository>(), Options.Create(new GameWorkloadConfiguration()), h.Clock,
             new Avalon.Infrastructure.GameAuth.GameApplicationAccessPolicy(Options.Create(h.Configuration)));
@@ -43,7 +43,7 @@ public sealed class GameSessionControlShould
         if (server) http.User = new(new ClaimsIdentity([new Claim(GameServerAuthHandler.ServerIdClaim, "world-1")], GameServerAuthHandler.Scheme));
         var controller = new InternalGameAdmissionController(h.Tickets) { ControllerContext = new() { HttpContext = http } };
         var request = new GameSessionControlRequest { AccountId = account, FencingToken = fence, GameSessionId = Guid.NewGuid() };
-        foreach (var result in new[] {
+        foreach (IActionResult? result in new[] {
             await controller.Activate(request, service, CancellationToken.None),
             await controller.Heartbeat(request, service, CancellationToken.None),
             await controller.End(request, service, CancellationToken.None) })

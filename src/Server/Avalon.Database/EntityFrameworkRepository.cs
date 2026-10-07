@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Avalon.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Avalon.Database;
 
@@ -21,21 +22,21 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
     public async Task<PagedResult<TEntity>> PaginateAsync(EntityPaginateFilter<TEntity> filter, bool track = false,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using TContext context = await CreateContextAsync(cancellationToken);
 
         IQueryable<TEntity> query = track
             ? context.Set<TEntity>().AsQueryable()
             : context.Set<TEntity>().AsNoTracking().AsQueryable();
 
-        var queryFilters = filter.GetFilter();
+        Expression<Func<TEntity, bool>> queryFilters = filter.GetFilter();
 
         query = query.Where(queryFilters);
 
         int totalCount = await query.CountAsync(cancellationToken);
 
-        var sortDirection = filter.GetSortDirection();
+        SortDirection sortDirection = filter.GetSortDirection();
 
-        var keySelector = filter.GetSortKeySelector();
+        Expression<Func<TEntity, object>>? keySelector = filter.GetSortKeySelector();
         if (keySelector is not null)
         {
             query = sortDirection == SortDirection.Ascending
@@ -43,7 +44,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
                 : query.OrderByDescending(keySelector);
         }
 
-        var items = await query
+        List<TEntity> items = await query
             .Skip((filter.Page - 1) * filter.PageSize)
             .Take(filter.PageSize)
             .ToListAsync(cancellationToken);
@@ -53,7 +54,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
 
     public async Task<List<TEntity>> FindAllAsync(bool track = false, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using TContext context = await CreateContextAsync(cancellationToken);
 
         return track
             ? await context.Set<TEntity>().ToListAsync(cancellationToken)
@@ -62,7 +63,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
 
     public async Task<TEntity?> FindByIdAsync(TKey id, bool track = false, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using TContext context = await CreateContextAsync(cancellationToken);
 
         IQueryable<TEntity> query = track
             ? context.Set<TEntity>()
@@ -74,7 +75,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
 
     public async Task<List<TEntity>> FindByAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using TContext context = await CreateContextAsync(cancellationToken);
 
         return await context.Set<TEntity>()
             .AsNoTracking()
@@ -84,22 +85,22 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
 
     public async Task<TEntity> CreateAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using TContext context = await CreateContextAsync(cancellationToken);
 
-        var entry = context.TrackForInsert(entity);
+        EntityEntry<TEntity> entry = context.TrackForInsert(entity);
         await context.SaveChangesAsync(cancellationToken);
         return entry.Entity;
     }
 
     public async Task<List<TEntity>> CreateAsync(List<TEntity> entities, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using TContext context = await CreateContextAsync(cancellationToken);
 
         var entityList = new List<TEntity>();
 
-        foreach (var entity in entities)
+        foreach (TEntity entity in entities)
         {
-            var entry = context.TrackForInsert(entity);
+            EntityEntry<TEntity> entry = context.TrackForInsert(entity);
             entityList.Add(entry.Entity);
         }
 
@@ -110,11 +111,11 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
 
     public async Task<TEntity> UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using TContext context = await CreateContextAsync(cancellationToken);
 
         // The context is new, so nothing is tracked and the entity is always detached. The
         // load-then-detach step the shared context needed has no counterpart here.
-        var entry = context.TrackForUpdate(entity);
+        EntityEntry<TEntity> entry = context.TrackForUpdate(entity);
 
         await context.SaveChangesAsync(cancellationToken);
         return entry.Entity;
@@ -122,9 +123,9 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
 
     public async Task DeleteAsync(TKey id, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using TContext context = await CreateContextAsync(cancellationToken);
 
-        var entity = await context.Set<TEntity>()
+        TEntity? entity = await context.Set<TEntity>()
             .FirstOrDefaultAsync(e => EF.Property<TKey>(e, nameof(IDbEntity<TKey>.Id))!.Equals(id), cancellationToken);
         if (entity == null)
         {

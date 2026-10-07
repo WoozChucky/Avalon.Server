@@ -1,4 +1,5 @@
 using Avalon.World;
+using Avalon.World.GameAuth;
 
 namespace Avalon.Server.World.UnitTests.GameAuth;
 
@@ -8,7 +9,7 @@ public sealed class GameContextRevocationShould
     public void A_delayed_notice_cannot_disconnect_a_different_context_or_grant_authority()
     {
         using var current = WorldAdmissionConnection.Create();
-        var lease = WorldAdmissionConnection.Lease(); current.PublishAdmission(lease);
+        GameSessionLease lease = WorldAdmissionConnection.Lease(); current.PublishAdmission(lease);
         Assert.Equal(0, WorldServer.NotifyGameContextRevocation([current], "42|" + Guid.NewGuid().ToString("N")));
         Assert.Equal(0, WorldServer.NotifyGameContextRevocation([current], "43|" + lease.GameContextId.ToString("N")));
         Assert.Equal(0, WorldServer.NotifyGameContextRevocation([current], "042|" + lease.GameContextId.ToString("N")));

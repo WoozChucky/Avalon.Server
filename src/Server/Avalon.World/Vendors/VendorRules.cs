@@ -222,7 +222,7 @@ public static class VendorRules
     /// <summary>The Bag as TryRemove would leave it once every cost is out: each from the highest slot first.</summary>
     private static Dictionary<ushort, InventoryItem> BagAfter(CharacterEntity character, IReadOnlyList<VendorCostLine> costs)
     {
-        Dictionary<ushort, InventoryItem> bag = character.Container(InventoryType.Bag).Items.ToDictionary(i => i.Slot);
+        var bag = character.Container(InventoryType.Bag).Items.ToDictionary(i => i.Slot);
 
         foreach (VendorCostLine cost in costs)
         {

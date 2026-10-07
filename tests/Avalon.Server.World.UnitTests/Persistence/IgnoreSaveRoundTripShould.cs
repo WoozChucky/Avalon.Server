@@ -47,7 +47,7 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
 
     private async Task SaveAsync(CharacterEntity character)
     {
-        CharacterSaveSnapshot snapshot = CharacterSaveSnapshot.Take(character);
+        var snapshot = CharacterSaveSnapshot.Take(character);
         await _saves.WriteAsync([snapshot.Batch]);
         character.SaveState.Acknowledge(snapshot.Marks);
     }
@@ -103,7 +103,7 @@ public sealed class IgnoreSaveRoundTripShould : IDisposable
         await StoredCharacterAsync(2, "Kaela");
         owner.Ignores.Add(2, "Kaela", Now);
 
-        CharacterSaveSnapshot snapshot = CharacterSaveSnapshot.Take(owner);
+        var snapshot = CharacterSaveSnapshot.Take(owner);
         await _saves.WriteAsync([snapshot.Batch]);
         await _saves.WriteAsync([snapshot.Batch]);
 

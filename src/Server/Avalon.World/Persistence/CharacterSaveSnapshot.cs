@@ -29,7 +29,7 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
     {
         Character row = character.Data
             ?? throw new InvalidOperationException("A character without a row has nothing to save.");
-        var authority = character.GameplayAuthority;
+        GameplayWriteAuthority? authority = character.GameplayAuthority;
         if (connectionAuthority is not null && (authority is null || authority.AccountId != connectionAuthority.AccountId ||
             authority.GameSessionId != connectionAuthority.GameSessionId || authority.FencingToken != connectionAuthority.FencingToken))
             throw new InvalidOperationException("A save cannot be relabeled by a replacement connection.");

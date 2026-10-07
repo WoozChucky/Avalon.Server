@@ -83,9 +83,9 @@ public class AuraTransferShould
         CharacterEntity character = Character(914_001);
         GiveBleed(character, await DataAsync());
         character.Auras.ResumeHeld(_clock.GetUtcNow());   // in the world
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
-        var target = Substitute.For<IMapInstance>();
+        IMapInstance target = Substitute.For<IMapInstance>();
         DateTimeOffset? heldAtArrival = null;
         target.When(t => t.AddCharacter(connection)).Do(_ => heldAtArrival = character.Auras.HeldSince);
 

@@ -163,7 +163,7 @@ public class FuryLifecycleShould
         warrior.Character.CurrentPower = 60;
         warrior.Character.Health = 100;
         warrior.Character.CurrentHealth = 10;
-        var attacker = Substitute.For<ICreature>();
+        ICreature attacker = Substitute.For<ICreature>();
         attacker.Guid.Returns(new ObjectGuid(ObjectType.Creature, 526_391u));
 
         instance.CombatService.ApplyDamage(attacker, warrior.Character, 50);

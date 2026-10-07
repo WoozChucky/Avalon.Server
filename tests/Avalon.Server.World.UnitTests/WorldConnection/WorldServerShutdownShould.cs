@@ -96,10 +96,10 @@ public class WorldServerShutdownShould : IDisposable
     [Fact]
     public async Task Wait_for_a_despawn_save_started_before_shutdown()
     {
-        TimeSpan limit = TimeSpan.FromSeconds(5);
+        var limit = TimeSpan.FromSeconds(5);
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         int committed = 0;
-        var repository = Substitute.For<ICharacterSaveRepository>();
+        ICharacterSaveRepository repository = Substitute.For<ICharacterSaveRepository>();
         repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
@@ -137,7 +137,7 @@ public class WorldServerShutdownShould : IDisposable
         using (otherServer)
         {
             IWorld world = Substitute.For<IWorld>();
-            var saver = Substitute.For<ICharacterSaver>();
+            ICharacterSaver saver = Substitute.For<ICharacterSaver>();
             saver.WhenAllIdle().Returns(Task.CompletedTask);
             var server = new TestWorldServer(world, saver);
             Avalon.World.WorldConnection first = Connect(server);
@@ -160,7 +160,7 @@ public class WorldServerShutdownShould : IDisposable
     [Fact]
     public async Task Stop_waiting_for_saves_once_the_host_gives_up()
     {
-        var saver = Substitute.For<ICharacterSaver>();
+        ICharacterSaver saver = Substitute.For<ICharacterSaver>();
         saver.WhenAllIdle().Returns(new TaskCompletionSource().Task);
         var server = new TestWorldServer(Substitute.For<IWorld>(), saver);
 
@@ -185,7 +185,7 @@ public class WorldServerShutdownShould : IDisposable
         int port = ((IPEndPoint)listener.LocalEndpoint!).Port;
         var clientSide = new TcpClient();
         clientSide.Connect(IPAddress.Loopback, port);
-        var serverSide = listener.AcceptTcpClient();
+        TcpClient serverSide = listener.AcceptTcpClient();
         listener.Stop();
         return (clientSide, serverSide);
     }

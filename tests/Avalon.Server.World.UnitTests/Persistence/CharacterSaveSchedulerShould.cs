@@ -37,7 +37,7 @@ public class CharacterSaveSchedulerShould
     [Fact]
     public void Save_when_the_first_delay_runs_out_and_then_every_interval()
     {
-        var saver = Substitute.For<ICharacterSaver>();
+        ICharacterSaver saver = Substitute.For<ICharacterSaver>();
         var scheduler = new CharacterSaveScheduler(saver, Options.Create(new GameConfiguration { CharacterSaveInterval = Interval }));
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         CharacterEntity character = New(7);
@@ -59,9 +59,9 @@ public class CharacterSaveSchedulerShould
     [Fact]
     public void Spread_first_saves_across_one_interval()
     {
-        TimeSpan interval = TimeSpan.FromMinutes(5);
+        var interval = TimeSpan.FromMinutes(5);
 
-        List<TimeSpan> delays = Enumerable.Range(1, 100)
+        var delays = Enumerable.Range(1, 100)
             .Select(id => CharacterSaveScheduler.FirstSaveDelay(new CharacterId((uint)id), interval))
             .ToList();
 

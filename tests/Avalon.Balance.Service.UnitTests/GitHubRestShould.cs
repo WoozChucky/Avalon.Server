@@ -110,7 +110,7 @@ public class GitHubRestShould
         Seen seen = handler.Requests.Single();
         Assert.Equal(HttpMethod.Post, seen.Method);
         Assert.Equal("/repos/WoozChucky/Avalon.Server/git/refs", seen.Uri.AbsolutePath);
-        using JsonDocument body = JsonDocument.Parse(seen.Body);
+        using var body = JsonDocument.Parse(seen.Body);
         Assert.Equal("refs/heads/balance/slam-20260930-1405", body.RootElement.GetProperty("ref").GetString());
         Assert.Equal("abc123", body.RootElement.GetProperty("sha").GetString());
     }
@@ -125,7 +125,7 @@ public class GitHubRestShould
         Seen seen = handler.Requests.Single();
         Assert.Equal(HttpMethod.Put, seen.Method);
         Assert.Equal("/repos/WoozChucky/Avalon.Server/contents/balance/overrides.json", seen.Uri.AbsolutePath);
-        using JsonDocument body = JsonDocument.Parse(seen.Body);
+        using var body = JsonDocument.Parse(seen.Body);
         byte[] content = Convert.FromBase64String(body.RootElement.GetProperty("content").GetString()!);
         Assert.Equal("{}\n"u8.ToArray(), content);
         Assert.Equal("balance/b", body.RootElement.GetProperty("branch").GetString());
@@ -140,7 +140,7 @@ public class GitHubRestShould
 
         await client.PutFileAsync("b", "balance/overrides.json", "{}\n", null, "m", CancellationToken.None);
 
-        using JsonDocument body = JsonDocument.Parse(handler.Requests.Single().Body);
+        using var body = JsonDocument.Parse(handler.Requests.Single().Body);
         Assert.False(body.RootElement.TryGetProperty("sha", out _));
     }
 
@@ -155,7 +155,7 @@ public class GitHubRestShould
         Seen seen = handler.Requests.Single();
         Assert.Equal(HttpMethod.Post, seen.Method);
         Assert.Equal("/repos/WoozChucky/Avalon.Server/pulls", seen.Uri.AbsolutePath);
-        using JsonDocument body = JsonDocument.Parse(seen.Body);
+        using var body = JsonDocument.Parse(seen.Body);
         Assert.True(body.RootElement.GetProperty("draft").GetBoolean());
         Assert.Equal("main", body.RootElement.GetProperty("base").GetString());
         Assert.Equal("balance/b", body.RootElement.GetProperty("head").GetString());

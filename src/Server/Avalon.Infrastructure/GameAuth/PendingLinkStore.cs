@@ -65,20 +65,20 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
 
     private async Task<GameContextRecord?> PendingAsync(Guid id, CancellationToken cancellationToken)
     {
-        var value = await store.ReadAsync(PendingKey(id), cancellationToken);
-        if (!Guid.TryParseExact(value, "N", out var contextId)) return null;
-        var context = await authorization.GetContextByIdAsync(contextId, false, cancellationToken);
+        string? value = await store.ReadAsync(PendingKey(id), cancellationToken);
+        if (!Guid.TryParseExact(value, "N", out Guid contextId)) return null;
+        GameContextRecord? context = await authorization.GetContextByIdAsync(contextId, false, cancellationToken);
         return context is { State: GameAuthStates.PendingLink, ProviderSubject: not null } && options.Value.ResolveApplication(context.ApplicationKey) is not null &&
                context.PendingLinkId == id && context.LinkProofExpiresAt > Now ? context : null;
     }
 
     public async Task<LinkBrowserReply> InfoAsync(Guid id, AccountId accountId, CancellationToken cancellationToken)
     {
-        var context = await PendingAsync(id, cancellationToken);
-        var account = await accounts.FindByIdAsync(accountId, false, cancellationToken);
+        GameContextRecord? context = await PendingAsync(id, cancellationToken);
+        Account? account = await accounts.FindByIdAsync(accountId, false, cancellationToken);
         if (context is null || account is null || (context.AccountId is { } bound && bound != accountId.Value))
             return new(GameAuthStates.Expired, GameAuthErrors.InvalidLink);
-        var setup = await mfa.FindByAccountIdAsync(accountId, cancellationToken);
+        MFASetup? setup = await mfa.FindByAccountIdAsync(accountId, cancellationToken);
         return new(GameAuthStates.Pending, SteamId: context.ProviderSubject, Username: account.Username,
             ExpiresAt: context.LinkProofExpiresAt, RequiresMfa: setup?.Status == MfaSetupStatus.Confirmed);
     }
@@ -87,22 +87,22 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
     public async Task<LinkBrowserReply> ConfirmAsync(Guid id, AccountId accountId, int credentialsVersion,
         long sessionEpoch, Guid? confirmedMfaId, Guid requestId, CancellationToken cancellationToken)
     {
-        var context = await PendingAsync(id, cancellationToken);
-        var account = await accounts.FindByIdAsync(accountId, false, cancellationToken);
+        GameContextRecord? context = await PendingAsync(id, cancellationToken);
+        Account? account = await accounts.FindByIdAsync(accountId, false, cancellationToken);
         if (requestId == Guid.Empty || context is null || account is null || account.Status != AccountStatus.Active ||
             account.IsLockedAt(Now) || (account.AccessLevel & AccountAccessLevel.Player) == 0 ||
             account.CredentialsVersion != credentialsVersion || account.SessionEpoch != sessionEpoch ||
             (context.AccountId is { } root && root != accountId.Value)) return new(GameAuthStates.Pending, GameAuthErrors.AccountUnavailable);
-        var setup = await mfa.FindByAccountIdAsync(accountId, cancellationToken);
+        MFASetup? setup = await mfa.FindByAccountIdAsync(accountId, cancellationToken);
         if ((setup?.Status == MfaSetupStatus.Confirmed ? setup.Id : (Guid?)null) != confirmedMfaId)
             return new(GameAuthStates.Pending, GameAuthErrors.MfaRequired);
-        var key = ConsentKey(id);
-        var existing = GameAuthJson.Deserialize<LinkConsentRecord>(await store.ReadAsync(key, cancellationToken));
+        string key = ConsentKey(id);
+        LinkConsentRecord? existing = GameAuthJson.Deserialize<LinkConsentRecord>(await store.ReadAsync(key, cancellationToken));
         if (existing is not null)
             return existing.BrowserRequestId == requestId && existing.AccountId == accountId.Value && !existing.Canceled &&
                    existing.ExpiresAt > Now ? new(GameAuthStates.AwaitingGameConfirmation, Username: existing.Username, ExpiresAt: existing.ExpiresAt) : new(GameAuthStates.Pending, GameAuthErrors.LinkAlreadyProposed);
-        var code = GameAuthCryptography.NewToken();
-        var expires = Now.Add(GameAuthPolicy.LinkConsentLifetime) < context.LinkProofExpiresAt ? Now.Add(GameAuthPolicy.LinkConsentLifetime) : context.LinkProofExpiresAt!.Value;
+        string code = GameAuthCryptography.NewToken();
+        DateTime expires = Now.Add(GameAuthPolicy.LinkConsentLifetime) < context.LinkProofExpiresAt ? Now.Add(GameAuthPolicy.LinkConsentLifetime) : context.LinkProofExpiresAt!.Value;
         var consent = new LinkConsentRecord
         {
             OperationId = Guid.NewGuid(),
@@ -126,7 +126,7 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
             ExpiresAt = expires,
             ProofExpiresAt = context.LinkProofExpiresAt!.Value,
         };
-        var contextKey = CacheKeys.GameAuth(options.Value.Environment, "context", context.Id.ToString("N"));
+        string contextKey = CacheKeys.GameAuth(options.Value.Environment, "context", context.Id.ToString("N"));
         var mutations = new GameAuthMutation[]
         {
             new(contextKey, GameAuthJson.Serialize(context), GameAuthJson.Serialize(context), context.AbsoluteExpiresAt),
@@ -140,11 +140,11 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
 
     public async Task<LinkProposalReply> ProposalAsync(string credential, string verifier, CancellationToken cancellationToken)
     {
-        var context = await authorization.GetContextAsync(credential, false, cancellationToken);
+        GameContextRecord? context = await authorization.GetContextAsync(credential, false, cancellationToken);
         if (context is not { State: GameAuthStates.PendingLink, PendingLinkId: not null } || !MatchesPkce(context.LinkChallenge, verifier))
             return new(GameAuthStates.Pending, GameAuthErrors.InvalidLink);
-        var key = ConsentKey(context.PendingLinkId.Value);
-        var consent = GameAuthJson.Deserialize<LinkConsentRecord>(await store.ReadAsync(key, cancellationToken));
+        string key = ConsentKey(context.PendingLinkId.Value);
+        LinkConsentRecord? consent = GameAuthJson.Deserialize<LinkConsentRecord>(await store.ReadAsync(key, cancellationToken));
         if (consent is null) return new(GameAuthStates.Pending);
         if (consent.Canceled || consent.ExpiresAt <= Now || consent.ContextGeneration != context.Generation ||
             consent.CredentialDigest != context.CredentialDigest || consent.Binding is not null) return new(GameAuthStates.Pending, GameAuthErrors.InvalidLink);
@@ -154,9 +154,9 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
 
     public async Task<bool> CancelAsync(Guid id, AccountId accountId, CancellationToken cancellationToken)
     {
-        var key = ConsentKey(id);
-        var raw = await store.ReadAsync(key, cancellationToken);
-        var consent = GameAuthJson.Deserialize<LinkConsentRecord>(raw);
+        string key = ConsentKey(id);
+        string? raw = await store.ReadAsync(key, cancellationToken);
+        LinkConsentRecord? consent = GameAuthJson.Deserialize<LinkConsentRecord>(raw);
         return consent is not null && consent.AccountId == accountId.Value && consent.Binding is null && consent.ProofExpiresAt > Now &&
             await store.CompareExchangeAsync([new(key, raw, GameAuthJson.Serialize(consent with { Canceled = true }), consent.ProofExpiresAt)], cancellationToken);
     }
@@ -165,7 +165,7 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
     {
         if (challenge is not { Length: GameAuthPolicy.TokenCharacters } || verifier is not { Length: >= GameAuthPolicy.TokenCharacters and <= GameAuthPolicy.MaximumPkceVerifierCharacters } ||
             !verifier.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '.' or '_' or '~')) return false;
-        var calculated = Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        string calculated = Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         return CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(challenge), Encoding.ASCII.GetBytes(calculated));
     }
 }

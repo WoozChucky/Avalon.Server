@@ -17,7 +17,7 @@ public class SteamHttpRegistrationShould
     [InlineData(123456)]
     public async Task Suppress_query_spans_and_logs_on_the_registered_provider_pipeline(uint appId)
     {
-        var environment = Substitute.For<IHostEnvironment>();
+        IHostEnvironment environment = Substitute.For<IHostEnvironment>();
         environment.EnvironmentName.Returns(Environments.Production);
         var logs = new CapturedLogs();
         var transport = new SuppressionProbe();
@@ -31,9 +31,9 @@ public class SteamHttpRegistrationShould
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
         services.AddSteamStoreAuthentication();
         services.AddHttpClient<ISteamProofVerifier, SteamProofVerifier>().ConfigurePrimaryHttpMessageHandler(() => transport);
-        using var provider = services.BuildServiceProvider();
+        using ServiceProvider provider = services.BuildServiceProvider();
         provider.GetRequiredService<IOptions<Avalon.Configuration.StoreAuthenticationConfiguration>>().Value.Validate(production: true);
-        var result = await provider.GetRequiredService<ISteamProofVerifier>().VerifyAsync(appId, "ABCD",
+        SteamProofResult result = await provider.GetRequiredService<ISteamProofVerifier>().VerifyAsync(appId, "ABCD",
             SteamProofVerifierShould.Identity, CancellationToken.None);
         Assert.Equal(SteamProofStatus.ProviderUnavailable, result.Status);
         Assert.True(transport.Suppressed);

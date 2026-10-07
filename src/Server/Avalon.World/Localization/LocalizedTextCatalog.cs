@@ -36,7 +36,7 @@ public class LocalizedTextCatalog : ILocalizedTextCatalog
         _classNames = classNames.ToDictionary(n => n.Class, n => n.TextId);
 
         // Dangling references are reported once, here, rather than per lookup on the tick thread.
-        foreach (var locale in locales.Where(l => !_base.ContainsKey(l.TextId.Value)))
+        foreach (LocalizedTextLocale? locale in locales.Where(l => !_base.ContainsKey(l.TextId.Value)))
         {
             _logger.LogWarning("Translation for text {TextId} ({Locale}) has no base string",
                 locale.TextId.Value, locale.Locale);

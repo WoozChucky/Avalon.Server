@@ -45,7 +45,7 @@ public sealed class QuestSaveRoundTripShould : IDisposable
 
     private async Task SaveAsync(CharacterEntity character)
     {
-        CharacterSaveSnapshot snapshot = CharacterSaveSnapshot.Take(character);
+        var snapshot = CharacterSaveSnapshot.Take(character);
         await _saves.WriteAsync([snapshot.Batch]);
         character.SaveState.Acknowledge(snapshot.Marks);
     }
@@ -100,7 +100,7 @@ public sealed class QuestSaveRoundTripShould : IDisposable
         await SaveAsync(character);
 
         character.Quests.Complete(5, Now);
-        CharacterSaveSnapshot snapshot = CharacterSaveSnapshot.Take(character);
+        var snapshot = CharacterSaveSnapshot.Take(character);
         await _saves.WriteAsync([snapshot.Batch]);
         await _saves.WriteAsync([snapshot.Batch]);   // a retried save writes it again
 

@@ -27,11 +27,11 @@ public sealed class StripePaymentProviderShould
     public async Task Create_fixed_inclusive_euro_checkout_with_the_persisted_operation_key()
     {
         var http = new Transport();
-        var result = await Provider(http).CreateCheckoutAsync(Command(), default);
+        CheckoutProviderResult result = await Provider(http).CreateCheckoutAsync(Command(), default);
         Assert.Equal("cs_test", result.CheckoutReference);
         Assert.Equal("https://checkout.stripe.com/c/pay/test", result.CheckoutUrl);
         Assert.Equal("operation-test", http.Key);
-        var form = Uri.UnescapeDataString(http.Body!);
+        string form = Uri.UnescapeDataString(http.Body!);
         Assert.Contains("automatic_tax[enabled]=true", form);
         Assert.Contains("managed_payments[enabled]=false", form);
         Assert.Contains("adaptive_pricing[enabled]=false", form);
@@ -58,7 +58,7 @@ public sealed class StripePaymentProviderShould
     public async Task Unsafe_returned_checkout_url_is_not_exposed(string url)
     {
         var http = new Transport { Url = url };
-        var error = await Assert.ThrowsAsync<PaymentProviderException>(() => Provider(http).CreateCheckoutAsync(Command(), default));
+        PaymentProviderException error = await Assert.ThrowsAsync<PaymentProviderException>(() => Provider(http).CreateCheckoutAsync(Command(), default));
         Assert.DoesNotContain(url, error.ToString());
         Assert.DoesNotContain("sk_test_private", error.ToString());
     }
@@ -67,9 +67,9 @@ public sealed class StripePaymentProviderShould
     public async Task Timeout_can_replay_the_identical_request_and_key()
     {
         var http = new Transport { Timeout = true };
-        var provider = Provider(http);
+        StripePaymentProvider provider = Provider(http);
         await Assert.ThrowsAsync<PaymentProviderException>(() => provider.CreateCheckoutAsync(Command(), default));
-        var original = http.Body;
+        string? original = http.Body;
         http.Timeout = false;
         await provider.CreateCheckoutAsync(Command(), default);
         Assert.Equal(original, http.Body);
@@ -79,7 +79,7 @@ public sealed class StripePaymentProviderShould
     [Fact]
     public async Task Snapshot_reads_all_refund_and_dispute_pages_and_keeps_unpaid_completion_pending()
     {
-        var snapshot = await Provider(new Transport()).GetCheckoutAsync(new("cs_test", null), default);
+        PaymentSnapshot snapshot = await Provider(new Transport()).GetCheckoutAsync(new("cs_test", null), default);
         Assert.Equal(800, snapshot.AmountMinor);
         Assert.Equal("eur", snapshot.Currency);
         Assert.Equal(1, snapshot.Quantity);
@@ -99,7 +99,7 @@ public sealed class StripePaymentProviderShould
     [Fact]
     public async Task Replay_uses_frozen_return_origin_and_methods_after_configuration_changes()
     {
-        var config = CommerceConfigurationShould.Valid();
+        CommerceConfiguration config = CommerceConfigurationShould.Valid();
         config.PublicSiteOrigin = "https://new.example.test";
         config.PaymentMethods = ["card", "multibanco"];
         var http = new Transport();
@@ -124,7 +124,7 @@ public sealed class StripePaymentProviderShould
     public async Task Full_refund_uses_stable_operation_and_does_not_claim_pending_is_success()
     {
         var http = new Transport { Paid = true };
-        var result = await Provider(http).RequestFullRefundAsync(new("refund-test", "pi_test", 800, "eur"), default);
+        RefundProviderResult result = await Provider(http).RequestFullRefundAsync(new("refund-test", "pi_test", 800, "eur"), default);
         Assert.Equal(PaymentRefundState.Pending, result.State);
         Assert.Equal(800, result.AmountMinor);
         Assert.Equal("pi_test", result.PaymentReference);
@@ -135,7 +135,7 @@ public sealed class StripePaymentProviderShould
     [Fact]
     public async Task Configured_offer_and_saved_payment_drive_amounts_instead_of_literal_eight_euros()
     {
-        var config = CommerceConfigurationShould.Valid();
+        CommerceConfiguration config = CommerceConfigurationShould.Valid();
         config.AmountMinor = 1200;
         config.Currency = "usd";
         var http = new Transport { Paid = true, Gross = 1200, Currency = "usd" };
@@ -144,10 +144,10 @@ public sealed class StripePaymentProviderShould
         await provider.CreateCheckoutAsync(Command() with { AmountMinor = 1200, Currency = "usd" }, default);
         config.AmountMinor = 800;
         config.Currency = "eur";
-        var snapshot = await provider.GetCheckoutAsync(new("cs_test", null), default);
+        PaymentSnapshot snapshot = await provider.GetCheckoutAsync(new("cs_test", null), default);
         Assert.Equal(1200, snapshot.AmountMinor);
         Assert.Equal("usd", snapshot.Currency);
-        var refund = await provider.RequestFullRefundAsync(new("refund-test", "pi_test", 1200, "usd"), default);
+        RefundProviderResult refund = await provider.RequestFullRefundAsync(new("refund-test", "pi_test", 1200, "usd"), default);
         Assert.Equal(1200, refund.AmountMinor);
         Assert.Contains("amount=1200", http.Body);
     }
@@ -158,8 +158,8 @@ public sealed class StripePaymentProviderShould
     [InlineData(0, true, true)]
     public void Verify_raw_signature_and_environment_before_normalizing(int age, bool live, bool rejected)
     {
-        var timestamp = new DateTimeOffset(Now.AddSeconds(age)).ToUnixTimeSeconds();
-        var raw = JsonSerializer.Serialize(new
+        long timestamp = new DateTimeOffset(Now.AddSeconds(age)).ToUnixTimeSeconds();
+        string raw = JsonSerializer.Serialize(new
         {
             id = "evt_test",
             @object = "event",
@@ -169,8 +169,8 @@ public sealed class StripePaymentProviderShould
             type = "checkout.session.completed",
             data = new { @object = new { id = "cs_test", @object = "checkout.session", livemode = live } }
         });
-        var signed = $"{timestamp}.{raw}";
-        var signature = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes("whsec_private"), Encoding.UTF8.GetBytes(signed))).ToLowerInvariant();
+        string signed = $"{timestamp}.{raw}";
+        string signature = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes("whsec_private"), Encoding.UTF8.GetBytes(signed))).ToLowerInvariant();
         var headers = new Dictionary<string, string> { ["Stripe-Signature"] = $"t={timestamp},v1={signature}" };
         if (rejected) Assert.Throws<PaymentProviderException>(() => Provider(new Transport()).VerifyNotification(Encoding.UTF8.GetBytes(raw), headers, Now));
         else Assert.Equal("cs_test", Provider(new Transport()).VerifyNotification(Encoding.UTF8.GetBytes(raw), headers, Now).ResourceReference);
@@ -201,7 +201,7 @@ public sealed class StripePaymentProviderShould
         public string? Key { get; private set; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
-            var path = request.RequestUri!.AbsolutePath;
+            string path = request.RequestUri!.AbsolutePath;
             object payload;
             if (path == "/v1/account") payload = new { id = Account, @object = "account" };
             else if (path.StartsWith("/v1/prices/", StringComparison.Ordinal)) payload = new

@@ -2,6 +2,7 @@ using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.Auth.Repositories;
 
@@ -29,7 +30,7 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
 {
     public async Task<GameSession?> FindAsync(AccountId accountId, CancellationToken cancellationToken = default)
     {
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.GameSessions.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == accountId, cancellationToken);
     }
 
@@ -43,15 +44,15 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
             reservation.LicenseUntil <= now || reservation.LicenseUntil > now.AddMinutes(5) ||
             (reservation.Environment != "production" && reservation.Environment != "development"))
             return null;
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         // Lock the account before looking at the head, including on the first insert. Revocation and two
         // first reservations therefore serialize on a row that already exists, rather than on a missing head.
         if (!await AccountRepository.HoldGameAuthorityAsync(db, reservation.AccountId, reservation.CredentialsVersion,
                 reservation.SessionEpoch, now, cancellationToken)) return null;
         now = clock?.GetUtcNow().UtcDateTime ?? now;
         if (reservation.AdmissionExpiresAt <= now || reservation.LicenseUntil <= now) return null;
-        var head = await db.GameSessions.SingleOrDefaultAsync(x => x.AccountId == reservation.AccountId, cancellationToken);
+        GameSession? head = await db.GameSessions.SingleOrDefaultAsync(x => x.AccountId == reservation.AccountId, cancellationToken);
         // Recover only the originally committed reservation, even when the caller lost its SQL response.
         if (head is not null && head.GameSessionId == reservation.GameSessionId &&
             head.GameContextId == reservation.GameContextId && head.FencingToken == reservation.ExpectedFence + 1 &&
@@ -62,7 +63,7 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
         if ((head?.FencingToken ?? 0) != reservation.ExpectedFence ||
             (head?.State == GameSessionState.Pending && head.LeaseUntil > now) ||
             (head?.State == GameSessionState.Active && head.LeaseUntil > now && !reservation.Takeover)) return null;
-        var next = NewHead(reservation, now, head);
+        GameSession next = NewHead(reservation, now, head);
         if (head is null) db.GameSessions.Add(next);
         else db.Entry(head).CurrentValues.SetValues(next);
         await db.SaveChangesAsync(cancellationToken);
@@ -96,19 +97,19 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
     public async Task<bool> TryActivateAsync(AccountId accountId, Guid sessionId, long fence, DateTime now, DateTime leaseUntil,
         CancellationToken cancellationToken = default)
     {
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         // Read only to select the expected versions; the lock below refuses a changed account, and the
         // conditional session write refuses any superseding reservation. Fence barriers run before this call.
-        var head = await db.GameSessions.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == accountId, cancellationToken);
+        GameSession? head = await db.GameSessions.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == accountId, cancellationToken);
         if (head is null || leaseUntil <= now || leaseUntil > now.Add(GameAuthPolicy.SessionLeaseLifetime) || leaseUntil > head.LicenseUntil) return false;
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (!await AccountRepository.HoldGameAuthorityAsync(db, accountId, head.CredentialsVersion, head.SessionEpoch, now, cancellationToken))
             return false;
         await db.GameSessions.Where(h => h.AccountId == accountId)
             .ExecuteUpdateAsync(u => u.SetProperty(h => h.FencingToken, h => h.FencingToken), cancellationToken);
         now = clock?.GetUtcNow().UtcDateTime ?? now;
         if (leaseUntil <= now) return false;
-        var changed = await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId &&
+        int changed = await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId &&
             x.FencingToken == fence && x.State == GameSessionState.Pending && x.LeaseUntil > now && x.LicenseUntil >= leaseUntil)
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, GameSessionState.Active)
                 .SetProperty(x => x.LeaseUntil, leaseUntil), cancellationToken);
@@ -119,7 +120,7 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
     public async Task<bool> TryEndAsync(AccountId accountId, Guid sessionId, long fence, DateTime now,
         CancellationToken cancellationToken = default)
     {
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId && x.FencingToken == fence)
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, GameSessionState.Ended)
                 .SetProperty(x => x.LeaseUntil, now), cancellationToken) == 1;

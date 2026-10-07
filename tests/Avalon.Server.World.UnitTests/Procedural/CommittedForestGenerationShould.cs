@@ -23,11 +23,11 @@ public class CommittedForestGenerationShould
 
     private static (ProceduralMapConfig, List<ChunkPoolMember>, List<ChunkGroupDefinition>) Load()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext db = database.CreateDbContext();
         ChunkCatalogSeeder.SeedAsync(db, Path.Combine(AppContext.BaseDirectory, "Maps")).GetAwaiter().GetResult();
 
-        Dictionary<ChunkTemplateId, ChunkTemplate> templates = db.ChunkTemplates.AsNoTracking().ToList().ToDictionary(t => t.Id);
+        var templates = db.ChunkTemplates.AsNoTracking().ToList().ToDictionary(t => t.Id);
         ChunkPool pool = db.ChunkPools.AsNoTracking().Include(p => p.Memberships).Include(p => p.Groups).ThenInclude(g => g.Members)
             .Single(p => p.Name == "forest_pool");
 
@@ -70,7 +70,7 @@ public class CommittedForestGenerationShould
                 Assert.Single(placed.Select(c => c.Rotation).Distinct());
                 Assert.Equal(1, placed.Max(c => c.GridX) - placed.Min(c => c.GridX));
                 Assert.Equal(1, placed.Max(c => c.GridZ) - placed.Min(c => c.GridZ));
-                if (!rotations.TryGetValue(placed.Key, out var seen)) rotations[placed.Key] = seen = [];
+                if (!rotations.TryGetValue(placed.Key, out HashSet<byte>? seen)) rotations[placed.Key] = seen = [];
                 seen.Add(placed.First().Rotation);
             }
 

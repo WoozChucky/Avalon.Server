@@ -45,7 +45,7 @@ public class CreatureReturnHomeShould
         ];
         int[] faces = [0, 1, 2, 0, 2, 3];
 
-        var result = new TileNavMeshBuilder().Build(new RcSampleInputGeomProvider(vertices, faces),
+        NavMeshBuildResult result = new TileNavMeshBuilder().Build(new RcSampleInputGeomProvider(vertices, faces),
             NavmeshBuildSettings.Create());
         Assert.NotNull(result?.NavMesh);
         return result!.NavMesh;
@@ -185,7 +185,7 @@ public class CreatureReturnHomeShould
 
             Locomotion = new JammableLocomotion(_real, this);
 
-            var metadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
             metadata.SpeedRun.Returns(4f);
             metadata.DetectionRange.Returns(10f);
             Creature = new Creature

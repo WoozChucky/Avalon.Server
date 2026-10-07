@@ -68,7 +68,7 @@ public sealed class ReauthenticationShould : IDisposable
     {
         Account account = await AccountAsync();
 
-        var refused = await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, " "));
+        AuthenticationException refused = await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, " "));
 
         Assert.Equal(Reauthentication.InvalidPassword, refused.Message);
         Assert.Empty(_cache.UsernameKeys);
@@ -90,7 +90,7 @@ public sealed class ReauthenticationShould : IDisposable
     public async Task Lock_the_account_on_the_wrong_password_in_the_last_slot()
     {
         Account account = await AccountAsync();
-        for (var i = 1; i < _config.MaxFailedLoginAttempts; i++)
+        for (int i = 1; i < _config.MaxFailedLoginAttempts; i++)
             await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, TestPasswords.Wrong));
 
         await Assert.ThrowsAsync<AccountLockedException>(() => CheckAsync(account, TestPasswords.Wrong));

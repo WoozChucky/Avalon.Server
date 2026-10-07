@@ -138,7 +138,7 @@ public class ApiDatabaseMigratorShould
     {
         await Migrator("DataSource=world-2").MigrateAsync(AuthContexts(), Worlds(), new UnopenedWorlds(), CancellationToken.None);
 
-        List<string> summary = _log.Entries.Where(e => e.Level == LogLevel.Information).Select(e => e.Text).ToList();
+        var summary = _log.Entries.Where(e => e.Level == LogLevel.Information).Select(e => e.Text).ToList();
         Assert.Equal(["World 1: Available", "World 2: Unavailable", "World 3: Available"], summary);
     }
 

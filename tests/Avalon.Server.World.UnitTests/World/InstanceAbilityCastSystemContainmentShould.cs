@@ -58,7 +58,7 @@ public class InstanceAbilityCastSystemContainmentShould
 
     private static ICharacter Caster(uint id)
     {
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, id));
         character.PowerType.Returns(PowerType.Mana);
         character.CurrentPower.Returns(100u);
@@ -135,8 +135,8 @@ public class InstanceAbilityCastSystemContainmentShould
         }
 
         Assert.Equal(2, objects.Count);
-        var thrower = Assert.Single(objects.OfType<UpdateThrowingAbilityScript>());
-        var projectile = Assert.Single(objects.OfType<ProjectileAbilityScript>());
+        UpdateThrowingAbilityScript thrower = Assert.Single(objects.OfType<UpdateThrowingAbilityScript>());
+        ProjectileAbilityScript projectile = Assert.Single(objects.OfType<ProjectileAbilityScript>());
         Vector3 before = projectile.Position;
 
         objects.Clear();

@@ -11,7 +11,7 @@ public class MapInstanceSelfSuppressionShould
     {
         var subjectGuid = new ObjectGuid(ObjectType.Character, 7);
         var recipientGuid = new ObjectGuid(ObjectType.Character, 7);
-        var fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, subjectGuid, recipientGuid);
+        GameEntityFields fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, subjectGuid, recipientGuid);
 
         Assert.False(fields.HasFlag(GameEntityFields.Position));
         Assert.False(fields.HasFlag(GameEntityFields.Velocity));
@@ -25,7 +25,7 @@ public class MapInstanceSelfSuppressionShould
     {
         var subjectGuid = new ObjectGuid(ObjectType.Character, 7);
         var recipientGuid = new ObjectGuid(ObjectType.Character, 8);
-        var fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, subjectGuid, recipientGuid);
+        GameEntityFields fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, subjectGuid, recipientGuid);
 
         Assert.Equal(GameEntityFields.CharacterUpdate, fields);
     }

@@ -12,6 +12,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Server.World.UnitTests.GameAuth;
@@ -92,20 +93,20 @@ public class CharacterSelectHandlerShould
             Power1 = storedPower,
         };
 
-        var characterRepository = Substitute.For<ICharacterRepository>();
+        ICharacterRepository characterRepository = Substitute.For<ICharacterRepository>();
         characterRepository.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>())
             .Returns(row);
         characterRepository.UpdateForGameplayAsync(Arg.Any<GameplayWriteAuthority>(), row, Arg.Any<CancellationToken>()).Returns(row);
 
-        var inventoryRepository = Substitute.For<ICharacterInventoryRepository>();
+        ICharacterInventoryRepository inventoryRepository = Substitute.For<ICharacterInventoryRepository>();
         inventoryRepository.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(inventoryRows ?? Array.Empty<CharacterInventory>());
 
-        var itemInstanceRepository = Substitute.For<IItemInstanceRepository>();
+        IItemInstanceRepository itemInstanceRepository = Substitute.For<IItemInstanceRepository>();
         itemInstanceRepository.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
             .Returns((IReadOnlyList<ItemInstance>)(itemInstances?.ToList() ?? new List<ItemInstance>()));
 
-        var abilityRepository = Substitute.For<ICharacterAbilityRepository>();
+        ICharacterAbilityRepository abilityRepository = Substitute.For<ICharacterAbilityRepository>();
         // The character knows every ability template it is given.
         CharacterAbility[] knownAbilities = (abilityTemplates ?? [])
             .Select(t => new CharacterAbility { CharacterId = TheCharacter, AbilityId = t.Id })
@@ -113,10 +114,10 @@ public class CharacterSelectHandlerShould
         abilityRepository.GetCharacterAbilitiesAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(knownAbilities);
 
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.InstanceId.Returns(Guid.NewGuid());
 
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.GetOrCreateTownInstanceAsync(new MapTemplateId(TownMapId), Arg.Any<ushort>())
             .Returns(Task.FromResult(instance));
 
@@ -258,18 +259,18 @@ public class CharacterSelectHandlerShould
         IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null,
         IReadOnlyCollection<AuraTemplate>? auraTemplates = null)
     {
-        var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterLevelExperience>());
-        var stats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository stats = Substitute.For<IClassLevelStatRepository>();
         stats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(classStats?.ToArray() ?? Array.Empty<ClassLevelStat>());
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());
-        var items = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(itemTemplates?.ToList() ?? new List<ItemTemplate>());
-        var abilities = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(abilityTemplates?.ToList() ?? new List<AbilityTemplate>());
 
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
@@ -277,23 +278,23 @@ public class CharacterSelectHandlerShould
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
-        var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
         creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<CreatureTemplate>()));
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
                 [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
-        var auraRepository = Substitute.For<IAuraTemplateRepository>();
+        IAuraTemplateRepository auraRepository = Substitute.For<IAuraTemplateRepository>();
         auraRepository.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<AuraTemplate>>(auraTemplates?.ToArray() ?? []));
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
@@ -320,7 +321,7 @@ public class CharacterSelectHandlerShould
     [Fact]
     public async Task Load_the_quest_log_before_the_pending_spawn()
     {
-        var quests = Substitute.For<ICharacterQuestRepository>();
+        ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
         quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
             [new CharacterQuest { CharacterId = TheCharacter, QuestId = 5, State = CharacterQuestState.Active, Stage = 1 }],
             [new CharacterQuestObjective { CharacterId = TheCharacter, QuestId = 5, ObjectiveId = 51, Progress = 2 }],
@@ -341,7 +342,7 @@ public class CharacterSelectHandlerShould
     public async Task Count_the_quest_items_in_the_bag_once_the_bag_and_the_log_are_loaded()
     {
         QuestTestWorld w = await QuestTestWorld.CreateAsync();
-        var quests = Substitute.For<ICharacterQuestRepository>();
+        ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
         quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
             [new CharacterQuest { CharacterId = TheCharacter, QuestId = QuestTestData.Tusks, State = CharacterQuestState.Active, Stage = 0 }],
             [new CharacterQuestObjective { CharacterId = TheCharacter, QuestId = QuestTestData.Tusks, ObjectiveId = QuestTestData.TusksCollect, Progress = 0 }],
@@ -365,7 +366,7 @@ public class CharacterSelectHandlerShould
     [Fact]
     public async Task Load_the_ignore_list_before_the_pending_spawn_and_send_it()
     {
-        var ignores = Substitute.For<ICharacterIgnoreRepository>();
+        ICharacterIgnoreRepository ignores = Substitute.For<ICharacterIgnoreRepository>();
         ignores.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(
             (IReadOnlyList<IgnoredCharacterRow>)[new IgnoredCharacterRow(9u, "Borin", DateTime.UtcNow)]);
         Fixture f = await BuildAsync(ignores: ignores);
@@ -376,7 +377,7 @@ public class CharacterSelectHandlerShould
             Arg.Is<ICharacter>(c => ((CharacterEntity)c).Ignores.Contains(9)), f.Instance, Arg.Any<long>());
         NetworkPacket list = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_IGNORE_LIST);
         using var stream = new MemoryStream(list.Payload);
-        var dto = Assert.Single(Serializer.Deserialize<Avalon.Network.Packets.Social.SIgnoreListPacket>(stream).Characters);
+        IgnoredCharacterDto dto = Assert.Single(Serializer.Deserialize<Avalon.Network.Packets.Social.SIgnoreListPacket>(stream).Characters);
         Assert.Equal((9u, "Borin"), (dto.CharacterId, dto.Name));
     }
 
@@ -387,7 +388,7 @@ public class CharacterSelectHandlerShould
     [Fact]
     public async Task Bring_the_saved_auras_back_on_the_pending_character()
     {
-        var auras = Substitute.For<ICharacterAuraRepository>();
+        ICharacterAuraRepository auras = Substitute.For<ICharacterAuraRepository>();
         auras.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns((IReadOnlyList<CharacterAura>)
         [
             new CharacterAura
@@ -410,13 +411,13 @@ public class CharacterSelectHandlerShould
     public async Task Read_no_aura_for_a_select_cancelled_before_its_aura_step()
     {
         bool closing = false;
-        var ignores = Substitute.For<ICharacterIgnoreRepository>();
+        ICharacterIgnoreRepository ignores = Substitute.For<ICharacterIgnoreRepository>();
         ignores.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(_ =>
         {
             closing = true;
             return Task.FromResult<IReadOnlyList<IgnoredCharacterRow>>([]);
         });
-        var auras = Substitute.For<ICharacterAuraRepository>();
+        ICharacterAuraRepository auras = Substitute.For<ICharacterAuraRepository>();
         Fixture f = await BuildAsync(ignores: ignores, auras: auras);
         f.Connection.IsClosing.Returns(_ => closing);
 
@@ -792,7 +793,7 @@ public class CharacterSelectHandlerShould
             AccessLevel = AccountAccessLevel.GameMaster
         };
 
-        var accountRepository = Substitute.For<IAccountRepository>();
+        IAccountRepository accountRepository = Substitute.For<IAccountRepository>();
         accountRepository.FindByIdAsync(TheAccount, false, Arg.Any<CancellationToken>())
             .Returns(account);
 

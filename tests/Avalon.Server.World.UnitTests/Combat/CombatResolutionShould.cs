@@ -191,7 +191,7 @@ public class CombatResolutionShould
     [Fact]
     public void Deal_cleave_with_a_starter_sword_from_the_attack_stat_and_the_weapon_roll()
     {
-        var rng = ScriptedCombatRandom.Plain().Longs(5);
+        ScriptedCombatRandom rng = ScriptedCombatRandom.Plain().Longs(5);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, random: rng);
         MapInstanceClient warrior = Warrior(instance, 506_101, Sword, Cleave());
         Creature target = AddCreature(instance, 506_901, new Vector3(0f, 0f, 2f));
@@ -388,7 +388,7 @@ public class CombatResolutionShould
     [Fact]
     public void Use_a_better_weapon_on_the_very_next_hit_after_equipping_it()
     {
-        var rng = ScriptedCombatRandom.Plain().Longs(5, 20);
+        ScriptedCombatRandom rng = ScriptedCombatRandom.Plain().Longs(5, 20);
         using MapInstance instance = TestMapInstances.Build(NewWorld(), random: rng);
         MapInstanceClient warrior = Warrior(instance, 506_191, Sword);
         IAbility cleave = AbilityTestData.Game(Cleave());
@@ -457,13 +457,13 @@ public class CombatResolutionShould
         CombatFormula heavy = CombatSeed.Formula();
         heavy.ArmorBase = 1000f;
         var formulas = new List<CombatFormula> { CombatSeed.Formula() };
-        var repository = Substitute.For<ICombatDataRepository>();
+        ICombatDataRepository repository = Substitute.For<ICombatDataRepository>();
         repository.GetFormulasAsync(Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult<IReadOnlyCollection<CombatFormula>>(formulas.ToList()));
         repository.GetClassStatFactorsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<ClassStatFactors>>(CombatSeed.ClassFactors()));
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(combat: repository));
         formulas[0] = heavy;
-        CombatPatch next = (CombatPatch)await data.PrepareAsync(ReloadArea.Combat);
+        var next = (CombatPatch)await data.PrepareAsync(ReloadArea.Combat);
 
         // The new generation is applied after the first unit's crit roll, in the middle of its resolve.
         var rng = new ReloadingRandom(afterDraws: 2, () => data.Apply(next));

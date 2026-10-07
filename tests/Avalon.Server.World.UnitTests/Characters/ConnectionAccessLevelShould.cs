@@ -30,7 +30,7 @@ public class ConnectionAccessLevelShould
         // CharacterLocaleAndGenderShould.Default_A_Connections_Locale_To_enUS is: a substituted
         // interface property just echoes back whatever value was configured, which would never
         // exercise the production `= AccountAccessLevel.Player` initializer at all.
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         var listener = new TcpListener(IPAddress.Loopback, 0);

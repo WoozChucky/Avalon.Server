@@ -15,9 +15,9 @@ public class ChunkLibraryShould
     [Fact]
     public async Task Throw_when_pool_has_no_entry_chunk()
     {
-        var templateRepo = Substitute.For<IChunkTemplateRepository>();
-        var poolRepo = Substitute.For<IChunkPoolRepository>();
-        var configRepo = Substitute.For<IProceduralMapConfigRepository>();
+        IChunkTemplateRepository templateRepo = Substitute.For<IChunkTemplateRepository>();
+        IChunkPoolRepository poolRepo = Substitute.For<IChunkPoolRepository>();
+        IProceduralMapConfigRepository configRepo = Substitute.For<IProceduralMapConfigRepository>();
 
         var template = new ChunkTemplate
         {
@@ -52,7 +52,7 @@ public class ChunkLibraryShould
         poolRepo.FindAllWithMembershipsAsync(Arg.Any<CancellationToken>()).Returns([pool]);
         configRepo.FindAllAsync(Arg.Any<CancellationToken>()).Returns([config]);
 
-        var services = new ServiceCollection()
+        ServiceProvider services = new ServiceCollection()
             .AddScoped(_ => templateRepo)
             .AddScoped(_ => poolRepo)
             .AddScoped(_ => configRepo)
@@ -76,7 +76,7 @@ public class ChunkLibraryShould
             SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
             PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
         };
-        var lib = BuildLibraryWith(
+        ChunkLibrary lib = BuildLibraryWith(
             templates: new List<ChunkTemplate> { entryChunk },
             pools: new List<ChunkPool>
             {
@@ -117,7 +117,7 @@ public class ChunkLibraryShould
             SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
             PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
         };
-        var lib = BuildLibraryWith(
+        ChunkLibrary lib = BuildLibraryWith(
             templates: new List<ChunkTemplate> { entryChunk },
             pools: new List<ChunkPool>
             {
@@ -156,7 +156,7 @@ public class ChunkLibraryShould
             SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
             PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
         };
-        var lib = BuildLibraryWith(
+        ChunkLibrary lib = BuildLibraryWith(
             templates: new List<ChunkTemplate> { entryChunk },
             pools: new List<ChunkPool>
             {
@@ -195,7 +195,7 @@ public class ChunkLibraryShould
             SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
             PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
         };
-        var lib = BuildLibraryWith(
+        ChunkLibrary lib = BuildLibraryWith(
             templates: new List<ChunkTemplate> { entryChunk },
             pools: new List<ChunkPool>
             {
@@ -268,7 +268,7 @@ public class ChunkLibraryShould
     public async Task Hand_out_a_pools_groups_with_their_templates()
     {
         (_, ChunkPool pool, List<ChunkTemplate> templates) = PoolWithBossGroup();
-        var lib = BuildLibraryWith(templates, [pool], configs: []);
+        ChunkLibrary lib = BuildLibraryWith(templates, [pool], configs: []);
 
         await lib.LoadAsync(CancellationToken.None);
 
@@ -282,7 +282,7 @@ public class ChunkLibraryShould
     public async Task Count_a_boss_group_as_the_pools_boss()
     {
         (_, ChunkPool pool, List<ChunkTemplate> templates) = PoolWithBossGroup();
-        var lib = BuildLibraryWith(templates, [pool], configs:
+        ChunkLibrary lib = BuildLibraryWith(templates, [pool], configs:
         [
             new ProceduralMapConfig
             {
@@ -304,9 +304,9 @@ public class ChunkLibraryShould
         (_, ChunkPool pool, List<ChunkTemplate> templates) = PoolWithBossGroup();
         templates.RemoveAll(t => t.Name == "b");
         var logs = new CreatureAbilitiesShould.ListLogger();
-        var factory = Substitute.For<ILoggerFactory>();
+        ILoggerFactory factory = Substitute.For<ILoggerFactory>();
         factory.CreateLogger(Arg.Any<string>()).Returns(logs);
-        var lib = BuildLibraryWith(templates, [pool], configs: [], factory);
+        ChunkLibrary lib = BuildLibraryWith(templates, [pool], configs: [], factory);
 
         await lib.LoadAsync(CancellationToken.None);
 
@@ -323,14 +323,14 @@ public class ChunkLibraryShould
         IReadOnlyList<ProceduralMapConfig> configs,
         ILoggerFactory? loggerFactory = null)
     {
-        var templateRepo = Substitute.For<IChunkTemplateRepository>();
-        var poolRepo = Substitute.For<IChunkPoolRepository>();
-        var configRepo = Substitute.For<IProceduralMapConfigRepository>();
+        IChunkTemplateRepository templateRepo = Substitute.For<IChunkTemplateRepository>();
+        IChunkPoolRepository poolRepo = Substitute.For<IChunkPoolRepository>();
+        IProceduralMapConfigRepository configRepo = Substitute.For<IProceduralMapConfigRepository>();
         templateRepo.FindAllWithSlotsAsync(Arg.Any<CancellationToken>()).Returns(templates);
         poolRepo.FindAllWithMembershipsAsync(Arg.Any<CancellationToken>()).Returns(pools);
         configRepo.FindAllAsync(Arg.Any<CancellationToken>()).Returns(configs);
 
-        var services = new ServiceCollection()
+        ServiceProvider services = new ServiceCollection()
             .AddScoped(_ => templateRepo)
             .AddScoped(_ => poolRepo)
             .AddScoped(_ => configRepo)

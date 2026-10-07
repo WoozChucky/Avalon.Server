@@ -62,7 +62,7 @@ public class ConfigFilesShould
     public void Take_the_starter_profile_from_the_weapon_and_armour_vendors()
     {
         BalanceData data = TestData.Seeded;
-        HashSet<ulong> sold = data.Tables.VendorStocks
+        var sold = data.Tables.VendorStocks
             .Where(v => v.CreatureTemplateId.Value is 12 or 13)
             .Select(v => v.ItemTemplateId.Value)
             .ToHashSet();
@@ -87,7 +87,7 @@ public class ConfigFilesShould
               "scenarios": [ { "id": "town", "pack": [ { "template": 1 } ] } ], "gearProfiles": {} }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() => scenarios.Validate(TestData.Seeded));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => scenarios.Validate(TestData.Seeded));
         Assert.Contains("scenario 'town'", error.Message, StringComparison.Ordinal);
 
         SeedTables tables = SeedSource.Load();
@@ -108,7 +108,7 @@ public class ConfigFilesShould
     {
         RotationFile rotations = ConfigFiles.ParseRotations(json);
 
-        var error = Assert.Throws<InvalidDataException>(() => rotations.Compile(CharacterClass.Warrior, TestData.Seeded));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => rotations.Compile(CharacterClass.Warrior, TestData.Seeded));
         Assert.Contains(message, error.Message, StringComparison.Ordinal);
     }
 
@@ -123,7 +123,7 @@ public class ConfigFilesShould
     [Fact]
     public void Refuse_a_misspelt_scenario_field()
     {
-        var error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseScenarios("""
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseScenarios("""
             { "runs": 1, "seed": 1, "levels": [1, 1], "classes": ["Warrior"], "gear": ["none"],
               "scenarios": [ { "id": "normal-1", "pack": [ { "rarity": "Normal" } ], "levelOfset": 2 } ], "gearProfiles": {} }
             """));
@@ -135,7 +135,7 @@ public class ConfigFilesShould
     [Fact]
     public void Refuse_a_misspelt_target_band()
     {
-        var error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseTargets("""
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseTargets("""
             { "scenarios": { "normal-1": { "fightSecs": { "min": 4 } } } }
             """));
 
@@ -160,7 +160,7 @@ public class ConfigFilesShould
     {
         TargetFile targets = ConfigFiles.ParseTargets(json);
 
-        var error = Assert.Throws<InvalidDataException>(() => targets.Validate(CheckedInScenarios()));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => targets.Validate(CheckedInScenarios()));
         Assert.Contains(message, error.Message, StringComparison.Ordinal);
     }
 }

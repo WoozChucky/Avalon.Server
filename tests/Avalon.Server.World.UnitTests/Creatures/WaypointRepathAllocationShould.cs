@@ -43,7 +43,7 @@ public class WaypointRepathAllocationShould
     [Fact]
     public void Re_path_in_steady_state_without_allocating()
     {
-        var (locomotion, _, creature) = Build();
+        (WaypointLocomotion? locomotion, MapNavigator _, Creature? creature) = Build();
 
         // Warm-up: every route once, so each buffer has grown to the longest it will hold.
         foreach (Vector3 destination in Destinations)

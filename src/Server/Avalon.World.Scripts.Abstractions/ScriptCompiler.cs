@@ -129,7 +129,7 @@ public class ScriptCompiler : IScriptCompiler
 
     private async Task<Assembly?> GenerateAssemblyAsync()
     {
-        Stopwatch sw = Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         string[] files = Directory.GetFiles(ScriptsPath, $"*{ScriptExtension}", SearchOption.AllDirectories);
         List<SyntaxTree> syntaxTrees = [];
 
@@ -149,7 +149,7 @@ public class ScriptCompiler : IScriptCompiler
             syntaxTrees.Add(syntaxTree);
         }
 
-        CSharpCompilation compilation = CSharpCompilation.Create(
+        var compilation = CSharpCompilation.Create(
             $"Scripts_{Guid.NewGuid()}",
             syntaxTrees,
             References,
@@ -174,7 +174,7 @@ public class ScriptCompiler : IScriptCompiler
         }
 
         ms.Seek(0, SeekOrigin.Begin);
-        Assembly assembly = Assembly.Load(ms.ToArray());
+        var assembly = Assembly.Load(ms.ToArray());
 
         sw.Stop();
         _logger.LogDebug("Compiled scripts in {Elapsed}ms", sw.ElapsedMilliseconds);

@@ -82,9 +82,9 @@ public class HotReloadPublishedInstanceShould
     public async Task Give_an_instance_built_during_a_reload_the_reloaded_scripts_when_it_is_published()
     {
         var build = new TaskCompletionSource<MapInstance>();
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([new MapTemplate { Id = TownId, MapType = MapType.Town }]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(build.Task);
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
             new OneShotScriptHotReloader(typeof(ReloadedScript)), intervalSeconds: 1, mapManager, factory);
@@ -116,9 +116,9 @@ public class HotReloadPublishedInstanceShould
     public async Task Keep_a_script_already_of_the_reloaded_type()
     {
         var build = new TaskCompletionSource<MapInstance>();
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([new MapTemplate { Id = TownId, MapType = MapType.Town }]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(build.Task);
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
             new OneShotScriptHotReloader(typeof(ReloadedScript)), intervalSeconds: 1, mapManager, factory);

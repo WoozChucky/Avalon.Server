@@ -65,7 +65,7 @@ public class MapInstanceVendorShould
 
     private MapInstance Build(IWorld world)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         serviceProvider.GetService(typeof(TimeProvider)).Returns(_clock);
@@ -318,7 +318,7 @@ public class MapInstanceVendorShould
     [Fact]
     public void Tick_an_instance_nobody_shopped_in_without_reading_vendor_data()
     {
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>());
         // world.Data is deliberately left unconfigured, so it is null: the pass must not run.

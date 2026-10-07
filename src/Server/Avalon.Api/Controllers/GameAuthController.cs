@@ -27,7 +27,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
             return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol)), nameof(ProviderAttempt));
         try
         {
-            var reply = await authorization.CreateProviderAttemptAsync(request.ApplicationKey, request.ProtocolVersion,
+            AuthAttemptReply? reply = await authorization.CreateProviderAttemptAsync(request.ApplicationKey, request.ProtocolVersion,
                 request.ClientRunId, request.LinkChallenge, request.GameContextCredential, 0, cancellationToken);
             return LogResult(reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) :
                 Ok(new ProviderAuthAttemptReply(reply.AttemptCredential, reply.ExpectedSteamIdentity, reply.ExpiresAt)), nameof(ProviderAttempt));
@@ -72,7 +72,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
         if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired));
         try
         {
-            var reply = await links.ProposalAsync(request.GameContextCredential, request.PkceVerifier, cancellationToken);
+            LinkProposalReply reply = await links.ProposalAsync(request.GameContextCredential, request.PkceVerifier, cancellationToken);
             return reply.Error is null ? Ok(reply) : Unauthorized(reply);
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
@@ -85,7 +85,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
         [FromServices] ILogger<GameAuthController> logger, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(async () =>
     {
-        var reply = await authorization.CompleteAccountLinkAsync(links, request.GameContextCredential,
+        GameAuthReply reply = await authorization.CompleteAccountLinkAsync(links, request.GameContextCredential,
             request.ConsentCode, request.PkceVerifier, requestId, request.Accepted, cancellationToken);
         if (reply.AccountId is not null && reply.GameContextCredential is not null)
             logger.LogInformation("Store identity linked for account {AccountId}, provider {Provider}", reply.AccountId, StoreProviders.Steam);
@@ -97,7 +97,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
         if (!Request.IsHttps) return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired)), operation);
         try
         {
-            var reply = await action();
+            GameAuthReply reply = await action();
             if (reply.GameContextCredential is not null || reply.Error is null) return LogResult(Ok(reply), operation);
             return LogResult(reply.Error switch
             {

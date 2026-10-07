@@ -83,7 +83,7 @@ public class MapTeleportShould
     /// <summary>A navigator whose ground query answers <paramref name="kind" /> at <paramref name="ground" />.</summary>
     private static IMapNavigator Ground(NavmeshGroundKind kind, Vector3 ground)
     {
-        var navigator = Substitute.For<IMapNavigator, IGroundNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator, IGroundNavigator>();
         ((IGroundNavigator)navigator).FindGround(Arg.Any<Vector3>(), out Arg.Any<Vector3>()).Returns(ci =>
         {
             ci[1] = ground;
@@ -248,7 +248,7 @@ public class MapTeleportShould
         _connection.Character.Returns(member.Character);
         _registry.GetInstanceById(member.Character.InstanceId).Returns(_source);
         _world.Configuration.Returns(new GameConfiguration());
-        var instances = Substitute.For<IPartyInstanceRegistry>();
+        IPartyInstanceRegistry instances = Substitute.For<IPartyInstanceRegistry>();
         instances.GetOrCreatePartyInstanceAsync(Arg.Any<PartyId>(), Forest).Returns(Task.FromResult(_forest));
         _world.PartyInstances.Returns(instances);
 

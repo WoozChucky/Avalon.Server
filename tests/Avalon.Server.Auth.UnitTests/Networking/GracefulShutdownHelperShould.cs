@@ -66,7 +66,7 @@ public class GracefulShutdownHelperShould
     [Fact]
     public void LogWarning_WhenSendThrows()
     {
-        var logger = Substitute.For<ILogger>();
+        ILogger logger = Substitute.For<ILogger>();
         _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Throw<InvalidOperationException>();
 
         GracefulShutdownHelper.NotifyAndClose(_connection, "Server is shutting down", DisconnectReason.ServerShutdown, logger);

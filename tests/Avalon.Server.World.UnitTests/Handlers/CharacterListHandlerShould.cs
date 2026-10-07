@@ -59,7 +59,7 @@ public class CharacterListHandlerShould : IDisposable
         Assert.NotNull(query);
         callback!(await query!);
 
-        NetworkPacket sent = (NetworkPacket)connection.ReceivedCalls()
+        var sent = (NetworkPacket)connection.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
             .GetArguments()[0]!;
         SCharacterListPacket list = Serializer.Deserialize<SCharacterListPacket>(new MemoryStream(sent.Payload));

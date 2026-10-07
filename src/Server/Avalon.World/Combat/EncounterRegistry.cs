@@ -27,7 +27,7 @@ public sealed class EncounterRegistry : IEncounterRegistry
 
     public IEncounter? FindEncounterContaining(IUnit unit)
     {
-        foreach (var enc in _active)
+        foreach (Encounter enc in _active)
         {
             if (enc.Hostiles.Contains(unit) || enc.Players.Contains(unit))
                 return enc;

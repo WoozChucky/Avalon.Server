@@ -41,7 +41,7 @@ public sealed class PvpSaveRoundTripShould : IDisposable
 
     private async Task SaveAsync(CharacterEntity character)
     {
-        CharacterSaveSnapshot snapshot = CharacterSaveSnapshot.Take(character);
+        var snapshot = CharacterSaveSnapshot.Take(character);
         await _saves.WriteAsync([snapshot.Batch]);
         character.SaveState.Acknowledge(snapshot.Marks);
     }

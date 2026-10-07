@@ -79,7 +79,7 @@ public sealed class PublicRouteShould : IAsyncLifetime
 
     private Task<HttpResponseMessage> As(AccountAccessLevel level, string path)
     {
-        var account = ApiAuthHost.MakeAccount(level);
+        Account account = ApiAuthHost.MakeAccount(level);
         _host.AccountNowIs(account);
         return _host.GetAsync(path, ApiAuthHost.Mint(account));
     }

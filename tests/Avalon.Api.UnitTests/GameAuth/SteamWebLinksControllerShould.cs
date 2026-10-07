@@ -39,7 +39,7 @@ public sealed class SteamWebLinksControllerShould
     {
         _links = new(_memory, new GameAuthCryptography(new byte[32]), _clock);
         _accounts.FindByIdAsync(_root.Id, false, Arg.Any<CancellationToken>()).Returns(_root);
-        var mfa = Substitute.For<IMfaSetupRepository>(); var hashes = Substitute.For<IMFAHashService>();
+        IMfaSetupRepository mfa = Substitute.For<IMfaSetupRepository>(); IMFAHashService hashes = Substitute.For<IMFAHashService>();
         var policy = new MfaLoginPolicy(_accounts, Substitute.For<IReplicatedCache>(), Substitute.For<ILoginLimits>(),
             Substitute.For<IMFAService>(), hashes, NullLoggerFactory.Instance);
         var recent = new AccountLinkReauthentication(_password, mfa, hashes, policy);
@@ -54,7 +54,7 @@ public sealed class SteamWebLinksControllerShould
     }
     private async Task<SteamWebLinkStart> Transaction(bool verify = false)
     {
-        var transaction = (await _links.StartAsync(Guid.NewGuid(), _root, "browser", default))!;
+        SteamWebLinkStart transaction = (await _links.StartAsync(Guid.NewGuid(), _root, "browser", default))!;
         _http.Request.Headers.Cookie = SteamWebLinkRegistration.CookieName(transaction.Id) + "=" + transaction.Cookie;
         if (verify)
         {
@@ -79,14 +79,14 @@ public sealed class SteamWebLinksControllerShould
     public async Task Honor_expired_temporary_locks_consistently_when_starting_and_challenging()
     {
         _root.Locked = true; _root.LockedUntil = _clock.GetUtcNow().UtcDateTime.AddSeconds(-1);
-        var transaction = await Transaction();
+        SteamWebLinkStart transaction = await Transaction();
         Assert.IsType<ChallengeResult>(await _controller.Challenge(transaction.Id, default));
     }
     [Fact]
     public async Task Require_explicit_consent_before_password_checks_or_identity_mutations()
     {
-        var transaction = await Transaction(true);
-        var refused = Assert.IsType<BadRequestObjectResult>(await _controller.Confirm(new(transaction.Id, "correct", null, false), Guid.NewGuid(), default));
+        SteamWebLinkStart transaction = await Transaction(true);
+        BadRequestObjectResult refused = Assert.IsType<BadRequestObjectResult>(await _controller.Confirm(new(transaction.Id, "correct", null, false), Guid.NewGuid(), default));
         Assert.Equal("CONFIRMATION_REQUIRED", Assert.IsType<SteamWebLinkReply>(refused.Value).Error);
         await _password.DidNotReceiveWithAnyArgs().RequireCurrentPasswordAsync(default!, default!, default!, default);
         await _identities.DidNotReceiveWithAnyArgs().LinkWithAuthorityAsync(default!, default, default);
@@ -94,14 +94,14 @@ public sealed class SteamWebLinksControllerShould
     [Fact]
     public async Task Recover_exact_link_commit_after_epoch_change_without_rechecking_password_or_consuming_MFA()
     {
-        var transaction = await Transaction(true); var request = Guid.NewGuid();
+        SteamWebLinkStart transaction = await Transaction(true); var request = Guid.NewGuid();
         var identity = new ExternalIdentity { Id = transaction.Id, AccountId = _root.Id, Provider = "steam", ProviderSubject = "76561198000000001" };
         _identities.LinkWithAuthorityAsync(Arg.Any<IdentityLinkOperation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(new IdentityLinkResult(IdentityLinkStatus.Linked, identity));
-        var first = Assert.IsType<OkObjectResult>(await _controller.Confirm(new(transaction.Id, "correct", null, true), request, default));
+        OkObjectResult first = Assert.IsType<OkObjectResult>(await _controller.Confirm(new(transaction.Id, "correct", null, true), request, default));
         Assert.Equal("linked", Assert.IsType<SteamWebLinkReply>(first.Value).State);
         _root.SessionEpoch++; _clock.Advance(TimeSpan.FromMinutes(3));
         _identities.FindAsync("steam", identity.ProviderSubject, Arg.Any<CancellationToken>()).Returns(identity);
-        var retry = Assert.IsType<OkObjectResult>(await _controller.Confirm(new(transaction.Id, string.Empty, null, true), request, default));
+        OkObjectResult retry = Assert.IsType<OkObjectResult>(await _controller.Confirm(new(transaction.Id, string.Empty, null, true), request, default));
         Assert.Equal("linked", Assert.IsType<SteamWebLinkReply>(retry.Value).State);
         await _password.Received(1).RequireCurrentPasswordAsync(_root.Id, "correct", IPAddress.Loopback, Arg.Any<CancellationToken>());
         await _identities.Received(1).LinkWithAuthorityAsync(Arg.Is<IdentityLinkOperation>(op => op.AccountId == _root.Id && op.SessionEpoch == 0 && op.OperationId == transaction.Id), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
@@ -111,10 +111,10 @@ public sealed class SteamWebLinksControllerShould
     [Fact]
     public async Task Require_separate_transfer_consent_if_Steam_now_belongs_to_an_automatic_root()
     {
-        var transaction = await Transaction(true);
+        SteamWebLinkStart transaction = await Transaction(true);
         var other = new ExternalIdentity { Id = Guid.NewGuid(), AccountId = new AccountId(9), Provider = "steam", ProviderSubject = "76561198000000001" };
         _identities.FindAsync("steam", other.ProviderSubject, Arg.Any<CancellationToken>()).Returns(other);
-        var refused = Assert.IsType<BadRequestObjectResult>(await _controller.Confirm(new(transaction.Id, "correct", null, true), Guid.NewGuid(), default));
+        BadRequestObjectResult refused = Assert.IsType<BadRequestObjectResult>(await _controller.Confirm(new(transaction.Id, "correct", null, true), Guid.NewGuid(), default));
         Assert.Equal("CONSOLIDATION_CONFIRMATION_REQUIRED", Assert.IsType<SteamWebLinkReply>(refused.Value).Error);
         Assert.Equal("verified", (await _links.ReadBoundAsync(transaction.Id, _root.Id, "browser", transaction.Cookie, default))!.State);
         await _password.DidNotReceiveWithAnyArgs().RequireCurrentPasswordAsync(default!, default!, default!, default);
@@ -122,11 +122,11 @@ public sealed class SteamWebLinksControllerShould
     [Fact]
     public async Task Refuse_transfer_when_a_native_creation_races_the_consent_commit()
     {
-        var transaction = await Transaction(true);
+        SteamWebLinkStart transaction = await Transaction(true);
         var other = new ExternalIdentity { Id = Guid.NewGuid(), AccountId = new AccountId(9), Provider = "steam", ProviderSubject = "76561198000000001" };
         _identities.FindAsync("steam", other.ProviderSubject, Arg.Any<CancellationToken>()).Returns((ExternalIdentity?)null, other);
         _identities.LinkWithAuthorityAsync(Arg.Any<IdentityLinkOperation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(new IdentityLinkResult(IdentityLinkStatus.SubjectTaken, other));
-        var refused = Assert.IsType<BadRequestObjectResult>(await _controller.Confirm(new(transaction.Id, "correct", null, true), Guid.NewGuid(), default));
+        BadRequestObjectResult refused = Assert.IsType<BadRequestObjectResult>(await _controller.Confirm(new(transaction.Id, "correct", null, true), Guid.NewGuid(), default));
         Assert.Equal("STEAM_LINK_CHANGED_START_AGAIN", Assert.IsType<SteamWebLinkReply>(refused.Value).Error);
         await _operations.DidNotReceiveWithAnyArgs().BeginAsync(default!, default);
     }

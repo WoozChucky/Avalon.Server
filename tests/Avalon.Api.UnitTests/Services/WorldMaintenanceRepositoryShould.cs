@@ -30,10 +30,10 @@ public sealed class WorldMaintenanceRepositoryShould : IDisposable
     {
         var repository = new WorldMaintenanceRepository(_database);
         var noon = new DateTime(2026, 9, 29, 12, 0, 0, DateTimeKind.Utc);
-        var first = await repository.TransitionAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), noon,
+        WorldMaintenanceState? first = await repository.TransitionAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), noon,
             CancellationToken.None);
 
-        var repeated = await repository.TransitionAsync(new WorldId(1), true, TimeSpan.FromMinutes(30),
+        WorldMaintenanceState? repeated = await repository.TransitionAsync(new WorldId(1), true, TimeSpan.FromMinutes(30),
             noon.AddSeconds(15), CancellationToken.None);
 
         Assert.Equal(new WorldMaintenanceState(true, 1, noon.AddMinutes(5)), first);
@@ -63,9 +63,9 @@ public sealed class WorldMaintenanceRepositoryShould : IDisposable
         await repository.TransitionAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), noon,
             CancellationToken.None);
 
-        var off = await repository.TransitionAsync(new WorldId(1), false, TimeSpan.Zero,
+        WorldMaintenanceState? off = await repository.TransitionAsync(new WorldId(1), false, TimeSpan.Zero,
             noon.AddMinutes(2), CancellationToken.None);
-        var repeated = await repository.TransitionAsync(new WorldId(1), false, TimeSpan.Zero,
+        WorldMaintenanceState? repeated = await repository.TransitionAsync(new WorldId(1), false, TimeSpan.Zero,
             noon.AddMinutes(3), CancellationToken.None);
 
         Assert.Equal(new WorldMaintenanceState(false, 2, null), off);
@@ -88,7 +88,7 @@ public sealed class WorldMaintenanceRepositoryShould : IDisposable
     {
         var migration = new AddWorldMaintenance();
 
-        var dataConversion = Assert.Single(migration.UpOperations.OfType<SqlOperation>());
+        SqlOperation dataConversion = Assert.Single(migration.UpOperations.OfType<SqlOperation>());
         Assert.Contains("WHERE \"Status\" = 2", dataConversion.Sql, StringComparison.Ordinal);
         Assert.Contains("INTERVAL '5 minutes'", dataConversion.Sql, StringComparison.Ordinal);
     }

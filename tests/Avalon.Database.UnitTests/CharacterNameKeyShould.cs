@@ -31,7 +31,7 @@ public class CharacterNameKeyShould
     [Fact]
     public async Task Refuse_a_second_character_whose_name_differs_only_in_case()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
             write.Characters.Add(Row(1, "Bob"));
@@ -46,7 +46,7 @@ public class CharacterNameKeyShould
     [Fact]
     public async Task Refuse_a_row_whose_key_is_not_its_upper_cased_name()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
             write.Characters.Add(Row(1, "Bob"));
@@ -66,7 +66,7 @@ public class CharacterNameKeyShould
     [InlineData(" kAeLa ")]
     public async Task Find_a_character_by_its_name_in_any_case(string typed)
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
             write.Characters.Add(Row(7, "Kaela"));
@@ -83,7 +83,7 @@ public class CharacterNameKeyShould
     [Fact]
     public async Task Find_no_character_for_a_name_that_folds_into_another_only_outside_ascii()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
             write.Characters.Add(Row(1, "Bill"));
@@ -129,7 +129,7 @@ public class CharacterNameKeyShould
     [Fact]
     public void Fill_the_key_before_building_its_unique_index()
     {
-        List<MigrationOperation> ops = new AddCharacterNameKey().UpOperations.ToList();
+        var ops = new AddCharacterNameKey().UpOperations.ToList();
 
         int add = ops.FindIndex(o => o is AddColumnOperation { Name: "NameKey" });
         int fill = ops.FindIndex(o => o is SqlOperation);
@@ -147,7 +147,7 @@ public class CharacterNameKeyShould
     [Fact]
     public async Task Leave_the_name_out_of_every_tracked_update()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
             write.Characters.Add(Row(1, "Kaela"));
@@ -166,7 +166,7 @@ public class CharacterNameKeyShould
     [Fact]
     public async Task Rename_an_offline_character()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await StoreAsync(database, Row(1, "Kaela"));
 
         Assert.Equal(CharacterRename.Renamed, await new CharacterRepository(database).TryRenameAsync(1u, "Borin"));
@@ -179,7 +179,7 @@ public class CharacterNameKeyShould
     [Fact]
     public async Task Refuse_to_rename_an_online_character_and_write_nothing()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         CharacterRow online = Row(1, "Kaela");
         online.Online = true;
         await StoreAsync(database, online);
@@ -193,7 +193,7 @@ public class CharacterNameKeyShould
     [Fact]
     public async Task Answer_a_rename_onto_a_taken_key_as_name_taken()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await StoreAsync(database, Row(1, "Kaela"));
         await StoreAsync(database, Row(2, "Borin"));
 
@@ -203,14 +203,14 @@ public class CharacterNameKeyShould
     [Fact]
     public async Task Answer_a_rename_of_no_character_as_not_found()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         Assert.Equal(CharacterRename.NotFound, await new CharacterRepository(database).TryRenameAsync(9u, "Borin"));
     }
 
     [Fact]
     public async Task Recognise_only_the_unique_violation_on_the_name_key()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await StoreAsync(database, Row(1, "Bob"));
 
         DbUpdateException nameClash = await Assert.ThrowsAsync<DbUpdateException>(() => StoreAsync(database, Row(2, "BOB")));

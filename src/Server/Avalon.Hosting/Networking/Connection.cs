@@ -243,7 +243,7 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
             {
                 await foreach (ReadOnlyMemory<byte> raw in _stream!.EnumerateRawFramesAsync(_packetReader.BufferSize, stoppingToken))
                 {
-                    InboundPacketFrame frame = InboundPacketFrame.ParseFrame(raw);
+                    var frame = InboundPacketFrame.ParseFrame(raw);
 
                     if (_logger.IsEnabled(LogLevel.Debug) &&
                         frame.Header.Type != NetworkPacketType.CMSG_PONG &&

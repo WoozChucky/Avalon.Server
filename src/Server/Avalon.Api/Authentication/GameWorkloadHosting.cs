@@ -10,11 +10,11 @@ public static class GameWorkloadHosting
     public const string EndpointName = "GameInternal";
     public static void ConfigureGameWorkloadListener(this WebApplicationBuilder builder)
     {
-        var configuration = builder.Configuration.GetSection("Application:GameWorkloads").Get<GameWorkloadConfiguration>() ?? new();
+        GameWorkloadConfiguration configuration = builder.Configuration.GetSection("Application:GameWorkloads").Get<GameWorkloadConfiguration>() ?? new();
         configuration.Validate();
         if (configuration.Servers.Count == 0) return; // No assigned server can allocate or authenticate.
-        var url = builder.Configuration[$"Kestrel:Endpoints:{EndpointName}:Url"];
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var endpoint) || endpoint.Scheme != "https")
+        string? url = builder.Configuration[$"Kestrel:Endpoints:{EndpointName}:Url"];
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? endpoint) || endpoint.Scheme != "https")
             throw new InvalidOperationException($"Kestrel:Endpoints:{EndpointName}:Url must configure a direct HTTPS workload listener.");
         builder.WebHost.ConfigureKestrel(options => options.Configure(builder.Configuration.GetSection("Kestrel"), reloadOnChange: false)
             .Endpoint(EndpointName, listener =>

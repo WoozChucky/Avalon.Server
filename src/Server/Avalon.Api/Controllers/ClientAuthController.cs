@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Authentication;
 using System.Security.Claims;
 using Avalon.Api.Authentication;
@@ -157,10 +158,10 @@ public sealed class ClientAuthController : BaseController
         {
             // As the website's refresh (#495 final review): behind a trusted proxy that forwarded no
             // client, the address is shared by everyone behind it, so the caller gets no source.
-            var peer = HttpContext.Connection.RemoteIpAddress;
+            IPAddress? peer = HttpContext.Connection.RemoteIpAddress;
             if (peer is not null && ForwardedHeadersSetup.IsTrustedProxy(_forwarded, peer))
                 peer = null;
-            RefreshCaller caller = RefreshCaller.From(peer, Request.Headers.UserAgent.ToString());
+            var caller = RefreshCaller.From(peer, Request.Headers.UserAgent.ToString());
             RefreshRotateResult rotated = await _refresh.RotateLauncherAsync(request.RefreshToken, caller, CancellationToken);
 
             Account? account = await _accounts.FindByIdAsync(rotated.AccountId, track: false, CancellationToken);

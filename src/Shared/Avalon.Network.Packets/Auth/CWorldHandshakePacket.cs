@@ -26,7 +26,7 @@ public class CWorldHandshakePacket : Packet
 
         Serializer.Serialize(memoryStream, exchangeWorldKeyPacket);
 
-        var buffer = encryptFunc(memoryStream.ToArray());
+        byte[] buffer = encryptFunc(memoryStream.ToArray());
 
         return new NetworkPacket
         {

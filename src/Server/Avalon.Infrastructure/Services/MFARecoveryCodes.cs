@@ -37,17 +37,17 @@ public static class MFARecoveryCodes
     /// <summary>Generates one code for display. Show it once; store only <see cref="Hash"/>.</summary>
     public static string Generate(ISecureRandom random)
     {
-        var bytes = random.GetBytes(EntropyBytes);
+        byte[] bytes = random.GetBytes(EntropyBytes);
         if (bytes.Length != EntropyBytes)
             throw new InvalidOperationException($"Expected {EntropyBytes} random bytes, got {bytes.Length}.");
 
         try
         {
-            var chars = new char[CodeLength];
-            var buffer = 0;
-            var bits = 0;
-            var index = 0;
-            foreach (var b in bytes)
+            char[] chars = new char[CodeLength];
+            int buffer = 0;
+            int bits = 0;
+            int index = 0;
+            foreach (byte b in bytes)
             {
                 buffer = (buffer << 8) | b;
                 bits += 8;
@@ -60,7 +60,7 @@ public static class MFARecoveryCodes
             }
 
             var sb = new StringBuilder(CodeLength + CodeLength / GroupLength - 1);
-            for (var i = 0; i < CodeLength; i++)
+            for (int i = 0; i < CodeLength; i++)
             {
                 if (i > 0 && i % GroupLength == 0)
                     sb.Append('-');
@@ -77,7 +77,7 @@ public static class MFARecoveryCodes
     /// <summary>SHA-256 of the canonical form of a code. Returns null if the input is not a well-formed code.</summary>
     public static byte[]? Hash(string? code)
     {
-        var canonical = Canonicalize(code);
+        string? canonical = Canonicalize(code);
         return canonical == null ? null : SHA256.HashData(Encoding.ASCII.GetBytes(canonical));
     }
 
@@ -89,7 +89,7 @@ public static class MFARecoveryCodes
         if (storedHash is not { Length: SHA256.HashSizeInBytes })
             return false;
 
-        var candidate = Hash(code);
+        byte[]? candidate = Hash(code);
         return candidate != null && CryptographicOperations.FixedTimeEquals(candidate, storedHash);
     }
 
@@ -99,12 +99,12 @@ public static class MFARecoveryCodes
             return null;
 
         var sb = new StringBuilder(CodeLength);
-        foreach (var c in code)
+        foreach (char c in code)
         {
             if (c == '-' || char.IsWhiteSpace(c))
                 continue;
 
-            var upper = char.ToUpperInvariant(c);
+            char upper = char.ToUpperInvariant(c);
             if (Alphabet.IndexOf(upper) < 0 || sb.Length == CodeLength)
                 return null;
             sb.Append(upper);

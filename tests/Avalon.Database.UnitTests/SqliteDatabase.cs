@@ -28,7 +28,7 @@ public sealed class SqliteDatabase<TContext> : IDbContextFactory<TContext>, IDis
         _connection = new SqliteConnection("DataSource=:memory:");
         _connection.Open();
 
-        var builder = new DbContextOptionsBuilder<TContext>().UseSqlite(_connection);
+        DbContextOptionsBuilder<TContext> builder = new DbContextOptionsBuilder<TContext>().UseSqlite(_connection);
         configure?.Invoke(builder);
         _options = builder.Options;
 

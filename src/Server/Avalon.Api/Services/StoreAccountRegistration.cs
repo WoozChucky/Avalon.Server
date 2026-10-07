@@ -19,7 +19,7 @@ public sealed class StoreAccountRegistration(IExternalIdentityRepository identit
     public async Task<IdentityLinkResult> CreateFromStoreAsync(Guid operationId, string provider, string verifiedSubject,
         DateTime proofExpiresAt, string sourceAddress, CancellationToken cancellationToken)
     {
-        if (operationId == Guid.Empty || !IPAddress.TryParse(sourceAddress, out var source) ||
+        if (operationId == Guid.Empty || !IPAddress.TryParse(sourceAddress, out IPAddress? source) ||
             proofExpiresAt <= clock.GetUtcNow().UtcDateTime)
             return new(IdentityLinkStatus.AuthorityChanged, null);
         var account = new Account
@@ -34,18 +34,18 @@ public sealed class StoreAccountRegistration(IExternalIdentityRepository identit
             LastIp = source.ToString(),
         };
         var operation = new StoreAccountCreationOperation(operationId, account, verifiedSubject, proofExpiresAt) { Provider = provider };
-        var prior = await identities.FindAsync(provider, verifiedSubject, cancellationToken);
+        ExternalIdentity? prior = await identities.FindAsync(provider, verifiedSubject, cancellationToken);
         if (prior?.Id == operationId)
             return await identities.CreateAccountWithStoreLinkAsync(operation, clock.GetUtcNow().UtcDateTime, cancellationToken);
-        var key = CacheKeys.AuthSourceAccountsCreated(RemoteAddress.SourceOf(source));
-        var taken = await AttemptBudget.TakeAsync(cache, key, TimeSpan.FromMinutes(config.AccountCreationWindowMinutes));
+        string key = CacheKeys.AuthSourceAccountsCreated(RemoteAddress.SourceOf(source));
+        long taken = await AttemptBudget.TakeAsync(cache, key, TimeSpan.FromMinutes(config.AccountCreationWindowMinutes));
         if (taken > config.MaxAccountsCreatedPerSource)
         {
             await AttemptBudget.GiveBackAsync(cache, key);
             return new(IdentityLinkStatus.CreationRefused, null);
         }
         // An uncertain DB outcome keeps its reservation. The durable operation receipt recovers retries.
-        var result = await identities.CreateAccountWithStoreLinkAsync(operation, clock.GetUtcNow().UtcDateTime, cancellationToken);
+        IdentityLinkResult result = await identities.CreateAccountWithStoreLinkAsync(operation, clock.GetUtcNow().UtcDateTime, cancellationToken);
         if (result.Status != IdentityLinkStatus.Linked) await AttemptBudget.GiveBackAsync(cache, key);
         return result;
     }

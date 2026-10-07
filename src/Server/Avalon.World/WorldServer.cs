@@ -88,10 +88,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         await _world.DeSpawnPlayerAsync(connection).ConfigureAwait(false);
         try { await connection.WhenPendingOperationsIdle().ConfigureAwait(false); } catch (Exception) { }
-        var pendingAdmission = connection.AdmissionWork;
+        Task<WorldAdmissionResult>? pendingAdmission = connection.AdmissionWork;
         if (pendingAdmission is not null)
             try { await pendingAdmission.ConfigureAwait(false); } catch (Exception) { }
-        var lease = connection.GameSessionLease ?? (pendingAdmission is { IsCompletedSuccessfully: true } ? pendingAdmission.Result.Lease : null);
+        GameSessionLease? lease = connection.GameSessionLease ?? (pendingAdmission is { IsCompletedSuccessfully: true } ? pendingAdmission.Result.Lease : null);
         if (lease is not null)
             await Task.Run(() => AdmissionClient.EndAsync(lease, CancellationToken.None), CancellationToken.None).ConfigureAwait(false);
     }
@@ -250,7 +250,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>();
 
-        Dictionary<NetworkPacketType, Type> packetHandlers = typeof(WorldServer).Assembly.GetTypes()
+        var packetHandlers = typeof(WorldServer).Assembly.GetTypes()
             .Where(x => x.GetCustomAttribute<PacketHandlerAttribute>() != null)
             .ToDictionary(x => x.GetCustomAttribute<PacketHandlerAttribute>()!.PacketType, x => x);
 
@@ -326,13 +326,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Validate certificate loading and workload configuration before the port becomes ready.
-        var transport = TlsTransport;
-        var admission = AdmissionClient;
+        WorldTlsTransport transport = TlsTransport;
+        IGameAdmissionClient admission = AdmissionClient;
         await Task.Run(() => _scriptManager.Load(), stoppingToken);
 
         // The names this world accepts, for the admin app. Required, as the reload handler below is: a host that
         // builds a WorldServer registers the publisher, so a missing one fails startup rather than going unnoticed.
-        var catalog = _services.GetRequiredService<ScriptCatalogPublisher>();
+        ScriptCatalogPublisher catalog = _services.GetRequiredService<ScriptCatalogPublisher>();
         await catalog.PublishAsync();
 
         await _world.LoadAsync(stoppingToken);
@@ -391,7 +391,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // When the host signals shutdown, stop the tick loop.
         // 1 frame (~16ms) of shutdown latency is acceptable and avoids
         // a second sync primitive to wake the timer early.
-        await using var _ = stoppingToken.Register(static state =>
+        await using CancellationTokenRegistration _ = stoppingToken.Register(static state =>
             ((WorldServer)state!)._tickRunning = false, this);
 
         await _tickExited.Task;
@@ -596,7 +596,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         ImmutableArray<IWorldConnection> conns = Connections;
 
         // Revoked or expiring sessions leave their instance before packets and simulation run.
-        foreach (var connection in conns)
+        foreach (IWorldConnection connection in conns)
             if (connection is WorldConnection admitted) admitted.AdvanceGameplayLease();
 
         // Before the session pass, so a cutoff blocks a non-Admin's queued packets on the tick it arrives. Applies a
@@ -621,7 +621,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // rather than being beaten to it, and before the world update, so a character released here
         // is simulated on the tick that released it.
         long barrierNowTicks = DateTime.UtcNow.Ticks;
-        TimeSpan barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
+        var barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
 
         CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger,
             _entryGate, _maintenanceCoordinator, _time);
@@ -739,7 +739,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     protected override object GetContextPacket(IConnection connection, object? packet, Type packetType)
     {
-        var factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
+        Func<IConnection, Packet?, object> factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
             (Func<IConnection, Packet?, object>)s_buildContextMethod.MakeGenericMethod(t).Invoke(null, null)!);
         return factory(connection, packet as Packet);
     }
@@ -766,7 +766,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         // The API asks this world, and only this world, to reload after a template save. Required: a host that
         // builds a WorldServer registers the handler, so a missing one fails startup rather than going unnoticed.
-        var reloads = _services.GetRequiredService<ReloadRequestHandler>();
+        ReloadRequestHandler reloads = _services.GetRequiredService<ReloadRequestHandler>();
         await _cache.SubscribeAsync(CacheKeys.WorldReloadChannel(_world.Id.Value), reloads.OnMessage);
     }
 
@@ -798,9 +798,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     /// <summary>A notice requests an authoritative heartbeat. A delayed notice cannot kill a newer positive grant.</summary>
     public static int NotifyGameContextRevocation(IEnumerable<IWorldConnection> connections, string message)
     {
-        if (!GameContextRevocations.TryParse(message, out var accountId, out var contextId)) return 0;
+        if (!GameContextRevocations.TryParse(message, out AccountId? accountId, out Guid contextId)) return 0;
         int notified = 0;
-        foreach (var connection in connections.OfType<WorldConnection>())
+        foreach (WorldConnection connection in connections.OfType<WorldConnection>())
         {
             if (connection.GameSessionLease is not { } lease || lease.Authority.AccountId != accountId ||
                 (contextId != Guid.Empty && lease.GameContextId != contextId)) continue;

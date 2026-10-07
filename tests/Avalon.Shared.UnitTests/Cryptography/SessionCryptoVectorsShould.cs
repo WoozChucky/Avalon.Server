@@ -205,7 +205,7 @@ public class SessionCryptoVectorsShould
                 : client;
 
             byte[] wire = [.. packet.Nonce, .. packet.Ciphertext];
-            var output = new byte[wire.Length];
+            byte[] output = new byte[wire.Length];
 
             int length = receiver.Decrypt(wire, output);
 
@@ -232,8 +232,8 @@ public class SessionCryptoVectorsShould
 
             using var aes = new AesGcm(key, 16);
 
-            var ciphertext = new byte[packet.Plaintext.Length];
-            var tag = new byte[16];
+            byte[] ciphertext = new byte[packet.Plaintext.Length];
+            byte[] tag = new byte[16];
 
             aes.Encrypt(packet.Nonce, packet.Plaintext, ciphertext, tag);
 

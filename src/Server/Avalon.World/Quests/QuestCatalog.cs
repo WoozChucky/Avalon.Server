@@ -75,9 +75,9 @@ public sealed class QuestCatalog
         ILoggerFactory loggerFactory)
     {
         ILogger<QuestCatalog> logger = loggerFactory.CreateLogger<QuestCatalog>();
-        HashSet<ulong> knownCreatures = creatures.Select(c => c.Id.Value).ToHashSet();
+        var knownCreatures = creatures.Select(c => c.Id.Value).ToHashSet();
         // A creature template with a root node, as DialogueCatalog.GetRoot will find one (#737).
-        HashSet<ulong> dialogueRoots = dialogueNodes.Where(n => n.IsRoot).Select(n => n.CreatureTemplateId.Value).ToHashSet();
+        var dialogueRoots = dialogueNodes.Where(n => n.IsRoot).Select(n => n.CreatureTemplateId.Value).ToHashSet();
         Dictionary<ulong, ItemTemplate> knownItems = [];
         foreach (ItemTemplate item in items)
             knownItems.TryAdd(item.Id.Value, item);
@@ -159,7 +159,7 @@ public sealed class QuestCatalog
         List<string> problems = [];
         foreach (QuestView quest in _byId.Values.OrderBy(q => q.Id))
         {
-            List<string> found = DialogueProblem(quest.GiverCreatureId.Value, quest.EnderCreatureId.Value,
+            var found = DialogueProblem(quest.GiverCreatureId.Value, quest.EnderCreatureId.Value,
                 quest.Objectives.Where(o => o.Type == QuestObjectiveType.Talk && o.CreatureTemplateId is not null)
                     .OrderBy(o => o.Id).Select(o => (o.Id, o.CreatureTemplateId!.Value)),
                 creature => dialogue.GetRoot(new CreatureTemplateId(creature)) is not null).ToList();
@@ -209,7 +209,7 @@ public sealed class QuestCatalog
 
         if (quest.Stages.Count == 0)
             return "it has no stages";
-        List<int> sequences = quest.Stages.Select(s => s.Sequence).Order().ToList();
+        var sequences = quest.Stages.Select(s => s.Sequence).Order().ToList();
         if (!sequences.SequenceEqual(Enumerable.Range(0, sequences.Count)))
             return $"stages {string.Join(",", sequences)} do not run 0..n without gaps";
 
@@ -313,7 +313,7 @@ public sealed class QuestCatalog
         bool any = false;
         foreach ((uint id, (QuestTemplate row, _)) in candidates.OrderBy(c => c.Key).ToList())
         {
-            List<ulong> collected = row.Objectives
+            var collected = row.Objectives
                 .Where(o => o.Type == QuestObjectiveType.Collect)
                 .Select(o => o.ItemTemplateId!.Value)
                 .ToList();
@@ -343,7 +343,7 @@ public sealed class QuestCatalog
         {
             HashSet<uint> seen = [];
             uint? next = candidates[id].Row.RequiredQuestId?.Value;
-            while (next is { } step && candidates.TryGetValue(step, out var parent) && seen.Add(step))
+            while (next is { } step && candidates.TryGetValue(step, out (QuestTemplate Row, Type? Script) parent) && seen.Add(step))
             {
                 if (step == id)
                 {

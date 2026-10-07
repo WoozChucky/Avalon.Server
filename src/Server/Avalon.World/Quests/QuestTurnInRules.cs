@@ -41,12 +41,12 @@ public static class QuestTurnInRules
             paid.Add((template, reward.Count));
         }
 
-        HashSet<ulong> questItems = quest.Objectives
+        var questItems = quest.Objectives
             .Where(o => o.Type == QuestObjectiveType.Collect)
             .Select(o => o.ItemTemplateId!.Value)
             .ToHashSet();
-        var bag = character.Container(InventoryType.Bag);
-        Dictionary<ushort, InventoryItem> bagAfter = bag.Items
+        CharacterInventoryContainer bag = character.Container(InventoryType.Bag);
+        var bagAfter = bag.Items
             .Where(i => !questItems.Contains(i.TemplateId.Value))
             .ToDictionary(i => i.Slot);
         if (!Fits(bagAfter, bag.Capacity, rewards))

@@ -199,7 +199,7 @@ public class QuestItemDropShould
         IWorld flaky = Substitute.For<IWorld>();
         flaky.Data.Returns(_ => reads++ == 0 ? w.Data : throw new InvalidOperationException("quest data unavailable"));
         var quests = new QuestService(flaky, Substitute.For<IServiceProvider>(), w.Economy, w.Random, w.Clock, NullLogger<QuestService>.Instance);
-        var roller = Substitute.For<ILootRoller>();
+        ILootRoller roller = Substitute.For<ILootRoller>();
         roller.Roll(default!, default!, default!).ReturnsForAnyArgs([new RolledDrop(null, 0, 5)]);
         var allocator = new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(DateTimeOffset.UnixEpoch),
             CombatRandom.Steady);

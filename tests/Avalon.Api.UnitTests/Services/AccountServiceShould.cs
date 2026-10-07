@@ -1,4 +1,5 @@
 using Avalon.Api.Config;
+using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -62,7 +63,7 @@ public class AccountServiceShould
         _cache.GetAsync(AccountService.EmailChangeKey("token")).Returns("7|0|new@avalon.monster");
         _cache.RemoveAsync(AccountService.EmailChangeKey("token")).Returns(false);
 
-        var refused = await Assert.ThrowsAsync<Avalon.Api.Exceptions.BusinessException>(
+        BusinessException refused = await Assert.ThrowsAsync<Avalon.Api.Exceptions.BusinessException>(
             () => CreateService().ConfirmEmailChangeAsync("token"));
 
         Assert.Equal("Invalid or expired token", refused.Message);

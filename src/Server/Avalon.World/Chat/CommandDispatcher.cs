@@ -20,11 +20,11 @@ public sealed class CommandDispatcher : ICommandDispatcher
         _logger = logger;
         _commands = new Dictionary<string, ICommand>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var command in commands)
+        foreach (ICommand command in commands)
         {
             _commands[command.Name] = command;
 
-            foreach (var alias in command.Aliases)
+            foreach (string alias in command.Aliases)
             {
                 _commands[alias] = command;
             }

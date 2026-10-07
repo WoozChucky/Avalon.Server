@@ -50,7 +50,7 @@ internal static class MapInstanceClients
     /// <summary>A world with default game configuration, no map templates, and whatever data is given.</summary>
     public static IWorld NewWorld(StaticData? data = null)
     {
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>());
         if (data is not null)

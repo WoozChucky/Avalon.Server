@@ -31,11 +31,11 @@ public class ForestCreatureScriptsShould
 
     private static async Task<StaticData> LoadSeededAsync()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<AbilityTemplate> abilities = context.AbilityTemplates.AsNoTracking().ToList();
+        var abilities = context.AbilityTemplates.AsNoTracking().ToList();
         // The seeded auras too: the ability catalog refuses an ability naming an aura it does not hold.
-        List<AuraTemplate> auras = context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList();
+        var auras = context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList();
 
         return await TestStaticData.LoadAsync(TestStaticData.Repositories(abilities: () => abilities, auras: () => auras));
     }
@@ -60,13 +60,13 @@ public class ForestCreatureScriptsShould
             Target.BodyRadius.Returns(0.5f);
             Target.IsDead.Returns(false);
 
-            var locomotion = Substitute.For<ICreatureLocomotion>();
+            ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
             Vector3? requested = null;
             locomotion.When(l => l.MoveTo(Creature, Arg.Any<Vector3>())).Do(ci => requested = ci.ArgAt<Vector3>(1));
             locomotion.ResolvedDestination(Creature).Returns(_ => requested);
             locomotion.HasArrived(Creature).Returns(true);
 
-            var combat = Substitute.For<ICombatService>();
+            ICombatService combat = Substitute.For<ICombatService>();
             combat.GetEncounterFor(Creature).Returns((IEncounter?)null);
             Context.CombatService.Returns(combat);
             Context.Locomotion.Returns(locomotion);
@@ -199,7 +199,7 @@ public class ForestCreatureScriptsShould
     public async Task Fight_with_the_rest_when_the_catalog_lacks_one_of_its_abilities()
     {
         StaticData seeded = await Seeded.Value;
-        List<AbilityTemplate> withoutClaw = seeded.Abilities.Templates.Where(t => t.Id.Value != 303).ToList();
+        var withoutClaw = seeded.Abilities.Templates.Where(t => t.Id.Value != 303).ToList();
         TestStaticDataRepositories repositories = TestStaticData.Repositories();
         repositories.Abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(withoutClaw));

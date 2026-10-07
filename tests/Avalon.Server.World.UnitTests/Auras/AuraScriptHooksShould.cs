@@ -19,7 +19,7 @@ public class AuraScriptHooksShould
 
     public AuraScriptHooksShould()
     {
-        var manager = Substitute.For<IScriptManager>();
+        IScriptManager manager = Substitute.For<IScriptManager>();
         manager.GetAuraScript(Arg.Any<string>()).Returns(call => AuraHarness.TestScript(call.Arg<string>()));
         var host = new AuraScripts(manager, new ServiceCollection().BuildServiceProvider(), TimeProvider.System,
             NullLogger<AuraScripts>.Instance);

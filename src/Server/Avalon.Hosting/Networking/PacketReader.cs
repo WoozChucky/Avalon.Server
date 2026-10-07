@@ -53,7 +53,7 @@ public class PacketReader : IPacketReader
                 continue;
             }
 
-            NetworkPacketType networkPacketType = (NetworkPacketType)networkPacketTypeInfo.GetValue(null)!;
+            var networkPacketType = (NetworkPacketType)networkPacketTypeInfo.GetValue(null)!;
             var deserializer = (Func<ReadOnlyMemory<byte>, Packet?>)
                 buildMethod.MakeGenericMethod(packetType).Invoke(null, null)!;
             _packetTypes.Add(networkPacketType, deserializer);

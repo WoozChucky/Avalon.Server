@@ -56,7 +56,7 @@ public sealed class SimPlayer : SimUnit
     /// <summary>A character entering the world: full health, a full pool except Fury, which enters empty (#526).</summary>
     public static SimPlayer Create(BalanceData data, CharacterClass characterClass, ushort level, IEnumerable<ItemTemplate> worn)
     {
-        List<ItemTemplate> wearing = worn.ToList();
+        var wearing = worn.ToList();
         DerivedCharacterStats stats = data.CharacterStats(characterClass, level, wearing);
         PowerType pool = ClassPowerType.Of(characterClass);
         var player = new SimPlayer

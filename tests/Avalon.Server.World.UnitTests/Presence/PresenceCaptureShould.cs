@@ -35,7 +35,7 @@ public class PresenceCaptureShould
 
     private static ICharacter Character(uint id, string name, Vector3 position)
     {
-        var c = Substitute.For<ICharacter>();
+        ICharacter c = Substitute.For<ICharacter>();
         c.Guid.Returns(new ObjectGuid(ObjectType.Character, id));
         c.Name.Returns(name);
         c.Class.Returns(CharacterClass.Wizard);
@@ -52,7 +52,7 @@ public class PresenceCaptureShould
 
     private static IMapInstance Instance(Guid id, params ICharacter[] characters)
     {
-        var i = Substitute.For<IMapInstance>();
+        IMapInstance i = Substitute.For<IMapInstance>();
         i.InstanceId.Returns(id);
         i.TemplateId.Returns(new MapTemplateId(12));
         i.MapType.Returns(MapType.Normal);
@@ -68,7 +68,7 @@ public class PresenceCaptureShould
     [Fact]
     public void Capture_on_the_first_tick_with_every_field_the_admin_view_shows()
     {
-        Guid id = Guid.NewGuid();
+        var id = Guid.NewGuid();
         IMapInstance instance = Instance(id, Character(4417, "Nym", new Vector3(412.5f, 1f, -87.25f)));
         _registry.ActiveInstances.Returns([instance]);
         PresenceCapture sut = CreateSut(worldId: 3);
@@ -183,7 +183,7 @@ public class PresenceCaptureShould
     [Fact]
     public void Capture_the_other_instances_when_one_throws()
     {
-        var broken = Substitute.For<IMapInstance>();
+        IMapInstance broken = Substitute.For<IMapInstance>();
         broken.InstanceId.Returns(Guid.NewGuid());
         broken.Characters.Returns(_ => throw new InvalidOperationException("broken roster"));
         IMapInstance healthy = Instance(Guid.NewGuid(), Character(1, "Nym", Vector3.zero));

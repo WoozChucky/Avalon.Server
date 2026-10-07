@@ -16,7 +16,7 @@ public sealed class DialogueActions
 
     public DialogueActions(IReadOnlyCollection<DialogueNode> nodes, IReadOnlyCollection<DialogueOption> options)
     {
-        Dictionary<int, ulong> templateByNode = nodes.ToDictionary(n => n.Id.Value, n => n.CreatureTemplateId.Value);
+        var templateByNode = nodes.ToDictionary(n => n.Id.Value, n => n.CreatureTemplateId.Value);
 
         foreach (DialogueOption option in options)
         {

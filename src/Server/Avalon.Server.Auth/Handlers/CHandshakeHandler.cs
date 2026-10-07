@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Handshake;
 
 namespace Avalon.Server.Auth.Handlers;
@@ -20,7 +21,7 @@ public class CHandshakeHandler : IAuthPacketHandler<CHandshakePacket>
             return Task.CompletedTask;
         }
 
-        var result = SHandshakeResultPacket.Create(true, ctx.Connection.CryptoSession.Encrypt);
+        NetworkPacket result = SHandshakeResultPacket.Create(true, ctx.Connection.CryptoSession.Encrypt);
 
         ctx.Connection.Send(result);
 

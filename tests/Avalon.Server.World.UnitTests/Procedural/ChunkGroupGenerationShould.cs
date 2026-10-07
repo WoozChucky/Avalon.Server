@@ -83,7 +83,7 @@ public class ChunkGroupGenerationShould
         for (int seed = 0; seed < 400; seed++)
         {
             if (TryGenerate(seed) is not { } layout) { failed++; continue; }
-            List<PlacedChunk> members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
+            var members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
             if (members.Count == 0) continue;
             placed++;
 
@@ -112,7 +112,7 @@ public class ChunkGroupGenerationShould
         for (int seed = 0; seed < 200; seed++)
         {
             if (TryGenerate(seed) is not { } layout) { failed++; continue; }
-            List<PlacedChunk> members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
+            var members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
             if (members.Count == 0) continue;
             placed++;
 
@@ -155,7 +155,7 @@ public class ChunkGroupGenerationShould
             try { layout = Generator().Generate(config, Pool(), seed, [Clearing()]); }
             catch (ProceduralGenerationFailedException) { failed++; continue; }
 
-            List<PlacedChunk> members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
+            var members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
             if (members.Count == 0) continue;
             placed++;
             Assert.True(members.Min(m => m.Depth) >= 5, $"seed {seed}: the clearing starts at step {members.Min(m => m.Depth)}");
@@ -206,7 +206,7 @@ public class ChunkGroupGenerationShould
     private static ILoggerFactory FactoryFor(out CreatureAbilitiesShould.ListLogger logs)
     {
         logs = new CreatureAbilitiesShould.ListLogger();
-        var factory = Substitute.For<ILoggerFactory>();
+        ILoggerFactory factory = Substitute.For<ILoggerFactory>();
         factory.CreateLogger(Arg.Any<string>()).Returns(logs);
         return factory;
     }
@@ -264,7 +264,7 @@ public class ChunkGroupGenerationShould
     {
         ProceduralMapConfig config = Config(10, 16, boss: true);
         config.BranchMaxDepth = 3;
-        Dictionary<ChunkTemplateId, string> names = ForestLikePool().ToDictionary(m => m.Template.Id, m => m.Template.Name);
+        var names = ForestLikePool().ToDictionary(m => m.Template.Id, m => m.Template.Name);
 
         ChunkLayout layout = Generator().Generate(config, ForestLikePool(), seed);
 

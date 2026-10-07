@@ -15,7 +15,7 @@ public class LootPlacementShould
 
     private static IMapNavigator OpenGround(float groundY = 7f)
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci => ci.ArgAt<Vector3>(1));
         navigator.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(groundY);
         return navigator;
@@ -72,7 +72,7 @@ public class LootPlacementShould
     public void Keep_A_Drop_On_This_Side_Of_A_Wall()
     {
         // The navmesh says nothing past the corpse is walkable: every ring point is pulled back to it.
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci => ci.ArgAt<Vector3>(0));
         navigator.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(3f);
 

@@ -900,7 +900,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private static void SendLootSpawned(IEnumerable<IWorldConnection> recipients, IReadOnlyCollection<GroundLoot> drops)
     {
         // Built once; each connection serializes it under its own session key.
-        List<LootDropDto> dtos = drops.Select(LootDropMapper.ToDto).ToList();
+        var dtos = drops.Select(LootDropMapper.ToDto).ToList();
 
         foreach (IWorldConnection connection in recipients)
         {
@@ -1094,25 +1094,25 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         if (shouldBroadcastUpdates)
         {
-            foreach (var creature in _creatures.Values)
+            foreach (ICreature creature in _creatures.Values)
             {
-                var dirty = creature.ConsumeDirtyFields();
+                GameEntityFields dirty = creature.ConsumeDirtyFields();
                 if (dirty != GameEntityFields.None)
                     _frameDirtyFields[creature.Guid] = dirty;
             }
 
-            foreach (var character in _characters.Values)
+            foreach (ICharacter character in _characters.Values)
             {
-                var dirty = character.ConsumeDirtyFields();
+                GameEntityFields dirty = character.ConsumeDirtyFields();
                 if (dirty != GameEntityFields.None)
                     _frameDirtyFields[character.Guid] = dirty;
             }
 
-            foreach (var obj in objectAbilities)
+            foreach (IWorldObject obj in objectAbilities)
             {
                 if (obj is AbilityScript ability)
                 {
-                    var dirty = ability.ConsumeDirtyFields();
+                    GameEntityFields dirty = ability.ConsumeDirtyFields();
                     if (dirty != GameEntityFields.None)
                         _frameDirtyFields[ability.Guid] = dirty;
                 }
@@ -1710,7 +1710,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private IReadOnlyList<ICharacter> EligibleFor(ICreature creature, IUnit? killer)
     {
-        ICharacter? character = killer as ICharacter;
+        var character = killer as ICharacter;
         Party? party = character is null ? null : _parties?.PartyOf(character.Guid.Id);
         Func<uint, bool> inCountdown = _parties is null ? static _ => false : _parties.InCountdown;
 

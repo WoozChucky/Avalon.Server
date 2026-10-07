@@ -22,7 +22,7 @@ public sealed class SteamOpenIdCallbackMiddleware(RequestDelegate next)
         if (!IsCallback(context.Request.Path)) { await next(context); return; }
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers["Referrer-Policy"] = "no-referrer";
-        using var permit = await _limiter.AcquireAsync(context, cancellationToken: context.RequestAborted);
+        using RateLimitLease permit = await _limiter.AcquireAsync(context, cancellationToken: context.RequestAborted);
         if (!permit.IsAcquired) { context.Response.StatusCode = 429; return; }
         if (!context.Request.IsHttps || context.Request.QueryString.Value?.Length > GameAuthPolicy.MaximumBodyBytes || context.Request.ContentLength > GameAuthPolicy.MaximumBodyBytes ||
             context.Request.Query["state"].Count != 1) { context.Response.StatusCode = 400; return; }
@@ -38,12 +38,12 @@ public sealed class SteamOpenIdCallbackMiddleware(RequestDelegate next)
                 parameters = await context.Request.ReadFormAsync(context.RequestAborted);
             }
             else { context.Response.StatusCode = 400; return; }
-            var values = parameters.ToArray();
+            KeyValuePair<string, StringValues>[] values = parameters.ToArray();
             if (values.Length > MaximumValues || values.Any(p => p.Value.Count != 1 || p.Key.Length > MaximumKeyCharacters || p.Value.ToString().Length > MaximumValueCharacters))
             { context.Response.StatusCode = 400; return; }
-            var map = values.ToDictionary(p => p.Key, p => p.Value.ToString(), StringComparer.Ordinal);
-            var required = new[] { "op_endpoint", "claimed_id", "identity", "return_to", "response_nonce", "assoc_handle" };
-            var signed = map.GetValueOrDefault("openid.signed", string.Empty).Split(',');
+            Dictionary<string, string> map = values.ToDictionary(p => p.Key, p => p.Value.ToString(), StringComparer.Ordinal);
+            string[] required = new[] { "op_endpoint", "claimed_id", "identity", "return_to", "response_nonce", "assoc_handle" };
+            string[] signed = map.GetValueOrDefault("openid.signed", string.Empty).Split(',');
             if (map.GetValueOrDefault("openid.op_endpoint") != SteamWebLinkOptions.ProviderEndpoint ||
                 map.GetValueOrDefault("openid.claimed_id") != map.GetValueOrDefault("openid.identity") ||
                 SteamWebLinkStore.SteamSubject(map.GetValueOrDefault("openid.claimed_id", string.Empty)) is null ||

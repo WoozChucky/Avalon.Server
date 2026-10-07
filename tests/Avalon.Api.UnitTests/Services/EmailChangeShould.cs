@@ -39,7 +39,7 @@ public sealed class EmailChangeShould : IDisposable
     [Fact]
     public async Task ConfirmedEmailChangeVerifiesTheNewAddress()
     {
-        var account = await AccountAsync();
+        Account account = await AccountAsync();
         await ChangeAsync(account.Id, "verified@avalon.monster");
         Assert.NotNull((await StoredAsync(account.Id)).EmailVerifiedAt);
     }

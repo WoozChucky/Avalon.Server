@@ -3,6 +3,8 @@ using System.Text;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services.Email;
+using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
@@ -17,13 +19,13 @@ public sealed class AccountEmailVerificationServiceShould
     [Fact]
     public async Task IssuesDigestOnlyAndVerifiesCurrentAddressWithoutCreatingLicense()
     {
-        using var fixture = await Fixture.Create();
+        using Fixture fixture = await Fixture.Create();
         await fixture.Service.RequestAsync(fixture.Account.Id, "127.0.0.1", default);
         string token = fixture.Mail.Token;
         Assert.Equal(43, token.Length);
         Assert.Contains("https://avalon.nunolevezinho.xyz/account/email/verify#token=", fixture.Mail.Body);
-        await using var db = fixture.Db.CreateDbContext();
-        var challenge = await db.AccountEmailVerifications.SingleAsync();
+        await using AuthDbContext db = fixture.Db.CreateDbContext();
+        AccountEmailVerification challenge = await db.AccountEmailVerifications.SingleAsync();
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token))), challenge.TokenHash);
         Assert.NotEqual(token, challenge.TokenHash);
         Assert.Equal(fixture.Now.AddMinutes(30), challenge.ExpiresAt);
@@ -43,17 +45,17 @@ public sealed class AccountEmailVerificationServiceShould
     [InlineData("consolidation")]
     public async Task RefusesStaleOrCrossAccountProof(string condition)
     {
-        using var f = await Fixture.Create();
+        using Fixture f = await Fixture.Create();
         await f.Service.RequestAsync(f.Account.Id, "127.0.0.1", default);
         string token = f.Mail.Token;
-        var accountId = f.Account.Id;
+        AccountId accountId = f.Account.Id;
         if (condition == "account")
         {
-            var other = await f.Accounts.CreateAsync(new Account { Username = "OTHER", Email = "other@example.test", Salt = [1], Verifier = [2], JoinDate = f.Now });
+            Account other = await f.Accounts.CreateAsync(new Account { Username = "OTHER", Email = "other@example.test", Salt = [1], Verifier = [2], JoinDate = f.Now });
             accountId = other.Id;
         }
-        await using var db = f.Db.CreateDbContext();
-        var target = db.Accounts.Where(a => a.Id == f.Account.Id);
+        await using AuthDbContext db = f.Db.CreateDbContext();
+        IQueryable<Account> target = db.Accounts.Where(a => a.Id == f.Account.Id);
         if (condition == "email") await target.ExecuteUpdateAsync(u => u.SetProperty(a => a.Email, "changed@example.test"));
         if (condition == "credentials") await target.ExecuteUpdateAsync(u => u.SetProperty(a => a.CredentialsVersion, 1));
         if (condition == "consolidation") await target.ExecuteUpdateAsync(u => u.SetProperty(a => a.GameplayConsolidationId, (Guid?)Guid.NewGuid()));
@@ -71,9 +73,9 @@ public sealed class AccountEmailVerificationServiceShould
     [Fact]
     public async Task FailedOrCanceledSendInvalidatesOnlyItsDigestAndAllowsBoundedResend()
     {
-        using var f = await Fixture.Create();
+        using Fixture f = await Fixture.Create();
         f.Mail.Failure = new OperationCanceledException("mail-token-in-sensitive-provider-error");
-        var ex = await Assert.ThrowsAsync<EmailDeliveryException>(() => f.Service.RequestAsync(f.Account.Id, "127.0.0.1", default));
+        EmailDeliveryException ex = await Assert.ThrowsAsync<EmailDeliveryException>(() => f.Service.RequestAsync(f.Account.Id, "127.0.0.1", default));
         Assert.DoesNotContain("mail-token", ex.ToString());
         Assert.Null((await f.Accounts.FindByIdAsync(f.Account.Id))!.EmailVerifiedAt);
         await Assert.ThrowsAsync<BusinessException>(() => f.Service.ConfirmAsync(f.Account.Id, f.Mail.Token, default));
@@ -86,7 +88,7 @@ public sealed class AccountEmailVerificationServiceShould
     [Fact]
     public async Task LateFailedSendDoesNotInvalidateAReplacement()
     {
-        using var f = await Fixture.Create();
+        using Fixture f = await Fixture.Create();
         string? replacement = null;
         f.Mail.BeforeFailure = async () =>
         {
@@ -101,7 +103,7 @@ public sealed class AccountEmailVerificationServiceShould
     [Fact]
     public async Task SourceBudgetNormalizesIpv6AndAccountBudgetBoundsFailedAttempts()
     {
-        using var f = await Fixture.Create();
+        using Fixture f = await Fixture.Create();
         f.Config.MaxVerificationSendsPerSource = 1;
         await f.Service.RequestAsync(f.Account.Id, "2001:db8::1", default);
         f.Clock.Advance(TimeSpan.FromSeconds(60));
@@ -113,11 +115,11 @@ public sealed class AccountEmailVerificationServiceShould
     [Fact]
     public async Task SenderUnavailableAndAccountsWithoutEmailStayUnverified()
     {
-        using var f = await Fixture.Create();
-        var service = f.MakeService(null);
+        using Fixture f = await Fixture.Create();
+        AccountEmailVerificationService service = f.MakeService(null);
         Assert.False((await service.GetStatusAsync(f.Account.Id, default)).DeliveryAvailable);
         await Assert.ThrowsAsync<EmailVerificationUnavailableException>(() => service.RequestAsync(f.Account.Id, "127.0.0.1", default));
-        await using var db = f.Db.CreateDbContext();
+        await using AuthDbContext db = f.Db.CreateDbContext();
         await db.Accounts.Where(a => a.Id == f.Account.Id).ExecuteUpdateAsync(u => u.SetProperty(a => a.Email, (string?)null));
         await Assert.ThrowsAsync<BusinessException>(() => f.Service.RequestAsync(f.Account.Id, "127.0.0.1", default));
     }
@@ -139,7 +141,7 @@ public sealed class AccountEmailVerificationServiceShould
             var counts = new Dictionary<string, long>();
             Cache.IncrementAsync(Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(call =>
             {
-                var key = call.ArgAt<string>(0);
+                string key = call.ArgAt<string>(0);
                 counts[key] = counts.GetValueOrDefault(key) + 1;
                 return counts[key];
             });

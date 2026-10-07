@@ -74,7 +74,7 @@ public class WorldServerBarrierTickShould : IDisposable
     [Fact]
     public async Task Timeout_release_checks_maintenance_once_and_never_spawns_a_refused_character()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(default(WorldEntryDecision));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate);
         connection.AccountId = new AccountId(42);
@@ -96,7 +96,7 @@ public class WorldServerBarrierTickShould : IDisposable
     [Fact]
     public async Task Timeout_release_spawns_after_the_entry_check_allows_it()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntryDecision(true, DateTime.MaxValue));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate);
@@ -120,7 +120,7 @@ public class WorldServerBarrierTickShould : IDisposable
     [Fact]
     public async Task Do_not_spawn_when_the_deadline_applies_after_a_completed_entry_check()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         var check = new TaskCompletionSource<WorldEntryDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(check.Task);
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
@@ -150,7 +150,7 @@ public class WorldServerBarrierTickShould : IDisposable
     [Fact]
     public async Task Spawn_during_countdown_after_a_completed_entry_check()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntryDecision(true, DateTime.UtcNow.AddMinutes(1)));
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
@@ -223,7 +223,7 @@ public class WorldServerBarrierTickShould : IDisposable
     {
         // Valid by the wall clock, expired by the container's: the release must refuse it.
         var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(DateTimeOffset.UtcNow.AddHours(1));
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntryDecision(true, DateTime.UtcNow.AddMinutes(30)));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate, clock: clock);
@@ -338,11 +338,11 @@ public class WorldServerBarrierTickShould : IDisposable
         ICharacter nym = PendingSpawnConnection.Character();
         nym.Position.Returns(Avalon.Common.Mathematics.Vector3.zero);
         nym.Orientation.Returns(Avalon.Common.Mathematics.Vector3.zero);
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.TemplateId.Returns(new Avalon.Common.ValueObjects.MapTemplateId(1));
         Dictionary<Avalon.Common.ObjectGuid, ICharacter> roster = new() { [nym.Guid] = nym };
         instance.Characters.Returns(roster);
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.ActiveInstances.Returns([instance]);
         world.InstanceRegistry.Returns(registry);
 

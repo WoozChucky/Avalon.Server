@@ -50,7 +50,7 @@ internal static class GeneratedChunkBake
         File.WriteAllText(path, sb.ToString());
         try
         {
-            var result = new TileNavMeshBuilder().Build(RcSampleInputGeomProvider.LoadFile(path), NavmeshBuildSettings.Create());
+            NavMeshBuildResult result = new TileNavMeshBuilder().Build(RcSampleInputGeomProvider.LoadFile(path), NavmeshBuildSettings.Create());
             Assert.NotNull(result?.NavMesh);
             var navigator = new MapNavigator(NullLoggerFactory.Instance);
             navigator.LoadFromNavMesh(result!.NavMesh);

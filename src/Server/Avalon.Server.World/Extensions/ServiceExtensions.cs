@@ -49,13 +49,13 @@ public static class ServiceExtensions
         services.AddOptions<WorldHostingSecurity>().BindConfiguration("Hosting:Security")
             .Validate(s => !string.IsNullOrWhiteSpace(s.CertificatePath), "A world TLS certificate is required.").ValidateOnStart();
         services.AddOptions<GameAdmissionOptions>().BindConfiguration(GameAdmissionOptions.Section)
-            .PostConfigure<IConfiguration>((admission, config) => admission.WorldId = ushort.TryParse(config["Game:WorldId"], out var id) ? id : (ushort)0)
+            .PostConfigure<IConfiguration>((admission, config) => admission.WorldId = ushort.TryParse(config["Game:WorldId"], out ushort id) ? id : (ushort)0)
             .Validate(a => a.IsValid(), "World admission requires a fixed HTTPS API origin, server identity, workload certificate and API certificate SHA-256 pin.").ValidateOnStart();
         services.AddSingleton(sp => new WorldTlsTransport(sp.GetRequiredService<IOptions<WorldHostingSecurity>>().Value));
         services.AddHttpClient("AvalonGameWorkload").ConfigurePrimaryHttpMessageHandler(sp =>
         {
-            var admission = sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value;
-            var certificate = X509CertificateLoader.LoadPkcs12FromFile(admission.ClientCertificatePath, admission.ClientCertificatePassword);
+            GameAdmissionOptions admission = sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value;
+            X509Certificate2 certificate = X509CertificateLoader.LoadPkcs12FromFile(admission.ClientCertificatePath, admission.ClientCertificatePassword);
             if (!certificate.HasPrivateKey || certificate.NotBefore.ToUniversalTime() > DateTime.UtcNow || certificate.NotAfter.ToUniversalTime() <= DateTime.UtcNow)
                 throw new InvalidOperationException("A current workload client certificate with a private key is required.");
             return new WorkloadHttpHandler(certificate, admission.ApiCertificateSha256, sp.GetRequiredService<TimeProvider>());

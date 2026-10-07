@@ -29,13 +29,13 @@ public class TemplateReadShould
     [InlineData(3, false)]
     public async Task Item_get_returns_version_etag_and_editable(ushort world, bool editable)
     {
-        var repository = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository repository = Substitute.For<IItemTemplateRepository>();
         var row = new ItemTemplate { Id = new ItemTemplateId(1), Name = "Sword" };
         repository.FindByIdAsync(Arg.Any<ItemTemplateId>(), false, Arg.Any<CancellationToken>()).Returns(row);
         var sut = new ItemTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
         { ControllerContext = Context() };
 
-        var dto = Dto<ItemTemplateDto>(await sut.Get(1, CancellationToken.None));
+        ItemTemplateDto dto = Dto<ItemTemplateDto>(await sut.Get(1, CancellationToken.None));
 
         Assert.Equal(TemplateVersion.Of(row), dto.Version);
         Assert.Equal($"\"{dto.Version}\"", sut.Response.Headers.ETag.ToString());
@@ -47,13 +47,13 @@ public class TemplateReadShould
     [InlineData(3, false)]
     public async Task Ability_get_returns_version_etag_and_editable(ushort world, bool editable)
     {
-        var repository = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository repository = Substitute.For<IAbilityTemplateRepository>();
         var row = new AbilityTemplate { Id = new AbilityId(1), Name = "Cleave", ScriptName = "s", AuraId = new AuraId(1) };
         repository.FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>()).Returns(row);
         var sut = new AbilityTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
         { ControllerContext = Context() };
 
-        var dto = Dto<AbilityTemplateDto>(await sut.Get(1, CancellationToken.None));
+        AbilityTemplateDto dto = Dto<AbilityTemplateDto>(await sut.Get(1, CancellationToken.None));
 
         Assert.Equal(TemplateVersion.Of(row), dto.Version);
         Assert.Equal($"\"{dto.Version}\"", sut.Response.Headers.ETag.ToString());
@@ -64,7 +64,7 @@ public class TemplateReadShould
     [Fact]
     public async Task Aura_get_returns_the_row_with_its_modifiers()
     {
-        var repository = Substitute.For<IAuraTemplateRepository>();
+        IAuraTemplateRepository repository = Substitute.For<IAuraTemplateRepository>();
         var row = new Avalon.Domain.World.AuraTemplate
         {
             Id = new AuraId(5),
@@ -80,7 +80,7 @@ public class TemplateReadShould
         var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
         { ControllerContext = Context() };
 
-        var dto = Dto<AuraTemplateDto>(await sut.Get(5, CancellationToken.None));
+        AuraTemplateDto dto = Dto<AuraTemplateDto>(await sut.Get(5, CancellationToken.None));
 
         Assert.Equal(("Fortified", Avalon.Api.Contract.AuraKind.Helpful, 30000u), (dto.Name, dto.Kind, dto.DurationMs));
         AuraStatModifierDto modifier = Assert.Single(dto.Modifiers);
@@ -94,7 +94,7 @@ public class TemplateReadShould
     [Fact]
     public async Task Aura_get_returns_its_periodic_amounts_and_base_damage_coefficient()
     {
-        var repository = Substitute.For<IAuraTemplateRepository>();
+        IAuraTemplateRepository repository = Substitute.For<IAuraTemplateRepository>();
         var row = new Avalon.Domain.World.AuraTemplate
         {
             Id = new AuraId(6),
@@ -113,7 +113,7 @@ public class TemplateReadShould
         var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
         { ControllerContext = Context() };
 
-        var dto = Dto<AuraTemplateDto>(await sut.Get(6, CancellationToken.None));
+        AuraTemplateDto dto = Dto<AuraTemplateDto>(await sut.Get(6, CancellationToken.None));
 
         Assert.Equal((3f, 0f, 1f), (dto.PeriodicBase, dto.ScalingCoefficient, dto.BaseDamageCoefficient));
         Assert.Equal((Avalon.Api.Contract.AuraPeriodicKind.Damage, 3000u, Avalon.Api.Contract.AuraStacking.Stack, 3u),
@@ -123,7 +123,7 @@ public class TemplateReadShould
     [Fact]
     public async Task Aura_get_answers_404_for_an_unknown_id()
     {
-        var repository = Substitute.For<IAuraTemplateRepository>();
+        IAuraTemplateRepository repository = Substitute.For<IAuraTemplateRepository>();
         var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
         { ControllerContext = Context() };
 
@@ -148,13 +148,13 @@ public class TemplateReadShould
     [InlineData(9, false)]
     public async Task Creature_get_returns_version_etag_and_editable(ushort world, bool editable)
     {
-        var repository = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository repository = Substitute.For<ICreatureTemplateRepository>();
         var row = new CreatureTemplate { Id = new CreatureTemplateId(1), Name = "Wolf" };
         repository.FindByIdAsync(Arg.Any<CreatureTemplateId>(), false, Arg.Any<CancellationToken>()).Returns(row);
         var sut = new CreatureTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
         { ControllerContext = Context() };
 
-        var dto = Dto<CreatureTemplateDto>(await sut.Get(1, CancellationToken.None));
+        CreatureTemplateDto dto = Dto<CreatureTemplateDto>(await sut.Get(1, CancellationToken.None));
 
         Assert.Equal(TemplateVersion.Of(row), dto.Version);
         Assert.Equal($"\"{dto.Version}\"", sut.Response.Headers.ETag.ToString());
@@ -164,14 +164,14 @@ public class TemplateReadShould
     [Fact]
     public async Task Item_list_carries_the_version_and_editable_on_each_row()
     {
-        var repository = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository repository = Substitute.For<IItemTemplateRepository>();
         var row = new ItemTemplate { Id = new ItemTemplateId(1), Name = "Sword" };
         repository.PaginateAsync(Arg.Any<EntityPaginateFilter<ItemTemplate>>(), false, Arg.Any<CancellationToken>())
             .Returns(new PagedResult<ItemTemplate>(1, 50, 1, [row]));
         var sut = new ItemTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
         { ControllerContext = Context() };
 
-        var page = await sut.List(1, 50, CancellationToken.None);
+        PagedResult<ItemTemplateDto> page = await sut.List(1, 50, CancellationToken.None);
 
         Assert.Equal(TemplateVersion.Of(row), page.Items.Single().Version);
         Assert.True(page.Items.Single().Editable);
@@ -180,7 +180,7 @@ public class TemplateReadShould
     [Fact]
     public async Task Item_get_returns_the_use_fields()
     {
-        var repository = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository repository = Substitute.For<IItemTemplateRepository>();
         var row = new ItemTemplate
         {
             Id = new ItemTemplateId(3),
@@ -195,7 +195,7 @@ public class TemplateReadShould
         var sut = new ItemTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
         { ControllerContext = Context() };
 
-        var dto = Dto<ItemTemplateDto>(await sut.Get(3, CancellationToken.None));
+        ItemTemplateDto dto = Dto<ItemTemplateDto>(await sut.Get(3, CancellationToken.None));
 
         Assert.Equal(("TownPortalScroll", (uint?)3000u, (uint?)30000u, "scroll", (uint?)7u),
             (dto.UseScript, dto.UseCastTimeMs, dto.UseCooldownMs, dto.UseCooldownGroup, dto.UseValue));
@@ -203,7 +203,7 @@ public class TemplateReadShould
 
     private static ICurrentWorld World(ushort id)
     {
-        var world = Substitute.For<ICurrentWorld>();
+        ICurrentWorld world = Substitute.For<ICurrentWorld>();
         world.Id.Returns(new WorldId(id));
         return world;
     }

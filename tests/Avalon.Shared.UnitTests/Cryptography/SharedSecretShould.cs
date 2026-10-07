@@ -38,7 +38,7 @@ public class SharedSecretShould
 
     private static AsymmetricCipherKeyPair GeneratePair(SecureRandom random)
     {
-        var generator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
+        IAsymmetricCipherKeyPairGenerator generator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
         generator.Init(new ECKeyGenerationParameters(SecObjectIdentifiers.SecP256r1, random));
         return generator.GenerateKeyPair();
     }

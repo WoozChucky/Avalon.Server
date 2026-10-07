@@ -76,7 +76,7 @@ public class StaticDataRulesShould
     [Fact]
     public void Build_the_seeded_combat_data()
     {
-        var (formula, byClass) = CombatDataRules.Build([Formula()], Factors());
+        (CombatFormula? formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors>? byClass) = CombatDataRules.Build([Formula()], Factors());
         Assert.Equal(CombatFormula.SingletonId, formula.Id);
         Assert.Equal(Enum.GetValues<CharacterClass>().Length, byClass.Count);
     }

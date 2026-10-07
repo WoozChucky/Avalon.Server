@@ -35,7 +35,7 @@ public class LevelCapShould
 
     private static List<CharacterLevelExperience> SeededLevels()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         return context.CharacterLevelExperiences.AsNoTracking().ToList();
     }

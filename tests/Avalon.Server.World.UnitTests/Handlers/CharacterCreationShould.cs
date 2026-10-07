@@ -398,7 +398,7 @@ public class CharacterCreationShould : IDisposable
 
     private static SCharacterCreateResult SentResult(IWorldConnection connection)
     {
-        NetworkPacket sent = (NetworkPacket)connection.ReceivedCalls()
+        var sent = (NetworkPacket)connection.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
             .GetArguments()[0]!;
 
@@ -467,7 +467,7 @@ public class CharacterCreationShould : IDisposable
         {
             _authority = new(new AccountId(1), Guid.NewGuid(), 1);
             var guards = new GameplayFenceRepository(_characters);
-            var until = DateTime.UtcNow.AddSeconds(44);
+            DateTime until = DateTime.UtcNow.AddSeconds(44);
             Assert.True(guards.AdvanceAsync(_authority, false, until, CancellationToken.None).GetAwaiter().GetResult());
             Assert.True(guards.ActivateAsync(_authority, until, CancellationToken.None).GetAwaiter().GetResult());
         }
@@ -490,7 +490,7 @@ public class CharacterCreationShould : IDisposable
     {
         for (int processed = 0; processed < 64; processed++)
         {
-            List<ICall> enqueued = connection.ReceivedCalls()
+            var enqueued = connection.ReceivedCalls()
                 .Where(call => call.GetMethodInfo().Name == nameof(IWorldConnection.EnqueueContinuation))
                 .ToList();
 
@@ -500,12 +500,12 @@ public class CharacterCreationShould : IDisposable
             }
 
             object?[] arguments = enqueued[processed].GetArguments();
-            Task task = (Task)arguments[0]!;
+            var task = (Task)arguments[0]!;
             await task;
             if (beforeCallback is not null)
                 await beforeCallback(processed);
 
-            Delegate callback = (Delegate)arguments[1]!;
+            var callback = (Delegate)arguments[1]!;
             object?[] callbackArguments = callback.Method.GetParameters().Length == 0
                 ? []
                 : [task.GetType().GetProperty("Result")!.GetValue(task)];

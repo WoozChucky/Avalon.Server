@@ -20,7 +20,7 @@ public class CharacterRepositoryShould
     [Fact]
     public async Task List_an_accounts_characters_oldest_first_whatever_order_they_were_inserted_in()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
             // Ids rise in insert order, opposite to creation, so ordering by id alone would fail.
@@ -40,7 +40,7 @@ public class CharacterRepositoryShould
     [Fact]
     public async Task Break_a_creation_time_tie_by_id()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
             // Inserted highest id first, all three created at the same instant.

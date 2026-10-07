@@ -28,7 +28,7 @@ public sealed class GameWorkloadConfigurationShould
     [InlineData(1, "localhost", "not-a-certificate-digest")]
     public void Refuse_unusable_endpoints_and_pins(ushort world, string name, string pin)
     {
-        var server = Server(world: world); server.TlsServerName = name; server.TlsCertificateSha256 = pin;
+        GameServerDefinition server = Server(world: world); server.TlsServerName = name; server.TlsCertificateSha256 = pin;
         Assert.Throws<InvalidOperationException>(() => new GameWorkloadConfiguration { Servers = [server] }.Validate());
     }
 }

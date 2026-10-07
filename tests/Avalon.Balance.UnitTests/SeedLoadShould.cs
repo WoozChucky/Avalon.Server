@@ -57,7 +57,7 @@ public class SeedLoadShould
         SeedTables tables = SeedSource.Load();
         tables.AbilityTemplates.Single(a => a.Id.Value == 200).ScriptName = "NotAScript";
 
-        var error = Assert.Throws<InvalidDataException>(() => BalanceData.From(tables));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => BalanceData.From(tables));
 
         Assert.Contains("ability 200 'Cleave'", error.Message, StringComparison.Ordinal);
     }

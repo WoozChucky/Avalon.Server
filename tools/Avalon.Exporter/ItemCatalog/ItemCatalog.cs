@@ -67,7 +67,7 @@ public static class ItemCatalog
 
         using var context = new WorldDbContext(NullLoggerFactory.Instance, options);
 
-        List<ItemTemplate> templates = context.ItemTemplates.AsNoTracking().ToList();
+        var templates = context.ItemTemplates.AsNoTracking().ToList();
 
         Lf.Write(path, Render(templates));
         Console.WriteLine($"wrote {path} ({templates.Count} item templates)");

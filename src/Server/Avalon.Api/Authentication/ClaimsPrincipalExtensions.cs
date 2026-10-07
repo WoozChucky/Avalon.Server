@@ -8,7 +8,7 @@ public static class ClaimsPrincipalExtensions
 {
     public static AccountId AccountId(this ClaimsPrincipal user)
     {
-        var raw = user.FindFirstValue(ClaimTypes.NameIdentifier)
+        string raw = user.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new InvalidOperationException("missing sub claim");
         return new AccountId(long.Parse(raw));
     }
@@ -23,7 +23,7 @@ public static class ClaimsPrincipalExtensions
     {
         AccountAccessLevel level = 0;
 
-        foreach (var flag in Enum.GetValues<AccountAccessLevel>())
+        foreach (AccountAccessLevel flag in Enum.GetValues<AccountAccessLevel>())
             if (user.HasClaim(ClaimTypes.GroupSid, flag.ToString()))
                 level |= flag;
 
@@ -43,10 +43,10 @@ public static class ClaimsPrincipalExtensions
 
     public static bool HasRoleAtLeast(this ClaimsPrincipal user, string minRole)
     {
-        var minIdx = Array.IndexOf(Ladder, minRole);
+        int minIdx = Array.IndexOf(Ladder, minRole);
         if (minIdx < 0) return false;
 
-        for (var i = minIdx; i < Ladder.Length; i++)
+        for (int i = minIdx; i < Ladder.Length; i++)
             if (user.IsInRole(Ladder[i])) return true;
 
         return false;

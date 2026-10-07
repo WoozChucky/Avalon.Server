@@ -18,7 +18,7 @@ public sealed class PaymentNotificationsController(IPaymentNotificationService n
     public async Task<IActionResult> Receive([FromRoute] string provider, CancellationToken ct)
     {
         using var body = new MemoryStream();
-        var buffer = new byte[8192];
+        byte[] buffer = new byte[8192];
         int read;
         while ((read = await Request.Body.ReadAsync(buffer, ct)) != 0)
         {
@@ -26,7 +26,7 @@ public sealed class PaymentNotificationsController(IPaymentNotificationService n
             await body.WriteAsync(buffer.AsMemory(0, read), ct);
         }
         var headers = Request.Headers.ToDictionary(x => x.Key, x => x.Value.ToString(), StringComparer.OrdinalIgnoreCase);
-        var result = await notifications.AcceptAsync(provider, body.ToArray(), headers, ct);
+        NotificationAcceptance result = await notifications.AcceptAsync(provider, body.ToArray(), headers, ct);
         return result switch { NotificationAcceptance.Accepted => Ok(), NotificationAcceptance.Disabled => NotFound(), _ => BadRequest() };
     }
 }

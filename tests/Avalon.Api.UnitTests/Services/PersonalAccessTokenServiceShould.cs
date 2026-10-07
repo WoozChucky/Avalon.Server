@@ -32,8 +32,8 @@ public class PersonalAccessTokenServiceShould
                  Arg.Any<int>(), Arg.Any<CancellationToken>())
              .Returns(ci => ci.Arg<PersonalAccessToken>());
 
-        var sut = MakeSut();
-        var result = await sut.MintSelfAsync(
+        PersonalAccessTokenService sut = MakeSut();
+        MintResult result = await sut.MintSelfAsync(
             callerId: new AccountId(7),
             callerRoles: AccountAccessLevel.Player | AccountAccessLevel.GameMaster,
             name: "ci",
@@ -50,7 +50,7 @@ public class PersonalAccessTokenServiceShould
     [Fact]
     public async Task MintSelf_Throws_WhenRequestedRolesSupersetOfCaller()
     {
-        var sut = MakeSut();
+        PersonalAccessTokenService sut = MakeSut();
         await Assert.ThrowsAsync<BusinessException>(() => sut.MintSelfAsync(
             callerId: new AccountId(7),
             callerRoles: AccountAccessLevel.Player,
@@ -69,8 +69,8 @@ public class PersonalAccessTokenServiceShould
                  Arg.Any<int>(), Arg.Any<CancellationToken>())
              .Returns(ci => ci.Arg<PersonalAccessToken>());
 
-        var sut = MakeSut();
-        var result = await sut.MintAdminAsync(
+        PersonalAccessTokenService sut = MakeSut();
+        MintResult result = await sut.MintAdminAsync(
             callerRoles: AccountAccessLevel.Admin | AccountAccessLevel.GameMaster | AccountAccessLevel.Player,
             targetAccountId: new AccountId(7),
             name: "svc",
@@ -85,7 +85,7 @@ public class PersonalAccessTokenServiceShould
     [Fact]
     public async Task MintAdmin_Throws_WhenRequestedRolesExceedCaller()
     {
-        var sut = MakeSut();
+        PersonalAccessTokenService sut = MakeSut();
         await Assert.ThrowsAsync<BusinessException>(() => sut.MintAdminAsync(
             callerRoles: AccountAccessLevel.Admin,
             targetAccountId: new AccountId(7),
@@ -99,8 +99,8 @@ public class PersonalAccessTokenServiceShould
     [Fact]
     public async Task Mint_Throws_WhenExpiryBeyondMaxLifetime()
     {
-        var sut = MakeSut();
-        var tooFar = FixedNow.UtcDateTime.AddDays(400);
+        PersonalAccessTokenService sut = MakeSut();
+        DateTime tooFar = FixedNow.UtcDateTime.AddDays(400);
         await Assert.ThrowsAsync<BusinessException>(() => sut.MintSelfAsync(
             callerId: new AccountId(7),
             callerRoles: AccountAccessLevel.Player,
@@ -117,10 +117,10 @@ public class PersonalAccessTokenServiceShould
         _repo.FindByHashAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
              .Returns((PersonalAccessToken?)null);
 
-        var sut = MakeSut();
+        PersonalAccessTokenService sut = MakeSut();
         await sut.FindByRawTokenAsync("avp_abcdef", CancellationToken.None);
 
-        var expected = SHA256.HashData(Encoding.UTF8.GetBytes("avp_abcdef"));
+        byte[] expected = SHA256.HashData(Encoding.UTF8.GetBytes("avp_abcdef"));
         await _repo.Received(1).FindByHashAsync(
             Arg.Is<byte[]>(h => h.SequenceEqual(expected)),
             Arg.Any<CancellationToken>());

@@ -26,7 +26,7 @@ public class CCharacterSelectedPacket : Packet
 
         Serializer.Serialize(memoryStream, p);
 
-        var buffer = encrypt(memoryStream.ToArray());
+        byte[] buffer = encrypt(memoryStream.ToArray());
 
         return new NetworkPacket
         {

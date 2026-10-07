@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using CharacterRow = Avalon.Domain.Characters.Character;
 
 namespace Avalon.Database.Character.Repositories;
@@ -26,9 +27,9 @@ public partial class CharacterRepository
         if (batch.Row.AccountId != authority.AccountId || batch.Row.Id is { Value: not 0 } || maximum <= 0 ||
             batch.Items.Any(i => i.Id.Value == Guid.Empty) || batch.Items.Select(i => i.Id).Distinct().Count() != batch.Items.Count ||
             batch.Slots.Any(s => !batch.Items.Any(i => i.Id == s.ItemId))) throw new GameplayWriteRejectedException();
-        await using var db = await CreateContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        var guard = await HoldGameplayAsync(db, authority, cancellationToken);
+        await using CharacterDbContext db = await CreateContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        AccountGameplayFence guard = await HoldGameplayAsync(db, authority, cancellationToken);
         if (await db.Characters.CountAsync(c => c.AccountId == authority.AccountId, cancellationToken) >= maximum)
             return new(Error: GameAuthErrors.MaxCharacters);
         db.ValidatedGameplaySave = true;
@@ -36,11 +37,11 @@ public partial class CharacterRepository
         try
         {
             await db.SaveChangesAsync(cancellationToken);
-            var id = batch.Row.Id;
+            CharacterId id = batch.Row.Id;
             batch.Stats.CharacterId = id; db.CharacterStats.Add(batch.Stats);
-            foreach (var ability in batch.Abilities) { ability.CharacterId = id; db.CharacterAbilities.Add(ability); }
-            foreach (var item in batch.Items) { item.CharacterId = id; db.ItemInstances.Add(item); }
-            foreach (var slot in batch.Slots) { slot.CharacterId = id; db.CharacterInventory.Add(slot); }
+            foreach (CharacterAbility ability in batch.Abilities) { ability.CharacterId = id; db.CharacterAbilities.Add(ability); }
+            foreach (ItemInstance item in batch.Items) { item.CharacterId = id; db.ItemInstances.Add(item); }
+            foreach (CharacterInventory slot in batch.Slots) { slot.CharacterId = id; db.CharacterInventory.Add(slot); }
             await db.SaveChangesAsync(cancellationToken);
             await CheckGameplayDeadlineAsync(db, guard, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -50,10 +51,10 @@ public partial class CharacterRepository
     }
     public async Task<bool> DeleteForGameplayAsync(GameplayWriteAuthority authority, CharacterId id, CancellationToken cancellationToken = default)
     {
-        await using var db = await CreateContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        var guard = await HoldGameplayAsync(db, authority, cancellationToken);
-        var deleted = await db.Characters.Where(c => c.Id == id && c.AccountId == authority.AccountId).ExecuteDeleteAsync(cancellationToken);
+        await using CharacterDbContext db = await CreateContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        AccountGameplayFence guard = await HoldGameplayAsync(db, authority, cancellationToken);
+        int deleted = await db.Characters.Where(c => c.Id == id && c.AccountId == authority.AccountId).ExecuteDeleteAsync(cancellationToken);
         await CheckGameplayDeadlineAsync(db, guard, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return deleted == 1;
@@ -61,9 +62,9 @@ public partial class CharacterRepository
     public async Task<CharacterRow> UpdateForGameplayAsync(GameplayWriteAuthority authority, CharacterRow row, CancellationToken cancellationToken = default)
     {
         if (row.AccountId != authority.AccountId) throw new GameplayWriteRejectedException();
-        await using var db = await CreateContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        var guard = await HoldGameplayAsync(db, authority, cancellationToken);
+        await using CharacterDbContext db = await CreateContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        AccountGameplayFence guard = await HoldGameplayAsync(db, authority, cancellationToken);
         if (!await db.Characters.AnyAsync(c => c.Id == row.Id && c.AccountId == authority.AccountId, cancellationToken)) throw new GameplayWriteRejectedException();
         db.ValidatedGameplaySave = true;
         db.Update(row);
@@ -74,10 +75,10 @@ public partial class CharacterRepository
     }
     public async Task<CharacterRow?> FindForGameplayAsync(GameplayWriteAuthority authority, CharacterId id, CancellationToken cancellationToken = default)
     {
-        await using var db = await CreateContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        var guard = await HoldGameplayAsync(db, authority, cancellationToken);
-        var row = await db.Characters.AsNoTracking().SingleOrDefaultAsync(c => c.Id == id && c.AccountId == authority.AccountId, cancellationToken);
+        await using CharacterDbContext db = await CreateContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        AccountGameplayFence guard = await HoldGameplayAsync(db, authority, cancellationToken);
+        CharacterRow? row = await db.Characters.AsNoTracking().SingleOrDefaultAsync(c => c.Id == id && c.AccountId == authority.AccountId, cancellationToken);
         await CheckGameplayDeadlineAsync(db, guard, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return row;
@@ -85,7 +86,7 @@ public partial class CharacterRepository
     private static async Task<AccountGameplayFence> HoldGameplayAsync(CharacterDbContext db, GameplayWriteAuthority authority, CancellationToken cancellationToken)
     {
         if (!GameplayFenceRepository.Valid(authority)) throw new GameplayWriteRejectedException();
-        var guard = await GameplayFenceRepository.LockAsync(db, authority.AccountId, cancellationToken);
+        AccountGameplayFence guard = await GameplayFenceRepository.LockAsync(db, authority.AccountId, cancellationToken);
         if (guard.GameSessionId != authority.GameSessionId || guard.FencingToken != authority.FencingToken ||
             guard.Mode != GameplayFenceMode.Active || guard.ConsolidationId is not null) throw new GameplayWriteRejectedException();
         await CheckGameplayDeadlineAsync(db, guard, cancellationToken);

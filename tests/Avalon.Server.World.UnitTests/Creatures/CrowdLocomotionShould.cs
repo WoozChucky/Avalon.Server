@@ -46,7 +46,7 @@ public class CrowdLocomotionShould
         int[] faces = [0, 1, 2, 0, 2, 3];
 
         var geom = new RcSampleInputGeomProvider(vertices, faces);
-        var result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
+        NavMeshBuildResult result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
         Assert.NotNull(result?.NavMesh);
         return result!.NavMesh;
     }
@@ -84,7 +84,7 @@ public class CrowdLocomotionShould
 
     private static ICreature CreatureAt(Vector3 position)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
         creature.Position.Returns(position);
         creature.Speed.Returns(NavmeshBuildSettings.AgentMaxSpeed);

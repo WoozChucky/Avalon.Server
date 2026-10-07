@@ -13,8 +13,8 @@ public sealed class WorldMaintenanceControlShould
     [Fact]
     public async Task Publish_committed_revision_and_preserve_state_when_delivery_fails()
     {
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
-        var cache = Substitute.For<IReplicatedCache>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         var now = new DateTime(2026, 9, 29, 12, 0, 0, DateTimeKind.Utc);
         var committed = new WorldMaintenanceState(true, 3, now.AddMinutes(5));
         repository.TransitionAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), now,
@@ -24,7 +24,7 @@ public sealed class WorldMaintenanceControlShould
 
         var control = new WorldMaintenanceControl(repository, cache,
             new FixedTimeProvider(now), NullLogger<WorldMaintenanceControl>.Instance);
-        var result = await control.SetAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), "admin:7",
+        WorldMaintenanceState? result = await control.SetAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), "admin:7",
             CancellationToken.None);
 
         Assert.Equal(committed, result);
@@ -34,8 +34,8 @@ public sealed class WorldMaintenanceControlShould
     [Fact]
     public async Task Neither_log_nor_publish_a_request_that_changed_nothing()
     {
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
-        var cache = Substitute.For<IReplicatedCache>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         var now = new DateTime(2026, 9, 29, 12, 0, 0, DateTimeKind.Utc);
         var standing = new WorldMaintenanceState(true, 3, now.AddMinutes(2));
         repository.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>()).Returns(standing);
@@ -44,7 +44,7 @@ public sealed class WorldMaintenanceControlShould
         var logger = new RecordingLogger();
 
         var control = new WorldMaintenanceControl(repository, cache, new FixedTimeProvider(now), logger);
-        var result = await control.SetAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), "admin:7",
+        WorldMaintenanceState? result = await control.SetAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), "admin:7",
             CancellationToken.None);
 
         Assert.Equal(standing, result);

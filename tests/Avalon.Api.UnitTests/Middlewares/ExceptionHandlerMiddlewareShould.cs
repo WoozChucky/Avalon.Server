@@ -36,7 +36,7 @@ public class ExceptionHandlerMiddlewareShould
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
         context.Response.Body.Position = 0;
         string body = await new StreamReader(context.Response.Body).ReadToEndAsync();
-        using JsonDocument json = JsonDocument.Parse(body);
+        using var json = JsonDocument.Parse(body);
         Assert.Equal("ServiceUnavailable", json.RootElement.GetProperty("type").GetString());
         Assert.DoesNotContain(outage.GetType().Name, body, StringComparison.Ordinal);
         Assert.DoesNotContain(TestPasswords.Valid, body, StringComparison.Ordinal);
@@ -57,7 +57,7 @@ public class ExceptionHandlerMiddlewareShould
 
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
         context.Response.Body.Position = 0;
-        using JsonDocument json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
+        using var json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
         Assert.Equal("Downloads are not available right now.", json.RootElement.GetProperty("detail").GetString());
     }
 
@@ -74,7 +74,7 @@ public class ExceptionHandlerMiddlewareShould
 
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
         context.Response.Body.Position = 0;
-        using JsonDocument json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
+        using var json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
         Assert.Equal(503, json.RootElement.GetProperty("status").GetInt32());
         Assert.Equal("Email could not be sent", json.RootElement.GetProperty("detail").GetString());
     }

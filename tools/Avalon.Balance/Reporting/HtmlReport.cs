@@ -115,7 +115,7 @@ public static class HtmlReport
     private static void ScenarioSection(StringBuilder sb, ReportContext ctx, Scenario scenario)
     {
         sb.Append("<section><h2>").Append(E(scenario.Id)).Append("</h2>");
-        List<ushort> levels = ctx.Rows.Where(r => r.Key.Scenario == scenario.Id).Select(r => r.Key.Level).Distinct().Order().ToList();
+        var levels = ctx.Rows.Where(r => r.Key.Scenario == scenario.Id).Select(r => r.Key.Level).Distinct().Order().ToList();
         foreach (string gear in ctx.Rows.Where(r => r.Key.Scenario == scenario.Id).Select(r => r.Key.Gear).Distinct())
         {
             bool gradedGear = gear == ctx.Targets.GradedGear;
@@ -126,7 +126,7 @@ public static class HtmlReport
 
         ctx.Targets.Scenarios.TryGetValue(scenario.Id, out ScenarioTargets? targets);
         sb.Append("<h3>Level curves (").Append(E(ctx.Targets.GradedGear)).Append(")</h3>");
-        List<RowResult> curveRows = ctx.Rows.Where(r => r.Key.Scenario == scenario.Id && r.Key.Gear == ctx.Targets.GradedGear).ToList();
+        var curveRows = ctx.Rows.Where(r => r.Key.Scenario == scenario.Id && r.Key.Gear == ctx.Targets.GradedGear).ToList();
         LineChart(sb, "Win rate (%)", levels, Series(curveRows, levels, r => r.WinRatePct), targets?.WinRate, 100, " %");
         double yFight = Math.Max(curveRows.Select(r => r.FightSeconds.Median).DefaultIfEmpty(1).Max(), targets?.FightSeconds?.Max ?? 0) * 1.1;
         LineChart(sb, "Median fight length (s)", levels, Series(curveRows, levels, r => r.FightSeconds.Median), targets?.FightSeconds, yFight, " s");

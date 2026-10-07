@@ -1,4 +1,5 @@
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 
@@ -19,12 +20,12 @@ public class CMFAResetHandler : IAuthPacketHandler<CMFAResetPacket>
 
     public async Task ExecuteAsync(AuthPacketContext<CMFAResetPacket> ctx, CancellationToken token = default)
     {
-        var account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
+        Account? account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
             "MFA reset", token);
         if (account == null)
             return;
 
-        var result = await _mfaService.ResetMFAAsync(
+        MFAResetResult result = await _mfaService.ResetMFAAsync(
             account.Id,
             ctx.Connection.CredentialsVersion,
             ctx.Packet.RecoveryCode1,

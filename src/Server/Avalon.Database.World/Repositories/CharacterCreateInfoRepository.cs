@@ -14,7 +14,7 @@ public class CharacterCreateInfoRepository(IDbContextFactory<WorldDbContext> con
 {
     public async Task<IReadOnlyCollection<CharacterCreateInfo>> FindAllAsync(CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.CharacterCreateInfos
             .AsNoTracking()
@@ -23,7 +23,7 @@ public class CharacterCreateInfoRepository(IDbContextFactory<WorldDbContext> con
 
     public async Task<CharacterCreateInfo?> GetByClassAsync(CharacterClass @class, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.CharacterCreateInfos
             .AsNoTracking()

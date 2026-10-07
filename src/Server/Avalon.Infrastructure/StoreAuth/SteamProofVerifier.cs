@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Microsoft.Extensions.Logging;
@@ -11,34 +12,34 @@ public sealed class SteamProofVerifier(HttpClient client, IOptions<StoreAuthenti
     public async Task<SteamProofResult> VerifyAsync(uint appId, string ticketHex, string expectedIdentity, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var config = options.Value;
+        StoreAuthenticationConfiguration config = options.Value;
         config.Validate(string.Equals(config.Environment, "production", StringComparison.Ordinal));
-        var prefix = SteamTicketIdentity.Prefix(config, appId);
+        string? prefix = SteamTicketIdentity.Prefix(config, appId);
         if (prefix is null || string.IsNullOrEmpty(ticketHex) || ticketHex.Length > GameAuthPolicy.MaximumSteamTicketHexCharacters || ticketHex.Length % 2 != 0 ||
             !ticketHex.All(Uri.IsHexDigit) || expectedIdentity is null ||
             !expectedIdentity.StartsWith(prefix, StringComparison.Ordinal) ||
             expectedIdentity.Length != prefix.Length + SteamTicketIdentity.NonceCharacters ||
             !expectedIdentity.AsSpan(prefix.Length).ToArray().All(c => c is >= 'a' and <= 'z' or >= '2' and <= '7'))
             return Rejected(appId, "invalid_input");
-        var uri = SteamWebApi.Request(SteamWebApi.AuthenticateTicketPath, config, appId,
+        Uri uri = SteamWebApi.Request(SteamWebApi.AuthenticateTicketPath, config, appId,
             ("ticket", ticketHex), ("identity", expectedIdentity));
-        var (available, document) = await SteamWebApi.GetAsync(client, uri, cancellationToken);
+        (bool available, JsonDocument? document) = await SteamWebApi.GetAsync(client, uri, cancellationToken);
         using (document)
         {
             if (!available) return new(SteamProofStatus.ProviderUnavailable);
-            if (document is null || !SteamWebApi.Object(document.RootElement, "response", out var response))
+            if (document is null || !SteamWebApi.Object(document.RootElement, "response", out JsonElement response))
                 return Rejected(appId, "invalid_response");
-            if (response.TryGetProperty("error", out var error))
+            if (response.TryGetProperty("error", out JsonElement error))
             {
                 int? errorCode = error.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                    error.TryGetProperty("errorcode", out var code) && code.ValueKind == System.Text.Json.JsonValueKind.Number &&
-                    code.TryGetInt32(out var number) ? number : null;
+                    error.TryGetProperty("errorcode", out JsonElement code) && code.ValueKind == System.Text.Json.JsonValueKind.Number &&
+                    code.TryGetInt32(out int number) ? number : null;
                 return Rejected(appId, "provider_error", errorCode);
             }
-            if (!SteamWebApi.Object(response, "params", out var parameters) ||
+            if (!SteamWebApi.Object(response, "params", out JsonElement parameters) ||
                 !string.Equals(SteamWebApi.String(parameters, "result"), "OK", StringComparison.Ordinal))
                 return Rejected(appId, "unexpected_result");
-            var subject = SteamWebApi.String(parameters, "steamid");
+            string? subject = SteamWebApi.String(parameters, "steamid");
             return SteamWebApi.IsSteamId(subject) ? new(SteamProofStatus.Verified, subject) : Rejected(appId, "invalid_steam_id");
         }
     }

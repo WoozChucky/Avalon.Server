@@ -45,8 +45,8 @@ public sealed class OnlineSessionShould : IDisposable
     public async Task Keep_the_account_online_when_an_older_connection_closes_after_a_newer_one_logged_in()
     {
         Account account = await AccountAsync();
-        Guid connectionA = Guid.NewGuid();
-        Guid connectionB = Guid.NewGuid();
+        var connectionA = Guid.NewGuid();
+        var connectionB = Guid.NewGuid();
         DateTime now = DateTime.UtcNow;
 
         Assert.True(await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.1", now, connectionA));
@@ -63,8 +63,8 @@ public sealed class OnlineSessionShould : IDisposable
     public async Task Mark_the_account_offline_when_the_connection_that_is_online_closes()
     {
         Account account = await AccountAsync();
-        Guid connectionA = Guid.NewGuid();
-        Guid connectionB = Guid.NewGuid();
+        var connectionA = Guid.NewGuid();
+        var connectionB = Guid.NewGuid();
         DateTime now = DateTime.UtcNow;
         await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.1", now, connectionA);
         await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.2", now, connectionB);
@@ -81,7 +81,7 @@ public sealed class OnlineSessionShould : IDisposable
     public async Task Still_count_a_stale_connection_session_time()
     {
         Account account = await AccountAsync();
-        Guid connectionA = Guid.NewGuid();
+        var connectionA = Guid.NewGuid();
         DateTime now = DateTime.UtcNow;
         await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.1", now, connectionA);
         await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.2", now, Guid.NewGuid());

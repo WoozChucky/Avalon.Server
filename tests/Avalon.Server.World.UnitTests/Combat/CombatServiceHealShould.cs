@@ -33,7 +33,7 @@ public class CombatServiceHealShould
 
     private static IAbility Heal(float threatPerHp = 0f)
     {
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(232));
         ability.Metadata.Returns(new AbilityMetadata { Name = "Heal", ScriptName = "x", HealThreatPerHp = threatPerHp });
         return ability;
@@ -74,7 +74,7 @@ public class CombatServiceHealShould
     [Fact]
     public void Never_heal_a_creature_at_0_health()
     {
-        var corpse = Substitute.For<ICreature>();
+        ICreature corpse = Substitute.For<ICreature>();
         corpse.Health.Returns(100u);
         corpse.CurrentHealth.Returns(0u);
 
@@ -88,7 +88,7 @@ public class CombatServiceHealShould
     {
         CharacterEntity healer = TestCharacters.New(2);
         CharacterEntity target = Wounded(1, max: 100, current: 40);
-        var wolf = Substitute.For<ICreature>();
+        ICreature wolf = Substitute.For<ICreature>();
         _combat.EnterCombat(wolf, target);
 
         _combat.ApplyHeal(healer, target, 20, Heal(threatPerHp: 0.5f));
@@ -103,7 +103,7 @@ public class CombatServiceHealShould
     {
         CharacterEntity healer = TestCharacters.New(2);
         CharacterEntity target = Wounded(1, max: 100, current: 100);
-        var wolf = Substitute.For<ICreature>();
+        ICreature wolf = Substitute.For<ICreature>();
         _combat.EnterCombat(wolf, target);
 
         _combat.ApplyHeal(healer, target, 50, Heal(threatPerHp: 0.5f));
@@ -119,8 +119,8 @@ public class CombatServiceHealShould
     {
         CharacterEntity healer = TestCharacters.New(2);
         CharacterEntity target = Wounded(1, max: 100, current: 70);
-        var wolf = Substitute.For<ICreature>();
-        var boar = Substitute.For<ICreature>();
+        ICreature wolf = Substitute.For<ICreature>();
+        ICreature boar = Substitute.For<ICreature>();
         _combat.EnterCombat(wolf, target);
         _combat.EnterCombat(boar, target);
 
@@ -139,8 +139,8 @@ public class CombatServiceHealShould
     {
         CharacterEntity healer = TestCharacters.New(2);
         CharacterEntity target = Wounded(1, max: 100, current: 40);
-        var wolf = Substitute.For<ICreature>();
-        var boar = Substitute.For<ICreature>();
+        ICreature wolf = Substitute.For<ICreature>();
+        ICreature boar = Substitute.For<ICreature>();
         _combat.EnterCombat(wolf, target);
         _combat.EnterCombat(boar, target);
 
@@ -156,7 +156,7 @@ public class CombatServiceHealShould
     [Fact]
     public void Restore_an_items_heal_capped_and_report_what_it_restored()
     {
-        var outcomes = Substitute.For<ICombatOutcomes>();
+        ICombatOutcomes outcomes = Substitute.For<ICombatOutcomes>();
         var combat = new CombatService(_config, _registry, outcomes: outcomes);
         CharacterEntity user = Wounded(1, max: 100, current: 80);
 
@@ -176,7 +176,7 @@ public class CombatServiceHealShould
     {
         CharacterEntity healer = TestCharacters.New(2);
         CharacterEntity target = Wounded(1, max: 100, current: 40);
-        var wolf = Substitute.For<ICreature>();
+        ICreature wolf = Substitute.For<ICreature>();
         _combat.EnterCombat(wolf, target);
         var encounter = (Encounter)_combat.GetEncounterFor(target)!;
 
@@ -191,7 +191,7 @@ public class CombatServiceHealShould
     [Fact]
     public void Restore_nothing_to_a_dead_character_or_one_at_full_health()
     {
-        var outcomes = Substitute.For<ICombatOutcomes>();
+        ICombatOutcomes outcomes = Substitute.For<ICombatOutcomes>();
         var combat = new CombatService(_config, _registry, outcomes: outcomes);
         CharacterEntity dead = Wounded(1, max: 100, current: 0);
         dead.IsDead = true;

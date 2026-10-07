@@ -29,28 +29,28 @@ public sealed class PlaytestWorldAdmissionShould
     public async Task Admit_and_reconnect_a_linked_or_new_Player_to_a_PTR_world_without_promoting_the_account(bool createAccount)
     {
         var h = new Harness(createAccount);
-        var auth = await h.Authenticate(2514590);
-        var context = Assert.IsType<GameContextRecord>(await h.Authorization.GetContextAsync(auth.GameContextCredential!, true, default));
+        GameAuthReply auth = await h.Authenticate(2514590);
+        GameContextRecord context = Assert.IsType<GameContextRecord>(await h.Authorization.GetContextAsync(auth.GameContextCredential!, true, default));
         Assert.Equal((ushort)3, Assert.Single(await h.Allocator.ListAsync(context, default)).WorldId);
-        var listed = Assert.IsType<OkObjectResult>(await h.Worlds(auth.GameContextCredential!));
+        OkObjectResult listed = Assert.IsType<OkObjectResult>(await h.Worlds(auth.GameContextCredential!));
         Assert.Equal((ushort)3, Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GameWorldDestination>>(listed.Value)).WorldId);
         Assert.Equal(AccountAccessLevel.Player, h.Account.AccessLevel);
 
-        var issued = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, false, default);
+        GameJoinReply issued = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, false, default);
         Assert.Null(issued.Error);
-        var admitted = await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", Guid.NewGuid(), Guid.NewGuid(), default);
+        JoinRedemptionReceipt admitted = await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", Guid.NewGuid(), Guid.NewGuid(), default);
         Assert.Null(admitted.Error);
         Assert.Equal(context.Id.ToString("D"), admitted.GameContextId);
         Assert.Equal("1", admitted.FencingToken);
-        var lease = await h.Activate();
+        GameSessionLeaseReply lease = await h.Activate();
         Assert.Null(lease.Error);
         Assert.Equal((ushort?)1, lease.AccessLevel);
         Assert.Equal((ushort?)3, lease.WorldId);
         Assert.Equal((ushort?)1, (await h.Heartbeat()).AccessLevel);
 
-        var reconnect = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, true, default);
+        GameJoinReply reconnect = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, true, default);
         Assert.Null(reconnect.Error);
-        var rejoined = await h.Tickets.RedeemAsync(reconnect.JoinTicket!, "world-3", Guid.NewGuid(), Guid.NewGuid(), default);
+        JoinRedemptionReceipt rejoined = await h.Tickets.RedeemAsync(reconnect.JoinTicket!, "world-3", Guid.NewGuid(), Guid.NewGuid(), default);
         Assert.Null(rejoined.Error);
         Assert.Equal(context.Id.ToString("D"), rejoined.GameContextId);
         Assert.Equal("2", rejoined.FencingToken);
@@ -68,17 +68,17 @@ public sealed class PlaytestWorldAdmissionShould
     {
         var h = new Harness(false) { OwnsApplication = expired, LicenseLifetime = TimeSpan.FromSeconds(30) };
         if (appId == 2499460) h.Account.AccessLevel |= AccountAccessLevel.PTR;
-        var auth = await h.Authenticate(appId, expired ? GameAuthStates.Authorized : GameAuthStates.PendingLicense);
+        GameAuthReply auth = await h.Authenticate(appId, expired ? GameAuthStates.Authorized : GameAuthStates.PendingLicense);
         if (expired) h.Advance(TimeSpan.FromSeconds(31));
         Assert.NotNull(await h.Authorization.GetContextAsync(auth.GameContextCredential!, false, default));
         Assert.Null(await h.Authorization.GetContextAsync(auth.GameContextCredential!, true, default));
 
-        var result = await h.Worlds(auth.GameContextCredential!);
+        IActionResult result = await h.Worlds(auth.GameContextCredential!);
         if (appId == 2514590)
             Assert.IsType<UnauthorizedObjectResult>(result);
         else
         {
-            var listed = Assert.IsType<OkObjectResult>(result);
+            OkObjectResult listed = Assert.IsType<OkObjectResult>(result);
             Assert.Equal((ushort)3, Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GameWorldDestination>>(listed.Value)).WorldId);
         }
     }
@@ -87,15 +87,15 @@ public sealed class PlaytestWorldAdmissionShould
     public async Task Keep_the_same_Players_main_application_context_out_of_PTR()
     {
         var h = new Harness(false);
-        var playtest = await h.Authenticate(2514590);
-        var playtestContext = Assert.IsType<GameContextRecord>(await h.Authorization.GetContextAsync(playtest.GameContextCredential!, true, default));
+        GameAuthReply playtest = await h.Authenticate(2514590);
+        GameContextRecord playtestContext = Assert.IsType<GameContextRecord>(await h.Authorization.GetContextAsync(playtest.GameContextCredential!, true, default));
         Assert.Equal((ushort)3, Assert.Single(await h.Allocator.ListAsync(playtestContext, default)).WorldId);
 
-        var main = await h.Authenticate(2499460);
-        var mainContext = Assert.IsType<GameContextRecord>(await h.Authorization.GetContextAsync(main.GameContextCredential!, true, default));
+        GameAuthReply main = await h.Authenticate(2499460);
+        GameContextRecord mainContext = Assert.IsType<GameContextRecord>(await h.Authorization.GetContextAsync(main.GameContextCredential!, true, default));
         Assert.Equal(playtestContext.AccountId, mainContext.AccountId);
         Assert.Empty(await h.Allocator.ListAsync(mainContext, default));
-        var denied = await h.Tickets.IssueAsync(main.GameContextCredential!, 3, null, Guid.NewGuid(), false, false, default);
+        GameJoinReply denied = await h.Tickets.IssueAsync(main.GameContextCredential!, 3, null, Guid.NewGuid(), false, false, default);
         Assert.Equal(GameAuthErrors.WorldUnavailable, denied.Error);
         Assert.Equal(AccountAccessLevel.Player, h.Account.AccessLevel);
     }
@@ -106,17 +106,17 @@ public sealed class PlaytestWorldAdmissionShould
     public async Task Refuse_fresh_and_cached_admission_and_heartbeat_when_Playtest_is_disabled_or_ownership_is_lost(bool disableApplication)
     {
         var h = new Harness(false);
-        var auth = await h.Authenticate(2514590);
+        GameAuthReply auth = await h.Authenticate(2514590);
         var request = Guid.NewGuid();
-        var issued = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default);
+        GameJoinReply issued = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default);
         Assert.Null(issued.Error);
         var connection = Guid.NewGuid();
         var redemption = Guid.NewGuid();
-        var admitted = await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", connection, redemption, default);
+        JoinRedemptionReceipt admitted = await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", connection, redemption, default);
         Assert.Null(admitted.Error);
         Assert.Null((await h.Activate()).Error);
         Assert.Null((await h.Heartbeat()).Error);
-        var reconnect = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, true, default);
+        GameJoinReply reconnect = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, true, default);
         Assert.Null(reconnect.Error);
 
         if (disableApplication) h.Configuration.SteamPlaytest.Enabled = false;
@@ -135,16 +135,16 @@ public sealed class PlaytestWorldAdmissionShould
     public async Task Suspension_refuses_fresh_Steam_proof_cached_admission_and_session_renewal()
     {
         var h = new Harness(false);
-        var auth = await h.Authenticate(2514590);
+        GameAuthReply auth = await h.Authenticate(2514590);
         var request = Guid.NewGuid();
-        var issued = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default);
+        GameJoinReply issued = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, request, false, false, default);
         Assert.Null(issued.Error);
         var connection = Guid.NewGuid();
         var redemption = Guid.NewGuid();
         Assert.Null((await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", connection, redemption, default)).Error);
         Assert.Null((await h.Activate()).Error);
         Assert.Null((await h.Heartbeat()).Error);
-        var reconnect = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, true, default);
+        GameJoinReply reconnect = await h.Tickets.IssueAsync(auth.GameContextCredential!, 3, null, Guid.NewGuid(), false, true, default);
         Assert.Null(reconnect.Error);
 
         h.SetPlaytestSuspension(true);
@@ -158,7 +158,7 @@ public sealed class PlaytestWorldAdmissionShould
 
         h.SetPlaytestSuspension(false);
         Assert.Null(await h.Authorization.GetContextAsync(auth.GameContextCredential!, true, default));
-        var fresh = await h.Authenticate(2514590);
+        GameAuthReply fresh = await h.Authenticate(2514590);
         Assert.NotNull(await h.Authorization.GetContextAsync(fresh.GameContextCredential!, true, default));
         Assert.Equal(AccountAccessLevel.Player, h.Account.AccessLevel);
     }
@@ -181,7 +181,7 @@ public sealed class PlaytestWorldAdmissionShould
         private MemoryGameLicenses _licenses = null!;
         public void SetPlaytestSuspension(bool active)
         {
-            foreach (var license in _licenses.Rows.Where(x => x.ProviderProductId == "2514590"))
+            foreach (GameLicense? license in _licenses.Rows.Where(x => x.ProviderProductId == "2514590"))
             {
                 license.SuspendedAt = active ? Now : null;
                 license.AuthorityRevision++;
@@ -189,7 +189,7 @@ public sealed class PlaytestWorldAdmissionShould
         }
         public async Task RevokePlaytestAuthority()
         {
-            foreach (var license in _licenses.Rows.Where(x => x.ProviderProductId == "2514590"))
+            foreach (GameLicense? license in _licenses.Rows.Where(x => x.ProviderProductId == "2514590"))
                 await _licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision, new(false, Now, Now));
         }
         public bool OwnsApplication { get; set; } = true;
@@ -216,25 +216,25 @@ public sealed class PlaytestWorldAdmissionShould
             };
             var identity = new ExternalIdentity { Id = Guid.NewGuid(), AccountId = Account.Id, Provider = "steam", ProviderSubject = Subject };
             ExternalIdentity? linked = createAccount ? null : identity;
-            var accounts = Substitute.For<IAccountRepository>();
+            IAccountRepository accounts = Substitute.For<IAccountRepository>();
             accounts.FindByIdAsync(Account.Id, false, Arg.Any<CancellationToken>()).Returns(_ => linked is null ? null : Account);
-            var identities = Substitute.For<IExternalIdentityRepository>();
+            IExternalIdentityRepository identities = Substitute.For<IExternalIdentityRepository>();
             identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns(_ => linked);
-            var registration = Substitute.For<IGameAccountRegistration>();
+            IGameAccountRegistration registration = Substitute.For<IGameAccountRegistration>();
             registration.CreateFromStoreAsync(Arg.Any<Guid>(), "steam", Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>())
                 .Returns(_ => { linked = identity; return new IdentityLinkResult(IdentityLinkStatus.Linked, identity); });
-            var proof = Substitute.For<ISteamProofVerifier>();
+            ISteamProofVerifier proof = Substitute.For<ISteamProofVerifier>();
             proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(new SteamProofResult(SteamProofStatus.Verified, Subject));
-            var ownership = Substitute.For<ISteamOwnershipClient>();
+            ISteamOwnershipClient ownership = Substitute.For<ISteamOwnershipClient>();
             ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>())
                 .Returns(_ => new SteamOwnershipResult(OwnsApplication ? SteamOwnershipStatus.Owned : SteamOwnershipStatus.NotOwned,
                     Subject, Now, OwnsApplication ? Now.Add(LicenseLifetime) : Now));
-            var observations = Substitute.For<ILicenseObservationRepository>();
+            ILicenseObservationRepository observations = Substitute.For<ILicenseObservationRepository>();
             var store = new AtomicAuthStore();
             _licenses = TestGameAuthorization.Licenses(store);
             var crypto = new GameAuthCryptography(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray());
-            var options = Options.Create(Configuration);
+            IOptions<StoreAuthenticationConfiguration> options = Options.Create(Configuration);
             var applications = new GameApplicationAccessPolicy(options);
             Authorization = TestGameAuthorization.Create(store, new AuthAttemptStore(store, crypto, options, _clock), crypto, accounts,
                 Substitute.For<IRefreshTokenRepository>(), identities, observations, proof, ownership, options, _clock, registration);
@@ -249,24 +249,24 @@ public sealed class PlaytestWorldAdmissionShould
                 MinVersion = "0.2.0",
                 Version = "0.2.0",
             };
-            var worlds = Substitute.For<IWorldRepository>();
+            IWorldRepository worlds = Substitute.For<IWorldRepository>();
             worlds.FindByIdAsync(world.Id, false, Arg.Any<CancellationToken>()).Returns(world);
-            var databases = Substitute.For<IWorldDatabases>();
+            IWorldDatabases databases = Substitute.For<IWorldDatabases>();
             databases.IsAvailable(world.Id).Returns(true);
-            var readiness = Substitute.For<IWorldReadiness>();
+            IWorldReadiness readiness = Substitute.For<IWorldReadiness>();
             readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
-            var repositories = Substitute.For<IWorldRepositories>();
-            var workloads = Options.Create(new GameWorkloadConfiguration
+            IWorldRepositories repositories = Substitute.For<IWorldRepositories>();
+            IOptions<GameWorkloadConfiguration> workloads = Options.Create(new GameWorkloadConfiguration
             {
                 Servers = [new GameServerDefinition { ServerId = "world-3", WorldId = 3, TlsServerName = "ptr.example.test", TlsCertificateSha256 = new string('A', 64) }],
             });
             Allocator = new(worlds, accounts, databases, readiness, repositories, workloads, _clock, applications);
 
-            var sessions = Substitute.For<IGameSessionRepository>();
+            IGameSessionRepository sessions = Substitute.For<IGameSessionRepository>();
             sessions.FindAsync(Account.Id, Arg.Any<CancellationToken>()).Returns(_ => _head);
             sessions.TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
             {
-                var reservation = call.Arg<GameSessionReservation>();
+                GameSessionReservation reservation = call.Arg<GameSessionReservation>();
                 if (reservation.ExpectedFence != (_head?.FencingToken ?? 0)) return null;
                 _head = new GameSession
                 {
@@ -301,7 +301,7 @@ public sealed class PlaytestWorldAdmissionShould
                 _head.LicenseUntil = call.ArgAt<DateTime>(8);
                 return true;
             });
-            var gameplay = Substitute.For<IGameplayFenceRepository>();
+            IGameplayFenceRepository gameplay = Substitute.For<IGameplayFenceRepository>();
             repositories.GameplayFences(world.Id).Returns(gameplay);
             gameplay.AdvanceAsync(Arg.Any<GameplayWriteAuthority>(), false, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
             gameplay.ActivateAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
@@ -312,9 +312,9 @@ public sealed class PlaytestWorldAdmissionShould
 
         public async Task<GameAuthReply> Authenticate(uint appId, string expectedState = GameAuthStates.Authorized)
         {
-            var attempt = (await Authorization.CreateAttemptAsync("steam", GameWorkloadConfiguration.ClientProtocolVersion,
+            AuthAttemptReply attempt = (await Authorization.CreateAttemptAsync("steam", GameWorkloadConfiguration.ClientProtocolVersion,
                 Guid.NewGuid(), new string('A', 43), null, appId, default))!;
-            var reply = await Authorization.AuthenticateSteamAsync(attempt.AttemptCredential,
+            GameAuthReply reply = await Authorization.AuthenticateSteamAsync(attempt.AttemptCredential,
                 (++_proof).ToString("X4", System.Globalization.CultureInfo.InvariantCulture), Guid.NewGuid(), default, "127.0.0.1");
             Assert.Null(reply.Error);
             Assert.Equal(expectedState, reply.State);

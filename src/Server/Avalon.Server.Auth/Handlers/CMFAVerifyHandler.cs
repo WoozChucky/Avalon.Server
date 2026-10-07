@@ -52,7 +52,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
                 return;
         }
 
-        var account = attempt.Account!;
+        Account account = attempt.Account!;
 
         // Both slots stay taken until the login is recorded (#484 review): a right code refused
         // below keeps its slots exactly as a wrong one does.
@@ -67,7 +67,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             return;
         }
 
-        var lastIp = attempt.Source.Ip;
+        string lastIp = attempt.Source.Ip;
         if (await GameLoginCompletion.TryStartAsync(ctx.Connection, account, lastIp, FailureResult(attempt),
                 _accountRepository, _cache, _logger, token) is not null) return;
 

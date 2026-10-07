@@ -78,7 +78,7 @@ public class Vector3Should
     public void SupportNormalization()
     {
         var v = new Vector3(5f, 0f, 0f);
-        var normalized = v.normalized;
+        Vector3 normalized = v.normalized;
 
         Assert.Equal(new Vector3(1f, 0f, 0f), normalized);
         Assert.Equal(1f, normalized.magnitude);

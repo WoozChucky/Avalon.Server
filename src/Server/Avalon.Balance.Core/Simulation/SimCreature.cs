@@ -71,7 +71,7 @@ public sealed class SimCreature : SimUnit
             data.Abilities.TryGetValue(id, out AbilityTemplate? row) ? new SimAbility(row) : null;
 
         SimAbility? basic = Load(kit.Basic);
-        List<SimAbility> specials = kit.Specials.Distinct().Where(id => id != kit.Basic).Select(Load).OfType<SimAbility>().ToList();
+        var specials = kit.Specials.Distinct().Where(id => id != kit.Basic).Select(Load).OfType<SimAbility>().ToList();
 
         var creature = new SimCreature
         {

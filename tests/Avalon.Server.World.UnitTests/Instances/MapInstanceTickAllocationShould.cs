@@ -106,7 +106,7 @@ public class MapInstanceTickAllocationShould
     [Fact]
     public void Tick_between_broadcasts_without_allocating()
     {
-        var (instance, players, creatures) = Build();
+        (MapInstance? instance, QuietConnection[]? players, List<Creature>? creatures) = Build();
         for (int tick = 0; tick < 120; tick++)
         {
             Walk(creatures, tick);
@@ -144,7 +144,7 @@ public class MapInstanceTickAllocationShould
     [Fact]
     public void Broadcast_allocating_only_the_packets_it_sends()
     {
-        var (instance, players, creatures) = Build();
+        (MapInstance? instance, QuietConnection[]? players, List<Creature>? creatures) = Build();
         for (int tick = 0; tick < 120; tick++)
         {
             Walk(creatures, tick);

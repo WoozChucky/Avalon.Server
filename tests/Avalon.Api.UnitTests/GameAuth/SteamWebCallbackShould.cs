@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Primitives;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
@@ -28,10 +29,10 @@ public sealed class SteamWebCallbackShould
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero));
         var crypto = new GameAuthCryptography(new byte[32]);
         var root = new Account { Id = new AccountId(7), Username = "PLAYER", Email = null, Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.FindByIdAsync(root.Id, false, Arg.Any<CancellationToken>()).Returns(root);
         var store = new SteamWebLinkStore(memory, crypto, clock);
-        var transaction = (await store.StartAsync(Guid.NewGuid(), root, "browser", default))!;
+        SteamWebLinkStart transaction = (await store.StartAsync(Guid.NewGuid(), root, "browser", default))!;
         Assert.True(await store.ChallengeAsync(transaction.Id, transaction.Cookie, default));
         var provider = new ValidSteamResponse();
         using var server = new TestServer(new WebHostBuilder().ConfigureServices(services =>
@@ -56,15 +57,15 @@ public sealed class SteamWebCallbackShould
                 await context.ChallengeAsync(SteamWebLinkOptions.Scheme, properties);
             });
         }));
-        var client = server.CreateClient(); client.BaseAddress = new("https://api.example.test");
+        HttpClient client = server.CreateClient(); client.BaseAddress = new("https://api.example.test");
         using var challengeRequest = new HttpRequestMessage(HttpMethod.Get, "/begin");
         challengeRequest.Headers.Host = "attacker.example.test";
-        using var challenge = await client.SendAsync(challengeRequest);
-        var destination = challenge.Headers.Location!;
+        using HttpResponseMessage challenge = await client.SendAsync(challengeRequest);
+        Uri destination = challenge.Headers.Location!;
         Assert.Equal("steamcommunity.com", destination.Host);
-        var parameters = QueryHelpers.ParseQuery(destination.Query);
+        Dictionary<string, StringValues> parameters = QueryHelpers.ParseQuery(destination.Query);
         Assert.Equal("https://api.example.test", parameters["openid.realm"].ToString());
-        var returnTo = parameters["openid.return_to"].ToString();
+        string returnTo = parameters["openid.return_to"].ToString();
         Assert.StartsWith("https://api.example.test" + SteamWebLinkOptions.CallbackPath + "?state=", returnTo);
         var callbackValues = new Dictionary<string, string?>
         {
@@ -79,20 +80,20 @@ public sealed class SteamWebCallbackShould
             ["openid.sig"] = "provider-signature",
             ["openid.signed"] = "op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle",
         };
-        var callback = QueryHelpers.AddQueryString(returnTo, callbackValues);
-        var correlation = string.Join("; ", challenge.Headers.GetValues("Set-Cookie").Select(c => c.Split(';')[0]));
+        string callback = QueryHelpers.AddQueryString(returnTo, callbackValues);
+        string correlation = string.Join("; ", challenge.Headers.GetValues("Set-Cookie").Select(c => c.Split(';')[0]));
         async Task<HttpResponseMessage> Submit()
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, callback);
             request.Headers.Add("Cookie", correlation + "; " + SteamWebLinkRegistration.CookieName(transaction.Id) + "=" + transaction.Cookie);
             return await client.SendAsync(request);
         }
-        using var verified = await Submit();
+        using HttpResponseMessage verified = await Submit();
         Assert.Equal(HttpStatusCode.Redirect, verified.StatusCode);
         Assert.Equal("https://web.example.test/account/link-store?steamLinkId=" + transaction.Id.ToString("N"), verified.Headers.Location!.AbsoluteUri);
         Assert.Equal("verified", (await store.ReadBoundAsync(transaction.Id, root.Id, "browser", transaction.Cookie, default))!.State);
-        Assert.DoesNotContain(verified.Headers.TryGetValues("Set-Cookie", out var cookies) ? cookies : [], c => c.StartsWith("__Host-AvalonSteamLinkUnused=", StringComparison.Ordinal));
-        using var reused = await Submit();
+        Assert.DoesNotContain(verified.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? cookies) ? cookies : [], c => c.StartsWith("__Host-AvalonSteamLinkUnused=", StringComparison.Ordinal));
+        using HttpResponseMessage reused = await Submit();
         Assert.Contains("verification_failed", reused.Headers.Location!.AbsoluteUri);
         Assert.Equal(2, provider.Calls);
     }

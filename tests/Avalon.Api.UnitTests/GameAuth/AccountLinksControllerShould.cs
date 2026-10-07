@@ -15,7 +15,7 @@ public class AccountLinksControllerShould
     [Fact]
     public void Require_player_browser_authority_and_bounded_uncached_requests()
     {
-        var type = typeof(AccountLinksController);
+        Type type = typeof(AccountLinksController);
         Assert.Equal(AvalonRoles.Player, type.GetCustomAttribute<AuthorizeAttribute>()!.Policy);
         Assert.Null(type.GetCustomAttribute<AllowAnonymousAttribute>());
         Assert.Equal("account/links", type.GetCustomAttribute<RouteAttribute>()!.Template);

@@ -69,7 +69,7 @@ public class ReusingNavMeshQueryShould
         try
         {
             var geom = RcSampleInputGeomProvider.LoadFile(combined);
-            var result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
+            NavMeshBuildResult result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
             Assert.NotNull(result?.NavMesh);
             return result!.NavMesh;
         }

@@ -121,7 +121,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
 
     private string Token(AccountAccessLevel level)
     {
-        var account = ApiAuthHost.MakeAccount(level);
+        Account account = ApiAuthHost.MakeAccount(level);
         _host.AccountNowIs(account);
         return ApiAuthHost.Mint(account);
     }
@@ -280,11 +280,11 @@ public sealed class TemplateEditShould : IAsyncLifetime
         (JsonObject json, string version) = await ReadAsync(kind, id);
 
         // Two admins open the same template; the first saves.
-        JsonObject first = (JsonObject)json.DeepClone();
+        var first = (JsonObject)json.DeepClone();
         first["name"] = "First admin";
         Assert.Equal(HttpStatusCode.OK, (await PutAsync(Editable, kind, id, first, Tag(version))).StatusCode);
 
-        JsonObject second = (JsonObject)json.DeepClone();
+        var second = (JsonObject)json.DeepClone();
         second["name"] = "Second admin";
         HttpResponseMessage response = await PutAsync(Editable, kind, id, second, Tag(version));
 
@@ -543,7 +543,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     [InlineData("ability")]
     public async Task Save_a_changed_script_name_when_redis_cannot_be_read(string kind)
     {
-        var cache = Substitute.For<IReplicatedCache>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         cache.GetAsync(Arg.Any<string>())
             .Returns(Task.FromException<string?>(new RedisServerException("WRONGTYPE")));
         _catalog.Real = new WorldScriptCatalog(cache, new LoggerOf<WorldScriptCatalog>(_logs.CreateLogger("test")));
@@ -1058,7 +1058,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal(id, entry.State["TemplateId"]);
         Assert.Equal(Editable, entry.State["WorldId"]);
         Assert.Equal(ApiAuthHost.AccountIdValue, entry.State["AccountId"]);
-        var changes = Assert.IsAssignableFrom<IReadOnlyList<TemplateChange>>(entry.State["@Changes"]);
+        IReadOnlyList<TemplateChange> changes = Assert.IsAssignableFrom<IReadOnlyList<TemplateChange>>(entry.State["@Changes"]);
         Assert.Equal(
             [new TemplateChange("maxStackSize", oldSell.ToString(), (oldSell + 7).ToString()),
              new TemplateChange("name", oldName, "Audited")],
@@ -1301,7 +1301,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             {
                 var values = new Dictionary<string, object?>();
                 if (state is IEnumerable<KeyValuePair<string, object?>> pairs)
-                    foreach (var pair in pairs) values[pair.Key] = pair.Value;
+                    foreach (KeyValuePair<string, object?> pair in pairs) values[pair.Key] = pair.Value;
                 lock (owner._entries)
                     owner._entries.Add(new CapturedLog(category, logLevel, formatter(state, exception), values));
             }

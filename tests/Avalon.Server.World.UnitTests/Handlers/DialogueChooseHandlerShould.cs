@@ -27,7 +27,7 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void Advance_To_The_Next_Node()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
@@ -41,7 +41,7 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void End_The_Conversation_On_A_Null_Next_Node()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 2));
@@ -58,7 +58,7 @@ public class DialogueChooseHandlerShould
         // THE test this design exists for. A valid OptionId from another node is exactly what a
         // happy-path test cannot see, and rejecting it is the entire reason the conversation is
         // server-authoritative rather than a graph shipped to the client.
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
 
         // Option 4 is real and belongs to node 2 — the server is showing node 1. A handler that
@@ -72,7 +72,7 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void Reject_A_Choice_Against_A_Node_The_Server_Is_Not_Showing()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 2, option: 1));
@@ -84,7 +84,7 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void Reject_A_Choice_When_No_Conversation_Is_Open()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = null;
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
@@ -95,7 +95,7 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void Reject_A_Choice_Naming_A_Different_Npc()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
 
         var other = new ObjectGuid(ObjectType.Creature, 8);
@@ -111,7 +111,7 @@ public class DialogueChooseHandlerShould
     {
         // Review Focus 1. Someone else killed the innkeeper mid-sentence; the player must not keep
         // talking to a corpse.
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
         fixture.Npc.CurrentHealth.Returns(0u);
 
@@ -124,7 +124,7 @@ public class DialogueChooseHandlerShould
     public void End_The_Conversation_When_The_Npc_Has_Left_The_Instance()
     {
         // Review Focus 1, despawn variant — corpse removal takes the creature out entirely.
-        Fixture fixture = Fixture.Build(npcInInstance: false);
+        var fixture = Fixture.Build(npcInInstance: false);
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
@@ -136,7 +136,7 @@ public class DialogueChooseHandlerShould
     public void Treat_An_Unknown_Next_Node_As_An_End()
     {
         // Broken content should close the window, not wedge it open.
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 3));
@@ -147,7 +147,7 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void Drop_The_Packet_When_There_Is_No_Character()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
         fixture.Connection.Character.Returns((ICharacter?)null);
 
@@ -160,7 +160,7 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void Drop_The_Packet_When_The_Character_Is_Dead()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
         fixture.Character.IsDead.Returns(true);
 
@@ -176,7 +176,7 @@ public class DialogueChooseHandlerShould
         // Guards against an ObjectGuid reused across a despawn/respawn: node 3 is real but was
         // authored for a different creature template than the one now answering to NpcGuid, so
         // advancing on it would hand out dialogue that was never meant for this NPC.
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(3));
 
         fixture.Handler.Execute(fixture.Connection, Choose(node: 3, option: 1));
@@ -189,7 +189,7 @@ public class DialogueChooseHandlerShould
     {
         // 5.5 m: past the 5 m needed to open the conversation, still inside the 6 m leash.
         // Stepping back mid-sentence must not slam the window shut.
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
         fixture.Npc.Position.Returns(new Vector3(0, 0, 5.5f));
 
@@ -205,7 +205,7 @@ public class DialogueChooseHandlerShould
     {
         // Just past 6 m: the player walked away. Once options have effects, advancing here would let
         // them act on the NPC from anywhere on the map.
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
         fixture.Npc.Position.Returns(new Vector3(0, 0, NpcInteraction.LeashRange + 0.01f));
 
@@ -228,7 +228,7 @@ public class DialogueChooseHandlerShould
     public void Advance_At_Exactly_The_Leash_Range()
     {
         // The leash is inclusive: exactly 6 m is still with the NPC.
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
         fixture.Npc.Position.Returns(new Vector3(0, 0, NpcInteraction.LeashRange));
 
@@ -242,7 +242,7 @@ public class DialogueChooseHandlerShould
     [Fact]
     public void Ignore_A_Further_Choice_After_A_Leash_Close()
     {
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
         fixture.Npc.Position.Returns(new Vector3(0, 0, 7));
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
@@ -261,7 +261,7 @@ public class DialogueChooseHandlerShould
     {
         // A NaN position compares false against everything. Written as "distance > LeashRange" the
         // check would let it through; the leash must fail closed.
-        Fixture fixture = Fixture.Build();
+        var fixture = Fixture.Build();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
         fixture.Character.Position.Returns(new Vector3(float.NaN, 0, 0));
 
@@ -301,25 +301,25 @@ public class DialogueChooseHandlerShould
             fixture.Npc.Name.Returns("Innkeeper");
             fixture.Npc.CurrentHealth.Returns(100u);
             fixture.Npc.Position.Returns(new Vector3(0, 0, 2));
-            var npcMetadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata npcMetadata = Substitute.For<ICreatureMetadata>();
             npcMetadata.Id.Returns(new CreatureTemplateId(3));
             fixture.Npc.Metadata.Returns(npcMetadata);
 
-            var instance = Substitute.For<IMapInstance>();
+            IMapInstance instance = Substitute.For<IMapInstance>();
             instance.Creatures.Returns(npcInInstance
                 ? new Dictionary<ObjectGuid, ICreature> { [NpcGuid] = fixture.Npc }
                 : new Dictionary<ObjectGuid, ICreature>());
 
-            var registry = Substitute.For<IInstanceRegistry>();
+            IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
             registry.GetInstanceById(Arg.Any<Guid>()).Returns(instance);
 
-            var world = Substitute.For<IWorld>();
+            IWorld world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(registry);
 
             // world.Data is the concrete StaticData and cannot be substituted, so build a real one
             // over stubbed repositories — the arrangement InteractHandlerShould already uses. The
             // catalogs it builds are real, which means this fixture also exercises the catalog code.
-            var dialogueRepo = Substitute.For<IDialogueRepository>();
+            IDialogueRepository dialogueRepo = Substitute.For<IDialogueRepository>();
             dialogueRepo.GetAllNodesAsync(Arg.Any<CancellationToken>()).Returns(
                 Task.FromResult<IReadOnlyCollection<DialogueNode>>(
                     [
@@ -384,7 +384,7 @@ public class DialogueChooseHandlerShould
                         }
                     ]));
 
-            var textRepo = Substitute.For<ILocalizedTextRepository>();
+            ILocalizedTextRepository textRepo = Substitute.For<ILocalizedTextRepository>();
             textRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(
                 Task.FromResult<IReadOnlyCollection<LocalizedText>>(
                     [
@@ -423,32 +423,32 @@ public class DialogueChooseHandlerShould
         private static StaticData BuildStaticData(
             ILocalizedTextRepository textRepo, IDialogueRepository dialogueRepo)
         {
-            var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+            ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
             createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());
 
-            var stats = Substitute.For<IClassLevelStatRepository>();
+            IClassLevelStatRepository stats = Substitute.For<IClassLevelStatRepository>();
             stats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<ClassLevelStat>());
 
-            var items = Substitute.For<IItemTemplateRepository>();
+            IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
             items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<ItemTemplate>());
 
-            var abilities = Substitute.For<IAbilityTemplateRepository>();
+            IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
             abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AbilityTemplate>());
 
-            var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+            ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
             levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(
                 Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>([]));
 
-            var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+            ICreatureTemplateRepository creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
             creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(new List<CreatureTemplate>()));
 
-            var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+            ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
             baseStats.GetAllAsync(Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
                     [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
 
-            var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+            ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
             rarities.GetAllAsync(Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 

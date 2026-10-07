@@ -83,7 +83,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(DomainStatus.Active);
 
-        var (response, accountId, _) = await LoginAsync(Password);
+        (AuthenticateResponse? response, AccountId? accountId, int _) = await LoginAsync(Password);
 
         Assert.Equal("jwt", response.Token);
         Assert.Equal(7, accountId!.Value);
@@ -99,7 +99,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(status, mfa);
 
-        var refused = await Assert.ThrowsAsync<AccountInactiveException>(() => LoginAsync(Password));
+        AccountInactiveException refused = await Assert.ThrowsAsync<AccountInactiveException>(() => LoginAsync(Password));
 
         Assert.Equal(status, refused.Status);
         Assert.Equal(expected, refused.Message);
@@ -117,7 +117,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(status);
 
-        var refused = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong));
+        AuthenticationException refused = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong));
 
         Assert.Equal("Invalid username or password", refused.Message);
         _jwt.DidNotReceiveWithAnyArgs().GenerateJwtToken(default!);

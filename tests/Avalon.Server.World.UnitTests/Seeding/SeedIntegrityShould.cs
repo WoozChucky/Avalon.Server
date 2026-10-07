@@ -40,17 +40,17 @@ public class SeedIntegrityShould
     [Fact]
     public void Cover_Every_Seeded_Creatures_Level_Range_With_Base_Stats_Rows()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        HashSet<ushort> levels = context.CreatureBaseStats
+        var levels = context.CreatureBaseStats
             .AsNoTracking()
             .Select(stat => stat.Level)
             .ToHashSet();
 
         Assert.NotEmpty(levels);
 
-        List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
+        var templates = context.CreatureTemplates.AsNoTracking().ToList();
         Assert.NotEmpty(templates);
 
         var uncovered = new List<string>();
@@ -77,10 +77,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Cover_Every_Seeded_Creatures_Rarity_With_A_Multiplier_Row()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        HashSet<CreatureRarity> tiers = context.CreatureRarityModifiers
+        var tiers = context.CreatureRarityModifiers
             .AsNoTracking()
             .Select(modifier => modifier.Rarity)
             .ToHashSet();
@@ -105,7 +105,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_Every_Creature_The_Forest_Spawn_Table_References()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         // The ids the forest's spawn table names, and the rarity each is expected to carry.
@@ -120,7 +120,7 @@ public class SeedIntegrityShould
             (10, CreatureRarity.Boss),
         ];
 
-        List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
+        var templates = context.CreatureTemplates.AsNoTracking().ToList();
 
         foreach ((uint id, CreatureRarity rarity) in expected)
         {
@@ -142,13 +142,13 @@ public class SeedIntegrityShould
     [Fact]
     public void Point_Every_Town_Spawn_At_A_Real_Template_That_Cannot_Be_Killed()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<MapCreatureSpawn> spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
+        var spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
         Assert.NotEmpty(spawns);
 
-        List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
+        var templates = context.CreatureTemplates.AsNoTracking().ToList();
 
         foreach (MapCreatureSpawn spawn in spawns)
         {
@@ -174,11 +174,11 @@ public class SeedIntegrityShould
     [Fact]
     public void Seat_A_Whole_Default_Party_On_Every_Seeded_Procedural_Map()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         int partySize = new Avalon.World.Configuration.GameConfiguration().MaxPartySize;
-        List<MapTemplate> normals = context.MapTemplates.AsNoTracking().ToList()
+        var normals = context.MapTemplates.AsNoTracking().ToList()
             .Where(map => map.MapType == MapType.Normal)
             .ToList();
 
@@ -195,7 +195,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Band_the_forests_rewards_from_level_one_to_fifteen()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         MapTemplate forest = context.MapTemplates.AsNoTracking().ToList().Single(m => m.Id.Value == 2);
@@ -212,10 +212,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Place_The_Seven_Town_Npcs_On_Map_One()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<MapCreatureSpawn> spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
+        var spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
 
         Assert.Equal(7, spawns.Count);
         Assert.All(spawns, spawn => Assert.Equal(1u, spawn.MapTemplateId.Value));
@@ -232,7 +232,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Leave_The_Forest_Rosters_Experience_Unauthored_So_It_Derives()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         // Materialised first: CreatureTemplateId is a value object, so Id.Value cannot translate to SQL.
@@ -268,10 +268,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Give_Every_Killable_Seeded_Creature_A_Loot_Table_And_Gold()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
+        var templates = context.CreatureTemplates.AsNoTracking().ToList();
 
         Assert.All(templates.Where(t => !t.Invulnerable), t =>
         {
@@ -289,10 +289,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Load_Every_Seeded_Loot_Table_Without_Refusing_Any()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<LootTable> tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
+        var tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
         var catalog = new LootCatalog(tables, NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
@@ -311,12 +311,12 @@ public class SeedIntegrityShould
     [Fact]
     public void Reference_The_Shared_Pools_From_Every_Creature_Table()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        HashSet<int> creatureTables = context.CreatureTemplates.AsNoTracking().ToList()
+        var creatureTables = context.CreatureTemplates.AsNoTracking().ToList()
             .Where(t => t.LootTableId is not null).Select(t => t.LootTableId!.Value).ToHashSet();
-        List<LootTable> tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList()
+        var tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList()
             .Where(t => creatureTables.Contains(t.Id.Value)).ToList();
 
         Assert.Equal(7, tables.Count);
@@ -334,10 +334,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_The_Forest_Weapons_As_One_Group_Of_One_Weapon_Per_Class()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
         LootTable table = LoadTable(context, ForestWeapons);
 
         Assert.Equal(4, table.Entries.Count);
@@ -356,10 +356,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_The_Forest_Scrolls_As_One_Group_Of_Three()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
         LootTable table = LoadTable(context, ForestScrolls);
 
         Assert.Equal(3, table.Entries.Count);
@@ -377,10 +377,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_The_Forest_Armour_As_Twenty_Independent_Pieces_One_Per_Class_And_Slot()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
         LootTable table = LoadTable(context, ForestArmour);
 
         Assert.Equal(20, table.Entries.Count);
@@ -415,18 +415,18 @@ public class SeedIntegrityShould
     [Fact]
     public void Roll_Every_Seeded_Creature_Into_One_Gold_Pile_At_Most_One_Weapon_And_At_Most_One_Scroll()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList();
-        List<LootTable> tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
+        var items = context.ItemTemplates.AsNoTracking().ToList();
+        var tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
         HashSet<ulong> weapons = ItemsIn(tables, ForestWeapons);
         HashSet<ulong> scrolls = ItemsIn(tables, ForestScrolls);
         HashSet<ulong> armour = ItemsIn(tables, ForestArmour);
         var catalog = new LootCatalog(tables, NullLoggerFactory.Instance);
         var roller = new LootRoller(new LootRandom(new Random(460)), NullLogger<LootRoller>.Instance);
 
-        List<CreatureTemplate> killable = context.CreatureTemplates.AsNoTracking().ToList()
+        var killable = context.CreatureTemplates.AsNoTracking().ToList()
             .Where(t => !t.Invulnerable).ToList();
         Assert.NotEmpty(killable);
 
@@ -437,7 +437,7 @@ public class SeedIntegrityShould
             for (int i = 0; i < 1000; i++)
             {
                 IReadOnlyList<RolledDrop> drops = roller.Roll(template, catalog, items);
-                List<ulong> dropped = drops.Where(d => !d.IsGold).Select(d => d.ItemTemplateId!.Value).ToList();
+                var dropped = drops.Where(d => !d.IsGold).Select(d => d.ItemTemplateId!.Value).ToList();
 
                 int weaponCount = dropped.Count(weapons.Contains);
                 int scrollCount = dropped.Count(scrolls.Contains);
@@ -461,11 +461,11 @@ public class SeedIntegrityShould
     [Fact]
     public void Let_Every_Forest_Pool_Item_Be_Sold()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList();
-        List<LootTable> tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
+        var items = context.ItemTemplates.AsNoTracking().ToList();
+        var tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
         var pool = ItemsIn(tables, ForestWeapons)
             .Concat(ItemsIn(tables, ForestScrolls))
             .Concat(ItemsIn(tables, ForestArmour))
@@ -486,11 +486,11 @@ public class SeedIntegrityShould
     [Fact]
     public void Armour_Every_Class_With_Cloth_Below_Leather_Below_Plate_In_Each_Slot()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
-        List<ItemTemplate> pieces = LoadTable(context, ForestArmour).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
+        var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        var pieces = LoadTable(context, ForestArmour).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
 
         foreach (ItemSubClass slot in ArmourSubClasses)
         {
@@ -510,10 +510,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Roll_Both_Potions_Ungrouped_On_Every_Creature_Table()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<LootTable> tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
+        var tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
 
         for (int id = 2; id <= 8; id++)
         {
@@ -531,11 +531,11 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_Every_Pool_Weapon_For_The_Main_Hand_With_A_Weapon_Sub_Class()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
-        List<ItemTemplate> weapons = LoadTable(context, ForestWeapons).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
+        var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        var weapons = LoadTable(context, ForestWeapons).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
 
         Assert.All(weapons, w =>
         {
@@ -555,13 +555,13 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_class_stats_for_every_class_at_every_reachable_level()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         ushort topLevel = (ushort)(context.CharacterLevelExperiences.AsNoTracking().Max(e => e.Level) + 1);
         Assert.Equal((ushort)16, topLevel);
 
-        List<ClassLevelStat> rows = context.ClassLevelStats.AsNoTracking().ToList();
+        var rows = context.ClassLevelStats.AsNoTracking().ToList();
         var missing = new List<string>();
         foreach (CharacterClass @class in Enum.GetValues<CharacterClass>())
         {
@@ -617,10 +617,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_exactly_the_kit_abilities_and_the_creature_abilities_and_none_of_the_old_ones()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<uint> ids = context.AbilityTemplates.AsNoTracking().AsEnumerable().Select(a => a.Id.Value).OrderBy(i => i).ToList();
+        var ids = context.AbilityTemplates.AsNoTracking().AsEnumerable().Select(a => a.Id.Value).OrderBy(i => i).ToList();
 
         Assert.Equal(Kit.Values.SelectMany(v => v).Concat(Enumerable.Range(300, 19).Select(i => (uint)i)).OrderBy(i => i), ids);
     }
@@ -654,7 +654,7 @@ public class SeedIntegrityShould
     public void Seed_each_creature_ability_as_designed(uint id, string name, AbilityShape shape, float reach,
         float radius, float arc, float speed, bool pierce, uint castTime, uint cooldown, float baseDamage)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         AbilityTemplate a = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
@@ -681,7 +681,7 @@ public class SeedIntegrityShould
     [InlineData(10, "MotherBrambleScript", new uint[] { 314, 315, 316 })]
     public void Run_each_forest_creature_on_its_own_script(int templateId, string script, uint[] abilities)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         CreatureTemplate template = context.CreatureTemplates.AsNoTracking().AsEnumerable()
@@ -698,7 +698,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Load_every_kit_ability_through_the_catalog()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
@@ -713,10 +713,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Give_each_class_its_own_kit_abilities_to_start_with()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<CharacterCreateInfo> infos = context.CharacterCreateInfos.AsNoTracking().ToList();
+        var infos = context.CharacterCreateInfos.AsNoTracking().ToList();
         Assert.Equal(Kit.Keys.OrderBy(c => c), infos.Select(i => i.Class).OrderBy(c => c));
 
         foreach (CharacterCreateInfo info in infos)
@@ -740,12 +740,12 @@ public class SeedIntegrityShould
     [Fact]
     public void Price_every_kit_ability_in_a_power_its_class_can_pay()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<AbilityTemplate> abilities = context.AbilityTemplates.AsNoTracking().ToList();
-        List<ClassLevelStat> levelStats = context.ClassLevelStats.AsNoTracking().ToList();
-        List<ClassStatFactors> factors = context.ClassStatFactors.AsNoTracking().ToList();
+        var abilities = context.AbilityTemplates.AsNoTracking().ToList();
+        var levelStats = context.ClassLevelStats.AsNoTracking().ToList();
+        var factors = context.ClassStatFactors.AsNoTracking().ToList();
 
         foreach ((CharacterClass cls, uint[] ids) in Kit)
         {
@@ -772,7 +772,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Name_one_script_per_shape_on_every_kit_ability()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         Assert.All(context.AbilityTemplates.AsNoTracking().ToList(), a => Assert.Equal(a.Shape switch
@@ -787,7 +787,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_a_power_gain_per_hit_on_cleave_only()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         Assert.All(context.AbilityTemplates.AsNoTracking().ToList(),
@@ -798,10 +798,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_the_healers_ally_abilities_with_mending_circle_the_only_direct_heal()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<AbilityTemplate> allies = context.AbilityTemplates.AsNoTracking().ToList()
+        var allies = context.AbilityTemplates.AsNoTracking().ToList()
             .Where(a => a.Affects == AbilityAffects.Ally).OrderBy(a => a.Id.Value).ToList();
         Assert.Equal([232u, 233u, 234u], allies.Select(a => a.Id.Value));
         Assert.Equal([SpellEffect.Heal, SpellEffect.Buff, SpellEffect.Buff], allies.Select(a => a.Effects));
@@ -829,7 +829,7 @@ public class SeedIntegrityShould
     [InlineData(234u, ScalingStat.Ability, 0f, 0f)]
     public void Seed_each_kit_abilitys_scaling(uint id, ScalingStat stat, float scaling, float weapon)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == id);
@@ -840,7 +840,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_flame_burst_at_half_its_first_damage()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         AbilityTemplate burst = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == 211);
@@ -860,7 +860,7 @@ public class SeedIntegrityShould
         AuraPeriodicKind periodic, float periodicBase, ScalingStat stat, float coefficient, float baseDamage,
         AuraStacking stacking, uint maxStacks)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         AuraTemplate a = context.AuraTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
@@ -874,7 +874,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_exactly_three_aura_modifiers()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         Assert.Equal(
@@ -896,7 +896,7 @@ public class SeedIntegrityShould
     public void Seed_each_aura_ability_as_designed(uint id, string name, AbilityShape shape, AbilityAimMode aim, float reach,
         float radius, float arc, float speed, uint cooldown, uint cost, PowerType pool, SpellEffect effects, uint value, uint aura)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         AbilityTemplate a = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
@@ -913,7 +913,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Keep_every_seeded_slow_under_the_clients_snap()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         Avalon.Domain.World.CombatFormula formula = Avalon.Database.World.Seeding.CombatSeed.Formula();
 
@@ -938,7 +938,7 @@ public class SeedIntegrityShould
     [InlineData(8ul, 7u, 11u)]
     public void Seed_the_weapon_damage_ranges(ulong id, uint min, uint max)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
@@ -949,10 +949,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_creature_armour_rising_linearly_to_thirty_at_level_ten()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<CreatureBaseStat> rows = context.CreatureBaseStats.AsNoTracking().ToList().OrderBy(r => r.Level).ToList();
+        var rows = context.CreatureBaseStats.AsNoTracking().ToList().OrderBy(r => r.Level).ToList();
         Assert.Equal(Enumerable.Range(1, 10).Select(l => (ushort)l), rows.Select(r => r.Level));
         Assert.Equal([0u, 3u, 7u, 10u, 13u, 17u, 20u, 23u, 27u, 30u], rows.Select(r => r.Armor));
     }
@@ -965,7 +965,7 @@ public class SeedIntegrityShould
     [InlineData(CreatureRarity.Boss, 10f, 5f, 10f)]
     public void Seed_the_rarity_rolls(CreatureRarity rarity, float crit, float dodge, float block)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         CreatureRarityModifier row = context.CreatureRarityModifiers.AsNoTracking().ToList().Single(r => r.Rarity == rarity);
@@ -976,7 +976,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_the_combat_formula_and_one_factors_row_per_class()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         CombatFormula f = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
@@ -998,7 +998,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_the_haste_cap_and_the_movement_speed_bounds()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         CombatFormula f = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
@@ -1021,7 +1021,7 @@ public class SeedIntegrityShould
     [InlineData(33ul, 0u)]  // Ash Staff
     public void Seed_each_weapons_attack_speed_as_a_haste_percentage(ulong id, uint haste)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
@@ -1033,10 +1033,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_attack_speed_on_the_nine_weapons_only_and_movement_speed_on_nothing()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList();
+        var items = context.ItemTemplates.AsNoTracking().ToList();
         Assert.Equal([4ul, 5ul, 6ul, 7ul, 8ul, 32ul, 33ul, 34ul, 35ul],
             items.Where(i => StatTypesOf(i).Contains(StatType.AttackSpeed)).Select(i => i.Id.Value).Order());
         Assert.DoesNotContain(items, i => StatTypesOf(i).Contains(StatType.MovementSpeed));
@@ -1052,10 +1052,10 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_every_creature_template_to_swing_every_two_and_a_quarter_seconds()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
+        var templates = context.CreatureTemplates.AsNoTracking().ToList();
         Assert.NotEmpty(templates);
         Assert.All(templates, t => Assert.Equal(2.25f, t.BaseAttackTime));
     }
@@ -1068,9 +1068,9 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_the_forest_storyline_as_designed()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<QuestTemplate> quests = SeededQuests(context).Where(q => q.Id.Value <= 3).ToList();
+        var quests = SeededQuests(context).Where(q => q.Id.Value <= 3).ToList();
 
         Assert.Equal([1u, 2u, 3u], quests.Select(q => q.Id.Value));
         Assert.Equal([(1ul, 1ul), (1ul, 2ul), (2ul, 2ul)], quests.Select(q => (q.GiverCreatureId.Value, q.EnderCreatureId.Value)));
@@ -1100,9 +1100,9 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_the_forest_chain_as_designed()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<QuestTemplate> quests = SeededQuests(context).Where(q => q.Id.Value >= 4).ToList();
+        var quests = SeededQuests(context).Where(q => q.Id.Value >= 4).ToList();
 
         Assert.Equal([4u, 5u, 6u, 7u, 8u], quests.Select(q => q.Id.Value));
         Assert.Equal([(14ul, 14ul), (13ul, 13ul), (3ul, 11ul), (2ul, 2ul), (1ul, 1ul)],
@@ -1140,9 +1140,9 @@ public class SeedIntegrityShould
     [Fact]
     public void Give_every_quest_giver_ender_and_talk_target_a_dialogue_root()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        HashSet<ulong> rooted = context.DialogueNodes.AsNoTracking().ToList().Where(n => n.IsRoot)
+        var rooted = context.DialogueNodes.AsNoTracking().ToList().Where(n => n.IsRoot)
             .Select(n => n.CreatureTemplateId.Value).ToHashSet();
 
         foreach (QuestTemplate quest in SeededQuests(context))
@@ -1157,7 +1157,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Load_every_seeded_quest_through_the_catalog_without_refusing_any()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         var catalog = new QuestCatalog(SeededQuests(context), context.CreatureTemplates.AsNoTracking().ToList(),
@@ -1171,9 +1171,9 @@ public class SeedIntegrityShould
     [Fact]
     public void Resolve_every_text_a_seeded_quest_names()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        HashSet<int> texts = context.LocalizedTexts.AsNoTracking().Select(t => t.Id).ToList().Select(t => t.Value).ToHashSet();
+        var texts = context.LocalizedTexts.AsNoTracking().Select(t => t.Id).ToList().Select(t => t.Value).ToHashSet();
 
         foreach (QuestTemplate quest in SeededQuests(context))
         {
@@ -1188,7 +1188,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_the_boar_tusk_as_a_quest_item_that_drops_nowhere_else_and_is_never_sold()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         ItemTemplate tusk = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 57);
 
@@ -1203,7 +1203,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Seed_the_alphas_fang_pendant_as_an_uncommon_neck_piece_for_every_class()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         ItemTemplate pendant = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 58);
 
@@ -1223,7 +1223,7 @@ public class SeedIntegrityShould
     [InlineData(63ul, "Bramble Heart")]
     public void Seed_the_chains_quest_items_as_never_sold_and_never_looted(ulong id, string name)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
 
@@ -1243,7 +1243,7 @@ public class SeedIntegrityShould
     [InlineData(65ul, "Thornheart Signet", ItemRarity.Rare, (ushort)7, 5u, 4u)]
     public void Seed_the_chains_rings_for_every_class(ulong id, string name, ItemRarity rarity, ushort level, uint stamina, uint armor)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         ItemTemplate ring = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
 
@@ -1260,7 +1260,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Gate_no_vendor_row_behind_a_quest_yet()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         Assert.All(context.VendorStocks.AsNoTracking().ToList(), s => Assert.Null(s.RequiredQuestId));
@@ -1275,7 +1275,7 @@ public class SeedIntegrityShould
     public void Give_the_usable_items_their_use_data(
         ulong id, string script, uint? castMs, uint? cooldownMs, string? group, uint? value)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
 
@@ -1287,7 +1287,7 @@ public class SeedIntegrityShould
     [Fact]
     public void Leave_every_other_item_without_a_use_script()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         ulong[] usable = context.ItemTemplates.AsNoTracking().ToList()

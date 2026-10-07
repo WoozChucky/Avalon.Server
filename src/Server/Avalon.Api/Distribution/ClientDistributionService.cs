@@ -118,7 +118,7 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
 
         var entries = new List<ChangelogEntryDto>();
         int failed = 0;
-        foreach (var (prefix, product, channel) in prefixes)
+        foreach ((string? prefix, string? product, string? channel) in prefixes)
         {
             try
             {

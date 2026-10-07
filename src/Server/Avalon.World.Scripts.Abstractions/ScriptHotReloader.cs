@@ -44,7 +44,7 @@ public class ScriptHotReloader : IScriptHotReloader
     {
         if (!_active) return;
 
-        var types = FindScriptTypes<AiScript>(assembly);
+        List<Type> types = FindScriptTypes<AiScript>(assembly);
 
         if (types.Count == 0) return;
 
@@ -81,13 +81,13 @@ public class ScriptHotReloader : IScriptHotReloader
 
     private List<Type> FindScriptTypes<TBaseType>(Assembly assembly)
     {
-        var baseType = typeof(TBaseType);
+        Type baseType = typeof(TBaseType);
         var inheritedTypes = new List<Type>();
 
         try
         {
-            var types = assembly.GetTypes();
-            foreach (var type in types)
+            Type[] types = assembly.GetTypes();
+            foreach (Type type in types)
             {
                 if (type.IsSubclassOf(baseType) && !type.IsAbstract)
                 {
@@ -98,7 +98,7 @@ public class ScriptHotReloader : IScriptHotReloader
         catch (ReflectionTypeLoadException e)
         {
             _logger.LogError(e, "Failed to load types from assembly {Assembly}", assembly.FullName);
-            foreach (var loaderException in e.LoaderExceptions)
+            foreach (Exception? loaderException in e.LoaderExceptions)
             {
                 _logger.LogError(loaderException, "Loader exception");
             }

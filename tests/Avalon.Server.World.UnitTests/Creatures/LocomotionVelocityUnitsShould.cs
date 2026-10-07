@@ -41,7 +41,7 @@ public class LocomotionVelocityUnitsShould
     /// </summary>
     private static ICreature CreatureAt(Vector3 position, float speed)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
         creature.Speed.Returns(speed);
         creature.Position = position;
@@ -56,7 +56,7 @@ public class LocomotionVelocityUnitsShould
                 NullLogger.Instance);
         }
 
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([Destination]);
         return new WaypointLocomotion(_ => navigator);
     }

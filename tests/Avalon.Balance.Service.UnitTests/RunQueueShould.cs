@@ -184,7 +184,7 @@ public class RunQueueShould
     [Fact]
     public void Refuse_too_many_overrides()
     {
-        Dictionary<string, JsonElement> overrides = Enumerable.Range(0, 501).ToDictionary(
+        var overrides = Enumerable.Range(0, 501).ToDictionary(
             i => $"CreatureBaseStats.{i}.Health", _ => JsonSerializer.SerializeToElement(1));
 
         EnqueueOutcome outcome = _queue.TryEnqueue(new RunRequestDto(overrides, null, null, 10, null), out _, out IReadOnlyList<Issue> issues);

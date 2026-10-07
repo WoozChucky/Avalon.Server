@@ -38,28 +38,28 @@ public class CharacterReadHandlerShould
     [Fact]
     public async Task Succeed_WhenCallerIsOwner()
     {
-        var c = MakeCharacter(accountId: 7);
+        Character c = MakeCharacter(accountId: 7);
         Assert.True(await Run(User(7, AvalonRoles.Player), c));
     }
 
     [Fact]
     public async Task Succeed_WhenCallerIsGameMaster()
     {
-        var c = MakeCharacter(accountId: 7);
+        Character c = MakeCharacter(accountId: 7);
         Assert.True(await Run(User(99, AvalonRoles.GameMaster), c));
     }
 
     [Fact]
     public async Task Succeed_WhenCallerIsAdmin()
     {
-        var c = MakeCharacter(accountId: 7);
+        Character c = MakeCharacter(accountId: 7);
         Assert.True(await Run(User(99, AvalonRoles.Admin), c));
     }
 
     [Fact]
     public async Task Fail_WhenCallerIsPlayerAndNotOwner()
     {
-        var c = MakeCharacter(accountId: 7);
+        Character c = MakeCharacter(accountId: 7);
         Assert.False(await Run(User(99, AvalonRoles.Player), c));
     }
 }

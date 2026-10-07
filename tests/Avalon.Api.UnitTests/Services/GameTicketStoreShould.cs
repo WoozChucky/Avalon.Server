@@ -13,7 +13,7 @@ public sealed class GameTicketStoreShould
     public async Task Issue_a_hashed_single_use_ticket_for_sixty_seconds()
     {
         var entries = new ConcurrentDictionary<string, string>();
-        var cache = Substitute.For<IReplicatedCache>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         TimeSpan? lifetime = null;
         cache.SetNxAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>())
             .Returns(call =>
@@ -42,7 +42,7 @@ public sealed class GameTicketStoreShould
     public async Task Give_only_one_of_two_concurrent_redeemers_the_grant()
     {
         var entries = new ConcurrentDictionary<string, string>();
-        var cache = Substitute.For<IReplicatedCache>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         cache.SetNxAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>())
             .Returns(call => entries.TryAdd(call.ArgAt<string>(0), call.ArgAt<string>(1)));
         cache.TakeAsync(Arg.Any<string>()).Returns(call =>

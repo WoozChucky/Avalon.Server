@@ -75,7 +75,7 @@ public class WorldPacketQueueGcBenchmarks
             lock (_legacyLock)
             {
                 if (_legacyQueue.Count == 0) break;
-                var front = _legacyQueue.First!.Value;
+                LegacyWorldPacket front = _legacyQueue.First!.Value;
                 if (!s_legacyPredicate(front)) break;
                 _legacyQueue.RemoveFirst();
             }

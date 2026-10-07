@@ -10,12 +10,12 @@ public sealed class CommerceOptionsValidator(IHostEnvironment? host = null, IOpt
     public ValidateOptionsResult Validate(string? name, CommerceConfiguration config)
     {
         if (!config.Enabled) return ValidateOptionsResult.Success;
-        var isolated = host?.IsDevelopment() == true && authentication?.Value.Environment == CommerceEnvironments.DevelopmentLicense &&
+        bool isolated = host?.IsDevelopment() == true && authentication?.Value.Environment == CommerceEnvironments.DevelopmentLicense &&
             authentication.Value.SteamIdentityPrefix == CommerceEnvironments.DevelopmentIdentityPrefix;
-        var existingAccounts = config.AllowExistingAccountSandbox && host?.IsProduction() == true &&
+        bool existingAccounts = config.AllowExistingAccountSandbox && host?.IsProduction() == true &&
             authentication?.Value.Environment == CommerceEnvironments.ProductionLicense;
-        var registration = providers?.SingleOrDefault(x => string.Equals(x.Name, config.Provider, StringComparison.Ordinal));
-        var valid = (isolated || existingAccounts) && registration is not null && config.PaymentEnvironment == CommerceEnvironments.Sandbox && config.LicenseEnvironment == authentication?.Value.Environment &&
+        PaymentProviderRegistration? registration = providers?.SingleOrDefault(x => string.Equals(x.Name, config.Provider, StringComparison.Ordinal));
+        bool valid = (isolated || existingAccounts) && registration is not null && config.PaymentEnvironment == CommerceEnvironments.Sandbox && config.LicenseEnvironment == authentication?.Value.Environment &&
             config.Product == StoreAuthenticationConfiguration.Product && config.ProviderProduct == StoreAuthenticationConfiguration.NativeProviderProduct &&
             config.AmountMinor > 0 && ValidCurrency(config.Currency) && config.Quantity == CommercePolicy.GameLicenseQuantity &&
             Text(config.OfferId, 128) && Text(config.ProviderPriceId, 256) && Text(config.ProviderCatalogProductId, 256) && Text(config.ProviderAccountId, 128) &&
@@ -27,6 +27,6 @@ public sealed class CommerceOptionsValidator(IHostEnvironment? host = null, IOpt
     internal static bool Text(string value, int max) => !string.IsNullOrWhiteSpace(value) && value.Length <= max && value == value.Trim();
     internal static bool Identifier(string value, string prefix) => Text(value, 256) && value.StartsWith(prefix, StringComparison.Ordinal) && value.All(c => char.IsAsciiLetterOrDigit(c) || c == '_');
     internal static bool ValidCurrency(string value) => value is { Length: 3 } && value.All(char.IsAsciiLetterLower);
-    internal static bool ValidOrigin(string value) => Uri.TryCreate(value, UriKind.Absolute, out var origin) && origin.Scheme == "https" &&
+    internal static bool ValidOrigin(string value) => Uri.TryCreate(value, UriKind.Absolute, out Uri? origin) && origin.Scheme == "https" &&
         origin.UserInfo.Length == 0 && origin.Query.Length == 0 && origin.Fragment.Length == 0 && origin.AbsolutePath == "/" && origin.IsDefaultPort;
 }

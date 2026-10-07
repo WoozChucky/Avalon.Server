@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Avalon.Balance.Core;
 using Xunit;
@@ -81,12 +82,12 @@ public class ColumnRuleShould
     {
         SeedTables seed = TestData.Seed();
         IReadOnlyList<Tunable> tunables = Catalog.Describe(seed);
-        HashSet<string> keys = tunables.Select(t => t.Key).ToHashSet(StringComparer.Ordinal);
+        var keys = tunables.Select(t => t.Key).ToHashSet(StringComparer.Ordinal);
 
         foreach ((string table, Type row) in Rows)
         {
             Tunable sample = tunables.First(t => t.Table == table);
-            foreach (var property in row.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+            foreach (PropertyInfo property in row.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
             {
                 string key = sample.RowKey is null ? $"{table}.{property.Name}" : $"{table}.{sample.RowKey}.{property.Name}";
                 if (keys.Contains(key))

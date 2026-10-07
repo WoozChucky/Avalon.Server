@@ -104,7 +104,7 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out _);
         MapInstanceClient real = RealWarrior(instance, 6760_101, Row(200));
 
-        SimPlayer sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(real.Character.EffectiveHastePct, sim.HastePct);
@@ -130,7 +130,7 @@ public class SimulatorParityShould
             foreach (CreatureTemplate template in Data.HostileTemplates)
             {
                 var real = (Creature)spawner.Spawn(template.Id);
-                SimCreature sim = SimCreature.Create(Data, template, real.Level, 0);
+                var sim = SimCreature.Create(Data, template, real.Level, 0);
 
                 Assert.Equal((ushort)Math.Max((short)1, level(template)), real.Level);
                 Assert.Equal(Internal<AttackerCombat>(real, "Combat"), sim.Attack);
@@ -147,8 +147,8 @@ public class SimulatorParityShould
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_111, Row(200));
-        SimPlayer simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
-        SimCreature simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         Creature realBoar = RealBoar(instance, 6760_911, simBoar);
         IAbility realCleave = real.Character.Spells[new Avalon.Common.ValueObjects.AbilityId(200)]!;
@@ -176,8 +176,8 @@ public class SimulatorParityShould
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_121, Row(200));
-        SimPlayer simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
-        SimCreature simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         Creature realBoar = RealBoar(instance, 6760_921, simBoar);
         IAbility realGore = AbilityTestData.Game(Row(300));
         var simRng = new CombatRandom(new Random(Seed));
@@ -212,7 +212,7 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_151, Row(200), Row(202));
-        SimPlayer simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_951, simBoar, PointBlank);
         CompiledRotationEntry[] rotation = [new(202, []), new(200, [])];
@@ -262,7 +262,7 @@ public class SimulatorParityShould
         real.Character.Spells.Load([AbilityTestData.Game(Row(211))]);
         real.Character.CurrentPower = StartMana;
 
-        SimPlayer simWizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var simWizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         simWizard.CurrentPower = StartMana;
         Assert.True(simWizard.Power >= StartMana, $"a level-1 Wizard holds {simWizard.Power} Mana");
         SimCreature simBoar = PassiveBoar(1);
@@ -351,8 +351,8 @@ public class SimulatorParityShould
         SeedTables seed = SeedSource.Load();
         seed.AuraTemplates.Add(TestBleed());
         seed.AbilityTemplates.Add(TestRend());
-        BalanceData data = BalanceData.From(seed);
-        SimPlayer simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
+        var data = BalanceData.From(seed);
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
         simWarrior.Abilities.Add(new SimAbility(TestRend()));
         Assert.True(simWarrior.Attack.WeaponMax > 0, "the Warrior has no main hand to roll");
         SimCreature simBoar = PassiveBoar(Level);
@@ -415,7 +415,7 @@ public class SimulatorParityShould
         AbilityTemplate gore = seed.AbilityTemplates.Single(a => a.Id.Value == 300);
         gore.AuraId = poison.Id;
         seed.AuraTemplates.Add(poison);
-        BalanceData data = BalanceData.From(seed);
+        var data = BalanceData.From(seed);
 
         var clock = new FixedTimeProvider(ClockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
@@ -424,8 +424,8 @@ public class SimulatorParityShould
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(PoisonSeed)), time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_191, Row(200));
 
-        SimPlayer simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
-        SimCreature simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
+        var simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         foreach (SimAbility special in simBoar.Specials) special.CooldownLeft = 1_000f;   // only Gore, once
         Assert.True(simBoar.Attack.WeaponMax > 0, "the boar has no natural damage to roll");
@@ -491,8 +491,8 @@ public class SimulatorParityShould
         SeedTables seed = SeedSource.Load();
         seed.AuraTemplates.Add(TestBleed());
         seed.AbilityTemplates.Add(TestRend(Gain));
-        BalanceData data = BalanceData.From(seed);
-        SimPlayer simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
+        var data = BalanceData.From(seed);
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Item));
         simWarrior.Abilities.Add(new SimAbility(TestRend(Gain)));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_972, simBoar);
@@ -547,7 +547,7 @@ public class SimulatorParityShould
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid), CurrentValues.Refill, Data.Combat.Formula));
         real.Character.Spells.Load([AbilityTestData.Game(renew)]);
 
-        SimPlayer simHealer = SimPlayer.Create(Data, CharacterClass.Healer, Level, []);
+        var simHealer = SimPlayer.Create(Data, CharacterClass.Healer, Level, []);
         Assert.Equal(real.Character.Health, simHealer.Health);
         Assert.Equal(real.Character.CurrentPower, simHealer.CurrentPower);
         real.Character.CurrentHealth = simHealer.CurrentHealth = simHealer.Health / 2;
@@ -608,7 +608,7 @@ public class SimulatorParityShould
         Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid), CurrentValues.KeepShare, Data.Combat.Formula));
 
-        SimPlayer sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
         sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(ClockStart, 30000, 0), 0));
         sim.ApplyAuraStats(Data);
 
@@ -628,7 +628,7 @@ public class SimulatorParityShould
     /// </summary>
     private static SimCreature PassiveBoar(ushort level)
     {
-        SimCreature boar = SimCreature.Create(Data, Data.Creature(4), level, 0);
+        var boar = SimCreature.Create(Data, Data.Creature(4), level, 0);
         boar.Health = boar.CurrentHealth = boar.BaseMaxHealth = 1_000_000;
         foreach (SimAbility a in boar.Abilities) a.CooldownLeft = 1_000f;   // the real boar's script never casts
         return boar;
@@ -670,7 +670,7 @@ public class SimulatorParityShould
     {
         SimPlayer sim = fight.Player;
         var groundPos = new Vector3Dto { X = aim.x, Y = aim.y, Z = aim.z };
-        Dictionary<uint, int> casts = rotation.ToDictionary(e => e.AbilityId, _ => 0);
+        var casts = rotation.ToDictionary(e => e.AbilityId, _ => 0);
         long? lastStart = null;
 
         for (int tick = 0; tick < ticks; tick++)
@@ -729,7 +729,7 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
         MapInstanceClient real = RealWarrior(instance, 6760_131, Row(200));
         real.Character.LastCastStartTime = DateTime.UtcNow.AddSeconds(-1);
-        SimPlayer sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Item));
 
         handler.Execute(real.Connection, new CCastAbilityPacket { AbilityId = 200 });
 
@@ -740,7 +740,7 @@ public class SimulatorParityShould
     [Fact]
     public void Swing_on_the_same_interval_as_a_spawned_creature()
     {
-        SimCreature sim = SimCreature.Create(Data, Data.Creature(4), Level, 0);
+        var sim = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         var real = new Creature { BaseAttackTime = sim.Template.BaseAttackTime, HasteCap = Data.Combat.Formula.HasteCap };
 
         Assert.Equal(real.SwingInterval, sim.SwingInterval);
@@ -751,9 +751,9 @@ public class SimulatorParityShould
     public void Regenerate_the_same_mana_in_combat_as_a_character_entity()
     {
         // The simulated Wizard casts Arcane Bolt (instant, free: never suppresses regen) at a boar that never swings.
-        SimPlayer sim = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var sim = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         sim.CurrentPower = 10;
-        SimCreature dummy = SimCreature.Create(Data, Data.Creature(4), 1, 0);
+        var dummy = SimCreature.Create(Data, Data.Creature(4), 1, 0);
         dummy.Health = dummy.CurrentHealth = 1_000_000;
         foreach (SimAbility a in dummy.Abilities) a.CooldownLeft = 1_000f;
         var fight = new FightSimulator(Data.Combat.Formula, sim, [dummy], [new CompiledRotationEntry(210, [])],
@@ -798,39 +798,39 @@ public class SimulatorParityShould
             template.MaxLevel = pinned;
         }
 
-        var templates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository templates = Substitute.For<ICreatureTemplateRepository>();
         templates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(seed.CreatureTemplates);
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>()).Returns(seed.CreatureBaseStats);
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>()).Returns(seed.CreatureRarityModifiers);
-        var combat = Substitute.For<ICombatDataRepository>();
+        ICombatDataRepository combat = Substitute.For<ICombatDataRepository>();
         combat.GetFormulasAsync(Arg.Any<CancellationToken>()).Returns(seed.CombatFormulas);
         combat.GetClassStatFactorsAsync(Arg.Any<CancellationToken>()).Returns(seed.ClassStatFactors);
 
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<DialogueNode>());
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<DialogueOption>());
-        var text = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository text = Substitute.For<ILocalizedTextRepository>();
         text.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<LocalizedText>());
         text.GetAllLocalesAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<LocalizedTextLocale>());
         text.GetAllClassNamesAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterClassName>());
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());
-        var classStats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository classStats = Substitute.For<IClassLevelStatRepository>();
         classStats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<ClassLevelStat>());
-        var items = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<ItemTemplate>());
-        var abilities = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AbilityTemplate>());
-        var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterLevelExperience>());
 
         var data = new StaticData(createInfos, classStats, items, abilities, levels, templates, baseStats, rarities,
             text, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance, combatDataRepository: combat);
         data.LoadAsync().GetAwaiter().GetResult();
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Data.Returns(data);
         return new CreatureSpawner(NullLoggerFactory.Instance, world);
     }

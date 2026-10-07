@@ -34,7 +34,7 @@ public class AggroDefendScript : AiScript, IReturningHome
         CreatureCombatScript combat)
         : base(creature, context)
     {
-        var aggroRange = creature.Metadata.DetectionRange > 0f ? creature.Metadata.DetectionRange : DefaultAggroRange;
+        float aggroRange = creature.Metadata.DetectionRange > 0f ? creature.Metadata.DetectionRange : DefaultAggroRange;
 
         var detector = new CreatureRangeDetectorScript(loggerFactory, creature, context, aggroRange);
         detector.CharacterDetected += OnCharacterEnteredRange;

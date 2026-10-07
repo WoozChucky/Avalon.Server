@@ -42,15 +42,15 @@ public class LootPickupHandlerShould
         // Only the character's own instance is stubbed: any other id comes back null, so a handler
         // that looked the drop up elsewhere would answer NotFound.
         _character.InstanceId = new Guid("46000000-0000-0000-0000-000000000460");
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.GetInstanceById(Arg.Any<Guid>()).Returns((IMapInstance?)null);
         registry.GetInstanceById(_character.InstanceId).Returns(_instance);
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
         world.Configuration.Returns(new GameConfiguration());
 
-        var economy = Substitute.For<ICharacterEconomy>();
+        ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
         economy.InventoryOf(Arg.Any<CharacterEntity>()).Returns(ci => InventoryFor(ci.Arg<CharacterEntity>()));
         economy.WalletOf(Arg.Any<CharacterEntity>()).Returns(ci => new CharacterWallet(ci.Arg<CharacterEntity>(), 1_000));
 
@@ -131,9 +131,9 @@ public class LootPickupHandlerShould
     [Fact]
     public void Answer_Not_Found_When_The_Characters_Instance_Is_Gone()
     {
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.GetInstanceById(Arg.Any<Guid>()).Returns((IMapInstance?)null);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
         world.Configuration.Returns(new GameConfiguration());
         var handler = new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world,

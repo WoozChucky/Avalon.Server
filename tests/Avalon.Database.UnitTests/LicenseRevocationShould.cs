@@ -13,14 +13,14 @@ public sealed class LicenseRevocationShould
     public async Task Negative_evidence_and_latest_observations_are_application_scoped(string active, string other)
     {
         using var db = SqliteDatabase.Auth();
-        var root = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("SCOPED"));
+        Account root = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("SCOPED"));
         var repo = new LicenseObservationRepository(db);
         var now = new DateTime(2026, 10, 4, 12, 0, 0, DateTimeKind.Utc);
         await repo.RecordAsync(Observation(root.Id, true, now, active));
         await repo.RecordAsync(Observation(root.Id, false, now.AddMinutes(1), other));
         Assert.False(await repo.HasNegativeSinceAsync(root.Id, "steam", "76561198000000001", "production", "avalon.base", active, now));
         Assert.True(await repo.HasNegativeSinceAsync(root.Id, "steam", "76561198000000001", "production", "avalon.base", other, now));
-        var latest = (await repo.FindLatestAsync(root.Id, "steam", "76561198000000001", "production", "avalon.base", active))!;
+        LicenseObservation latest = (await repo.FindLatestAsync(root.Id, "steam", "76561198000000001", "production", "avalon.base", active))!;
         Assert.True(latest.OwnsProduct);
         Assert.Equal(active, latest.ProviderProductId);
         await repo.RecordAsync(Observation(root.Id, true, now.AddMinutes(2), other));
@@ -31,7 +31,7 @@ public sealed class LicenseRevocationShould
     public async Task A_later_positive_observation_does_not_resurrect_a_grant_that_predates_a_negative()
     {
         using var db = SqliteDatabase.Auth();
-        var root = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("NEGATIVE"));
+        Account root = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("NEGATIVE"));
         var repo = new LicenseObservationRepository(db);
         var now = new DateTime(2026, 10, 4, 12, 0, 0, DateTimeKind.Utc);
         await repo.RecordAsync(Observation(root.Id, true, now));

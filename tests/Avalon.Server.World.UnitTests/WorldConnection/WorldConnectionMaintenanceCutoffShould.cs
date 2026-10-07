@@ -32,7 +32,7 @@ public sealed class WorldConnectionMaintenanceCutoffShould : IDisposable
         _serverSocket = listener.AcceptTcpClient();
         listener.Stop();
 
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
         server.PacketHandlers.Returns(new Dictionary<NetworkPacketType, IWorldPacketHandler>
         {

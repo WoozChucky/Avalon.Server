@@ -18,7 +18,7 @@ public static class CharacterStatsCalculator
     public static DerivedCharacterStats Calculate(ClassLevelStat row, IEnumerable<ItemTemplate> worn,
         ClassStatFactors factors, AuraStatTotals? auras = null)
     {
-        GearTotals gear = GearTotals.Of(worn);
+        var gear = GearTotals.Of(worn);
 
         long stamina = row.Stamina + gear.Stamina;
         long strength = row.Strength + gear.Strength;

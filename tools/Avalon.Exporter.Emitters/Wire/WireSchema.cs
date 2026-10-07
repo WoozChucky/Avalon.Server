@@ -123,7 +123,7 @@ public static class WireSchema
                 continue;
             }
 
-            var key = (message, int.Parse(member.Groups["number"].Value, CultureInfo.InvariantCulture));
+            (string message, int) key = (message, int.Parse(member.Groups["number"].Value, CultureInfo.InvariantCulture));
             if (!targets.Contains(key))
             {
                 continue;

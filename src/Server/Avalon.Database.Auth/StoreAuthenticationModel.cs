@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Avalon.Database.Auth;
 
@@ -8,7 +9,7 @@ internal static class StoreAuthenticationModel
 {
     public static void Configure(ModelBuilder model)
     {
-        var creations = model.Entity<StoreAccountCreation>();
+        EntityTypeBuilder<StoreAccountCreation> creations = model.Entity<StoreAccountCreation>();
         creations.HasKey(x => x.Id);
         creations.Property(x => x.Id).ValueGeneratedNever();
         creations.Property(x => x.AccountId).HasConversion(v => v.Value, v => new AccountId(v));
@@ -17,7 +18,7 @@ internal static class StoreAuthenticationModel
         // An audit/idempotency receipt, not a dependent account row: deletion must not erase it.
         creations.HasIndex(x => x.AccountId);
 
-        var identities = model.Entity<ExternalIdentity>();
+        EntityTypeBuilder<ExternalIdentity> identities = model.Entity<ExternalIdentity>();
         identities.HasKey(x => x.Id);
         identities.Property(x => x.Id).ValueGeneratedNever();
         identities.Property(x => x.AccountId).HasConversion(v => v.Value, v => new AccountId(v));
@@ -27,7 +28,7 @@ internal static class StoreAuthenticationModel
         identities.HasIndex(x => new { x.AccountId, x.Provider }).IsUnique();
         identities.HasOne<Account>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
 
-        var licenses = model.Entity<LicenseObservation>();
+        EntityTypeBuilder<LicenseObservation> licenses = model.Entity<LicenseObservation>();
         licenses.HasKey(x => x.Id);
         licenses.HasOne<GameLicense>().WithMany().HasForeignKey(x => x.LicenseId).OnDelete(DeleteBehavior.Restrict);
         licenses.Property(x => x.Id).ValueGeneratedNever();
@@ -41,7 +42,7 @@ internal static class StoreAuthenticationModel
         licenses.HasIndex(x => new { x.AccountId, x.Provider, x.ProviderSubject, x.Environment, x.Product, x.ProviderProductId, x.ObservedAt });
         licenses.HasOne<Account>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
 
-        var sessions = model.Entity<GameSession>();
+        EntityTypeBuilder<GameSession> sessions = model.Entity<GameSession>();
         sessions.HasKey(x => x.AccountId);
         sessions.Property(x => x.AccountId).HasConversion(v => v.Value, v => new AccountId(v)).ValueGeneratedNever();
         sessions.Property(x => x.FencingToken).IsConcurrencyToken();

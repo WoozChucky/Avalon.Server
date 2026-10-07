@@ -1,4 +1,5 @@
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 
@@ -19,12 +20,12 @@ public class CMFAConfirmHandler : IAuthPacketHandler<CMFAConfirmPacket>
 
     public async Task ExecuteAsync(AuthPacketContext<CMFAConfirmPacket> ctx, CancellationToken token = default)
     {
-        var account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
+        Account? account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
             "MFA confirm", token);
         if (account == null)
             return;
 
-        var result = await _mfaService.ConfirmMFAAsync(account.Id, ctx.Connection.CredentialsVersion, ctx.Packet.Code,
+        MFAConfirmResult result = await _mfaService.ConfirmMFAAsync(account.Id, ctx.Connection.CredentialsVersion, ctx.Packet.Code,
             token);
         if (result.CredentialsChanged)
         {

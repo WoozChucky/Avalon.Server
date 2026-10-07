@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Avalon.Balance.Core;
 using Avalon.Balance.Data;
+using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
 using Xunit;
 
@@ -77,7 +78,7 @@ public class BalanceRunnerShould
     public void Clamp_a_creature_level_to_its_template_range_and_roll_it_for_template_offsets()
     {
         ScenarioFile scenarios = ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
-        var wolf = TestData.Seeded.Creature(5);   // levels 2-4
+        CreatureTemplate wolf = TestData.Seeded.Creature(5);   // levels 2-4
         var random = new Random(1);
 
         Assert.Equal(2, FightFactory.CreatureLevel(wolf, 1, scenarios.Find("normal-1"), random));        // clamped up

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
+using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,7 +54,7 @@ public class JwtSigningKeyShould
     [Fact]
     public void Refuse_to_start_when_the_key_is_missing()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => StartWith(null));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(null));
 
         AssertNamesTheSetting(ex);
         Assert.Contains("not set", ex.Message, StringComparison.Ordinal);
@@ -64,7 +65,7 @@ public class JwtSigningKeyShould
     [InlineData("   ")]
     public void Refuse_to_start_when_the_key_is_empty(string key)
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => StartWith(key));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(key));
 
         AssertNamesTheSetting(ex);
         Assert.Contains("not set", ex.Message, StringComparison.Ordinal);
@@ -73,7 +74,7 @@ public class JwtSigningKeyShould
     [Fact]
     public void Refuse_to_start_when_the_authentication_section_is_absent()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             new ServiceCollection().AddAuth(new ApplicationConfig { Authentication = null }));
 
         AssertNamesTheSetting(ex);
@@ -82,7 +83,7 @@ public class JwtSigningKeyShould
     [Fact]
     public void Refuse_to_start_when_the_key_is_under_32_bytes()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => StartWith(new string('k', 31)));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(new string('k', 31)));
 
         AssertNamesTheSetting(ex);
         Assert.Contains("31 bytes", ex.Message, StringComparison.Ordinal);
@@ -96,7 +97,7 @@ public class JwtSigningKeyShould
     public void Refuse_to_start_when_the_key_has_trailing_whitespace(string trailing)
     {
         // A key read from a file often ends in a newline; it would sign with bytes nobody meant.
-        var ex = Assert.Throws<InvalidOperationException>(() => StartWith(new string('k', 64) + trailing));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(new string('k', 64) + trailing));
 
         AssertNamesTheSetting(ex);
         Assert.Contains("whitespace", ex.Message, StringComparison.Ordinal);
@@ -105,7 +106,7 @@ public class JwtSigningKeyShould
     [Fact]
     public void Refuse_to_start_when_the_key_has_a_leading_space()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => StartWith(" " + new string('k', 64)));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(" " + new string('k', 64)));
 
         AssertNamesTheSetting(ex);
         Assert.Contains("whitespace", ex.Message, StringComparison.Ordinal);
@@ -130,7 +131,7 @@ public class JwtSigningKeyShould
         const string madeUpPublicKey = "made-up-public-key-made-up-public-key-0123456789";
         var config = new AuthenticationConfig { IssuerSigningKey = madeUpPublicKey };
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             JwtSigningKey.Create(config, [Sha256Hex(madeUpPublicKey)]));
 
         AssertNamesTheSetting(ex);
@@ -164,7 +165,7 @@ public class JwtSigningKeyShould
         services.AddScoped<IJwtUtils, JwtUtils>();
         using ServiceProvider provider = services.BuildServiceProvider();
 
-        var registered = provider.GetRequiredService<SymmetricSecurityKey>();
+        SymmetricSecurityKey registered = provider.GetRequiredService<SymmetricSecurityKey>();
         TokenValidationParameters validation = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme).TokenValidationParameters;
 
@@ -187,7 +188,7 @@ public class JwtSigningKeyShould
     public async Task Sign_tokens_that_validate_end_to_end_with_a_valid_key()
     {
         await using ApiAuthHost host = await ApiAuthHost.StartAsync();
-        var account = ApiAuthHost.MakeAccount();
+        Account account = ApiAuthHost.MakeAccount();
         host.AccountNowIs(account);
 
         using HttpResponseMessage response = await host.GetAsync("/player", ApiAuthHost.Mint(account));
@@ -199,7 +200,7 @@ public class JwtSigningKeyShould
     public async Task Reject_tokens_signed_with_a_different_key()
     {
         await using ApiAuthHost host = await ApiAuthHost.StartAsync();
-        var account = ApiAuthHost.MakeAccount();
+        Account account = ApiAuthHost.MakeAccount();
         host.AccountNowIs(account);
         var otherKey = new AuthenticationConfig
         {
@@ -224,7 +225,7 @@ public class JwtSigningKeyShould
 
         foreach (string path in files)
         {
-            using JsonDocument settings = JsonDocument.Parse(File.ReadAllText(path));
+            using var settings = JsonDocument.Parse(File.ReadAllText(path));
 
             // Absent, not an empty placeholder, so nobody is invited to fill it in.
             Assert.False(HasSigningKey(settings.RootElement),

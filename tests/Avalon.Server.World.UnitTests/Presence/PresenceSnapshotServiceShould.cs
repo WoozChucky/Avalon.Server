@@ -48,7 +48,7 @@ public class PresenceSnapshotServiceShould
 
     private static ICharacter Character(uint id, string name)
     {
-        var c = Substitute.For<ICharacter>();
+        ICharacter c = Substitute.For<ICharacter>();
         c.Guid.Returns(new ObjectGuid(ObjectType.Character, id));
         c.Name.Returns(name);
         c.Class.Returns(CharacterClass.Wizard);
@@ -59,7 +59,7 @@ public class PresenceSnapshotServiceShould
 
     private static IMapInstance Instance(Guid id, params ICharacter[] characters)
     {
-        var i = Substitute.For<IMapInstance>();
+        IMapInstance i = Substitute.For<IMapInstance>();
         i.InstanceId.Returns(id);
         i.TemplateId.Returns(new MapTemplateId(12));
         i.MapType.Returns(MapType.Normal);
@@ -143,8 +143,8 @@ public class PresenceSnapshotServiceShould
                 written[call.ArgAt<string>(0)] = call.ArgAt<string>(1);
                 return Task.FromResult(true);
             });
-        Guid instanceOne = Guid.NewGuid();
-        Guid instanceTwo = Guid.NewGuid();
+        var instanceOne = Guid.NewGuid();
+        var instanceTwo = Guid.NewGuid();
 
         // Built before Returns(...): see the note in Instance about NSubstitute's last-call slot.
         IMapInstance worldOne = Instance(instanceOne, Character(7, "Nym"));

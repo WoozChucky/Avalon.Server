@@ -18,14 +18,14 @@ public class DeSpawnPlayerAsyncShould
         // before persistence. Character.Map is ushort; Character.Health is int (max HP, no
         // separate CurrentHealth column).
 
-        var resolver = Substitute.For<IRespawnTargetResolver>();
+        IRespawnTargetResolver resolver = Substitute.For<IRespawnTargetResolver>();
         resolver.ResolveTownAsync(new MapTemplateId(2), Arg.Any<CancellationToken>())
             .Returns(new MapTemplateId(1));
 
         // dbCharacter uses ushort Map and int Health (max HP only — no CurrentHealth column).
         var dbCharacter = new Character { Id = new CharacterId(1), Map = 2, Health = 100 };
 
-        var charEntity = Substitute.For<ICharacter>();
+        ICharacter charEntity = Substitute.For<ICharacter>();
         charEntity.IsDead.Returns(true);
         charEntity.Map.Returns(new MapId(2));
         charEntity.Health.Returns(100u);

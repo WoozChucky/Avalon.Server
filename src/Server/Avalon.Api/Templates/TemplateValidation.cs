@@ -3,6 +3,7 @@ using Avalon.Api.Contract;
 using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Infrastructure.Scripts;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.Api.Templates;
 
@@ -246,7 +247,7 @@ public static class TemplateValidation
     private static void Classes(TemplateErrors e, List<Avalon.World.Public.Enums.CharacterClass>? classes)
     {
         if (classes is null) return;
-        foreach (var c in classes)
+        foreach (CharacterClass c in classes)
         {
             if (!Enum.IsDefined(c)) e.Add("allowedClasses", $"'{c}' is not a known class.");
         }

@@ -38,7 +38,7 @@ public class AuraApplyShould
     [Fact]
     public void Roll_a_creature_casters_natural_damage_once_into_the_snapshot()
     {
-        var random = new ScriptedCombatRandom().Longs(6);
+        ScriptedCombatRandom random = new ScriptedCombatRandom().Longs(6);
         var h = new AuraHarness(random: random);
         AuraTemplate poison = AuraTestData.Burn(907);
         poison.PeriodicBase = 3f;

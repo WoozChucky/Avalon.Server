@@ -19,7 +19,7 @@ public static class InventoryAssembler
         IReadOnlyCollection<ItemInstance> instances,
         ILogger logger)
     {
-        Dictionary<ItemInstanceId, ItemInstance> instanceById = instances
+        var instanceById = instances
             .GroupBy(instance => instance.Id)
             .ToDictionary(group => group.Key, group => group.First());
 

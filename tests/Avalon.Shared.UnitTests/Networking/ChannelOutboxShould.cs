@@ -33,7 +33,7 @@ public class ChannelOutboxShould
         outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
 
         // Poll until bytes arrive or 2s elapses
-        var deadline = DateTime.UtcNow.AddSeconds(2);
+        DateTime deadline = DateTime.UtcNow.AddSeconds(2);
         while (ms.Length == 0 && DateTime.UtcNow < deadline)
             await Task.Delay(10);
 
@@ -93,8 +93,8 @@ public class ChannelOutboxShould
     [Fact]
     public async Task ReturnWithinFlushBudget_WhenTheWriteNeverCompletes()
     {
-        TimeSpan flush = TimeSpan.FromMilliseconds(100);
-        TimeSpan grace = TimeSpan.FromMilliseconds(20);
+        var flush = TimeSpan.FromMilliseconds(100);
+        var grace = TimeSpan.FromMilliseconds(20);
 
         var sink = new BlockingStream();
         var stream = new PacketStream(sink);

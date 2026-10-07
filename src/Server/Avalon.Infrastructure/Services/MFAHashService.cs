@@ -107,7 +107,7 @@ public class MFAHashService : IMFAHashService
 
     public async Task<AccountId?> GetAccountIdAsync(string hash)
     {
-        var value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
+        string? value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
         if (value == null) return null;
         // {accountId}:{version}; a bare id (a hash issued before #495) still names its account.
         int colon = value.IndexOf(':', StringComparison.Ordinal);
@@ -117,7 +117,7 @@ public class MFAHashService : IMFAHashService
 
     public async Task<int> GetHashCredentialsVersionAsync(string hash)
     {
-        var value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
+        string? value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
         return CacheKeys.TryParseWorldKeyValue(value, out _, out int version) ? version : -1;
     }
 
@@ -140,7 +140,7 @@ public class MFAHashService : IMFAHashService
 
     public async Task CleanupHash(string hash)
     {
-        var accountId = await GetAccountIdAsync(hash);
+        AccountId? accountId = await GetAccountIdAsync(hash);
         if (accountId != null)
         {
             // Only while the account's record is this hash's (#495 re-review): a newer login may have

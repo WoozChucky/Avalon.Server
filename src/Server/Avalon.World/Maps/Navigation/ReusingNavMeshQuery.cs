@@ -83,7 +83,7 @@ public sealed class ReusingNavMeshQuery : DtNavMeshQuery
             // Get poly and tile.
             // The API input has been checked already, skip checking internal data.
             long curRef = curNode.id;
-            m_nav.GetTileAndPolyByRefUnsafe(curRef, out var curTile, out var curPoly);
+            m_nav.GetTileAndPolyByRefUnsafe(curRef, out DtMeshTile? curTile, out DtPoly? curPoly);
 
             // Collect vertices.
             int nverts = curPoly.vertCount;
@@ -114,7 +114,7 @@ public sealed class ReusingNavMeshQuery : DtNavMeshQuery
                         DtLink link = curTile.links[k];
                         if (link.edge == j && link.refs != 0)
                         {
-                            m_nav.GetTileAndPolyByRefUnsafe(link.refs, out var neiTile, out var neiPoly);
+                            m_nav.GetTileAndPolyByRefUnsafe(link.refs, out DtMeshTile? neiTile, out DtPoly? neiPoly);
                             if (filter.PassFilter(link.refs, neiTile, neiPoly) && nneis < MaxNeis)
                             {
                                 neis[nneis++] = link.refs;
@@ -138,7 +138,7 @@ public sealed class ReusingNavMeshQuery : DtNavMeshQuery
                     // Wall edge, calc distance.
                     int vj = j * 3;
                     int vi = i * 3;
-                    var distSqr = DtUtils.DistancePtSegSqr2D(endPos, verts, vj, vi, out var tseg);
+                    float distSqr = DtUtils.DistancePtSegSqr2D(endPos, verts, vj, vi, out float tseg);
                     if (distSqr < bestDist)
                     {
                         // Update nearest distance.
@@ -161,7 +161,7 @@ public sealed class ReusingNavMeshQuery : DtNavMeshQuery
                         // Skip the link if it is too far from search constraint.
                         int vj = j * 3;
                         int vi = i * 3;
-                        var distSqr = DtUtils.DistancePtSegSqr2D(searchPos, verts, vj, vi, out var _);
+                        float distSqr = DtUtils.DistancePtSegSqr2D(searchPos, verts, vj, vi, out float _);
                         if (distSqr > searchRadSqr)
                         {
                             continue;

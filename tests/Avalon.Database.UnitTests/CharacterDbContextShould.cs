@@ -25,7 +25,7 @@ public class CharacterDbContextShould
     [Fact]
     public async Task Round_trip_a_characters_money()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
             write.Characters.Add(NewCharacter(money: 12_345_678_901UL));
@@ -41,7 +41,7 @@ public class CharacterDbContextShould
     {
         Assert.Equal(0UL, new CharacterRow().Money);
 
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
             write.Characters.Add(NewCharacter());
@@ -125,7 +125,7 @@ public class CharacterDbContextShould
     [Fact]
     public void Delete_a_slot_together_with_the_item_it_holds()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         using CharacterDbContext context = database.CreateDbContext();
 
         IForeignKey foreignKey = context.Model.FindEntityType(typeof(CharacterInventory))!
@@ -188,7 +188,7 @@ public class CharacterDbContextShould
     [Fact]
     public void Tie_every_item_to_its_character_by_a_cascading_key()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         using CharacterDbContext context = database.CreateDbContext();
 
         IForeignKey foreignKey = context.Model.FindEntityType(typeof(ItemInstance))!
@@ -202,7 +202,7 @@ public class CharacterDbContextShould
     [Fact]
     public void Leave_item_ids_to_the_server()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         using CharacterDbContext context = database.CreateDbContext();
 
         IProperty id = context.Model.FindEntityType(typeof(ItemInstance))!.FindProperty(nameof(ItemInstance.Id))!;
@@ -214,7 +214,7 @@ public class CharacterDbContextShould
     [Fact]
     public void Keep_item_templates_out_of_the_character_database()
     {
-        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         using CharacterDbContext context = database.CreateDbContext();
 
         Assert.Null(context.Model.FindEntityType(typeof(ItemTemplate)));
@@ -223,7 +223,7 @@ public class CharacterDbContextShould
     [Fact]
     public void Stop_mapping_item_instances_in_the_world_database()
     {
-        using SqliteDatabase<World.WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using World.WorldDbContext context = database.CreateDbContext();
 
         Assert.Null(context.Model.FindEntityType(typeof(ItemInstance)));
@@ -237,7 +237,7 @@ public class CharacterDbContextShould
     public void Delete_orphaned_slots_before_adding_the_foreign_key()
     {
         var migration = new AddMoneyAndItemInstances { ActiveProvider = "Npgsql.EntityFrameworkCore.PostgreSQL" };
-        List<MigrationOperation> operations = migration.UpOperations.ToList();
+        var operations = migration.UpOperations.ToList();
 
         int delete = operations.FindIndex(op =>
             op is SqlOperation sql && sql.Sql.Contains("DELETE FROM \"CharacterInventory\"", StringComparison.Ordinal));
@@ -257,7 +257,7 @@ public class CharacterDbContextShould
     public void Create_the_item_table_with_its_key_to_the_character()
     {
         var migration = new AddMoneyAndItemInstances { ActiveProvider = "Npgsql.EntityFrameworkCore.PostgreSQL" };
-        List<MigrationOperation> operations = migration.UpOperations.ToList();
+        var operations = migration.UpOperations.ToList();
 
         CreateTableOperation table = operations.OfType<CreateTableOperation>().Single(t => t.Name == "ItemInstances");
         AddForeignKeyOperation foreignKey = Assert.Single(table.ForeignKeys);
@@ -269,7 +269,7 @@ public class CharacterDbContextShould
 
     private static SqliteDatabase<CharacterDbContext> WithForeignKeys()
     {
-        SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        var database = SqliteDatabase.Characters();
         using CharacterDbContext context = database.CreateDbContext();
         // Test-only, on the in-memory SQLite connection: makes enforcement explicit rather than a
         // property of how the bundled SQLite happened to be compiled.

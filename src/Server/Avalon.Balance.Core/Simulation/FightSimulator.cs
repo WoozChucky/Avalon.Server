@@ -363,7 +363,7 @@ public sealed class FightSimulator
         SimAura? held = target.Auras.FirstOrDefault(a => a.Template.Id.Value == aura.Id.Value
             && (!AuraRules.KeysByCaster(aura.Stacking) || ReferenceEquals(a.Caster, caster)));
         AuraSnapshot snapshot = AuraRules.Snapshot(aura, caster.Attack, _rng);
-        AuraSchedule schedule = AuraSchedule.Start(Now, aura.DurationMs, aura.TickIntervalMs);
+        var schedule = AuraSchedule.Start(Now, aura.DurationMs, aura.TickIntervalMs);
         uint gain = (uint)Math.Max(0, ability.Metadata.PowerGainPerHit);
 
         if (held is not null)

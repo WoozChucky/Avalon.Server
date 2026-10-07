@@ -16,8 +16,8 @@ public sealed class PaymentProviderContractShould
         IPaymentProvider stripe = StripePaymentProviderShould.Provider(new StripePaymentProviderShould.Transport { Paid = paid, Refunded = refunded, Disputed = disputed });
         var other = new AlternativeProvider(paid, refunded, disputed);
         var registry = new PaymentProviderRegistry([stripe, other]);
-        var actual = await registry.Find("stripe")!.GetCheckoutAsync(new("cs_test", null), default);
-        var alternative = await registry.Find("alternative")!.GetCheckoutAsync(new("checkout", null), default);
+        PaymentSnapshot actual = await registry.Find("stripe")!.GetCheckoutAsync(new("cs_test", null), default);
+        PaymentSnapshot alternative = await registry.Find("alternative")!.GetCheckoutAsync(new("checkout", null), default);
         Assert.Equal(alternative.State, actual.State);
         Assert.Equal(alternative.Paid, actual.Paid);
         Assert.Equal(alternative.AmountMinor, actual.AmountMinor);

@@ -12,8 +12,10 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
+using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
+using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
@@ -309,7 +311,7 @@ public class CreatureAbilityAiShould
                  })
         {
             var fight = new Fight(targetAt: new Vector3(1f, 0f, 0f), withRotation: false);
-            var context = Substitute.For<ISimulationContext>();
+            ISimulationContext context = Substitute.For<ISimulationContext>();
             context.CombatService.Returns(fight.Combat);
             context.Locomotion.Returns(fight.Locomotion);
             context.MeleeSlots.Returns(new MeleeSlots(6, radius: 1.5f));
@@ -330,10 +332,10 @@ public class CreatureAbilityAiShould
     /// <summary>A real instance whose navigator walks straight to any destination and lets every ray through.</summary>
     private static MapInstance Instance()
     {
-        var scripts = Substitute.For<Avalon.World.Scripts.IScriptManager>();
+        IScriptManager scripts = Substitute.For<Avalon.World.Scripts.IScriptManager>();
         scripts.GetAbilityScript(nameof(Avalon.World.Scripts.Abilities.CircleAbilityScript))
             .Returns(typeof(Avalon.World.Scripts.Abilities.CircleAbilityScript));
-        var navigator = Substitute.For<Avalon.World.Public.Maps.IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<Avalon.World.Public.Maps.IMapNavigator>();
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         navigator.FindPath(default, default).ReturnsForAnyArgs(ci => new List<Vector3> { ci.ArgAt<Vector3>(1) });
         return TestMapInstances.Build(NewWorld(), scripts, navigator);

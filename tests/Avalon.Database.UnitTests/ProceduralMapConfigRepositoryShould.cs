@@ -12,7 +12,7 @@ public class ProceduralMapConfigRepositoryShould
     [Fact]
     public async Task Load_a_configs_depth_bands_with_it()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext write = database.CreateDbContext())
         {
             write.ProceduralMapConfigs.Add(new ProceduralMapConfig
@@ -43,7 +43,7 @@ public class ProceduralMapConfigRepositoryShould
     [Fact]
     public async Task Keep_a_band_that_starts_at_depth_zero()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext write = database.CreateDbContext())
         {
             write.ProceduralMapConfigs.Add(new ProceduralMapConfig

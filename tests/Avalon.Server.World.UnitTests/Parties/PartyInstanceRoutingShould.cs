@@ -47,7 +47,7 @@ public class PartyInstanceRoutingShould : IDisposable
 
     public PartyInstanceRoutingShould()
     {
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([new MapTemplate { Id = DungeonId, MapType = MapType.Normal }]);
         _factory.BuildAsync(default!, default, default, default).ReturnsForAnyArgs(call =>
         {
@@ -273,7 +273,7 @@ public class PartyMapEntryShould
     public void Refuse_a_full_party_instance()
     {
         (EnterMapHandler handler, IWorld world, _, PartyClient a, Captured captured) = Arrange(maxPlayers: 2);
-        var full = Substitute.For<IMapInstance>();
+        IMapInstance full = Substitute.For<IMapInstance>();
         full.PlayerCount.Returns(2); // min(MaxPartySize 6, MaxPlayers 2)
 
         handler.Execute(a.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
@@ -287,7 +287,7 @@ public class PartyMapEntryShould
     public void Let_a_member_into_a_party_instance_with_room()
     {
         (EnterMapHandler handler, IWorld world, _, PartyClient a, Captured captured) = Arrange(maxPlayers: 2);
-        var roomy = Substitute.For<IMapInstance>();
+        IMapInstance roomy = Substitute.For<IMapInstance>();
         roomy.PlayerCount.Returns(1);
 
         handler.Execute(a.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
@@ -305,7 +305,7 @@ public class PartyMapEntryShould
     public void Let_two_members_into_the_seeded_forest()
     {
         MapTemplate forest;
-        using (SqliteDatabase<WorldDbContext> database = SqliteDatabase.World())
+        using (var database = SqliteDatabase.World())
         using (WorldDbContext context = database.CreateDbContext())
         {
             forest = context.MapTemplates.AsNoTracking().ToList().Single(map => map.Id.Value == Dungeon);
@@ -314,7 +314,7 @@ public class PartyMapEntryShould
         (EnterMapHandler handler, IWorld world, _, PartyClient a, PartyClient b, Captured capturedA, Captured capturedB) =
             Arrange(forest);
         int players = 0;
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.PlayerCount.Returns(_ => players);
         world.When(w => w.TransferPlayer(Arg.Any<IWorldConnection>(), instance)).Do(_ => players++);
 
@@ -333,7 +333,7 @@ public class PartyMapEntryShould
     public void Refuse_entry_when_the_party_changed_while_the_instance_was_building()
     {
         (EnterMapHandler handler, IWorld world, PartyTestWorld parties, PartyClient a, Captured captured) = Arrange(maxPlayers: null);
-        var built = Substitute.For<IMapInstance>();
+        IMapInstance built = Substitute.For<IMapInstance>();
 
         handler.Execute(a.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
         parties.Parties.Leave(a.Id); // the party is gone before the build finishes
@@ -373,10 +373,10 @@ public class PartyMapEntryShould
         parties.Form(a, b);
         a.Character.Position = Vector3.zero;
 
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.GetInstanceById(source.InstanceId).Returns(source);
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
         world.PartyInstances.Returns(Substitute.For<IPartyInstanceRegistry>());
         world.Configuration.Returns(parties.Config);
@@ -403,11 +403,11 @@ public class PartyMapEntryShould
     /// <summary>A real instance with a layout and a portal to <paramref name="targetMap" /> at the origin, so Execute reaches the continuation.</summary>
     private static MapInstance SourceWithPortalTo(ushort targetMap)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
@@ -470,7 +470,7 @@ public class PartyWorldWiringShould
         parties.Form(a, b);
         Assert.Empty(b.Rosters());
 
-        var elsewhere = Substitute.For<IMapInstance>();
+        IMapInstance elsewhere = Substitute.For<IMapInstance>();
         elsewhere.InstanceId.Returns(new Guid("20260930-0000-0000-0000-000000000006"));
         world.TransferPlayer(a.Connection, elsewhere);
 
@@ -485,7 +485,7 @@ public class PartyWorldWiringShould
     /// <summary>A real World, loaded, with the party service, whose factory builds a party instance at once.</summary>
     private static async Task<Avalon.World.World> RealWorldAsync(PartyService parties, List<MapInstance> built)
     {
-        var worldRepository = Substitute.For<IWorldRepository>();
+        IWorldRepository worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Auth.World
             {
@@ -496,7 +496,7 @@ public class PartyWorldWiringShould
                 Version = "1.0.0",
             });
 
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default, default).ReturnsForAnyArgs(call =>
         {
             MapInstance instance = TestMapInstances.Build(MapInstanceClients.NewWorld(), ownerPartyId: call.ArgAt<PartyId?>(3));
@@ -504,10 +504,10 @@ public class PartyWorldWiringShould
             return Task.FromResult(instance);
         });
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory)).Returns(factory);
 
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([new MapTemplate { Id = DungeonId, MapType = MapType.Normal }]);
 
         TestStaticDataRepositories r = TestStaticData.Repositories();

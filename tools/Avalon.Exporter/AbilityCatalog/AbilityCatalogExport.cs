@@ -49,7 +49,7 @@ public static class AbilityCatalogExport
 
         using var context = new WorldDbContext(NullLoggerFactory.Instance, options);
 
-        List<AbilityTemplate> templates = context.AbilityTemplates.AsNoTracking().ToList();
+        var templates = context.AbilityTemplates.AsNoTracking().ToList();
 
         Lf.Write(path, Render(templates));
         Console.WriteLine($"wrote {path} ({templates.Count} ability templates)");

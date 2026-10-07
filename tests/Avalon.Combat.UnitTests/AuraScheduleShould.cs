@@ -8,7 +8,7 @@ public class AuraScheduleShould
     [Fact]
     public void Owe_nothing_before_the_first_tick_and_one_on_it()
     {
-        AuraSchedule s = AuraSchedule.Start(T0, 12000, 3000);
+        var s = AuraSchedule.Start(T0, 12000, 3000);
 
         Assert.Equal((T0.AddSeconds(12), TimeSpan.FromSeconds(3), 4), (s.ExpiresAt, s.Interval, s.TicksLeft));
         Assert.Equal(0, s.Due(T0.AddMilliseconds(2999)));
@@ -18,7 +18,7 @@ public class AuraScheduleShould
     [Fact]
     public void Owe_every_tick_a_stall_skipped_and_never_more_than_are_left()
     {
-        AuraSchedule s = AuraSchedule.Start(T0, 12000, 3000);
+        var s = AuraSchedule.Start(T0, 12000, 3000);
 
         Assert.Equal(3, s.Due(T0.AddSeconds(9.5)));
         Assert.Equal(4, s.Due(T0.AddSeconds(60)));
@@ -30,7 +30,7 @@ public class AuraScheduleShould
     [Fact]
     public void Land_the_last_tick_at_expiry_when_the_interval_does_not_divide_the_duration()
     {
-        AuraSchedule s = AuraSchedule.Start(T0, 10000, 3000);
+        var s = AuraSchedule.Start(T0, 10000, 3000);
 
         Assert.Equal(0, s.Due(T0.AddSeconds(3.9)));
         Assert.Equal(1, s.Due(T0.AddSeconds(4)));
@@ -42,7 +42,7 @@ public class AuraScheduleShould
     [Fact]
     public void Resume_with_the_time_and_ticks_left_and_never_owe_more_than_the_time_allows()
     {
-        AuraSchedule s = AuraSchedule.Resume(T0, 4500, 3000, ticksLeft: 4);
+        var s = AuraSchedule.Resume(T0, 4500, 3000, ticksLeft: 4);
 
         Assert.Equal((T0.AddMilliseconds(4500), 2), (s.ExpiresAt, s.TicksLeft));   // ticks at 1.5 s and 4.5 s
         Assert.Equal(1, s.Due(T0.AddSeconds(1.5)));
@@ -54,7 +54,7 @@ public class AuraScheduleShould
     [Fact]
     public void Keep_a_tick_due_at_the_resume_instant()
     {
-        AuraSchedule s = AuraSchedule.Resume(T0, 6000, 3000, ticksLeft: 4);
+        var s = AuraSchedule.Resume(T0, 6000, 3000, ticksLeft: 4);
 
         Assert.Equal(3, s.TicksLeft);
         Assert.Equal(1, s.Due(T0));
@@ -64,7 +64,7 @@ public class AuraScheduleShould
     [Fact]
     public void Keep_the_final_tick_of_an_aura_resumed_at_its_end()
     {
-        AuraSchedule s = AuraSchedule.Resume(T0, 0, 3000, ticksLeft: 2);
+        var s = AuraSchedule.Resume(T0, 0, 3000, ticksLeft: 2);
 
         Assert.Equal(1, s.TicksLeft);
         Assert.Equal(1, s.Due(T0));
@@ -74,7 +74,7 @@ public class AuraScheduleShould
     [Fact]
     public void Owe_no_ticks_for_an_aura_that_has_none()
     {
-        AuraSchedule s = AuraSchedule.Start(T0, 6000, 0);
+        var s = AuraSchedule.Start(T0, 6000, 0);
 
         Assert.Equal(0, s.TicksLeft);
         Assert.Equal(0, s.Due(T0.AddSeconds(7)));

@@ -11,7 +11,7 @@ public class CommandsNeverBlockTheTickShould
     [Fact]
     public void Find_no_command_that_awaits_or_blocks()
     {
-        List<Type> commands = typeof(ICommand).Assembly.GetTypes()
+        var commands = typeof(ICommand).Assembly.GetTypes()
             .Where(t => typeof(ICommand).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false })
             .ToList();
 

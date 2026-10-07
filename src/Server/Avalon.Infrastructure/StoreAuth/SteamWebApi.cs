@@ -30,13 +30,13 @@ internal static class SteamWebApi
     }
 
     internal static bool IsSteamId(string? value) => value is { Length: > 0 and <= MaximumSteamIdCharacters } &&
-        ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id != 0 &&
+        ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out ulong id) && id != 0 &&
         string.Equals(id.ToString(CultureInfo.InvariantCulture), value, StringComparison.Ordinal);
 
     internal static async Task<(bool Available, JsonDocument? Document)> GetAsync(HttpClient client, Uri uri,
         CancellationToken cancellationToken)
     {
-        for (var attempt = 0; attempt < MaximumAttempts; attempt++)
+        for (int attempt = 0; attempt < MaximumAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -44,7 +44,7 @@ internal static class SteamWebApi
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-                using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, bounded.Token);
+                using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, bounded.Token);
                 if (response.StatusCode == HttpStatusCode.OK)
                     return (true, await ReadDocumentAsync(response, bounded.Token));
                 if ((response.StatusCode != HttpStatusCode.TooManyRequests && response.StatusCode != HttpStatusCode.RequestTimeout &&
@@ -66,12 +66,12 @@ internal static class SteamWebApi
     private static async Task<JsonDocument?> ReadDocumentAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.Content.Headers.ContentLength > MaxResponseBytes) return null;
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var buffer = new byte[MaxResponseBytes + 1];
-        var used = 0;
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        byte[] buffer = new byte[MaxResponseBytes + 1];
+        int used = 0;
         while (used < buffer.Length)
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(used), cancellationToken);
+            int read = await stream.ReadAsync(buffer.AsMemory(used), cancellationToken);
             if (read == 0) break;
             used += read;
         }
@@ -87,8 +87,8 @@ internal static class SteamWebApi
     }
 
     internal static string? String(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     internal static bool? Boolean(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : null;
+        element.TryGetProperty(name, out JsonElement value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : null;
 }

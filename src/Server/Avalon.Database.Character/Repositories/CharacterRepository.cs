@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.Character.Repositories;
 
@@ -38,7 +39,7 @@ public partial class CharacterRepository(IDbContextFactory<CharacterDbContext> c
     public async Task<Domain.Characters.Character?> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         string key = CharacterName.LookupKey(name);
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using CharacterDbContext context = await CreateContextAsync(cancellationToken);
 
         return await context.Characters
             .AsNoTracking()
@@ -48,8 +49,8 @@ public partial class CharacterRepository(IDbContextFactory<CharacterDbContext> c
     public async Task<CharacterRename> TryRenameAsync(CharacterId id, string name, CancellationToken cancellationToken = default)
     {
         string key = CharacterName.Key(name);
-        await using var context = await CreateContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using CharacterDbContext context = await CreateContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         await context.GuardCharacterMutationAsync(id, cancellationToken);
 
         try
@@ -76,7 +77,7 @@ public partial class CharacterRepository(IDbContextFactory<CharacterDbContext> c
 
     public async Task<Domain.Characters.Character?> FindByIdAndAccountAsync(CharacterId id, AccountId accountId, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using CharacterDbContext context = await CreateContextAsync(cancellationToken);
 
         return await context.Characters
             .AsNoTracking()
@@ -85,7 +86,7 @@ public partial class CharacterRepository(IDbContextFactory<CharacterDbContext> c
 
     public async Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using CharacterDbContext context = await CreateContextAsync(cancellationToken);
 
         return await context.Characters
             .AsNoTracking()

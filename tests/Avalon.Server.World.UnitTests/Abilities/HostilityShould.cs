@@ -20,7 +20,7 @@ public class HostilityShould
 
     private static ICreature Creature(bool invulnerable = false, uint id = 0)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Invulnerable.Returns(invulnerable);
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, id));
         return creature;
@@ -111,7 +111,7 @@ public class HostilityShould
     [Fact]
     public void Never_count_a_character_that_is_not_the_world_side_entity_as_an_ally()
     {
-        var foreign = Substitute.For<ICharacter>();
+        ICharacter foreign = Substitute.For<ICharacter>();
         foreign.Guid.Returns(new ObjectGuid(ObjectType.Character, 99));
         CharacterEntity caster = Player(1, pvp: false);
 

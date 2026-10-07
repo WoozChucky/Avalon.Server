@@ -78,7 +78,7 @@ public class CreaturePlacementService : ICreaturePlacementService
 
     public async Task PlaceAsync(IMapInstance instance, ChunkLayout layout, ProceduralMapConfig cfg, int seed, CancellationToken ct)
     {
-        var table = await _spawnTableRepo.FindByIdAsync(cfg.SpawnTableId, track: false, ct)
+        SpawnTable table = await _spawnTableRepo.FindByIdAsync(cfg.SpawnTableId, track: false, ct)
                     ?? throw new InvalidProceduralConfigException($"SpawnTable {cfg.SpawnTableId.Value} not found");
 
         var entriesByTag = table.Entries
@@ -93,23 +93,23 @@ public class CreaturePlacementService : ICreaturePlacementService
         IReadOnlyList<ProceduralDepthBand> bands = cfg.DepthBands;
         ushort? bossLevel = DepthBandLevels.BossLevel(bands);
 
-        foreach (var chunk in layout.Chunks)
+        foreach (PlacedChunk chunk in layout.Chunks)
         {
-            var tpl = _library.GetById(chunk.TemplateId);
+            ChunkTemplate tpl = _library.GetById(chunk.TemplateId);
             LevelRange? range = DepthBandLevels.For(bands, chunk.Depth, setPiece: chunk.Group is not null);
 
-            foreach (var slot in tpl.SpawnSlots)
+            foreach (ChunkSpawnSlot slot in tpl.SpawnSlots)
             {
                 if (slot.Tag.Equals("empty", StringComparison.OrdinalIgnoreCase)) continue;
                 if (slot.Tag.Equals("entry", StringComparison.OrdinalIgnoreCase)) continue;
-                if (!entriesByTag.TryGetValue(slot.Tag, out var entries) || entries.Count == 0) continue;
+                if (!entriesByTag.TryGetValue(slot.Tag, out List<SpawnTableEntry>? entries) || entries.Count == 0) continue;
 
-                var slotCenter = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, chunk.Rotation, layout.CellSize, chunk.WorldPos);
+                Vector3 slotCenter = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, chunk.Rotation, layout.CellSize, chunk.WorldPos);
                 ushort? fixedLevel = slot.Tag.Equals(BossTag, StringComparison.OrdinalIgnoreCase) ? bossLevel : null;
                 PlaceRoll(instance, entries, slotCenter, slot.Tag, cfg.MapTemplateId, rng, range, fixedLevel, spreadAlways: false);
 
                 if (slot.Tag.Equals(LeaderTag, StringComparison.OrdinalIgnoreCase)
-                    && entriesByTag.TryGetValue(LeaderPackTag, out var pack) && pack.Count > 0)
+                    && entriesByTag.TryGetValue(LeaderPackTag, out List<SpawnTableEntry>? pack) && pack.Count > 0)
                 {
                     // The pack spreads around its leader, which stands on the slot's centre.
                     PlaceRoll(instance, pack, slotCenter, LeaderPackTag, cfg.MapTemplateId, rng, range, fixedLevel: null, spreadAlways: true);
@@ -122,14 +122,14 @@ public class CreaturePlacementService : ICreaturePlacementService
     private void PlaceRoll(IMapInstance instance, IList<SpawnTableEntry> entries, Vector3 slotCenter, string tag,
         MapTemplateId mapId, Random rng, LevelRange? range, ushort? fixedLevel, bool spreadAlways)
     {
-        var entry = WeightedPick(entries, rng);
+        SpawnTableEntry entry = WeightedPick(entries, rng);
         int count = rng.Next(entry.MinCount, entry.MaxCount + 1);
 
         for (int i = 0; i < count; i++)
         {
             // Spread multi-spawn packs around the slot center so they don't stack
             // on top of each other. Single-spawn entries (boss) land exactly on center.
-            var spawnPos = count == 1 && !spreadAlways
+            Vector3 spawnPos = count == 1 && !spreadAlways
                 ? slotCenter
                 : slotCenter + new Vector3(
                     (float)(rng.NextDouble() - 0.5) * 2.0f * SpawnSpreadRadius,
@@ -165,7 +165,7 @@ public class CreaturePlacementService : ICreaturePlacementService
                 Position = grounded,
                 PrototypeIndex = creatureId.Value,
             };
-            var creature = level is { } chosen ? _spawner.Spawn(info, chosen) : _spawner.Spawn(info);
+            ICreature creature = level is { } chosen ? _spawner.Spawn(info, chosen) : _spawner.Spawn(info);
             AttachScript(creature, instance);
             instance.AddCreature(creature);
         }
@@ -191,7 +191,7 @@ public class CreaturePlacementService : ICreaturePlacementService
             {
                 // Rows store offsets from the entry point rather than world coordinates — see
                 // MapCreatureSpawn's remarks for why.
-                var position = layout.EntrySpawnWorldPos + new Vector3(spawn.OffsetX, spawn.OffsetY, spawn.OffsetZ);
+                Vector3 position = layout.EntrySpawnWorldPos + new Vector3(spawn.OffsetX, spawn.OffsetY, spawn.OffsetZ);
 
                 // OffsetY only centres the navmesh search box; the navmesh decides the real height.
                 // SampleGroundHeight returns the y it was given when the column is off-mesh, so an
@@ -292,7 +292,7 @@ public class CreaturePlacementService : ICreaturePlacementService
     {
         if (string.IsNullOrWhiteSpace(creature.ScriptName)) return;
 
-        var scriptType = _scriptManager.GetAiScript(creature.ScriptName);
+        Type? scriptType = _scriptManager.GetAiScript(creature.ScriptName);
         if (scriptType is null)
         {
             _logger.LogWarning("AI script '{ScriptName}' not found for creature {Id}", creature.ScriptName, creature.Guid);
@@ -313,7 +313,7 @@ public class CreaturePlacementService : ICreaturePlacementService
     {
         float total = items.Sum(i => i.Weight);
         float r = (float)(rng.NextDouble() * total);
-        foreach (var i in items)
+        foreach (SpawnTableEntry i in items)
         {
             r -= i.Weight;
             if (r <= 0) return i;

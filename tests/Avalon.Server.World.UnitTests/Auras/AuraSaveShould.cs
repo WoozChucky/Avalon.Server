@@ -54,7 +54,7 @@ public class AuraSaveShould
         character.Auras.All[0].Schedule = character.Auras.All[0].Schedule.AfterTicks(1);
         character.Auras.All[0].PeriodicCarry = 0.25d;
 
-        CharacterSaveSnapshot snapshot = CharacterSaveSnapshot.Take(character);
+        var snapshot = CharacterSaveSnapshot.Take(character);
 
         CharacterAura row = Assert.Single(snapshot.Batch.Auras!.Rows);
         Assert.Equal((0, 901u, caster.RawValue, (uint?)203u, 2), (row.Slot, row.AuraId, row.CasterGuid, row.SourceAbilityId, row.Stacks));

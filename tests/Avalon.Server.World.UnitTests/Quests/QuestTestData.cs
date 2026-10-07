@@ -1,5 +1,7 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.World.Scripts;
 
 namespace Avalon.Server.World.UnitTests.Quests;
 
@@ -22,7 +24,7 @@ internal static class QuestTestData
     /// <summary>A script manager that knows <see cref="FindScript" />'s scripts, for a StaticData built over the fixtures.</summary>
     public static Avalon.World.Scripts.IScriptManager ScriptManager()
     {
-        var scripts = NSubstitute.Substitute.For<Avalon.World.Scripts.IScriptManager>();
+        IScriptManager scripts = NSubstitute.Substitute.For<Avalon.World.Scripts.IScriptManager>();
         NSubstitute.SubstituteExtensions.Returns(scripts.GetQuestScript(nameof(SampleQuestScript)), typeof(SampleQuestScript));
         return scripts;
     }
@@ -140,7 +142,7 @@ internal static class QuestRepositories
 {
     public static Avalon.Database.World.Repositories.IQuestRepository Of(Func<IReadOnlyCollection<QuestTemplate>> quests)
     {
-        var repository = NSubstitute.Substitute.For<Avalon.Database.World.Repositories.IQuestRepository>();
+        IQuestRepository repository = NSubstitute.Substitute.For<Avalon.Database.World.Repositories.IQuestRepository>();
         NSubstitute.SubstituteExtensions.Returns(repository.GetAllAsync(NSubstitute.Arg.Any<CancellationToken>()),
             _ => Task.FromResult(quests()));
         return repository;

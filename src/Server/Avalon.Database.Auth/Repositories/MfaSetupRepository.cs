@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.Auth.Repositories;
 
@@ -77,7 +78,7 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
 
     public async Task<MFASetup?> FindByAccountIdAsync(AccountId accountId, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
         // Single, not First: the unique index makes a second row impossible, and if one ever
         // exists this throws rather than let the order rows come back in decide whether MFA applies.
@@ -88,11 +89,11 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
 
     public async Task<bool> UpsertPendingAsync(MFASetup pending, CancellationToken cancellationToken = default)
     {
-        for (var attempt = 1; ; attempt++)
+        for (int attempt = 1; ; attempt++)
         {
-            await using var context = await CreateContextAsync(cancellationToken);
+            await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
-            var replaced = await context.MfaSetups
+            int replaced = await context.MfaSetups
                 .Where(m => m.AccountId == pending.AccountId && m.Status != MfaSetupStatus.Confirmed)
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(m => m.Secret, pending.Secret)
@@ -127,15 +128,15 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
         byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2, byte[] recoveryCode3, DateTime confirmedAt,
         long acceptedTotpStep, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
         // First, as a token mint does (#495 re-review): the session's version, held for the write.
         if (!await AccountRepository.HoldCredentialsVersionAsync(context, accountId, credentialsVersion,
                 cancellationToken))
             return MfaSetupWrite.CredentialsChanged;
 
-        var confirmed = await context.MfaSetups
+        int confirmed = await context.MfaSetups
             .Where(m => m.Id == id && m.Status == MfaSetupStatus.Setup && m.Secret == verifiedSecret)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(m => m.RecoveryCode1, recoveryCode1)
@@ -153,9 +154,9 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
 
     public async Task<bool> TryAcceptTotpStepAsync(Guid id, long step, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
-        var accepted = await context.MfaSetups
+        int accepted = await context.MfaSetups
             .Where(m => m.Id == id && m.Status == MfaSetupStatus.Confirmed
                         && (m.LastAcceptedTotpStep == null || m.LastAcceptedTotpStep < step))
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.LastAcceptedTotpStep, step), cancellationToken);
@@ -165,7 +166,7 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
 
     public async Task DeletePendingAsync(Guid id, byte[] secret, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
         await context.MfaSetups
             .Where(m => m.Id == id && m.Status == MfaSetupStatus.Setup && m.Secret == secret)
@@ -175,9 +176,9 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
     public async Task<MfaSetupWrite> ResetConfirmedAsync(Guid id, AccountId accountId, int credentialsVersion,
         DateTime now, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
         // An uncommitted transaction rolls back when it is disposed, so the throw path needs no catch.
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
         // First, so this transaction holds the account row before it revokes anything: a refresh
         // token issue or rotation, or a token mint, running now either sees the new version or

@@ -19,7 +19,7 @@ internal static class GameLoginCompletion
             connection.Server?.NoteOwnDisconnectPublish(account.Id);
             await cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.ToString());
 
-            var connectedSession = connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
+            IAuthConnection? connectedSession = connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
             if (connectedSession != null)
                 connectedSession.Close();
             else

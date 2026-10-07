@@ -72,7 +72,7 @@ public class PacketSerializationIdentityShould
     public void Write_every_server_packet_as_the_buffer_writer_did(string packetName, string variantName)
     {
         Type packetType = typeof(Packet).Assembly.GetType(packetName, throwOnError: true)!;
-        var variant = Enum.Parse<FixtureVariant>(variantName);
+        FixtureVariant variant = Enum.Parse<FixtureVariant>(variantName);
         object packet = WireFixtures.Build(packetType, variant);
 
         using var reference = new PooledArrayBufferWriter();

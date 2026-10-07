@@ -104,7 +104,7 @@ public sealed record CombatPatch(CombatFormula Formula, IReadOnlyDictionary<Char
     /// <exception cref="InvalidDataException">A row is missing or out of range; the message names it.</exception>
     public static CombatPatch Build(IReadOnlyCollection<CombatFormula> formulas, IReadOnlyCollection<ClassStatFactors> factors)
     {
-        var (f, byClass) = CombatDataRules.Build(formulas, factors);
+        (CombatFormula? f, IReadOnlyDictionary<CharacterClass, ClassStatFactors>? byClass) = CombatDataRules.Build(formulas, factors);
         return new CombatPatch(f, byClass);
     }
 }

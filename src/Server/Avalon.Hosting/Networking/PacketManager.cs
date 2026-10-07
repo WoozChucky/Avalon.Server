@@ -24,11 +24,11 @@ public class PacketManager : IPacketManager
 
     public PacketManager(ILoggerFactory loggerFactory, IEnumerable<Type> packetTypes, Type[]? packetHandlerTypes = null)
     {
-        var logger = loggerFactory.CreateLogger<PacketManager>();
+        ILogger<PacketManager> logger = loggerFactory.CreateLogger<PacketManager>();
         const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
-        foreach (var packetType in packetTypes)
+        foreach (Type packetType in packetTypes)
         {
-            var networkPacketTypeInfo = packetType.GetFields(flags)
+            FieldInfo? networkPacketTypeInfo = packetType.GetFields(flags)
                 .FirstOrDefault(field => field.FieldType == typeof(NetworkPacketType));
             if (networkPacketTypeInfo == null)
             {
@@ -39,7 +39,7 @@ public class PacketManager : IPacketManager
             var networkPacketType = (NetworkPacketType)networkPacketTypeInfo!.GetValue(null)!;
 
             // last or default so it can be overriden via plugins - last one is chosen
-            var packetHandlerType = packetHandlerTypes?
+            Type? packetHandlerType = packetHandlerTypes?
                 .LastOrDefault(x =>
                     x is { IsAbstract: false, IsInterface: false } &&
                     x

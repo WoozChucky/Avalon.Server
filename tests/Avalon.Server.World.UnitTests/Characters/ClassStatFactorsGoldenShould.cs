@@ -174,13 +174,13 @@ public class ClassStatFactorsGoldenShould
     [Fact]
     public void Reproduce_the_old_calculator_for_every_seeded_class_and_level()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<ClassLevelStat> rows = context.ClassLevelStats.AsNoTracking().ToList();
-        Dictionary<CharacterClass, ClassStatFactors> factors =
+        var rows = context.ClassLevelStats.AsNoTracking().ToList();
+        var factors =
             context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(f => f.Class);
 
-        Dictionary<(CharacterClass, ushort, bool), string> expected = Expected
+        var expected = Expected
             .Select(line => line.Split(','))
             .ToDictionary(f => (Enum.Parse<CharacterClass>(f[0]), ushort.Parse(f[1]), f[2] == "1"), f => string.Join(",", f.Skip(3)));
 

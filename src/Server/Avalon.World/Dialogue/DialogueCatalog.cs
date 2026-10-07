@@ -18,7 +18,7 @@ public class DialogueCatalog : IDialogueCatalog
         ILogger<DialogueCatalog> logger = loggerFactory.CreateLogger<DialogueCatalog>();
 
         Dictionary<int, List<DialogueOption>> optionsByNode = [];
-        HashSet<int> knownNodes = nodes.Select(n => n.Id.Value).ToHashSet();
+        var knownNodes = nodes.Select(n => n.Id.Value).ToHashSet();
 
         foreach (DialogueOption option in options)
         {

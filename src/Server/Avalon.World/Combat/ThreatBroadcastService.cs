@@ -128,7 +128,7 @@ public sealed class ThreatBroadcastService
         }
 
         // Only a packet that is sent pays for its entries.
-        ThreatEntry[] entries = new ThreatEntry[threats.Count];
+        var entries = new ThreatEntry[threats.Count];
         int i = 0;
         foreach ((IUnit attacker, float threat) in threats)
         {

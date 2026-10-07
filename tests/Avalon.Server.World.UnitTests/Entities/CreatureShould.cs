@@ -25,7 +25,7 @@ public class CreatureShould
     public void LookAt_SetsYOrientation_WhenTargetIsToTheRight()
     {
         // target right (+X), atan2(1,0) = π/2 ≈ 90°
-        var creature = MakeCreature(Vector3.zero);
+        Creature creature = MakeCreature(Vector3.zero);
         creature.LookAt(new Vector3(1, 0, 0));
 
         Assert.Equal(0, creature.Orientation.x);
@@ -37,7 +37,7 @@ public class CreatureShould
     public void LookAt_SetsZeroYOrientation_WhenTargetIsAhead()
     {
         // target ahead (+Z), atan2(0,1) = 0
-        var creature = MakeCreature(Vector3.zero);
+        Creature creature = MakeCreature(Vector3.zero);
         creature.LookAt(new Vector3(0, 0, 1));
 
         Assert.Equal(0f, creature.Orientation.x, precision: 4);
@@ -49,7 +49,7 @@ public class CreatureShould
     public void LookAt_SetsNegativeY_WhenTargetIsToTheLeft()
     {
         // target left (-X), atan2(-1,0) = -π/2 ≈ -90°
-        var creature = MakeCreature(Vector3.zero);
+        Creature creature = MakeCreature(Vector3.zero);
         creature.LookAt(new Vector3(-1, 0, 0));
 
         Assert.InRange(creature.Orientation.y, -91f, -89f);
@@ -58,7 +58,7 @@ public class CreatureShould
     [Fact]
     public void LookAt_HandlesNonOriginPosition()
     {
-        var creature = MakeCreature(new Vector3(5, 0, 5));
+        Creature creature = MakeCreature(new Vector3(5, 0, 5));
         // target directly one unit to the right from creature
         creature.LookAt(new Vector3(6, 0, 5));
 
@@ -72,7 +72,7 @@ public class CreatureShould
     [Fact]
     public void IsLookingAt_ReturnsTrue_WhenAlreadyFacingExactly()
     {
-        var creature = MakeCreature(Vector3.zero);
+        Creature creature = MakeCreature(Vector3.zero);
         creature.LookAt(new Vector3(1, 0, 0));
 
         // Should be looking at the same direction now
@@ -82,7 +82,7 @@ public class CreatureShould
     [Fact]
     public void IsLookingAt_ReturnsFalse_WhenFacingAwayFromTarget()
     {
-        var creature = MakeCreature(Vector3.zero);
+        Creature creature = MakeCreature(Vector3.zero);
         // Face right (+X, y≈90°)
         creature.LookAt(new Vector3(1, 0, 0));
 
@@ -93,7 +93,7 @@ public class CreatureShould
     [Fact]
     public void IsLookingAt_ReturnsTrue_WithinThreshold()
     {
-        var creature = MakeCreature(Vector3.zero);
+        Creature creature = MakeCreature(Vector3.zero);
         // Face right so orientation.y ≈ 90°
         creature.LookAt(new Vector3(1, 0, 0));
 
@@ -104,7 +104,7 @@ public class CreatureShould
     [Fact]
     public void IsLookingAt_ReturnsFalse_WhenDiffExceedsThreshold()
     {
-        var creature = MakeCreature(Vector3.zero);
+        Creature creature = MakeCreature(Vector3.zero);
         creature.LookAt(new Vector3(1, 0, 0)); // y ≈ 90°
 
         // Check off-axis target where diff is large
@@ -152,10 +152,10 @@ public class CreatureShould
     [Fact]
     public void OnHit_DoesNotThrow_WhenScriptIsNull()
     {
-        var creature = MakeCreature();
+        Creature creature = MakeCreature();
         creature.Script = null;
 
-        var ex = Record.Exception(() => creature.OnHit(Substitute.For<IUnit>(), 50u));
+        Exception ex = Record.Exception(() => creature.OnHit(Substitute.For<IUnit>(), 50u));
         Assert.Null(ex);
     }
 }

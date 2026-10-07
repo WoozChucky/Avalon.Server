@@ -8,14 +8,14 @@ public class TimeUtilsShould
     [Fact]
     public void GetApplicationStartTimeReturnsPositiveElapsed()
     {
-        var elapsed = TimeUtils.GetApplicationStartTime();
+        TimeSpan elapsed = TimeUtils.GetApplicationStartTime();
         Assert.True(elapsed >= TimeSpan.Zero);
     }
 
     [Fact]
     public void GetTimeMsReturnsPositiveValue()
     {
-        var time = TimeUtils.GetTimeMs();
+        TimeSpan time = TimeUtils.GetTimeMs();
         Assert.True(time >= TimeSpan.Zero);
     }
 
@@ -49,7 +49,7 @@ public class TimeUtilsShould
         var old = TimeSpan.FromMilliseconds(100);
         var now = TimeSpan.FromMilliseconds(300);
 
-        var diff = TimeUtils.GetMsTimeDiff(old, now);
+        TimeSpan diff = TimeUtils.GetMsTimeDiff(old, now);
         Assert.Equal(TimeSpan.FromMilliseconds(200), diff);
     }
 
@@ -59,7 +59,7 @@ public class TimeUtilsShould
         var old = TimeSpan.FromMilliseconds(500);
         var now = TimeSpan.FromMilliseconds(100);
 
-        var diff = TimeUtils.GetMsTimeDiff(old, now);
+        TimeSpan diff = TimeUtils.GetMsTimeDiff(old, now);
         Assert.Equal(TimeSpan.FromMilliseconds(400), diff);
     }
 
@@ -76,9 +76,9 @@ public class TimeUtilsShould
     [Fact]
     public void GetMsTimeDiffToNowTimeSpanReturnsDifference()
     {
-        var start = TimeUtils.GetTimeMs();
+        TimeSpan start = TimeUtils.GetTimeMs();
         Thread.Sleep(5);
-        var diff = TimeUtils.GetMsTimeDiffToNow(start);
+        TimeSpan diff = TimeUtils.GetMsTimeDiffToNow(start);
 
         Assert.True(diff >= TimeSpan.Zero);
     }

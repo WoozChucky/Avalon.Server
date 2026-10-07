@@ -35,7 +35,7 @@ public sealed partial class RotationFile : Dictionary<CharacterClass, RotationEn
         if (!TryGetValue(characterClass, out RotationEntry[]? entries) || entries is null || entries.Length == 0)
             throw new InvalidDataException($"rotations: {characterClass} has no rotation");
 
-        HashSet<uint> kit = data.KitOf(characterClass).Select(a => a.Id.Value).ToHashSet();
+        var kit = data.KitOf(characterClass).Select(a => a.Id.Value).ToHashSet();
         var compiled = new List<CompiledRotationEntry>();
         for (int i = 0; i < entries.Length; i++)
         {

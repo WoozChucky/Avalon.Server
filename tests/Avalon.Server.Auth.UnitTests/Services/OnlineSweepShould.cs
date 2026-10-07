@@ -70,7 +70,7 @@ public sealed class OnlineSweepShould : IDisposable
     public async Task Leave_an_online_account_whose_session_is_live()
     {
         Account account = await AccountAsync();
-        Guid session = Guid.NewGuid();
+        var session = Guid.NewGuid();
         await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.1", DateTime.UtcNow, session);
         _live.Add(session);
         OnlineSweep sweep = Sweep(_accounts);
@@ -105,7 +105,7 @@ public sealed class OnlineSweepShould : IDisposable
     {
         Account account = await AccountAsync();
         await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.1", DateTime.UtcNow, Guid.NewGuid());
-        Guid newer = Guid.NewGuid();
+        var newer = Guid.NewGuid();
         var racing = new StaleAccountRepository(_accounts)
         {
             AfterOnlineRead = async () =>
@@ -139,7 +139,7 @@ public sealed class OnlineSweepShould : IDisposable
             LastLogin = DateTime.UtcNow,
         });
         await _accounts.TryRecordLoginAsync(stale.Id, "10.0.0.4", DateTime.UtcNow, Guid.NewGuid());
-        Guid accepted = Guid.NewGuid();
+        var accepted = Guid.NewGuid();
         // The snapshot is taken, then a connection is accepted and logs in: read after the
         // snapshot, its row would be online with a session the snapshot does not hold.
         IEnumerable<Guid> SnapshotThenLogin()
@@ -164,7 +164,7 @@ public sealed class OnlineSweepShould : IDisposable
     [Fact]
     public async Task Go_on_to_the_next_row_when_one_row_write_fails()
     {
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         var failing = new AccountId(1);
         var next = new AccountId(2);
         accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>())
@@ -186,9 +186,9 @@ public sealed class OnlineSweepShould : IDisposable
     [Fact]
     public async Task Pass_the_session_it_read_and_add_no_session_time()
     {
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         var id = new AccountId(7);
-        Guid stale = Guid.NewGuid();
+        var stale = Guid.NewGuid();
         accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>())
             .Returns([new OnlineSession(id, stale)]);
         OnlineSweep sweep = Sweep(accounts);
@@ -202,7 +202,7 @@ public sealed class OnlineSweepShould : IDisposable
     [Fact]
     public async Task Do_nothing_before_the_interval_is_due()
     {
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         OnlineSweep sweep = Sweep(accounts);
 
         _clock.Advance(Interval - TimeSpan.FromMilliseconds(1));
@@ -214,7 +214,7 @@ public sealed class OnlineSweepShould : IDisposable
     [Fact]
     public async Task Catch_up_a_late_pass_once_not_once_per_missed_interval()
     {
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>()).Returns([]);
         OnlineSweep sweep = Sweep(accounts);
 
@@ -229,7 +229,7 @@ public sealed class OnlineSweepShould : IDisposable
     [Fact]
     public async Task Log_a_throwing_sweep_and_still_run_the_next_pass()
     {
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("boom"));
         OnlineSweep sweep = Sweep(accounts);
@@ -248,7 +248,7 @@ public sealed class OnlineSweepShould : IDisposable
     [Fact]
     public async Task Stop_the_loop_cleanly_when_cancelled()
     {
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>()).Returns([]);
         var sweep = new OnlineSweep(accounts, () => _live, TimeSpan.FromMilliseconds(10), TimeProvider.System, _logger);
         using var stopping = new CancellationTokenSource();

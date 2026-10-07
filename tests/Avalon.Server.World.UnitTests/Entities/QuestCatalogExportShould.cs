@@ -15,16 +15,16 @@ public class QuestCatalogExportShould
 {
     private static (List<QuestTemplate> Quests, Dictionary<int, string> Texts) Seeded()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<QuestTemplate> quests = context.QuestTemplates.AsNoTracking()
+        var quests = context.QuestTemplates.AsNoTracking()
             .Include(q => q.Stages).Include(q => q.Objectives).Include(q => q.ItemRewards).ToList();
         return (quests, context.LocalizedTexts.AsNoTracking().ToDictionary(t => t.Id.Value, t => t.Text));
     }
 
     private static List<JsonElement> Quests(string json)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json);
         return document.RootElement.GetProperty("quests").EnumerateArray().Select(r => r.Clone()).ToList();
     }
 
@@ -51,7 +51,7 @@ public class QuestCatalogExportShould
     {
         JsonElement mother = SeededQuests().Single(q => q.GetProperty("id").GetInt32() == 8);
 
-        List<JsonElement> stages = mother.GetProperty("stages").EnumerateArray().ToList();
+        var stages = mother.GetProperty("stages").EnumerateArray().ToList();
         Assert.Equal(2, stages.Count);
         Assert.Equal([(801, 3, 12L, 1)], Objectives(stages[0]));
         Assert.Equal([(802, 1, 8L, 2), (803, 2, 63L, 1)], Objectives(stages[1]));
@@ -63,7 +63,7 @@ public class QuestCatalogExportShould
     {
         JsonElement alpha = SeededQuests().Single(q => q.GetProperty("id").GetInt32() == 3);
 
-        List<JsonElement> stages = alpha.GetProperty("stages").EnumerateArray().ToList();
+        var stages = alpha.GetProperty("stages").EnumerateArray().ToList();
         Assert.Equal([0, 1, 2], stages.Select(s => s.GetProperty("sequence").GetInt32()));
         Assert.Equal([(301, 1, 5L, 3), (302, 1, 7L, 2)], Objectives(stages[0]));
         Assert.Equal([(303, 3, 11L, 1)], Objectives(stages[1]));   // talk to Marta

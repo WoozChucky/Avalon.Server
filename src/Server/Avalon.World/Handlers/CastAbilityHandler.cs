@@ -8,6 +8,7 @@ using Avalon.World.Entities;
 using Avalon.World.Items;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging;
@@ -27,7 +28,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
 {
     public override void Execute(IWorldConnection connection, CCastAbilityPacket packet)
     {
-        var caster = connection.Character;
+        ICharacter? caster = connection.Character;
         if (caster is null)
         {
             logger.LogDebug("Dropped CMSG_CAST_ABILITY from a connection with no character");

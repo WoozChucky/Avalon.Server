@@ -110,16 +110,16 @@ public class CastAbilityHandlerShould
             Connection.Character.Returns(Character);
             Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
             Instance.RunInstantAbility(default!, default, default!).ReturnsForAnyArgs(true);
-            var registry = Substitute.For<IInstanceRegistry>();
+            IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
             registry.GetInstanceById(Arg.Any<Guid>()).Returns(Instance);
-            var world = Substitute.For<IWorld>();
+            IWorld world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(registry);
             _handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
         }
 
         public IAbility GiveAbility(AbilityMetadata metadata)
         {
-            var ability = Substitute.For<IAbility>();
+            IAbility ability = Substitute.For<IAbility>();
             ability.AbilityId.Returns(new AbilityId(1));
             ability.Metadata.Returns(metadata);
             Character.Spells.Load([ability]);
@@ -675,7 +675,7 @@ public class CastAbilityHandlerShould
             // NSubstitute cannot proxy ReadOnlySpan<byte> on IAvalonCryptoSession.Encrypt — use the concrete fake.
             Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
-            var world = Substitute.For<IWorld>();
+            IWorld world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(Registry);
             Handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
         }
@@ -685,7 +685,7 @@ public class CastAbilityHandlerShould
         /// <summary>A ready ability with this metadata, answered for any ability id.</summary>
         public IAbility GiveAbility(AbilityMetadata metadata)
         {
-            var ability = Substitute.For<IAbility>();
+            IAbility ability = Substitute.For<IAbility>();
             ability.CooldownTimer.Returns(0f);
             ability.Metadata.Returns(metadata);
             Character.Spells[Arg.Any<AbilityId>()].Returns(ability);

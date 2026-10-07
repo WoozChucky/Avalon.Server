@@ -24,7 +24,7 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
         if (!Request.IsHttps) return BadRequest(new GameJoinReply(GameAuthErrors.HttpsRequired));
         try
         {
-            var context = await authorization.GetContextAsync(request.GameContextCredential, false, cancellationToken);
+            GameContextRecord? context = await authorization.GetContextAsync(request.GameContextCredential, false, cancellationToken);
             if (context?.AccountId is null) return Unauthorized(new GameJoinReply(GameAuthErrors.AccountRequired));
             if (applications.RequiresLicenseForWorldListing(context.ApplicationKey))
             {
@@ -52,7 +52,7 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
         if (!Request.IsHttps) return BadRequest(new GameJoinReply(GameAuthErrors.HttpsRequired));
         try
         {
-            var reply = await tickets.IssueAsync(request.GameContextCredential, request.WorldId, request.CharacterId,
+            GameJoinReply reply = await tickets.IssueAsync(request.GameContextCredential, request.WorldId, request.CharacterId,
                 requestId, request.ConfirmTakeover, reconnect, cancellationToken);
             return reply.Error switch
             {

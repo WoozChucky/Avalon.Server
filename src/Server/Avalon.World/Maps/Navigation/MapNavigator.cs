@@ -65,7 +65,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 throw new Exception("NavMesh is not loaded");
             }
 
-            var query = _query!;
+            ReusingNavMeshQuery query = _query!;
 
             // Chunk-layout navmesh is baked from chunk objs in their own coords without an X-flip
             // (see ChunkLayoutNavmeshBuilder.AppendTransformed → ChunkRotation.LocalToWorld).
@@ -79,7 +79,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
             // branch below can slide entries in-place via Span.CopyTo without copying twice.
             Span<long> path = _corridor;
 
-            var status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out var startRef, out _, out _);
+            DtStatus status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out long startRef, out _, out _);
             CheckStatus(status);
             if (startRef == 0)
             {
@@ -87,7 +87,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 return;
             }
 
-            status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out var endRef, out _, out _);
+            status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out long endRef, out _, out _);
             CheckStatus(status);
             if (endRef == 0)
             {
@@ -95,7 +95,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 return;
             }
 
-            status = query.FindPath(startRef, endRef, startPos, endPos, _queryFilter, path, out var pathCount, MaxPolys);
+            status = query.FindPath(startRef, endRef, startPos, endPos, _queryFilter, path, out int pathCount, MaxPolys);
             CheckStatus(status);
             if (pathCount == 0)
             {
@@ -103,29 +103,29 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 return;
             }
 
-            query.ClosestPointOnPoly(startRef, startPos, out var iterPos, out _);
-            query.ClosestPointOnPoly(path[pathCount - 1], endPos, out var targetPos, out _);
+            query.ClosestPointOnPoly(startRef, startPos, out RcVec3f iterPos, out _);
+            query.ClosestPointOnPoly(path[pathCount - 1], endPos, out RcVec3f targetPos, out _);
 
             smoothPath.Add(ToVector3(iterPos));
 
             Span<long> visited = stackalloc long[16];
-            var nvisited = 0;
+            int nvisited = 0;
 
             while (0 < pathCount && smoothPath.Count < MaxSmooth)
             {
                 // Find location to steer towards.
                 if (!DtPathUtils.GetSteerTarget(query, iterPos, targetPos, Slop,
-                        path, pathCount, out var steerPos, out var steerPosFlag, out var steerPosRef))
+                        path, pathCount, out RcVec3f steerPos, out int steerPosFlag, out long steerPosRef))
                 {
                     break;
                 }
 
-                var endOfPath = (steerPosFlag & DtStraightPathFlags.DT_STRAIGHTPATH_END) != 0;
-                var offMeshConnection = (steerPosFlag & DtStraightPathFlags.DT_STRAIGHTPATH_OFFMESH_CONNECTION) != 0;
+                bool endOfPath = (steerPosFlag & DtStraightPathFlags.DT_STRAIGHTPATH_END) != 0;
+                bool offMeshConnection = (steerPosFlag & DtStraightPathFlags.DT_STRAIGHTPATH_OFFMESH_CONNECTION) != 0;
 
                 // Find movement delta.
                 var delta = RcVec3f.Subtract(steerPos, iterPos);
-                var len = MathF.Sqrt(RcVec3f.Dot(delta, delta));
+                float len = MathF.Sqrt(RcVec3f.Dot(delta, delta));
                 // If the steer target is end of path or off-mesh link, do not move past the location.
                 if ((endOfPath || offMeshConnection) && len < StepSize)
                 {
@@ -136,17 +136,17 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                     len = StepSize / len;
                 }
 
-                var moveTgt = RcVec.Mad(iterPos, delta, len);
+                RcVec3f moveTgt = RcVec.Mad(iterPos, delta, len);
 
                 // Move
-                query.MoveAlongSurfaceReusing(path[0], iterPos, moveTgt, _queryFilter, out var result, visited, out nvisited, 16);
+                query.MoveAlongSurfaceReusing(path[0], iterPos, moveTgt, _queryFilter, out RcVec3f result, visited, out nvisited, 16);
 
                 iterPos = result;
 
                 pathCount = DtPathUtils.MergeCorridorStartMoved(path, pathCount, MaxPolys, visited, nvisited);
                 pathCount = DtPathUtils.FixupShortcuts(path, pathCount, query);
 
-                status = query.GetPolyHeight(path[0], result, out var h);
+                status = query.GetPolyHeight(path[0], result, out float h);
                 if (status.Succeeded())
                 {
                     iterPos.Y = h;
@@ -173,8 +173,8 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
                     // Advance the path up to and over the off-mesh connection.
                     long prevRef = 0;
-                    var polyRef = path[0];
-                    var npos = 0;
+                    long polyRef = path[0];
+                    int npos = 0;
                     while (npos < pathCount && polyRef != steerPosRef)
                     {
                         prevRef = polyRef;
@@ -190,7 +190,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                     pathCount -= npos;
 
                     // Handle the connection.
-                    var status2 = _navMesh.GetOffMeshConnectionPolyEndPoints(prevRef, polyRef, ref startPos, ref endPos);
+                    DtStatus status2 = _navMesh.GetOffMeshConnectionPolyEndPoints(prevRef, polyRef, ref startPos, ref endPos);
                     if (status2.Succeeded())
                     {
                         if (smoothPath.Count < MaxSmooth)
@@ -205,7 +205,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
                         // Move position at the other side of the off-mesh link.
                         iterPos = endPos;
-                        query.GetPolyHeight(path[0], iterPos, out var eh);
+                        query.GetPolyHeight(path[0], iterPos, out float eh);
                         iterPos.Y = eh;
                     }
                 }
@@ -236,14 +236,14 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 throw new Exception("NavMesh is not loaded");
             }
 
-            var query = _query!;
+            ReusingNavMeshQuery query = _query!;
 
             // No X-flip — see FindPath comment.
             var startPos = new RcVec3f(start.x, start.y, start.z);
             var endPos = new RcVec3f(end.x, end.y, end.z);
 
             // Find the nearest polygons to the start and end points
-            var status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out var startRef, out _, out _);
+            DtStatus status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out long startRef, out _, out _);
             CheckStatus(status);
             if (startRef == 0)
             {
@@ -251,7 +251,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 return false;
             }
 
-            status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out var endRef, out _, out _);
+            status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out long endRef, out _, out _);
             CheckStatus(status);
             if (endRef == 0)
             {
@@ -262,8 +262,8 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
             Span<long> path = stackalloc long[MaxPolys];
 
             // Perform the raycast — new DotRecast API uses Span + explicit pathCount + maxPath.
-            var hitResult = query.Raycast(startRef, startPos, endPos, _queryFilter,
-                out var hit, out _, path, out _, MaxPolys);
+            DtStatus hitResult = query.Raycast(startRef, startPos, endPos, _queryFilter,
+                out float hit, out _, path, out _, MaxPolys);
 
             if (hitResult.Failed() || hit < 1.0f)
             {
@@ -285,13 +285,13 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     {
         if (_navMesh == null) return to;
 
-        var query = _query!;
+        ReusingNavMeshQuery query = _query!;
 
         // Chunk objs are written in chunk-local space and stitched into the
         // baked navmesh without any axis flip (see ChunkLayoutNavmeshBuilder.AppendTransformed).
         // Queries must use the same coords — do NOT negate X.
         var startVec = new RcVec3f(from.x, from.y, from.z);
-        var status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out var startRef, out _, out _);
+        DtStatus status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out long startRef, out _, out _);
         if (status.Failed() || startRef == 0)
         {
             return from;
@@ -299,8 +299,8 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
         var endVec = new RcVec3f(to.x, to.y, to.z);
         Span<long> path = stackalloc long[MaxPolys];
-        var hitStatus = query.Raycast(startRef, startVec, endVec, _queryFilter,
-            out var t, out _, path, out _, MaxPolys);
+        DtStatus hitStatus = query.Raycast(startRef, startVec, endVec, _queryFilter,
+            out float t, out _, path, out _, MaxPolys);
         if (hitStatus.Failed())
         {
             return from;
@@ -311,9 +311,9 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
             return to;
         }
 
-        var clampedX = from.x + (to.x - from.x) * t;
-        var clampedY = from.y + (to.y - from.y) * t;
-        var clampedZ = from.z + (to.z - from.z) * t;
+        float clampedX = from.x + (to.x - from.x) * t;
+        float clampedY = from.y + (to.y - from.y) * t;
+        float clampedZ = from.z + (to.z - from.z) * t;
         return new Vector3(clampedX, clampedY, clampedZ);
     }
 
@@ -332,15 +332,15 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
         ground = near;
         if (_navMesh == null) return NavmeshGroundKind.NoNavMesh;
 
-        var query = _query!;
+        ReusingNavMeshQuery query = _query!;
         var center = new RcVec3f(near.x, near.y, near.z);
-        var status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out var nearestRef, out var nearestPt, out _);
+        DtStatus status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out long nearestRef, out RcVec3f nearestPt, out _);
         if (status.Failed() || nearestRef == 0)
         {
             return NavmeshGroundKind.None;
         }
 
-        if (query.GetPolyHeight(nearestRef, center, out var h).Succeeded())
+        if (query.GetPolyHeight(nearestRef, center, out float h).Succeeded())
         {
             ground = new Vector3(near.x, h, near.z);
             return NavmeshGroundKind.Under;

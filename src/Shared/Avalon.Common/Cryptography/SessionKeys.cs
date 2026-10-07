@@ -56,7 +56,7 @@ public static class SessionKeys
         if (clientPublicKeyDer == null) throw new ArgumentNullException(nameof(clientPublicKeyDer));
         if (serverPublicKeyDer == null) throw new ArgumentNullException(nameof(serverPublicKeyDer));
 
-        var salt = new byte[clientPublicKeyDer.Length + serverPublicKeyDer.Length];
+        byte[] salt = new byte[clientPublicKeyDer.Length + serverPublicKeyDer.Length];
         Buffer.BlockCopy(clientPublicKeyDer, 0, salt, 0, clientPublicKeyDer.Length);
         Buffer.BlockCopy(serverPublicKeyDer, 0, salt, clientPublicKeyDer.Length, serverPublicKeyDer.Length);
         return salt;
@@ -83,7 +83,7 @@ public static class SessionKeys
     /// </summary>
     public static byte[] Nonce(ulong counter)
     {
-        var nonce = new byte[NonceSize];
+        byte[] nonce = new byte[NonceSize];
 
         for (int i = NonceSize - 1; i >= 0 && counter != 0; i--)
         {
@@ -120,14 +120,14 @@ public static class SessionKeys
         var hkdf = new HkdfBytesGenerator(new Sha256Digest());
         hkdf.Init(new HkdfParameters(sharedSecret, salt, info));
 
-        var key = new byte[KeySize];
+        byte[] key = new byte[KeySize];
         hkdf.GenerateBytes(key, 0, KeySize);
         return key;
     }
 
     private static byte[] Ascii(string value)
     {
-        var bytes = new byte[value.Length];
+        byte[] bytes = new byte[value.Length];
         for (int i = 0; i < value.Length; i++) bytes[i] = (byte)value[i];
         return bytes;
     }

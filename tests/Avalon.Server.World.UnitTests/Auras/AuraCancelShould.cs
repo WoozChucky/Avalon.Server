@@ -215,7 +215,7 @@ public class AuraCancelShould
         handler.Execute(player.Connection, new CAuraCancelPacket { AuraId = 905 });
         instance.Update(Tick);
 
-        List<NetworkPacketType> order = player.Sent.Select(p => p.Header.Type)
+        var order = player.Sent.Select(p => p.Header.Type)
             .Where(t => t is NetworkPacketType.SMSG_AURA_CANCEL_RESULT or NetworkPacketType.SMSG_AURA_UPDATE).ToList();
         Assert.Equal([NetworkPacketType.SMSG_AURA_CANCEL_RESULT, NetworkPacketType.SMSG_AURA_UPDATE], order);
     }

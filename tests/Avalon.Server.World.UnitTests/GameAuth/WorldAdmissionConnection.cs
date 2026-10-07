@@ -26,7 +26,7 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         var client = new TcpClient(); client.Connect((IPEndPoint)listener.LocalEndpoint);
-        var peer = listener.AcceptTcpClient();
+        TcpClient peer = listener.AcceptTcpClient();
         server ??= Substitute.For<IWorldServer, IServerBase>();
         var result = new WorldAdmissionConnection(server, client, peer);
         typeof(Avalon.World.WorldConnection).GetField("_tlsAuthenticated", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(result, tls);

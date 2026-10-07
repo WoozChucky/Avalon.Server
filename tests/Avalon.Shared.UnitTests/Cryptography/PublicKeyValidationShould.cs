@@ -26,7 +26,7 @@ public class PublicKeyValidationShould
 {
     private static byte[] PublicKeyOn(DerObjectIdentifier curve)
     {
-        var generator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
+        IAsymmetricCipherKeyPairGenerator generator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
         generator.Init(new ECKeyGenerationParameters(curve, new SecureRandom()));
         AsymmetricCipherKeyPair pair = generator.GenerateKeyPair();
 
@@ -65,7 +65,7 @@ public class PublicKeyValidationShould
     [Fact]
     public void RefuseAKeyThatIsNotEllipticCurve()
     {
-        var generator = GeneratorUtilities.GetKeyPairGenerator("RSA");
+        IAsymmetricCipherKeyPairGenerator generator = GeneratorUtilities.GetKeyPairGenerator("RSA");
         generator.Init(new KeyGenerationParameters(new SecureRandom(), 1024));
 
         byte[] der = SubjectPublicKeyInfoFactory

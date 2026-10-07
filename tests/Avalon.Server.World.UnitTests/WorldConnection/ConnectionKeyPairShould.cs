@@ -57,7 +57,7 @@ public class ConnectionKeyPairShould : IDisposable
     [Fact]
     public void DifferFromEveryOtherConnectionOnTheSameServer()
     {
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         IConnection first = NewConnection(server);
@@ -83,7 +83,7 @@ public class ConnectionKeyPairShould : IDisposable
     [Fact]
     public void SealDifferentlyOnTwoConnectionsFromOnePeerKeyPair()
     {
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         // One client key pair, presented twice.

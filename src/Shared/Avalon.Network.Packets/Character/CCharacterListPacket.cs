@@ -21,7 +21,7 @@ public class CCharacterListPacket : Packet
 
         Serializer.Serialize(memoryStream, p);
 
-        var encrypted = encrypt(memoryStream.ToArray());
+        byte[] encrypted = encrypt(memoryStream.ToArray());
 
         return new NetworkPacket
         {

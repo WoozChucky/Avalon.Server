@@ -131,7 +131,7 @@ public static class CharacterReadinessBarrier
             if (connection.PendingSpawn is not { } pending)
                 continue;
 
-            TimeSpan waited = TimeSpan.FromTicks(nowTicks - pending.SinceTicks);
+            var waited = TimeSpan.FromTicks(nowTicks - pending.SinceTicks);
             bool reported = connection.LoadReportedEarly;
             if (!reported && waited < timeout)
                 continue;
@@ -202,7 +202,7 @@ public static class CharacterReadinessBarrier
             if (!connection.SelectInProgress)
                 continue;
 
-            TimeSpan waited = TimeSpan.FromTicks(nowTicks - connection.SelectStartedTicks);
+            var waited = TimeSpan.FromTicks(nowTicks - connection.SelectStartedTicks);
             if (waited < timeout)
                 continue;
 

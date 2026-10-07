@@ -18,7 +18,7 @@ public class BankerSeedShould
     [Fact]
     public void Seed_Marta_As_An_Unkillable_Town_Npc_That_Drops_Nothing()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         CreatureTemplate marta = context.CreatureTemplates.AsNoTracking().ToList().Single(t => t.Id == Marta);
@@ -33,7 +33,7 @@ public class BankerSeedShould
     [Fact]
     public void Place_Marta_On_Map_One()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         MapCreatureSpawn spawn = context.MapCreatureSpawns.AsNoTracking().ToList()
@@ -46,10 +46,10 @@ public class BankerSeedShould
     [Fact]
     public void Make_Marta_The_Only_Banker_And_Someone_To_Talk_To()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<DialogueNode> nodes = context.DialogueNodes.AsNoTracking().ToList();
-        List<DialogueOption> options = context.DialogueOptions.AsNoTracking().ToList();
+        var nodes = context.DialogueNodes.AsNoTracking().ToList();
+        var options = context.DialogueOptions.AsNoTracking().ToList();
 
         var actions = new DialogueActions(nodes, options);
         var catalog = new DialogueCatalog(nodes, options, NullLoggerFactory.Instance);
@@ -63,10 +63,10 @@ public class BankerSeedShould
     [Fact]
     public void Offer_Open_My_Bank_Then_Farewell_At_Martas_Root()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<DialogueNode> nodes = context.DialogueNodes.AsNoTracking().ToList();
-        List<DialogueOption> options = context.DialogueOptions.AsNoTracking().ToList();
+        var nodes = context.DialogueNodes.AsNoTracking().ToList();
+        var options = context.DialogueOptions.AsNoTracking().ToList();
         var catalog = new DialogueCatalog(nodes, options, NullLoggerFactory.Instance);
         var actions = new DialogueActions(nodes, options);
 
@@ -84,11 +84,11 @@ public class BankerSeedShould
     [Fact]
     public void Write_And_Translate_Martas_Lines()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        List<LocalizedText> texts = context.LocalizedTexts.AsNoTracking().ToList();
-        List<LocalizedTextLocale> locales = context.LocalizedTextLocales.AsNoTracking().ToList();
+        var texts = context.LocalizedTexts.AsNoTracking().ToList();
+        var locales = context.LocalizedTextLocales.AsNoTracking().ToList();
 
         foreach (int id in new[] { 15, 16 })
         {

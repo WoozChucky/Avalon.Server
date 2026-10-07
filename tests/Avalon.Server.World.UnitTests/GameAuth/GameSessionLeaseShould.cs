@@ -25,7 +25,7 @@ public sealed class GameSessionLeaseShould
     [Fact]
     public void Never_admit_pending_or_expired_or_wrong_workload_authority()
     {
-        var reply = Reply();
+        SessionLeaseResponse reply = Reply();
         Assert.Null(GameSessionLease.TryCreate(reply with { State = "pending" }, "world-one", 1, _clock));
         Assert.Null(GameSessionLease.TryCreate(reply with { LeaseUntil = _clock.GetUtcNow().UtcDateTime }, "world-one", 1, _clock));
         Assert.Null(GameSessionLease.TryCreate(reply, "other-server", 1, _clock));
@@ -36,8 +36,8 @@ public sealed class GameSessionLeaseShould
     [Fact]
     public void A_late_successful_heartbeat_cannot_resurrect_an_expired_session()
     {
-        var reply = Reply();
-        var lease = Assert.IsType<GameSessionLease>(GameSessionLease.TryCreate(reply, "world-one", 1, _clock));
+        SessionLeaseResponse reply = Reply();
+        GameSessionLease lease = Assert.IsType<GameSessionLease>(GameSessionLease.TryCreate(reply, "world-one", 1, _clock));
         _clock.Advance(TimeSpan.FromSeconds(45));
         Assert.False(lease.IsActive);
         Assert.False(lease.TryRenew(reply with { LeaseUntil = _clock.GetUtcNow().UtcDateTime.AddSeconds(45) }));
@@ -46,8 +46,8 @@ public sealed class GameSessionLeaseShould
     [Fact]
     public void Refuse_identity_context_fence_and_account_version_changes_without_rebinding()
     {
-        var reply = Reply();
-        var lease = Assert.IsType<GameSessionLease>(GameSessionLease.TryCreate(reply, "world-one", 1, _clock));
+        SessionLeaseResponse reply = Reply();
+        GameSessionLease lease = Assert.IsType<GameSessionLease>(GameSessionLease.TryCreate(reply, "world-one", 1, _clock));
         Assert.False(lease.TryRenew(reply with { FencingToken = "8" }));
         Assert.False(lease.TryRenew(reply with { AccountId = "43" }));
         Assert.False(lease.TryRenew(reply with { GameContextId = Guid.NewGuid().ToString("D") }));
@@ -60,8 +60,8 @@ public sealed class GameSessionLeaseShould
     [Fact]
     public void Revocation_wins_over_concurrent_renewal()
     {
-        var reply = Reply();
-        var lease = Assert.IsType<GameSessionLease>(GameSessionLease.TryCreate(reply, "world-one", 1, _clock));
+        SessionLeaseResponse reply = Reply();
+        GameSessionLease lease = Assert.IsType<GameSessionLease>(GameSessionLease.TryCreate(reply, "world-one", 1, _clock));
         Parallel.Invoke(lease.Revoke, () => lease.TryRenew(reply));
         Assert.False(lease.IsActive);
         Assert.False(lease.TryRenew(reply));
@@ -77,10 +77,10 @@ public sealed class GameSessionLeaseShould
     [Fact]
     public void Renewal_has_one_immutable_writer_and_is_capped_by_license()
     {
-        var reply = Reply();
-        var lease = Assert.IsType<GameSessionLease>(GameSessionLease.TryCreate(reply, "world-one", 1, _clock));
+        SessionLeaseResponse reply = Reply();
+        GameSessionLease lease = Assert.IsType<GameSessionLease>(GameSessionLease.TryCreate(reply, "world-one", 1, _clock));
         _clock.Advance(TimeSpan.FromSeconds(15));
-        var renewal = reply with { LeaseUntil = _clock.GetUtcNow().UtcDateTime.AddSeconds(45) };
+        SessionLeaseResponse renewal = reply with { LeaseUntil = _clock.GetUtcNow().UtcDateTime.AddSeconds(45) };
         Assert.True(lease.TryRenew(renewal));
         Assert.False(lease.TryRenew(renewal with { AuthorizationUntil = renewal.LeaseUntil!.Value.AddSeconds(-1) }));
         _clock.Advance(TimeSpan.FromSeconds(44));

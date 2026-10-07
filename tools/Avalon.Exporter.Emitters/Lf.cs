@@ -9,7 +9,7 @@ public static class Lf
 {
     public static void Write(string path, string content)
     {
-        var directory = Path.GetDirectoryName(path);
+        string? directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
         File.WriteAllText(path, content.Replace("\r\n", "\n", StringComparison.Ordinal));

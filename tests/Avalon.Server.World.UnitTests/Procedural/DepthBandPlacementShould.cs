@@ -31,7 +31,7 @@ public class DepthBandPlacementShould
 
     private static ICreatureSpawner Recording(List<Spawned> spawned)
     {
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         uint next = 1;
         ICreature Creature()
         {
@@ -55,9 +55,9 @@ public class DepthBandPlacementShould
 
     private static IMapInstance FlatInstance()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(ci => ci.ArgAt<float>(1));
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(navigator);
         return instance;
     }
@@ -75,10 +75,10 @@ public class DepthBandPlacementShould
 
     private static CreaturePlacementService Service(ICreatureSpawner spawner, Dictionary<int, ChunkTemplate> templates, params SpawnTableEntry[] entries)
     {
-        var repo = Substitute.For<ISpawnTableRepository>();
+        ISpawnTableRepository repo = Substitute.For<ISpawnTableRepository>();
         repo.FindByIdAsync(Arg.Any<SpawnTableId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SpawnTable?>(new SpawnTable { Id = new SpawnTableId(1), Entries = entries.ToList() }));
-        var library = Substitute.For<IChunkLibrary>();
+        IChunkLibrary library = Substitute.For<IChunkLibrary>();
         library.GetById(Arg.Any<ChunkTemplateId>()).Returns(ci => templates[ci.Arg<ChunkTemplateId>().Value]);
         return new CreaturePlacementService(spawner, library, repo, Substitute.For<IMapCreatureSpawnRepository>(),
             Substitute.For<IScriptManager>(), Substitute.For<IServiceProvider>(), NullLoggerFactory.Instance);
@@ -142,7 +142,7 @@ public class DepthBandPlacementShould
                 Config(Bands), seed: 11, CancellationToken.None);
 
         Assert.Equal(8ul, spawned[0].Template);
-        List<Spawned> pack = spawned.Skip(1).ToList();
+        var pack = spawned.Skip(1).ToList();
         Assert.InRange(pack.Count, 2, 3);
         Assert.All(pack, s => Assert.Equal(5ul, s.Template));
         Assert.All(spawned, s => Assert.InRange((int)s.Level!.Value, 3, 6));
@@ -172,7 +172,7 @@ public class DepthBandPlacementShould
     public async Task Place_the_creatures_a_seed_placed_before_depth_bands_when_the_map_has_none()
     {
         var spawned = new List<(ulong Template, float X, float Y, float Z)>();
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         uint next = 1;
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(ci =>
         {

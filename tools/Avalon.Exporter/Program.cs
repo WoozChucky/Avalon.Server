@@ -14,7 +14,7 @@ const string OutOption = "--out";
 var names = new List<string>();
 string? outputRoot = null;
 
-for (var i = 0; i < args.Length; i++)
+for (int i = 0; i < args.Length; i++)
 {
     switch (args[i])
     {

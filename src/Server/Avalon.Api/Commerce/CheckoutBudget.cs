@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Avalon.Common.ValueObjects;
 using Avalon.Infrastructure;
+using StackExchange.Redis;
 
 namespace Avalon.Api.Commerce;
 
@@ -30,9 +31,9 @@ public sealed class CheckoutBudget(IReplicatedCache cache) : ICheckoutBudget
     public async Task<bool> TryTakeAsync(string environment, AccountId account, string source, Guid operation, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        var prefix = $"commerce:{{{environment}}}:checkout:";
-        var sourceDigest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
-        var result = await cache.Database.ScriptEvaluateAsync(Script,
+        string prefix = $"commerce:{{{environment}}}:checkout:";
+        string sourceDigest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
+        RedisResult result = await cache.Database.ScriptEvaluateAsync(Script,
             [prefix + "operation:" + operation.ToString("N"), prefix + "account:" + account.Value, prefix + "source:" + sourceDigest],
             [AccountLimit, SourceLimit, WindowSeconds, OperationMarkerSeconds]).WaitAsync(ct);
         return (long)result == 1;

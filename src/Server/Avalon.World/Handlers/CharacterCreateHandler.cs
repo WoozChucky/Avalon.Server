@@ -1,5 +1,6 @@
 using Avalon.Combat;
 using Avalon.Common.GameAuth;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -26,7 +27,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         { connection.Close(); return; }
         if (packet.Gender is < byte.MinValue or > byte.MaxValue || !Enum.IsDefined((CharacterGender)(byte)packet.Gender))
         { Answer(connection, SCharacterCreateResult.InvalidClass); return; }
-        var nameProblem = CharacterName.Check(packet.Name);
+        CharacterNameProblem nameProblem = CharacterName.Check(packet.Name);
         if (nameProblem != CharacterNameProblem.None)
         {
             Answer(connection, nameProblem switch
@@ -38,10 +39,10 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         }
         if (connection.GameplayAuthority is not { } authority || authority.AccountId != connection.AccountId)
         { connection.Close(); return; }
-        var createInfo = world.Data.CharacterCreateInfos.FirstOrDefault(c => c.Class == (CharacterClass)packet.Class);
-        var level = world.Data.ClassLevelStats.FirstOrDefault(c => c.Class == (CharacterClass)packet.Class && c.Level == 1);
+        CharacterCreateInfo? createInfo = world.Data.CharacterCreateInfos.FirstOrDefault(c => c.Class == (CharacterClass)packet.Class);
+        ClassLevelStat? level = world.Data.ClassLevelStats.FirstOrDefault(c => c.Class == (CharacterClass)packet.Class && c.Level == 1);
         if (createInfo is null || level is null) { Answer(connection, SCharacterCreateResult.InternalDatabaseError); return; }
-        var stats = CharacterStatsCalculator.Calculate(level, [], world.Data.Combat.Factors[createInfo.Class]);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], world.Data.Combat.Factors[createInfo.Class]);
         var row = new Character
         {
             AccountId = authority.AccountId,
@@ -59,9 +60,9 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             Power1 = (int)Math.Min(stats.MaxPower, (uint)int.MaxValue)
         };
         var items = new List<ItemInstance>(); var slots = new List<CharacterInventory>();
-        foreach (var templateId in createInfo.StartingItems)
+        foreach (ItemTemplateId templateId in createInfo.StartingItems)
         {
-            var template = world.Data.ItemTemplates.FirstOrDefault(t => t.Id == templateId);
+            ItemTemplate? template = world.Data.ItemTemplates.FirstOrDefault(t => t.Id == templateId);
             if (template is null)
             {
                 logger.LogWarning("Starting item {TemplateId} not found", templateId); continue;
@@ -78,7 +79,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         }
         var batch = new CharacterCreationBatch(row, stats.ToRow(new(0)),
             createInfo.StartingSpells.Select(id => new CharacterAbility { AbilityId = id }).ToArray(), items, slots);
-        var work = WorldDatabaseWork.ThreadPool.Run(async () =>
+        Task<CharacterCreationReply> work = WorldDatabaseWork.ThreadPool.Run(async () =>
         {
             try { return await characterRepository.CreateForGameplayAsync(authority, batch, world.Configuration.MaxCharactersPerAccount, CancellationToken.None); }
             catch (Exception error)

@@ -34,8 +34,8 @@ public static class NavmeshVectors
         var text = new StringBuilder();
         text.Append(Header);
 
-        var rays = 0;
-        var grounds = 0;
+        int rays = 0;
+        int grounds = 0;
 
         foreach (LayoutSpec spec in Layouts)
         {
@@ -338,11 +338,11 @@ public static class NavmeshVectors
 
     private static (int Tiles, int Polys, int Verts) Counts(DtNavMesh mesh)
     {
-        var tiles = 0;
-        var polys = 0;
-        var verts = 0;
+        int tiles = 0;
+        int polys = 0;
+        int verts = 0;
 
-        for (var i = 0; i < mesh.GetMaxTiles(); ++i)
+        for (int i = 0; i < mesh.GetMaxTiles(); ++i)
         {
             DtMeshTile tile = mesh.GetTile(i);
             if (tile?.data?.header is null) continue;

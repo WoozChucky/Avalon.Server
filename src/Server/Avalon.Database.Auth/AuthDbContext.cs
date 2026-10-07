@@ -123,7 +123,7 @@ public class AuthDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         Configure(modelBuilder.Entity<Account>());
-        var verification = modelBuilder.Entity<AccountEmailVerification>();
+        EntityTypeBuilder<AccountEmailVerification> verification = modelBuilder.Entity<AccountEmailVerification>();
         verification.HasKey(x => x.AccountId);
         verification.Property(x => x.AccountId).HasConversion(x => x.Value, x => new AccountId(x)).ValueGeneratedNever();
         verification.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();

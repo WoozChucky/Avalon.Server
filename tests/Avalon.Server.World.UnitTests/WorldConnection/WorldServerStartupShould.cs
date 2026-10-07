@@ -68,7 +68,7 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Subscribe_to_its_own_reload_channel_once_loaded()
     {
-        var cache = Substitute.For<IReplicatedCache>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>? onReload = null;
         cache.SubscribeAsync(CacheKeys.WorldReloadChannel(1), Arg.Any<Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>>())
             .Returns(call =>
@@ -95,9 +95,9 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Publish_its_script_catalog_once_loaded_and_again_after_a_hot_reload()
     {
-        var cache = Substitute.For<IReplicatedCache>();
-        var scripts = Substitute.For<IScriptManager>();
-        var hotReloader = Substitute.For<IScriptHotReloader>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
+        IScriptHotReloader hotReloader = Substitute.For<IScriptHotReloader>();
         var server = new TestWorldServer(_world, _port, cache, scripts, hotReloader);
         await server.StartAsync(CancellationToken.None);
         try
@@ -147,7 +147,7 @@ public class WorldServerStartupShould
     public async Task Load_persisted_maintenance_before_opening_the_port()
     {
         var read = new TaskCompletionSource<WorldMaintenanceState?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>()).Returns(read.Task);
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
@@ -175,7 +175,7 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Never_open_the_port_when_the_maintenance_state_cannot_be_read()
     {
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<WorldMaintenanceState?>(null));
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
@@ -203,7 +203,7 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Keep_ticking_through_a_restart_drain_until_no_non_Admin_player_is_left()
     {
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(false, 1, null));
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
@@ -246,7 +246,7 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Close_and_despawn_everyone_when_the_host_cuts_the_drain_short()
     {
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(false, 1, null));
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,

@@ -48,9 +48,9 @@ public class ChunkLayoutInstanceFactoryShould
 
     private static IServiceProvider BuildServiceProvider()
     {
-        var sp = Substitute.For<IServiceProvider>();
+        IServiceProvider sp = Substitute.For<IServiceProvider>();
         sp.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         sp.GetService(typeof(IWorld)).Returns(world);
         sp.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
@@ -60,13 +60,13 @@ public class ChunkLayoutInstanceFactoryShould
     [Fact]
     public async Task Build_town_instance_via_predefined_source()
     {
-        var template = Town(1);
-        var layout = MakeLayout(); // Config = null → predefined town
+        MapTemplate template = Town(1);
+        ChunkLayout layout = MakeLayout(); // Config = null → predefined town
 
-        var predefinedSource = Substitute.For<IChunkLayoutSource>();
+        IChunkLayoutSource predefinedSource = Substitute.For<IChunkLayoutSource>();
         predefinedSource.BuildAsync(template, Arg.Any<CancellationToken>()).Returns(layout);
 
-        var resolver = Substitute.For<IChunkLayoutSourceResolver>();
+        IChunkLayoutSourceResolver resolver = Substitute.For<IChunkLayoutSourceResolver>();
         resolver
             .Resolve(template, out Arg.Any<ChunkLayoutSourceKind>())
             .Returns(ci =>
@@ -75,12 +75,12 @@ public class ChunkLayoutInstanceFactoryShould
                 return predefinedSource;
             });
 
-        var navBuilder = Substitute.For<IChunkLayoutNavmeshBuilder>();
+        IChunkLayoutNavmeshBuilder navBuilder = Substitute.For<IChunkLayoutNavmeshBuilder>();
         navBuilder.BuildAsync(layout, Arg.Any<CancellationToken>()).Returns(new DtNavMesh());
 
-        var creaturePlace = Substitute.For<ICreaturePlacementService>();
-        var portalPlace = Substitute.For<IPortalPlacementService>();
-        var sp = BuildServiceProvider();
+        ICreaturePlacementService creaturePlace = Substitute.For<ICreaturePlacementService>();
+        IPortalPlacementService portalPlace = Substitute.For<IPortalPlacementService>();
+        IServiceProvider sp = BuildServiceProvider();
 
         var factory = new ChunkLayoutInstanceFactory(
             NullLoggerFactory.Instance,
@@ -90,7 +90,7 @@ public class ChunkLayoutInstanceFactoryShould
             portalPlace,
             sp);
 
-        var instance = await factory.BuildAsync(template, ownerCharacterId: null, CancellationToken.None);
+        MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: null, CancellationToken.None);
 
         Assert.Equal(template.Id, instance.TemplateId);
         await navBuilder.Received(1).BuildAsync(layout, Arg.Any<CancellationToken>());
@@ -110,7 +110,7 @@ public class ChunkLayoutInstanceFactoryShould
     [Fact]
     public async Task Build_procedural_instance_dispatches_creature_placement()
     {
-        var template = Normal(2);
+        MapTemplate template = Normal(2);
         var cfg = new ProceduralMapConfig
         {
             MapTemplateId = template.Id,
@@ -120,12 +120,12 @@ public class ChunkLayoutInstanceFactoryShould
             MainPathMax = 1,
             BackPortalTargetMapId = 0,
         };
-        var layout = MakeLayout(cfg) with { Seed = 1234 };
+        ChunkLayout layout = MakeLayout(cfg) with { Seed = 1234 };
 
-        var proceduralSource = Substitute.For<IChunkLayoutSource>();
+        IChunkLayoutSource proceduralSource = Substitute.For<IChunkLayoutSource>();
         proceduralSource.BuildAsync(template, Arg.Any<CancellationToken>()).Returns(layout);
 
-        var resolver = Substitute.For<IChunkLayoutSourceResolver>();
+        IChunkLayoutSourceResolver resolver = Substitute.For<IChunkLayoutSourceResolver>();
         resolver
             .Resolve(template, out Arg.Any<ChunkLayoutSourceKind>())
             .Returns(ci =>
@@ -134,12 +134,12 @@ public class ChunkLayoutInstanceFactoryShould
                 return proceduralSource;
             });
 
-        var navBuilder = Substitute.For<IChunkLayoutNavmeshBuilder>();
+        IChunkLayoutNavmeshBuilder navBuilder = Substitute.For<IChunkLayoutNavmeshBuilder>();
         navBuilder.BuildAsync(layout, Arg.Any<CancellationToken>()).Returns(new DtNavMesh());
 
-        var creaturePlace = Substitute.For<ICreaturePlacementService>();
-        var portalPlace = Substitute.For<IPortalPlacementService>();
-        var sp = BuildServiceProvider();
+        ICreaturePlacementService creaturePlace = Substitute.For<ICreaturePlacementService>();
+        IPortalPlacementService portalPlace = Substitute.For<IPortalPlacementService>();
+        IServiceProvider sp = BuildServiceProvider();
 
         var factory = new ChunkLayoutInstanceFactory(
             NullLoggerFactory.Instance,
@@ -149,7 +149,7 @@ public class ChunkLayoutInstanceFactoryShould
             portalPlace,
             sp);
 
-        var instance = await factory.BuildAsync(template, ownerCharacterId: 99u, CancellationToken.None);
+        MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: 99u, CancellationToken.None);
 
         Assert.Equal(template.Id, instance.TemplateId);
         Assert.Equal(1234, instance.Seed);

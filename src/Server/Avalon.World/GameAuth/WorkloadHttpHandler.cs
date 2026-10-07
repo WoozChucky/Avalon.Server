@@ -39,8 +39,8 @@ public sealed class WorkloadHttpHandler : DelegatingHandler
 
     private void RequireCurrentApiCertificate()
     {
-        var now = _clock.GetUtcNow().UtcDateTime.Ticks;
-        var notAfter = Interlocked.Read(ref _apiNotAfter);
+        long now = _clock.GetUtcNow().UtcDateTime.Ticks;
+        long notAfter = Interlocked.Read(ref _apiNotAfter);
         if (notAfter != 0 && (now < Interlocked.Read(ref _apiNotBefore) || now >= notAfter))
             throw new HttpRequestException("The pinned API certificate is outside its validity period.");
     }

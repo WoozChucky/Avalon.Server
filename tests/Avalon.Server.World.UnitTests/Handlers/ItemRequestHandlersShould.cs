@@ -228,7 +228,7 @@ public class ItemRequestHandlersShould : IAsyncLifetime
     [Fact]
     public void Answer_NotFound_when_the_inventory_throws()
     {
-        var economy = Substitute.For<ICharacterEconomy>();
+        ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
         economy.InventoryOf(Arg.Any<CharacterEntity>()).Returns(_ => throw new InvalidOperationException("boom"));
 
         MoveHandler(economy).Execute(_w.Connection, new CItemMovePacket

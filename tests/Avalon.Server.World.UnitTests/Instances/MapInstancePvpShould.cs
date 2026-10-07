@@ -107,7 +107,7 @@ public class MapInstancePvpShould
         DateTime? before = a.Character.PvpOffAt;
         _clock.Now = _clock.Now.AddMinutes(1);
 
-        var wolf = Substitute.For<ICreature>();
+        ICreature wolf = Substitute.For<ICreature>();
         wolf.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_829));
         instance.CombatService.ApplyDamage(wolf, a.Character, 5);
         Assert.Equal(before, a.Character.PvpOffAt);
@@ -298,7 +298,7 @@ public class MapInstancePvpShould
         using MapInstance instance = Build();
         MapInstanceClient a = Join(instance, 164_931);
         FlagAndAskOff(instance, a);
-        var wolf = Substitute.For<ICreature>();
+        ICreature wolf = Substitute.For<ICreature>();
         wolf.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_939));
 
         _clock.Now = _clock.Now.AddMinutes(1);

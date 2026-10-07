@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
@@ -140,7 +141,7 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
         HashSet<ItemInstanceId> items = [];
         foreach (CharacterSaveSnapshot snapshot in snapshots)
         {
-            foreach (var item in snapshot.Batch.UpsertItems)
+            foreach (ItemInstance item in snapshot.Batch.UpsertItems)
             {
                 if (!items.Add(item.Id))
                     throw new ArgumentException(

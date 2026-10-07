@@ -38,8 +38,8 @@ public class MapTemplateControllerShould
             .ListAsync(1, 50, Arg.Any<CancellationToken>())
             .Returns(new PagedResult<MapTemplateDto>(1, 50, 0, new List<MapTemplateDto>()));
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.List(1, 50, CancellationToken.None);
+        MapTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        PagedResult<MapTemplateDto> result = await sut.List(1, 50, CancellationToken.None);
 
         Assert.Equal(0, result.TotalCount);
     }
@@ -51,8 +51,8 @@ public class MapTemplateControllerShould
             .GetAsync(1, Arg.Any<CancellationToken>())
             .Returns((MapTemplateDto?)null);
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        MapTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -64,8 +64,8 @@ public class MapTemplateControllerShould
             .GetAsync(1, Arg.Any<CancellationToken>())
             .Returns(new MapTemplateDto { Id = 1, Name = "Stormwind" });
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        MapTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
     }

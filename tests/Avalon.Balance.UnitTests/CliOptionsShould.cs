@@ -8,7 +8,7 @@ public class CliOptionsShould
     [Fact]
     public void Read_every_option()
     {
-        CliOptions o = CliOptions.Parse(["--class", "warrior", "--scenario", "normal-3", "--runs", "5000", "--seed", "1",
+        var o = CliOptions.Parse(["--class", "warrior", "--scenario", "normal-3", "--runs", "5000", "--seed", "1",
             "--overrides", "balance/try-slam.json", "--out", "tmp/out"]);
 
         Assert.Equal(new CliOptions(CharacterClass.Warrior, "normal-3", 5000, 1, "balance/try-slam.json", "tmp/out", false), o);

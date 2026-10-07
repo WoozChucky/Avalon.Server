@@ -25,7 +25,7 @@ public class HealSendShould
 
     private static IAbility Heal()
     {
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(232));
         ability.Metadata.Returns(new AbilityMetadata { Name = "Mending Circle", ScriptName = "x" });
         return ability;

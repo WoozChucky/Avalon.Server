@@ -139,7 +139,7 @@ public class ObservabilityService : IObservabilityService
                    .ThenBy(r => r.CharacterId)
                    .ToList();
 
-        List<OnlinePlayerDto> pageItems = rows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var pageItems = rows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
         return new PagedResult<OnlinePlayerDto>(page, pageSize, rows.Count, pageItems);
     }

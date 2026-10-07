@@ -37,7 +37,7 @@ public sealed class AvalonGameAuthorizationShould
     }
     private GameAuthorizationService Service(IGameLicenseRepository? repository = null)
     {
-        var licenses = repository ?? _licenses;
+        IGameLicenseRepository licenses = repository ?? _licenses;
         var registry = new GameProviderRegistry([], [new AvalonLicenseProvider(licenses)]);
         return new(_store, new(_store, _crypto, _options, _clock), _crypto, _accounts, _families, _identities,
             registry, new(registry, licenses, _observations, _options, _clock), _options, _clock);
@@ -62,17 +62,17 @@ public sealed class AvalonGameAuthorizationShould
     private async Task<(GameAuthReply Reply, string Attempt, string Ticket, Guid Request)> Handoff(GameAuthorizationService? service = null)
     {
         service ??= Service();
-        var attempt = (await service.CreateAttemptAsync("avalon", "1", _run, new string('A', 43), null, null, default))!;
-        var ticket = GameAuthCryptography.NewToken(); var request = Guid.NewGuid();
+        AuthAttemptReply attempt = (await service.CreateAttemptAsync("avalon", "1", _run, new string('A', 43), null, null, default))!;
+        string ticket = GameAuthCryptography.NewToken(); var request = Guid.NewGuid();
         _store.Seed(RedisGameTicketStore.Key(ticket), $"7|{_family:D}|0|0|production");
         return (await service.RedeemHandoffAsync(attempt.AttemptCredential, ticket, request, default), attempt.AttemptCredential, ticket, request);
     }
     [Fact]
     public async Task Changing_to_Steam_retires_the_original_context_without_rebinding_its_world_session()
     {
-        var grant = Grant();
-        var initial = (await Handoff()).Reply;
-        var original = (await Service().GetContextAsync(initial.GameContextCredential!, true, default))!;
+        GameLicense grant = Grant();
+        GameAuthReply initial = (await Handoff()).Reply;
+        GameContextRecord original = (await Service().GetContextAsync(initial.GameContextCredential!, true, default))!;
         var worldSession = new GameSession
         {
             GameContextId = original.Id,
@@ -86,12 +86,12 @@ public sealed class AvalonGameAuthorizationShould
             LeaseUntil = Now.AddSeconds(30),
             LicenseUntil = original.AuthorizationValidUntil!.Value
         };
-        var sessions = Substitute.For<IGameSessionRepository>();
+        IGameSessionRepository sessions = Substitute.For<IGameSessionRepository>();
         sessions.FindAsync(_account.Id, Arg.Any<CancellationToken>()).Returns(worldSession);
         sessions.TryRenewAsync(_account.Id, worldSession.GameSessionId, 1, "world-1", 0, 0,
             Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
-        var worlds = Substitute.For<IWorldRepositories>();
-        var fence = Substitute.For<IGameplayFenceRepository>();
+        IWorldRepositories worlds = Substitute.For<IWorldRepositories>();
+        IGameplayFenceRepository fence = Substitute.For<IGameplayFenceRepository>();
         worlds.GameplayFences(new WorldId(1)).Returns(fence);
         fence.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
         var heartbeats = new GameSessionFenceService(sessions, Service(), worlds, _accounts,
@@ -101,18 +101,18 @@ public sealed class AvalonGameAuthorizationShould
         const string subject = "76561198000000001";
         _identities.FindAsync("steam", subject, Arg.Any<CancellationToken>()).Returns(new ExternalIdentity
         { Id = Guid.NewGuid(), AccountId = _account.Id, Provider = "steam", ProviderSubject = subject });
-        var proof = Substitute.For<ISteamProofVerifier>();
+        ISteamProofVerifier proof = Substitute.For<ISteamProofVerifier>();
         proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new SteamProofResult(SteamProofStatus.Verified, subject));
-        var ownership = Substitute.For<ISteamOwnershipClient>();
+        ISteamOwnershipClient ownership = Substitute.For<ISteamOwnershipClient>();
         ownership.CheckAsync(2499460, subject, Arg.Any<CancellationToken>())
             .Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, subject, Now, Now.AddMinutes(5)));
-        var service = TestGameAuthorization.Create(_store, new(_store, _crypto, _options, _clock), _crypto,
+        GameAuthorizationService service = TestGameAuthorization.Create(_store, new(_store, _crypto, _options, _clock), _crypto,
             _accounts, _families, _identities, _observations, proof, ownership, _options, _clock, gameLicenses: _licenses);
-        var attempt = (await service.CreateProviderAttemptAsync("steam.main", "1", _run, new string('A', 43),
+        AuthAttemptReply attempt = (await service.CreateProviderAttemptAsync("steam.main", "1", _run, new string('A', 43),
             initial.GameContextCredential, 2499460, default))!;
-        var switched = await service.AuthenticateProviderAsync("steam", attempt.AttemptCredential, "ABCD", Guid.NewGuid(), default);
-        var replacement = (await service.GetContextAsync(switched.GameContextCredential!, true, default))!;
+        GameAuthReply switched = await service.AuthenticateProviderAsync("steam", attempt.AttemptCredential, "ABCD", Guid.NewGuid(), default);
+        GameContextRecord replacement = (await service.GetContextAsync(switched.GameContextCredential!, true, default))!;
         Assert.NotEqual(worldSession.GameContextId, replacement.Id);
         Assert.Equal(_family, replacement.LauncherFamilyId);
         Assert.Null(await service.GetContextByIdAsync(worldSession.GameContextId, true, default));
@@ -126,10 +126,10 @@ public sealed class AvalonGameAuthorizationShould
     [Fact]
     public async Task Licensed_handoff_preserves_account_family_and_binds_only_its_Avalon_grant()
     {
-        Grant(provider: "other-store"); var grant = Grant();
-        var result = (await Handoff()).Reply;
+        Grant(provider: "other-store"); GameLicense grant = Grant();
+        GameAuthReply result = (await Handoff()).Reply;
         Assert.Equal(GameAuthStates.Authorized, result.State); Assert.Equal("avalon", result.LicenseSource);
-        var context = (await Service().GetContextAsync(result.GameContextCredential!, true, default))!;
+        GameContextRecord context = (await Service().GetContextAsync(result.GameContextCredential!, true, default))!;
         Assert.Equal(7, context.AccountId); Assert.Equal(_family, context.LauncherFamilyId);
         Assert.Equal("avalon.base", context.ApplicationKey); Assert.Equal(grant.Id, context.LicenseId);
         Assert.Null(context.IdentityVerifiedAt); Assert.Null(context.IdentityValidUntil); Assert.Null(context.ProviderSubject);
@@ -139,26 +139,26 @@ public sealed class AvalonGameAuthorizationShould
     [Fact]
     public async Task Pending_handoff_keeps_identity_and_refresh_acquires_first_grant_without_ticket_replay()
     {
-        var pending = await Handoff(); Assert.Equal(GameAuthStates.PendingLicense, pending.Reply.State);
+        (GameAuthReply Reply, string Attempt, string Ticket, Guid Request) pending = await Handoff(); Assert.Equal(GameAuthStates.PendingLicense, pending.Reply.State);
         Assert.Equal("avalon", pending.Reply.LicenseSource);
-        var before = (await Service().GetContextAsync(pending.Reply.GameContextCredential!, false, default))!;
+        GameContextRecord before = (await Service().GetContextAsync(pending.Reply.GameContextCredential!, false, default))!;
         Assert.Equal(7, before.AccountId); Assert.Equal(_family, before.LauncherFamilyId); Assert.Null(before.LicenseId);
-        var grant = Grant();
-        var refreshed = await Service().RefreshAsync(pending.Reply.GameContextRefreshToken!, Guid.NewGuid(), default);
-        var after = (await Service().GetContextAsync(refreshed.GameContextCredential!, true, default))!;
+        GameLicense grant = Grant();
+        GameAuthReply refreshed = await Service().RefreshAsync(pending.Reply.GameContextRefreshToken!, Guid.NewGuid(), default);
+        GameContextRecord after = (await Service().GetContextAsync(refreshed.GameContextCredential!, true, default))!;
         Assert.Equal(before.Id, after.Id); Assert.Equal(grant.Id, after.LicenseId); Assert.Equal("avalon", refreshed.LicenseSource);
         Assert.Null(await _store.ReadAsync(RedisGameTicketStore.Key(pending.Ticket), default));
     }
     [Fact]
     public async Task Native_refresh_renews_bounded_authority_and_honors_earlier_grant_expiry()
     {
-        var grant = Grant(Now.AddMinutes(6)); var initial = (await Handoff()).Reply;
+        GameLicense grant = Grant(Now.AddMinutes(6)); GameAuthReply initial = (await Handoff()).Reply;
         _clock.Advance(TimeSpan.FromMinutes(4));
-        var renewal = await Service().RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default);
+        GameAuthReply renewal = await Service().RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default);
         Assert.Equal(GameAuthStates.Authorized, renewal.State); Assert.Equal(grant.ExpiresAt, renewal.AuthorizationValidUntil);
         _clock.Advance(TimeSpan.FromMinutes(2));
         Assert.Null(await Service().GetContextAsync(renewal.GameContextCredential!, true, default));
-        var expired = await Service().RefreshAsync(renewal.GameContextRefreshToken!, Guid.NewGuid(), default);
+        GameAuthReply expired = await Service().RefreshAsync(renewal.GameContextRefreshToken!, Guid.NewGuid(), default);
         Assert.Equal(GameAuthStates.PendingLicense, expired.State);
     }
     [Theory]
@@ -166,8 +166,8 @@ public sealed class AvalonGameAuthorizationShould
     [InlineData(true)]
     public async Task Revocation_including_future_timestamp_invalidates_handoff_and_refresh_receipts(bool future)
     {
-        var grant = Grant(); var initial = await Handoff(); var request = Guid.NewGuid();
-        var rotated = await Service().RefreshAsync(initial.Reply.GameContextRefreshToken!, request, default);
+        GameLicense grant = Grant(); (GameAuthReply Reply, string Attempt, string Ticket, Guid Request) initial = await Handoff(); var request = Guid.NewGuid();
+        GameAuthReply rotated = await Service().RefreshAsync(initial.Reply.GameContextRefreshToken!, request, default);
         Assert.Equal(GameAuthStates.Authorized, rotated.State);
         grant.RevokedAt = future ? Now.AddDays(1) : Now; grant.AuthorityRevision++;
         Grant(); // Replacement grant cannot revive an exact prior license binding.
@@ -181,7 +181,7 @@ public sealed class AvalonGameAuthorizationShould
     [InlineData("epoch")]
     public async Task Account_and_launcher_family_changes_refuse_renewal(string changed)
     {
-        Grant(); var initial = (await Handoff()).Reply;
+        Grant(); GameAuthReply initial = (await Handoff()).Reply;
         if (changed == "account") _account.Status = AccountStatus.Banned;
         if (changed == "epoch") _account.SessionEpoch++;
         if (changed == "family") _families.IsLiveLauncherFamilyAsync(_account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(false);
@@ -190,8 +190,8 @@ public sealed class AvalonGameAuthorizationShould
     [Fact]
     public async Task Database_failure_cannot_extend_existing_authority()
     {
-        Grant(); var initial = (await Handoff()).Reply;
-        var unavailable = Substitute.For<IGameLicenseRepository>();
+        Grant(); GameAuthReply initial = (await Handoff()).Reply;
+        IGameLicenseRepository unavailable = Substitute.For<IGameLicenseRepository>();
         unavailable.FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns<Task<GameLicense?>>(_ => throw new IOException("database down"));
         Assert.Equal(GameAuthErrors.ContextRevoked, (await Service(unavailable).RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
     }
@@ -207,8 +207,8 @@ public sealed class AvalonGameAuthorizationShould
     [Fact]
     public async Task Suspension_blocks_native_refresh_and_cached_handoff_even_before_revision_changes()
     {
-        var grant = Grant();
-        var initial = await Handoff();
+        GameLicense grant = Grant();
+        (GameAuthReply Reply, string Attempt, string Ticket, Guid Request) initial = await Handoff();
         grant.SuspendedAt = Now;
         Assert.Null(await Service().GetContextAsync(initial.Reply.GameContextCredential!, false, default));
         Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(initial.Reply.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
@@ -218,8 +218,8 @@ public sealed class AvalonGameAuthorizationShould
     [Fact]
     public async Task Restoration_requires_fresh_context_and_never_revives_old_receipts()
     {
-        var grant = Grant();
-        var initial = await Handoff();
+        GameLicense grant = Grant();
+        (GameAuthReply Reply, string Attempt, string Ticket, Guid Request) initial = await Handoff();
         grant.SuspendedAt = Now; grant.AuthorityRevision++;
         Assert.Null(await Service().GetContextAsync(initial.Reply.GameContextCredential!, true, default));
         grant.SuspendedAt = null; grant.AuthorityRevision++;

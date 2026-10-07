@@ -33,7 +33,7 @@ public sealed class AuthServerOnlineSweepShould : IDisposable
     [Fact]
     public async Task Sweep_after_the_start_up_reset_and_stop_with_the_server()
     {
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>()).Returns([]);
         var server = new AuthServer(Substitute.For<IServiceProvider>(), Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance, accounts, Substitute.For<IReplicatedCache>(),
@@ -58,7 +58,7 @@ public sealed class AuthServerOnlineSweepShould : IDisposable
 
         // #596: the rule is the start-up reset once, before any sweep, and at least one sweep; how
         // many sweeps run before the stop takes effect depends on the runner, so any number is fine.
-        List<string> calls = accounts.ReceivedCalls().Select(c => c.GetMethodInfo().Name).ToList();
+        var calls = accounts.ReceivedCalls().Select(c => c.GetMethodInfo().Name).ToList();
         Assert.Single(calls, name => name == nameof(IAccountRepository.MarkAllOfflineAsync));
         int firstSweep = calls.IndexOf(nameof(IAccountRepository.ListOnlineSessionsAsync));
         Assert.True(firstSweep >= 0, "no sweep ran before the stop");

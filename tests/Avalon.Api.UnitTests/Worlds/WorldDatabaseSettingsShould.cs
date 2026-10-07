@@ -47,7 +47,7 @@ public class WorldDatabaseSettingsShould
     [Fact]
     public void Refuse_a_configuration_with_no_world()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             WorldDatabaseSettings.Parse(Config(("Database:Auth:ConnectionString", "Host=auth"))));
 
         Assert.StartsWith("Database:Worlds lists no world", ex.Message);
@@ -62,7 +62,7 @@ public class WorldDatabaseSettingsShould
     [InlineData("abc")]
     public void Refuse_a_world_id_that_is_not_a_positive_integer(string id)
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             WorldDatabaseSettings.Parse(Config(Pair(id, "Host=w", "Host=c"))));
 
         Assert.StartsWith($"Database:Worlds:{id}: a world id is a positive integer", ex.Message);
@@ -103,7 +103,7 @@ public class WorldDatabaseSettingsShould
     [Fact]
     public void Refuse_a_world_with_only_its_world_string()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             WorldDatabaseSettings.Parse(Config(("Database:Worlds:1:World:ConnectionString", WorldOne))));
 
         Assert.StartsWith("Database:Worlds:1:Characters:ConnectionString is missing", ex.Message);
@@ -113,7 +113,7 @@ public class WorldDatabaseSettingsShould
     [Fact]
     public void Refuse_a_world_with_only_its_characters_string()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             WorldDatabaseSettings.Parse(Config(("Database:Worlds:1:Characters:ConnectionString", CharactersOne))));
 
         Assert.StartsWith("Database:Worlds:1:World:ConnectionString is missing", ex.Message);
@@ -125,7 +125,7 @@ public class WorldDatabaseSettingsShould
     [InlineData("   ")]
     public void Refuse_a_blank_string(string blank)
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             WorldDatabaseSettings.Parse(Config(Pair("1", blank, CharactersOne))));
 
         Assert.Equal("Database:Worlds:1:World:ConnectionString is blank.", ex.Message);
@@ -180,7 +180,7 @@ public class WorldDatabaseSettingsShould
     {
         WorldDatabases databases = new([new ConfiguredWorld(new WorldId(4), WorldOne, CharactersOne)]);
 
-        var ex = Assert.Throws<InvalidOperationException>(() => databases.MarkUnavailable(new WorldId(5)));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => databases.MarkUnavailable(new WorldId(5)));
 
         Assert.Contains("World 5", ex.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("secret", ex.Message, StringComparison.Ordinal);

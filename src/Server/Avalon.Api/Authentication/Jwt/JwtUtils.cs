@@ -78,7 +78,7 @@ public class JwtUtils : IJwtUtils
             IssuedAt = DateTime.UtcNow
         };
 
-        var token = _tokenHandler.CreateToken(tokenDescriptor);
+        SecurityToken token = _tokenHandler.CreateToken(tokenDescriptor);
         return _tokenHandler.WriteToken(token);
     }
 }

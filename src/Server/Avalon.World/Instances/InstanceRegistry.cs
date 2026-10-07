@@ -327,7 +327,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 
         _ = build.ContinueWith(static (outcome, state) =>
             {
-                var (registry, pendingBuild) = ((InstanceRegistry, PendingBuild))state!;
+                (InstanceRegistry? registry, PendingBuild? pendingBuild) = ((InstanceRegistry, PendingBuild))state!;
                 registry._finished.Enqueue(new FinishedBuild(pendingBuild, outcome));
             },
             (this, pending), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);

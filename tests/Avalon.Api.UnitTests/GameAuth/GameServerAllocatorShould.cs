@@ -36,10 +36,10 @@ public sealed class GameServerAllocatorShould
         _worlds.FindByIdAsync(ptr.Id, false, Arg.Any<CancellationToken>()).Returns(ptr);
         _databases.IsAvailable(ptr.Id).Returns(true);
         _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
-        var workload = Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] });
+        IOptions<GameWorkloadConfiguration> workload = Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] });
         var config = new StoreAuthenticationConfiguration { SteamAppId = 480, SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
         var allocator = new GameServerAllocator(_worlds, _accounts, _databases, _readiness, _repositories, workload, _clock, new GameApplicationAccessPolicy(Options.Create(config)));
-        var context = _context with { SteamAppId = 2514590, ApplicationKey = "steam.playtest" };
+        GameContextRecord context = _context with { SteamAppId = 2514590, ApplicationKey = "steam.playtest" };
         _account.AccessLevel |= AccountAccessLevel.Admin;
         Assert.Equal((ushort)3, Assert.Single(await allocator.ListAsync(context, default)).WorldId);
         Assert.Null(await allocator.FindAsync(context, 1, null, default));
@@ -60,7 +60,7 @@ public sealed class GameServerAllocatorShould
         Assert.Null(await allocator.FindAsync(context with { SteamAppId = 480, ApplicationKey = "steam.main" }, 3, null, default));
         Assert.Null(await allocator.FindAsync(context with { SteamAppId = 0, ApplicationKey = null }, 3, null, default));
         Assert.Null(await allocator.FindAsync(context with { SteamAppId = 999, ApplicationKey = "unknown" }, 3, null, default));
-        foreach (var required in new[] { AccountAccessLevel.GameMaster, AccountAccessLevel.Admin, AccountAccessLevel.Console, AccountAccessLevel.Tournament, (AccountAccessLevel)0 })
+        foreach (AccountAccessLevel required in new[] { AccountAccessLevel.GameMaster, AccountAccessLevel.Admin, AccountAccessLevel.Console, AccountAccessLevel.Tournament, (AccountAccessLevel)0 })
         {
             ptr.AccessLevelRequired = required;
             Assert.Null(await allocator.FindAsync(context, 3, null, default));
@@ -85,7 +85,7 @@ public sealed class GameServerAllocatorShould
     [Fact]
     public async Task Bind_destinations_to_the_configured_workload_and_tls_identity()
     {
-        var destination = await Find();
+        GameWorldDestination? destination = await Find();
         Assert.NotNull(destination);
         Assert.Equal("world-1", destination!.ServerId);
         Assert.Equal("world.example.test", destination.TlsServerName);

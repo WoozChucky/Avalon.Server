@@ -44,7 +44,7 @@ public class CMFASetupHandlerShould
     [Fact]
     public async Task SendOtpUri_WhenSetupInitiated()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
         _mfaService.SetupMFAAsync(account, "Avalon", Arg.Any<CancellationToken>()).Returns(
             new MFASetupResult(true, "otpauth://totp/Avalon:test@test.com?secret=ABC", MFAOperationResult.Success));
@@ -63,7 +63,7 @@ public class CMFASetupHandlerShould
     [Fact]
     public async Task SendAlreadyEnabled_WhenMfaAlreadyConfirmed()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
         _mfaService.SetupMFAAsync(account, "Avalon", Arg.Any<CancellationToken>()).Returns(
             new MFASetupResult(false, null, MFAOperationResult.AlreadyEnabled));

@@ -91,7 +91,7 @@ internal sealed class ItemUseWorld : IDisposable
         character.CurrentHealth = 100;
         Client = MapInstanceClients.Join(Instance, character);
 
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         foreach (Type type in new[]
                  {
                      typeof(ConsumeOneScript), typeof(RefusingScript), typeof(OnUseThrowingScript), typeof(WorldHungryItemScript),

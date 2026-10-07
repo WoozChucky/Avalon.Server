@@ -29,9 +29,9 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public void Announce_relevant_thresholds_once_and_disconnect_non_Admins_after_zero()
     {
-        var coordinator = Coordinator();
-        var player = Connection(AccountAccessLevel.Player);
-        var admin = Connection(AccountAccessLevel.Admin);
+        WorldMaintenanceCoordinator coordinator = Coordinator();
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
+        IWorldConnection admin = Connection(AccountAccessLevel.Admin);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, Start.AddMinutes(5)));
 
         coordinator.Advance(Start, [player, admin]);
@@ -56,8 +56,8 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public void Leave_a_new_socket_time_to_authenticate_after_the_deadline()
     {
-        var coordinator = Coordinator();
-        var connecting = Connection(AccountAccessLevel.Player);
+        WorldMaintenanceCoordinator coordinator = Coordinator();
+        IWorldConnection connecting = Connection(AccountAccessLevel.Player);
         connecting.AccountId.Returns((AccountId?)null);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, Start.AddSeconds(-1)));
 
@@ -80,8 +80,8 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public async Task Ignore_old_notifications_and_do_not_replay_start_after_restart()
     {
-        var coordinator = Coordinator();
-        var player = Connection(AccountAccessLevel.Player);
+        WorldMaintenanceCoordinator coordinator = Coordinator();
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
         _repository.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(true, 3, Start.AddMinutes(5)));
         await coordinator.InitializeAsync(CancellationToken.None);
@@ -98,8 +98,8 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public async Task Reload_a_newer_notification_from_the_database()
     {
-        var coordinator = Coordinator();
-        var player = Connection(AccountAccessLevel.Player);
+        WorldMaintenanceCoordinator coordinator = Coordinator();
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, Start.AddMinutes(5)));
         _repository.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(false, 2, null));
@@ -114,8 +114,8 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public void Disable_cancels_countdown_and_a_delayed_tick_skips_old_warnings()
     {
-        var coordinator = Coordinator();
-        var player = Connection(AccountAccessLevel.Player);
+        WorldMaintenanceCoordinator coordinator = Coordinator();
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, Start.AddMinutes(5)));
         coordinator.Advance(Start, [player]);
         coordinator.Advance(Start.AddMinutes(4).AddSeconds(50), [player]);
@@ -132,8 +132,8 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public async Task Late_discovery_closes_with_zero_chat_before_disconnect_and_waits_for_saves()
     {
-        var coordinator = Coordinator();
-        var player = Connection(AccountAccessLevel.Player);
+        WorldMaintenanceCoordinator coordinator = Coordinator();
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
         var save = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _saver.WhenAllIdle().Returns(save.Task);
         _repository.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
@@ -142,7 +142,7 @@ public sealed class WorldMaintenanceCoordinatorShould
 
         coordinator.Advance(Start, [player]);
 
-        var packets = player.ReceivedCalls()
+        NetworkPacket[] packets = player.ReceivedCalls()
             .Where(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
             .Select(call => call.GetArguments()[0]).OfType<NetworkPacket>().ToArray();
         Assert.Equal(NetworkPacketType.SMSG_CHAT_MESSAGE, packets[0].Header.Type);
@@ -159,9 +159,9 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public void Forget_connections_closed_earlier_in_a_long_cutoff()
     {
-        var coordinator = Coordinator();
-        var first = Connection(AccountAccessLevel.Player);
-        var second = Connection(AccountAccessLevel.Player);
+        WorldMaintenanceCoordinator coordinator = Coordinator();
+        IWorldConnection first = Connection(AccountAccessLevel.Player);
+        IWorldConnection second = Connection(AccountAccessLevel.Player);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, Start.AddSeconds(-1)));
 
         coordinator.Advance(Start, [first]);
@@ -179,9 +179,9 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public async Task Warn_of_a_restart_on_the_schedule_and_end_the_drain_at_its_deadline()
     {
-        var coordinator = Coordinator(TimeSpan.FromMinutes(5));
-        var player = Connection(AccountAccessLevel.Player);
-        var admin = Connection(AccountAccessLevel.Admin);
+        WorldMaintenanceCoordinator coordinator = Coordinator(TimeSpan.FromMinutes(5));
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
+        IWorldConnection admin = Connection(AccountAccessLevel.Admin);
 
         Task drain = coordinator.DrainForRestartAsync(CancellationToken.None);
         coordinator.Advance(Start, [player, admin]);
@@ -212,10 +212,10 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public async Task End_the_restart_drain_once_no_non_Admin_player_is_left()
     {
-        var coordinator = Coordinator(TimeSpan.FromMinutes(5));
-        var player = Connection(AccountAccessLevel.Player);
-        var admin = Connection(AccountAccessLevel.Admin);
-        var connecting = Connection(AccountAccessLevel.Player);
+        WorldMaintenanceCoordinator coordinator = Coordinator(TimeSpan.FromMinutes(5));
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
+        IWorldConnection admin = Connection(AccountAccessLevel.Admin);
+        IWorldConnection connecting = Connection(AccountAccessLevel.Player);
         connecting.AccountId.Returns((AccountId?)null);
 
         Task drain = coordinator.DrainForRestartAsync(CancellationToken.None);
@@ -236,8 +236,8 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public async Task Keep_the_restart_in_memory_beside_the_persisted_state()
     {
-        var coordinator = Coordinator(TimeSpan.FromMinutes(5));
-        var player = Connection(AccountAccessLevel.Player);
+        WorldMaintenanceCoordinator coordinator = Coordinator(TimeSpan.FromMinutes(5));
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
         coordinator.ApplyCommitted(new WorldMaintenanceState(false, 3, null));
 
         Task drain = coordinator.DrainForRestartAsync(CancellationToken.None);
@@ -260,8 +260,8 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public async Task End_the_restart_drain_at_once_when_maintenance_left_only_Admins()
     {
-        var coordinator = Coordinator(TimeSpan.FromMinutes(5));
-        var admin = Connection(AccountAccessLevel.Admin);
+        WorldMaintenanceCoordinator coordinator = Coordinator(TimeSpan.FromMinutes(5));
+        IWorldConnection admin = Connection(AccountAccessLevel.Admin);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, Start.AddMinutes(-1)));
 
         Task drain = coordinator.DrainForRestartAsync(CancellationToken.None);
@@ -273,8 +273,8 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public async Task Not_drain_when_the_drain_time_is_zero()
     {
-        var coordinator = Coordinator(TimeSpan.Zero);
-        var player = Connection(AccountAccessLevel.Player);
+        WorldMaintenanceCoordinator coordinator = Coordinator(TimeSpan.Zero);
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
 
         await coordinator.DrainForRestartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
         coordinator.Advance(Start, [player]);
@@ -286,9 +286,9 @@ public sealed class WorldMaintenanceCoordinatorShould
     [Fact]
     public void Refuse_a_non_Admin_entry_once_the_restart_deadline_has_passed()
     {
-        var coordinator = Coordinator(TimeSpan.FromSeconds(10));
-        var player = Connection(AccountAccessLevel.Player);
-        var admin = Connection(AccountAccessLevel.Admin);
+        WorldMaintenanceCoordinator coordinator = Coordinator(TimeSpan.FromSeconds(10));
+        IWorldConnection player = Connection(AccountAccessLevel.Player);
+        IWorldConnection admin = Connection(AccountAccessLevel.Admin);
         coordinator.ApplyCommitted(new WorldMaintenanceState(false, 1, null));
         var decision = new WorldEntryDecision(true, DateTime.MaxValue);
 
@@ -308,7 +308,7 @@ public sealed class WorldMaintenanceCoordinatorShould
 
     private static IWorldConnection Connection(AccountAccessLevel access)
     {
-        var connection = Substitute.For<IWorldConnection, IMaintenanceBlockable>();
+        IWorldConnection connection = Substitute.For<IWorldConnection, IMaintenanceBlockable>();
         connection.AccountId.Returns(new AccountId(42));
         connection.AccessLevel.Returns(access);
         connection.IsConnected.Returns(true);

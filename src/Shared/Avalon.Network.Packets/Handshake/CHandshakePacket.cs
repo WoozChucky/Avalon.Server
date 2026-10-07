@@ -26,7 +26,7 @@ public class CHandshakePacket : Packet
 
         Serializer.Serialize(memoryStream, packet);
 
-        var buffer = encryptFunc(memoryStream.ToArray());
+        byte[] buffer = encryptFunc(memoryStream.ToArray());
 
         return new NetworkPacket
         {

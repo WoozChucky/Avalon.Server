@@ -167,7 +167,7 @@ public class ReferenceDataReloaderShould
 
     private static IReferenceDataReloader Reloader(StaticData data)
     {
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Data.Returns(data);
         return new ReferenceDataReloader(world, NullLoggerFactory.Instance.CreateLogger<ReferenceDataReloader>());
     }
@@ -191,11 +191,11 @@ public class ReferenceDataReloaderShould
             Templates = Enumerable.Range(1, creatureCount).Select(i => Template((ulong)i)).ToList()
         };
 
-        var templates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository templates = Substitute.For<ICreatureTemplateRepository>();
         templates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(repos.Templates.ToList()));
 
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => repos.CancelBaseStats
                 ? Task.FromException<IReadOnlyCollection<CreatureBaseStat>>(new OperationCanceledException())
@@ -203,7 +203,7 @@ public class ReferenceDataReloaderShould
                     ? Task.FromException<IReadOnlyCollection<CreatureBaseStat>>(new InvalidOperationException("db down"))
                     : Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(repos.BaseStats.ToList()));
 
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>(
             [
@@ -214,19 +214,19 @@ public class ReferenceDataReloaderShould
                 }
             ]));
 
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>(repos.CreateInfos.ToList()));
 
-        var classLevelStats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository classLevelStats = Substitute.For<IClassLevelStatRepository>();
         classLevelStats.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<ClassLevelStat>>(repos.ClassStats.ToList()));
 
-        var itemTemplates = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository itemTemplates = Substitute.For<IItemTemplateRepository>();
         itemTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
-                List<ItemTemplate> snapshot = repos.Items.ToList();
+                var snapshot = repos.Items.ToList();
                 if (repos.ItemsGate is { } gate)
                 {
                     repos.ItemsReadStarted.TrySetResult();
@@ -236,15 +236,15 @@ public class ReferenceDataReloaderShould
                 return snapshot;
             });
 
-        var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(repos.Abilities.ToList()));
 
-        var characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
         characterLevelExperiences.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>(repos.Levels.ToList()));
 
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<LocalizedText>>(repos.Texts.ToList()));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
@@ -252,7 +252,7 @@ public class ReferenceDataReloaderShould
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())

@@ -120,7 +120,7 @@ public class InstanceBroadcastIsolationShould
         using MapInstance other = Build();
         MapInstanceClient caster = Join(own, 546_007);
         MapInstanceClient elsewhere = Join(other, 546_008);
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(546));
         ability.Metadata.Returns(new AbilityMetadata { AnimationId = 3u });
 
@@ -141,7 +141,7 @@ public class InstanceBroadcastIsolationShould
     /// <summary>An instance whose navigator walks straight to wherever it is asked.</summary>
     private static MapInstance Build()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(ci => new List<Vector3> { ci.ArgAt<Vector3>(1) });
         return TestMapInstances.Build(NewWorld(), navigator: navigator);

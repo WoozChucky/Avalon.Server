@@ -27,7 +27,7 @@ internal static class SandboxHost
 
     private static async Task<bool> RunHostAsync(IDbContextFactory<AuthDbContext> factory, IReplicatedCache cache, TimeProvider clock)
     {
-        var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Development" });
+        WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Development" });
         builder.WebHost.UseKestrelHttpsConfiguration();
         builder.Configuration.Sources.Clear();
         builder.Configuration.AddEnvironmentVariables("AVALON_COMMERCE_SANDBOX_");
@@ -39,7 +39,7 @@ internal static class SandboxHost
             ["Application:StoreAuthentication:Environment"] = "development",
             ["Application:StoreAuthentication:SteamIdentityPrefix"] = "avalon-auth-dev",
         });
-        var config = builder.Configuration.GetSection("Application:Commerce").Get<CommerceConfiguration>() ?? new();
+        CommerceConfiguration config = builder.Configuration.GetSection("Application:Commerce").Get<CommerceConfiguration>() ?? new();
         var authentication = new StoreAuthenticationConfiguration { Environment = "development", SteamIdentityPrefix = "avalon-auth-dev" };
         if (config.PublicSiteOrigin != "https://localhost" || !new CommerceOptionsValidator(builder.Environment, Options.Create(authentication), [StripePaymentProvider.Registration]).Validate(null, config).Succeeded)
             throw new CheckFailure("The fixture requires complete sandbox settings and PublicSiteOrigin=https://localhost. No credentials were logged.");
@@ -52,7 +52,7 @@ internal static class SandboxHost
         builder.Services.AddAuthentication("Fixture").AddScheme<AuthenticationSchemeOptions, FixtureAuthentication>("Fixture", _ => { });
         builder.Services.AddAuthorization();
         var accounts = new AccountRepository(factory);
-        var actor = await accounts.FindByUserNameAsync("COMMERCEBUYER") ?? await accounts.CreateAsync(new Account
+        Account actor = await accounts.FindByUserNameAsync("COMMERCEBUYER") ?? await accounts.CreateAsync(new Account
         {
             Username = "COMMERCEBUYER",
             Email = "buyer@example.test",
@@ -62,12 +62,12 @@ internal static class SandboxHost
             JoinDate = clock.GetUtcNow().UtcDateTime,
             AccessLevel = AccountAccessLevel.Player | AccountAccessLevel.Admin
         });
-        await using var app = builder.Build();
-        var restart = false;
+        await using WebApplication app = builder.Build();
+        bool restart = false;
         app.UseMiddleware<ExceptionHandlerMiddleware>();
         app.Use(async (ctx, next) => { ctx.Response.Headers.CacheControl = "no-store"; await next(); });
         app.UseAuthentication(); app.UseAuthorization();
-        var api = app.MapGroup("/api");
+        RouteGroupBuilder api = app.MapGroup("/api");
         // Fixture-only recovery control; never registered by the application API.
         api.MapPost("/__fixture/restart", (HttpContext ctx, IHostApplicationLifetime lifetime) =>
         {
@@ -91,9 +91,9 @@ internal static class SandboxHost
         api.MapPost("/admin/purchases/{id:guid}/retry", async (Guid id, IPurchaseAdministrationService service, HttpContext ctx) => { await service.RetryReconciliationAsync(actor.Id, id, ctx.RequestAborted); return Results.Accepted(); }).RequireAuthorization();
         app.MapPost("/payments/notifications/stripe", async (IPaymentNotificationService service, HttpContext ctx) =>
         {
-            using var body = new MemoryStream(); var buffer = new byte[8192];
-            while (true) { var count = await ctx.Request.Body.ReadAsync(buffer, ctx.RequestAborted); if (count == 0) break; if (body.Length + count > CommercePolicy.MaximumNotificationBytes) return Results.BadRequest(); await body.WriteAsync(buffer.AsMemory(0, count), ctx.RequestAborted); }
-            var result = await service.AcceptAsync(StripePaymentProvider.ProviderName, body.ToArray(), ctx.Request.Headers.ToDictionary(x => x.Key, x => x.Value.ToString(), StringComparer.OrdinalIgnoreCase), ctx.RequestAborted);
+            using var body = new MemoryStream(); byte[] buffer = new byte[8192];
+            while (true) { int count = await ctx.Request.Body.ReadAsync(buffer, ctx.RequestAborted); if (count == 0) break; if (body.Length + count > CommercePolicy.MaximumNotificationBytes) return Results.BadRequest(); await body.WriteAsync(buffer.AsMemory(0, count), ctx.RequestAborted); }
+            NotificationAcceptance result = await service.AcceptAsync(StripePaymentProvider.ProviderName, body.ToArray(), ctx.Request.Headers.ToDictionary(x => x.Key, x => x.Value.ToString(), StringComparer.OrdinalIgnoreCase), ctx.RequestAborted);
             return result == NotificationAcceptance.Accepted ? Results.Ok() : Results.BadRequest();
         });
         api.MapGet("/account/email/verification", () => new { emailVerifiedAt = actor.EmailVerifiedAt, deliveryAvailable = false, resendAvailableAt = (DateTime?)null }).RequireAuthorization();
@@ -104,7 +104,7 @@ internal static class SandboxHost
         api.MapMethods("/{**unsupported}", ["GET", "POST", "PUT", "PATCH", "DELETE"], () => Results.NotFound());
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "tools", "Avalon.Commerce.Check"))) root = root.Parent;
-        var publicDist = root is null ? "" : Path.GetFullPath(Path.Combine(root.FullName, "..", "Avalon.Dashboard", "apps", "public", "dist"));
+        string publicDist = root is null ? "" : Path.GetFullPath(Path.Combine(root.FullName, "..", "Avalon.Dashboard", "apps", "public", "dist"));
         if (!Directory.Exists(publicDist)) throw new CheckFailure("Build the public Dashboard before starting the fixture UI.");
         app.UseStaticFiles(new StaticFileOptions { FileProvider = new PhysicalFileProvider(publicDist) });
         app.MapFallback(async ctx => { ctx.Response.ContentType = "text/html"; await ctx.Response.SendFileAsync(Path.Combine(publicDist, "index.html")); });

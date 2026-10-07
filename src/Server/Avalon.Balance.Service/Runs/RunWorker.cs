@@ -72,7 +72,7 @@ public sealed class RunWorker : BackgroundService
         RunRequest request = record.Request!; // set until the run ends, and only this worker ends a running record
         try
         {
-            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(
                 record.CancellationTokenSource.Token, stoppingToken);
             RunResult result = _simulate(_host.Seed, _host.Defaults, request,
                 new RecordProgress(record), linked.Token);

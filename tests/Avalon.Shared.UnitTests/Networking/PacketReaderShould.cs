@@ -1,5 +1,6 @@
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
+using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -26,7 +27,7 @@ public class PacketReaderShould
     [Fact]
     public void UseConfiguredBufferSize_WhenConstructed()
     {
-        var reader = Make(8192);
+        PacketReader reader = Make(8192);
         Assert.Equal(8192, reader.BufferSize);
     }
 
@@ -47,14 +48,14 @@ public class PacketReaderShould
     [InlineData(65535)]
     public void AcceptValidBufferSizes(int size)
     {
-        var ex = Record.Exception(() => Make(size));
+        Exception ex = Record.Exception(() => Make(size));
         Assert.Null(ex);
     }
 
     [Fact]
     public void Should_ReturnDeserializedPacket_WhenTypeIsRegisteredAndPayloadIsValid()
     {
-        var reader = MakeWith(typeof(CCharacterListPacket));
+        PacketReader reader = MakeWith(typeof(CCharacterListPacket));
 
         using var ms = new MemoryStream();
         Serializer.Serialize(ms, new CCharacterListPacket());
@@ -63,7 +64,7 @@ public class PacketReaderShould
             new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
             ms.ToArray().AsMemory());
 
-        var result = reader.Read(frame);
+        Packet? result = reader.Read(frame);
 
         Assert.IsType<CCharacterListPacket>(result);
     }
@@ -71,13 +72,13 @@ public class PacketReaderShould
     [Fact]
     public void Should_ReturnNull_WhenPacketTypeIsUnknown()
     {
-        var reader = MakeWith();
+        PacketReader reader = MakeWith();
 
         var frame = new InboundPacketFrame(
             new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
             ReadOnlyMemory<byte>.Empty);
 
-        var result = reader.Read(frame);
+        Packet? result = reader.Read(frame);
 
         Assert.Null(result);
     }
@@ -85,7 +86,7 @@ public class PacketReaderShould
     [Fact]
     public void Should_DecryptPayloadBeforeDeserializing_WhenDecryptFuncProvided()
     {
-        var reader = MakeWith(typeof(CCharacterListPacket));
+        PacketReader reader = MakeWith(typeof(CCharacterListPacket));
 
         using var ms = new MemoryStream();
         Serializer.Serialize(ms, new CCharacterListPacket());
@@ -98,7 +99,7 @@ public class PacketReaderShould
         // Passthrough: copies input to output unchanged — simulates decryption without real crypto
         DecryptFunc passthrough = (input, output) => { input.CopyTo(output); return input.Length; };
 
-        var result = reader.Read(frame, passthrough);
+        Packet? result = reader.Read(frame, passthrough);
 
         Assert.IsType<CCharacterListPacket>(result);
     }

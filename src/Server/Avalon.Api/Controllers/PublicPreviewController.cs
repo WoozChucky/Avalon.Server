@@ -6,6 +6,7 @@ using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World.Repositories;
+using Avalon.Domain.World;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -43,7 +44,7 @@ public class PublicPreviewController(
         (WorldEntity? chosen, bool open, IActionResult? refusal) = await SelectWorldAsync(world, ct);
         if (chosen is null) return refusal!;
 
-        var template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
+        ItemTemplate? template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
         if (template is null) return NotFoundPage();
 
         PublicItemDto item = template.ToPublicDto();
@@ -59,7 +60,7 @@ public class PublicPreviewController(
         (WorldEntity? chosen, bool open, IActionResult? refusal) = await SelectWorldAsync(world, ct);
         if (chosen is null) return refusal!;
 
-        var template = await abilities.FindByIdAsync(new AbilityId(id), track: false, ct);
+        AbilityTemplate? template = await abilities.FindByIdAsync(new AbilityId(id), track: false, ct);
         if (template is null) return NotFoundPage();
 
         PublicAbilityDto ability = template.ToPublicDto();

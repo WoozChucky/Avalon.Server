@@ -51,9 +51,9 @@ public class ScriptHotReloadCorpseShould
     /// <summary>A loaded world whose one town instance is <paramref name="instance" />.</summary>
     private static async Task<Avalon.World.World> WorldHolding(MapInstance instance)
     {
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([new MapTemplate { Id = TownId, MapType = MapType.Town }]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(instance);
 
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
@@ -130,7 +130,7 @@ public class ScriptHotReloadCorpseShould
     [Fact]
     public async Task Leave_a_corpse_still_with_a_character_inside_its_aggro_range()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci => [ci.ArgAt<Vector3>(1)]);
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         navigator.HasVisibility(default, default).ReturnsForAnyArgs(true);   // the detector sees the character

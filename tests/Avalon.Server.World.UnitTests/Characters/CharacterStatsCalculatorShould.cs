@@ -19,7 +19,7 @@ public class CharacterStatsCalculatorShould
 {
     private static ClassLevelStat SeededRow(CharacterClass @class, ushort level)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         return context.ClassLevelStats.AsNoTracking().ToList().Single(s => s.Class == @class && s.Level == level);
     }

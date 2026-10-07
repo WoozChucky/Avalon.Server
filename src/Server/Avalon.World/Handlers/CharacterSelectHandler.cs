@@ -393,12 +393,12 @@ public class CharacterSelectHandler(
 
         // Only a guard-validated read proves that the selected character now belongs to this
         // account. A guessed character ID must never disconnect another account's live session.
-        var ghosts = worldServer.SessionsHoldingCharacter(character.Id, connection)
+        IWorldConnection[] ghosts = worldServer.SessionsHoldingCharacter(character.Id, connection)
             .Where(other => other.AccountId != connection.AccountId).ToArray();
         if (ghosts.Length > 0)
         {
             var draining = new List<Task>();
-            foreach (var other in ghosts)
+            foreach (IWorldConnection? other in ghosts)
             {
                 other.CancelSelect();
                 draining.Add(world.DeSpawnPlayerAsync(other));
@@ -469,7 +469,7 @@ public class CharacterSelectHandler(
                 respawnTargetResolver.ResolveTownAsync(loadedTemplate.Id, CancellationToken.None),
                 townMapId =>
                 {
-                    var townTpl = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId);
+                    MapTemplate? townTpl = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId);
                     if (townTpl == null)
                     {
                         logger.LogError("Resolved town map {TownMapId} not found in MapTemplates",

@@ -26,7 +26,7 @@ public class CCharacterDeletePacket : Packet
 
         Serializer.Serialize(memoryStream, p);
 
-        var buffer = encryptFunc(memoryStream.ToArray());
+        byte[] buffer = encryptFunc(memoryStream.ToArray());
 
         return new NetworkPacket
         {

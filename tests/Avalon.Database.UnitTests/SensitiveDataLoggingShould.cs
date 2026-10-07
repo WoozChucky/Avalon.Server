@@ -66,7 +66,7 @@ public class SensitiveDataLoggingShould
     {
         ServiceCollection services = new();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
-        var host = Substitute.For<IHostEnvironment>();
+        IHostEnvironment host = Substitute.For<IHostEnvironment>();
         host.EnvironmentName.Returns(environment);
         services.AddSingleton(host);
         services.AddAuthDatabase();
@@ -115,7 +115,7 @@ public class SensitiveDataLoggingShould
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
         if (environment is not null)
         {
-            var host = Substitute.For<IHostEnvironment>();
+            IHostEnvironment host = Substitute.For<IHostEnvironment>();
             host.EnvironmentName.Returns(environment);
             services.AddSingleton(host);
         }

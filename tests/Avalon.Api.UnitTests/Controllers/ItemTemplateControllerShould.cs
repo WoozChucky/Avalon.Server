@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Avalon.Api.Authentication;
+using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -40,8 +41,8 @@ public class ItemTemplateControllerShould
             .PaginateAsync(Arg.Any<EntityPaginateFilter<ItemTemplate>>(), false, Arg.Any<CancellationToken>())
             .Returns(new PagedResult<ItemTemplate>(1, 50, 0, new List<ItemTemplate>()));
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.List(1, 50, CancellationToken.None);
+        ItemTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        PagedResult<ItemTemplateDto> result = await sut.List(1, 50, CancellationToken.None);
 
         Assert.Equal(0, result.TotalCount);
     }
@@ -53,8 +54,8 @@ public class ItemTemplateControllerShould
             .FindByIdAsync(Arg.Any<ItemTemplateId>(), false, Arg.Any<CancellationToken>())
             .Returns((ItemTemplate?)null);
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        ItemTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -66,8 +67,8 @@ public class ItemTemplateControllerShould
             .FindByIdAsync(Arg.Any<ItemTemplateId>(), false, Arg.Any<CancellationToken>())
             .Returns(new ItemTemplate { Id = new ItemTemplateId(1), Name = "Sword" });
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        ItemTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
     }

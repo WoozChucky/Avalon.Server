@@ -15,7 +15,7 @@ public class CombatDataRepository(IDbContextFactory<WorldDbContext> contextFacto
 {
     public async Task<IReadOnlyCollection<CombatFormula>> GetFormulasAsync(CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.CombatFormulas
             .AsNoTracking()
@@ -25,7 +25,7 @@ public class CombatDataRepository(IDbContextFactory<WorldDbContext> contextFacto
     public async Task<IReadOnlyCollection<ClassStatFactors>> GetClassStatFactorsAsync(
         CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.ClassStatFactors
             .AsNoTracking()

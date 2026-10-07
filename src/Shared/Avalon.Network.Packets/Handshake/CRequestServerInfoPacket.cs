@@ -25,7 +25,7 @@ public class CRequestServerInfoPacket : Packet
 
         Serializer.Serialize(memoryStream, packet);
 
-        memoryStream.TryGetBuffer(out var buffer);
+        memoryStream.TryGetBuffer(out ArraySegment<byte> buffer);
 
         return new NetworkPacket
         {

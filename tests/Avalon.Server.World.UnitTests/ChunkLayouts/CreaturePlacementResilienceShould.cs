@@ -31,7 +31,7 @@ public class CreaturePlacementResilienceShould
         var goodId = new CreatureTemplateId(4);
         var missingId = new CreatureTemplateId(999);
 
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         spawner.Spawn(Arg.Is<CreatureInfo>(info => info.PrototypeIndex == missingId.Value))
             .Returns(_ => throw new Exception($"Could not find creature template {missingId}"));
 
@@ -40,7 +40,7 @@ public class CreaturePlacementResilienceShould
         spawned.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         spawner.Spawn(Arg.Is<CreatureInfo>(info => info.PrototypeIndex == goodId.Value)).Returns(spawned);
 
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
 
         // Separate tags, so each entry owns a slot: WeightedPick chooses ONE entry per slot, so two
         // entries sharing a tag would let the good one be picked and the throw never happen.
@@ -66,11 +66,11 @@ public class CreaturePlacementResilienceShould
     {
         var table = new SpawnTable { Id = new SpawnTableId(1), Name = "test", Entries = entries.ToList() };
 
-        var repo = Substitute.For<ISpawnTableRepository>();
+        ISpawnTableRepository repo = Substitute.For<ISpawnTableRepository>();
         repo.FindByIdAsync(Arg.Any<SpawnTableId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SpawnTable?>(table));
 
-        var library = Substitute.For<IChunkLibrary>();
+        IChunkLibrary library = Substitute.For<IChunkLibrary>();
         library.GetById(Arg.Any<ChunkTemplateId>()).Returns(ChunkTemplateWithPackSlot());
 
         return new CreaturePlacementService(

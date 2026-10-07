@@ -114,7 +114,7 @@ public class InterestReplicationShould
         watcher.Character.Position = new Vector3(0f, 0f, 0f);
         Ticks(instance, 1);
 
-        List<ObjectState> adds = watcher.Added().Where(s => s.Guid == creature.Guid.RawValue).ToList();
+        var adds = watcher.Added().Where(s => s.Guid == creature.Guid.RawValue).ToList();
         Assert.Equal(2, adds.Count);
         Assert.Equal(37u, adds[1].CurrentHealth);
         Assert.Equal(100u, adds[1].Health);

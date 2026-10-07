@@ -57,7 +57,7 @@ public class InstanceTickerShould : IDisposable
 
     private static IMapInstance Instance(MapType type = MapType.Normal, Exception? throws = null)
     {
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.InstanceId.Returns(Guid.NewGuid());
         instance.TemplateId.Returns(new MapTemplateId(2));
         instance.MapType.Returns(type);
@@ -131,7 +131,7 @@ public class InstanceTickerShould : IDisposable
     {
         _sut.Tick([Instance(MapType.Town), Instance(), Instance(throws: new InvalidOperationException("boom"))], Tick);
 
-        List<(string Name, double Value, string? MapType)> durations =
+        var durations =
             _measurements.Where(m => m.Name == "world.instance.update.duration").ToList();
         Assert.Equal(["Town", "Normal", "Normal"], durations.Select(d => d.MapType));
         Assert.All(durations, d => Assert.True(d.Value >= 0));

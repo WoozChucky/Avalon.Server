@@ -23,23 +23,23 @@ public class CharacterServiceShould
         var id = new CharacterId(42);
         var itemId = new ItemInstanceId(Guid.CreateVersion7());
 
-        var characters = Substitute.For<ICharacterRepository>();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Holder" });
 
-        var slots = Substitute.For<ICharacterInventoryRepository>();
+        ICharacterInventoryRepository slots = Substitute.For<ICharacterInventoryRepository>();
         slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterInventory>
         {
             new() { CharacterId = id, Container = Avalon.World.Public.Enums.InventoryType.Bag, Slot = 3, ItemId = itemId },
         });
 
-        var items = Substitute.For<IItemInstanceRepository>();
+        IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
         items.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<ItemInstance>
         {
             new() { Id = itemId, TemplateId = new ItemTemplateId(9), CharacterId = id, Count = 4, Durability = 7 },
         });
 
-        var templates = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<ItemTemplate>
             {
@@ -75,23 +75,23 @@ public class CharacterServiceShould
         var id = new CharacterId(42);
         var itemId = new ItemInstanceId(Guid.CreateVersion7());
 
-        var characters = Substitute.For<ICharacterRepository>();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Holder" });
 
-        var slots = Substitute.For<ICharacterInventoryRepository>();
+        ICharacterInventoryRepository slots = Substitute.For<ICharacterInventoryRepository>();
         slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterInventory>
         {
             new() { CharacterId = id, Container = Avalon.World.Public.Enums.InventoryType.Bag, Slot = 0, ItemId = itemId },
         });
 
-        var items = Substitute.For<IItemInstanceRepository>();
+        IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
         items.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<ItemInstance>
         {
             new() { Id = itemId, TemplateId = new ItemTemplateId(1), CharacterId = id, Count = 40 },
         });
 
-        var templates = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<ItemTemplate> { new() { Id = new ItemTemplateId(1), Name = "Health Potion", Slot = slot } });
 
@@ -109,34 +109,34 @@ public class CharacterServiceShould
     private static CharacterService AbilityService(CharacterId id, AbilityTemplate ability, CharacterStats? stats,
         ItemTemplate? mainHand)
     {
-        var characters = Substitute.For<ICharacterRepository>();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Caster" });
 
-        var rows = Substitute.For<ICharacterAbilityRepository>();
+        ICharacterAbilityRepository rows = Substitute.For<ICharacterAbilityRepository>();
         rows.GetCharacterAbilitiesAsync(id, Arg.Any<CancellationToken>())
             .Returns(new List<CharacterAbility> { new() { CharacterId = id, AbilityId = ability.Id } });
-        var abilities = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.GetByIdsAsync(Arg.Any<IEnumerable<AbilityId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<AbilityTemplate> { ability });
 
         var weaponId = new ItemInstanceId(Guid.CreateVersion7());
-        var slots = Substitute.For<ICharacterInventoryRepository>();
+        ICharacterInventoryRepository slots = Substitute.For<ICharacterInventoryRepository>();
         slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(mainHand is null
             ? new List<CharacterInventory>()
             : new List<CharacterInventory>
             {
                 new() { CharacterId = id, Container = Avalon.World.Public.Enums.InventoryType.Equipment, Slot = 9, ItemId = weaponId },
             });
-        var instances = Substitute.For<IItemInstanceRepository>();
+        IItemInstanceRepository instances = Substitute.For<IItemInstanceRepository>();
         instances.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(mainHand is null
             ? new List<ItemInstance>()
             : new List<ItemInstance> { new() { Id = weaponId, TemplateId = mainHand.Id, CharacterId = id, Count = 1 } });
-        var templates = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
             .Returns(mainHand is null ? new List<ItemTemplate>() : new List<ItemTemplate> { mainHand });
 
-        var statsRepository = Substitute.For<ICharacterStatsRepository>();
+        ICharacterStatsRepository statsRepository = Substitute.For<ICharacterStatsRepository>();
         statsRepository.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(stats);
 
         return new CharacterService(characters, slots, instances, rows, abilities, templates, statsRepository,
@@ -207,18 +207,18 @@ public class CharacterServiceShould
     {
         var id = new CharacterId(42);
 
-        var characters = Substitute.For<ICharacterRepository>();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Caster" });
 
-        var rows = Substitute.For<ICharacterAbilityRepository>();
+        ICharacterAbilityRepository rows = Substitute.For<ICharacterAbilityRepository>();
         rows.GetCharacterAbilitiesAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterAbility>
         {
             new() { CharacterId = id, AbilityId = new AbilityId(210) },
             new() { CharacterId = id, AbilityId = new AbilityId(211) },
         });
 
-        var abilities = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.GetByIdsAsync(Arg.Any<IEnumerable<AbilityId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<AbilityTemplate>
             {
@@ -255,7 +255,7 @@ public class CharacterServiceShould
     public async Task Return_the_characters_saved_stats()
     {
         var id = new CharacterId(42);
-        var stats = Substitute.For<ICharacterStatsRepository>();
+        ICharacterStatsRepository stats = Substitute.For<ICharacterStatsRepository>();
         stats.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new CharacterStats
         {
             CharacterId = id,
@@ -297,7 +297,7 @@ public class CharacterServiceShould
     [Fact]
     public async Task Return_no_stats_when_the_character_has_none_saved()
     {
-        var stats = Substitute.For<ICharacterStatsRepository>();
+        ICharacterStatsRepository stats = Substitute.For<ICharacterStatsRepository>();
         stats.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns((CharacterStats?)null);
 
         Assert.Null(await StatsService(stats).GetStatsAsync(new CharacterId(42)));
@@ -317,7 +317,7 @@ public class CharacterServiceShould
         var id = new CharacterId(42);
         var accepted = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
         var completed = new DateTime(2026, 9, 29, 8, 30, 0, DateTimeKind.Utc);
-        var quests = Substitute.For<ICharacterQuestRepository>();
+        ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
         quests.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows(
             [
                 new CharacterQuest { CharacterId = id, QuestId = 3, State = Avalon.Domain.Characters.CharacterQuestState.Active, Stage = 1, AcceptedAt = accepted },
@@ -347,7 +347,7 @@ public class CharacterServiceShould
     [Fact]
     public async Task Return_an_empty_quest_log_for_a_character_with_no_quest_rows()
     {
-        var quests = Substitute.For<ICharacterQuestRepository>();
+        ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
         quests.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(CharacterQuestRows.None);
 
         CharacterQuestLogDto log = await QuestService(quests).GetQuestLogAsync(new CharacterId(7));
@@ -367,7 +367,7 @@ public class CharacterServiceShould
     [Fact]
     public async Task List_a_characters_saved_auras_by_slot()
     {
-        var auras = Substitute.For<ICharacterAuraRepository>();
+        ICharacterAuraRepository auras = Substitute.For<ICharacterAuraRepository>();
         DateTime applied = new(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc);
         auras.GetByCharacterIdAsync(new CharacterId(42), Arg.Any<CancellationToken>()).Returns(
         [
@@ -397,7 +397,7 @@ public class CharacterServiceShould
     [Fact]
     public async Task List_no_auras_for_a_character_with_none()
     {
-        var auras = Substitute.For<ICharacterAuraRepository>();
+        ICharacterAuraRepository auras = Substitute.For<ICharacterAuraRepository>();
         auras.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns([]);
         var service = new CharacterService(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),

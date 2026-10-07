@@ -24,8 +24,8 @@ public sealed class RedisGameTicketStore(IReplicatedCache cache) : IGameTicketSt
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!GameAuth.GameAuthCryptography.IsToken(ticket)) return null;
-        var value = await cache.TakeAsync(Key(ticket));
-        return TryParseValue(value, false, out var grant) ? grant : null;
+        string? value = await cache.TakeAsync(Key(ticket));
+        return TryParseValue(value, false, out GameTicketGrant? grant) ? grant : null;
     }
 
     /// <summary>Legacy TCP accepts the prior encoding until coordinated cutover; the game-context API requires explicit scope.</summary>
@@ -33,13 +33,13 @@ public sealed class RedisGameTicketStore(IReplicatedCache cache) : IGameTicketSt
     {
         grant = null;
         if (value is null || value.Length > 256) return false;
-        var parts = value.Split('|');
+        string[] parts = value.Split('|');
         if ((parts.Length != 5 && (requireScope || parts.Length != 3)) ||
-            !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var accountId) || accountId <= 0 ||
-            !Guid.TryParseExact(parts[1], "D", out var family) || family == Guid.Empty ||
-            !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var credentialsVersion)) return false;
+            !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out long accountId) || accountId <= 0 ||
+            !Guid.TryParseExact(parts[1], "D", out Guid family) || family == Guid.Empty ||
+            !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int credentialsVersion)) return false;
         long epoch = 0;
-        var environment = "production";
+        string environment = "production";
         if (parts.Length == 5 && (!long.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out epoch) ||
             (parts[4] != "production" && parts[4] != "development"))) return false;
         if (parts.Length == 5) environment = parts[4];

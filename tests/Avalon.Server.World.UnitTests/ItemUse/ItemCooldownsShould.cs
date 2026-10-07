@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.World.Entities;
 using Avalon.World.Items;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;
@@ -84,7 +85,7 @@ public class ItemCooldownsShould
     [Fact]
     public void Live_on_the_character_and_start_empty_with_every_new_session()
     {
-        var character = Inventory.TestCharacters.New(7);
+        CharacterEntity character = Inventory.TestCharacters.New(7);
         character.ItemCooldowns.Start(Tonic, null, TimeSpan.FromSeconds(30), Now);
 
         Assert.Equal(TimeSpan.Zero, Inventory.TestCharacters.New(7).ItemCooldowns.Remaining(Tonic, null, Now));

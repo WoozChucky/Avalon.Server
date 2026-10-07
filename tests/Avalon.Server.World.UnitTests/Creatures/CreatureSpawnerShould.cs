@@ -466,7 +466,7 @@ public class CreatureSpawnerShould
     private static CreatureSpawner SpawnerOver(CreatureTemplate template, ILoggerFactory spawnerLogging,
         params DialogueNode[] dialogueNodes)
     {
-        var templateRepository = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository templateRepository = Substitute.For<ICreatureTemplateRepository>();
         templateRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<CreatureTemplate> { template }));
 
@@ -477,7 +477,7 @@ public class CreatureSpawnerShould
             new() { Level = 4, Health = 84,  DamageMin = 7, DamageMax = 11, Experience = 60 },
             new() { Level = 5, Health = 106, DamageMin = 9, DamageMax = 14, Experience = 85 },
         ];
-        var baseStatRepository = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStatRepository = Substitute.For<ICreatureBaseStatRepository>();
         baseStatRepository.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(baseStats));
 
@@ -486,33 +486,33 @@ public class CreatureSpawnerShould
             new() { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f },
             new() { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.0f, ExperienceMultiplier = 15.0f },
         ];
-        var rarityRepository = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarityRepository = Substitute.For<ICreatureRarityModifierRepository>();
         rarityRepository.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>(rarities));
 
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>([]));
-        var classLevelStats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository classLevelStats = Substitute.For<IClassLevelStatRepository>();
         classLevelStats.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<ClassLevelStat>>([]));
-        var itemTemplates = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository itemTemplates = Substitute.For<IItemTemplateRepository>();
         itemTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<ItemTemplate>()));
-        var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<AbilityTemplate>()));
-        var characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
         characterLevelExperiences.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>([]));
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedTextLocale>>([]));
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>(dialogueNodes));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
@@ -523,7 +523,7 @@ public class CreatureSpawnerShould
             localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync().GetAwaiter().GetResult();
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Data.Returns(data);
 
         return new CreatureSpawner(spawnerLogging, world);
@@ -576,11 +576,11 @@ public class CreatureSpawnerShould
             BaseStats = [new() { Level = 1, Health = 50, DamageMin = 4, DamageMax = 7, Experience = 25 }]
         };
 
-        var templateRepository = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository templateRepository = Substitute.For<ICreatureTemplateRepository>();
         templateRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(repos.Templates.ToList()));
 
-        var baseStatRepository = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStatRepository = Substitute.For<ICreatureBaseStatRepository>();
         baseStatRepository.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(repos.BaseStats.ToList()));
 
@@ -589,33 +589,33 @@ public class CreatureSpawnerShould
             new() { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f },
             new() { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.0f, ExperienceMultiplier = 15.0f },
         ];
-        var rarityRepository = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarityRepository = Substitute.For<ICreatureRarityModifierRepository>();
         rarityRepository.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>(rarities));
 
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>([]));
-        var classLevelStats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository classLevelStats = Substitute.For<IClassLevelStatRepository>();
         classLevelStats.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<ClassLevelStat>>([]));
-        var itemTemplates = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository itemTemplates = Substitute.For<IItemTemplateRepository>();
         itemTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<ItemTemplate>()));
-        var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<AbilityTemplate>()));
-        var characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
         characterLevelExperiences.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>([]));
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedTextLocale>>([]));
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<DialogueNode>>(repos.DialogueNodes.ToList()));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
@@ -626,7 +626,7 @@ public class CreatureSpawnerShould
             localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync().GetAwaiter().GetResult();
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Data.Returns(data);
 
         return (new CreatureSpawner(NullLoggerFactory.Instance, world), data, repos);

@@ -64,7 +64,7 @@ public class InstanceAbilityCastSystemShould
 
     private static ICharacter Caster(PowerType type = PowerType.Mana, uint power = 100)
     {
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.PowerType.Returns(type);
         character.CurrentPower.Returns(power);
         character.Position.Returns(Vector3.zero);

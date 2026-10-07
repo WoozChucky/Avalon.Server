@@ -151,7 +151,7 @@ public class VendorRulesShould
         VendorStockState stock = Stock();
         Sell(stock, BladeSequence, row.BladesSold);
         Sell(stock, ElixirSequence, row.ElixirsSold);
-        var quests = Substitute.For<IQuestProgress>();
+        IQuestProgress quests = Substitute.For<IQuestProgress>();
         quests.IsMet(Arg.Any<CharacterEntity>(), GatedQuest, QuestRequirementState.Completed).Returns(row.QuestMet);
         Func<ItemTemplateId, ItemTemplate?> find = Find;
         if (row.TonicGone)

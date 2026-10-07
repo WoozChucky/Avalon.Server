@@ -22,18 +22,18 @@ public class MapNavigatorShould
     [Fact]
     public void RaycastWalkable_returns_to_when_navmesh_unloaded()
     {
-        var nav = BuildUnloaded();
+        MapNavigator nav = BuildUnloaded();
         var from = new Vector3(0, 0, 0);
         var to = new Vector3(5, 0, 5);
-        var result = nav.RaycastWalkable(from, to);
+        Vector3 result = nav.RaycastWalkable(from, to);
         Assert.Equal(to, result);
     }
 
     [Fact]
     public void SampleGroundHeight_returns_input_y_when_navmesh_unloaded()
     {
-        var nav = BuildUnloaded();
-        var y = nav.SampleGroundHeight(2.5f, 30f, 3.5f);
+        MapNavigator nav = BuildUnloaded();
+        float y = nav.SampleGroundHeight(2.5f, 30f, 3.5f);
         Assert.Equal(30f, y);
     }
 
@@ -51,7 +51,7 @@ public class MapNavigatorShould
     [Fact]
     public void FindPath_into_a_used_buffer_gives_the_same_route_as_a_new_list()
     {
-        var nav = BuildOverFlatGround();
+        MapNavigator nav = BuildOverFlatGround();
         var buffer = new List<Vector3>();
         nav.FindPath(new Vector3(-15f, 0f, -15f), new Vector3(15f, 0f, 15f), buffer);
         Assert.True(buffer.Count > 10);
@@ -68,7 +68,7 @@ public class MapNavigatorShould
     [Fact]
     public void FindPath_into_a_used_buffer_leaves_it_empty_when_there_is_no_route()
     {
-        var nav = BuildOverFlatGround();
+        MapNavigator nav = BuildOverFlatGround();
         var buffer = new List<Vector3>();
         nav.FindPath(new Vector3(-15f, 0f, -15f), new Vector3(15f, 0f, 15f), buffer);
         Assert.NotEmpty(buffer);
@@ -81,7 +81,7 @@ public class MapNavigatorShould
     [Fact]
     public void FindPath_into_a_buffer_leaves_it_empty_when_navmesh_unloaded()
     {
-        var nav = BuildUnloaded();
+        MapNavigator nav = BuildUnloaded();
         var buffer = new List<Vector3> { new(1f, 2f, 3f) };
 
         nav.FindPath(Vector3.zero, new Vector3(5f, 0f, 5f), buffer);

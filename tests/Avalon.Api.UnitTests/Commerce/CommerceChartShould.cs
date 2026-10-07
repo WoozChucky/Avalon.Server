@@ -11,13 +11,13 @@ public sealed class CommerceChartShould
     [Fact]
     public void Default_chart_disables_checkout()
     {
-        var values = File.ReadAllText(Path.Combine(Root, "src/Server/Avalon.Api/Helm/avalon-api/values.yaml"));
+        string values = File.ReadAllText(Path.Combine(Root, "src/Server/Avalon.Api/Helm/avalon-api/values.yaml"));
         Assert.Matches("(?m)^commerce:\\r?\\n\\s+enabled: false", values);
     }
     [Fact]
     public void Keys_are_only_secret_references()
     {
-        var deployment = File.ReadAllText(Path.Combine(Root, "src/Server/Avalon.Api/Helm/avalon-api/templates/deployment.yaml"));
+        string deployment = File.ReadAllText(Path.Combine(Root, "src/Server/Avalon.Api/Helm/avalon-api/templates/deployment.yaml"));
         Assert.Matches("(?s)name: Application__Commerce__ApiKey\\s+valueFrom:\\s+secretKeyRef:", deployment);
         Assert.Matches("(?s)name: Application__Commerce__WebhookSecret\\s+valueFrom:\\s+secretKeyRef:", deployment);
         Assert.DoesNotContain(".Values.commerce.apiKey |", deployment);
@@ -25,7 +25,7 @@ public sealed class CommerceChartShould
     [Fact]
     public void Chart_refuses_inline_credentials_and_production_or_live_enablement()
     {
-        var helper = File.ReadAllText(Path.Combine(Root, "src/Server/Avalon.Api/Helm/avalon-api/templates/_helpers.tpl"));
+        string helper = File.ReadAllText(Path.Combine(Root, "src/Server/Avalon.Api/Helm/avalon-api/templates/_helpers.tpl"));
         Assert.Contains("avalon-api.validateCommerce", helper);
         Assert.Contains("commerce.apiKey is forbidden", helper);
         Assert.Contains("commerce.webhookSecret is forbidden", helper);

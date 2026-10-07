@@ -10,7 +10,7 @@ internal static class CommerceModel
 {
     public static void Configure(ModelBuilder model)
     {
-        var order = model.Entity<PurchaseOrder>();
+        EntityTypeBuilder<PurchaseOrder> order = model.Entity<PurchaseOrder>();
         Base(order);
         order.Property(x => x.AccountId).HasConversion(x => x.Value, x => new AccountId(x));
         order.Property(x => x.OriginalPurchaserAccountId).HasConversion(x => x.Value, x => new AccountId(x));
@@ -31,7 +31,7 @@ internal static class CommerceModel
         order.HasOne<PaymentAttempt>().WithMany().HasForeignKey(x => x.FundingAttemptId).OnDelete(DeleteBehavior.Restrict);
         order.ToTable(t => t.HasCheckConstraint("CK_PurchaseOrders_Amount", "\"AmountMinor\" > 0 AND length(\"Currency\") = 3 AND \"Currency\" = lower(\"Currency\")"));
 
-        var attempt = model.Entity<PaymentAttempt>();
+        EntityTypeBuilder<PaymentAttempt> attempt = model.Entity<PaymentAttempt>();
         Scoped(attempt);
         attempt.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
         attempt.Property(x => x.OperationKey).HasMaxLength(128);
@@ -50,7 +50,7 @@ internal static class CommerceModel
         attempt.HasIndex(x => new { x.OrderId, x.Sequence }).IsUnique();
         attempt.HasOne<PurchaseOrder>().WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
 
-        var refund = model.Entity<PaymentRefund>();
+        EntityTypeBuilder<PaymentRefund> refund = model.Entity<PaymentRefund>();
         Scoped(refund);
         refund.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
         refund.Property(x => x.RequestedBy).HasConversion(x => x.Value, x => new AccountId(x));
@@ -65,14 +65,14 @@ internal static class CommerceModel
         refund.HasOne<Account>().WithMany().HasForeignKey(x => x.RequestedBy).OnDelete(DeleteBehavior.Restrict);
         refund.ToTable(t => t.HasCheckConstraint("CK_PaymentRefunds_Amount", "\"AmountMinor\" > 0 AND length(trim(\"Reason\")) BETWEEN 1 AND 500"));
 
-        var dispute = model.Entity<PaymentDispute>();
+        EntityTypeBuilder<PaymentDispute> dispute = model.Entity<PaymentDispute>();
         Scoped(dispute);
         dispute.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
         dispute.Property(x => x.ExternalReference).HasMaxLength(256);
         dispute.HasIndex(x => new { x.Provider, x.ProviderAccountId, x.Environment, x.ExternalReference }).IsUnique();
         dispute.HasOne<PaymentAttempt>().WithMany().HasForeignKey(x => x.PaymentAttemptId).OnDelete(DeleteBehavior.Restrict);
 
-        var notification = model.Entity<PaymentEvent>();
+        EntityTypeBuilder<PaymentEvent> notification = model.Entity<PaymentEvent>();
         Scoped(notification);
         notification.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
         notification.Property(x => x.ExternalReference).HasMaxLength(256);

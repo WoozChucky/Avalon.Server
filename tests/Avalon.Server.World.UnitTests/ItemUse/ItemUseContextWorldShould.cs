@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Quest;
@@ -11,6 +12,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World;
+using Avalon.World.Abilities;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -107,10 +109,10 @@ public class ItemUseContextWorldShould
         using (instance)
         {
             MapInstanceClient user = Join(instance, 7);
-            var row = AbilityTestData.Circle(1);
+            AbilityTemplate row = AbilityTestData.Circle(1);
             row.Cost = 30;
             row.CostPowerType = PowerType.Mana;
-            var held = AbilityTestData.Game(row);
+            GameAbility held = AbilityTestData.Game(row);
             user.Character.Spells.Load([held]);
             user.Character.PowerType = PowerType.Mana;
             user.Character.Power = 100;
@@ -131,8 +133,8 @@ public class ItemUseContextWorldShould
     [Fact]
     public async Task Cast_an_instant_ability_the_user_does_not_hold_and_refuse_one_with_a_cast_time()
     {
-        var instant = AbilityTestData.Circle(5);
-        var windUp = AbilityTestData.Circle(6);
+        AbilityTemplate instant = AbilityTestData.Circle(5);
+        AbilityTemplate windUp = AbilityTestData.Circle(6);
         windUp.CastTime = 1000;
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(abilities: () => [instant, windUp]));
         IWorld world = NewWorld(data);
@@ -157,7 +159,7 @@ public class ItemUseContextWorldShould
         using (instance)
         {
             MapInstanceClient user = Join(instance, 7);
-            var windUp = AbilityTestData.Circle(3);
+            AbilityTemplate windUp = AbilityTestData.Circle(3);
             windUp.CastTime = 1000;
             user.Character.Spells.Load([AbilityTestData.Game(windUp), AbilityTestData.Game(AbilityTestData.Circle(4))]);
             ItemUseContext ctx = ContextFor(NewWorld(), user.Connection, user.Character, instance);

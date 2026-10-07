@@ -26,7 +26,7 @@ public sealed class ApiCertificateTrust
         if (certificate is null || (errors & ~SslPolicyErrors.RemoteCertificateChainErrors) != SslPolicyErrors.None) return false;
         try
         {
-            var now = _clock.GetUtcNow().UtcDateTime;
+            DateTime now = _clock.GetUtcNow().UtcDateTime;
             return certificate.NotBefore.ToUniversalTime() <= now && now < certificate.NotAfter.ToUniversalTime() &&
                 CryptographicOperations.FixedTimeEquals(SHA256.HashData(certificate.RawData), _pin) &&
                 certificate.Extensions.OfType<X509EnhancedKeyUsageExtension>().Any(extension =>

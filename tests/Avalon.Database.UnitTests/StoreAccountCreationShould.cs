@@ -1,6 +1,8 @@
+using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Xunit;
 
 namespace Avalon.Database.UnitTests;
@@ -12,7 +14,7 @@ public class StoreAccountCreationShould
     [Fact]
     public void Provenance_migration_preserves_existing_Steam_receipts_without_granting_licenses()
     {
-        var operations = new Avalon.Database.Auth.Migrations.SharedStoreProvenance().UpOperations;
+        IReadOnlyList<MigrationOperation> operations = new Avalon.Database.Auth.Migrations.SharedStoreProvenance().UpOperations;
         var providers = operations.OfType<Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation>()
             .Where(x => x.Name == "Provider").ToList();
         Assert.Equal(2, providers.Count);
@@ -26,12 +28,12 @@ public class StoreAccountCreationShould
         using var database = SqliteDatabase.Auth();
         var repo = new ExternalIdentityRepository(database, new FixedClock(Now));
         var operation = new StoreAccountCreationOperation(Guid.NewGuid(), StoreAuthenticationModelShould.Account("FUTURE"), "opaque-subject", Now.AddMinutes(5)) { Provider = "test-store" };
-        var created = await repo.CreateAccountWithStoreLinkAsync(operation, Now);
+        IdentityLinkResult created = await repo.CreateAccountWithStoreLinkAsync(operation, Now);
         Assert.Equal(IdentityLinkStatus.Linked, created.Status);
         Assert.Equal("test-store", created.Identity!.Provider);
         Assert.Equal(IdentityLinkStatus.AlreadyLinked, (await repo.CreateAccountWithStoreLinkAsync(operation, Now)).Status);
         Assert.Equal(IdentityLinkStatus.AuthorityChanged, (await repo.CreateAccountWithStoreLinkAsync(operation with { Provider = "another-store" }, Now)).Status);
-        await using var db = database.CreateDbContext();
+        await using AuthDbContext db = database.CreateDbContext();
         Assert.Equal("test-store", (await db.StoreAccountCreations.SingleAsync()).Provider);
     }
 
@@ -41,12 +43,12 @@ public class StoreAccountCreationShould
         using var database = SqliteDatabase.Auth();
         var repo = new ExternalIdentityRepository(database, new FixedClock(Now));
         var operation = new StoreAccountCreationOperation(Guid.NewGuid(), StoreAuthenticationModelShould.Account("NEWROOT"), "76561198000000001", Now.AddMinutes(5));
-        var created = await repo.CreateAccountWithSteamLinkAsync(operation, Now);
+        IdentityLinkResult created = await repo.CreateAccountWithSteamLinkAsync(operation, Now);
         Assert.Equal(IdentityLinkStatus.Linked, created.Status);
         Assert.Equal(IdentityLinkStatus.AlreadyLinked, (await repo.CreateAccountWithSteamLinkAsync(operation, Now)).Status);
-        await using var db = database.CreateDbContext();
-        var account = await db.Accounts.SingleAsync(a => a.Username == "NEWROOT");
-        var link = await db.ExternalIdentities.SingleAsync();
+        await using AuthDbContext db = database.CreateDbContext();
+        Account account = await db.Accounts.SingleAsync(a => a.Username == "NEWROOT");
+        ExternalIdentity link = await db.ExternalIdentities.SingleAsync();
         Assert.Equal(account.Id, link.AccountId);
         Assert.Equal(operation.OperationId, link.Id);
         Assert.Equal(1, account.SessionEpoch);
@@ -61,7 +63,7 @@ public class StoreAccountCreationShould
         await repo.CreateAccountWithSteamLinkAsync(new(Guid.NewGuid(), StoreAuthenticationModelShould.Account("FIRST"), "76561198000000001", Now.AddMinutes(5)), Now);
         Assert.Equal(IdentityLinkStatus.SubjectTaken, (await repo.CreateAccountWithSteamLinkAsync(new(
             Guid.NewGuid(), StoreAuthenticationModelShould.Account("SECOND"), "76561198000000001", Now.AddMinutes(5)), Now)).Status);
-        await using var db = database.CreateDbContext();
+        await using AuthDbContext db = database.CreateDbContext();
         Assert.False(await db.Accounts.AnyAsync(a => a.Username == "SECOND"));
         Assert.Single(await db.ExternalIdentities.ToListAsync());
     }
@@ -71,10 +73,10 @@ public class StoreAccountCreationShould
     {
         using var database = SqliteDatabase.Auth();
         var repo = new ExternalIdentityRepository(database, new ExpiringClock(Now));
-        var result = await repo.CreateAccountWithSteamLinkAsync(new(Guid.NewGuid(),
+        IdentityLinkResult result = await repo.CreateAccountWithSteamLinkAsync(new(Guid.NewGuid(),
             StoreAuthenticationModelShould.Account("TOOLATE"), "76561198000000001", Now.AddMinutes(5)), Now);
         Assert.Equal(IdentityLinkStatus.AuthorityChanged, result.Status);
-        await using var db = database.CreateDbContext();
+        await using AuthDbContext db = database.CreateDbContext();
         Assert.False(await db.Accounts.AnyAsync(a => a.Username == "TOOLATE"));
         Assert.Empty(await db.ExternalIdentities.ToListAsync());
         Assert.Empty(await db.StoreAccountCreations.ToListAsync());
@@ -86,11 +88,11 @@ public class StoreAccountCreationShould
         using var database = SqliteDatabase.Auth();
         var repo = new ExternalIdentityRepository(database, new FixedClock(Now));
         var operation = new StoreAccountCreationOperation(Guid.NewGuid(), StoreAuthenticationModelShould.Account("DELETED"), "76561198000000001", Now.AddMinutes(5));
-        var created = await repo.CreateAccountWithSteamLinkAsync(operation, Now);
-        await using (var db = database.CreateDbContext())
+        IdentityLinkResult created = await repo.CreateAccountWithSteamLinkAsync(operation, Now);
+        await using (AuthDbContext db = database.CreateDbContext())
             await db.Accounts.Where(a => a.Id == created.Identity!.AccountId).ExecuteDeleteAsync();
         Assert.Equal(IdentityLinkStatus.AuthorityChanged, (await repo.CreateAccountWithSteamLinkAsync(operation, Now)).Status);
-        await using var read = database.CreateDbContext();
+        await using AuthDbContext read = database.CreateDbContext();
         Assert.False(await read.Accounts.AnyAsync(a => a.Username == "DELETED"));
     }
 
@@ -99,15 +101,15 @@ public class StoreAccountCreationShould
     {
         using var database = SqliteDatabase.Auth();
         var repo = new ExternalIdentityRepository(database, new FixedClock(Now));
-        foreach (var (name, subject) in new[] { ("STOREONE", "76561198000000001"), ("STORETWO", "76561198000000002") })
+        foreach ((string? name, string? subject) in new[] { ("STOREONE", "76561198000000001"), ("STORETWO", "76561198000000002") })
         {
             var candidate = new Account { Username = name, Email = null, Salt = [], Verifier = [], JoinDate = Now, IsStoreGenerated = true };
             var operation = new StoreAccountCreationOperation(Guid.NewGuid(), candidate, subject, Now.AddMinutes(5));
             Assert.Equal(IdentityLinkStatus.Linked, (await repo.CreateAccountWithSteamLinkAsync(operation, Now)).Status);
             Assert.Equal(IdentityLinkStatus.AlreadyLinked, (await repo.CreateAccountWithSteamLinkAsync(operation, Now)).Status);
         }
-        await using var db = database.CreateDbContext();
-        var roots = await db.Accounts.Where(a => a.Username.StartsWith("STORE")).ToListAsync();
+        await using AuthDbContext db = database.CreateDbContext();
+        List<Account> roots = await db.Accounts.Where(a => a.Username.StartsWith("STORE")).ToListAsync();
         Assert.Equal(2, roots.Count);
         Assert.All(roots, a => { Assert.Null(a.Email); Assert.Empty(a.Salt); Assert.Empty(a.Verifier); });
     }

@@ -336,7 +336,7 @@ public class CreatureCastShould
     [Fact]
     public void Roll_bite_over_the_creatures_natural_damage_range()
     {
-        var rng = ScriptedCombatRandom.Plain().Longs(6);
+        ScriptedCombatRandom rng = ScriptedCombatRandom.Plain().Longs(6);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _, random: rng);
         MapInstanceClient player = Join(instance, 163_151);
         player.Character.Health = 100;
@@ -357,7 +357,7 @@ public class CreatureCastShould
     [Fact]
     public void Mark_a_creature_abilitys_crit_on_the_hit()
     {
-        var rng = new ScriptedCombatRandom(0.99, 0.0, 0.99).Longs(4);
+        ScriptedCombatRandom rng = new ScriptedCombatRandom(0.99, 0.0, 0.99).Longs(4);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _, random: rng);
         MapInstanceClient player = Join(instance, 163_161);
         player.Character.Health = 100;

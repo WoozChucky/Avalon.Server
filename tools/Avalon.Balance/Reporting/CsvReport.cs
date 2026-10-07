@@ -18,7 +18,7 @@ public static class CsvReport
 
     public static string Render(IReadOnlyList<RowResult> rows, GradeReport grades)
     {
-        var sb = new StringBuilder().Append(string.Join(',', Header)).Append('\n');
+        StringBuilder sb = new StringBuilder().Append(string.Join(',', Header)).Append('\n');
         foreach (RowResult r in rows)
         {
             string?[] fields =

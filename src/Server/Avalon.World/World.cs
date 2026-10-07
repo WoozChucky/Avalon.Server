@@ -486,7 +486,7 @@ public class World : IWorld
         await _mapManager.LoadAsync();
         await _chunkLibrary.LoadAsync(token);
 
-        var chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
+        IChunkLayoutInstanceFactory chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
         var registry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory, _tick);
         _registry = registry;
         InstanceRegistry = registry;
@@ -730,7 +730,7 @@ public class World : IWorld
 
     private void ApplyScriptsHotReload(List<Type> aiScriptTypes)
     {
-        Dictionary<string, Type> scriptTypeDict =
+        var scriptTypeDict =
             aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
         foreach ((string name, Type type) in scriptTypeDict)
             _hotReloaded[name] = type;
@@ -770,7 +770,7 @@ public class World : IWorld
         foreach ((ICreature entity, Type scriptType) in toUpdate)
         {
             instance.RemoveCreature(entity);
-            AiScript? script =
+            var script =
                 ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, instance) as AiScript;
             entity.Script = script;
             instance.AddCreature(entity);

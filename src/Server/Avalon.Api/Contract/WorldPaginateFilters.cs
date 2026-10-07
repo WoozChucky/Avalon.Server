@@ -20,7 +20,7 @@ public class WorldPaginateFilters : EntityPaginateFilter<WorldEntity>
     {
         // AccessLevels.ForWorld(...).Allows(...) in a form the database can evaluate, so the page
         // and its total count cover only visible worlds. A mask test, never "<=" (#447).
-        var enterable = AccessLevels.WorldsEnterableBy(CallerAccessLevel);
+        Common.Accounts.AccountAccessLevel enterable = AccessLevels.WorldsEnterableBy(CallerAccessLevel);
         return PredicateBuilder.New<WorldEntity>(w => (w.AccessLevelRequired & enterable) != 0);
     }
 

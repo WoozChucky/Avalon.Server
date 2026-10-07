@@ -6,6 +6,7 @@ using Avalon.Api.Balance;
 using Avalon.Api.UnitTests.Authentication;
 using Avalon.Balance.Contract;
 using Avalon.Common.Accounts;
+using Avalon.Domain.Auth;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
@@ -34,7 +35,7 @@ public sealed class BalanceControllerShould
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
         if (level is { } l)
         {
-            var account = ApiAuthHost.MakeAccount(l);
+            Account account = ApiAuthHost.MakeAccount(l);
             host.AccountNowIs(account);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiAuthHost.Mint(account));
         }
@@ -61,7 +62,7 @@ public sealed class BalanceControllerShould
         using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/catalog", "", Admin);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using JsonDocument json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("abc", json.RootElement.GetProperty("commit").GetString());
     }
 
@@ -166,7 +167,7 @@ public sealed class BalanceControllerShould
         using HttpResponseMessage response = await SendAsync(host, method, path, body, Admin);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        using JsonDocument json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("balance service not configured", json.RootElement.GetProperty("detail").GetString());
     }
 
@@ -181,7 +182,7 @@ public sealed class BalanceControllerShould
         using HttpResponseMessage response = await SendAsync(host, "GET", "/balance/catalog", "", Admin);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        using JsonDocument json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("balance service unavailable", json.RootElement.GetProperty("detail").GetString());
     }
 }

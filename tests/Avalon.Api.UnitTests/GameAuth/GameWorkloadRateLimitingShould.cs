@@ -13,7 +13,7 @@ public sealed class GameWorkloadRateLimitingShould
     {
         var context = new DefaultHttpContext();
         context.User = new(new ClaimsIdentity([new Claim(GameServerAuthHandler.ServerIdClaim, "world-1")], GameServerAuthHandler.Scheme));
-        var partition = ApiRateLimiting.PartitionOf(context, true);
+        ApiRateLimiting.Partition partition = ApiRateLimiting.PartitionOf(context, true);
         Assert.Equal(ApiRateLimiting.PartitionKind.Workload, partition.Kind);
         Assert.Equal("world-1", partition.Key);
     }

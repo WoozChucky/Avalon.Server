@@ -36,7 +36,7 @@ public sealed class PickupEmailSender : IEmailSender
         ArgumentNullException.ThrowIfNull(textBody);
 
         DateTimeOffset now = _time.GetUtcNow();
-        Guid id = Guid.NewGuid();
+        var id = Guid.NewGuid();
 
         var eml = new StringBuilder();
         Header(eml, "From", _from);

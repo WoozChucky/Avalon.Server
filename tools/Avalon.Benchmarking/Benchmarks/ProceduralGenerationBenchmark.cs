@@ -44,7 +44,7 @@ public class ProceduralGenerationBenchmark
         var list = new List<ChunkPoolMember>(capacity: size);
 
         // Entry chunk: N-center exit, Spawn_Entry + Portal_Back.
-        var entry = MakeChunk(1, entryTag: true, exits: 0b_0000_0000_0000_0010, back: true);
+        ChunkTemplate entry = MakeChunk(1, entryTag: true, exits: 0b_0000_0000_0000_0010, back: true);
         list.Add(new ChunkPoolMember(entry, Weight: 1f));
 
         // Fill rest with N+S center through-corridors.

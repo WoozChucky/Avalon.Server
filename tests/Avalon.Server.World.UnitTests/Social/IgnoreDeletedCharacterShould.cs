@@ -33,7 +33,7 @@ public class IgnoreDeletedCharacterShould
         aren.Character.Ignores.Add(2, "Kaela", Now);
         aren.Character.Ignores.Add(9, "Borin", Now);
 
-        var characters = Substitute.For<ICharacterRepository>();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         var kaela = new Character { Id = new CharacterId(2), AccountId = new AccountId(5), Name = "Kaela" };
         characters.FindByIdAndAccountAsync(Arg.Any<CharacterId>(), Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(kaela);

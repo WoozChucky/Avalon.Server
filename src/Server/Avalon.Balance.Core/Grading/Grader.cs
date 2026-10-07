@@ -38,7 +38,7 @@ public static class Grader
     {
         double tol = targets.YellowTolerancePct;
         GlobalTargets g = targets.Global;
-        List<RowResult> graded = rows.Where(r => string.Equals(r.Key.Gear, targets.GradedGear, StringComparison.Ordinal)).ToList();
+        var graded = rows.Where(r => string.Equals(r.Key.Gear, targets.GradedGear, StringComparison.Ordinal)).ToList();
         var metrics = new List<GradedMetric>();
 
         void Add(RowKey? row, string check, string metric, double? value, Band band, string unit) =>

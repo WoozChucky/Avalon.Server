@@ -17,7 +17,7 @@ public class CharacterPaginateFilters : EntityPaginateFilter<Character>
 
     public override Expression<Func<Character, bool>> GetFilter()
     {
-        var predicate = PredicateBuilder.New<Character>(true);
+        ExpressionStarter<Character> predicate = PredicateBuilder.New<Character>(true);
 
         if (AccountId is { } aid)
         {
@@ -27,7 +27,7 @@ public class CharacterPaginateFilters : EntityPaginateFilter<Character>
 
         if (!string.IsNullOrEmpty(NameLike))
         {
-            var pattern = $"%{NameLike}%";
+            string pattern = $"%{NameLike}%";
             predicate = predicate.And(c => EF.Functions.ILike(c.Name, pattern));
         }
 

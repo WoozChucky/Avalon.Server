@@ -47,14 +47,14 @@ public static class QuestCatalogExport
 
         using var context = new WorldDbContext(NullLoggerFactory.Instance, options);
 
-        List<QuestTemplate> quests = context.QuestTemplates
+        var quests = context.QuestTemplates
             .AsNoTracking()
             .AsSplitQuery()
             .Include(q => q.Stages)
             .Include(q => q.Objectives)
             .Include(q => q.ItemRewards)
             .ToList();
-        Dictionary<int, string> texts = context.LocalizedTexts.AsNoTracking()
+        var texts = context.LocalizedTexts.AsNoTracking()
             .ToDictionary(t => t.Id.Value, t => t.Text);
 
         Lf.Write(path, Render(quests, texts));

@@ -138,7 +138,7 @@ public class ObjectGuidShould
     public void ReferenceEqualityShortCircuitsOperator()
     {
         var guid = new ObjectGuid(ObjectType.Character, 1U);
-        var same = guid;
+        ObjectGuid same = guid;
 
         Assert.True(guid == same);
     }

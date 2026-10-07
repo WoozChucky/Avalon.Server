@@ -15,14 +15,14 @@ public class AbilityCatalogExportShould
 {
     private static List<AbilityTemplate> Seeded()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         return context.AbilityTemplates.AsNoTracking().ToList();
     }
 
     private static List<JsonElement> Rows(string json)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json);
         return document.RootElement.GetProperty("abilities").EnumerateArray().Select(r => r.Clone()).ToList();
     }
 

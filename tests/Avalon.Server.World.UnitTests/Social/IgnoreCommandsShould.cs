@@ -1,5 +1,6 @@
 using Avalon.Database.Character.Repositories;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World.Chat;
@@ -291,7 +292,7 @@ public class IgnoreCommandsShould
         _w.Clock.Advance(TimeSpan.FromSeconds(60));
         _w.Parties.Tick();
 
-        var expired = Assert.Single(kaela.Results());
+        SPartyResultPacket expired = Assert.Single(kaela.Results());
         Assert.Equal((Avalon.Network.Packets.Party.PartyResult.InviteExpired, "Aren"), (expired.Result, expired.Name));
         Assert.Empty(aren.Results());
     }

@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -22,13 +23,13 @@ public class MapInstanceSaveHookShould
     [Fact]
     public void Tick_the_save_scheduler_for_every_character()
     {
-        var scheduler = Substitute.For<ICharacterSaveScheduler>();
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        ICharacterSaveScheduler scheduler = Substitute.For<ICharacterSaveScheduler>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         serviceProvider.GetService(typeof(ICharacterSaveScheduler)).Returns(scheduler);
 
-        var world = Substitute.For<Avalon.World.IWorld>();
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
@@ -45,7 +46,7 @@ public class MapInstanceSaveHookShould
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         instance.AddCharacter(connection);
 
-        TimeSpan delta = TimeSpan.FromSeconds(1d / 60d);
+        var delta = TimeSpan.FromSeconds(1d / 60d);
         instance.Update(delta);
 
         scheduler.Received(1).Tick(connection, character, delta);

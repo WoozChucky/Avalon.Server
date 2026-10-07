@@ -25,8 +25,8 @@ public sealed class ResendEmailSenderShould
             ["Application:Email:FromName"] = "Avalon",
             ["Application:Email:ResendApiKey"] = Secret,
         };
-        var config = ApiConfiguration.Bind(new ConfigurationBuilder().AddInMemoryCollection(settings).Build()).Email!;
-        var env = Substitute.For<IHostEnvironment>(); env.EnvironmentName.Returns("Production");
+        EmailConfig config = ApiConfiguration.Bind(new ConfigurationBuilder().AddInMemoryCollection(settings).Build()).Email!;
+        IHostEnvironment env = Substitute.For<IHostEnvironment>(); env.EnvironmentName.Returns("Production");
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddEmail(config, env);
@@ -57,7 +57,7 @@ public sealed class ResendEmailSenderShould
     public async Task DoesNotLeakSecretsOnFailure(int status)
     {
         var handler = new Handler { Status = (HttpStatusCode)status, Response = "provider-secret " + Secret };
-        var ex = await Assert.ThrowsAsync<EmailDeliveryException>(() => Sender(handler).SendAsync("player@example.test", "Verify", "raw-token", default));
+        EmailDeliveryException ex = await Assert.ThrowsAsync<EmailDeliveryException>(() => Sender(handler).SendAsync("player@example.test", "Verify", "raw-token", default));
         Assert.DoesNotContain(Secret, ex.ToString());
         Assert.DoesNotContain("raw-token", ex.ToString());
         Assert.Null(ex.InnerException);

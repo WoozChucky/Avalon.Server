@@ -1,6 +1,7 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Commerce;
 using Avalon.Api.Contract.Commerce;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Login;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,8 +33,8 @@ public sealed class AccountPurchasesController(IPurchaseService purchases, IAuth
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> Checkout()
     {
-        var account = context.Account!;
-        var reply = await purchases.CreateCheckoutAsync(account.Id, account.CredentialsVersion, RemoteAddress.SourceOf(SourceAddress), CancellationToken);
+        Account account = context.Account!;
+        CheckoutReply reply = await purchases.CreateCheckoutAsync(account.Id, account.CredentialsVersion, RemoteAddress.SourceOf(SourceAddress), CancellationToken);
         return reply.CheckoutUrl is null ? Accepted(reply) : Ok(reply);
     }
 }

@@ -2,6 +2,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Avalon.Api.Templates;
 
@@ -16,7 +17,7 @@ public static class TemplateItemUsers
     public static async Task ValidateAsync(WorldDbContext db, ItemTemplate edited, TemplateErrors errors, CancellationToken ct)
     {
         db.ChangeTracker.DetectChanges();
-        var entry = db.Entry(edited);
+        EntityEntry<ItemTemplate> entry = db.Entry(edited);
         bool flags = entry.Property(i => i.Flags).IsModified;
         bool prices = entry.Property(i => i.BuyPrice).IsModified || entry.Property(i => i.SellPrice).IsModified;
         if (!flags && !prices)

@@ -122,7 +122,7 @@ internal static class WireBytes
             first++;
         }
 
-        var report = new StringBuilder()
+        StringBuilder report = new StringBuilder()
             .Append(CultureInfo.InvariantCulture, $"First difference at byte {first} of {expected.Length}/{actual.Length}.")
             .Append(Environment.NewLine)
             .Append(CultureInfo.InvariantCulture, $"  expected  {Hex(expected)}")

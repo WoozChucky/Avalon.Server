@@ -1,5 +1,6 @@
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Quest;
+using Avalon.World.Entities;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,7 +43,7 @@ public class QuestStartFromItemShould
     {
         QuestTestWorld w = await QuestTestWorld.CreateAsync();
         QuestClient c = w.Join();
-        var giver = w.Place(Giver);
+        Creature giver = w.Place(Giver);
         w.Talk(c, giver);
 
         Assert.Equal(QuestResult.Ok, w.Quests.Accept(c.Connection, c.Character, Hunt, giver.Guid.RawValue));
@@ -88,7 +89,7 @@ public class QuestStartFromItemShould
         const uint scripted = 7701, scriptedKill = 77011;
         var recorder = new QuestScriptRecorder();
         IServiceProvider services = new ServiceCollection().AddSingleton<ILogger<SampleQuestScript>>(recorder).BuildServiceProvider();
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
         QuestTestWorld w = await QuestTestWorld.CreateAsync(
             [Quest(scripted, script: nameof(SampleQuestScript)).WithStage(0, Kill(scriptedKill, Boar, 1))],

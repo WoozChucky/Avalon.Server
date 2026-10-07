@@ -64,7 +64,7 @@ public sealed class ProcessQueueTelemetryShould : IDisposable
 
     private TestConnection Connect(IWorldPacketHandler characterList, PacketDispatchTelemetry? telemetry)
     {
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
         server.PacketTelemetry.Returns(telemetry);
         server.PacketHandlers.Returns(new Dictionary<NetworkPacketType, IWorldPacketHandler>

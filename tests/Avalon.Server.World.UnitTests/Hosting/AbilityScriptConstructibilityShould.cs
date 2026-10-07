@@ -26,7 +26,7 @@ public class AbilityScriptConstructibilityShould
 {
     private static string[] SeededScriptNames()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         return context.AbilityTemplates.AsNoTracking().Select(a => a.ScriptName).Distinct().ToList().Order().ToArray();
     }
@@ -49,7 +49,7 @@ public class AbilityScriptConstructibilityShould
             Type? type = scripts.GetAbilityScript(scriptName);
             Assert.NotNull(type);
 
-            var ability = Substitute.For<IAbility>();
+            IAbility ability = Substitute.For<IAbility>();
             ability.Metadata.Returns(new AbilityMetadata { Name = scriptName, ScriptName = scriptName });
 
             // Argument-for-argument identical to InstanceAbilityCastSystem.Build.

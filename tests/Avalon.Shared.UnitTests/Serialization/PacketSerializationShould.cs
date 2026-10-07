@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using ProtoBuf;
@@ -14,7 +15,7 @@ public class PacketSerializationShould
     {
         EncryptFunc identity = span => span.ToArray();
 
-        var packet = SChatMessagePacket.Create(
+        NetworkPacket packet = SChatMessagePacket.Create(
             accountId: 42UL,
             characterId: 7UL,
             characterName: "Alice",
@@ -23,7 +24,7 @@ public class PacketSerializationShould
             encryptFunc: identity);
 
         using var ms = new MemoryStream(packet.Payload);
-        var result = Serializer.Deserialize<SChatMessagePacket>(ms);
+        SChatMessagePacket result = Serializer.Deserialize<SChatMessagePacket>(ms);
 
         Assert.Equal(42UL, result.AccountId);
         Assert.Equal(7UL, result.CharacterId);
@@ -37,13 +38,13 @@ public class PacketSerializationShould
     {
         EncryptFunc identity = span => span.ToArray();
 
-        var packet1 = SChatMessagePacket.Create(1UL, 2UL, "Alice", "Hello", TestDate, identity);
-        var packet2 = SChatMessagePacket.Create(3UL, 4UL, "Bob", "World", TestDate, identity);
+        NetworkPacket packet1 = SChatMessagePacket.Create(1UL, 2UL, "Alice", "Hello", TestDate, identity);
+        NetworkPacket packet2 = SChatMessagePacket.Create(3UL, 4UL, "Bob", "World", TestDate, identity);
 
         using var ms1 = new MemoryStream(packet1.Payload);
         using var ms2 = new MemoryStream(packet2.Payload);
-        var result1 = Serializer.Deserialize<SChatMessagePacket>(ms1);
-        var result2 = Serializer.Deserialize<SChatMessagePacket>(ms2);
+        SChatMessagePacket result1 = Serializer.Deserialize<SChatMessagePacket>(ms1);
+        SChatMessagePacket result2 = Serializer.Deserialize<SChatMessagePacket>(ms2);
 
         Assert.Equal(1UL, result1.AccountId);
         Assert.Equal("Alice", result1.CharacterName);
@@ -65,7 +66,7 @@ public class PacketSerializationShould
 
         Assert.NotNull(capturedBytes);
         using var ms = new MemoryStream(capturedBytes);
-        var deserialized = Serializer.Deserialize<SChatMessagePacket>(ms);
+        SChatMessagePacket deserialized = Serializer.Deserialize<SChatMessagePacket>(ms);
         Assert.Equal(99UL, deserialized.AccountId);
         Assert.Equal("Test", deserialized.CharacterName);
     }

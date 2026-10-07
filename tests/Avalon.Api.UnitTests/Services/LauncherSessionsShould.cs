@@ -125,7 +125,7 @@ public sealed class LauncherSessionsShould : IDisposable
     {
         // FindChildAsync, RevokeFamilyAsync: by family, without the account (#591 review).
         using AuthDbContext context = _database.CreateDbContext();
-        var indexes = context.Model.FindEntityType(typeof(RefreshToken))!.GetIndexes()
+        IEnumerable<string> indexes = context.Model.FindEntityType(typeof(RefreshToken))!.GetIndexes()
             .Select(i => string.Join(",", i.Properties.Select(p => p.Name)));
 
         Assert.Contains("FamilyId,Index", indexes);

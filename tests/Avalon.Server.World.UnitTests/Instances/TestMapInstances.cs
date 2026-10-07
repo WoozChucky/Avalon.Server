@@ -42,14 +42,14 @@ internal static class TestMapInstances
         IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, AuraScripts? auraScripts = null,
         params Type[] extraScripts)
     {
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) }
                      .Concat(extraScripts))
         {
             scripts.GetAbilityScript(script.Name).Returns(script);
         }
 
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         world ??= MapInstanceClients.NewWorld();
         MapInstance instance = Build(world, scripts, navigator, mapType: mapType, time: time, random: random,
@@ -86,7 +86,7 @@ internal static class TestMapInstances
         QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null,
         AuraScripts? auraScripts = null)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
         {
             serviceProvider.GetService(typeof(ICombatRandom)).Returns(random);

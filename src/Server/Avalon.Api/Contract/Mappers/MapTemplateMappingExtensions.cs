@@ -51,7 +51,7 @@ public static class MapTemplateMappingExtensions
         this PlacedChunk c,
         IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> byId)
     {
-        var hasTemplate = byId.TryGetValue(c.TemplateId, out var t);
+        bool hasTemplate = byId.TryGetValue(c.TemplateId, out ChunkTemplate? t);
         return new ChunkPreviewDto
         {
             TemplateId = c.TemplateId.Value,

@@ -107,7 +107,7 @@ public sealed class CharacterSaverShould : IDisposable
         InventoryFor(character).TryAdd(Potion.Id, 4);
         InventoryItem potion = At(character, InventoryType.Bag, 0);
 
-        var failing = Substitute.For<ICharacterSaveRepository>();
+        ICharacterSaveRepository failing = Substitute.For<ICharacterSaveRepository>();
         failing.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("database down")));
 
@@ -274,7 +274,7 @@ public sealed class CharacterSaverShould : IDisposable
     public async Task Report_a_character_idle_after_a_failed_save()
     {
         CharacterEntity character = await SeedAsync(7);
-        var failing = Substitute.For<ICharacterSaveRepository>();
+        ICharacterSaveRepository failing = Substitute.For<ICharacterSaveRepository>();
         failing.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("database down")));
         CharacterSaver saver = Saver(failing);
@@ -309,7 +309,7 @@ public sealed class CharacterSaverShould : IDisposable
     {
         CharacterEntity first = await SeedAsync(7);
         CharacterEntity second = New(7);
-        var repository = Substitute.For<ICharacterSaveRepository>();
+        ICharacterSaveRepository repository = Substitute.For<ICharacterSaveRepository>();
 
         Assert.Throws<ArgumentException>(() => { _ = Saver(repository).Save([(_connection, first), (_connection, second)]); });
 
@@ -392,7 +392,7 @@ public sealed class CharacterSaverShould : IDisposable
     {
         InventoryItem potion = Item(0, Potion, count: 5), sword = Item(1, Sword);
         CharacterEntity character = await SeedAsync(7, stored: [potion, sword]);
-        var inventory = EquipTemplates.InventoryFor(character);
+        CharacterInventoryService inventory = EquipTemplates.InventoryFor(character);
 
         Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
             inventory.TryDestroy(EquipTemplates.Bag(0), null, false));

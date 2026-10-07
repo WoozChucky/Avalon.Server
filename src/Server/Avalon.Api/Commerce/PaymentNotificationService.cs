@@ -14,7 +14,7 @@ public sealed class PaymentNotificationService(IPurchaseRepository purchases, Pa
 {
     public async Task<NotificationAcceptance> AcceptAsync(string name, ReadOnlyMemory<byte> body, IReadOnlyDictionary<string, string> headers, CancellationToken ct)
     {
-        var config = options.Value;
+        CommerceConfiguration config = options.Value;
         if (!config.Enabled || name != config.Provider || providers.Find(name) is not { } provider) return NotificationAcceptance.Disabled;
         if (body.Length is 0 or > CommercePolicy.MaximumNotificationBytes) return NotificationAcceptance.Invalid;
         VerifiedPaymentNotification proof;
@@ -23,9 +23,9 @@ public sealed class PaymentNotificationService(IPurchaseRepository purchases, Pa
         if (proof.Provider != config.Provider || proof.ProviderAccountId != config.ProviderAccountId || proof.PaymentEnvironment != config.PaymentEnvironment ||
             proof.CreatedAt.Kind != DateTimeKind.Utc || proof.ResourceKind is not (PaymentResourceKinds.Checkout or PaymentResourceKinds.Refund or PaymentResourceKinds.Dispute))
             return NotificationAcceptance.Invalid;
-        var attempt = await purchases.ResolveAttemptAsync(proof.Provider, proof.ProviderAccountId, proof.PaymentEnvironment, proof.OrderId, proof.AttemptId,
+        PaymentAttempt? attempt = await purchases.ResolveAttemptAsync(proof.Provider, proof.ProviderAccountId, proof.PaymentEnvironment, proof.OrderId, proof.AttemptId,
             proof.ResourceKind == PaymentResourceKinds.Checkout ? proof.ResourceReference : null, proof.PaymentReference, ct);
-        var now = clock.GetUtcNow().UtcDateTime;
+        DateTime now = clock.GetUtcNow().UtcDateTime;
         var row = new PaymentEvent
         {
             Id = Guid.NewGuid(),

@@ -34,18 +34,18 @@ public sealed class RespawnTargetResolver : IRespawnTargetResolver
 
     public async Task<MapTemplateId> ResolveTownAsync(MapTemplateId from, CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var mapRepo = scope.ServiceProvider.GetRequiredService<IMapTemplateRepository>();
-        var cfgRepo = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
+        await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+        IMapTemplateRepository mapRepo = scope.ServiceProvider.GetRequiredService<IMapTemplateRepository>();
+        IProceduralMapConfigRepository cfgRepo = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
 
-        var current = from;
+        MapTemplateId current = from;
         for (int hop = 0; hop < MaxHops; hop++)
         {
-            var template = await mapRepo.FindByIdAsync(current, false, ct);
+            MapTemplate? template = await mapRepo.FindByIdAsync(current, false, ct);
             if (template is null) break;
             if (template.MapType == MapType.Town) return current;
 
-            var cfg = await cfgRepo.FindByTemplateIdAsync(current, ct);
+            ProceduralMapConfig? cfg = await cfgRepo.FindByTemplateIdAsync(current, ct);
             if (cfg is null) break;
 
             current = new MapTemplateId(cfg.BackPortalTargetMapId);

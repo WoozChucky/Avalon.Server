@@ -9,7 +9,7 @@ public sealed class WorldReadinessShould
     [Fact]
     public async Task Expired_or_unreadable_heartbeat_means_offline()
     {
-        var cache = Substitute.For<IReplicatedCache>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         var readiness = new WorldReadiness(cache);
 
         Assert.False(await readiness.IsReadyAsync(1, CancellationToken.None));

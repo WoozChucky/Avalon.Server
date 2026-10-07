@@ -77,7 +77,7 @@ public static class AuraRestore
                 continue;
             }
 
-            AuraSchedule schedule = AuraSchedule.Restore(now, row.RemainingMs, template.TickIntervalMs, row.TicksLeft);
+            var schedule = AuraSchedule.Restore(now, row.RemainingMs, template.TickIntervalMs, row.TicksLeft);
             if (row.RemainingMs == 0 && schedule.TicksLeft == 0)
             {
                 dropped = true;
@@ -101,7 +101,7 @@ public static class AuraRestore
 
         dropped |= Cap(ref kept, maxAuras, character, logger);
 
-        List<ActiveAura> restored = kept.OrderBy(k => k.Row.Slot).Select(k => k.Aura).ToList();
+        var restored = kept.OrderBy(k => k.Row.Slot).Select(k => k.Aura).ToList();
         character.Auras.Load(restored, heldSince: now);
 
         // A row left behind would come back at every select: the next save rewrites the auras, deleting it.

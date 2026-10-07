@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Instances;
@@ -33,7 +34,7 @@ public class InstanceRegistryShould : IDisposable
 
     public InstanceRegistryShould()
     {
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([
             new MapTemplate { Id = TownId, MapType = MapType.Town },
             new MapTemplate { Id = DungeonId, MapType = MapType.Normal },
@@ -352,12 +353,12 @@ public class InstanceRegistryShould : IDisposable
     /// <summary>Follows <c>MapInstanceDisposalShould.BuildInstance</c>, for the requested template and owner.</summary>
     private static MapInstance BuildInstance(MapTemplate template, uint? owner, TimeProvider clock)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         serviceProvider.GetService(typeof(TimeProvider)).Returns(clock);
 
-        var world = Substitute.For<Avalon.World.IWorld>();
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);

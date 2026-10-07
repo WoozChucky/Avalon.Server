@@ -34,7 +34,7 @@ internal sealed class FakeGitHub : IGitHub
     {
         Step("GetFile");
         Assert.Equal(Commit, reference);
-        return Task.FromResult<(string, string)?>(FilesAtCommit.TryGetValue(path, out var file) ? file : null);
+        return Task.FromResult<(string, string)?>(FilesAtCommit.TryGetValue(path, out (string Sha, string Text) file) ? file : null);
     }
 
     public const string Commit = "abc123def456";

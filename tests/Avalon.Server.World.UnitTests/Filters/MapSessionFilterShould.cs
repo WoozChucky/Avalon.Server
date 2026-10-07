@@ -20,7 +20,7 @@ public class MapSessionFilterShould
 {
     private static MapSessionFilter For(ICharacter? character)
     {
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.IsGameplayAuthorized.Returns(true);
         return new MapSessionFilter(connection);
@@ -28,14 +28,14 @@ public class MapSessionFilterShould
 
     private static ICharacter CharacterOnMap()
     {
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Map.Returns(new MapId(1));
         return character;
     }
 
     private static ICharacter CharacterOffMap()
     {
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Map.Returns(new MapId(0));
         return character;
     }

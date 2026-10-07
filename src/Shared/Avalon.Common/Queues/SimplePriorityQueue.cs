@@ -221,7 +221,7 @@ public class SimplePriorityQueue<TItem, TPriority> : IPriorityQueue<TItem, TPrio
     /// <returns></returns>
     private SimpleNode EnqueueNoLockOrCache(TItem item, TPriority priority)
     {
-        SimpleNode node = new SimpleNode(item);
+        var node = new SimpleNode(item);
         if (_queue.Count == _queue.MaxSize)
         {
             _queue.Resize(_queue.MaxSize * 2 + 1);
@@ -508,11 +508,11 @@ public class SimplePriorityQueue<TItem, TPriority> : IPriorityQueue<TItem, TPrio
 
     public IEnumerator<TItem> GetEnumerator()
     {
-        List<TItem> queueData = new List<TItem>();
+        var queueData = new List<TItem>();
         lock (_queue)
         {
             //Copy to a separate list because we don't want to 'yield return' inside a lock
-            foreach (var node in _queue)
+            foreach (SimpleNode node in _queue)
             {
                 queueData.Add(node.Data);
             }

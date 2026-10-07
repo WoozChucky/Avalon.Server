@@ -1,6 +1,8 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
 using Avalon.Api.Worlds;
+using Avalon.Database;
+using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
@@ -25,7 +27,7 @@ public sealed class WorldListFlagsShould : IDisposable
     public WorldListFlagsShould()
     {
         _databases.MarkUnavailable(new WorldId(102));
-        using var context = _database.CreateDbContext();
+        using AuthDbContext context = _database.CreateDbContext();
         context.Worlds.RemoveRange(context.Worlds.ToList());
         context.Worlds.AddRange(
             World(101, AccountAccessLevel.Player), World(102, AccountAccessLevel.Player),
@@ -54,12 +56,12 @@ public sealed class WorldListFlagsShould : IDisposable
     public async Task Metadata_update_preserves_a_concurrent_maintenance_transition()
     {
         var repository = new WorldRepository(_database);
-        var stale = (await repository.FindByIdAsync(new WorldId(101)))!;
+        WorldEntity stale = (await repository.FindByIdAsync(new WorldId(101)))!;
         stale.Name = "Renamed";
         stale.UpdatedAt = DateTime.UtcNow;
-        using (var context = _database.CreateDbContext())
+        using (AuthDbContext context = _database.CreateDbContext())
         {
-            var persisted = context.Worlds.Single(w => w.Id == new WorldId(101));
+            WorldEntity persisted = context.Worlds.Single(w => w.Id == new WorldId(101));
             persisted.MaintenanceEnabled = true;
             persisted.MaintenanceRevision = 1;
             persisted.MaintenanceDeadlineUtc = DateTime.UtcNow.AddMinutes(5);
@@ -68,8 +70,8 @@ public sealed class WorldListFlagsShould : IDisposable
 
         await repository.UpdateMetadataAsync(stale, CancellationToken.None);
 
-        using var check = _database.CreateDbContext();
-        var actual = check.Worlds.Single(w => w.Id == new WorldId(101));
+        using AuthDbContext check = _database.CreateDbContext();
+        WorldEntity actual = check.Worlds.Single(w => w.Id == new WorldId(101));
         Assert.Equal("Renamed", actual.Name);
         Assert.True(actual.MaintenanceEnabled);
         Assert.Equal(1, actual.MaintenanceRevision);
@@ -78,7 +80,7 @@ public sealed class WorldListFlagsShould : IDisposable
     [Fact]
     public async Task Flag_each_listed_world_as_configured_and_available_or_not()
     {
-        var page = await Sut().ListAsync(AccountAccessLevel.Player, 1, 50);
+        PagedResult<WorldDto> page = await Sut().ListAsync(AccountAccessLevel.Player, 1, 50);
 
         Assert.Equal(new ushort[] { 101, 102, 103 }, page.Items.Select(w => w.Id).Order());
         WorldDto Get(ushort id) => page.Items.Single(w => w.Id == id);
@@ -99,15 +101,15 @@ public sealed class WorldListFlagsShould : IDisposable
     [Fact]
     public async Task Show_a_ready_scheduled_world_as_online_before_its_deadline()
     {
-        using (var context = _database.CreateDbContext())
+        using (AuthDbContext context = _database.CreateDbContext())
         {
-            var world = context.Worlds.Single(w => w.Id == new WorldId(101));
+            WorldEntity world = context.Worlds.Single(w => w.Id == new WorldId(101));
             world.MaintenanceEnabled = true;
             world.MaintenanceRevision = 1;
             world.MaintenanceDeadlineUtc = DateTime.UtcNow.AddMinutes(10);
             context.SaveChanges();
         }
-        var readiness = Substitute.For<IWorldReadiness>();
+        IWorldReadiness readiness = Substitute.For<IWorldReadiness>();
         readiness.IsReadyAsync(101, Arg.Any<CancellationToken>()).Returns(true);
         var service = new WorldService(new WorldRepository(_database), _databases, readiness);
 
@@ -129,7 +131,7 @@ public sealed class WorldListFlagsShould : IDisposable
     public async Task Hide_a_configured_admin_world_from_ptr_and_tournament_callers(AccountAccessLevel caller)
     {
         // PTR (32) and Tournament (16) are numerically above Admin (4): the world rule is a mask test.
-        var page = await Sut().ListAsync(caller, 1, 50);
+        PagedResult<WorldDto> page = await Sut().ListAsync(caller, 1, 50);
 
         Assert.Equal(new ushort[] { 101, 102, 103 }, page.Items.Select(w => w.Id).Order());
         Assert.Equal(3, page.TotalCount);

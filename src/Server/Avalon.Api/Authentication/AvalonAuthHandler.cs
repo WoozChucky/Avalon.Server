@@ -33,7 +33,7 @@ public class AvalonAuthHandler : IAuthorizationHandler
             throw new AuthenticationException("User is not authenticated");
         }
 
-        List<IAuthorizationRequirement> pendingRequirements = context.PendingRequirements.ToList();
+        var pendingRequirements = context.PendingRequirements.ToList();
 
         if (pendingRequirements.FirstOrDefault(r =>
                 r is AvalonAuthRequirement) is AvalonAuthRequirement authRequirement)

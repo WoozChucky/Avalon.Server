@@ -23,6 +23,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using Microsoft.IdentityModel.Tokens;
 using NSubstitute;
 
@@ -131,7 +132,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         // Loopback stands in, unless a request asks to be the address-less caller.
         _app.Use((context, next) =>
         {
-            if (context.Request.Headers.TryGetValue(PeerHeader, out var peer))
+            if (context.Request.Headers.TryGetValue(PeerHeader, out StringValues peer))
                 context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(peer.ToString());
             else if (!context.Request.Headers.ContainsKey(NoAddressHeader))
                 context.Connection.RemoteIpAddress ??= System.Net.IPAddress.Loopback;

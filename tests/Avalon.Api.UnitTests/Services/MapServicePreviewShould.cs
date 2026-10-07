@@ -42,10 +42,10 @@ public class MapServicePreviewShould
             new ChunkGroupCell(arenaCells[2], 0, 1), new ChunkGroupCell(arenaCells[3], 1, 1),
         ]);
 
-        var maps = Substitute.For<IMapTemplateRepository>();
+        IMapTemplateRepository maps = Substitute.For<IMapTemplateRepository>();
         maps.FindByIdAsync(mapId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new MapTemplate { Id = mapId, MapType = MapType.Normal, Name = "forest", Description = string.Empty });
-        var configs = Substitute.For<IProceduralMapConfigRepository>();
+        IProceduralMapConfigRepository configs = Substitute.For<IProceduralMapConfigRepository>();
         configs.FindByTemplateIdAsync(mapId, Arg.Any<CancellationToken>()).Returns(new ProceduralMapConfig
         {
             MapTemplateId = mapId,
@@ -62,13 +62,13 @@ public class MapServicePreviewShould
             Name = "forest_pool",
             Memberships = [new ChunkPoolMembership { ChunkPoolId = poolId, ChunkTemplateId = entry.Id, Template = entry }],
         };
-        var inputs = Substitute.For<IProceduralLayoutInputsResolver>();
+        IProceduralLayoutInputsResolver inputs = Substitute.For<IProceduralLayoutInputsResolver>();
         inputs.FindPoolAsync(poolId, Arg.Any<CancellationToken>()).Returns(pool);
         inputs.ResolveMembersAsync(pool, Arg.Any<CancellationToken>()).Returns(new ProceduralPoolResolution(
             [new ChunkPoolMember(entry, 1f)],
             new[] { entry }.Concat(arenaCells).ToDictionary(t => t.Id),
             [arena]));
-        var options = Substitute.For<IOptionsSnapshot<MapAssetConfig>>();
+        IOptionsSnapshot<MapAssetConfig> options = Substitute.For<IOptionsSnapshot<MapAssetConfig>>();
         options.Value.Returns(new MapAssetConfig());
         var service = new MapService(maps, configs, inputs, Substitute.For<IChunkTemplateRepository>(),
             NullLoggerFactory.Instance, options);

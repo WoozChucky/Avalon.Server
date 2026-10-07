@@ -1,6 +1,8 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.Auth.Repositories;
 
@@ -75,9 +77,9 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 {
     public async Task<RefreshToken> CreateAsync(RefreshToken token, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entry = context.TrackForInsert(token);
+        EntityEntry<RefreshToken> entry = context.TrackForInsert(token);
         await context.SaveChangesAsync(cancellationToken);
         return entry.Entity;
     }
@@ -85,8 +87,8 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
     public async Task<bool> CreateIfCredentialsCurrentAsync(RefreshToken token,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
         if (!await AccountRepository.HoldCredentialsVersionAsync(context, token.AccountId, token.CredentialsVersion,
                 cancellationToken))
@@ -101,9 +103,9 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
     public async Task<RefreshRotation> RotateAsync(RefreshToken parent, RefreshToken child, DateTime now,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // An uncommitted transaction rolls back when it is disposed, so the refusals need no catch.
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
         if (!await AccountRepository.HoldCredentialsVersionAsync(context, parent.AccountId, parent.CredentialsVersion,
                 cancellationToken))
@@ -129,7 +131,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
     public async Task<RefreshToken?> FindChildAsync(Guid familyId, uint index, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.RefreshTokens
             .AsNoTracking()
@@ -138,7 +140,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
     public async Task<RefreshToken?> FindByHashAsync(byte[] hash, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.RefreshTokens
             .AsNoTracking()
@@ -147,7 +149,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
     public async Task UpdateAsync(RefreshToken token, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         context.TrackForUpdate(token);
         await context.SaveChangesAsync(cancellationToken);
@@ -155,7 +157,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
     public async Task<int> RevokeFamilyAsync(Guid familyId, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.RefreshTokens
             .Where(t => t.FamilyId == familyId && !t.Revoked)
@@ -165,7 +167,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
     public async Task<IReadOnlyList<LiveFamily>> ListLiveFamiliesAsync(AccountId accountId, SessionClient client,
         DateTime now, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         // An account has a handful of sessions: read its tokens of this client and group them here.
         List<RefreshToken> tokens = await context.RefreshTokens
@@ -185,7 +187,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
     public async Task<bool> IsLauncherFamilyOfAsync(AccountId accountId, Guid familyId, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.RefreshTokens.AnyAsync(
             t => t.AccountId == accountId && t.FamilyId == familyId && t.Client == SessionClient.Launcher, cancellationToken);
@@ -194,7 +196,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
     public async Task<bool> IsLiveLauncherFamilyAsync(AccountId accountId, Guid familyId, DateTime now,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         var newest = await context.RefreshTokens.AsNoTracking()
             .Where(t => t.AccountId == accountId && t.FamilyId == familyId && t.Client == SessionClient.Launcher)
@@ -206,7 +208,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
     public async Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using AuthDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await RevokeAllForAccountAsync(context, accountId, cancellationToken);
     }

@@ -53,14 +53,14 @@ public class AccountControllerShould
     [Fact]
     public async Task FindById_Returns200_WhenCallerIsSelf()
     {
-        var user = User(7, AvalonRoles.Player);
-        var account = MakeAccount(7);
+        ClaimsPrincipal user = User(7, AvalonRoles.Player);
+        Account account = MakeAccount(7);
         _accountService.FindByIdAsync(new AccountId(7), Arg.Any<CancellationToken>()).Returns(account);
         _authz.AuthorizeAsync(user, account, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
               .Returns(AuthorizationResult.Success());
 
-        var sut = MakeSut(user);
-        var result = await sut.FindById(7, CancellationToken.None);
+        AccountController sut = MakeSut(user);
+        IActionResult result = await sut.FindById(7, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
     }
@@ -68,14 +68,14 @@ public class AccountControllerShould
     [Fact]
     public async Task FindById_Returns404_WhenPlayerAsksForOthersAccount()
     {
-        var user = User(7, AvalonRoles.Player);
-        var account = MakeAccount(99);
+        ClaimsPrincipal user = User(7, AvalonRoles.Player);
+        Account account = MakeAccount(99);
         _accountService.FindByIdAsync(new AccountId(99), Arg.Any<CancellationToken>()).Returns(account);
         _authz.AuthorizeAsync(user, account, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
               .Returns(AuthorizationResult.Failed());
 
-        var sut = MakeSut(user);
-        var result = await sut.FindById(99, CancellationToken.None);
+        AccountController sut = MakeSut(user);
+        IActionResult result = await sut.FindById(99, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -83,12 +83,12 @@ public class AccountControllerShould
     [Fact]
     public async Task FindById_Returns404_WhenAccountMissing()
     {
-        var user = User(7, AvalonRoles.Player);
+        ClaimsPrincipal user = User(7, AvalonRoles.Player);
         _accountService.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns((Account?)null);
 
-        var sut = MakeSut(user);
-        var result = await sut.FindById(123, CancellationToken.None);
+        AccountController sut = MakeSut(user);
+        IActionResult result = await sut.FindById(123, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -96,14 +96,14 @@ public class AccountControllerShould
     [Fact]
     public async Task FindById_Returns403_WhenAuthzFailsAndCallerIsGameMaster()
     {
-        var user = User(99, AvalonRoles.GameMaster);
-        var account = MakeAccount(7);
+        ClaimsPrincipal user = User(99, AvalonRoles.GameMaster);
+        Account account = MakeAccount(7);
         _accountService.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(account);
         _authz.AuthorizeAsync(user, account, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
               .Returns(AuthorizationResult.Failed());
 
-        var sut = MakeSut(user);
-        var result = await sut.FindById(7, CancellationToken.None);
+        AccountController sut = MakeSut(user);
+        IActionResult result = await sut.FindById(7, CancellationToken.None);
 
         Assert.IsType<ForbidResult>(result);
     }
@@ -111,8 +111,8 @@ public class AccountControllerShould
     [Fact]
     public async Task ChangePassword_DelegatesToService()
     {
-        var user = User(7, AvalonRoles.Player);
-        var sut = MakeSut(user);
+        ClaimsPrincipal user = User(7, AvalonRoles.Player);
+        AccountController sut = MakeSut(user);
 
         await sut.ChangePassword(
             new AccountPasswordChangeRequest { CurrentPassword = TestPasswords.Valid, NewPassword = TestPasswords.Other },
@@ -129,13 +129,13 @@ public class AccountControllerShould
     [Fact]
     public async Task Start_an_email_change_with_202_and_no_body_when_a_sender_is_configured()
     {
-        var sut = MakeSut(User(7, AvalonRoles.Player), new RecordingEmailSender());
+        AccountController sut = MakeSut(User(7, AvalonRoles.Player), new RecordingEmailSender());
 
-        var result = await sut.InitiateEmailChange(
+        IActionResult result = await sut.InitiateEmailChange(
             new AccountEmailChangeRequest { NewEmail = "new@avalon.monster", CurrentPassword = TestPasswords.Valid },
             CancellationToken.None);
 
-        var accepted = Assert.IsType<AcceptedResult>(result);
+        AcceptedResult accepted = Assert.IsType<AcceptedResult>(result);
         Assert.Null(accepted.Value);
         await _accountService.Received(1).InitiateEmailChangeAsync(new AccountId(7), "new@avalon.monster",
             TestPasswords.Valid, Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
@@ -144,9 +144,9 @@ public class AccountControllerShould
     [Fact]
     public async Task Confirm_an_email_change_with_204_when_a_sender_is_configured()
     {
-        var sut = MakeSut(User(7, AvalonRoles.Player), new RecordingEmailSender());
+        AccountController sut = MakeSut(User(7, AvalonRoles.Player), new RecordingEmailSender());
 
-        var result = await sut.ConfirmEmailChange(new AccountEmailConfirmRequest { Token = "tok" }, CancellationToken.None);
+        IActionResult result = await sut.ConfirmEmailChange(new AccountEmailConfirmRequest { Token = "tok" }, CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         await _accountService.Received(1).ConfirmEmailChangeAsync("tok", Arg.Any<CancellationToken>());
@@ -159,9 +159,9 @@ public class AccountControllerShould
     [Fact]
     public async Task Refuse_to_start_an_email_change_with_501()
     {
-        var sut = MakeSut(User(7, AvalonRoles.Player));
+        AccountController sut = MakeSut(User(7, AvalonRoles.Player));
 
-        var result = await sut.InitiateEmailChange(
+        IActionResult result = await sut.InitiateEmailChange(
             new AccountEmailChangeRequest { NewEmail = "new@avalon.monster", CurrentPassword = TestPasswords.Valid },
             CancellationToken.None);
 
@@ -172,9 +172,9 @@ public class AccountControllerShould
     [Fact]
     public async Task Refuse_to_confirm_an_email_change_with_501()
     {
-        var sut = MakeSut(User(7, AvalonRoles.Player));
+        AccountController sut = MakeSut(User(7, AvalonRoles.Player));
 
-        var result = await sut.ConfirmEmailChange(
+        IActionResult result = await sut.ConfirmEmailChange(
             new AccountEmailConfirmRequest { Token = "tok" }, CancellationToken.None);
 
         AssertEmailChangeUnavailable(result);
@@ -183,9 +183,9 @@ public class AccountControllerShould
 
     private static void AssertEmailChangeUnavailable(IActionResult result)
     {
-        var refused = Assert.IsType<ObjectResult>(result);
+        ObjectResult refused = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status501NotImplemented, refused.StatusCode);
-        var problem = Assert.IsType<ProblemDetails>(refused.Value);
+        ProblemDetails problem = Assert.IsType<ProblemDetails>(refused.Value);
         Assert.Equal(StatusCodes.Status501NotImplemented, problem.Status);
         Assert.Equal("Email change is unavailable until email delivery exists", problem.Detail);
     }
@@ -193,10 +193,10 @@ public class AccountControllerShould
     [Fact]
     public async Task UpdateStatus_Delegates()
     {
-        var user = User(99, AvalonRoles.Admin);
-        var sut = MakeSut(user);
+        ClaimsPrincipal user = User(99, AvalonRoles.Admin);
+        AccountController sut = MakeSut(user);
 
-        var result = await sut.UpdateStatus(7,
+        IActionResult result = await sut.UpdateStatus(7,
             new AccountStatusPatchRequest { State = Avalon.Api.Contract.AccountStatus.Banned, Reason = "cheat" },
             CancellationToken.None);
 
@@ -208,11 +208,11 @@ public class AccountControllerShould
     [Fact]
     public async Task RemoveMfa_Returns204_AndNamesTheActingAdmin()
     {
-        var user = User(99, AvalonRoles.Admin);
+        ClaimsPrincipal user = User(99, AvalonRoles.Admin);
         _accountService.RemoveMfaAsync(new AccountId(7), new AccountId(99), Arg.Any<CancellationToken>()).Returns(true);
 
-        var sut = MakeSut(user);
-        var result = await sut.RemoveMfa(7, CancellationToken.None);
+        AccountController sut = MakeSut(user);
+        IActionResult result = await sut.RemoveMfa(7, CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         await _accountService.Received(1).RemoveMfaAsync(new AccountId(7), new AccountId(99), Arg.Any<CancellationToken>());
@@ -221,12 +221,12 @@ public class AccountControllerShould
     [Fact]
     public async Task RemoveMfa_Returns404_WhenAccountMissing()
     {
-        var user = User(99, AvalonRoles.Admin);
+        ClaimsPrincipal user = User(99, AvalonRoles.Admin);
         _accountService.RemoveMfaAsync(Arg.Any<AccountId>(), Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(false);
 
-        var sut = MakeSut(user);
-        var result = await sut.RemoveMfa(123, CancellationToken.None);
+        AccountController sut = MakeSut(user);
+        IActionResult result = await sut.RemoveMfa(123, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -234,12 +234,12 @@ public class AccountControllerShould
     [Fact]
     public async Task RemoveMfa_Returns403_WhenAdminTargetsOwnAccount()
     {
-        var user = User(99, AvalonRoles.Admin);
+        ClaimsPrincipal user = User(99, AvalonRoles.Admin);
 
-        var sut = MakeSut(user);
-        var result = await sut.RemoveMfa(99, CancellationToken.None);
+        AccountController sut = MakeSut(user);
+        IActionResult result = await sut.RemoveMfa(99, CancellationToken.None);
 
-        var objectResult = Assert.IsType<ObjectResult>(result);
+        ObjectResult objectResult = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
         await _accountService.DidNotReceiveWithAnyArgs().RemoveMfaAsync(default!, default!, default);
     }
@@ -247,10 +247,10 @@ public class AccountControllerShould
     [Fact]
     public async Task RemoveMfa_Returns204_WhenCalledTwice()
     {
-        var user = User(99, AvalonRoles.Admin);
+        ClaimsPrincipal user = User(99, AvalonRoles.Admin);
         _accountService.RemoveMfaAsync(new AccountId(7), new AccountId(99), Arg.Any<CancellationToken>()).Returns(true);
 
-        var sut = MakeSut(user);
+        AccountController sut = MakeSut(user);
 
         Assert.IsType<NoContentResult>(await sut.RemoveMfa(7, CancellationToken.None));
         Assert.IsType<NoContentResult>(await sut.RemoveMfa(7, CancellationToken.None));
@@ -259,10 +259,10 @@ public class AccountControllerShould
     [Fact]
     public async Task UpdateRoles_Delegates()
     {
-        var user = User(99, AvalonRoles.Console);
-        var sut = MakeSut(user);
+        ClaimsPrincipal user = User(99, AvalonRoles.Console);
+        AccountController sut = MakeSut(user);
 
-        var result = await sut.UpdateRoles(7,
+        IActionResult result = await sut.UpdateRoles(7,
             new AccountRolesPatchRequest { Roles = Contract.AccountAccessLevel.Player | Contract.AccountAccessLevel.GameMaster },
             CancellationToken.None);
 

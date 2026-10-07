@@ -156,7 +156,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     private IItemTemplateRepository PerWorldItems(IServiceProvider sp)
     {
         ICurrentWorld current = sp.GetRequiredService<ICurrentWorld>();
-        var forwarding = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository forwarding = Substitute.For<IItemTemplateRepository>();
         forwarding.FindByIdAsync(Arg.Any<ItemTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(call => _items[current.Id!.Value].FindByIdAsync(call.Arg<ItemTemplateId>(), call.Arg<bool>(),
                 call.Arg<CancellationToken>()));
@@ -291,7 +291,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     [Fact]
     public async Task Serve_a_staff_world_privately_to_a_caller_who_may_enter_it()
     {
-        var admin = ApiAuthHost.MakeAccount(AccountAccessLevel.Admin);
+        Account admin = ApiAuthHost.MakeAccount(AccountAccessLevel.Admin);
         _host.AccountNowIs(admin);
 
         HttpResponseMessage response = await _host.GetAsync($"/public/preview/item/14?world={Staff}", ApiAuthHost.Mint(admin));

@@ -23,7 +23,7 @@ public sealed class GameLicenseProviderContractShould
     public async Task Steam_evidence_observed_during_verification_is_accepted_only_if_still_live(bool expiresDuringCall)
     {
         var clock = new FakeTimeProvider(new DateTimeOffset(Now));
-        var options = SteamProofVerifierShould.Configuration(2499460);
+        IOptions<StoreAuthenticationConfiguration> options = SteamProofVerifierShould.Configuration(2499460);
         var request = new GameLicenseCheckRequest(new AccountId(7), options.Value.ResolveApplication("steam.main")!,
             new(SteamProofVerifierShould.SteamId, Now, Now.AddMinutes(30)), null, null, Now);
         clock.Advance(TimeSpan.FromSeconds(1)); // Request capture precedes the provider's observation.
@@ -32,7 +32,7 @@ public sealed class GameLicenseProviderContractShould
         var registry = new GameProviderRegistry([], [new SteamLicenseProvider(new SteamOwnershipClient(http, options, clock))]);
         var licenses = new MemoryGameLicenses();
         var service = new GameLicenseAuthorityService(registry, licenses, Substitute.For<ILicenseObservationRepository>(), options, clock);
-        var result = await service.VerifyAsync(request, default);
+        GameLicenseAuthorityResult result = await service.VerifyAsync(request, default);
         Assert.Equal(expiresDuringCall ? GameLicenseCheckStatus.Unavailable : GameLicenseCheckStatus.Licensed, result.Status);
         if (!expiresDuringCall) Assert.Equal(Now.AddSeconds(301), result.AuthorizedUntil);
         else Assert.Empty(licenses.Rows);
@@ -43,7 +43,7 @@ public sealed class GameLicenseProviderContractShould
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             clock.Advance(TimeSpan.FromSeconds(2));
-            var expiry = expires ? "2026-10-05T12:00:02Z" : "never";
+            string expiry = expires ? "2026-10-05T12:00:02Z" : "never";
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
             { Content = new StringContent($"{{\"appownership\":{{\"ownsapp\":true,\"timeexpires\":\"{expiry}\"}}}}") });
         }
@@ -56,7 +56,7 @@ public sealed class GameLicenseProviderContractShould
     public async Task Providers_use_the_same_bound_license_and_capped_authority(string provider, LicenseAuthorityKind kind)
     {
         var fixture = new Fixture(provider, kind);
-        var result = await fixture.Service.VerifyAsync(fixture.Request, default);
+        GameLicenseAuthorityResult result = await fixture.Service.VerifyAsync(fixture.Request, default);
         Assert.Equal(GameLicenseCheckStatus.Licensed, result.Status);
         Assert.Equal(fixture.License.Id, result.LicenseId);
         Assert.Equal(1, result.Revision);
@@ -75,7 +75,7 @@ public sealed class GameLicenseProviderContractShould
     {
         var fixture = new Fixture("test-store", LicenseAuthorityKind.VerifiedOwnership);
         fixture.Provider.Result = fixture.Provider.Result with { ProviderExpiresAt = Now.AddSeconds(20) };
-        var result = await fixture.Service.VerifyAsync(fixture.Request, default);
+        GameLicenseAuthorityResult result = await fixture.Service.VerifyAsync(fixture.Request, default);
         Assert.Equal(Now.AddSeconds(20), result.AuthorizedUntil);
         fixture.Provider.Result = fixture.Provider.Result with { ProviderExpiresAt = null };
         result = await fixture.Service.VerifyAsync(fixture.Request with
@@ -87,7 +87,7 @@ public sealed class GameLicenseProviderContractShould
     public async Task Unavailable_or_forged_evidence_does_not_extend_persisted_authority()
     {
         var fixture = new Fixture("test-store", LicenseAuthorityKind.VerifiedOwnership);
-        foreach (var bad in new[]
+        foreach (GameLicenseCheckResult? bad in new[]
         {
             fixture.Provider.Result with { Status = GameLicenseCheckStatus.Unavailable },
             fixture.Provider.Result with { ProviderSubject = "other" },
@@ -139,8 +139,8 @@ public sealed class GameLicenseProviderContractShould
         public Fixture(string provider, LicenseAuthorityKind kind)
         {
             var config = new StoreAuthenticationConfiguration { SteamAppId = 2499460 };
-            var key = provider == "steam" ? "steam.main" : provider == "avalon" ? "avalon.base" : "test-store.main";
-            var providerProduct = provider == "steam" ? "2499460" : "base";
+            string key = provider == "steam" ? "steam.main" : provider == "avalon" ? "avalon.base" : "test-store.main";
+            string providerProduct = provider == "steam" ? "2499460" : "base";
             if (provider == "test-store") config.AdditionalApplications[key] = new() { Provider = provider, ProviderProductId = providerProduct };
             Application = config.ResolveApplication(key)!;
             Request = new(new AccountId(7), Application, kind == LicenseAuthorityKind.StoredGrant ? null : new("subject", Now, Now.AddMinutes(30)), null, null, Now);
@@ -163,7 +163,7 @@ public sealed class GameLicenseProviderContractShould
             Licenses.ApplyDecisionAsync(License.Id, Arg.Any<long>(), Arg.Any<LicenseAuthorityDecision>(), Arg.Any<CancellationToken>()).Returns(call =>
             {
                 if (call.ArgAt<long>(1) != License.AuthorityRevision) return null;
-                var decision = call.ArgAt<LicenseAuthorityDecision>(2);
+                LicenseAuthorityDecision decision = call.ArgAt<LicenseAuthorityDecision>(2);
                 if (!decision.OwnsProduct) { License.AuthorityRevision++; License.RevokedAt = decision.ObservedAt; }
                 License.LastObservedAt = decision.ObservedAt;
                 License.VerifiedUntil = decision.OwnsProduct ? decision.AuthorizedUntil : null;

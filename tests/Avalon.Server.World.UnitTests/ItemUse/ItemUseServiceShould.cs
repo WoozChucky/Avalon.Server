@@ -5,6 +5,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -87,7 +88,7 @@ public class ItemUseServiceShould : IAsyncLifetime
     [Fact]
     public void Empty_the_slot_and_mark_the_item_removed_when_the_last_one_is_used()
     {
-        var last = Item(0, Tonic, count: 1);
+        InventoryItem last = Item(0, Tonic, count: 1);
         _w.Bag(last);
 
         _w.Use(6, 0);
@@ -131,7 +132,7 @@ public class ItemUseServiceShould : IAsyncLifetime
     [Fact]
     public void Answer_AlreadyCasting_while_an_ability_is_casting()
     {
-        var casting = Substitute.For<IAbility>();
+        IAbility casting = Substitute.For<IAbility>();
         casting.Casting.Returns(true);
         _w.Character.Spells.Load([casting]);
         _w.Bag(Item(0, Tonic, count: 5));

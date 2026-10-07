@@ -23,9 +23,9 @@ public sealed class GameSessionFenceServiceShould
     private GameSessionFenceService _service = null!;
     private async Task Arrange(uint? appId = null, ushort worldId = 1, bool native = false)
     {
-        var auth = native ? await _h.AuthenticateAvalon() : await _h.Authenticate(appId);
-        var context = (await _h.Authorization.GetContextAsync(auth.GameContextCredential!, true, CancellationToken.None))!;
-        var now = _h.Clock.GetUtcNow().UtcDateTime;
+        GameAuthReply auth = native ? await _h.AuthenticateAvalon() : await _h.Authenticate(appId);
+        GameContextRecord context = (await _h.Authorization.GetContextAsync(auth.GameContextCredential!, true, CancellationToken.None))!;
+        DateTime now = _h.Clock.GetUtcNow().UtcDateTime;
         _head = new GameSession
         {
             AccountId = _h.Account.Id,
@@ -51,7 +51,7 @@ public sealed class GameSessionFenceServiceShould
         _h.Sessions.TryActivateAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
         { _order.Add("sql-active"); _head.State = GameSessionState.Active; _head.LeaseUntil = call.ArgAt<DateTime>(4); return true; });
         _target.ActivateAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("target-active"); return true; });
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.FindByIdAsync(_h.Account.Id, false, Arg.Any<CancellationToken>()).Returns(_h.Account);
         _service = new(_h.Sessions, _h.Authorization, _worlds, accounts, Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] }), _h.Clock, new GameApplicationAccessPolicy(Options.Create(_h.Configuration)));
     }
@@ -63,7 +63,7 @@ public sealed class GameSessionFenceServiceShould
     {
         await Arrange(2514590, worldId);
         _h.Account.AccessLevel |= Avalon.Common.Accounts.AccountAccessLevel.Admin;
-        var first = await Activate("world-" + worldId);
+        GameSessionLeaseReply first = await Activate("world-" + worldId);
         if (worldId == 1)
         {
             Assert.NotNull(first.Error);
@@ -87,7 +87,7 @@ public sealed class GameSessionFenceServiceShould
     {
         await Arrange(native: native);
         Assert.Null((await Activate()).Error);
-        var until = _head.LeaseUntil;
+        DateTime until = _head.LeaseUntil;
         _h.RevokeLicense();
         Assert.Equal(GameAuthErrors.SessionRevoked, (await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, default)).Error);
         Assert.Equal(until, _head.LeaseUntil);
@@ -98,7 +98,7 @@ public sealed class GameSessionFenceServiceShould
     public async Task Advance_both_character_database_barriers_before_publishing_active_authority()
     {
         await Arrange();
-        var reply = await Activate();
+        GameSessionLeaseReply reply = await Activate();
         Assert.Null(reply.Error);
         Assert.Equal("active", reply.State);
         Assert.Equal(new[] { "previous", "target", "sql-active", "target-active" }, _order);
@@ -148,7 +148,7 @@ public sealed class GameSessionFenceServiceShould
             Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
             { _head.LeaseUntil = call.ArgAt<DateTime>(7); _head.LicenseUntil = call.ArgAt<DateTime>(8); return true; });
         _target.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
-        var renewed = await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None);
+        GameSessionLeaseReply renewed = await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None);
         Assert.Null(renewed.Error);
         Assert.Equal(_h.Clock.GetUtcNow().UtcDateTime.AddSeconds(10), renewed.LeaseUntil);
         _h.Account.SessionEpoch++;
@@ -190,7 +190,7 @@ public sealed class GameSessionFenceServiceShould
         _order.Clear();
         _target.EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("guard-ended"); return true; });
         _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("sql-ended"); return true; });
-        var reply = await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None);
+        GameSessionLeaseReply reply = await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None);
         Assert.Null(reply.Error);
         Assert.Equal("ended", reply.State);
         Assert.Equal(new[] { "guard-ended", "sql-ended" }, _order);

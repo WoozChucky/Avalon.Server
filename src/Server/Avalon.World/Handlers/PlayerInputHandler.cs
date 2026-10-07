@@ -2,6 +2,9 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
+using Avalon.World.Public.Instances;
+using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -16,7 +19,7 @@ public class PlayerInputHandler(
 
     public override void Execute(IWorldConnection connection, CPlayerInputPacket packet)
     {
-        var ch = connection.Character;
+        ICharacter? ch = connection.Character;
         if (ch == null) return;
 
         if (ch.IsDead)
@@ -30,32 +33,32 @@ public class PlayerInputHandler(
 
         // Resolve the per-instance navmesh navigator. IMapNavigator is not a global DI service —
         // each MapInstance owns its own (per-region) navigators. Look up via the instance registry.
-        var instance = world.InstanceRegistry.GetInstanceById(ch.InstanceId);
+        IMapInstance? instance = world.InstanceRegistry.GetInstanceById(ch.InstanceId);
         if (instance == null)
         {
             logger.LogError("PlayerInputHandler: instance lookup failed for InstanceId={InstanceId}", ch.InstanceId);
             return;
         }
-        var navigator = instance.GetNavigatorForPosition(ch.Position);
+        IMapNavigator navigator = instance.GetNavigatorForPosition(ch.Position);
 
         // Clamp direction magnitude to unit length.
         var dir = new Vector3(packet.DirX, 0f, packet.DirZ);
-        var sqMag = dir.x * dir.x + dir.z * dir.z;
+        float sqMag = dir.x * dir.x + dir.z * dir.z;
         if (sqMag > 1f)
         {
-            var inv = 1f / MathF.Sqrt(sqMag);
+            float inv = 1f / MathF.Sqrt(sqMag);
             dir = new Vector3(dir.x * inv, 0f, dir.z * inv);
         }
 
-        var speed = ch.GetMovementSpeed();
-        var step = dir * speed * TickDt;
+        float speed = ch.GetMovementSpeed();
+        Vector3 step = dir * speed * TickDt;
         var desired = new Vector3(ch.Position.x + step.x, ch.Position.y, ch.Position.z + step.z);
 
         // Horizontal collision via navmesh raycast.
-        var clamped = navigator.RaycastWalkable(ch.Position, desired);
+        Vector3 clamped = navigator.RaycastWalkable(ch.Position, desired);
         // Y from ground sample — pass current Y so the navmesh search box finds the correct
         // floor on multi-storey maps. Returns ch.Position.y unchanged on lookup failure.
-        var groundY = navigator.SampleGroundHeight(clamped.x, ch.Position.y, clamped.z);
+        float groundY = navigator.SampleGroundHeight(clamped.x, ch.Position.y, clamped.z);
         var newPosition = new Vector3(clamped.x, groundY, clamped.z);
 
         // Metres per second, and the step actually taken rather than the one asked for (#424): other

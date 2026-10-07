@@ -13,7 +13,7 @@ public class CreatureBaseStatRepository(IDbContextFactory<WorldDbContext> contex
 {
     public async Task<IReadOnlyCollection<CreatureBaseStat>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.CreatureBaseStats
             .AsNoTracking()

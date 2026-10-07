@@ -69,7 +69,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
         DateTime? expiresAt, AccountAccessLevel? requestedRoles, Reauthenticated reauthenticated,
         CancellationToken cancellationToken = default)
     {
-        var roles = requestedRoles ?? callerRoles;
+        AccountAccessLevel roles = requestedRoles ?? callerRoles;
         return MintInternalAsync(callerId, callerRoles, roles, name, expiresAt, reauthenticated, cancellationToken);
     }
 
@@ -95,7 +95,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
             throw new BusinessException("Requested roles exceed caller roles");
         }
 
-        var now = _time.GetUtcNow().UtcDateTime;
+        DateTime now = _time.GetUtcNow().UtcDateTime;
 
         DateTime? resolvedExpiry;
         if (expiresAt is null)
@@ -111,15 +111,15 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
             resolvedExpiry = expiresAt;
         }
 
-        var rawBytes = _random.GetBytes(32);
-        var base64Url = Convert.ToBase64String(rawBytes)
+        byte[] rawBytes = _random.GetBytes(32);
+        string base64Url = Convert.ToBase64String(rawBytes)
             .Replace('+', '-')
             .Replace('/', '_')
             .TrimEnd('=');
-        var token = TokenPrefix + base64Url;
+        string token = TokenPrefix + base64Url;
 
-        var tokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        var prefix = token[..TokenPrefixDisplayLength];
+        byte[] tokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        string prefix = token[..TokenPrefixDisplayLength];
 
         var entity = new PersonalAccessToken
         {
@@ -135,7 +135,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
         // Inserted only while the re-authenticated account is still at the version its password was
         // checked against (#495): a password change or an MFA reset between the check and this
         // insert would otherwise leave a token minted on the strength of the old credentials.
-        var created = await _repository.CreateUnlessCredentialsChangedAsync(entity, reauthenticated.AccountId,
+        PersonalAccessToken created = await _repository.CreateUnlessCredentialsChangedAsync(entity, reauthenticated.AccountId,
                           reauthenticated.CredentialsVersion, cancellationToken)
                       ?? throw new AuthenticationException(CredentialsChanged);
 
@@ -156,7 +156,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
 
     public Task<PersonalAccessToken?> FindByRawTokenAsync(string token, CancellationToken cancellationToken = default)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
         return _repository.FindByHashAsync(hash, cancellationToken);
     }
 
@@ -172,7 +172,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
 
     public Task TouchLastUsedAsync(PersonalAccessTokenId id, CancellationToken cancellationToken = default)
     {
-        var now = _time.GetUtcNow().UtcDateTime;
+        DateTime now = _time.GetUtcNow().UtcDateTime;
         return _repository.UpdateLastUsedIfStaleAsync(id, now, LastUsedBucket, cancellationToken);
     }
 }

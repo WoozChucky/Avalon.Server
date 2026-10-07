@@ -36,7 +36,7 @@ public sealed class AvalonWorldAdmissionShould
     [Fact]
     public void Native_authority_window_does_not_require_a_store_identity_timestamp()
     {
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
         var context = new GameContextRecord
         {
             AuthorizationValidUntil = now.AddMinutes(5),

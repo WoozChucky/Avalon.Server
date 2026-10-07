@@ -47,7 +47,7 @@ public class CharacterInventoryServiceShould
     public void Refuse_an_add_that_does_not_fit_whole_and_change_nothing()
     {
         CharacterEntity character = New();
-        List<InventoryItem> bag = Enumerable.Range(0, 29).Select(s => Item((ushort)s, Sword)).ToList();
+        var bag = Enumerable.Range(0, 29).Select(s => Item((ushort)s, Sword)).ToList();
         bag.Add(Item(29, Potion, count: 19));
         character.Container(InventoryType.Bag).Load(bag);
 

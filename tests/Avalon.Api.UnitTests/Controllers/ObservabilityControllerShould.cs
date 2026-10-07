@@ -41,8 +41,8 @@ public class ObservabilityControllerShould
             .GetOnlineAsync(Arg.Any<PresencePaginateFilters>(), Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>())
             .Returns(new PagedResult<OnlinePlayerDto>(1, 20, 0, new List<OnlinePlayerDto>()));
 
-        var sut = MakeSut(User(7, AvalonRoles.GameMaster));
-        var result = await sut.GetOnline(new PresencePaginateFilters(), CancellationToken.None);
+        ObservabilityController sut = MakeSut(User(7, AvalonRoles.GameMaster));
+        PagedResult<OnlinePlayerDto> result = await sut.GetOnline(new PresencePaginateFilters(), CancellationToken.None);
 
         Assert.Equal(0, result.TotalCount);
     }
@@ -55,8 +55,8 @@ public class ObservabilityControllerShould
             .GetInstancePresenceAsync(instanceId, Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>())
             .Returns((InstancePresenceDto?)null);
 
-        var sut = MakeSut(User(7, AvalonRoles.GameMaster));
-        var result = await sut.GetInstancePresence(instanceId, CancellationToken.None);
+        ObservabilityController sut = MakeSut(User(7, AvalonRoles.GameMaster));
+        IActionResult result = await sut.GetInstancePresence(instanceId, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -69,8 +69,8 @@ public class ObservabilityControllerShould
             .GetInstancePresenceAsync(instanceId, Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>())
             .Returns(new InstancePresenceDto { InstanceId = instanceId });
 
-        var sut = MakeSut(User(7, AvalonRoles.GameMaster));
-        var result = await sut.GetInstancePresence(instanceId, CancellationToken.None);
+        ObservabilityController sut = MakeSut(User(7, AvalonRoles.GameMaster));
+        IActionResult result = await sut.GetInstancePresence(instanceId, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
     }
@@ -83,7 +83,7 @@ public class ObservabilityControllerShould
         ((ClaimsIdentity)user.Identity!).AddClaim(new Claim(ClaimTypes.GroupSid, nameof(AccountAccessLevel.GameMaster)));
         ((ClaimsIdentity)user.Identity!).AddClaim(new Claim(ClaimTypes.GroupSid, nameof(AccountAccessLevel.PTR)));
         const AccountAccessLevel expected = AccountAccessLevel.GameMaster | AccountAccessLevel.PTR;
-        var sut = MakeSut(user);
+        ObservabilityController sut = MakeSut(user);
 
         await sut.GetOnline(new PresencePaginateFilters(), CancellationToken.None);
         await sut.GetInstancePresence(instanceId, CancellationToken.None);

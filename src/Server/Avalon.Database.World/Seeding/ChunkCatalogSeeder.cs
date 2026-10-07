@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.World.Seeding;
 
@@ -32,10 +33,10 @@ public static class ChunkCatalogSeeder
         CancellationToken ct = default)
     {
         ChunkCatalogFiles files = await ReadCatalogAsync(mapsRoot, ct);
-        HashSet<string> chunkNames = files.Chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+        var chunkNames = files.Chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
         await ValidateAgainstDatabaseAsync(db, mapsRoot, files, ct);
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await using IDbContextTransaction tx = await db.Database.BeginTransactionAsync(ct);
 
         (int added, int updated) = await UpsertTemplatesAsync(db, files.Chunks, ct);
         Dictionary<string, ChunkTemplate> byName = await db.ChunkTemplates
@@ -68,7 +69,7 @@ public static class ChunkCatalogSeeder
     public static async Task<ChunkCatalogFiles> ReadCatalogAsync(string mapsRoot, CancellationToken ct = default)
     {
         List<ChunkMetaDto> chunks = await LoadChunksAsync(mapsRoot, ct);
-        HashSet<string> chunkNames = chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+        var chunkNames = chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
         List<(string, TownLayoutDto)> layouts = await LoadLayoutsAsync(mapsRoot, chunkNames, ct);
         Dictionary<string, string[]> pools = await LoadPoolsAsync(mapsRoot, chunkNames, ct);
         Dictionary<string, GroupDto[]>? groups = await LoadGroupsAsync(mapsRoot, chunks, pools, ct);
@@ -140,7 +141,7 @@ public static class ChunkCatalogSeeder
         IReadOnlyList<ChunkMetaDto> chunks, CancellationToken ct)
     {
         List<ChunkTemplate> existing = await db.ChunkTemplates.ToListAsync(ct);
-        Dictionary<string, ChunkTemplate> byName = existing.ToDictionary(t => t.Name, StringComparer.Ordinal);
+        var byName = existing.ToDictionary(t => t.Name, StringComparer.Ordinal);
         int nextId = existing.Count == 0 ? 1 : existing.Max(t => t.Id.Value) + 1;
         int added = 0, updated = 0;
 
@@ -236,7 +237,7 @@ public static class ChunkCatalogSeeder
             db.ChunkPools.Add(pool);
         }
 
-        HashSet<int> wanted = members.Select(n => byName[n].Id.Value).ToHashSet();
+        var wanted = members.Select(n => byName[n].Id.Value).ToHashSet();
         pool.Memberships.RemoveAll(m => !wanted.Contains(m.ChunkTemplateId.Value));
         foreach (int id in wanted.Where(id => pool.Memberships.All(m => m.ChunkTemplateId.Value != id)))
         {
@@ -263,8 +264,8 @@ public static class ChunkCatalogSeeder
         if (!File.Exists(path)) return null;
 
         Dictionary<string, GroupDto[]> groups = await ReadAsync<Dictionary<string, GroupDto[]>>(path, ct);
-        Dictionary<string, ChunkMetaDto> metas = chunks.ToDictionary(c => c.Name, StringComparer.Ordinal);
-        HashSet<string> pooled = pools.Values.SelectMany(m => m).ToHashSet(StringComparer.Ordinal);
+        var metas = chunks.ToDictionary(c => c.Name, StringComparer.Ordinal);
+        var pooled = pools.Values.SelectMany(m => m).ToHashSet(StringComparer.Ordinal);
         HashSet<string> groupNames = new(StringComparer.Ordinal);
         HashSet<string> grouped = new(StringComparer.Ordinal);
 
@@ -406,7 +407,7 @@ public static class ChunkCatalogSeeder
         string dir = Path.Combine(mapsRoot, "ProceduralMaps");
         if (!Directory.Exists(dir)) return [];
 
-        Dictionary<string, ChunkMetaDto> metas = chunks.ToDictionary(c => c.Name, StringComparer.Ordinal);
+        var metas = chunks.ToDictionary(c => c.Name, StringComparer.Ordinal);
         List<(string, ProceduralMapDto)> maps = [];
         foreach (string path in Directory.EnumerateFiles(dir, "*.json").Order(StringComparer.Ordinal))
         {
@@ -424,11 +425,11 @@ public static class ChunkCatalogSeeder
 
             IEnumerable<string> chunkNames = members.Concat(
                 groups?.GetValueOrDefault(map.ChunkPool)?.SelectMany(g => g.Members.Select(m => m.Chunk)) ?? []);
-            HashSet<string> slotTags = chunkNames
+            var slotTags = chunkNames
                 .SelectMany(n => metas[n].SpawnSlots.Select(s => s.Tag))
                 .Where(t => !UntabledSlotTags.Contains(t, StringComparer.OrdinalIgnoreCase))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            HashSet<string> entryTags = entries.Select(e => e.Tag).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var entryTags = entries.Select(e => e.Tag).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             foreach (string tag in entryTags)
             {
@@ -449,7 +450,7 @@ public static class ChunkCatalogSeeder
     private static async Task ValidateAgainstDatabaseAsync(WorldDbContext db, string mapsRoot, ChunkCatalogFiles files,
         CancellationToken ct)
     {
-        Dictionary<ushort, MapType> mapTypes = (await db.MapTemplates.AsNoTracking().ToListAsync(ct))
+        var mapTypes = (await db.MapTemplates.AsNoTracking().ToListAsync(ct))
             .ToDictionary(m => m.Id.Value, m => m.MapType);
         // A band above the highest base-stat row would spawn creatures reporting its level with that row's stats.
         int highestStatLevel = files.ProceduralMaps.Any(m => m.Map.DepthBands is { Count: > 0 })
@@ -472,7 +473,7 @@ public static class ChunkCatalogSeeder
 
         if (files.SpawnTables is null) return;
         string tablesPath = Path.Combine(mapsRoot, "spawn-tables.json");
-        HashSet<ulong> creatures = (await db.CreatureTemplates.AsNoTracking().ToListAsync(ct)).Select(t => t.Id.Value).ToHashSet();
+        var creatures = (await db.CreatureTemplates.AsNoTracking().ToListAsync(ct)).Select(t => t.Id.Value).ToHashSet();
         foreach ((string name, SpawnTableEntryDto[] entries) in files.SpawnTables)
         {
             foreach (SpawnTableEntryDto entry in entries.Where(e => !creatures.Contains(e.CreatureId)))

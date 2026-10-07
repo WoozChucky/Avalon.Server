@@ -63,26 +63,26 @@ public class WorldService : IWorldService
         {
             // Status is derived from Redis and maintenance intent, so it cannot be sorted in SQL.
             // Sort the complete visible set before applying the requested page.
-            var visible = await _repository.FindByAsync(filters.GetFilter(), cancellationToken);
+            List<WorldEntity> visible = await _repository.FindByAsync(filters.GetFilter(), cancellationToken);
             DateTime nowUtc = _time.GetUtcNow().UtcDateTime;
-            var allDtos = await Task.WhenAll(visible.Select(w => ToDtoAsync(w, cancellationToken, nowUtc)));
-            var sorted = sortDirection == SortDirection.Ascending
+            WorldDto[] allDtos = await Task.WhenAll(visible.Select(w => ToDtoAsync(w, cancellationToken, nowUtc)));
+            IOrderedEnumerable<WorldDto> sorted = sortDirection == SortDirection.Ascending
                 ? allDtos.OrderBy(w => w.Status).ThenBy(w => w.Id)
                 : allDtos.OrderByDescending(w => w.Status).ThenBy(w => w.Id);
             return new PagedResult<WorldDto>(filters.Page, filters.PageSize, allDtos.Length,
                 sorted.Skip((filters.Page - 1) * filters.PageSize).Take(filters.PageSize).ToList());
         }
 
-        var result = await _repository.PaginateAsync(filters, track: false, cancellationToken);
+        PagedResult<WorldEntity> result = await _repository.PaginateAsync(filters, track: false, cancellationToken);
         DateTime pageNowUtc = _time.GetUtcNow().UtcDateTime;
-        var items = await Task.WhenAll(result.Items.Select(w => ToDtoAsync(w, cancellationToken, pageNowUtc)));
+        WorldDto[] items = await Task.WhenAll(result.Items.Select(w => ToDtoAsync(w, cancellationToken, pageNowUtc)));
         return new PagedResult<WorldDto>(result.Page, result.PageSize, result.TotalCount, items.ToList());
     }
 
     public async Task<WorldDto?> GetAsync(ushort id, AccountAccessLevel caller,
         CancellationToken cancellationToken = default)
     {
-        var world = await _repository.FindByIdAsync(new WorldId(id), track: false, cancellationToken);
+        WorldEntity? world = await _repository.FindByIdAsync(new WorldId(id), track: false, cancellationToken);
 
         // Same rule as the TCP world list. A world the caller may not enter reads as missing.
         if (world is null || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller))
@@ -98,7 +98,7 @@ public class WorldService : IWorldService
         if (string.IsNullOrWhiteSpace(request.Host))
             throw new BusinessException("Host is required");
 
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
         var world = new WorldEntity
         {
             Name = request.Name,
@@ -112,13 +112,13 @@ public class WorldService : IWorldService
             UpdatedAt = now,
         };
 
-        var created = await _repository.CreateAsync(world, cancellationToken);
+        WorldEntity created = await _repository.CreateAsync(world, cancellationToken);
         return await ToDtoAsync(created, cancellationToken, _time.GetUtcNow().UtcDateTime);
     }
 
     public async Task<WorldDto?> UpdateAsync(ushort id, UpdateWorldRequest request, CancellationToken cancellationToken = default)
     {
-        var world = await _repository.FindByIdAsync(new WorldId(id), track: true, cancellationToken);
+        WorldEntity? world = await _repository.FindByIdAsync(new WorldId(id), track: true, cancellationToken);
         if (world is null) return null;
 
         if (request.Name is not null) world.Name = request.Name;

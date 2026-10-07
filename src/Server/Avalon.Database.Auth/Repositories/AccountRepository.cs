@@ -87,7 +87,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
 
     public async Task<Account?> FindByUserNameAsync(string userName, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
         return await context.Accounts
             .AsNoTracking()
@@ -98,7 +98,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     public async Task<FailedLoginResult> RecordFailedLoginAsync(AccountId id, string attemptIp, DateTime now,
         DateTime? lockUntil, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
         bool lockNow = lockUntil != null;
 
         // An expired lock no longer counts: lift it and start again, so the failure below is the first.
@@ -120,7 +120,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
                 .SetProperty(a => a.Locked, a => a.Locked || lockNow),
                 cancellationToken);
 
-        var state = await context.Accounts
+        FailedLoginResult state = await context.Accounts
             .AsNoTracking()
             .Where(a => a.Id == id)
             .Select(a => new FailedLoginResult(a.FailedLogins, a.Locked))
@@ -131,9 +131,9 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     public async Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
-        var updated = await context.Accounts
+        int updated = await context.Accounts
             .Where(a => a.Id == id && (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.Online, true)
@@ -151,8 +151,8 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
-        var updated = await context.Accounts
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
+        int updated = await context.Accounts
             .Where(a => a.Id == id && !a.Online && a.CredentialsVersion == credentialsVersion &&
                 a.Status == AccountStatus.Active && (a.AccessLevel & AccessLevels.Player) != 0 &&
                 (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
@@ -169,9 +169,9 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     public async Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
-        var updated = await context.Accounts
+        int updated = await context.Accounts
             .Where(a => a.Id == id && (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.LastIp, lastIp)
@@ -288,7 +288,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     public async Task MarkOfflineAsync(AccountId id, Guid? sessionId, long sessionSeconds = 0,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
         // One statement, whose conditions read the row as it was before it: the flag is cleared
         // only while this session is the one that set it, so a newer login's session survives a
@@ -304,7 +304,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
 
     public async Task MarkAllOfflineAsync(CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
         await context.Accounts
             .Where(a => a.Online || a.OnlineSessionId != null)
@@ -315,7 +315,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
 
     public async Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
         return await context.Accounts
             .AsNoTracking()
@@ -326,7 +326,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
 
     public async Task SetSessionKeyAsync(AccountId id, byte[] sessionKey, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
         await context.Accounts
             .Where(a => a.Id == id)
@@ -339,7 +339,7 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     /// </summary>
     public async Task<Account?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
         string normalised = AccountEmail.Normalise(email);
 
         return await context.Accounts

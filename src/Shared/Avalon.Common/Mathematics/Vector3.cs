@@ -125,9 +125,9 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
         float angle = (float)Math.Acos(dot);
         float angleDelta = Math.Min(maxRadiansDelta, angle);
 
-        Vector3 axis = Vector3.Normalize(Vector3.Cross(currentDir, targetDir));
-        Quaternion rotation = Quaternion.CreateFromAxisAngle(axis, angleDelta);
-        Vector3 rotatedDir = Vector3.Transform(currentDir, rotation);
+        var axis = Vector3.Normalize(Vector3.Cross(currentDir, targetDir));
+        var rotation = Quaternion.CreateFromAxisAngle(axis, angleDelta);
+        var rotatedDir = Vector3.Transform(currentDir, rotation);
 
         float newMagnitude = Math.Min(targetMagnitude, currentMagnitude + maxMagnitudeDelta);
         return rotatedDir * newMagnitude;

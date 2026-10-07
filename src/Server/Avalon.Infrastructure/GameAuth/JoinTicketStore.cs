@@ -20,30 +20,30 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         Guid requestId, bool confirmTakeover, bool reconnect, CancellationToken cancellationToken)
     {
         if (requestId == Guid.Empty || worldId == 0 || characterId == 0) return new(GameAuthErrors.InvalidRequest);
-        var context = await authorization.GetContextAsync(credential, true, cancellationToken);
+        GameContextRecord? context = await authorization.GetContextAsync(credential, true, cancellationToken);
         if (context?.AccountId is not { } accountId) return new(GameAuthErrors.AuthorizationRequired);
         if (!applications.AllowsWorld(context.ApplicationKey, worldId)) return new(GameAuthErrors.WorldUnavailable);
-        var issueKey = Key("join-issue", context.Id.ToString("N") + ":" + requestId.ToString("N"));
-        var binding = crypto.Binding("join-issue", requestId, GameAuthCryptography.Digest($"{context.Generation}:{worldId}:{characterId}:{confirmTakeover}:{reconnect}"));
-        var prior = GameAuthJson.Deserialize<JoinIssueReceipt>(await store.ReadAsync(issueKey, cancellationToken));
+        string issueKey = Key("join-issue", context.Id.ToString("N") + ":" + requestId.ToString("N"));
+        string binding = crypto.Binding("join-issue", requestId, GameAuthCryptography.Digest($"{context.Generation}:{worldId}:{characterId}:{confirmTakeover}:{reconnect}"));
+        JoinIssueReceipt? prior = GameAuthJson.Deserialize<JoinIssueReceipt>(await store.ReadAsync(issueKey, cancellationToken));
         if (prior is not null)
         {
             if (prior.Binding != binding) return new(GameAuthErrors.IdempotencyConflict);
-            var replay = GameAuthJson.Deserialize<GameJoinReply>(crypto.UnprotectText(prior.Envelope, issueKey + ":" + binding));
+            GameJoinReply? replay = GameAuthJson.Deserialize<GameJoinReply>(crypto.UnprotectText(prior.Envelope, issueKey + ":" + binding));
             return replay?.ExpiresAt > Now ? replay : new(GameAuthErrors.TicketExpired);
         }
-        var destination = await allocator.FindAsync(context, worldId, characterId, cancellationToken);
+        GameWorldDestination? destination = await allocator.FindAsync(context, worldId, characterId, cancellationToken);
         if (destination is null) return new(GameAuthErrors.WorldUnavailable);
-        var head = await sessions.FindAsync(new AccountId(accountId), cancellationToken);
+        GameSession? head = await sessions.FindAsync(new AccountId(accountId), cancellationToken);
         if (reconnect && (head is null || head.GameContextId != context.Id || head.WorldId != worldId)) return new(GameAuthErrors.ReconnectUnavailable);
         if (head?.LeaseUntil > Now && head.State != GameSessionState.Ended &&
             (head.State == GameSessionState.Pending || (!confirmTakeover && !reconnect))) return new(GameAuthErrors.ActiveGameSession);
         if (head?.FencingToken == long.MaxValue) return new(GameAuthErrors.AccountUnavailable);
-        var until = GameContextAuthorizationWindow.Deadline(context)!.Value;
-        var expires = Min(Now.Add(GameAuthPolicy.JoinTicketLifetime), context.CredentialExpiresAt, until);
+        DateTime until = GameContextAuthorizationWindow.Deadline(context)!.Value;
+        DateTime expires = Min(Now.Add(GameAuthPolicy.JoinTicketLifetime), context.CredentialExpiresAt, until);
         if (expires <= Now) return new(GameAuthErrors.AuthorizationRequired);
-        var ticket = GameAuthCryptography.NewToken();
-        var ticketKey = Key("join-ticket", GameAuthCryptography.Digest(ticket));
+        string ticket = GameAuthCryptography.NewToken();
+        string ticketKey = Key("join-ticket", GameAuthCryptography.Digest(ticket));
         var grant = new JoinTicketGrant
         {
             TicketId = Guid.NewGuid(),
@@ -63,7 +63,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             AuthorizationUntil = until,
         };
         var reply = new GameJoinReply(JoinTicket: ticket, ExpiresAt: expires, Destination: destination);
-        var contextKey = Key("context", context.Id.ToString("N"));
+        string contextKey = Key("context", context.Id.ToString("N"));
         return await store.CompareExchangeAsync([
             new(contextKey, GameAuthJson.Serialize(context), GameAuthJson.Serialize(context), context.AbsoluteExpiresAt),
             new(issueKey, null, GameAuthJson.Serialize(new JoinIssueReceipt(binding, crypto.ProtectText(GameAuthJson.Serialize(reply), issueKey + ":" + binding))), expires),
@@ -76,25 +76,25 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
     {
         if (!GameAuthCryptography.IsToken(ticket) || connectionId == Guid.Empty || redemptionId == Guid.Empty)
             return JoinRedemptionReceipt.Failure(GameAuthErrors.InvalidTicket);
-        var key = Key("join-ticket", GameAuthCryptography.Digest(ticket));
-        var binding = crypto.Binding("join-redeem", redemptionId, GameAuthCryptography.Digest($"{serverId}:{connectionId:N}"));
-        for (var retry = 0; retry < GameAuthPolicy.MutationAttempts; retry++)
+        string key = Key("join-ticket", GameAuthCryptography.Digest(ticket));
+        string binding = crypto.Binding("join-redeem", redemptionId, GameAuthCryptography.Digest($"{serverId}:{connectionId:N}"));
+        for (int retry = 0; retry < GameAuthPolicy.MutationAttempts; retry++)
         {
-            var raw = await store.ReadAsync(key, cancellationToken);
-            var grant = GameAuthJson.Deserialize<JoinTicketGrant>(raw);
+            string? raw = await store.ReadAsync(key, cancellationToken);
+            JoinTicketGrant? grant = GameAuthJson.Deserialize<JoinTicketGrant>(raw);
             if (grant is null || grant.ServerId != serverId || grant.Environment != options.Value.Environment ||
                 (grant.Binding is not null && grant.Binding != binding)) return JoinRedemptionReceipt.Failure(GameAuthErrors.InvalidTicket);
-            var context = await authorization.GetContextByIdAsync(grant.ContextId, true, cancellationToken);
+            GameContextRecord? context = await authorization.GetContextByIdAsync(grant.ContextId, true, cancellationToken);
             if (context is null || context.AccountId != grant.AccountId || context.CredentialsVersion != grant.CredentialsVersion ||
                 context.SessionEpoch != grant.SessionEpoch) return JoinRedemptionReceipt.Failure(GameAuthErrors.ContextRevoked);
             if (!applications.AllowsWorld(context.ApplicationKey, grant.WorldId)) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldUnavailable);
             if (grant.Receipt is not null)
             {
                 if (grant.ReceiptExpiresAt <= Now) return JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired);
-                var receipt = GameAuthJson.Deserialize<JoinRedemptionReceipt>(crypto.UnprotectText(grant.Receipt, key + ":" + binding));
+                JoinRedemptionReceipt? receipt = GameAuthJson.Deserialize<JoinRedemptionReceipt>(crypto.UnprotectText(grant.Receipt, key + ":" + binding));
                 if (receipt is null) return JoinRedemptionReceipt.Failure(GameAuthErrors.InvalidTicket);
                 if (receipt.Error is not null) return receipt;
-                var current = await sessions.FindAsync(new AccountId(grant.AccountId), cancellationToken);
+                GameSession? current = await sessions.FindAsync(new AccountId(grant.AccountId), cancellationToken);
                 return current is not null && current.GameSessionId == grant.GameSessionId && current.ServerId == serverId &&
                     current.FencingToken.ToString(CultureInfo.InvariantCulture) == receipt.FencingToken && current.LeaseUntil > Now &&
                     current.State != GameSessionState.Ended ? receipt : JoinRedemptionReceipt.Failure(GameAuthErrors.SessionReplaced);
@@ -102,16 +102,16 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             if (grant.ExpiresAt <= Now || grant.AuthorizationUntil <= Now || context.Generation != grant.ContextGeneration)
                 return JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired);
             if (grant.WorkerUntil > Now) return JoinRedemptionReceipt.Failure(GameAuthErrors.InProgress);
-            var destination = await allocator.FindAsync(context, grant.WorldId, grant.CharacterId, cancellationToken);
+            GameWorldDestination? destination = await allocator.FindAsync(context, grant.WorldId, grant.CharacterId, cancellationToken);
             if (destination?.ServerId != serverId) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldUnavailable);
-            var claimed = grant with { Binding = binding, WorkerUntil = Min(Now.Add(GameAuthPolicy.MutationClaimLifetime), grant.ExpiresAt) };
-            var claimedRaw = GameAuthJson.Serialize(claimed);
+            JoinTicketGrant claimed = grant with { Binding = binding, WorkerUntil = Min(Now.Add(GameAuthPolicy.MutationClaimLifetime), grant.ExpiresAt) };
+            string claimedRaw = GameAuthJson.Serialize(claimed);
             if (!await store.CompareExchangeAsync([new(key, raw, claimedRaw, grant.ExpiresAt.Add(GameAuthPolicy.JoinReceiptRetention))], cancellationToken)) continue;
             var reservation = new GameSessionReservation(new AccountId(grant.AccountId), grant.ExpectedFence, grant.GameSessionId,
                 serverId, grant.WorldId, grant.Environment, grant.CredentialsVersion, grant.SessionEpoch, grant.AuthorizationUntil, grant.Takeover)
             { GameContextId = grant.ContextId, AdmissionExpiresAt = grant.ExpiresAt };
-            var head = await sessions.TryReserveAsync(reservation, Now, cancellationToken);
-            var reply = head is null ? JoinRedemptionReceipt.Failure(GameAuthErrors.SessionConflict) :
+            GameSession? head = await sessions.TryReserveAsync(reservation, Now, cancellationToken);
+            JoinRedemptionReceipt reply = head is null ? JoinRedemptionReceipt.Failure(GameAuthErrors.SessionConflict) :
                 grant.ExpiresAt <= Now ? JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired) : new JoinRedemptionReceipt
                 {
                     AccountId = grant.AccountId.ToString(CultureInfo.InvariantCulture),
@@ -128,8 +128,8 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
                     LeaseUntil = head.LeaseUntil,
                     AuthorizationUntil = head.LicenseUntil,
                 };
-            var expiry = Min(grant.ExpiresAt.Add(GameAuthPolicy.JoinReceiptRetention), grant.AuthorizationUntil, head?.LeaseUntil ?? grant.ExpiresAt);
-            var finished = claimed with { Receipt = crypto.ProtectText(GameAuthJson.Serialize(reply), key + ":" + binding), ReceiptExpiresAt = expiry, WorkerUntil = null };
+            DateTime expiry = Min(grant.ExpiresAt.Add(GameAuthPolicy.JoinReceiptRetention), grant.AuthorizationUntil, head?.LeaseUntil ?? grant.ExpiresAt);
+            JoinTicketGrant finished = claimed with { Receipt = crypto.ProtectText(GameAuthJson.Serialize(reply), key + ":" + binding), ReceiptExpiresAt = expiry, WorkerUntil = null };
             return await store.CompareExchangeAsync([new(key, claimedRaw, GameAuthJson.Serialize(finished), expiry)], cancellationToken)
                 ? reply : JoinRedemptionReceipt.Failure(GameAuthErrors.InProgress);
         }

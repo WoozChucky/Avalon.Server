@@ -111,7 +111,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         Assert.Equal("error", span.GetTagItem("avalon.outcome"));
         Assert.Contains(span.Events, e => e.Name == "exception");
 
-        var error = Assert.Single(_measurements, m => m.Instrument == "avalon.packet.handler.errors");
+        (string Instrument, double Value, Dictionary<string, object?> Tags) error = Assert.Single(_measurements, m => m.Instrument == "avalon.packet.handler.errors");
         Assert.Equal(1, error.Value);
         Assert.Equal("CMSG_AUTH", error.Tags["avalon.packet.type"]);
     }
@@ -168,7 +168,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
 
         using (Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, logger))
         {
-            var scope = Assert.Single(logger.Scopes);
+            ScopeLogger.Scope scope = Assert.Single(logger.Scopes);
             var fields = Assert.IsAssignableFrom<IEnumerable<KeyValuePair<string, object?>>>(scope.State).ToDictionary();
             Assert.Equal("CMSG_AUTH", fields["PacketType"]);
             Assert.Equal(Tags.ConnectionId, fields["ConnectionId"]);
@@ -190,7 +190,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         HostingConfiguration hosting = new();
         config.GetSection("Hosting").Bind(hosting);
 
-        PacketDispatchTelemetry telemetry = PacketDispatchTelemetry.From(_source, _meter, hosting.Telemetry);
+        var telemetry = PacketDispatchTelemetry.From(_source, _meter, hosting.Telemetry);
         using (telemetry.Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger())) { }
         using (telemetry.Begin(NetworkPacketType.CMSG_PONG, Tags, new ScopeLogger())) { }
 
@@ -201,7 +201,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     [Fact]
     public void Keep_the_defaults_when_nothing_is_configured()
     {
-        PacketDispatchTelemetry telemetry = PacketDispatchTelemetry.From(_source, _meter, new TelemetryConfiguration());
+        var telemetry = PacketDispatchTelemetry.From(_source, _meter, new TelemetryConfiguration());
         using (telemetry.Begin(NetworkPacketType.CMSG_PONG, Tags, new ScopeLogger())) { }
 
         Assert.Empty(_spans);

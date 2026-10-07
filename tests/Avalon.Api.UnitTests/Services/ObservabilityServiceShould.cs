@@ -213,7 +213,7 @@ public class ObservabilityServiceShould
         Assert.Equal(["Zed"], page2.Items.Select(r => r.Name).ToArray());
 
         // Every row appears exactly once across the two pages combined.
-        List<uint> combinedIds = page1.Items.Concat(page2.Items).Select(r => r.CharacterId).ToList();
+        var combinedIds = page1.Items.Concat(page2.Items).Select(r => r.CharacterId).ToList();
         Assert.Equal([2u, 3u, 1u], combinedIds);
     }
 

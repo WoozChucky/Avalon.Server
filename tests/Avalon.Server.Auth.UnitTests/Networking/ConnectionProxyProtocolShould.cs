@@ -72,7 +72,7 @@ public class ConnectionProxyProtocolShould
     [Fact]
     public async Task Take_the_client_address_from_a_trusted_proxy_header()
     {
-        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] });
+        (ProbeConnection? connection, TcpClient? client, TcpListener? listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] });
         using (client) using (connection)
         {
             await client.GetStream().WriteAsync(ProxyProtocolV2Should.ProxyTcp4("203.0.113.7", 51000));
@@ -90,7 +90,7 @@ public class ConnectionProxyProtocolShould
     [Fact]
     public async Task Ignore_proxy_headers_from_untrusted_peers()
     {
-        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["10.42.0.0/16"] });
+        (ProbeConnection? connection, TcpClient? client, TcpListener? listener) = await Connect(new() { Enabled = true, TrustedProxies = ["10.42.0.0/16"] });
         using (client) using (connection)
         {
             await connection.StartAsync(CancellationToken.None);
@@ -107,7 +107,7 @@ public class ConnectionProxyProtocolShould
     public async Task Drop_a_trusted_peer_that_sends_no_proxy_header()
     {
         var logger = new CapturingLogger();
-        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] }, logger);
+        (ProbeConnection? connection, TcpClient? client, TcpListener? listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] }, logger);
         using (client) using (connection)
         {
             byte[] notProxy = new byte[16];
@@ -127,7 +127,7 @@ public class ConnectionProxyProtocolShould
     public async Task Drop_a_trusted_peer_that_stays_silent_past_the_timeout()
     {
         var logger = new CapturingLogger();
-        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"], HeaderTimeoutSeconds = 1 }, logger);
+        (ProbeConnection? connection, TcpClient? client, TcpListener? listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"], HeaderTimeoutSeconds = 1 }, logger);
         using (client) using (connection)
         {
             await connection.StartAsync(CancellationToken.None);
@@ -144,7 +144,7 @@ public class ConnectionProxyProtocolShould
     public async Task Drop_a_trusted_peer_that_closes_without_sending_and_log_it_at_debug_only()
     {
         var logger = new CapturingLogger();
-        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] }, logger);
+        (ProbeConnection? connection, TcpClient? client, TcpListener? listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] }, logger);
         using (connection)
         {
             // A TCP health check or port scan: connect, send nothing, close (#528).
@@ -164,7 +164,7 @@ public class ConnectionProxyProtocolShould
     public async Task Drop_a_trusted_peer_that_sends_a_partial_header_and_log_a_warning()
     {
         var logger = new CapturingLogger();
-        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] }, logger);
+        (ProbeConnection? connection, TcpClient? client, TcpListener? listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] }, logger);
         using (connection)
         {
             await client.GetStream().WriteAsync(ProxyProtocolV2Should.ProxyTcp4("203.0.113.7", 51000).AsMemory(0, 5));
@@ -182,7 +182,7 @@ public class ConnectionProxyProtocolShould
     [Fact]
     public async Task Leave_the_socket_address_alone_when_disabled()
     {
-        var (connection, client, listener) = await Connect(new() { Enabled = false, TrustedProxies = ["127.0.0.0/8"] });
+        (ProbeConnection? connection, TcpClient? client, TcpListener? listener) = await Connect(new() { Enabled = false, TrustedProxies = ["127.0.0.0/8"] });
         using (client) using (connection)
         {
             await connection.StartAsync(CancellationToken.None);

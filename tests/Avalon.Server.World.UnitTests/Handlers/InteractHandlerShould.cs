@@ -28,7 +28,7 @@ public class InteractHandlerShould
     [Fact]
     public void Open_The_Conversation_At_The_Root_Node()
     {
-        Fixture fixture = Fixture.WithTalkingNpc();
+        var fixture = Fixture.WithTalkingNpc();
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
 
@@ -39,7 +39,7 @@ public class InteractHandlerShould
     [Fact]
     public void Drop_The_Packet_When_There_Is_No_Character()
     {
-        Fixture fixture = Fixture.WithTalkingNpc();
+        var fixture = Fixture.WithTalkingNpc();
         fixture.Connection.Character.Returns((ICharacter?)null);
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
@@ -51,7 +51,7 @@ public class InteractHandlerShould
     [Fact]
     public void Drop_The_Packet_When_The_Character_Is_Dead()
     {
-        Fixture fixture = Fixture.WithTalkingNpc();
+        var fixture = Fixture.WithTalkingNpc();
         fixture.Character.IsDead.Returns(true);
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
@@ -62,7 +62,7 @@ public class InteractHandlerShould
     [Fact]
     public void Drop_The_Packet_When_The_Target_Is_Not_In_The_Instance()
     {
-        Fixture fixture = Fixture.WithTalkingNpc();
+        var fixture = Fixture.WithTalkingNpc();
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = 999ul });
 
@@ -72,7 +72,7 @@ public class InteractHandlerShould
     [Fact]
     public void Drop_The_Packet_When_The_Npc_Is_Dead()
     {
-        Fixture fixture = Fixture.WithTalkingNpc();
+        var fixture = Fixture.WithTalkingNpc();
         fixture.Npc.CurrentHealth.Returns(0u);
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
@@ -84,7 +84,7 @@ public class InteractHandlerShould
     public void Drop_The_Packet_When_The_Creature_Has_No_Dialogue()
     {
         // The ordinary case for every monster in the game.
-        Fixture fixture = Fixture.WithSilentNpc();
+        var fixture = Fixture.WithSilentNpc();
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
 
@@ -95,7 +95,7 @@ public class InteractHandlerShould
     [Fact]
     public void Drop_The_Packet_When_The_Player_Is_Out_Of_Range()
     {
-        Fixture fixture = Fixture.WithTalkingNpc();
+        var fixture = Fixture.WithTalkingNpc();
         fixture.Npc.Position.Returns(new Vector3(0, 0, 50));   // 50 m away, limit is 5
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
@@ -111,7 +111,7 @@ public class InteractHandlerShould
     {
         // 6 m is inside the 15 m dialogue leash, but the leash only keeps an open conversation
         // alive. Starting one still needs the 5 m interact range.
-        Fixture fixture = Fixture.WithTalkingNpc();
+        var fixture = Fixture.WithTalkingNpc();
         fixture.Npc.Position.Returns(new Vector3(0, 0, 6));
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
@@ -125,7 +125,7 @@ public class InteractHandlerShould
     {
         // What a player expects from clicking an NPC twice, and it unwedges a client that lost the
         // window without needing a cancel packet.
-        Fixture fixture = Fixture.WithTalkingNpc();
+        var fixture = Fixture.WithTalkingNpc();
         fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(2));
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
@@ -139,7 +139,7 @@ public class InteractHandlerShould
         // The catalog in this fixture is real, so this asserts the whole resolve-and-interpolate
         // path end to end rather than that a substitute was called. Capture the sent packet and
         // deserialize it.
-        Fixture fixture = Fixture.WithTalkingNpc();
+        var fixture = Fixture.WithTalkingNpc();
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
 
@@ -194,23 +194,23 @@ public class InteractHandlerShould
             fixture.Npc.Name.Returns("Innkeeper");
             fixture.Npc.CurrentHealth.Returns(100u);
             fixture.Npc.Position.Returns(new Vector3(0, 0, 2));
-            var npcMetadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata npcMetadata = Substitute.For<ICreatureMetadata>();
             npcMetadata.Id.Returns(new CreatureTemplateId(3));
             fixture.Npc.Metadata.Returns(npcMetadata);
 
-            var instance = Substitute.For<IMapInstance>();
+            IMapInstance instance = Substitute.For<IMapInstance>();
             instance.Creatures.Returns(new Dictionary<ObjectGuid, ICreature> { [NpcGuid] = fixture.Npc });
 
-            var registry = Substitute.For<IInstanceRegistry>();
+            IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
             registry.GetInstanceById(Arg.Any<Guid>()).Returns(instance);
 
-            var world = Substitute.For<IWorld>();
+            IWorld world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(registry);
 
             // world.Data is the concrete StaticData and cannot be substituted, so build a real one
             // over stubbed repositories — the arrangement ExperienceAwardShould already uses. The
             // catalogs it builds are real, which means this fixture also exercises the catalog code.
-            var dialogueRepo = Substitute.For<IDialogueRepository>();
+            IDialogueRepository dialogueRepo = Substitute.For<IDialogueRepository>();
             dialogueRepo.GetAllNodesAsync(Arg.Any<CancellationToken>()).Returns(
                 Task.FromResult<IReadOnlyCollection<DialogueNode>>(hasDialogue
                     ? [new DialogueNode
@@ -233,7 +233,7 @@ public class InteractHandlerShould
                         }]
                     : []));
 
-            var textRepo = Substitute.For<ILocalizedTextRepository>();
+            ILocalizedTextRepository textRepo = Substitute.For<ILocalizedTextRepository>();
             textRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(
                 Task.FromResult<IReadOnlyCollection<LocalizedText>>(
                     [new LocalizedText { Id = new LocalizedTextId(6), Text = "Room's upstairs, {name}." },
@@ -268,32 +268,32 @@ public class InteractHandlerShould
         private static StaticData BuildStaticData(
             ILocalizedTextRepository textRepo, IDialogueRepository dialogueRepo)
         {
-            var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+            ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
             createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());
 
-            var stats = Substitute.For<IClassLevelStatRepository>();
+            IClassLevelStatRepository stats = Substitute.For<IClassLevelStatRepository>();
             stats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<ClassLevelStat>());
 
-            var items = Substitute.For<IItemTemplateRepository>();
+            IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
             items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<ItemTemplate>());
 
-            var abilities = Substitute.For<IAbilityTemplateRepository>();
+            IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
             abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AbilityTemplate>());
 
-            var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+            ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
             levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(
                 Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>([]));
 
-            var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+            ICreatureTemplateRepository creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
             creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(new List<CreatureTemplate>()));
 
-            var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+            ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
             baseStats.GetAllAsync(Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
                     [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
 
-            var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+            ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
             rarities.GetAllAsync(Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 

@@ -58,7 +58,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         int[] faces = [0, 1, 2, 0, 2, 3];
 
         var geom = new RcSampleInputGeomProvider(vertices, faces);
-        var result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
+        NavMeshBuildResult result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
         Assert.NotNull(result?.NavMesh);
         return result!.NavMesh;
     }
@@ -75,14 +75,14 @@ public class CreatureCombatScriptCrowdLocomotionShould
         // scenario this test exists to pin.
         const float agentRadius = NavmeshBuildSettings.AgentRadius;
 
-        var targetPosition = Vector3.zero;
+        Vector3 targetPosition = Vector3.zero;
         ICharacter target = Substitute.For<ICharacter>();
         target.Guid.Returns(new ObjectGuid(ObjectType.Character, 100));
         target.Position.Returns(targetPosition);
         target.IsDead.Returns(false);
         target.BodyRadius.Returns(0.5f);   // a character's body (#163: an ability reaches the body's edge)
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
         var attackedCreatures = new HashSet<ObjectGuid>();
         combat.When(c => c.ApplyDamage(Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Any<uint>(), Arg.Any<IAbility>()))
@@ -92,7 +92,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         // test in this suite.
         var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(meleeSlots);
@@ -121,7 +121,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(creatures.Count + 1)));
             creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
-            var metadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
             metadata.SpeedRun.Returns(4f);
             creature.Metadata.Returns(metadata);
             creature.Speed.Returns(4f);
@@ -139,7 +139,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
 
         // 8.5m-ish walk under crowd separation, with generous headroom (3000 ticks = 50s
         // simulated); the loop exits the moment every creature has landed at least one hit.
-        TimeSpan dt = TimeSpan.FromSeconds(1d / 60d);
+        var dt = TimeSpan.FromSeconds(1d / 60d);
         for (int tick = 0; tick < 3000 && attackedCreatures.Count < creatures.Count; tick++)
         {
             foreach (CreatureCombatScript script in scripts)
@@ -187,7 +187,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         int[] faces = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7];
 
         var geom = new RcSampleInputGeomProvider(vertices, faces);
-        var result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
+        NavMeshBuildResult result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
         Assert.NotNull(result?.NavMesh);
         return result!.NavMesh;
     }
@@ -209,10 +209,10 @@ public class CreatureCombatScriptCrowdLocomotionShould
         target.Position.Returns(new Vector3(27f, 0f, 0f));
         target.IsDead.Returns(false);
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(new MeleeSlots(slotCount: 6, radius: 1.5f));
@@ -221,7 +221,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
         creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.SpeedRun.Returns(4f);
         creature.Metadata.Returns(metadata);
         creature.Speed.Returns(4f);
@@ -233,7 +233,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         var script = new KitCombatScript(creature, context);
         script.OnEnteredRange(target);
 
-        TimeSpan dt = TimeSpan.FromSeconds(0.05);
+        var dt = TimeSpan.FromSeconds(0.05);
         int returningAt = -1;
         for (int tick = 1; tick <= 140 && returningAt < 0; tick++)
         {

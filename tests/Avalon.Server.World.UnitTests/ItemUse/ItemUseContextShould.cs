@@ -15,6 +15,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -163,7 +164,7 @@ public class ItemUseContextShould
     [Fact]
     public void Hand_a_teleport_to_the_map_teleport()
     {
-        var town = Substitute.For<Avalon.World.Public.Instances.IMapInstance>();
+        IMapInstance town = Substitute.For<Avalon.World.Public.Instances.IMapInstance>();
         _world.MapTemplates.Returns(new List<MapTemplate>
         {
             new() { Id = new MapTemplateId(1), MapType = MapType.Town, Name = "town", Description = "" },
@@ -213,7 +214,7 @@ public class ItemUseContextShould
     [Fact]
     public void Spawn_a_creature_in_front_of_the_user_in_its_own_instance_and_no_farther_than_the_limit()
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 55));
         _placement.SpawnAt(_host, new CreatureTemplateId(4), Arg.Any<Vector3>()).Returns(creature);
         _character.Position = new Vector3(10, 0, 10);

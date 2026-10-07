@@ -73,9 +73,9 @@ public class AuraSimulationShould
 
     private static (FightSimulator Fight, SimCreature Boar) Fight(BalanceData data, ICombatRandom? rng = null)
     {
-        SimPlayer warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
+        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
         warrior.Abilities.Add(new SimAbility(data.Abilities[new AbilityId(9203)]));
-        SimCreature boar = SimCreature.Create(data, data.Creature(4), 3, 0);
+        var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
         // Its base maximum too, as the parity test's server boar has, so a stat aura keeps its health where it is.
         boar.Health = boar.CurrentHealth = boar.BaseMaxHealth = 1_000_000;
         foreach (SimAbility a in boar.Abilities) a.CooldownLeft = 1_000f;
@@ -187,7 +187,7 @@ public class AuraSimulationShould
     public void Fold_a_stat_aura_into_the_players_defence_and_take_it_back()
     {
         BalanceData data = Data();
-        SimPlayer warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
+        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
         uint armour = warrior.Defence.Armor;
 
         warrior.Auras.Add(new SimAura(data.Auras[new AuraId(9905)], warrior, 1, default,
@@ -204,7 +204,7 @@ public class AuraSimulationShould
     public void Fold_a_stat_aura_into_a_creatures_defence_and_health_and_take_it_back()
     {
         BalanceData data = Data();
-        SimCreature boar = SimCreature.Create(data, data.Creature(4), 3, 0);
+        var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
         uint armour = boar.Defence.Armor;
         uint health = boar.Health;
         AuraTemplate ward = Ward();
@@ -240,7 +240,7 @@ public class AuraSimulationShould
         poison.ScalingCoefficient = 0f;
         poison.BaseDamageCoefficient = 1f;
         poison.DurationMs = 9000;
-        SimCreature boar = SimCreature.Create(data, data.Creature(4), 3, 0);
+        var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
 
         AuraSnapshot snapshot = AuraRules.Snapshot(poison, boar.Attack, CombatRandom.Steady);
 
@@ -265,9 +265,9 @@ public class AuraSimulationShould
     public void Run_unchanged_without_aura_data()
     {
         BalanceData data = Data();
-        SimPlayer warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
+        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
         warrior.Abilities.Add(new SimAbility(data.Abilities[new AbilityId(9203)]));
-        SimCreature boar = SimCreature.Create(data, data.Creature(4), 3, 0);
+        var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
         var fight = new FightSimulator(data.Combat.Formula, warrior, [boar], [new CompiledRotationEntry(9203, [])],
             CombatRandom.Steady);
 

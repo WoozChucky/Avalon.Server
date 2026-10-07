@@ -48,8 +48,8 @@ public sealed class LootCatalog
     public LootCatalog(IReadOnlyCollection<LootTable> tables, ILoggerFactory loggerFactory)
     {
         ILogger<LootCatalog> logger = loggerFactory.CreateLogger<LootCatalog>();
-        Dictionary<int, LootTable> byId = tables.ToDictionary(t => t.Id.Value);
-        List<LootTable> ordered = tables.OrderBy(t => t.Id.Value).ToList();
+        var byId = tables.ToDictionary(t => t.Id.Value);
+        var ordered = tables.OrderBy(t => t.Id.Value).ToList();
         Dictionary<int, string> refused = [];
 
         // 1. Each table's own entries.

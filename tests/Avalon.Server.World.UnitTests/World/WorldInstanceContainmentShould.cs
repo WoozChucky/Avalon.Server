@@ -46,12 +46,12 @@ public class WorldInstanceContainmentShould
         IWorldConnection healthy = townThrows ? inDungeon.Connection : inTown.Connection;
         broken.When(c => c.UpdateMap()).Do(_ => throw new InvalidOperationException("broken instance"));
 
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([
             new MapTemplate { Id = TownId, MapType = MapType.Town },
             new MapTemplate { Id = DungeonId, MapType = MapType.Normal },
         ]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(town, dungeon);
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
             new SilentReloader(), intervalSeconds: 60, mapManager, factory);

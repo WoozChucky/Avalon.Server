@@ -30,7 +30,7 @@ public class LootPickupShould
 
     private ICharacterEconomy Economy()
     {
-        var economy = Substitute.For<ICharacterEconomy>();
+        ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
         economy.InventoryOf(Arg.Any<CharacterEntity>()).Returns(ci => InventoryFor(ci.Arg<CharacterEntity>()));
         economy.WalletOf(Arg.Any<CharacterEntity>()).Returns(ci => new CharacterWallet(ci.Arg<CharacterEntity>(), _maxMoney));
         return economy;
@@ -215,9 +215,9 @@ public class LootPickupShould
     public void Answer_Not_Found_And_Keep_The_Drop_For_An_Add_Result_It_Does_Not_Know()
     {
         Drop(item: Potion.Id);
-        var inventory = Substitute.For<IInventoryService>();
+        IInventoryService inventory = Substitute.For<IInventoryService>();
         inventory.TryAdd(Arg.Any<ItemTemplateId>(), Arg.Any<uint>()).Returns((InventoryAddResult)99);
-        var economy = Substitute.For<ICharacterEconomy>();
+        ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
         economy.InventoryOf(Arg.Any<CharacterEntity>()).Returns(inventory);
 
         var logger = new ErrorCountingLogger();

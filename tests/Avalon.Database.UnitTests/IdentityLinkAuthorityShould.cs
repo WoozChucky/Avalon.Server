@@ -1,4 +1,6 @@
+using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -12,13 +14,13 @@ public class IdentityLinkAuthorityShould
     public async Task Commit_identity_and_epoch_together_and_allow_only_the_original_operation_to_retry()
     {
         using var database = SqliteDatabase.Auth();
-        var account = await new AccountRepository(database).CreateAsync(StoreAuthenticationModelShould.Account("LINK"));
+        Account account = await new AccountRepository(database).CreateAsync(StoreAuthenticationModelShould.Account("LINK"));
         var repo = new ExternalIdentityRepository(database, new FixedClock(Now));
         var operation = new IdentityLinkOperation(Guid.NewGuid(), account.Id, "steam", "76561198000000001", 0, 0, null) { ProofExpiresAt = Now.AddMinutes(5) };
         Assert.Equal(IdentityLinkStatus.Linked, (await repo.LinkWithAuthorityAsync(operation, Now)).Status);
         Assert.Equal(IdentityLinkStatus.AlreadyLinked, (await repo.LinkWithAuthorityAsync(operation, Now)).Status);
         Assert.Equal(IdentityLinkStatus.AuthorityChanged, (await repo.LinkWithAuthorityAsync(operation with { OperationId = Guid.NewGuid() }, Now)).Status);
-        await using var db = database.CreateDbContext();
+        await using AuthDbContext db = database.CreateDbContext();
         Assert.Equal(1, (await db.Accounts.SingleAsync(a => a.Id == account.Id)).SessionEpoch);
         Assert.Equal(operation.OperationId, (await db.ExternalIdentities.SingleAsync()).Id);
     }
@@ -27,13 +29,13 @@ public class IdentityLinkAuthorityShould
     public async Task Refuse_stale_password_epoch_or_MFA_state_without_inserting_an_identity()
     {
         using var database = SqliteDatabase.Auth();
-        var account = await new AccountRepository(database).CreateAsync(StoreAuthenticationModelShould.Account("STALE"));
+        Account account = await new AccountRepository(database).CreateAsync(StoreAuthenticationModelShould.Account("STALE"));
         var repo = new ExternalIdentityRepository(database, new FixedClock(Now));
         var operation = new IdentityLinkOperation(Guid.NewGuid(), account.Id, "steam", "76561198000000001", 0, 0, null) { ProofExpiresAt = Now.AddMinutes(5) };
         Assert.Equal(IdentityLinkStatus.AuthorityChanged, (await repo.LinkWithAuthorityAsync(operation with { CredentialsVersion = 1 }, Now)).Status);
         Assert.Equal(IdentityLinkStatus.AuthorityChanged, (await repo.LinkWithAuthorityAsync(operation with { SessionEpoch = 1 }, Now)).Status);
         Assert.Equal(IdentityLinkStatus.AuthorityChanged, (await repo.LinkWithAuthorityAsync(operation with { ConfirmedMfaId = Guid.NewGuid() }, Now)).Status);
-        await using var db = database.CreateDbContext();
+        await using AuthDbContext db = database.CreateDbContext();
         Assert.Empty(await db.ExternalIdentities.ToListAsync());
         Assert.Equal(0, (await db.Accounts.SingleAsync(a => a.Id == account.Id)).SessionEpoch);
     }
@@ -43,8 +45,8 @@ public class IdentityLinkAuthorityShould
     {
         using var database = SqliteDatabase.Auth();
         var accounts = new AccountRepository(database);
-        var first = await accounts.CreateAsync(StoreAuthenticationModelShould.Account("FIRST"));
-        var second = await accounts.CreateAsync(StoreAuthenticationModelShould.Account("SECOND"));
+        Account first = await accounts.CreateAsync(StoreAuthenticationModelShould.Account("FIRST"));
+        Account second = await accounts.CreateAsync(StoreAuthenticationModelShould.Account("SECOND"));
         var repo = new ExternalIdentityRepository(database, new FixedClock(Now));
         var operation = new IdentityLinkOperation(Guid.NewGuid(), first.Id, "steam", "76561198000000001", 0, 0, null) { ProofExpiresAt = Now.AddMinutes(5) };
         await repo.LinkWithAuthorityAsync(operation, Now);
@@ -57,7 +59,7 @@ public class IdentityLinkAuthorityShould
     {
         using var database = SqliteDatabase.Auth();
         var accounts = new AccountRepository(database);
-        var account = await accounts.CreateAsync(StoreAuthenticationModelShould.Account("EXPIRED"));
+        Account account = await accounts.CreateAsync(StoreAuthenticationModelShould.Account("EXPIRED"));
         var repo = new ExternalIdentityRepository(database, new FixedClock(Now.AddMinutes(5)));
         var operation = new IdentityLinkOperation(Guid.NewGuid(), account.Id, "steam", "76561198000000001", 0, 0, null)
         { ProofExpiresAt = Now.AddMinutes(5) };

@@ -283,7 +283,7 @@ public class AuthServer(
 
     protected override object GetContextPacket(IConnection connection, object? packet, Type packetType)
     {
-        var factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
+        Func<IConnection, Packet?, object> factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
             (Func<IConnection, Packet?, object>)s_buildContextMethod.MakeGenericMethod(t).Invoke(null, null)!);
         return factory(connection, packet as Packet);
     }

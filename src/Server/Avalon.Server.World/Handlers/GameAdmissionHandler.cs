@@ -18,8 +18,8 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             ctx.Connection.Send(SGameAdmissionPacket.Create([], GameAdmissionResult.InvalidRequest));
             return ctx.Connection.CloseAsync(false);
         }
-        var publicKey = ctx.Packet.PublicKey.ToArray();
-        var result = WorldDatabaseWork.Admission.Run(() => admission.AdmitAsync(ctx.Packet.JoinTicket, connection.Id, Guid.NewGuid(), token));
+        byte[] publicKey = ctx.Packet.PublicKey.ToArray();
+        Task<WorldAdmissionResult> result = WorldDatabaseWork.Admission.Run(() => admission.AdmitAsync(ctx.Packet.JoinTicket, connection.Id, Guid.NewGuid(), token));
         connection.TrackAdmission(result);
         connection.EnqueueContinuation(result, reply =>
         {

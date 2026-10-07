@@ -2,6 +2,7 @@ using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.Auth.Repositories;
 
@@ -23,14 +24,14 @@ public sealed class AccountEmailVerificationRepository(IDbContextFactory<AuthDbC
     {
         if (expiresAt <= issuedAt || cooldown <= TimeSpan.Zero || tokenHash.Length != 64)
             throw new ArgumentException("Invalid verification challenge interval or digest.");
-        await using var db = await factory.CreateDbContextAsync(ct);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
         if (!await HoldAccount(db, accountId, ct)) return EmailVerificationIssueResult.AccountChanged;
-        var account = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == accountId, ct);
+        Account account = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == accountId, ct);
         if (!Eligible(account, issuedAt) || account.Email != normalizedEmail || account.CredentialsVersion != credentialsVersion)
             return EmailVerificationIssueResult.AccountChanged;
         if (account.EmailVerifiedAt is not null) return EmailVerificationIssueResult.AlreadyVerified;
-        var challenge = await db.AccountEmailVerifications.SingleOrDefaultAsync(x => x.AccountId == accountId, ct);
+        AccountEmailVerification? challenge = await db.AccountEmailVerifications.SingleOrDefaultAsync(x => x.AccountId == accountId, ct);
         if (challenge is not null && issuedAt < challenge.IssuedAt + cooldown) return EmailVerificationIssueResult.Cooldown;
         if (challenge is null)
         {
@@ -46,11 +47,11 @@ public sealed class AccountEmailVerificationRepository(IDbContextFactory<AuthDbC
 
     public async Task<bool> ConsumeAsync(AccountId accountId, string tokenHash, DateTime now, CancellationToken ct)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
         if (!await HoldAccount(db, accountId, ct)) return false;
-        var account = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == accountId, ct);
-        var challenge = await db.AccountEmailVerifications.SingleOrDefaultAsync(x => x.AccountId == accountId, ct);
+        Account account = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == accountId, ct);
+        AccountEmailVerification? challenge = await db.AccountEmailVerifications.SingleOrDefaultAsync(x => x.AccountId == accountId, ct);
         if (challenge is null || challenge.TokenHash != tokenHash || challenge.ConsumedAt is not null || challenge.InvalidatedAt is not null
             || challenge.IssuedAt > now || challenge.ExpiresAt <= now || !Eligible(account, now) || account.EmailVerifiedAt is not null
             || challenge.Email != account.Email || challenge.CredentialsVersion != account.CredentialsVersion) return false;
@@ -63,11 +64,11 @@ public sealed class AccountEmailVerificationRepository(IDbContextFactory<AuthDbC
 
     public async Task<bool> InvalidateAsync(AccountId accountId, string tokenHash, CancellationToken ct)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
         if (!await HoldAccount(db, accountId, ct)) return false;
         // The challenge's timestamp suffices as an invalidation marker; never change a consumed proof.
-        var count = await db.AccountEmailVerifications.Where(x => x.AccountId == accountId && x.TokenHash == tokenHash
+        int count = await db.AccountEmailVerifications.Where(x => x.AccountId == accountId && x.TokenHash == tokenHash
                 && x.ConsumedAt == null && x.InvalidatedAt == null)
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.InvalidatedAt, x => (DateTime?)x.IssuedAt), ct);
         await transaction.CommitAsync(ct);
@@ -76,7 +77,7 @@ public sealed class AccountEmailVerificationRepository(IDbContextFactory<AuthDbC
 
     public async Task<AccountEmailVerification?> FindAsync(AccountId accountId, CancellationToken ct)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
         return await db.AccountEmailVerifications.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == accountId, ct);
     }
 

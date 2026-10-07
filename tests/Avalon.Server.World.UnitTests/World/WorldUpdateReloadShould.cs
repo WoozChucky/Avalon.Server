@@ -59,7 +59,7 @@ public class WorldUpdateReloadShould
 
     private static async Task<Avalon.World.World> BuildWorldAsync()
     {
-        var worldRepository = Substitute.For<IWorldRepository>();
+        IWorldRepository worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Auth.World
             {
@@ -70,22 +70,22 @@ public class WorldUpdateReloadShould
                 Version = "1.0.0"
             });
 
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(Array.Empty<CharacterCreateInfo>());
-        var stats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository stats = Substitute.For<IClassLevelStatRepository>();
         stats.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(Array.Empty<ClassLevelStat>());
-        var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Array.Empty<CharacterLevelExperience>());
-        var items = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<ItemTemplate>());
-        var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<AbilityTemplate>());
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
@@ -93,29 +93,29 @@ public class WorldUpdateReloadShould
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
-        var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
         creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<CreatureTemplate>()));
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
                 [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
             .Returns(Substitute.For<IChunkLayoutInstanceFactory>());
 
-        var scopeFactory = Substitute.For<IServiceScopeFactory>();
-        var scope = Substitute.For<IServiceScope>();
+        IServiceScopeFactory scopeFactory = Substitute.For<IServiceScopeFactory>();
+        IServiceScope scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
         scopeFactory.CreateScope().Returns(scope);
 

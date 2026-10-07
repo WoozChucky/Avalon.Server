@@ -22,6 +22,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
+using DotRecast.Core;
 using DotRecast.Detour;
 using DotRecast.Detour.Crowd;
 using Microsoft.Extensions.DependencyInjection;
@@ -61,7 +62,7 @@ public static class CrowdBudgetHarness
         Console.WriteLine($"Release={!IsDebug()} Cores={Environment.ProcessorCount} OS={Environment.OSVersion} .NET={Environment.Version}");
         Console.WriteLine($"players={players} playerSpeed={s_playerSpeed} m/s creatureRun=5 m/s warmup={warmup} measure={measure} ticks at 1/60 s");
 
-        using Process self = Process.GetCurrentProcess();
+        using var self = Process.GetCurrentProcess();
         try { self.PriorityClass = ProcessPriorityClass.High; } catch { /* best effort */ }
 
         // One logical CPU, so a hybrid CPU cannot move the tick between performance and efficiency cores
@@ -221,8 +222,8 @@ public static class CrowdBudgetHarness
             Vector3 lp = LoopPoint(navigator, centre, loopRadius, k * MathF.Tau / 64);
             if (Snap(navigator, lp) is not { } s0 || Vector3.Distance(s0, lp) > 0.3f) offLoop++;
         }
-        var locoMs = new double[measure];
-        var updMs = new double[measure];
+        double[] locoMs = new double[measure];
+        double[] updMs = new double[measure];
         long locoAlloc = 0, updAlloc = 0;
         var telemetry = new Dictionary<string, long>();
         DtCrowd? crowd = inner is CrowdLocomotion cl
@@ -288,7 +289,7 @@ public static class CrowdBudgetHarness
 
             if (crowd is not null)
             {
-                foreach (var e in crowd.Telemetry().ToExecutionTimings())
+                foreach (RcTelemetryTick e in crowd.Telemetry().ToExecutionTimings())
                     telemetry[e.Key] = telemetry.GetValueOrDefault(e.Key) + e.Ticks;
             }
         }

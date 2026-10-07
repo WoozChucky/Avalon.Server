@@ -161,7 +161,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         if (party is not null && party.Members.Count >= Config.MaxPartySize)
             return PartyResult.PartyFull;
 
-        TimeSpan timeout = TimeSpan.FromSeconds(Config.PartyInviteTimeoutSeconds);
+        var timeout = TimeSpan.FromSeconds(Config.PartyInviteTimeoutSeconds);
         var invite = new PartyInvite(inviterId, inviter.Name, target.Name, party?.Id, time.GetUtcNow() + timeout);
 
         // A target ignoring the inviter never sees the invite (#723). Only after every refusal, so the inviter is

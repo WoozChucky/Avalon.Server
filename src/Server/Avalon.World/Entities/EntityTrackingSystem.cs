@@ -33,7 +33,7 @@ public class EntityTrackingSystem(int capacity)
     {
         _seenThisFrame.Clear();
 
-        foreach (var entity in currentEntities)
+        foreach (IWorldObject entity in currentEntities)
         {
             _seenThisFrame.Add(entity.Guid);
 
@@ -44,19 +44,19 @@ public class EntityTrackingSystem(int capacity)
                 continue;
             }
 
-            if (frameDirtyFields.TryGetValue(entity.Guid, out var dirtyFields))
+            if (frameDirtyFields.TryGetValue(entity.Guid, out GameEntityFields dirtyFields))
             {
                 EntityUpdated?.Invoke(entity.Guid, dirtyFields);
             }
         }
 
-        foreach (var guid in _trackedGuids)
+        foreach (ObjectGuid guid in _trackedGuids)
         {
             if (!_seenThisFrame.Contains(guid))
                 _pendingRemovals.Add(guid);
         }
 
-        foreach (var guid in _pendingRemovals)
+        foreach (ObjectGuid guid in _pendingRemovals)
         {
             _trackedGuids.Remove(guid);
             EntityRemoved?.Invoke(guid);

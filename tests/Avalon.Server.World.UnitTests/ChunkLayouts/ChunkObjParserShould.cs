@@ -55,7 +55,7 @@ public sealed class ChunkObjParserShould : IDisposable
 
         var placed = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
         var layout = new ChunkLayout(0, [placed], placed, null, [], Vector3.zero, 30f);
-        ChunkLayoutNavmeshBuilder builder = ChunkLayoutNavmeshBuilder.ForTesting(
+        var builder = ChunkLayoutNavmeshBuilder.ForTesting(
             NullLoggerFactory.Instance, new OneChunkLibrary(name), Path.Combine(_root, name));
         return await builder.BuildAsync(layout, CancellationToken.None);
     }

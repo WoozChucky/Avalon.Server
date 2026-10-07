@@ -44,7 +44,7 @@ public class LevelUpStatsShould
                 new CharacterLevelExperience { Level = 2, Experience = 500 },
                 new CharacterLevelExperience { Level = 3, Experience = 900 },   // level 2 is not the maximum (#735)
             ]);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
         world.Data.Returns(data);
@@ -89,7 +89,7 @@ public class LevelUpStatsShould
     {
         List<ClassLevelStat> classStats;
         List<CharacterLevelExperience> levels;
-        using (SqliteDatabase<WorldDbContext> database = SqliteDatabase.World())
+        using (var database = SqliteDatabase.World())
         using (WorldDbContext context = database.CreateDbContext())
         {
             classStats = context.ClassLevelStats.AsNoTracking().ToList();
@@ -97,7 +97,7 @@ public class LevelUpStatsShould
         }
 
         StaticData data = await TestStaticData.LoadAsync(classStats: classStats, levels: levels);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
         world.Data.Returns(data);
@@ -193,7 +193,7 @@ public class LevelUpStatsShould
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
                 new CharacterLevelExperience { Level = 2, Experience = 500 },
             ]);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
         world.Data.Returns(data);
@@ -237,7 +237,7 @@ public class LevelUpStatsShould
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
                 new CharacterLevelExperience { Level = 2, Experience = 500 },
             ]);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
         world.Data.Returns(data);

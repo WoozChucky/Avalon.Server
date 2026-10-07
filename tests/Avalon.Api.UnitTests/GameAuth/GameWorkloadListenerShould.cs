@@ -21,12 +21,12 @@ public sealed class GameWorkloadListenerShould
     [Fact]
     public async Task Enforce_client_certificate_possession_on_the_real_kestrel_tls_listener()
     {
-        using var server = Certificate(false);
-        using var workload = Certificate(true);
-        using var wrong = Certificate(true);
-        var serverPin = Pin(server);
-        var clientPin = Pin(workload);
-        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
+        using X509Certificate2 server = Certificate(false);
+        using X509Certificate2 workload = Certificate(true);
+        using X509Certificate2 wrong = Certificate(true);
+        string serverPin = Pin(server);
+        string clientPin = Pin(workload);
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
         builder.Logging.ClearProviders();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -43,7 +43,7 @@ public sealed class GameWorkloadListenerShould
         builder.Services.AddOptions<GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads");
         builder.Services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, GameServerAuthHandler>(GameServerAuthHandler.Scheme, _ => { });
         builder.Services.AddAuthorization();
-        await using var app = builder.Build();
+        await using WebApplication app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapPost("/internal/test", (System.Security.Claims.ClaimsPrincipal user) => user.FindFirst(GameServerAuthHandler.ServerIdClaim)!.Value)
@@ -51,14 +51,14 @@ public sealed class GameWorkloadListenerShould
         await app.StartAsync();
         try
         {
-            var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-            using var accepted = Client(workload, serverPin);
-            var result = await accepted.PostAsync(address + "/internal/test", new StringContent(""));
+            string address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+            using HttpClient accepted = Client(workload, serverPin);
+            HttpResponseMessage result = await accepted.PostAsync(address + "/internal/test", new StringContent(""));
             Assert.Equal(HttpStatusCode.OK, result.StatusCode);
             Assert.Equal("world-1", await result.Content.ReadAsStringAsync());
-            foreach (var certificate in new[] { null, wrong })
+            foreach (X509Certificate2? certificate in new[] { null, wrong })
             {
-                using var refused = Client(certificate, serverPin);
+                using HttpClient refused = Client(certificate, serverPin);
                 refused.DefaultRequestHeaders.Authorization = new("Bearer", "user-token");
                 refused.DefaultRequestHeaders.Add("X-Client-Cert", Convert.ToBase64String(workload.RawData));
                 refused.DefaultRequestHeaders.Add("X-Server-Id", "world-1");
@@ -84,7 +84,7 @@ public sealed class GameWorkloadListenerShould
         names.AddDnsName("localhost");
         names.AddIpAddress(IPAddress.Loopback);
         request.CertificateExtensions.Add(names.Build());
-        using var generated = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddDays(1));
+        using X509Certificate2 generated = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddDays(1));
         // Windows Schannel cannot use the generator's ephemeral key. A default PFX import owns a
         // temporary key container that is deleted on disposal; no trust store or user is created.
         return X509CertificateLoader.LoadPkcs12(generated.Export(X509ContentType.Pfx), null, X509KeyStorageFlags.DefaultKeySet);

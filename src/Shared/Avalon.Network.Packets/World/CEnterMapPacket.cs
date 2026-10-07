@@ -23,7 +23,7 @@ public class CEnterMapPacket : Packet
         var packet = new CEnterMapPacket { TargetMapId = targetMapId };
         Serializer.Serialize(memoryStream, packet);
 
-        var buffer = encrypt(memoryStream.ToArray());
+        byte[] buffer = encrypt(memoryStream.ToArray());
 
         return new NetworkPacket
         {

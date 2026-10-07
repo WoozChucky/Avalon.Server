@@ -112,7 +112,7 @@ internal static class FixtureRendering
     {
         const int preview = 8;
 
-        var text = new StringBuilder()
+        StringBuilder text = new StringBuilder()
             .Append(bytes.Length.ToString(CultureInfo.InvariantCulture))
             .Append(bytes.Length == 1 ? " byte" : " bytes");
 

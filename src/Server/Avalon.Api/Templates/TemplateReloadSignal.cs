@@ -152,7 +152,7 @@ public sealed class RedisTemplateReloadSignal(
             return;
         }
 
-        if (result is not null && _pending.TryGetValue(result.RequestId, out var answer))
+        if (result is not null && _pending.TryGetValue(result.RequestId, out TaskCompletionSource<ReloadResultMessage>? answer))
         {
             answer.TrySetResult(result);
         }

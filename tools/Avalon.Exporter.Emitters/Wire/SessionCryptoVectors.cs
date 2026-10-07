@@ -280,7 +280,7 @@ public static class SessionCryptoVectors
     /// </summary>
     private static BigInteger ServerScalarWithShortSecret()
     {
-        ECPrivateKeyParameters clientPrivate = (ECPrivateKeyParameters)KeyPair(Scalar("client", 1)).Private;
+        var clientPrivate = (ECPrivateKeyParameters)KeyPair(Scalar("client", 1)).Private;
 
         for (int index = 0; index < 100_000; index++)
         {
@@ -346,14 +346,14 @@ public static class SessionCryptoVectors
     private static byte[] Fixed(BigInteger scalar)
     {
         byte[] minimal = scalar.ToByteArrayUnsigned();
-        var padded = new byte[ScalarSize];
+        byte[] padded = new byte[ScalarSize];
         Buffer.BlockCopy(minimal, 0, padded, ScalarSize - minimal.Length, minimal.Length);
         return padded;
     }
 
     private static byte[] Sequence(int length)
     {
-        var bytes = new byte[length];
+        byte[] bytes = new byte[length];
         for (int i = 0; i < length; i++) bytes[i] = (byte)i;
         return bytes;
     }

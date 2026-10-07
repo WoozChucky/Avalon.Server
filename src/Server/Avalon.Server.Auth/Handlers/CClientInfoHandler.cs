@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Handshake;
 
 namespace Avalon.Server.Auth.Handlers;
@@ -13,7 +14,7 @@ public class CClientInfoHandler : IAuthPacketHandler<CClientInfoPacket>
 
     public Task ExecuteAsync(AuthPacketContext<CClientInfoPacket> ctx, CancellationToken token = default)
     {
-        var packet = ctx.Packet;
+        CClientInfoPacket packet = ctx.Packet;
 
         if (packet.PublicKey == null || packet.PublicKey.Length == 0)
         {
@@ -29,9 +30,9 @@ public class CClientInfoHandler : IAuthPacketHandler<CClientInfoPacket>
 
         ctx.Connection.CryptoSession.Initialize(packet.PublicKey);
 
-        var data = ctx.Connection.GenerateHandshakeData();
+        byte[] data = ctx.Connection.GenerateHandshakeData();
 
-        var result = SHandshakePacket.Create(data, ctx.Connection.CryptoSession.Encrypt);
+        NetworkPacket result = SHandshakePacket.Create(data, ctx.Connection.CryptoSession.Encrypt);
 
         ctx.Connection.Send(result);
 

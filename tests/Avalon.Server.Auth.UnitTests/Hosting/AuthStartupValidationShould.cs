@@ -40,7 +40,7 @@ public class AuthStartupValidationShould
             [setting] = "",
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
 
         Assert.Contains(named, refused.Message, StringComparison.Ordinal);
     }
@@ -56,7 +56,7 @@ public class AuthStartupValidationShould
             ["Application:OnlineSweepIntervalSeconds"] = seconds,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
 
         Assert.Contains("OnlineSweepIntervalSeconds", refused.Message, StringComparison.Ordinal);
     }
@@ -76,7 +76,7 @@ public class AuthStartupValidationShould
             ["Hosting:" + setting] = value,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
 
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }

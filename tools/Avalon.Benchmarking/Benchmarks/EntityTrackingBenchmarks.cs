@@ -76,7 +76,7 @@ public class EntityTrackingBenchmarks
         _tick++;
         int active = Math.Max(1, CreatureCount / 10);
         int i = 0;
-        foreach (var creature in _creatures.Values.Cast<Creature>())
+        foreach (Creature creature in _creatures.Values.Cast<Creature>())
         {
             if (i++ >= active) break;
             creature.Position = new Vector3(_tick, 0, _tick + i);
@@ -93,7 +93,7 @@ public class EntityTrackingBenchmarks
     public void Update_AllActive()
     {
         _tick++;
-        foreach (var creature in _creatures.Values.Cast<Creature>())
+        foreach (Creature creature in _creatures.Values.Cast<Creature>())
         {
             creature.Position = new Vector3(_tick, 0, _tick);
             creature.CurrentHealth = (uint)Math.Max(1, creature.CurrentHealth - 1);

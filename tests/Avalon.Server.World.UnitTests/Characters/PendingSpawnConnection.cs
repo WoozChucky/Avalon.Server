@@ -24,7 +24,7 @@ internal static class PendingSpawnConnection
     /// </summary>
     public static ICharacter Character(string name = "Tester", uint id = 7)
     {
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Name.Returns(name);
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, id));
         return character;
@@ -32,7 +32,7 @@ internal static class PendingSpawnConnection
 
     public static IWorldConnection Create(PendingSpawn? pending = null)
     {
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.AccountId.Returns(new AccountId(42L));
         connection.GameplayAuthority.Returns(new Avalon.Common.GameAuth.GameplayWriteAuthority(new AccountId(42), Guid.NewGuid(), 1));
         connection.IsGameplayAuthorized.Returns(true);

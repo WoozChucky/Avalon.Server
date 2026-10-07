@@ -397,7 +397,7 @@ internal static class FixtureValues
 
         // An element's variant is the message's, except that Empty means "the collection is
         // present and holds nothing", so there are no elements to give a variant to.
-        Array items = Array.CreateInstance(element, count);
+        var items = Array.CreateInstance(element, count);
         for (int i = 0; i < count; i++)
         {
             items.SetValue(For(element, variant, path, i, enclosing), i);

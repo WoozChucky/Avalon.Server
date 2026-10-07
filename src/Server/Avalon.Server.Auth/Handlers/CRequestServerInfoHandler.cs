@@ -1,4 +1,5 @@
 using Avalon.Common.Utils;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Handshake;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Options;
@@ -30,7 +31,7 @@ public class CRequestServerInfoHandler : IAuthPacketHandler<CRequestServerInfoPa
             return Task.CompletedTask;
         }
 
-        var result = SServerInfoPacket.Create(serverVersion, ctx.Connection.ServerCrypto.GetPublicKey());
+        NetworkPacket result = SServerInfoPacket.Create(serverVersion, ctx.Connection.ServerCrypto.GetPublicKey());
 
         ctx.Connection.Send(result);
 

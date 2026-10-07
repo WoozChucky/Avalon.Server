@@ -25,7 +25,7 @@ public class CastFootprintShould
 
     public CastFootprintShould()
     {
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAbilityScript(nameof(CircleAbilityScript)).Returns(typeof(CircleAbilityScript));
         scripts.GetAbilityScript(nameof(ConeAbilityScript)).Returns(typeof(ConeAbilityScript));
         _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), scripts, _arena);
@@ -40,7 +40,7 @@ public class CastFootprintShould
     /// <summary>A living creature at <paramref name="position" />: a creature is never interrupted by being moved (#163).</summary>
     private static ICreature Creature(Vector3 position)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 648_900u));
         creature.Position.Returns(position);
         creature.CurrentHealth.Returns(10u);

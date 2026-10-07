@@ -16,8 +16,8 @@ public class CreatureCorpseRemoverShould
 
     private static ICreature MakeCreature(TimeSpan? remove = null)
     {
-        var creature = Substitute.For<ICreature>();
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreature creature = Substitute.For<ICreature>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.BodyRemoveTimer.Returns(remove ?? DefaultRemove);
         creature.Metadata.Returns(metadata);
         return creature;

@@ -2,6 +2,7 @@ using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace Avalon.Database.Auth.Repositories;
@@ -28,10 +29,10 @@ public sealed partial class ExternalIdentityRepository
             throw new ArgumentException("Invalid store account creation operation.");
         bool ProofExpired() => operation.ProofExpiresAt.Kind != DateTimeKind.Utc ||
             operation.ProofExpiresAt <= (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
-        var retry = await CreationRetryAsync(db, operation, cancellationToken);
+        IdentityLinkResult? retry = await CreationRetryAsync(db, operation, cancellationToken);
         if (retry is not null) return retry;
         if (await db.ExternalIdentities.AnyAsync(x => x.Provider == operation.Provider && x.ProviderSubject == operation.Subject, cancellationToken))
             return await CreationRetryAsync(db, operation, cancellationToken) ?? new(IdentityLinkStatus.SubjectTaken, null);
@@ -84,8 +85,8 @@ public sealed partial class ExternalIdentityRepository
         catch (DbUpdateException error) when (error.InnerException is not PostgresException pg || pg.SqlState == PostgresErrorCodes.UniqueViolation)
         {
             await transaction.RollbackAsync(cancellationToken);
-            await using var read = await factory.CreateDbContextAsync(cancellationToken);
-            var raced = await CreationRetryAsync(read, operation, cancellationToken);
+            await using AuthDbContext read = await factory.CreateDbContextAsync(cancellationToken);
+            IdentityLinkResult? raced = await CreationRetryAsync(read, operation, cancellationToken);
             if (raced is not null) return raced;
             if (await read.ExternalIdentities.AnyAsync(x => x.Provider == operation.Provider && x.ProviderSubject == operation.Subject, cancellationToken))
                 return new(IdentityLinkStatus.SubjectTaken, null);
@@ -100,12 +101,12 @@ public sealed partial class ExternalIdentityRepository
     private static async Task<IdentityLinkResult?> CreationRetryAsync(AuthDbContext db, StoreAccountCreationOperation operation,
         CancellationToken cancellationToken)
     {
-        var receipt = await db.StoreAccountCreations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.OperationId, cancellationToken);
+        StoreAccountCreation? receipt = await db.StoreAccountCreations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.OperationId, cancellationToken);
         if (receipt is null) return null;
         if (receipt.Provider != operation.Provider || receipt.ProviderSubject != operation.Subject) return new(IdentityLinkStatus.AuthorityChanged, null);
-        var identity = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.OperationId &&
+        ExternalIdentity? identity = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.OperationId &&
             x.AccountId == receipt.AccountId && x.Provider == operation.Provider && x.ProviderSubject == operation.Subject, cancellationToken);
-        var root = await db.Accounts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == receipt.AccountId, cancellationToken);
+        Account? root = await db.Accounts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == receipt.AccountId, cancellationToken);
         return identity is not null && root is { CredentialsVersion: 0, SessionEpoch: 1, Status: AccountStatus.Active } &&
                root.Username == operation.Account.Username && root.Email == operation.Account.Email &&
                root.IsStoreGenerated == operation.Account.IsStoreGenerated

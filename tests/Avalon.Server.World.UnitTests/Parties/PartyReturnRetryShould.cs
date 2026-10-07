@@ -150,7 +150,7 @@ public class PartyReturnRetryShould
 
         Assert.Equal(PartyService.MaxReturnRetries + 1, _lookups);
         Assert.Equal(PartyService.MaxReturnRetries, Warnings.Count());
-        var gaveUp = Assert.Single(_log.Errors);
+        (LogLevel Level, Exception? Exception, string Message) gaveUp = Assert.Single(_log.Errors);
         Assert.Contains("Gave up", gaveUp.Message, StringComparison.Ordinal);
         Assert.False(_w.Parties.InCountdown(_c.Id));
         Assert.False(_c.Connection.RespawnInFlight);

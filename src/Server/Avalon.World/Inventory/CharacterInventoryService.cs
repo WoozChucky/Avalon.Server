@@ -62,7 +62,7 @@ public sealed class CharacterInventoryService(
 
     public InventoryRemoveResult TryRemove(ItemTemplateId templateId, uint count)
     {
-        List<InventoryItem> stacks = Bag.Items
+        var stacks = Bag.Items
             .Where(i => i.TemplateId == templateId)
             .OrderByDescending(i => i.Slot)
             .ToList();

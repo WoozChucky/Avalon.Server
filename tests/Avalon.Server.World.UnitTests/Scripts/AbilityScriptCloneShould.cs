@@ -39,8 +39,8 @@ public class AbilityScriptCloneShould
     [Fact]
     public void Clone_ReturnsSameAbilityReference()
     {
-        var ability = Substitute.For<IAbility>();
-        var caster = Substitute.For<IUnit>();
+        IAbility ability = Substitute.For<IAbility>();
+        IUnit caster = Substitute.For<IUnit>();
         var original = new StubAbilityScript(ability, caster, default);
 
         var clone = (StubAbilityScript)original.Clone();
@@ -53,8 +53,8 @@ public class AbilityScriptCloneShould
     [Fact]
     public void Clone_HasIndependentChainedScriptsList()
     {
-        var original = MakeScript();
-        var chained = MakeScript();
+        StubAbilityScript original = MakeScript();
+        StubAbilityScript chained = MakeScript();
         original.Chain(chained);
 
         var clone = (StubAbilityScript)original.Clone();
@@ -70,7 +70,7 @@ public class AbilityScriptCloneShould
     [Fact]
     public void Clone_MutatingCloneChain_DoesNotAffectOriginal()
     {
-        var original = MakeScript();
+        StubAbilityScript original = MakeScript();
         original.Chain(MakeScript());
         original.Chain(MakeScript());
 
@@ -85,9 +85,9 @@ public class AbilityScriptCloneShould
     [Fact]
     public void Clone_SubclassWithoutOverride_ReturnsCorrectType()
     {
-        var original = MakeScript();
+        StubAbilityScript original = MakeScript();
 
-        var clone = original.Clone();
+        AbilityScript clone = original.Clone();
 
         Assert.IsType<StubAbilityScript>(clone);
         Assert.NotSame(original, clone);
@@ -96,8 +96,8 @@ public class AbilityScriptCloneShould
     [Fact]
     public void Clone_ChainsAreRecursivelyCloned()
     {
-        var original = MakeScript();
-        var inner = MakeScript();
+        StubAbilityScript original = MakeScript();
+        StubAbilityScript inner = MakeScript();
         original.Chain(inner);
 
         var clone = (StubAbilityScript)original.Clone();

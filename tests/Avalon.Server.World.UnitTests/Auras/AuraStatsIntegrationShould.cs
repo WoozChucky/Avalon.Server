@@ -123,7 +123,7 @@ public class AuraStatsIntegrationShould
     [Fact]
     public void Walk_a_crippled_creature_at_its_slowed_speed()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([new Vector3(20f, 0f, 0f)]);
         var locomotion = new WaypointLocomotion(_ => navigator);
         Creature wolf = Wolf();

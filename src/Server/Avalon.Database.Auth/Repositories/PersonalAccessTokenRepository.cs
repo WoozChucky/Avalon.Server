@@ -1,6 +1,8 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.Auth.Repositories;
 
@@ -28,7 +30,7 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
 {
     public async Task<PersonalAccessToken?> FindByHashAsync(byte[] hash, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
         return await context.PersonalAccessTokens
             .AsNoTracking()
@@ -37,9 +39,9 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
 
     public async Task<List<PersonalAccessToken>> ListByAccountAsync(AccountId accountId, bool includeRevoked, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
-        var query = context.PersonalAccessTokens
+        IQueryable<PersonalAccessToken> query = context.PersonalAccessTokens
             .AsNoTracking()
             .Where(p => p.AccountId == accountId);
 
@@ -53,7 +55,7 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
 
     public async Task<int> RevokeAllForAccountAsync(AccountId accountId, AccountId revokedBy, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
         return await RevokeAllForAccountAsync(context, accountId, revokedBy, DateTime.UtcNow, cancellationToken);
     }
@@ -76,9 +78,9 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
     public async Task<PersonalAccessToken?> CreateUnlessCredentialsChangedAsync(PersonalAccessToken token,
         AccountId reauthenticatedAccount, int credentialsVersion, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
         // An uncommitted transaction rolls back when it is disposed, so the refusal needs no catch.
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
         // First: the account row is held until the insert commits, so a credentials change
         // either committed before this (and refuses it here) or waits for it, and its revocation
@@ -87,7 +89,7 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
                 credentialsVersion, cancellationToken))
             return null;
 
-        var entry = context.TrackForInsert(token);
+        EntityEntry<PersonalAccessToken> entry = context.TrackForInsert(token);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return entry.Entity;
@@ -95,10 +97,10 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
 
     public async Task<bool> UpdateLastUsedIfStaleAsync(PersonalAccessTokenId id, DateTime now, TimeSpan minStale, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
 
-        var threshold = now - minStale;
-        var rows = await context.PersonalAccessTokens
+        DateTime threshold = now - minStale;
+        int rows = await context.PersonalAccessTokens
             .Where(p => p.Id == id && (p.LastUsedAt == null || p.LastUsedAt < threshold))
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.LastUsedAt, now), cancellationToken);
         return rows > 0;

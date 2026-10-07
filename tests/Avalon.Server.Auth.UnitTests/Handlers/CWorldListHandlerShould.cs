@@ -76,12 +76,12 @@ public class CWorldListHandlerShould
     [Fact]
     public async Task SendWorldList_WithOnlyAccessibleWorlds()
     {
-        var account = MakeAccount(level: AccountAccessLevel.Player);
+        Account account = MakeAccount(level: AccountAccessLevel.Player);
         _connection.AccountId.Returns(account.Id);
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
 
-        var playerWorld = MakeWorld(1, AccountAccessLevel.Player);
-        var adminWorld = MakeWorld(2, AccountAccessLevel.Admin);
+        AvalonWorld playerWorld = MakeWorld(1, AccountAccessLevel.Player);
+        AvalonWorld adminWorld = MakeWorld(2, AccountAccessLevel.Admin);
         _worldRepository.FindAllAsync().Returns(new List<AvalonWorld> { playerWorld, adminWorld });
 
         var ctx = new AuthPacketContext<CWorldListPacket>
@@ -99,12 +99,12 @@ public class CWorldListHandlerShould
     [Fact]
     public async Task SendAllWorlds_WhenAccountIsAdministrator()
     {
-        var account = MakeAccount(level: AccountAccessLevel.Admin);
+        Account account = MakeAccount(level: AccountAccessLevel.Admin);
         _connection.AccountId.Returns(account.Id);
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
 
-        var playerWorld = MakeWorld(1, AccountAccessLevel.Player);
-        var adminWorld = MakeWorld(2, AccountAccessLevel.Admin);
+        AvalonWorld playerWorld = MakeWorld(1, AccountAccessLevel.Player);
+        AvalonWorld adminWorld = MakeWorld(2, AccountAccessLevel.Admin);
         _worldRepository.FindAllAsync().Returns(new List<AvalonWorld> { playerWorld, adminWorld });
 
         var ctx = new AuthPacketContext<CWorldListPacket>
@@ -133,7 +133,7 @@ public class CWorldListHandlerShould
     [InlineData(AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin, new ushort[] { 1, 2, 3, 4 })]
     public async Task List_Exactly_The_Worlds_The_Account_May_Enter(AccountAccessLevel level, ushort[] expected)
     {
-        var account = MakeAccount(level: level);
+        Account account = MakeAccount(level: level);
         _connection.AccountId.Returns(account.Id);
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
         _worldRepository.FindAllAsync().Returns(new List<AvalonWorld>
@@ -163,7 +163,7 @@ public class CWorldListHandlerShould
     [Fact]
     public async Task SendEmptyWorldList_WhenNoWorldsExist()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _connection.AccountId.Returns(account.Id);
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
         _worldRepository.FindAllAsync().Returns(new List<AvalonWorld>());
@@ -183,10 +183,10 @@ public class CWorldListHandlerShould
     [Fact]
     public async Task Send_derived_runtime_status_with_maintenance_precedence()
     {
-        var account = MakeAccount(level: AccountAccessLevel.Admin);
+        Account account = MakeAccount(level: AccountAccessLevel.Admin);
         _connection.AccountId.Returns(account.Id);
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
-        var maintenance = MakeWorld(1);
+        AvalonWorld maintenance = MakeWorld(1);
         maintenance.MaintenanceEnabled = true;
         _worldRepository.FindAllAsync().Returns(new List<AvalonWorld>
         {
@@ -202,7 +202,7 @@ public class CWorldListHandlerShould
         { Packet = new CWorldListPacket(), Connection = _connection });
 
         using var stream = new MemoryStream(sent!.Payload);
-        var statuses = Serializer.Deserialize<SWorldListPacket>(stream).Worlds!.ToDictionary(w => w.Id, w => w.Status);
+        Dictionary<ushort, short> statuses = Serializer.Deserialize<SWorldListPacket>(stream).Worlds!.ToDictionary(w => w.Id, w => w.Status);
         Assert.Equal((short)WorldStatus.Maintenance, statuses[1]);
         Assert.Equal((short)WorldStatus.Online, statuses[2]);
         Assert.Equal((short)WorldStatus.Offline, statuses[3]);
@@ -211,10 +211,10 @@ public class CWorldListHandlerShould
     [Fact]
     public async Task Show_a_ready_scheduled_world_as_online()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _connection.AccountId.Returns(account.Id);
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
-        var scheduled = MakeWorld(1);
+        AvalonWorld scheduled = MakeWorld(1);
         scheduled.MaintenanceEnabled = true;
         scheduled.MaintenanceDeadlineUtc = DateTime.UtcNow.AddMinutes(10);
         _worldRepository.FindAllAsync().Returns(new List<AvalonWorld> { scheduled });

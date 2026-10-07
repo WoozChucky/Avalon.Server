@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Avalon.Api.Authentication;
+using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -40,8 +41,8 @@ public class CreatureTemplateControllerShould
             .PaginateAsync(Arg.Any<EntityPaginateFilter<CreatureTemplate>>(), false, Arg.Any<CancellationToken>())
             .Returns(new PagedResult<CreatureTemplate>(1, 50, 0, new List<CreatureTemplate>()));
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.List(1, 50, CancellationToken.None);
+        CreatureTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        PagedResult<CreatureTemplateDto> result = await sut.List(1, 50, CancellationToken.None);
 
         Assert.Equal(0, result.TotalCount);
     }
@@ -53,8 +54,8 @@ public class CreatureTemplateControllerShould
             .FindByIdAsync(Arg.Any<CreatureTemplateId>(), false, Arg.Any<CancellationToken>())
             .Returns((CreatureTemplate?)null);
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        CreatureTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -66,8 +67,8 @@ public class CreatureTemplateControllerShould
             .FindByIdAsync(Arg.Any<CreatureTemplateId>(), false, Arg.Any<CancellationToken>())
             .Returns(new CreatureTemplate { Id = new CreatureTemplateId(1), Name = "Goblin" });
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        CreatureTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
     }

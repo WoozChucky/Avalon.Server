@@ -2,6 +2,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
+using Avalon.World.GameAuth;
 using Avalon.World.Public;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -23,7 +24,7 @@ public sealed class WorldAdmissionPolicyShould
     [Fact]
     public void Account_identity_alone_cannot_dispatch_gameplay_and_pending_admission_cannot_dispatch_it()
     {
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         var handler = new Recorder();
         server.PacketHandlers.Returns(new Dictionary<NetworkPacketType, IWorldPacketHandler> { [NetworkPacketType.CMSG_CHARACTER_LIST] = handler });
         using var connection = WorldAdmissionConnection.Create(server);
@@ -37,11 +38,11 @@ public sealed class WorldAdmissionPolicyShould
     [Fact]
     public void Recheck_authority_at_dispatch_and_drop_packets_queued_before_expiry()
     {
-        var server = Substitute.For<IWorldServer, IServerBase>(); var handler = new Recorder();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>(); var handler = new Recorder();
         server.PacketHandlers.Returns(new Dictionary<NetworkPacketType, IWorldPacketHandler> { [NetworkPacketType.CMSG_CHARACTER_LIST] = handler });
         using var connection = WorldAdmissionConnection.Create(server);
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var lease = WorldAdmissionConnection.Lease(clock);
+        GameSessionLease lease = WorldAdmissionConnection.Lease(clock);
         connection.PublishAdmission(lease); Assert.True(connection.AcceptProtocol());
         connection.Deliver(NetworkPacketType.CMSG_CHARACTER_LIST, new CCharacterListPacket());
         clock.Advance(TimeSpan.FromSeconds(44));
@@ -50,7 +51,7 @@ public sealed class WorldAdmissionPolicyShould
     [Fact]
     public void Never_publish_a_second_writer_or_enable_packets_before_protocol_acceptance()
     {
-        using var connection = WorldAdmissionConnection.Create(); var lease = WorldAdmissionConnection.Lease();
+        using var connection = WorldAdmissionConnection.Create(); GameSessionLease lease = WorldAdmissionConnection.Lease();
         connection.PublishAdmission(lease);
         Assert.False(connection.IsGameplayAuthorized);
         Assert.Throws<InvalidOperationException>(() => connection.PublishAdmission(WorldAdmissionConnection.Lease()));

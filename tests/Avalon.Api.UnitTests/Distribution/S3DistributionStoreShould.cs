@@ -30,7 +30,7 @@ public class S3DistributionStoreShould
         Assert.Equal("dist.avalon.nunolevezinho.xyz", url.Host);
         Assert.Equal("/avalon-dist/blobs/sha256/ab12", url.AbsolutePath);
         // The SDK derives X-Amz-Expires from "expiry minus now", so it may read 3599.
-        var expires = int.Parse(System.Text.RegularExpressions.Regex.Match(url.Query, @"X-Amz-Expires=(\d+)").Groups[1].Value);
+        int expires = int.Parse(System.Text.RegularExpressions.Regex.Match(url.Query, @"X-Amz-Expires=(\d+)").Groups[1].Value);
         Assert.InRange(expires, 3595, 3600);
         Assert.Contains("X-Amz-Signature=", url.Query, StringComparison.Ordinal);
     }

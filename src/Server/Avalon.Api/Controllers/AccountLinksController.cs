@@ -36,7 +36,7 @@ public sealed class AccountLinksController(PendingLinkStore links, AccountLinkRe
     {
         if (!request.Confirmed || requestId == Guid.Empty || request.PendingLinkId == Guid.Empty)
             return new(GameAuthStates.Pending, GameAuthErrors.ConfirmationRequired);
-        var proof = await recent.RequireAsync(auth.Account!, request.CurrentPassword, request.MfaCode,
+        LinkReauthenticated proof = await recent.RequireAsync(auth.Account!, request.CurrentPassword, request.MfaCode,
             SourceAddress, cancellationToken);
         if (proof.Error is not null) return new(GameAuthStates.Pending, proof.Error);
         return await links.ConfirmAsync(request.PendingLinkId, auth.Account!.Id, proof.CredentialsVersion,
@@ -54,7 +54,7 @@ public sealed class AccountLinksController(PendingLinkStore links, AccountLinkRe
         if (!Browser) return Unauthorized();
         try
         {
-            var reply = await action();
+            LinkBrowserReply reply = await action();
             return reply.Error is null ? Ok(reply) : BadRequest(reply);
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)

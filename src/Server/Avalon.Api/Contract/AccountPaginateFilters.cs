@@ -15,7 +15,7 @@ public class AccountPaginateFilters : EntityPaginateFilter<Account>
 
     public override Expression<Func<Account, bool>> GetFilter()
     {
-        var predicate = PredicateBuilder.New<Account>(true);
+        ExpressionStarter<Account> predicate = PredicateBuilder.New<Account>(true);
 
         if (Username != null)
             predicate = predicate.And(a => a.Username == Username);

@@ -41,9 +41,9 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
 
     public async Task<ChunkLayout> BuildAsync(MapTemplate template, CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var repo = scope.ServiceProvider.GetRequiredService<IMapChunkPlacementRepository>();
-        var rows = await repo.FindByMapAsync(template.Id, ct);
+        await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+        IMapChunkPlacementRepository repo = scope.ServiceProvider.GetRequiredService<IMapChunkPlacementRepository>();
+        IReadOnlyList<MapChunkPlacement> rows = await repo.FindByMapAsync(template.Id, ct);
         if (rows.Count == 0)
             throw new InvalidOperationException(
                 $"No MapChunkPlacement rows for town map {template.Id.Value}. Add Maps/TownLayouts/{template.Id.Value}.json; " +
@@ -53,15 +53,15 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
         if (entryRows.Count != 1)
             throw new InvalidOperationException(
                 $"Town map {template.Id.Value} must have exactly one IsEntry placement (found {entryRows.Count}).");
-        var entryRow = entryRows[0];
+        MapChunkPlacement entryRow = entryRows[0];
 
         var ids = rows.Select(r => r.ChunkTemplateId).Distinct().ToList();
-        var byId = _library.LookupByIds(ids);
+        IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> byId = _library.LookupByIds(ids);
 
-        var cellSize = byId[entryRow.ChunkTemplateId].CellSize;
-        foreach (var r in rows)
+        float cellSize = byId[entryRow.ChunkTemplateId].CellSize;
+        foreach (MapChunkPlacement r in rows)
         {
-            var ct2 = byId[r.ChunkTemplateId];
+            ChunkTemplate ct2 = byId[r.ChunkTemplateId];
             if (Math.Abs(ct2.CellSize - cellSize) > 0.001f)
                 throw new InvalidOperationException(
                     $"Town map {template.Id.Value} chunk '{ct2.Name}' has CellSize={ct2.CellSize} != layout {cellSize}");
@@ -72,8 +72,8 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
             r.GridX, r.GridZ, r.Rotation,
             new Vector3(r.GridX * cellSize, 0, r.GridZ * cellSize))).ToList();
 
-        var entryPlaced = placed.Single(p => p.GridX == entryRow.GridX && p.GridZ == entryRow.GridZ);
-        var entrySpawnWorld = ChunkRotation.LocalToWorld(
+        PlacedChunk entryPlaced = placed.Single(p => p.GridX == entryRow.GridX && p.GridZ == entryRow.GridZ);
+        Vector3 entrySpawnWorld = ChunkRotation.LocalToWorld(
             entryRow.EntryLocalX, entryRow.EntryLocalY, entryRow.EntryLocalZ,
             entryPlaced.Rotation, cellSize, entryPlaced.WorldPos);
 
@@ -81,7 +81,7 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
         // each PlacedChunk and read its target columns.
         var rowByCell = rows.ToDictionary(r => (r.GridX, r.GridZ));
 
-        var portals = BuildPortals(placed, byId, rowByCell, cellSize);
+        IReadOnlyList<PortalPlacement> portals = BuildPortals(placed, byId, rowByCell, cellSize);
 
         return new ChunkLayout(
             Seed: 0,
@@ -105,11 +105,11 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
         float cellSize)
     {
         var result = new List<PortalPlacement>();
-        foreach (var p in chunks)
+        foreach (PlacedChunk p in chunks)
         {
-            var ct2 = byId[p.TemplateId];
-            var row = rowByCell[(p.GridX, p.GridZ)];
-            foreach (var slot in ct2.PortalSlots)
+            ChunkTemplate ct2 = byId[p.TemplateId];
+            MapChunkPlacement row = rowByCell[(p.GridX, p.GridZ)];
+            foreach (ChunkPortalSlot slot in ct2.PortalSlots)
             {
                 ushort? target = slot.Role switch
                 {
@@ -119,7 +119,7 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
                 };
                 if (target is null) continue;
 
-                var world = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, p.Rotation, cellSize, p.WorldPos);
+                Vector3 world = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, p.Rotation, cellSize, p.WorldPos);
                 result.Add(new PortalPlacement(slot.Role, world, target.Value));
             }
         }

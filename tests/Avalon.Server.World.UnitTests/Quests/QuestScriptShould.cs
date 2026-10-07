@@ -49,7 +49,7 @@ public class QuestScriptShould
     {
         var recorder = new QuestScriptRecorder();
         IServiceProvider services = new ServiceCollection().AddSingleton<ILogger<SampleQuestScript>>(recorder).BuildServiceProvider();
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
         QuestTestWorld w = await QuestTestWorld.CreateAsync(quests ?? Quests(), scripts: scripts, services: services, log: log);
         return (w, recorder, w.Join());
@@ -227,7 +227,7 @@ public class QuestScriptShould
             Quest(Scripted, script: nameof(SampleQuestScript)).WithStage(0, Talk(ScriptedStep, TalkTarget)).WithStage(1, Kill(ScriptedWolf, Wolf, 1)),
         ];
         var recorder = new QuestScriptRecorder { ThrowIn = "OnInteract" };
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
         QuestTestWorld w = await QuestTestWorld.CreateAsync(quests, scripts: scripts,
             services: new ServiceCollection().AddSingleton<ILogger<SampleQuestScript>>(recorder).BuildServiceProvider());
@@ -253,7 +253,7 @@ public class QuestScriptShould
     public async Task Refuse_a_quest_whose_script_cannot_be_built()
     {
         var log = new TestLog();
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript("Unbuildable").Returns(typeof(UnbuildableQuestScript));
         QuestTestWorld w = await QuestTestWorld.CreateAsync(
             [Quest(Scripted, script: "Unbuildable").WithStage(0, Kill(ScriptedKill, Boar, 1))],
@@ -274,7 +274,7 @@ public class QuestScriptShould
     public async Task Refuse_a_quest_whose_script_asks_for_a_service_that_writes()
     {
         var log = new TestLog();
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript(nameof(WorldHungryQuestScript)).Returns(typeof(WorldHungryQuestScript));
         IServiceProvider services = new ServiceCollection().AddSingleton(Substitute.For<Avalon.World.IWorld>()).BuildServiceProvider();
         QuestTestWorld w = await QuestTestWorld.CreateAsync(
@@ -293,7 +293,7 @@ public class QuestScriptShould
     {
         var clock = new ManualTimerClock();
         ILoggerFactory loggers = Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript(nameof(WellBehavedQuestScript)).Returns(typeof(WellBehavedQuestScript));
         IServiceProvider services = new ServiceCollection().AddSingleton(loggers).AddSingleton(typeof(ILogger<>), typeof(Logger<>))
             .AddSingleton<TimeProvider>(clock).BuildServiceProvider();

@@ -72,7 +72,7 @@ public sealed class PublicWorldListShould
     public async Task List_every_world_a_signed_in_caller_may_enter()
     {
         await using ApiAuthHost host = await Start(defaultWorld: 2);
-        var admin = ApiAuthHost.MakeAccount(AccountAccessLevel.Admin);
+        Account admin = ApiAuthHost.MakeAccount(AccountAccessLevel.Admin);
         host.AccountNowIs(admin);
 
         HttpResponseMessage response = await host.GetAsync("/public/world", ApiAuthHost.Mint(admin));

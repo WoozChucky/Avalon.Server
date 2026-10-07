@@ -18,11 +18,11 @@ public sealed class GameServerAuthHandler(IOptionsMonitor<AuthenticationSchemeOp
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.IsHttps) return AuthenticateResult.Fail("Workload authentication requires HTTPS.");
-        var certificate = await Context.Connection.GetClientCertificateAsync(Context.RequestAborted);
+        X509Certificate2? certificate = await Context.Connection.GetClientCertificateAsync(Context.RequestAborted);
         if (certificate is null || !IsClientCertificate(certificate, clock.GetUtcNow().UtcDateTime))
             return AuthenticateResult.Fail("A current TLS client certificate is required.");
-        var pin = Convert.ToHexString(SHA256.HashData(certificate.RawData));
-        var definition = workloads.Value.Servers.SingleOrDefault(s => string.Equals(s.ClientCertificateSha256, pin, StringComparison.OrdinalIgnoreCase));
+        string pin = Convert.ToHexString(SHA256.HashData(certificate.RawData));
+        GameServerDefinition? definition = workloads.Value.Servers.SingleOrDefault(s => string.Equals(s.ClientCertificateSha256, pin, StringComparison.OrdinalIgnoreCase));
         if (definition is null) return AuthenticateResult.Fail("The TLS workload certificate is not assigned.");
         var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ServerIdClaim, definition.ServerId)], Scheme));
         return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme));

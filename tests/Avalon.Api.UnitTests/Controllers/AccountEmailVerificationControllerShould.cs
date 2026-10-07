@@ -17,15 +17,15 @@ public sealed class AccountEmailVerificationControllerShould
     [Fact]
     public async Task UsesAuthenticatedAccountAndReturnsNoProof()
     {
-        using var f = await AccountEmailVerificationServiceShould.Fixture.Create();
-        var controller = Controller(f, f.Account.Id.Value);
-        var result = Assert.IsType<AcceptedResult>(await controller.Request(default));
+        using AccountEmailVerificationServiceShould.Fixture f = await AccountEmailVerificationServiceShould.Fixture.Create();
+        AccountEmailVerificationController controller = Controller(f, f.Account.Id.Value);
+        AcceptedResult result = Assert.IsType<AcceptedResult>(await controller.Request(default));
         Assert.Null(result.Value);
-        var status = await controller.Get(default);
+        AccountEmailVerificationStatusDto status = await controller.Get(default);
         Assert.Null(status.EmailVerifiedAt);
         Assert.Equal(f.Now.AddSeconds(60), status.ResendAvailableAt);
         var request = new AccountEmailVerificationConfirmRequest { Token = f.Mail.Token };
-        var other = Controller(f, f.Account.Id.Value + 100);
+        AccountEmailVerificationController other = Controller(f, f.Account.Id.Value + 100);
         await Assert.ThrowsAsync<BusinessException>(() => other.Confirm(request, default));
         Assert.IsType<NoContentResult>(await controller.Confirm(request, default));
         Assert.NotNull((await controller.Get(default)).EmailVerifiedAt);
@@ -34,10 +34,10 @@ public sealed class AccountEmailVerificationControllerShould
     [Fact]
     public void RoutesRequirePlayerPolicyAndAcceptOnlyBoundedProof()
     {
-        var policy = Assert.Single(typeof(AccountEmailVerificationController).GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>());
+        AuthorizeAttribute policy = Assert.Single(typeof(AccountEmailVerificationController).GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>());
         Assert.Equal(AvalonRoles.Player, policy.Policy);
         Assert.Empty(typeof(AccountEmailVerificationController).GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
-        foreach (var token in new[] { "", new string('a', 42), new string('a', 44), new string('a', 42) + "!" })
+        foreach (string? token in new[] { "", new string('a', 42), new string('a', 44), new string('a', 42) + "!" })
         {
             var request = new AccountEmailVerificationConfirmRequest { Token = token };
             Assert.False(Validator.TryValidateObject(request, new ValidationContext(request), [], true));
