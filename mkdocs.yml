@@ -55,27 +55,58 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started:
+    - Development Setup: development-setup.md
     - Configuration: configuration-reference.md
+    - Contributing: contributing.md
   - Architecture:
     - Overview: architecture-startup-flow.md
     - Decisions: architecture-decisions.md
-    - Networking:
-      - Packet Protocol: networking-packet-protocol.md
-      - Session Crypto: crypto-v1-derivation.md
-      - Graceful Shutdown: networking-graceful-shutdown.md
-    - Auth Flow: character-login-flow.md
-    - Character Readiness Barrier: character-readiness-barrier.md
     - DbContext Lifetime: dbcontext-lifetime.md
+    - Value Objects & OpenAPI: valueobject-openapi.md
+    - GC Pressure: gc-pressure.md
+  - Networking:
+    - Packet Protocol: networking-packet-protocol.md
+    - Packet Handlers: packet-handlers.md
+    - Proto Schema Design: networking-proto-schema-design.md
+    - Session Crypto: crypto-v1-derivation.md
+    - Crypto Security Review: security-review-network-crypto.md
+    - Graceful Shutdown: networking-graceful-shutdown.md
+  - Auth and Accounts:
+    - Auth Server: auth-server.md
     - Security & Sessions: security-session-management.md
     - Redis Cache Keys: redis-cache-keys.md
-    - Value Objects & OpenAPI: valueobject-openapi.md
-  - Systems:
-    - Spell System: spell-system.md
-    - Creature System: creature-system.md
+    - Steam Authentication: steam-authentication.md
+    - Steam Workloads: steam-authentication-workloads.md
+    - Steam Account Links: steam-account-links.md
+  - REST API:
+    - API Reference: api-reference.md
+    - Authentication: api-authentication.md
+    - Multi-world API: api-worlds.md
+    - Live Template Editing: live-template-editing.md
+    - Commerce: commerce-configuration.md
+  - World:
+    - World Simulation: world-simulation.md
     - Instanced Maps: instanced-maps.md
+    - Map Generation: map-generation.md
+    - Creature System: creature-system.md
+    - Spell System: spell-system.md
+    - Character Login Flow: character-login-flow.md
+    - Character Readiness Barrier: character-readiness-barrier.md
+  - Gameplay:
+    - Parties: parties.md
     - Party Protocol: party-protocol.md
+    - Quests: quests.md
     - Quest Protocol: quest-protocol.md
+    - Auras: auras.md
     - Aura Protocol: aura-protocol.md
-  - API Reference: api-reference.md
-  - Contributing: contributing.md
-  - Dev Benchmarks: benchmarks.md
+    - Inventory and Saves: inventory-and-saves.md
+    - Item Use: item-use.md
+    - Item Use Protocol: item-use-protocol.md
+    - Chat and Commands: chat-and-commands.md
+    - Client Combat Protocol: client-combat-protocol-migration.md
+  - Operations:
+    - World Maintenance: world-maintenance.md
+    - Instrumentation: instrumentation.md
+    - Balance: balance.md
+    - Benchmarks: benchmarks.md
+    - Tooling: tooling.md
