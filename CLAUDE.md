@@ -129,6 +129,13 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 
 ## Testing
 
+- **Write few, meaningful tests (owner rule).** A test exists to catch a behaviour breaking, not to cover lines. Test rules and outcomes through the code's real surface: ordering, races, security checks, money and items, persistence, wire formats, startup refusals. Do not write:
+  - tests of trivial code (a property that stores its value, a constructor assignment, a mapper that copies fields, configuration binding that restates `appsettings`);
+  - tests of the substitutes or of the test harness itself;
+  - tests that pin incidental detail (log wording, the order of calls nothing relies on);
+  - near-duplicates. Input variations go in one `[Theory]`, and a table of cases is one data-driven test, not one test per row.
+
+  A refactor that moves code moves its tests and adds none for the move itself. Before adding a test, check that no existing one already fails when this behaviour breaks. When in doubt, one scenario test through the public surface beats several tests of its parts.
 - xUnit with NSubstitute; files are `<Subject>Should.cs`, methods `Should_<verb>_<condition>` or a descriptive sentence.
 - No real Redis or Postgres in unit tests: external dependencies are substituted (database tests use SQLite in memory).
 - Auth handler tests build handlers directly (`new CAuthHandler(...)` with `NullLoggerFactory` and substitutes).
