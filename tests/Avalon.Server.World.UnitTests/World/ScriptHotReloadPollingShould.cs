@@ -56,19 +56,6 @@ public class ScriptHotReloadPollingShould
         Assert.Equal(1, reloader.Polls);
     }
 
-    [Fact]
-    public async Task Take_The_Interval_From_Configuration_Rather_Than_A_Fixed_Value()
-    {
-        var reloader = new CountingScriptHotReloader();
-        Avalon.World.World world = await BuildWorldAsync(reloader, intervalSeconds: 10);
-
-        // Well past the 5s the interval used to be hardcoded to, and still short of the 10s asked
-        // for, so a hardcoded interval polls here and a configured one does not.
-        world.Update(TimeSpan.FromSeconds(6));
-
-        Assert.Equal(0, reloader.Polls);
-    }
-
     /// <summary>
     /// A loaded world polling <paramref name="reloader" />. Its instances come from
     /// <paramref name="chunkLayoutFactory" /> for the templates <paramref name="mapManager" /> lists

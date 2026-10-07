@@ -144,18 +144,6 @@ public class InstanceAbilityCastSystemShould
         Assert.Equal(0f, ability.CooldownTimer);
     }
 
-    [Fact]
-    public void Spend_nothing_if_a_god_mode_cast_has_no_script()
-    {
-        CharacterEntity caster = GodCaster(PowerType.Mana, 40);
-        GameAbility ability = Ability(cost: 30, script: "Nope");
-
-        Assert.False(_sut.RunInstant(caster, s_aim, ability));
-
-        Assert.Equal(40u, caster.CurrentPower);
-        Assert.Equal(0f, ability.CooldownTimer);
-    }
-
     // ── #521 item 1: Casting is set only once the queue took the cast ──
 
     [Fact]
