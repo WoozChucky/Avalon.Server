@@ -14,6 +14,7 @@ public class ApplicationConfig
     public CacheConfiguration? Cache { get; set; }
     public ForwardedHeadersConfig? ForwardedHeaders { get; set; }
     public EmailConfig? Email { get; set; }
+    public GameAuthConfig? GameAuth { get; set; }
 
     /// <summary>The "Application" section, bound as identity reads it.</summary>
     public static ApplicationConfig Bind(IConfiguration configuration)

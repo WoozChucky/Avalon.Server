@@ -2,7 +2,6 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Authentication.Jwt;
-using Avalon.Api.Hosting.Config;
 using Avalon.Api.Identity.Config;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Auth;
@@ -28,19 +27,20 @@ public class JwtUtils : IJwtUtils
 
     private readonly JwtSecurityTokenHandler _tokenHandler;
     private readonly AuthenticationConfig _authenticationConfig;
-    private readonly SymmetricSecurityKey _key;
+    private readonly SigningCredentials _signing;
 
     /// <param name="authenticationConfig">Issuer, audience and lifetime of the tokens.</param>
-    /// <param name="signingKey">
-    /// The singleton <see cref="ApiAuthentication.AddApiAuthentication"/> registers from
-    /// <see cref="JwtSigningKey.Create(TokenValidationConfig?)"/>: the same instance the bearer handler
-    /// validates with.
+    /// <param name="keys">
+    /// The singleton <see cref="ApiAuthentication.AddApiAuthentication"/> registers: identity's private key, which signs
+    /// with ES256 under its key id (#801), and the public keys the bearer handler validates with.
     /// </param>
-    public JwtUtils(AuthenticationConfig authenticationConfig, SymmetricSecurityKey signingKey)
+    public JwtUtils(AuthenticationConfig authenticationConfig, JwtKeys keys)
     {
         _authenticationConfig = authenticationConfig;
         _tokenHandler = new JwtSecurityTokenHandler();
-        _key = signingKey;
+        // Never null where identity runs: JwtKeys.Create refuses to start a process that signs without the key.
+        _signing = keys.Signing ?? throw new InvalidOperationException(
+            $"This process has no key to sign access tokens with ({JwtKeys.SigningKeySetting}); only identity mints them.");
     }
 
     public string GenerateJwtToken(Account account) => Generate(account, null);
@@ -79,7 +79,8 @@ public class JwtUtils : IJwtUtils
         {
             Subject = new ClaimsIdentity(claims, JwtBearerDefaults.AuthenticationScheme),
             Expires = DateTime.UtcNow.AddMinutes(_authenticationConfig.AccessTokenLifetimeMinutes),
-            SigningCredentials = new SigningCredentials(_key, SecurityAlgorithms.HmacSha256Signature),
+            // ES256 with the key id in the header (#801); the payload is what the HS256 tokens carried.
+            SigningCredentials = _signing,
             Issuer = _authenticationConfig.Issuer,
             Audience = _authenticationConfig.Audience,
             IssuedAt = DateTime.UtcNow

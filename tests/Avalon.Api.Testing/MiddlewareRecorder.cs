@@ -51,10 +51,7 @@ public sealed class MiddlewareRecorder(IApplicationBuilder inner, List<string> n
             {
                 b.WebHost.UseTestServer();
                 b.Logging.ClearProviders();
-                b.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
-                {
-                    ["Application:Authentication:IssuerSigningKey"] = new string('k', 64),
-                });
+                b.Configuration.AddInMemoryCollection(ApiTestHost.SettingsFor(services));
             });
         await using WebApplication app = builder.Build();
         ApiPipeline.Use(new MiddlewareRecorder(app, names), app, app.Environment, services);

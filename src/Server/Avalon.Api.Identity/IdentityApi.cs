@@ -32,7 +32,7 @@ public sealed class IdentityApi : IApiService
     public Assembly ControllerAssembly => typeof(IdentityApi).Assembly;
 
     public ApiServiceNeeds Needs { get; } = new(Redis: true, WorldDatabases: WorldDatabaseParts.Characters,
-        AuthSchema: AuthSchemaRole.Owner, WorldRoutes: false);
+        AuthSchema: AuthSchemaRole.Owner, WorldRoutes: false, SignsTokens: true);
 
     public void ConfigureBuilder(WebApplicationBuilder builder) =>
         builder.ConfigureGameWorkloadListener();

@@ -1,5 +1,6 @@
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Identity.Authentication;
 using Avalon.Api.Identity.Authentication.Jwt;
@@ -73,8 +74,11 @@ public static class IdentityServiceRegistration
     {
         services.AddSteamStoreAuthentication();
         services.AddSteamWebLink();
+        // Its own key since #801 (design D4.3), with the bytes the HS256 signing key had; checked before the api serves
+        // (IdentityStartupCheck), not here, so OpenAPI generation needs none.
+        services.AddSingleton(_ => GameAuthHostKey.From(config.GameAuth, config.Authentication));
         services.AddSingleton(sp => new Avalon.Infrastructure.GameAuth.GameAuthCryptography(
-            sp.GetRequiredService<Microsoft.IdentityModel.Tokens.SymmetricSecurityKey>().Key));
+            sp.GetRequiredService<GameAuthHostKey>().Bytes));
         services.AddSingleton<Avalon.Infrastructure.GameAuth.IGameContextStore, Avalon.Infrastructure.GameAuth.RedisGameContextStore>();
         services.AddSingleton<Avalon.Infrastructure.GameAuth.AuthAttemptStore>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.IGameContextRevocations, Avalon.Infrastructure.GameAuth.GameContextRevocations>();
@@ -125,7 +129,7 @@ public static class IdentityServiceRegistration
     /// </summary>
     public static void AddAuth(this IServiceCollection services, ApplicationConfig config)
     {
-        services.AddApiAuthentication(config.Authentication);
+        services.AddApiAuthentication(config.Authentication, JwtKeys.Create(config.Authentication, signsTokens: true));
         services.AddIdentityAuthentication();
     }
 

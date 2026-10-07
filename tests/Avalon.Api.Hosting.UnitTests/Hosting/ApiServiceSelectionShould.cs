@@ -1,4 +1,5 @@
 using System.Text;
+using Avalon.Api.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.TestHost;
@@ -50,10 +51,10 @@ public sealed class ApiServiceSelectionShould
         {
             builder.WebHost.UseTestServer();
             builder.Logging.ClearProviders();
-            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
-            {
-                ["Application:Authentication:IssuerSigningKey"] = new string('k', 64),
-            });
+            // The token keys a deployment gives the services the settings select (#801).
+            IConfiguration selecting = new ConfigurationBuilder().AddJsonStream(new MemoryStream(Encoding.UTF8.GetBytes(settings))).Build();
+            builder.Configuration.AddInMemoryCollection(ApiTestHost.SettingsFor(ApiServices.All,
+                selecting.AsEnumerable().ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal)));
             builder.Configuration.AddJsonStream(new MemoryStream(Encoding.UTF8.GetBytes(settings)));
         });
 }

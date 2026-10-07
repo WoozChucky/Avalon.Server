@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Controllers;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
@@ -64,7 +65,8 @@ public class RemoveMfaAuthorizationShould
         {
             Authentication = new AuthenticationConfig
             {
-                IssuerSigningKey = new string('k', 64),
+                SigningKey = ApiTestHost.SigningKey,
+                SigningKeyId = ApiTestHost.SigningKeyId,
                 Issuer = "avalon",
                 Audience = "avalon",
             }
