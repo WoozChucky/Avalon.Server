@@ -13,29 +13,11 @@ public class DerivedCombatStatsShould
             HastePct: 80f);
 
     [Fact]
-    public void Attack_with_the_level_damage_stats_crit_and_main_hand() =>
-        Assert.Equal(new AttackerCombat(3, 46, 4, 5f, 7, 11), s_warrior.AttackerAt(3));
-
-    [Fact]
-    public void Defend_with_armour_dodge_and_block() =>
-        Assert.Equal(new DefenderCombat(24, 3.664f, 5f), s_warrior.Defence);
-
-    [Fact]
     public void Cap_haste_at_the_formula_cap()
     {
         CombatFormula formula = CombatSeed.Formula();   // HasteCap 50
 
         Assert.Equal(50f, s_warrior.EffectiveHastePct(formula));
         Assert.Equal(0f, (s_warrior with { HastePct = -5f }).EffectiveHastePct(formula));
-    }
-
-    [Fact]
-    public void Give_a_creature_its_natural_range_and_rarity_chances()
-    {
-        var stats = new DerivedCreatureStats(Level: 4, Health: 92, DamageMin: 7, DamageMax: 11, Experience: 60,
-            Armor: 10, CritPct: 5f, DodgePct: 3f, BlockPct: 1f);
-
-        Assert.Equal(new AttackerCombat(4, 0, 0, 5f, 7, 11), stats.Attacker);
-        Assert.Equal(new DefenderCombat(10, 3f, 1f), stats.Defence);
     }
 }

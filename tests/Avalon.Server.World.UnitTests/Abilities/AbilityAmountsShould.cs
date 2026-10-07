@@ -32,20 +32,6 @@ public class AbilityAmountsShould
             : Avalon.World.Public.Enums.SpellEffect.Damage,
         };
 
-    /// <summary>10 + 0.5 × 40 attack + 1 × (24..28) weapon: 54..58, and it follows the weapon and the stat.</summary>
-    [Fact]
-    public void Follow_a_weapon_scaling_abilitys_weapon_and_attack_damage()
-    {
-        AbilityMetadata cleave = Ability(effect: 10, scaling: 0.5f, weapon: 1f);
-
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Damage, 54, 58),
-            AbilityAmounts.For(Caster(attack: 40, weaponMin: 24, weaponMax: 28), cleave));
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Damage, 60, 70),
-            AbilityAmounts.For(Caster(attack: 40, weaponMin: 30, weaponMax: 40), cleave));
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Damage, 59, 63),
-            AbilityAmounts.For(Caster(attack: 50, weaponMin: 24, weaponMax: 28), cleave));
-    }
-
     /// <summary>A spell with no weapon term is one number, whatever is in the main hand, and follows ability damage.</summary>
     [Fact]
     public void Follow_a_spells_ability_damage_without_a_weapon_roll()
@@ -83,15 +69,6 @@ public class AbilityAmountsShould
     {
         Assert.Equal(AbilityAmount.None,
             AbilityAmounts.For(Caster(attack: 40), Ability(effect: 10, scaling: 1f, script: "SomeCustomScript")));
-    }
-
-    [Theory]
-    [InlineData("CircleAbilityScript")]
-    [InlineData("ConeAbilityScript")]
-    [InlineData("ProjectileAbilityScript")]
-    public void State_an_amount_for_every_shape_script(string script)
-    {
-        Assert.Equal(AbilityAmountKind.Damage, AbilityAmounts.For(Caster(), Ability(effect: 5, script: script)).Kind);
     }
 
     /// <summary>

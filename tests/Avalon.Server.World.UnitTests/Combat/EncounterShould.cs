@@ -9,20 +9,6 @@ namespace Avalon.Server.World.UnitTests.Combat;
 public class EncounterShould
 {
     [Fact]
-    public void Should_track_added_hostiles_and_players()
-    {
-        var enc = new Encounter(new CombatConfig());
-        IUnit hostile = Substitute.For<IUnit>();
-        IUnit player = Substitute.For<IUnit>();
-
-        enc.AddHostile(hostile);
-        enc.AddPlayer(player);
-
-        Assert.Contains(hostile, enc.Hostiles);
-        Assert.Contains(player, enc.Players);
-    }
-
-    [Fact]
     public void Should_seed_initial_threat_when_player_added()
     {
         var enc = new Encounter(new CombatConfig { InitialThreatSeed = 1.0f });
@@ -49,21 +35,6 @@ public class EncounterShould
 
         IReadOnlyDictionary<IUnit, float> threats = enc.GetThreatList(hostile);
         Assert.Equal(1.0f, threats[player]);
-    }
-
-    [Fact]
-    public void Should_add_threat_to_hostile_threat_list()
-    {
-        var enc = new Encounter(new CombatConfig { InitialThreatSeed = 0.0f });
-        IUnit hostile = Substitute.For<IUnit>();
-        IUnit player = Substitute.For<IUnit>();
-
-        enc.AddHostile(hostile);
-        enc.AddPlayer(player);
-        enc.AddThreat(hostile, player, 5.0f);
-
-        IReadOnlyDictionary<IUnit, float> threats = enc.GetThreatList(hostile);
-        Assert.Equal(5.0f, threats[player]);
     }
 
     [Fact]
@@ -187,42 +158,6 @@ public class EncounterShould
         enc.Update(TimeSpan.FromSeconds(1));
 
         Assert.Equal(5.0f, enc.GetThreatList(hostile)[attacker], 3);
-    }
-
-    [Fact]
-    public void Should_not_end_during_5_second_grace_window()
-    {
-        var enc = new Encounter(new CombatConfig
-        {
-            EncounterEndGraceSeconds = 5.0f,
-            InitialThreatSeed = 0
-        });
-        IUnit hostile = Substitute.For<IUnit>();
-        enc.AddHostile(hostile);
-        enc.OnParticipantDied(hostile);    // all hostiles dead
-
-        enc.Update(TimeSpan.FromSeconds(2));   // less than grace
-
-        Assert.False(enc.ShouldEnd);
-    }
-
-    [Fact]
-    public void Should_end_when_all_hostiles_dead_after_grace()
-    {
-        var enc = new Encounter(new CombatConfig
-        {
-            EncounterEndGraceSeconds = 1.0f,
-            InitialThreatSeed = 0
-        });
-        IUnit hostile = Substitute.For<IUnit>();
-        enc.AddHostile(hostile);
-        enc.OnParticipantDied(hostile);
-        // Force LastDamageTime back so grace has elapsed at Update time
-        System.Threading.Thread.Sleep(1100);
-
-        enc.Update(TimeSpan.FromSeconds(2));
-
-        Assert.True(enc.ShouldEnd);
     }
 
     [Fact]

@@ -35,7 +35,19 @@ public class CharacterStatsRefreshShould
         Intellect = 23,
     };
 
-    private static readonly ClassLevelStat[] s_rows = [s_warriorLevel1, s_wizardLevel1];
+    private static readonly ClassLevelStat s_hunterLevel1 = new()
+    {
+        Class = CharacterClass.Hunter,
+        Level = 1,
+        BaseHp = 18,
+        BaseMana = 10,
+        Stamina = 20,
+        Strength = 21,
+        Agility = 23,
+        Intellect = 20,
+    };
+
+    private static readonly ClassLevelStat[] s_rows = [s_warriorLevel1, s_wizardLevel1, s_hunterLevel1];
 
     [Fact]
     public void Refill_both_pools_and_mark_the_stats_for_the_next_save()
@@ -117,6 +129,7 @@ public class CharacterStatsRefreshShould
     [Theory]
     [InlineData(CharacterClass.Warrior, 0u)]
     [InlineData(CharacterClass.Wizard, 23u)]
+    [InlineData(CharacterClass.Hunter, 23u)]
     public void Regenerate_from_the_class_regen_attribute(CharacterClass @class, uint regen)
     {
         CharacterEntity character = New();
@@ -194,27 +207,5 @@ public class CharacterStatsRefreshShould
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(60u, warrior.CurrentPower);   // a share would have been 30
-    }
-
-    [Fact]
-    public void Regenerate_a_hunter_from_agility()
-    {
-        CharacterEntity character = New();
-        character.Data!.Class = CharacterClass.Hunter;
-        ClassLevelStat hunter = new()
-        {
-            Class = CharacterClass.Hunter,
-            Level = 1,
-            BaseHp = 18,
-            BaseMana = 10,
-            Stamina = 20,
-            Strength = 21,
-            Agility = 23,
-            Intellect = 20,
-        };
-
-        CharacterStatsRefresh.Apply(character, [hunter], TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
-
-        Assert.Equal(23u, character.RegenStat);
     }
 }

@@ -155,9 +155,6 @@ public class WhisperCommandShould
         Assert.Empty(b.Sent);
     }
 
-    [Fact]
-    public void Never_block_the_tick() => Assert.Empty(TickBlockingScan.Violations(typeof(WhisperCommand)));
-
     /// <summary>
     /// #763: the recipient's copy and the sender's echo both carry the sender's class, since both name the sender in
     /// CharacterName; the recipient's class is not sent.

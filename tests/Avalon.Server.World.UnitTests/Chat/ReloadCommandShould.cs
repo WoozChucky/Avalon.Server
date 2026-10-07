@@ -9,82 +9,28 @@ namespace Avalon.Server.World.UnitTests.Chat;
 
 public class ReloadCommandShould
 {
-    [Fact]
-    public void Reply_With_The_Summary_When_Dialogue_Reloads_Successfully()
+    [Theory]
+    [InlineData("dialogue", ReloadArea.Dialogue, "14 texts, 6 nodes, 9 options", 38,
+        "Reloaded dialogue: 14 texts, 6 nodes, 9 options (38 ms).")]
+    [InlineData("loot", ReloadArea.Loot, "8 tables, 40 entries", 12,
+        "Reloaded loot: 8 tables, 40 entries (12 ms). Affects the next kill; drops already on the ground keep what they rolled.")]
+    [InlineData("vendors", ReloadArea.Vendors, "3 vendors, 31 rows", 9,
+        "Reloaded vendors: 3 vendors, 31 rows (9 ms). Open shops get the new list on the next tick; live stock counts carry over by row.")]
+    [InlineData("combat", ReloadArea.Combat, "1 formula, 4 class stat factors", 3,
+        "Reloaded combat: 1 formula, 4 class stat factors (3 ms). Affects the next hit; a character's stats change at its next select, gear change or level-up.")]
+    [InlineData("creatures", ReloadArea.Creatures, "10 templates, 10 base stats, 4 rarities", 21,
+        "Reloaded creatures: 10 templates, 10 base stats, 4 rarities (21 ms). Affects new spawns only.")]
+    public void Reply_with_the_summary_and_the_areas_caveat_when_an_area_reloads(string area, ReloadArea reloaded,
+        string summary, int milliseconds, string expected)
     {
         var fixture = Fixture.Build();
-        fixture.Returns(new ReloadOutcome(
-            ReloadArea.Dialogue, true, "14 texts, 6 nodes, 9 options", TimeSpan.FromMilliseconds(38), null));
+        fixture.Returns(new ReloadOutcome(reloaded, true, summary, TimeSpan.FromMilliseconds(milliseconds), null));
 
-        fixture.Execute("dialogue");
+        fixture.Execute(area);
 
-        Assert.Equal(
-            ["Reloaded dialogue: 14 texts, 6 nodes, 9 options (38 ms)."],
-            fixture.CaptureSentMessages());
+        Assert.Equal([expected], fixture.CaptureSentMessages());
         _ = fixture.Reloader.Received(1).ReloadAsync(
-            Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(new[] { ReloadArea.Dialogue })),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public void Reply_With_A_Next_Kill_Caveat_When_Loot_Reloads_Successfully()
-    {
-        var fixture = Fixture.Build();
-        fixture.Returns(new ReloadOutcome(
-            ReloadArea.Loot, true, "8 tables, 40 entries", TimeSpan.FromMilliseconds(12), null));
-
-        fixture.Execute("loot");
-
-        Assert.Equal(
-            ["Reloaded loot: 8 tables, 40 entries (12 ms). Affects the next kill; drops already on the ground keep what they rolled."],
-            fixture.CaptureSentMessages());
-    }
-
-    [Fact]
-    public void Reply_With_A_Stock_Caveat_When_Vendors_Reload_Successfully()
-    {
-        var fixture = Fixture.Build();
-        fixture.Returns(new ReloadOutcome(
-            ReloadArea.Vendors, true, "3 vendors, 31 rows", TimeSpan.FromMilliseconds(9), null));
-
-        fixture.Execute("vendors");
-
-        Assert.Equal(
-            ["Reloaded vendors: 3 vendors, 31 rows (9 ms). Open shops get the new list on the next tick; live stock counts carry over by row."],
-            fixture.CaptureSentMessages());
-    }
-
-    [Fact]
-    public void Reach_the_combat_area_and_say_it_is_forward_only()
-    {
-        var fixture = Fixture.Build();
-        fixture.Returns(new ReloadOutcome(
-            ReloadArea.Combat, true, "1 formula, 4 class stat factors", TimeSpan.FromMilliseconds(3), null));
-
-        fixture.Execute("combat");
-
-        Assert.Equal(
-            ["Reloaded combat: 1 formula, 4 class stat factors (3 ms). Affects the next hit; a character's stats change at its next select, gear change or level-up."],
-            fixture.CaptureSentMessages());
-        _ = fixture.Reloader.Received(1).ReloadAsync(
-            Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(new[] { ReloadArea.Combat })),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public void Reply_With_A_Spawn_Caveat_When_Creatures_Reload_Successfully()
-    {
-        var fixture = Fixture.Build();
-        fixture.Returns(new ReloadOutcome(
-            ReloadArea.Creatures, true, "10 templates, 10 base stats, 4 rarities", TimeSpan.FromMilliseconds(21), null));
-
-        fixture.Execute("creatures");
-
-        Assert.Equal(
-            ["Reloaded creatures: 10 templates, 10 base stats, 4 rarities (21 ms). Affects new spawns only."],
-            fixture.CaptureSentMessages());
-        _ = fixture.Reloader.Received(1).ReloadAsync(
-            Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(new[] { ReloadArea.Creatures })),
+            Arg.Is<IReadOnlyList<ReloadArea>>(a => a.SequenceEqual(new[] { reloaded })),
             Arg.Any<CancellationToken>());
     }
 

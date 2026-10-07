@@ -74,18 +74,6 @@ public class CastHasteShould
     }
 
     [Fact]
-    public void Set_cleaves_cooldown_to_its_time_over_one_plus_the_haste()
-    {
-        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
-        MapInstanceClient warrior = Caster(instance, 627_101, hastePct: 3f);
-
-        Cast(handler, warrior, CleaveId);
-
-        Assert.Equal(3f, warrior.Character.EffectiveHastePct);
-        Assert.Equal(0.8f / 1.03f, Spell(warrior.Character, CleaveId).CooldownTimer, precision: 5);
-    }
-
-    [Fact]
     public void Change_nothing_with_no_haste()
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);

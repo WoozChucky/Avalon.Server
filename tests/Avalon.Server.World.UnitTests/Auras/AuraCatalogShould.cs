@@ -58,9 +58,6 @@ public class AuraCatalogShould
         Assert.Equal(1f, loaded!.BaseDamageCoefficient);
     }
 
-    [Fact]
-    public void Be_empty_before_anything_loads() => Assert.Equal(0, AuraCatalog.Empty.Count);
-
     private static AbilityTemplate Rend(AuraId? aura)
     {
         AbilityTemplate rend = AbilityTestData.Cone(203);

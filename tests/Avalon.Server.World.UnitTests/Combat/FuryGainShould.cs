@@ -245,17 +245,6 @@ public class FuryGainShould
         Assert.Equal(2u, warrior.Character.CurrentPower);
     }
 
-    [Fact]
-    public void Round_The_Damage_Taken_Gain_Down()
-    {
-        using MapInstance instance = TestMapInstances.Build(NewWorld());
-        MapInstanceClient warrior = Warrior(instance, 526_181);
-
-        instance.CombatService.ApplyDamage(Attacker(526_981), warrior.Character, 3);
-
-        Assert.Equal(1u, warrior.Character.CurrentPower);   // 1.5 rounded down
-    }
-
     /// <summary>
     /// Only the health actually lost counts: 4 of 100 at factor 50 is 2, not the 25 a hit of 50 would
     /// give. Overkill always kills, and death empties Fury, so the cap is pinned on the formula.

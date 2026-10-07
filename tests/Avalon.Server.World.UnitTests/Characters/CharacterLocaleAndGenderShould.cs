@@ -1,23 +1,17 @@
-using System.Net;
-using System.Net.Sockets;
 using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
-using Avalon.Hosting.Networking;
 using Avalon.Server.World.UnitTests.Loot;
-using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,63 +22,12 @@ using NSubstitute;
 namespace Avalon.Server.World.UnitTests.Characters;
 
 /// <summary>
-/// The per-connection state NPC dialogue needs: the row's persisted Gender (previously unreachable
-/// from the world runtime), a connection's Locale (defaults to enUS so dialogue renders before the
-/// account read lands or if it fails), and CurrentDialogue (cleared on despawn so a stale
-/// (npc, node) pair cannot outlive the connection that opened it).
+/// The per-connection state NPC dialogue needs: CurrentDialogue is cleared on despawn so a stale
+/// (npc, node) pair cannot outlive the connection that opened it. The connection's enUS default
+/// locale is pinned through a real connection by CharacterSelectChainShould.
 /// </summary>
 public class CharacterLocaleAndGenderShould
 {
-    [Theory]
-    [InlineData(CharacterGender.Male)]
-    [InlineData(CharacterGender.Female)]
-    public void Expose_The_Rows_Gender_On_The_Entity(CharacterGender gender)
-    {
-        // Gender is persisted but was previously unreachable from the world runtime, so the
-        // gender-select construct had nothing to resolve against.
-        // Id must be set: CharacterEntity's constructor builds Guid from it via an implicit
-        // CharacterId -> uint conversion, which throws NullReferenceException against a null Id.
-        var row = new Character { Id = 1u, Name = "Aldric", Gender = gender, Level = 1 };
-
-        var entity = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration())
-        {
-            Data = row
-        };
-
-        Assert.Equal(gender, entity.Gender);
-    }
-
-    [Fact]
-    public void Default_A_Connections_Locale_To_enUS()
-    {
-        // So dialogue renders in English even before the account read lands, or if it fails.
-        // Driven against the real connection, not a substitute: a substituted interface property
-        // just echoes back whatever NSubstitute's auto-property returns for an unset value, which
-        // would not exercise the production `= AccountLocale.enUS` initializer at all.
-        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
-
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var clientSide = new TcpClient();
-        clientSide.Connect(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint!).Port);
-        TcpClient serverSide = listener.AcceptTcpClient();
-        listener.Stop();
-
-        var connection = new Avalon.World.WorldConnection(
-            server, clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
-        try
-        {
-            Assert.Equal(AccountLocale.enUS, connection.Locale);
-        }
-        finally
-        {
-            connection.Close();
-            connection.Dispose();
-            serverSide.Dispose();
-        }
-    }
-
     /// <summary>
     /// A stale (npc, node) pair surviving a disconnect would let a reconnecting player resume a
     /// conversation with an NPC that may no longer be in their (new) instance. CurrentTargetGuid is

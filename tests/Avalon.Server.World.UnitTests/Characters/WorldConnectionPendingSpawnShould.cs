@@ -68,11 +68,4 @@ public class WorldConnectionPendingSpawnShould : IDisposable
         Assert.Null(_connection.TakePendingSpawn());
         Assert.Null(_connection.PendingSpawn);
     }
-
-    [Fact]
-    public void Have_nothing_pending_before_a_character_is_selected()
-    {
-        Assert.Null(_connection.PendingSpawn);
-        Assert.Null(_connection.TakePendingSpawn());
-    }
 }

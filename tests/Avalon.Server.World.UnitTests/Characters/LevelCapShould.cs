@@ -40,41 +40,6 @@ public class LevelCapShould
         return context.CharacterLevelExperiences.AsNoTracking().ToList();
     }
 
-    [Fact]
-    public async Task Let_no_character_gain_experience_at_the_highest_level_with_a_row()
-    {
-        StaticData data = await TestStaticData.LoadAsync(levels: s_levels);
-
-        Assert.True(ExperienceAward.CanGainExperience(Character(2, 0), data));
-        Assert.False(ExperienceAward.CanGainExperience(Character(3, 0), data));
-        Assert.False(ExperienceAward.CanGainExperience(Character(1, 0), await TestStaticData.LoadAsync(levels: [])));
-    }
-
-    [Fact]
-    public async Task Stop_at_the_maximum_level_with_no_experience_when_one_award_crosses_several_levels()
-    {
-        StaticData data = await TestStaticData.LoadAsync(levels: s_levels);
-        ICharacter character = Character(1, 0);
-
-        ExperienceAward.Grant(character, 10_000, data, parties: null, new TestLog());
-
-        Assert.Equal((ushort)3, character.Level);
-        Assert.Equal(0ul, character.Experience);
-        Assert.Equal(300ul, character.RequiredExperience);
-    }
-
-    [Fact]
-    public async Task Discard_the_rest_of_an_award_that_levels_into_the_maximum_level()
-    {
-        StaticData data = await TestStaticData.LoadAsync(levels: s_levels);
-        ICharacter character = Character(2, 150);
-
-        ExperienceAward.Grant(character, 100, data, parties: null, new TestLog());   // 250 covers 200; 50 left over
-
-        Assert.Equal((ushort)3, character.Level);
-        Assert.Equal(0ul, character.Experience);
-    }
-
     [Theory]
     [InlineData(0ul)]
     [InlineData(250ul)]

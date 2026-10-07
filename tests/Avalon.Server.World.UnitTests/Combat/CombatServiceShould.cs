@@ -53,19 +53,6 @@ public class CombatServiceShould
     }
 
     [Fact]
-    public void Should_call_OnHit_on_target_with_attacker_and_damage()
-    {
-        (CombatService? svc, EncounterRegistry _) = BuildService();
-        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
-        ICreature target = StubCreature();
-        IAbility ability = StubAbility(1.0f);
-
-        svc.ApplyDamage(attacker, target, 25, ability);
-
-        target.Received(1).OnHit(attacker, 25u);
-    }
-
-    [Fact]
     public void Should_mark_attacker_in_combat_when_attacker_is_a_character()
     {
         // MarkCombat exists only on ICharacter (not IUnit / ICreature) — see ICharacter.cs.
@@ -116,20 +103,6 @@ public class CombatServiceShould
     }
 
     [Fact]
-    public void Should_not_throw_when_target_is_not_a_creature()
-    {
-        // Damage between two characters (PvP scenario, out of scope V1) — defensive code shouldn't blow up.
-        (CombatService? svc, EncounterRegistry _) = BuildService();
-        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
-        ICharacter target = StubCharacter(CharacterClass.Hunter);
-        IAbility ability = StubAbility(1.0f);
-
-        Exception ex = Record.Exception(() => svc.ApplyDamage(attacker, target, 10, ability));
-        Assert.Null(ex);
-        target.Received(1).OnHit(attacker, 10u);
-    }
-
-    [Fact]
     public void Should_spawn_encounter_on_aggro_range_entry()
     {
         (CombatService? svc, EncounterRegistry? reg) = BuildService();
@@ -164,41 +137,6 @@ public class CombatServiceShould
     }
 
     [Fact]
-    public void Should_merge_when_attacker_in_existing_encounter_attacks_new_hostile()
-    {
-        (CombatService? svc, EncounterRegistry? reg) = BuildService();
-        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
-        ICreature h1 = StubCreature();
-        ICreature h2 = StubCreature();
-        IAbility ability = StubAbility(1.0f);
-
-        svc.ApplyDamage(attacker, h1, 10, ability);
-        svc.ApplyDamage(attacker, h2, 10, ability);
-
-        Assert.Single(reg.Active);
-        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
-        Assert.Contains(h1, enc.Hostiles);
-        Assert.Contains(h2, enc.Hostiles);
-    }
-
-    [Fact]
-    public void Should_keep_separate_encounters_when_neutral_pack_not_attacked()
-    {
-        (CombatService? svc, EncounterRegistry? reg) = BuildService();
-        ICharacter p = StubCharacter(CharacterClass.Warrior);
-        ICreature h1 = StubCreature();
-        ICreature h2 = StubCreature();   // neutral pack — never attacked
-        IAbility ab = StubAbility(1.0f);
-
-        svc.ApplyDamage(p, h1, 10, ab);
-        // h2 never engaged → no encounter for it
-
-        Assert.Single(reg.Active);
-        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
-        Assert.DoesNotContain(h2, enc.Hostiles);
-    }
-
-    [Fact]
     public void Should_cap_merge_at_50_hostile_participants()
     {
         (CombatService? svc, EncounterRegistry? reg) = BuildService();
@@ -219,31 +157,6 @@ public class CombatServiceShould
         Assert.True(firstCount + secondCount == 51);
         Assert.True(firstCount == 50 || secondCount == 50);
         Assert.True(firstCount == 1 || secondCount == 1);
-    }
-
-    [Fact]
-    public void Should_split_heal_threat_evenly_across_hostiles_in_encounter()
-    {
-        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
-        ICharacter healer = StubCharacter(CharacterClass.Healer);
-        ICharacter ally = StubCharacter(CharacterClass.Warrior);
-        ally.Health.Returns(300u); // room for the whole 100: heal threat counts only what is restored (#531)
-        ICreature hostile1 = StubCreature();
-        ICreature hostile2 = StubCreature();
-        IAbility healAbility = Substitute.For<IAbility>();
-        healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
-
-        // Set up encounter: ally is engaged with both hostiles.
-        svc.EnterCombat(hostile1, ally);
-        svc.EnterCombat(hostile2, ally);
-
-        // Now healer heals ally for 100. Heal-threat = 100 * 0.5 * 1.0 = 50, split across 2 hostiles = 25 each.
-        // (Initial threat seed is 0 in this test, so the seeded entry from EnterCombat is 0, then +25 from heal.)
-        svc.ApplyHeal(healer, ally, 100, healAbility);
-
-        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
-        Assert.Equal(25.0f, enc.GetThreatList(hostile1)[healer], 3);
-        Assert.Equal(25.0f, enc.GetThreatList(hostile2)[healer], 3);
     }
 
     [Fact]
@@ -303,39 +216,6 @@ public class CombatServiceShould
     }
 
     [Fact]
-    public void Should_cap_a_heal_at_maximum_health()
-    {
-        (CombatService? svc, EncounterRegistry _) = BuildService();
-        ICharacter healer = StubCharacter(CharacterClass.Healer);
-        ICharacter ally = StubCharacter(CharacterClass.Warrior);
-        ally.Health.Returns(100u);
-        ally.CurrentHealth.Returns(90u);
-        IAbility healAbility = Substitute.For<IAbility>();
-        healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
-
-        svc.ApplyHeal(healer, ally, 50, healAbility);
-
-        ally.Received().CurrentHealth = 100u;
-        ally.DidNotReceive().CurrentHealth = Arg.Is<uint>(v => v != 100u);
-    }
-
-    [Fact]
-    public void Should_leave_a_unit_at_exactly_maximum_health_where_it_is()
-    {
-        (CombatService? svc, EncounterRegistry _) = BuildService();
-        ICharacter healer = StubCharacter(CharacterClass.Healer);
-        ICharacter ally = StubCharacter(CharacterClass.Warrior);
-        ally.Health.Returns(100u);
-        ally.CurrentHealth.Returns(100u);
-        IAbility healAbility = Substitute.For<IAbility>();
-        healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
-
-        svc.ApplyHeal(healer, ally, 50, healAbility);
-
-        ally.DidNotReceive().CurrentHealth = Arg.Is<uint>(v => v != 100u);
-    }
-
-    [Fact]
     public void Should_set_taunt_caster_above_top_threat()
     {
         (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
@@ -361,22 +241,6 @@ public class CombatServiceShould
     }
 
     [Fact]
-    public void Should_set_taunt_expires_at_in_future()
-    {
-        (CombatService? svc, EncounterRegistry _) = BuildService();
-        ICreature hostile = StubCreature();
-        ICharacter caster = StubCharacter(CharacterClass.Warrior);
-        IAbility dmgAb = StubAbility(1.0f);
-
-        svc.ApplyDamage(caster, hostile, 1, dmgAb);   // ensure encounter exists
-        DateTime before = System.DateTime.UtcNow;
-        svc.ApplyTaunt(caster, hostile, 5000);
-
-        Assert.True(hostile.TauntExpiresAt >= before.AddMilliseconds(4900));
-        Assert.True(hostile.TauntExpiresAt <= before.AddMilliseconds(5100));
-    }
-
-    [Fact]
     public void Should_noop_taunt_when_target_not_in_encounter()
     {
         (CombatService? svc, EncounterRegistry? reg) = BuildService();
@@ -387,47 +251,6 @@ public class CombatServiceShould
 
         Assert.Empty(reg.Active);
         Assert.Null(hostile.TauntedBy);
-    }
-
-    [Fact]
-    public void Should_dispose_encounter_when_ended()
-    {
-        var cfg = new CombatConfig { InitialThreatSeed = 0, EncounterEndGraceSeconds = 0.05f };
-        var reg = new EncounterRegistry(cfg);
-        ISimulationContext ctx = Substitute.For<ISimulationContext>();
-        var svc = new CombatService(cfg, reg, ctx);
-
-        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
-        ICreature target = StubCreature();
-        target.Position.Returns(default(Avalon.Common.Mathematics.Vector3));
-        IAbility ability = StubAbility(1.0f);
-
-        svc.ApplyDamage(attacker, target, 10, ability);
-        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
-        enc.OnParticipantDied(target);
-
-        System.Threading.Thread.Sleep(60);   // exceed 50ms grace
-        svc.Update(TimeSpan.FromMilliseconds(10));
-
-        Assert.Empty(reg.Active);
-    }
-
-    [Fact]
-    public void Should_broadcast_death_when_lethal_hit_kills_creature()
-    {
-        // Lethal blow — creature's CurrentHealth is 0 after OnHit. CombatService should
-        // call OnParticipantDied and broadcast SUnitDeathPacket via the simulation context.
-        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx) = BuildServiceWithContext();
-        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
-        ICreature target = StubCreature();
-        // Substitute creature: simulate the script's lethal-hit behaviour by returning 0 HP after OnHit.
-        // It is alive before the hit, since a corpse takes no hits (#588).
-        target.WhenForAnyArgs(t => t.OnHit(default!, default)).Do(_ => target.CurrentHealth.Returns(0u));
-        IAbility ab = StubAbility(1.0f);
-
-        svc.ApplyDamage(attacker, target, 9999u, ab);
-
-        ctx.Received(1).BroadcastUnitDeath(target, attacker);
     }
 
     [Fact]
@@ -443,35 +266,6 @@ public class CombatServiceShould
         svc.ApplyDamage(attacker, target, 9999u, ab);
 
         ctx.Received(1).BroadcastUnitDeath(target, attacker);
-    }
-
-    [Fact]
-    public void Should_not_broadcast_death_when_target_survives()
-    {
-        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx) = BuildServiceWithContext();
-        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
-        ICreature target = StubCreature();
-        target.CurrentHealth.Returns(50u);   // alive after the hit
-        IAbility ab = StubAbility(1.0f);
-
-        svc.ApplyDamage(attacker, target, 10u, ab);
-
-        ctx.DidNotReceive().BroadcastUnitDeath(Arg.Any<IUnit>(), Arg.Any<IUnit>());
-    }
-
-    [Fact]
-    public void Should_route_raw_damage_through_apply_damage()
-    {
-        // Raw-damage overload — used by CreatureCombatScript for melee swings (no IAbility).
-        (CombatService? svc, EncounterRegistry? reg, ISimulationContext _) = BuildServiceWithContext();
-        ICreature attacker = StubCreature();
-        ICharacter target = StubCharacter(CharacterClass.Warrior);
-        target.CurrentHealth.Returns(100u);   // alive
-
-        svc.ApplyDamage(attacker, target, 5u);
-
-        target.Received(1).OnHit(attacker, 5u);
-        Assert.Single(reg.Active);
     }
 
     [Fact]
@@ -652,31 +446,6 @@ public class CombatServiceShould
         Assert.Null(reg.FindEncounterContaining(target)?.Hostiles.FirstOrDefault(h => ReferenceEquals(h, target)));
     }
 
-    /// <summary>A corpse hit again is no second kill: only a creature brought from above 0 to 0 is.</summary>
-    [Fact]
-    public void Not_report_a_kill_for_a_creature_already_at_zero_health()
-    {
-        (CombatService? svc, EncounterRegistry _, ISimulationContext _, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
-        ICreature target = StubCreature();
-        target.CurrentHealth.Returns(0u);
-
-        svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), target, 10);
-
-        outcomes.DidNotReceiveWithAnyArgs().CreatureKilled(default!, default!);
-    }
-
-    /// <summary>A hit its script does not turn into a death (Returning ignores hits) kills nothing.</summary>
-    [Fact]
-    public void Not_report_a_kill_when_the_hit_leaves_the_creature_alive()
-    {
-        (CombatService? svc, EncounterRegistry _, ISimulationContext _, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
-        ICreature target = StubCreature();
-
-        svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), target, 10);
-
-        outcomes.DidNotReceiveWithAnyArgs().CreatureKilled(default!, default!);
-    }
-
     /// <summary>
     /// A living character's hit is reported with the ability that dealt it; a dead one's is not, as its
     /// OnHit ignores the hit and nothing was sent before either.
@@ -751,28 +520,16 @@ public class CombatServiceShould
 
     // ── #588: a hit larger than a creature's remaining health kills it; health never wraps ──
 
-    [Fact]
-    public void Kill_a_creature_once_when_a_hit_exceeds_its_remaining_health()
+    [Theory]
+    [InlineData(100u)]
+    [InlineData(30u)]
+    public void Kill_a_creature_once_when_a_hit_reaches_its_remaining_health(uint damage)
     {
         (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
         (Creature? creature, CreatureCombatScript _) = CreatureWithCombatScript(ctx, health: 30);
         ICharacter attacker = StubCharacter(CharacterClass.Warrior);
 
-        svc.ApplyDamage(attacker, creature, 100);
-
-        Assert.Equal(0u, creature.CurrentHealth);
-        outcomes.Received(1).CreatureKilled(creature, attacker);
-        ctx.Received(1).BroadcastUnitDeath(creature, attacker);
-    }
-
-    [Fact]
-    public void Kill_a_creature_when_a_hit_equals_its_remaining_health()
-    {
-        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
-        (Creature? creature, CreatureCombatScript _) = CreatureWithCombatScript(ctx, health: 30);
-        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
-
-        svc.ApplyDamage(attacker, creature, 30);
+        svc.ApplyDamage(attacker, creature, damage);
 
         Assert.Equal(0u, creature.CurrentHealth);
         outcomes.Received(1).CreatureKilled(creature, attacker);

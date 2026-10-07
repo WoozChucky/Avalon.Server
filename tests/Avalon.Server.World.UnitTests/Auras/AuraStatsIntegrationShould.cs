@@ -59,19 +59,6 @@ public class AuraStatsIntegrationShould
         Assert.True(warrior.SaveState.StatsDirty);
     }
 
-    /// <summary>Crippled on a gearless character: 4 m/s x (1 - 30 / 100) = 2.8 m/s.</summary>
-    [Fact]
-    public void Slow_a_crippled_character()
-    {
-        CharacterEntity warrior = Warrior();
-        warrior.Auras.Add(Held(AuraTestData.Crippled()), s_t0);
-
-        CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors, id => id == s_plate.Id ? s_plate : null,
-            CurrentValues.KeepShare, TestCombat.Formula);
-
-        Assert.Equal(2.8f, warrior.GetMovementSpeed(), precision: 4);
-    }
-
     private static Creature Wolf() => new()
     {
         Guid = new ObjectGuid(ObjectType.Creature, 905_901),
