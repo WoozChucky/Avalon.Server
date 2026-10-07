@@ -32,7 +32,9 @@ public class CastAbilityHandlerShould
     public void Admit_a_god_mode_cast_despite_gcd_ability_cooldown_and_no_power()
     {
         var f = new GodFixture();
-        f.Character.LastCastStartTime = DateTime.UtcNow;
+        // A start in the future keeps the 200 ms global cooldown running however slow the runner is, so the bypass is
+        // really exercised.
+        f.Character.LastCastStartTime = DateTime.UtcNow.AddMinutes(1);
         DateTime previousStart = f.Character.LastCastStartTime;
         f.Character.CurrentPower = 0;
         IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 30 });

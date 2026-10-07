@@ -24,7 +24,9 @@ public class CastAbilityItemUseShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
         MapInstanceClient client = MapInstanceClients.Join(instance, 7);
         client.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(1))]);
-        client.Character.LastCastStartTime = accepted ? DateTime.UtcNow.AddSeconds(-10) : DateTime.UtcNow;
+        // The handler measures the 200 ms global cooldown against DateTime.UtcNow, so "a cast just started" must not
+        // depend on how fast the runner is: a start in the future keeps the cooldown running however long the test takes.
+        client.Character.LastCastStartTime = accepted ? DateTime.UtcNow.AddSeconds(-10) : DateTime.UtcNow.AddMinutes(1);
         var ends = new List<string>();
         instance.ItemUses.Start(new PendingItemUse
         {
