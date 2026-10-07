@@ -7,7 +7,6 @@ using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Exceptions;
 using Avalon.Api.Identity.Services.Email;
 using Avalon.Infrastructure.Login;
-using Microsoft.AspNetCore.Mvc;
 
 namespace Avalon.Api.Identity;
 
@@ -17,7 +16,8 @@ namespace Avalon.Api.Identity;
 /// join tickets, game admission and the game workload listener, email verification and change, and push device
 /// registration. It needs Redis (the login budgets, MFA, launcher codes, game tickets and contexts) and the Characters
 /// database of every world (character ownership, gameplay fences, account consolidation), and it owns the auth
-/// database's schema. Its Steam callback runs before authentication and its workload authentication after it.
+/// database's schema. Before authentication it keeps the game workload routes to the workload listener and answers the
+/// Steam callback; after authentication it authenticates the game workloads.
 /// </summary>
 public sealed class IdentityApi : IApiService
 {
@@ -55,14 +55,14 @@ public sealed class IdentityApi : IApiService
         services.AddIdentity(applicationConfig);
         // Application:Email (#510): no sender unless configured, and then email change is off (501).
         services.AddEmail(applicationConfig.Email, builder.Environment);
-
-        // The game workload routes answer on the game workload listener only (design D7.4).
-        int workloadPort = GameWorkloadHosting.PortOf(builder.Configuration);
-        services.Configure<MvcOptions>(options => options.Conventions.Add(new GameInternalRoutes(workloadPort)));
     }
 
-    public void UseBeforeAuthentication(IApplicationBuilder app) =>
+    public void UseBeforeAuthentication(IApplicationBuilder app)
+    {
+        // First: on any port but the game workload listener's, the game workload routes do not exist (design D7.4).
+        app.UseGameInternalRoutes(GameWorkloadHosting.PortOf(app.ApplicationServices.GetRequiredService<IConfiguration>()));
         app.UseMiddleware<SteamOpenIdCallbackMiddleware>();
+    }
 
     public void UseAfterAuthentication(IApplicationBuilder app) =>
         app.UseGameWorkloadAuthentication();

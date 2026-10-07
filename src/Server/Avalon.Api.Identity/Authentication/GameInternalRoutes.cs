@@ -1,33 +1,31 @@
-using System.Globalization;
-using Microsoft.AspNetCore.Mvc.ApplicationModels;
-
 namespace Avalon.Api.Identity.Authentication;
 
 /// <summary>
-/// The game workload routes, under <c>/internal</c>, are mapped on the game workload listener only (#794, design D7.4):
-/// each requires the listener's port in the request's host (<c>RequireHost("*:&lt;port&gt;")</c>), so a request that
-/// reaches the public listener, the ingress included, matches none of them and is answered 404. Who may call them is
-/// still decided by the workload authentication (<see cref="GameServerAuthHandler"/>).
+/// The game workload routes, under <c>/internal</c>, exist on the game workload listener only (#794, design D7.4). A
+/// request for one of them is judged by the port its connection was accepted on, never by a header it carries: one
+/// that arrived on any other port, the public listener behind the ingress included, is answered 404 whatever its
+/// method and whatever host it names, before it is authenticated. On the workload listener nothing changes, and the
+/// workload authentication (<see cref="GameServerAuthHandler"/>) still decides who may call them.
 /// </summary>
-public sealed class GameInternalRoutes(int port) : IApplicationModelConvention
+public static class GameInternalRoutes
 {
-    /// <summary>The routes' first segment, which the route manifest lists as internal-only.</summary>
-    public const string Segment = "internal";
+    /// <summary>Where the routes start, as the route manifest lists them internal-only.</summary>
+    public const string Prefix = "/internal";
 
-    public void Apply(ApplicationModel application)
-    {
-        var host = new HostAttribute("*:" + port.ToString(CultureInfo.InvariantCulture));
-        foreach (SelectorModel selector in application.Controllers.SelectMany(controller => controller.Selectors))
+    /// <summary>
+    /// Answers 404 to every request for <see cref="Prefix"/> or a path under it, without regard to case, that arrived on
+    /// any port but <paramref name="port"/>.
+    /// </summary>
+    public static IApplicationBuilder UseGameInternalRoutes(this IApplicationBuilder app, int port) =>
+        app.Use((context, next) =>
         {
-            if (IsInternal(selector.AttributeRouteModel?.Template))
-                selector.EndpointMetadata.Add(host);
-        }
-    }
+            if (context.Connection.LocalPort == port
+                || !context.Request.Path.StartsWithSegments(Prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return next(context);
+            }
 
-    private static bool IsInternal(string? template)
-    {
-        string path = template?.TrimStart('~', '/') ?? string.Empty;
-        return path.Equals(Segment, StringComparison.OrdinalIgnoreCase)
-               || path.StartsWith(Segment + "/", StringComparison.OrdinalIgnoreCase);
-    }
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return Task.CompletedTask;
+        });
 }

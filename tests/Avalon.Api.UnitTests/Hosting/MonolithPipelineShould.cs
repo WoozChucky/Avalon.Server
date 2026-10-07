@@ -7,7 +7,8 @@ namespace Avalon.Api.UnitTests.Hosting;
 /// <summary>
 /// The API's services run the middleware Avalon.Api's Program.cs ran, in its order (#794): identity's Steam OpenID
 /// callback before authentication and its game workload authentication after it, at the hooks of the one pipeline,
-/// and the world routes the worlds service declares.
+/// and the world routes the worlds service declares. Identity's hook starts with the game workload routes' port check
+/// (design D7.4).
 /// </summary>
 public sealed class MonolithPipelineShould
 {
@@ -24,6 +25,7 @@ public sealed class MonolithPipelineShould
             "ForwardedHeadersMiddleware",
             "EndpointRoutingMiddleware",
             "CorsMiddleware",
+            "GameInternalRoutes",
             "SteamOpenIdCallbackMiddleware",
             "AuthenticationMiddleware",
             "GameWorkloadAuthentication",

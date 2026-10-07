@@ -1,52 +1,61 @@
-using System.Net;
-using Avalon.Api.Identity.Authentication;
 using Avalon.Api.Testing;
-using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Avalon.Api.Identity.UnitTests.GameAuth;
 
 /// <summary>
-/// The game workload routes, <c>/internal/game/*</c>, are mapped on the game workload listener only (#794, design
-/// D7.4): a request reaches them on that listener's port, the port <c>Kestrel:Endpoints:GameInternal:Url</c> names,
-/// and reaches no endpoint on any other, the public listener the ingress forwards to included.
+/// The game workload routes, <c>/internal/game/*</c>, exist on the game workload listener only (#794, design D7.4),
+/// judged by the port the connection was accepted on: a request that arrived on the port
+/// <c>Kestrel:Endpoints:GameInternal:Url</c> names reaches them, and one that arrived on any other gets 404 whatever
+/// its method, the case of its path, or the host it names.
 /// </summary>
 public sealed class InternalEndpointsShould
 {
-    [Theory]
-    [InlineData(null, GameWorkloadHosting.DefaultPort)]
-    [InlineData("https://0.0.0.0:9555", 9555)]
-    public async Task Match_the_internal_routes_on_the_game_workload_port_only(string? workloadUrl, int workloadPort)
+    private const int WorkloadPort = 9555;
+    private const int PublicPort = 8080;
+    private const string Route = "/internal/game/sessions/end";
+
+    [Fact]
+    public async Task Exist_on_the_game_workload_port_only()
     {
         await using ApiTestHost host = await ApiTestHost.StartAsync([IdentityApi.Service], new ApiTestHostOptions
         {
-            ProbeRoutes = true,
             Settings = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                ["Kestrel:Endpoints:GameInternal:Url"] = workloadUrl,
+                ["Kestrel:Endpoints:GameInternal:Url"] = $"https://0.0.0.0:{WorkloadPort}",
             },
         });
-        RouteEndpoint[] routes = host.Endpoints.OfType<RouteEndpoint>()
-            .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("internal/", StringComparison.Ordinal) == true)
-            .ToArray();
 
-        Assert.NotEmpty(routes);
-        foreach (RouteEndpoint route in routes)
-        {
-            string method = route.Metadata.GetRequiredMetadata<HttpMethodMetadata>().HttpMethods[0];
-            string path = "/" + route.RoutePattern.RawText;
+        // On the workload port the route answers: its workload authentication refuses a caller without a certificate.
+        Assert.Equal(StatusCodes.Status401Unauthorized, await StatusAsync(host, HttpMethods.Post, Route, WorkloadPort));
 
-            Assert.Equal(HttpStatusCode.NoContent, await ProbeAsync(host, method, $"https://avalon-api.avalon.svc:{workloadPort}{path}"));
-            Assert.Equal(HttpStatusCode.NotFound, await ProbeAsync(host, method, $"http://avalon-api.avalon.svc:8080{path}"));
-            Assert.Equal(HttpStatusCode.NotFound, await ProbeAsync(host, method, $"https://avalon.example.test{path}"));
-        }
+        // Anywhere else it does not exist, for every method, in any case, though the request names the workload port.
+        string[] methods =
+        [
+            HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Patch, HttpMethods.Delete, HttpMethods.Head,
+            HttpMethods.Options,
+        ];
+        foreach (string method in methods)
+            Assert.Equal(StatusCodes.Status404NotFound, await StatusAsync(host, method, Route.ToUpperInvariant(), PublicPort));
     }
 
-    /// <summary>The status the route probe answers: 204 when the request reached an endpoint, 404 when it reached none.</summary>
-    private static async Task<HttpStatusCode> ProbeAsync(ApiTestHost host, string method, string url)
+    /// <summary>
+    /// The status <paramref name="method"/> <paramref name="path"/> gets on a connection accepted on
+    /// <paramref name="localPort"/>, from a request that names the workload port in its Host header.
+    /// </summary>
+    private static async Task<int> StatusAsync(ApiTestHost host, string method, string path, int localPort)
     {
-        using var request = new HttpRequestMessage(new HttpMethod(method), url);
-        using HttpResponseMessage response = await host.Client.SendAsync(request);
-        return response.StatusCode;
+        HttpContext context = await ((TestServer)host.Services.GetRequiredService<IServer>()).SendAsync(http =>
+        {
+            http.Request.Method = method;
+            http.Request.Path = path;
+            http.Request.Host = new HostString("avalon-api.avalon.svc", WorkloadPort);
+            http.Connection.LocalPort = localPort;
+        });
+        return context.Response.StatusCode;
     }
 }
