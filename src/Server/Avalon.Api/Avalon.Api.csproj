@@ -55,13 +55,11 @@
     <ProjectReference Include="..\Avalon.Api.Contract\Avalon.Api.Contract.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Distribution\Avalon.Api.Distribution.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>
-    <ProjectReference Include="..\Avalon.Balance.Contract\Avalon.Balance.Contract.csproj"/>
-    <ProjectReference Include="..\Avalon.Combat\Avalon.Combat.csproj"/>
+    <ProjectReference Include="..\Avalon.Api.Worlds\Avalon.Api.Worlds.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Character\Avalon.Database.Character.csproj"/>
     <ProjectReference Include="..\Avalon.Database.World\Avalon.Database.World.csproj"/>
     <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj"/>
-    <ProjectReference Include="..\Avalon.World.Generation\Avalon.World.Generation.csproj"/>
     <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>
     <ProjectReference Include="..\Avalon.ServiceDefaults\Avalon.ServiceDefaults.csproj"/>
   </ItemGroup>

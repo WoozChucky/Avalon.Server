@@ -5,15 +5,16 @@ using Xunit;
 namespace Avalon.Api.UnitTests.Hosting;
 
 /// <summary>
-/// The monolith runs the middleware Avalon.Api's Program.cs ran, in its order (#794): the Steam OpenID callback
-/// before authentication and the game workload authentication after it, at the hooks of the one pipeline.
+/// The API's services run the middleware Avalon.Api's Program.cs ran, in its order (#794): identity's Steam OpenID
+/// callback before authentication and its game workload authentication after it, at the hooks of the one pipeline,
+/// and the world routes the worlds service declares.
 /// </summary>
 public sealed class MonolithPipelineShould
 {
     [Fact]
     public async Task Run_the_middleware_of_Program_in_its_order()
     {
-        List<string> names = await MiddlewareRecorder.RecordAsync(Environments.Production, [MonolithApi.Service]);
+        List<string> names = await MiddlewareRecorder.RecordAsync(Environments.Production, ApiServices.All);
 
         Assert.Equal(
         [

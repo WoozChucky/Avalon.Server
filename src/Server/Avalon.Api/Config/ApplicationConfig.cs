@@ -8,20 +8,12 @@ public class ApplicationConfig
     public const string Section = "Application";
 
     public string Name { get; set; } = string.Empty;
-    /// <summary>The world public tooltip links read when they name none (the live world); falls back to the first readable one.</summary>
-    public ushort? PublicWorldId { get; set; }
-    /// <summary>
-    /// The public website's base URL, which link previews name as a page's canonical address. Unset by
-    /// default (a deployment setting); validated at startup by <see cref="Previews.PublicSiteSettings.Create"/>.
-    /// </summary>
-    public string? PublicSiteUrl { get; set; }
     public EnvironmentConfig? Environment { get; set; }
     public AuthenticationConfig? Authentication { get; set; }
     public NotificationConfig? Notification { get; set; }
     public CacheConfiguration? Cache { get; set; }
     public ForwardedHeadersConfig? ForwardedHeaders { get; set; }
     public EmailConfig? Email { get; set; }
-    public Balance.BalanceConfiguration? Balance { get; set; }
 
     /// <summary>The "Application" section, bound as the services still in Avalon.Api read it.</summary>
     public static ApplicationConfig Bind(IConfiguration configuration)

@@ -12,24 +12,26 @@ using Avalon.Infrastructure.Login;
 namespace Avalon.Api;
 
 /// <summary>
-/// The API services still in Avalon.Api, as it ran before the split (#794): identity and worlds, which is what
+/// The API service still in Avalon.Api, as it ran before the split (#794): identity, which is what
 /// <see cref="ServiceRegistration"/> registers, the game workload listener, the Steam callback before authentication
-/// and the workload authentication after it. Temporary: each service moves out into its own library,
-/// with its own descriptor (<see cref="ApiServices"/> lists them), and this goes.
+/// and the workload authentication after it. Temporary: it moves out into its own library, with its own descriptor
+/// (<see cref="ApiServices"/> lists them), and this goes.
 /// </summary>
 public sealed class MonolithApi : IApiService
 {
     public static readonly MonolithApi Service = new();
 
-    /// <summary>Redis, both databases of every world, the auth schema's owner, and the world routes.</summary>
-    public static readonly ApiServiceNeeds MonolithNeeds = new(Redis: true, WorldDatabases: WorldDatabaseParts.Both,
-        AuthSchema: AuthSchemaRole.Owner, WorldRoutes: true);
+    /// <summary>
+    /// Redis, the Characters database of every world (character ownership, gameplay fences, account consolidation)
+    /// and the auth schema's owner; no world routes.
+    /// </summary>
+    public static readonly ApiServiceNeeds MonolithNeeds = new(Redis: true, WorldDatabases: WorldDatabaseParts.Characters,
+        AuthSchema: AuthSchemaRole.Owner, WorldRoutes: false);
 
-    /// <summary>How the services' own exceptions are answered, in the order the middleware asks.</summary>
+    /// <summary>How the service's own exceptions are answered, in the order the middleware asks.</summary>
     public static IReadOnlyList<IExceptionProblemMapper> ProblemMappers { get; } =
     [
         new IdentityProblemMapper(),
-        new WorldsProblemMapper(),
     ];
 
     private MonolithApi()

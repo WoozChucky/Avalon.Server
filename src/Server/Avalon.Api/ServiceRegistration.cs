@@ -1,12 +1,9 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
-using Avalon.Api.Balance;
 using Avalon.Api.Config;
-using Avalon.Api.Controllers;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Middlewares;
-using Avalon.Api.Previews;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
 using Avalon.Infrastructure;
@@ -14,6 +11,7 @@ using Avalon.Infrastructure.Extensions;
 using Avalon.Infrastructure.Login;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Avalon.Api;
 
@@ -96,38 +94,7 @@ public static class ServiceRegistration
         services.AddScoped<AccountLinkReauthentication>();
         services.AddScoped<StoreAccountRegistration>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.IGameAccountRegistration>(sp => sp.GetRequiredService<StoreAccountRegistration>());
-        services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
-        services.AddSingleton(PublicSiteSettings.Create(config.PublicSiteUrl));
-        services.AddOptions<PreviewConfiguration>().BindConfiguration("Application:Previews");
-        // Observability's reads of a presence's own world, the layout inputs included.
-        services.AddSingleton<IWorldContentRepositories, WorldContentRepositories>();
-
-        services.AddOptions<Templates.TemplateEditingOptions>()
-            .BindConfiguration(Templates.TemplateEditingOptions.Section)
-            .ValidateOnStart();
-        Templates.TemplateEditingRegistration.AddTemplateEditing(services);
-        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<Templates.TemplateEditingOptions>,
-            Templates.TemplateEditingOptionsValidator>();
-
-        services.AddOptions<MapAssetConfig>()
-            .BindConfiguration("Application:MapAssets");
-
-        services.AddMemoryCache();
-
-        // The balance workbench's service (in-cluster). Without it the /balance endpoints answer 503.
-        Balance.BalanceConfiguration balance = config.Balance ?? new();
-        if (balance.IsConfigured)
-            services.AddBalanceClient(balance);
-        else
-            services.AddSingleton<Balance.IBalanceClient, Balance.UnconfiguredBalanceClient>();
-
         services.AddScoped<IAccountService, AccountService>();
-        services.AddScoped<ICharacterService, CharacterService>();
-        services.AddScoped<IAccountCharactersService, AccountCharactersService>();
-        services.AddScoped<IWorldService, WorldService>();
-        services.AddScoped<IMapService, MapService>();
-        services.AddScoped<IProceduralLayoutInputsResolver, ProceduralLayoutInputsResolver>();
-        services.AddScoped<IObservabilityService, ObservabilityService>();
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton<ILauncherAuthCodes, LauncherAuthCodes>();
@@ -145,8 +112,8 @@ public static class ServiceRegistration
         // Launcher sign-in's own request limit (#591), on top of the shared rate limiter.
         services.AddClientAuthRateLimiting();
         services.AddSecureRandom();
-        services.AddSingleton<IWorldReadiness, WorldReadiness>();
-        services.AddWorldMaintenanceControl();
+        // A world's ready heartbeat, which the worlds service reads too: registered once in a process (#794).
+        services.TryAddSingleton<IWorldReadiness, WorldReadiness>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IJwtUtils, JwtUtils>();
         // The store's publisher key and the Steam web link's URLs, checked before the api serves (ApiStartup).
@@ -165,7 +132,8 @@ public static class ServiceRegistration
 
     /// <summary>
     /// What the services add to the shared token validation: the game workload scheme, its policy and its rate-limit
-    /// partition, and the resource authorization handlers (characters; accounts and personal access tokens).
+    /// partition, and the resource authorization handlers for accounts and personal access tokens. The worlds service
+    /// registers its characters' (#794).
     /// </summary>
     public static void AddServiceAuthentication(this IServiceCollection services)
     {
@@ -176,8 +144,6 @@ public static class ServiceRegistration
             .RequireClaim(GameServerAuthHandler.ServerIdClaim)));
         services.AddSingleton<IRateLimitWorkloads, GameServerRateLimitWorkloads>();
 
-        services.AddScoped<IAuthorizationHandler, Authorization.CharacterReadHandler>();
-        services.AddScoped<IAuthorizationHandler, Authorization.CharacterWriteHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.AccountReadHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.AccountWriteHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.PatReadHandler>();
