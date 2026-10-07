@@ -25,98 +25,54 @@ public class InteractHandlerShould
 {
     private static readonly ObjectGuid s_npcGuid = new(ObjectType.Creature, 7);
 
+    /// <summary>
+    /// An interact opens the conversation at the NPC's root and sends that node with the player's name in its text.
+    /// The catalog in this fixture is real, so this asserts the whole resolve-and-interpolate path end to end.
+    /// </summary>
     [Fact]
-    public void Open_The_Conversation_At_The_Root_Node()
+    public void Open_the_conversation_at_the_root_and_interpolate_the_players_name()
     {
         var fixture = Fixture.WithTalkingNpc();
 
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
-        fixture.Connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        Assert.Single(fixture.SentPackets);
+        SDialogueNodePacket sent = fixture.CaptureSentNode();
+        Assert.Equal("Room's upstairs, Aldric.", sent.Text);
+        Assert.Equal("Innkeeper", sent.SpeakerName);
+        Assert.Equal(1, sent.NodeId);
+        Assert.Equal("Farewell.", Assert.Single(sent.Options).Text);
         Assert.Equal((s_npcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
     }
 
-    [Fact]
-    public void Drop_The_Packet_When_There_Is_No_Character()
+    /// <summary>
+    /// An interact that cannot open a conversation is dropped without a reply and never leaves one open, even when
+    /// it is refused after CurrentDialogue would have been written. A creature with no dialogue is every monster in
+    /// the game. 6 m is inside the dialogue leash, but the leash only keeps an open conversation alive: starting one
+    /// still needs the 5 m interact range.
+    /// </summary>
+    [Theory]
+    [InlineData("dead character")]
+    [InlineData("target not in the instance")]
+    [InlineData("npc dead")]
+    [InlineData("no dialogue")]
+    [InlineData("past the interact range")]
+    public void Drop_an_interact_that_cannot_open_a_conversation(string reason)
     {
-        var fixture = Fixture.WithTalkingNpc();
-        fixture.Connection.Character.Returns((ICharacter?)null);
+        Fixture fixture = reason == "no dialogue" ? Fixture.WithSilentNpc() : Fixture.WithTalkingNpc();
+        if (reason == "dead character")
+            fixture.Character.IsDead.Returns(true);
+        if (reason == "npc dead")
+            fixture.Npc.CurrentHealth.Returns(0u);
+        if (reason == "past the interact range")
+            fixture.Npc.Position.Returns(new Vector3(0, 0, 6));
 
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket
+        {
+            TargetGuid = reason == "target not in the instance" ? 999ul : s_npcGuid.RawValue,
+        });
 
-        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-        Assert.Null(fixture.Connection.CurrentDialogue);
-    }
-
-    [Fact]
-    public void Drop_The_Packet_When_The_Character_Is_Dead()
-    {
-        var fixture = Fixture.WithTalkingNpc();
-        fixture.Character.IsDead.Returns(true);
-
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
-
-        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-    }
-
-    [Fact]
-    public void Drop_The_Packet_When_The_Target_Is_Not_In_The_Instance()
-    {
-        var fixture = Fixture.WithTalkingNpc();
-
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = 999ul });
-
-        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-    }
-
-    [Fact]
-    public void Drop_The_Packet_When_The_Npc_Is_Dead()
-    {
-        var fixture = Fixture.WithTalkingNpc();
-        fixture.Npc.CurrentHealth.Returns(0u);
-
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
-
-        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-    }
-
-    [Fact]
-    public void Drop_The_Packet_When_The_Creature_Has_No_Dialogue()
-    {
-        // The ordinary case for every monster in the game.
-        var fixture = Fixture.WithSilentNpc();
-
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
-
-        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-        Assert.Null(fixture.Connection.CurrentDialogue);
-    }
-
-    [Fact]
-    public void Drop_The_Packet_When_The_Player_Is_Out_Of_Range()
-    {
-        var fixture = Fixture.WithTalkingNpc();
-        fixture.Npc.Position.Returns(new Vector3(0, 0, 50));   // 50 m away, limit is 5
-
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
-
-        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
-        // A rejected interact must never leave a conversation "open" on the connection, even if the
-        // rejection happens after CurrentDialogue would otherwise have been written.
-        Assert.Null(fixture.Connection.CurrentDialogue);
-    }
-
-    [Fact]
-    public void Still_Need_Interact_Range_To_Open_Inside_The_Leash()
-    {
-        // 6 m is inside the 15 m dialogue leash, but the leash only keeps an open conversation
-        // alive. Starting one still needs the 5 m interact range.
-        var fixture = Fixture.WithTalkingNpc();
-        fixture.Npc.Position.Returns(new Vector3(0, 0, 6));
-
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
-
-        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        Assert.Empty(fixture.SentPackets);
         Assert.Null(fixture.Connection.CurrentDialogue);
     }
 
@@ -131,24 +87,6 @@ public class InteractHandlerShould
         fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
 
         Assert.Equal((s_npcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
-    }
-
-    [Fact]
-    public void Interpolate_The_Players_Name_Into_The_Sent_Text()
-    {
-        // The catalog in this fixture is real, so this asserts the whole resolve-and-interpolate
-        // path end to end rather than that a substitute was called. Capture the sent packet and
-        // deserialize it.
-        var fixture = Fixture.WithTalkingNpc();
-
-        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = s_npcGuid.RawValue });
-
-        SDialogueNodePacket sent = fixture.CaptureSentNode();
-
-        Assert.Equal("Room's upstairs, Aldric.", sent.Text);
-        Assert.Equal("Innkeeper", sent.SpeakerName);
-        Assert.Equal(1, sent.NodeId);
-        Assert.Equal("Farewell.", Assert.Single(sent.Options).Text);
     }
 
     private sealed class Fixture

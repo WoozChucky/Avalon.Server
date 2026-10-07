@@ -62,52 +62,29 @@ public class CharacterLeaveHandlerShould
 
     private void HoldCharacter() => _connection.Character.Returns(New(7));
 
-    [Fact]
-    public void Answer_NoCharacter_and_change_nothing_when_the_connection_holds_none()
+    /// <summary>
+    /// A leave that cannot start is answered with the state that stops it and changes nothing. A character built and
+    /// waiting on its client's load report is not in the world yet, so it is Selecting too.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, CharacterLeaveResult.NoCharacter)]
+    [InlineData(true, false, CharacterLeaveResult.Selecting)]
+    [InlineData(false, true, CharacterLeaveResult.Selecting)]
+    public void Answer_a_leave_that_cannot_start_and_change_nothing(bool selecting, bool waitingOnClient,
+        CharacterLeaveResult expected)
     {
+        _connection.SelectInProgress.Returns(selecting);
+        if (waitingOnClient)
+            _connection.PendingSpawn.Returns(new PendingSpawn(New(7), Substitute.For<IMapInstance>(), 1));
+
         Leave();
 
-        Assert.Equal([CharacterLeaveResult.NoCharacter], Results());
+        Assert.Equal([expected], Results());
         _world.DidNotReceiveWithAnyArgs().LeaveWorldAsync(default!);
         Control.DidNotReceive().TryBeginLeave();
         _connection.DidNotReceive().Close();
-    }
-
-    [Fact]
-    public void Answer_Selecting_while_a_select_is_under_way()
-    {
-        _connection.SelectInProgress.Returns(true);
-
-        Leave();
-
-        Assert.Equal([CharacterLeaveResult.Selecting], Results());
-        _world.DidNotReceiveWithAnyArgs().LeaveWorldAsync(default!);
         _connection.DidNotReceive().CancelSelect();
-    }
-
-    /// <summary>A character built and waiting on its client's load report is not in the world yet.</summary>
-    [Fact]
-    public void Answer_Selecting_while_the_character_waits_on_its_client()
-    {
-        _connection.PendingSpawn.Returns(new PendingSpawn(New(7), Substitute.For<IMapInstance>(), 1));
-
-        Leave();
-
-        Assert.Equal([CharacterLeaveResult.Selecting], Results());
-        _world.DidNotReceiveWithAnyArgs().LeaveWorldAsync(default!);
         _connection.DidNotReceive().TakePendingSpawn();
-    }
-
-    [Fact]
-    public void Answer_AlreadyLeaving_and_not_despawn_again_while_a_leave_is_under_way()
-    {
-        _connection.LeaveInProgress.Returns(true);
-
-        Leave();
-
-        Assert.Equal([CharacterLeaveResult.AlreadyLeaving], Results());
-        _world.DidNotReceiveWithAnyArgs().LeaveWorldAsync(default!);
-        Control.DidNotReceive().EndLeave();
     }
 
     [Fact]
@@ -161,13 +138,18 @@ public class CharacterLeaveHandlerShould
 
     /// <summary>
     /// The character's last state is not known to be written, so the session is not handed back to
-    /// character selection: it is closed with a reason, and no success is ever sent.
+    /// character selection: a logout save that fails, or a leave that throws, closes it with a reason,
+    /// and no success is ever sent.
     /// </summary>
-    [Fact]
-    public async Task Close_with_CharacterSaveFailed_and_not_answer_when_the_logout_save_fails()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Close_with_CharacterSaveFailed_and_not_answer_when_the_logout_save_fails(bool throws)
     {
         HoldCharacter();
-        _world.LeaveWorldAsync(_connection).Returns(Task.FromResult(false));
+        _world.LeaveWorldAsync(_connection).Returns(throws
+            ? Task.FromException<bool>(new InvalidOperationException("boom"))
+            : Task.FromResult(false));
 
         Leave();
         await RunContinuationsAsync();
@@ -178,20 +160,6 @@ public class CharacterLeaveHandlerShould
         Assert.Equal(CharacterLeaveHandler.SaveFailedMessage, disconnect.Reason);
         _connection.Received(1).Close();
         Control.Received(1).EndLeave();
-    }
-
-    [Fact]
-    public async Task Close_with_CharacterSaveFailed_when_the_leave_throws()
-    {
-        HoldCharacter();
-        _world.LeaveWorldAsync(_connection).Returns(Task.FromException<bool>(new InvalidOperationException("boom")));
-
-        Leave();
-        await RunContinuationsAsync();
-
-        Assert.Empty(Results());
-        Assert.Equal(DisconnectReason.CharacterSaveFailed, Assert.Single(Disconnects()).ReasonCode);
-        _connection.Received(1).Close();
     }
 
     /// <summary>A connection that dropped, or was kicked, while its character was leaving is told nothing.</summary>

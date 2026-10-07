@@ -65,26 +65,21 @@ public class RespawnAtTownHandlerShould
         world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
     }
 
+    /// <summary>
+    /// A dead character's request starts one return to the town of the map it died on and marks it in flight, so a
+    /// second request while that return is under way is dropped.
+    /// </summary>
     [Fact]
-    public void Resolve_town_and_enqueue_transfer_when_dead()
+    public void Start_one_town_return_for_a_dead_character_however_often_it_asks()
     {
         (RespawnAtTownHandler? handler, IWorldConnection? conn, ICharacter _, IWorld _, IRespawnTargetResolver? resolver, IInstanceRegistry _, IMapInstance _) = Build(isDead: true);
 
         handler.Execute(conn, new CRespawnAtTownPacket());
+        handler.Execute(conn, new CRespawnAtTownPacket());
 
+        Assert.True(conn.RespawnInFlight);
         resolver.Received(1).ResolveTownAsync(new MapTemplateId(2), Arg.Any<CancellationToken>());
         conn.Received(1).EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>());
-    }
-
-    [Fact]
-    public void Drop_when_a_respawn_is_already_in_flight()
-    {
-        (RespawnAtTownHandler? handler, IWorldConnection? conn, ICharacter _, IWorld _, IRespawnTargetResolver? resolver, IInstanceRegistry _, IMapInstance _) = Build(isDead: true);
-        conn.RespawnInFlight.Returns(true);
-
-        handler.Execute(conn, new CRespawnAtTownPacket());
-
-        resolver.DidNotReceiveWithAnyArgs().ResolveTownAsync(default!, default);
     }
 
     /// <summary>
@@ -110,15 +105,5 @@ public class RespawnAtTownHandlerShould
         Assert.Null(escaped);
         world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
         ch.DidNotReceive().Revive();
-    }
-
-    [Fact]
-    public void Mark_RespawnInFlight_true_when_accepting_a_request()
-    {
-        (RespawnAtTownHandler? handler, IWorldConnection? conn, ICharacter _, IWorld _, IRespawnTargetResolver _, IInstanceRegistry _, IMapInstance _) = Build(isDead: true);
-
-        handler.Execute(conn, new CRespawnAtTownPacket());
-
-        conn.Received().RespawnInFlight = true;
     }
 }

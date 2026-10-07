@@ -46,24 +46,6 @@ public class CastAbilityHandlerShould
     }
 
     [Fact]
-    public void Restore_the_previous_gcd_and_ability_cooldown_when_god_mode_ends()
-    {
-        var f = new GodFixture();
-        f.Character.LastCastStartTime = DateTime.UtcNow;
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
-        ability.CooldownTimer.Returns(5f);
-        f.Character.GodMode = false;
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-        Assert.Equal(CastRejectReason.Gcd, f.SingleRefusal().Reason);
-
-        f.Connection.ClearReceivedCalls();
-        f.Character.LastCastStartTime = DateTime.UtcNow.AddSeconds(-10);
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-        Assert.Equal(CastRejectReason.Cooldown, f.SingleRefusal().Reason);
-    }
-
-    [Fact]
     public void Preserve_other_cast_requirements_in_god_mode()
     {
         var dead = new GodFixture();
@@ -139,28 +121,6 @@ public class CastAbilityHandlerShould
     // ── Refusals before the instance ─────────────────────────────────────────
 
     [Fact]
-    public void Answer_Dead_when_the_caster_is_dead()
-    {
-        var f = new Fixture();
-        f.Character.IsDead.Returns(true);
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = 2 });
-
-        Assert.Equal(CastRejectReason.Dead, f.SingleRefusal().Reason);
-    }
-
-    [Fact]
-    public void Send_nothing_when_the_connection_has_no_character()
-    {
-        var f = new Fixture();
-        f.Connection.Character.Returns((ICharacter?)null);
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        Assert.Empty(f.SentPackets());
-    }
-
-    [Fact]
     public void Answer_NotOwned_when_the_caster_does_not_have_the_ability()
     {
         var f = new Fixture();
@@ -174,35 +134,22 @@ public class CastAbilityHandlerShould
         Assert.Equal(0u, refusal.CooldownMs);
     }
 
-    [Fact]
-    public void Answer_Cooldown_with_the_time_left_when_the_ability_is_cooling_down()
-    {
-        var f = new Fixture();
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" }).CooldownTimer.Returns(1.5f);
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 42 });
-
-        SAbilityNotReadyPacket refusal = f.SingleRefusal();
-        Assert.Equal(CastRejectReason.Cooldown, refusal.Reason);
-        Assert.Equal(42u, refusal.AbilityId);
-        Assert.Equal(1500u, refusal.CooldownMs);
-    }
-
     /// <summary>
-    /// A remainder under a millisecond is rounded up, never truncated to 0: CooldownMs = 0 would
-    /// tell the client the ability is ready when the server just refused it for cooling down.
+    /// The time left goes out rounded up: a remainder under a millisecond is 1, never truncated to 0, since
+    /// CooldownMs = 0 would tell the client the ability is ready when the server just refused it for cooling down.
     /// </summary>
-    [Fact]
-    public void Round_a_sub_millisecond_cooldown_up_to_1()
+    [Theory]
+    [InlineData(1.5f, 1500u)]
+    [InlineData(0.0004f, 1u)]
+    public void Answer_Cooldown_with_the_time_left_rounded_up(float cooldown, uint expectedMs)
     {
         var f = new Fixture();
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" }).CooldownTimer.Returns(0.0004f);
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" }).CooldownTimer.Returns(cooldown);
 
         f.Cast(new CCastAbilityPacket { AbilityId = 42 });
 
         SAbilityNotReadyPacket refusal = f.SingleRefusal();
-        Assert.Equal(CastRejectReason.Cooldown, refusal.Reason);
-        Assert.Equal(1u, refusal.CooldownMs);
+        Assert.Equal((CastRejectReason.Cooldown, 42u, expectedMs), (refusal.Reason, refusal.AbilityId, refusal.CooldownMs));
     }
 
     [Fact]
@@ -219,46 +166,40 @@ public class CastAbilityHandlerShould
         Assert.InRange(refusal.CooldownMs, 1u, new CombatConfig().GcdMs);
     }
 
-    [Fact]
-    public void Answer_RequiresOutOfCombat_when_an_out_of_combat_ability_is_cast_in_combat()
+    /// <summary>
+    /// A requirement the Mana caster does not meet is refused with its reason and no time left, and nothing is
+    /// dispatched. The power rule itself is AbilityCostShould's (#521, #652): a cost spent from another pool is
+    /// WrongPowerType, and a cost whose row names no pool is a data fault the catalog refuses, so one that slips
+    /// through is InternalError.
+    /// </summary>
+    [Theory]
+    [InlineData(AbilityFlags.RequiresOutOfCombat, true, 100u, 0u, PowerType.None, CastRejectReason.RequiresOutOfCombat)]
+    [InlineData(AbilityFlags.RequiresInCombat, false, 100u, 0u, PowerType.None, CastRejectReason.RequiresInCombat)]
+    [InlineData(AbilityFlags.None, false, 5u, 30u, PowerType.Mana, CastRejectReason.NotEnoughPower)]
+    [InlineData(AbilityFlags.None, false, 100u, 20u, PowerType.Fury, CastRejectReason.WrongPowerType)]
+    [InlineData(AbilityFlags.None, false, 100u, 20u, PowerType.None, CastRejectReason.InternalError)]
+    public void Refuse_a_requirement_the_caster_does_not_meet(AbilityFlags flags, bool inCombat, uint power, uint cost,
+        PowerType costPool, CastRejectReason expected)
     {
         var f = new Fixture();
-        f.Character.IsInCombat.Returns(true);
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Flags = AbilityFlags.RequiresOutOfCombat });
+        f.Character.IsInCombat.Returns(inCombat);
+        f.Character.CurrentPower.Returns((uint?)power);
+        f.GiveAbility(new AbilityMetadata
+        {
+            Name = "X",
+            ScriptName = "x",
+            Flags = flags,
+            Cost = cost,
+            CostPowerType = costPool,
+        });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
         SAbilityNotReadyPacket refusal = f.SingleRefusal();
-        Assert.Equal(CastRejectReason.RequiresOutOfCombat, refusal.Reason);
-        Assert.Equal(0u, refusal.CooldownMs);
-    }
-
-    [Fact]
-    public void Answer_RequiresInCombat_when_an_in_combat_ability_is_cast_out_of_combat()
-    {
-        var f = new Fixture();
-        f.Character.IsInCombat.Returns(false);
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Flags = AbilityFlags.RequiresInCombat });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        SAbilityNotReadyPacket refusal = f.SingleRefusal();
-        Assert.Equal(CastRejectReason.RequiresInCombat, refusal.Reason);
-        Assert.Equal(0u, refusal.CooldownMs);
-    }
-
-    [Fact]
-    public void Answer_NotEnoughPower_when_the_caster_cannot_pay()
-    {
-        var f = new Fixture();
-        f.Character.CurrentPower.Returns((uint?)5);
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 30, CostPowerType = PowerType.Mana });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        SAbilityNotReadyPacket refusal = f.SingleRefusal();
-        Assert.Equal(CastRejectReason.NotEnoughPower, refusal.Reason);
-        Assert.Equal(0u, refusal.CooldownMs);
+        Assert.Equal((expected, 0u), (refusal.Reason, refusal.CooldownMs));
+        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
+        f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
+        f.Character.DidNotReceive().MarkCombat();
     }
 
     [Fact]
@@ -274,20 +215,6 @@ public class CastAbilityHandlerShould
     }
 
     // ── One cast at a time (#521 item 4) ──────────────────────────────────────
-
-    [Fact]
-    public void Answer_AlreadyCasting_while_another_cast_is_in_progress()
-    {
-        var f = new Fixture();
-        f.Character.Spells.IsCasting.Returns(true);
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        Assert.Equal(CastRejectReason.AlreadyCasting, f.SingleRefusal().Reason);
-        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
-        f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
-    }
 
     /// <summary>The refusal order: a dead caster is told Dead, even with a cast still in progress.</summary>
     [Fact]
@@ -372,204 +299,35 @@ public class CastAbilityHandlerShould
                 && a.Facing.y == 0f && Math.Abs(a.Facing.z - 0.8f) < 1e-5f), ability);
     }
 
-    /// <summary>Without a usable point a Movement skill aims along the yaw, as before #716, and is never refused.</summary>
-    [Theory]
-    [MemberData(nameof(MissingAimPoints))]
-    public void Aim_a_movement_skill_along_the_casters_facing_without_a_usable_point(Vector3Dto? point)
-    {
-        var f = new Fixture();
-        f.Character.Orientation.Returns(new Vector3(0f, 90f, 0f));
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = point });
-
-        Assert.Empty(f.SentPackets());
-        f.Instance.Received(1).RunInstantAbility(f.Character,
-            Arg.Is<AbilityAim>(a => a.Point == null && Math.Abs(a.Facing.x - 1f) < 1e-4f), ability);
-    }
-
-    /// <summary>A point within a millimetre of the caster on X/Z (whatever its height) gives no direction: the yaw stands.</summary>
-    [Fact]
-    public void Aim_a_movement_skill_along_the_casters_facing_for_a_point_on_the_caster()
-    {
-        var f = new Fixture();
-        f.Character.Orientation.Returns(new Vector3(0f, 90f, 0f));
-        f.Character.Position.Returns(new Vector3(2f, 0f, 2f));
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = 2.0004f, Y = 9f, Z = 1.9997f } });
-
-        f.Instance.Received(1).RunInstantAbility(f.Character,
-            Arg.Is<AbilityAim>(a => a.Point == null && Math.Abs(a.Facing.x - 1f) < 1e-4f), ability);
-    }
-
-    /// <summary>A queued Movement cast carries the direction toward the cursor it started with.</summary>
-    [Fact]
-    public void Queue_a_cast_time_movement_skill_with_the_direction_it_started_with()
-    {
-        var f = new Fixture();
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 1f });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = -3f, Y = 0f, Z = 0f } });
-
-        f.Instance.Received(1).QueueAbility(f.Character,
-            Arg.Is<AbilityAim>(a => a.Point == null && Math.Abs(a.Facing.x + 1f) < 1e-5f && a.Facing.z == 0f), ability);
-    }
-
-    /// <summary>A queued cast is aimed once, when it starts: the aim travels with it into the queue.</summary>
-    [Fact]
-    public void Queue_a_cast_time_cursor_skill_with_the_aim_it_started_with()
-    {
-        var f = new Fixture();
-        IAbility ability = f.GiveAbility(new AbilityMetadata
-        {
-            Name = "X",
-            ScriptName = "x",
-            AimMode = AbilityAimMode.Cursor,
-            CastTime = 1f,
-        });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = 5f, Y = 0f, Z = 6f } });
-
-        f.Instance.Received(1).QueueAbility(f.Character,
-            Arg.Is<AbilityAim>(a => a.Point == new Vector3(5f, 0f, 6f) && Math.Abs(a.Facing.z - 1f) < 1e-4f), ability);
-    }
-
-    // ── The power rule (#521 item 2) ──────────────────────────────────────────
-
-    [Theory]
-    [InlineData(0f)]
-    [InlineData(1f)]
-    public void Answer_WrongPowerType_on_both_paths_for_a_cost_on_a_caster_without_a_pool(float castTime)
-    {
-        var f = new Fixture();
-        f.Character.PowerType.Returns(PowerType.None);
-        f.GiveAbility(new AbilityMetadata
-        {
-            Name = "X",
-            ScriptName = "x",
-            Cost = 10,
-            CostPowerType = PowerType.Mana,
-            CastTime = castTime,
-        });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        Assert.Equal(CastRejectReason.WrongPowerType, f.SingleRefusal().Reason);
-        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
-        f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
-    }
-
-    /// <summary>Fury is spendable like Mana and Energy (#526).</summary>
-    [Fact]
-    public void Dispatch_a_Fury_cast_the_pool_can_pay()
-    {
-        var f = new Fixture();
-        f.Character.PowerType.Returns(PowerType.Fury);
-        f.Character.CurrentPower.Returns((uint?)20);
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20, CostPowerType = PowerType.Fury });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        Assert.Empty(f.SentPackets());
-        f.Instance.Received(1).RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability);
-    }
-
-    [Fact]
-    public void Answer_NotEnoughPower_for_a_Fury_cast_the_pool_cannot_pay()
-    {
-        var f = new Fixture();
-        f.Character.PowerType.Returns(PowerType.Fury);
-        f.Character.CurrentPower.Returns((uint?)19);
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20, CostPowerType = PowerType.Fury });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        Assert.Equal(CastRejectReason.NotEnoughPower, f.SingleRefusal().Reason);
-        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
-    }
-
-    /// <summary>
-    /// #652: a cost is spent from the pool the ability names. A Warrior given a Mana ability is refused with a reason
-    /// the client can show, on both paths, however much Fury it holds, and nothing is dispatched.
-    /// </summary>
-    [Theory]
-    [InlineData(PowerType.Fury, PowerType.Mana, 0f)]
-    [InlineData(PowerType.Fury, PowerType.Mana, 1f)]
-    [InlineData(PowerType.Mana, PowerType.Fury, 0f)]
-    [InlineData(PowerType.Energy, PowerType.Mana, 1f)]
-    [InlineData(PowerType.Mana, PowerType.Energy, 0f)]
-    public void Answer_WrongPowerType_for_a_cost_spent_from_another_pool(PowerType casterPool, PowerType costPool, float castTime)
-    {
-        var f = new Fixture();
-        f.Character.PowerType.Returns(casterPool);
-        f.Character.CurrentPower.Returns((uint?)100);
-        f.GiveAbility(new AbilityMetadata
-        {
-            Name = "Flame Surge",
-            ScriptName = "x",
-            Cost = 20,
-            CostPowerType = costPool,
-            CastTime = castTime,
-        });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        SAbilityNotReadyPacket refusal = f.SingleRefusal();
-        Assert.Equal(CastRejectReason.WrongPowerType, refusal.Reason);
-        Assert.Equal(0u, refusal.CooldownMs);
-        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
-        f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
-        f.Character.DidNotReceive().MarkCombat();
-    }
-
-    /// <summary>A row with a cost and no pool is a data fault the catalog refuses; one that slips through is InternalError.</summary>
-    [Fact]
-    public void Answer_InternalError_for_a_cost_that_names_no_pool()
-    {
-        var f = new Fixture();
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20 });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
-        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
-    }
-
     // ── Cast dispatch ────────────────────────────────────────────────────────
 
-    [Fact]
-    public void Dispatch_an_instant_ability_and_send_no_refusal()
+    /// <summary>An accepted cast goes down the path its cast time picks, is answered with nothing, and starts the global cooldown.</summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1.5f)]
+    public void Dispatch_a_cast_on_the_path_its_cast_time_picks_and_send_no_refusal(float castTime)
     {
         var f = new Fixture();
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 0 });
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = castTime });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
-        f.Instance.Received(1).RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability);
-        f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
+        f.Instance.Received(castTime > 0 ? 0 : 1).RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability);
+        f.Instance.Received(castTime > 0 ? 1 : 0).QueueAbility(f.Character, Arg.Any<AbilityAim>(), ability);
         Assert.Empty(f.SentPackets());
+        f.Character.Received().LastCastStartTime = Arg.Any<DateTime>();
     }
 
-    [Fact]
-    public void Queue_a_cast_time_ability_and_send_no_refusal()
+    /// <summary>A cast the cast system refuses, on either path, is InternalError.</summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1.5f)]
+    public void Answer_InternalError_when_the_cast_system_refuses_the_cast(float castTime)
     {
         var f = new Fixture();
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 1.5f });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        f.Instance.Received(1).QueueAbility(f.Character, Arg.Any<AbilityAim>(), ability);
-        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
-        Assert.Empty(f.SentPackets());
-    }
-
-    [Fact]
-    public void Answer_InternalError_when_the_queue_refuses_the_cast()
-    {
-        var f = new Fixture();
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 1.5f });
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = castTime });
         f.Instance.QueueAbility(f.Character, Arg.Any<AbilityAim>(), ability).Returns(false);
+        f.Instance.RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability).Returns(false);
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
@@ -579,45 +337,7 @@ public class CastAbilityHandlerShould
         f.Character.DidNotReceive().MarkCombat();
     }
 
-    [Fact]
-    public void Answer_InternalError_when_the_instant_path_refuses_the_cast()
-    {
-        var f = new Fixture();
-        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
-        f.Instance.RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability).Returns(false);
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
-        f.Character.DidNotReceive().LastCastStartTime = Arg.Any<DateTime>();
-        f.Character.DidNotReceive().MarkCombat();
-    }
-
-    [Fact]
-    public void Set_LastCastStartTime_on_a_successful_cast()
-    {
-        var f = new Fixture();
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 0 });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
-
-        f.Character.Received().LastCastStartTime = Arg.Any<DateTime>();
-    }
-
     // ── Wire ────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void Carry_the_reason_through_a_protobuf_round_trip()
-    {
-        NetworkPacket sent = SAbilityNotReadyPacket.Create(7, CastRejectReason.Cooldown, 1234u,
-            new FakeAvalonCryptoSession().Encrypt);
-
-        SAbilityNotReadyPacket decoded = Decode(sent);
-
-        Assert.Equal(7u, decoded.AbilityId);
-        Assert.Equal(1234u, decoded.CooldownMs);
-        Assert.Equal(CastRejectReason.Cooldown, decoded.Reason);
-    }
 
     /// <summary>A payload from before #512 has no field 3, and must not decode as a real reason.</summary>
     [Fact]

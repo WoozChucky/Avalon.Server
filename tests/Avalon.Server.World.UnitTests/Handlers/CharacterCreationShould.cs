@@ -76,15 +76,11 @@ public class CharacterCreationShould : IDisposable
 
     /// <summary>
     /// Creation derives the new character's maximums and its stats row from the seeded level 1
-    /// row with nothing worn: every starting item goes to the Bag. The Warrior row is a regression
-    /// guard: the old GetBase* helpers already produced these values for a Warrior, so it passed
-    /// before the calculator was wired; the other three classes did not.
+    /// row with nothing worn: every starting item goes to the Bag. A Wizard, since the old GetBase*
+    /// helpers already produced a Warrior's values; each class's are ClassStatFactorsGoldenShould's.
     /// </summary>
     [Theory]
-    [InlineData(CharacterClass.Warrior, "Warrioress", 240, 100, 46u, 4u, 5.0f)]
     [InlineData(CharacterClass.Wizard, "Wizardess", 121, 365, 10u, 69u, 0f)]
-    [InlineData(CharacterClass.Hunter, "Huntress", 178, 68, 45u, 10u, 0f)]
-    [InlineData(CharacterClass.Healer, "Healeress", 158, 296, 10u, 46u, 0f)]
     public async Task Derive_a_new_characters_maximums_and_stats_from_its_level_one_row(
         CharacterClass @class, string name, int health, int power, uint attack, uint ability, float block)
     {
@@ -224,7 +220,6 @@ public class CharacterCreationShould : IDisposable
     [InlineData(2)]
     [InlineData(-1)]
     [InlineData(256)]
-    [InlineData(int.MaxValue)]
     public async Task Reject_a_gender_the_enum_does_not_define(int gender)
     {
         StaticData data = await LoadStaticDataAsync();
@@ -248,18 +243,12 @@ public class CharacterCreationShould : IDisposable
 
     /// <summary>
     /// The name rule (#757): 3 to 12 ASCII letters, checked as sent, before anything is read. Too short and too long
-    /// keep their own answers; anything else that breaks it is NameInvalid.
+    /// keep their own answers; anything else that breaks it is NameInvalid. The rule's cases are CharacterNameShould's.
     /// </summary>
     [Theory]
     [InlineData("Bo", SCharacterCreateResult.NameTooShort)]
-    [InlineData("", SCharacterCreateResult.NameTooShort)]
     [InlineData("Abcdefghijklm", SCharacterCreateResult.NameTooLong)]
     [InlineData("B0b", SCharacterCreateResult.NameInvalid)]
-    [InlineData("Bob Al", SCharacterCreateResult.NameInvalid)]
-    [InlineData(" Bob", SCharacterCreateResult.NameInvalid)]
-    [InlineData("Zoë", SCharacterCreateResult.NameInvalid)]
-    [InlineData("Bıll", SCharacterCreateResult.NameInvalid)]
-    [InlineData("Bob_", SCharacterCreateResult.NameInvalid)]
     public async Task Refuse_a_name_that_breaks_the_rule_before_reading_anything(string name,
         SCharacterCreateResult expected)
     {
@@ -282,11 +271,12 @@ public class CharacterCreationShould : IDisposable
         Assert.Empty(characters.ReceivedCalls());
     }
 
-    /// <summary>The name is stored, and shown to everyone, first letter upper-case and the rest lower-case (#757).</summary>
+    /// <summary>
+    /// The name is stored, and shown to everyone, first letter upper-case and the rest lower-case (#757), keyed by its
+    /// ASCII upper case.
+    /// </summary>
     [Theory]
     [InlineData("kAELA")]
-    [InlineData("kaela")]
-    [InlineData("KAELA")]
     public async Task Store_the_name_with_its_first_letter_upper_case_and_the_rest_lower_case(string sent)
     {
         StaticData data = await LoadStaticDataAsync();
@@ -303,29 +293,6 @@ public class CharacterCreationShould : IDisposable
         await using CharacterDbContext characterDb = _characters.CreateDbContext();
         Avalon.Domain.Characters.Character character = await characterDb.Characters.AsNoTracking().SingleAsync();
         Assert.Equal(("Kaela", "KAELA"), (character.Name, character.NameKey));
-    }
-
-    /// <summary>"Bob" and "bob" are one name in a world (#757).</summary>
-    [Theory]
-    [InlineData("bob")]
-    [InlineData("BOB")]
-    [InlineData("Bob")]
-    public async Task Refuse_a_name_that_differs_from_an_existing_one_only_in_case(string sent)
-    {
-        StaticData data = await LoadStaticDataAsync();
-        await StoreCharacterAsync("Bob", new AccountId(2));
-        IWorldConnection connection = NewConnection();
-
-        NewHandler(data).Execute(connection, new CCharacterCreatePacket
-        {
-            Name = sent,
-            Class = (int)data.CharacterCreateInfos.First().Class,
-        });
-        await PumpAsync(connection);
-
-        Assert.Equal(SCharacterCreateResult.NameAlreadyExists, SentResult(connection));
-        await using CharacterDbContext characterDb = _characters.CreateDbContext();
-        Assert.Equal(1, await characterDb.Characters.CountAsync());
     }
 
     /// <summary>

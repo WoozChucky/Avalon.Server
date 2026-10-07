@@ -68,30 +68,23 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         Assert.True(_w.Character.ClientChanges.HasChanges);
     }
 
-    [Fact]
-    public void Answer_a_refusal_with_the_current_state_of_both_named_slots()
+    /// <summary>A refusal carries the current state of both slots it named, an empty one with no item.</summary>
+    [Theory]
+    [InlineData(true, ItemRequestResult.TargetFull)]
+    [InlineData(false, ItemRequestResult.NotFound)]
+    public void Answer_a_refusal_with_the_current_state_of_both_named_slots(bool held, ItemRequestResult expected)
     {
-        _w.Character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5), Item(1, Potion, count: 20)]);
+        if (held)
+            _w.Character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5), Item(1, Potion, count: 20)]);
 
         Move(42, InventoryType.Bag, 0, InventoryType.Bag, 1);
 
         SItemResultPacket result = Assert.Single(Results());
-        Assert.Equal(ItemRequestResult.TargetFull, result.Result);
+        Assert.Equal(expected, result.Result);
         Assert.Equal(2, result.Slots.Length);
-        Assert.Equal(5u, result.Slots.Single(s => s.Slot == 0).Item!.Count);
-        Assert.Equal(20u, result.Slots.Single(s => s.Slot == 1).Item!.Count);
+        Assert.Equal(held ? 5u : (uint?)null, result.Slots.Single(s => s.Slot == 0).Item?.Count);
+        Assert.Equal(held ? 20u : (uint?)null, result.Slots.Single(s => s.Slot == 1).Item?.Count);
         Assert.False(_w.Character.ClientChanges.HasChanges);
-    }
-
-    [Fact]
-    public void Describe_an_empty_named_slot_with_no_item()
-    {
-        Move(43, InventoryType.Bag, 0, InventoryType.Bag, 1);
-
-        SItemResultPacket result = Assert.Single(Results());
-        Assert.Equal(ItemRequestResult.NotFound, result.Result);
-        Assert.Equal(2, result.Slots.Length);
-        Assert.All(result.Slots, s => Assert.Null(s.Item));
     }
 
     [Fact]
@@ -156,33 +149,23 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         Assert.Equal(5u, At(_w.Character, InventoryType.Bag, 3).Count);
     }
 
-    /// <summary>Review Focus 2.</summary>
-    [Fact]
-    public void Leave_bank_slots_out_of_a_refusal_while_the_bank_is_closed()
+    /// <summary>Review Focus 2: a refusal names the bank slot only while the bank is open.</summary>
+    [Theory]
+    [InlineData(false, ItemRequestResult.BankClosed, 1)]
+    [InlineData(true, ItemRequestResult.TargetFull, 2)]
+    public void Name_a_bank_slot_in_a_refusal_only_while_the_bank_is_open(bool open, ItemRequestResult expected, int slots)
     {
+        if (open)
+            _w.OpenBank();
         _w.Character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5)]);
-        _w.Character.Container(InventoryType.Bank).Load([Item(0, Sword)]);
+        _w.Character.Container(InventoryType.Bank).Load([Item(0, Potion, count: 20)]);
 
         Move(52, InventoryType.Bag, 0, InventoryType.Bank, 0);
 
         SItemResultPacket result = Assert.Single(Results());
-        Assert.Equal(ItemRequestResult.BankClosed, result.Result);
-        InventorySlotUpdateDto slot = Assert.Single(result.Slots);
-        Assert.Equal((ushort)InventoryType.Bag, slot.Container);
-    }
-
-    [Fact]
-    public void Include_bank_slots_in_a_refusal_while_the_bank_is_open()
-    {
-        _w.OpenBank();
-        _w.Character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5)]);
-        _w.Character.Container(InventoryType.Bank).Load([Item(0, Potion, count: 20)]);
-
-        Move(53, InventoryType.Bag, 0, InventoryType.Bank, 0);
-
-        SItemResultPacket result = Assert.Single(Results());
-        Assert.Equal(ItemRequestResult.TargetFull, result.Result);
-        Assert.Equal(2, result.Slots.Length);
+        Assert.Equal(expected, result.Result);
+        Assert.Equal(slots, result.Slots.Length);
+        Assert.Contains(result.Slots, s => s.Container == (ushort)InventoryType.Bag);
     }
 
     [Fact]
@@ -199,17 +182,23 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         Assert.Equal(8u, _w.Character.Stats!.Value.Armor);
     }
 
-    [Fact]
-    public void Refresh_the_stats_when_gear_comes_off()
+    /// <summary>Worn gear that is taken off, or destroyed, refreshes the stats back to the bare level 1 row.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Refresh_the_stats_when_worn_gear_comes_off_or_is_destroyed(bool destroy)
     {
         _w.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, EquipTemplates.Chestguard)]);
         CharacterStatsRefresh.Apply(_w.Character, _w.Data, CurrentValues.Refill);
         Assert.Equal(260u, _w.Character.Health);
 
-        Move(55, InventoryType.Equipment, EquipmentSlots.Chest, InventoryType.Bag, 0);
+        if (destroy)
+            Destroy(62, InventoryType.Equipment, EquipmentSlots.Chest);
+        else
+            Move(55, InventoryType.Equipment, EquipmentSlots.Chest, InventoryType.Bag, 0);
 
-        Assert.Equal(240u, _w.Character.Health);
-        Assert.Equal(240u, _w.Character.CurrentHealth);
+        Assert.Equal(ItemRequestResult.Ok, Assert.Single(Results()).Result);
+        Assert.Equal((240u, 240u), (_w.Character.Health, _w.Character.CurrentHealth));
     }
 
     [Fact]
@@ -265,17 +254,5 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         SItemResultPacket result = Assert.Single(Results());
         Assert.Equal(ItemRequestResult.CannotDestroy, result.Result);
         Assert.Equal(EquipTemplates.Heirloom.Id.Value, Assert.Single(result.Slots).Item!.ItemTemplateId);
-    }
-
-    [Fact]
-    public void Refresh_the_stats_when_a_worn_item_is_destroyed()
-    {
-        _w.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, EquipTemplates.Chestguard)]);
-        CharacterStatsRefresh.Apply(_w.Character, _w.Data, CurrentValues.Refill);
-
-        Destroy(62, InventoryType.Equipment, EquipmentSlots.Chest);
-
-        Assert.Equal(ItemRequestResult.Ok, Assert.Single(Results()).Result);
-        Assert.Equal(240u, _w.Character.Health);
     }
 }

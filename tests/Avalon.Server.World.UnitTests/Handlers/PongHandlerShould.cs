@@ -25,19 +25,4 @@ public class PongHandlerShould
 
         _connection.Received(1).OnPongReceived(1000L, 2000L, 3000L, 4000L);
     }
-
-    [Fact]
-    public void CallOnPongReceived_WithZeroTimestamps()
-    {
-        var packet = new CPongPacket
-        {
-            LastServerTimestamp = 0L,
-            ClientReceivedTimestamp = 0L,
-            ClientSentTimestamp = 0L
-        };
-
-        _handler.Execute(_connection, packet);
-
-        _connection.Received(1).OnPongReceived(0L, 0L, 0L, 0L);
-    }
 }

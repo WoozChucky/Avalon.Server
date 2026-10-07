@@ -48,166 +48,71 @@ public class PlayerInputHandlerShould
         return (handler, conn, ch, nav);
     }
 
-    [Fact]
-    public void Integrate_position_by_dir_speed_dt()
+    /// <summary>
+    /// An accepted input steps the character speed x 1/60 s along its direction, clamped to unit length, and puts it
+    /// at the ground height the navmesh samples. Velocity is metres per second and horizontal (#424): other clients
+    /// extrapolate the character as position + Velocity x seconds, and a ground-height change is a snap, not motion.
+    /// </summary>
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(10f)]
+    public void Step_along_the_input_onto_the_ground_and_publish_the_velocity(float dirX)
     {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator _) = Setup(speed: 5f, startPos: new Vector3(0, 0, 0));
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0, YawDeg = 90 });
+        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator? nav) = Setup(speed: 5f);
+        nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(2.5f);
 
-        // Position should advance by 5 * (1/60) on X.
+        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = dirX, DirZ = 0, YawDeg = 90 });
+
         ch.Received(1).Position = Arg.Is<Vector3>(p =>
-            Math.Abs(p.x - (5f * TickDt)) < 1e-4 &&
-            Math.Abs(p.y - 0f) < 1e-4 &&
-            Math.Abs(p.z - 0f) < 1e-4);
-    }
-
-    [Fact]
-    public void Clamp_direction_magnitude_to_unit()
-    {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator _) = Setup(speed: 5f);
-        // Inflated input (mag = 10): should be normalised to unit length.
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 10, DirZ = 0 });
-
-        ch.Received(1).Position = Arg.Is<Vector3>(p => Math.Abs(p.x - (5f * TickDt)) < 1e-4);
-    }
-
-    [Fact]
-    public void Drop_out_of_order_seq()
-    {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator _) = Setup();
-        conn.LastInputSeq.Returns(5u);
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 4, DirX = 1, DirZ = 0 });
-
-        ch.DidNotReceive().Position = Arg.Any<Vector3>();
-        conn.DidNotReceive().Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.NetworkPacket>());
-    }
-
-    [Fact]
-    public void Clamp_to_navmesh_when_obstructed()
-    {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator? nav) = Setup(speed: 5f, startPos: new Vector3(0, 0, 0));
-        var clampedPoint = new Vector3(0.05f, 0, 0);
-        nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(clampedPoint);
-
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
-
-        ch.Received(1).Position = Arg.Is<Vector3>(p => Math.Abs(p.x - 0.05f) < 1e-4);
-    }
-
-    // --- #424: Velocity is metres per second and describes the step actually taken ---------------
-    //
-    // Replicated to every other client, which extrapolates this character as position + Velocity *
-    // seconds between broadcasts. So Velocity must be the movement that happened, in m/s: the input's
-    // intent is not it when the navmesh stopped the character short.
-
-    [Fact]
-    public void Publish_velocity_in_metres_per_second_when_moving_freely()
-    {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator _) = Setup(speed: 5f, startPos: new Vector3(0, 0, 0));
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
-
+            Math.Abs(p.x - (5f * TickDt)) < 1e-4 && Math.Abs(p.y - 2.5f) < 1e-4 && Math.Abs(p.z) < 1e-4);
         ch.Received(1).Velocity = Arg.Is<Vector3>(v =>
             Math.Abs(v.x - 5f) < 1e-3 && Math.Abs(v.y) < 1e-6 && Math.Abs(v.z) < 1e-6);
     }
 
-    [Fact]
-    public void Publish_zero_velocity_when_there_is_no_input()
-    {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator _) = Setup(speed: 5f);
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 0, DirZ = 0 });
-
-        ch.Received(1).Velocity = Vector3.zero;
-    }
-
-    /// <summary>Pressing into a wall: the character does not move, so it must not be extrapolated into the wall.</summary>
-    [Fact]
-    public void Publish_zero_velocity_when_the_navmesh_blocks_the_whole_step()
-    {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator? nav) = Setup(speed: 5f, startPos: new Vector3(1, 0, 1));
-        nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(new Vector3(1, 0, 1));
-
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
-
-        ch.Received(1).Velocity = Vector3.zero;
-    }
-
-    [Fact]
-    public void Publish_the_clamped_step_as_velocity_when_partly_obstructed()
-    {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator? nav) = Setup(speed: 5f, startPos: new Vector3(0, 0, 0));
-        nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(new Vector3(0.05f, 0, 0));
-
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
-
-        // 0.05 m in one 1/60 s step is 3 m/s, not the 5 m/s the input asked for.
-        ch.Received(1).Velocity = Arg.Is<Vector3>(v => Math.Abs(v.x - 0.05f / TickDt) < 1e-2 && Math.Abs(v.z) < 1e-6);
-    }
-
-    /// <summary>A ground-height change is a snap, not motion: velocity stays horizontal as before.</summary>
-    [Fact]
-    public void Keep_velocity_horizontal_when_the_ground_height_changes()
+    /// <summary>
+    /// The navmesh clamps the step, and the velocity is the step actually taken (#424): 0.05 m in one 1/60 s step is
+    /// 3 m/s, not the 5 m/s the input asked for, and pressing into a wall (no step at all) publishes zero, so the
+    /// character is not extrapolated into the wall.
+    /// </summary>
+    [Theory]
+    [InlineData(0.05f)]
+    [InlineData(0f)]
+    public void Publish_the_step_the_navmesh_allowed_as_velocity(float allowedX)
     {
         (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator? nav) = Setup(speed: 5f);
-        nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(2.5f);
+        nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(new Vector3(allowedX, 0, 0));
 
         handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
 
-        ch.Received(1).Velocity = Arg.Is<Vector3>(v => Math.Abs(v.y) < 1e-6 && Math.Abs(v.x - 5f) < 1e-3);
+        ch.Received(1).Position = Arg.Is<Vector3>(p => Math.Abs(p.x - allowedX) < 1e-4);
+        ch.Received(1).Velocity = Arg.Is<Vector3>(v => Math.Abs(v.x - allowedX / TickDt) < 1e-2 && Math.Abs(v.z) < 1e-6);
     }
 
+    /// <summary>An accepted input is acknowledged with the authoritative state and advances the last sequence seen.</summary>
     [Fact]
-    public void Y_from_ground_sample_not_input()
-    {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator? nav) = Setup(speed: 5f);
-        nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(2.5f);
-
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
-
-        ch.Received(1).Position = Arg.Is<Vector3>(p => Math.Abs(p.y - 2.5f) < 1e-4);
-    }
-
-    [Fact]
-    public void Send_state_ack_when_input_accepted()
+    public void Acknowledge_an_accepted_input_and_advance_the_sequence()
     {
         (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter _, IMapNavigator _) = Setup(speed: 5f);
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 42, DirX = 1, DirZ = 0, YawDeg = 90 });
-        // Detailed packet inspection is awkward through NetworkPacket; assert Send was called once.
-        conn.Received(1).Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.NetworkPacket>());
-    }
 
-    [Fact]
-    public void Advance_LastInputSeq_on_accepted_input()
-    {
-        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter _, IMapNavigator _) = Setup();
-        handler.Execute(conn, new CPlayerInputPacket { Seq = 7, DirX = 1, DirZ = 0 });
+        handler.Execute(conn, new CPlayerInputPacket { Seq = 7, DirX = 1, DirZ = 0, YawDeg = 90 });
+
+        conn.Received(1).Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.NetworkPacket>());
         conn.Received(1).LastInputSeq = 7u;
     }
 
-    [Fact]
-    public void Drop_input_packet_when_character_is_dead()
+    /// <summary>An input from a dead character, or one out of order (TCP keeps order, so it should never come), moves nothing and is not answered.</summary>
+    [Theory]
+    [InlineData(true, 1u)]
+    [InlineData(false, 4u)]
+    public void Drop_an_input_without_moving_or_answering(bool dead, uint seq)
     {
-        ICharacter character = Substitute.For<ICharacter>();
-        character.IsDead.Returns(true);
-        character.Position.Returns(Vector3.zero);
-        character.InstanceId.Returns(Guid.NewGuid());
+        (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator _) = Setup();
+        ch.IsDead.Returns(dead);
+        conn.LastInputSeq.Returns(dead ? 0u : 5u);
 
-        IWorldConnection connection = Substitute.For<IWorldConnection>();
-        connection.Character.Returns(character);
-        connection.LastInputSeq.Returns(0u);
+        handler.Execute(conn, new CPlayerInputPacket { Seq = seq, DirX = 1, DirZ = 0 });
 
-        IMapInstance instance = Substitute.For<IMapInstance>();
-        IMapNavigator nav = Substitute.For<IMapNavigator>();
-        instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(nav);
-
-        IWorld world = Substitute.For<IWorld>();
-        world.InstanceRegistry.GetInstanceById(Arg.Any<Guid>()).Returns(instance);
-
-        var handler = new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world);
-
-        handler.Execute(connection, new CPlayerInputPacket { Seq = 1, DirX = 1f, DirZ = 0f });
-
-        // Dead char => no nav lookup, no position write.
-        instance.DidNotReceive().GetNavigatorForPosition(Arg.Any<Vector3>());
-        character.DidNotReceiveWithAnyArgs().Position = default;
+        ch.DidNotReceive().Position = Arg.Any<Vector3>();
+        conn.DidNotReceive().Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.NetworkPacket>());
     }
 }
