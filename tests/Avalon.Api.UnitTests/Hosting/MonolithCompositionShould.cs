@@ -7,7 +7,6 @@ using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Exceptions;
 using Avalon.Api.Testing;
 using Avalon.Api.Worlds.Exceptions;
-using Avalon.Api.Worlds.Services;
 using Avalon.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
@@ -21,10 +20,11 @@ using Xunit;
 namespace Avalon.Api.UnitTests.Hosting;
 
 /// <summary>
-/// The API's services add to the shared hosting what Avalon.Api had built into it before the split (#794): their
-/// exceptions' answers, the game servers' rate-limit partition, the Steam callback's query kept out of the request log,
-/// the startup checks, and observability's per-world layout inputs. Built as the host builds it, for every service it
-/// runs (<see cref="ApiServices.All"/>).
+/// The process that runs every service, as a deployment with no <c>Application:Services</c> does, is the Avalon.Api of
+/// before the split (#794): the services add to the shared hosting their exceptions' answers, the game servers'
+/// rate-limit partition, the Steam callback's query kept out of the request log and the startup checks; it binds the
+/// store settings once, owns the auth schema, and runs Program's middleware in Program's order. Built as the host
+/// builds it, for every service it runs (<see cref="ApiServices.All"/>).
 /// </summary>
 public sealed class MonolithCompositionShould : IAsyncDisposable
 {
@@ -86,12 +86,6 @@ public sealed class MonolithCompositionShould : IAsyncDisposable
         Assert.IsType<IdentityStartupCheck>(Assert.Single(_app.Services.GetServices<IApiStartupCheck>()));
     }
 
-    [Fact]
-    public void Give_observability_each_worlds_layout_inputs()
-    {
-        Assert.IsType<WorldContentRepositories>(_app.Services.GetRequiredService<IWorldContentRepositories>());
-    }
-
     /// <summary>
     /// Identity and commerce both read Application:StoreAuthentication, and the process binds it once: a second bind
     /// would append each array entry again, and the playtest's doubled worlds would be refused as duplicates.
@@ -108,5 +102,34 @@ public sealed class MonolithCompositionShould : IAsyncDisposable
     public void Own_the_auth_schema()
     {
         Assert.Equal(AuthSchemaRole.Owner, _app.Services.GetRequiredService<AuthSchemaGate>().Role);
+    }
+
+    /// <summary>
+    /// Identity's Steam OpenID callback runs before authentication and its game workload authentication after it, at
+    /// the hooks of the one pipeline, behind the game workload routes' port check (design D7.4); the world routes are
+    /// the worlds service's.
+    /// </summary>
+    [Fact]
+    public async Task Run_the_middleware_of_Program_in_its_order()
+    {
+        List<string> names = await MiddlewareRecorder.RecordAsync(Environments.Production, ApiServices.All);
+
+        Assert.Equal(
+        [
+            "ExceptionHandlerMiddleware",
+            "RequestLoggingMiddleware",
+            "ForwardedHeadersSetup",
+            "ForwardedHeadersMiddleware",
+            "EndpointRoutingMiddleware",
+            "CorsMiddleware",
+            "GameInternalRoutes",
+            "SteamOpenIdCallbackMiddleware",
+            "AuthenticationMiddleware",
+            "GameWorkloadAuthentication",
+            "ApiRateLimiting",
+            "RateLimitingMiddleware",
+            "WorldRouteMiddleware",
+            "AuthorizationMiddlewareInternal",
+        ], names);
     }
 }

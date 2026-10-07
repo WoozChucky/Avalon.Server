@@ -59,7 +59,10 @@ public class WorldContextSensitiveLoggingShould
         Assert.False(IsEnabled(characters));
     }
 
-    /// <summary>The api's own registrations, composed as in ApiHostGraphShould, with two worlds.</summary>
+    /// <summary>
+    /// The api's own registrations, as the host registers them (the shared hosting for the services' needs, then
+    /// identity's and worlds'), with two worlds.
+    /// </summary>
     private static ServiceProvider Build(string? environment, params (string Key, string Value)[] extra)
     {
         ApplicationConfig config = new()

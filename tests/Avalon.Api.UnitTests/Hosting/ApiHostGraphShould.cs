@@ -1,145 +1,66 @@
+using System.Reflection;
 using Avalon.Api.Hosting;
-using Avalon.Api.Hosting.Authentication.Jwt;
-using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Worlds;
-using Avalon.Api.Identity;
-using Avalon.Api.Identity.Config;
-using Avalon.Api.Worlds;
-using Avalon.Hosting;
-using Avalon.Infrastructure.Configuration;
-using Microsoft.Extensions.Configuration;
+using Avalon.Database.Character;
+using Avalon.Database.World;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Hosting;
 
 /// <summary>
-/// The api's own registrations, composed as its entry point composes them, built under the
-/// validation every Avalon host now enables. The api is the one host where scoped was the right
-/// answer — its services are per request — so this pins that the move to a context factory left
-/// that graph intact and that nothing in it captures.
+/// Each API service runs alone in its own process (#794, design section 2.2). Its real host, with
+/// <c>Application:Services</c> naming only it, builds under the container validation every Avalon host builds with, so
+/// no registration is missing and no scoped service is captured; maps that service's controllers and no other's; and
+/// can build every one of them, with the services their actions take, from a request's services. The container never
+/// sees a controller, so a dependency only another service registers, or a need the service does not declare, would
+/// otherwise first show as a 500 on a live endpoint. The world databases it reads open the request's world (#523): a
+/// single database there would silently serve one world everywhere.
 /// </summary>
-public class ApiHostGraphShould
+public sealed class ApiHostGraphShould
 {
-    [Fact]
-    public void Build_with_no_captured_scoped_services()
+    public static TheoryData<string> Services => new(ApiServices.All.Select(service => service.Name));
+
+    [Theory]
+    [MemberData(nameof(Services))]
+    public async Task Build_the_service_alone_and_serve_its_own_routes_and_no_others(string name)
     {
-        ApplicationConfig config = new()
+        IApiService service = ApiServices.All.Single(candidate => candidate.Name == name);
+        await using WebApplication process = ApiProcess.Build(service);
+        using IServiceScope request = process.Services.CreateScope();
+
+        ControllerActionDescriptor[] actions = ApiProcess.Endpoints(process)
+            .Select(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>())
+            .OfType<ControllerActionDescriptor>()
+            .ToArray();
+        Assert.NotEmpty(actions);
+        foreach (TypeInfo controller in actions.Select(action => action.ControllerTypeInfo).Distinct())
         {
-            Environment = new EnvironmentConfig(),
-            Authentication = new AuthenticationConfig { IssuerSigningKey = new string('k', 64) },
-            Notification = new NotificationConfig(),
-            Cache = new CacheConfiguration(),
-        };
+            Assert.Same(service.ControllerAssembly, controller.Assembly);
+            ActivatorUtilities.CreateInstance(request.ServiceProvider, controller);
+        }
 
-        IConfiguration configuration = new ConfigurationBuilder().Build();
-        ServiceCollection services = new();
-        services.AddLogging();
-        services.AddSingleton(configuration);
-        services.AddHttpContextAccessor();
-        services.AddSingleton(config);
-        services.AddSingleton(config.Environment);
-        services.AddSingleton(config.Authentication);
-        services.AddSingleton(config.Notification);
-        services.AddSingleton(config.Cache);
-        // AddAuth, which Program.cs calls first, registers the signing key JwtUtils takes (#482).
-        services.AddSingleton(JwtSigningKey.Create(config.Authentication));
-        // The shared hosting for the needs of the api's services, as the host registers it before them, then the
-        // services' own registrations (#794).
-        services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
-        services.AddIdentity(config);
-        services.AddWorlds(configuration);
-
-        ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);
-
-        Assert.NotNull(provider);
-    }
-
-    /// <summary>
-    /// The api's context factories are the per-request world ones, not a single database's (#523):
-    /// a regression to AddWorldDatabase() would silently serve one world everywhere.
-    /// </summary>
-    [Fact]
-    public void Open_the_requests_world_for_every_repository()
-    {
-        ApplicationConfig config = new()
+        foreach (ParameterDescriptor parameter in actions.SelectMany(action => action.Parameters)
+                     .Where(parameter => parameter.BindingInfo?.BindingSource == BindingSource.Services))
         {
-            Environment = new EnvironmentConfig(),
-            Authentication = new AuthenticationConfig { IssuerSigningKey = new string('k', 64) },
-            Notification = new NotificationConfig(),
-            Cache = new CacheConfiguration(),
-        };
-        ServiceCollection services = new();
-        services.AddLogging();
-        // WorldDatabases is built from configuration when first resolved, as in the api.
-        IConfiguration configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
-            {
-                ["Database:Worlds:1:World:ConnectionString"] = "Host=w",
-                ["Database:Worlds:1:Characters:ConnectionString"] = "Host=c",
-            })
-            .Build();
-        services.AddSingleton(configuration);
-        services.AddHttpContextAccessor();
-        services.AddSingleton(config);
-        services.AddSingleton(config.Authentication);
-        // The shared hosting for the needs of the api's services, as the host registers it before them, then the
-        // services' own registrations (#794).
-        services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
-        services.AddIdentity(config);
-        services.AddWorlds(configuration);
+            request.ServiceProvider.GetRequiredService(parameter.ParameterType);
+        }
 
-        using ServiceProvider provider = services.BuildServiceProvider();
-
-        Assert.IsType<CurrentWorldDbContextFactory<Avalon.Database.World.WorldDbContext>>(
-            provider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<Avalon.Database.World.WorldDbContext>>());
-        Assert.IsType<CurrentWorldDbContextFactory<Avalon.Database.Character.CharacterDbContext>>(
-            provider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<Avalon.Database.Character.CharacterDbContext>>());
-    }
-
-    /// <summary>
-    /// The character service needs every repository it reads, the saved auras' included: a registration missing from
-    /// the api's composition fails here, not as an empty list on a live endpoint.
-    /// </summary>
-    [Fact]
-    public void Build_the_character_service_with_every_repository_it_reads()
-    {
-        ApplicationConfig config = new()
+        if (service.Needs.WorldDatabases.HasFlag(WorldDatabaseParts.World))
         {
-            Environment = new EnvironmentConfig(),
-            Authentication = new AuthenticationConfig { IssuerSigningKey = new string('k', 64) },
-            Notification = new NotificationConfig(),
-            Cache = new CacheConfiguration(),
-        };
-        ServiceCollection services = new();
-        services.AddLogging();
-        // Resolving the repositories builds the per-request context factories, which read the configured worlds.
-        IConfiguration configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
-            {
-                ["Database:Worlds:1:World:ConnectionString"] = "Host=w",
-                ["Database:Worlds:1:Characters:ConnectionString"] = "Host=c",
-            })
-            .Build();
-        services.AddSingleton(configuration);
-        services.AddHttpContextAccessor();
-        services.AddSingleton(config);
-        services.AddSingleton(config.Environment);
-        services.AddSingleton(config.Authentication);
-        services.AddSingleton(config.Notification);
-        services.AddSingleton(config.Cache);
-        services.AddSingleton(JwtSigningKey.Create(config.Authentication));
-        // The shared hosting for the needs of the api's services, as the host registers it before them, then the
-        // services' own registrations (#794).
-        services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
-        services.AddIdentity(config);
-        services.AddWorlds(configuration);
+            Assert.IsType<CurrentWorldDbContextFactory<WorldDbContext>>(
+                request.ServiceProvider.GetRequiredService<IDbContextFactory<WorldDbContext>>());
+        }
 
-        using ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<Avalon.Api.Worlds.Services.CharacterService>(
-            scope.ServiceProvider.GetRequiredService<Avalon.Api.Worlds.Services.ICharacterService>());
-        Assert.NotNull(provider.GetRequiredService<Avalon.Database.Character.Repositories.ICharacterAuraRepository>());
+        if (service.Needs.WorldDatabases.HasFlag(WorldDatabaseParts.Characters))
+        {
+            Assert.IsType<CurrentWorldDbContextFactory<CharacterDbContext>>(
+                request.ServiceProvider.GetRequiredService<IDbContextFactory<CharacterDbContext>>());
+        }
     }
 }
