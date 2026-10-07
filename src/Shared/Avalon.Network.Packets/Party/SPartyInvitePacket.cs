@@ -22,7 +22,10 @@ public class SPartyInvitePacket : Packet
         => PacketSerializationHelper.Serialize(
             new SPartyInvitePacket
             {
-                InviterName = inviterName, InviterClass = inviterClass, InviterLevel = inviterLevel, ExpiresInMs = expiresInMs
+                InviterName = inviterName,
+                InviterClass = inviterClass,
+                InviterLevel = inviterLevel,
+                ExpiresInMs = expiresInMs
             },
             PacketType, Flags, Protocol, encrypt);
 }

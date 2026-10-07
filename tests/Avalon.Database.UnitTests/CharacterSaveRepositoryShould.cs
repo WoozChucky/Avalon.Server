@@ -21,7 +21,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
 {
     private readonly SqliteDatabase<CharacterDbContext> _database = SqliteDatabase.Characters();
     private readonly CharacterSaveRepository _saves;
-    private static readonly GameplayWriteAuthority Authority = new(new AccountId(1), Guid.NewGuid(), 1);
+    private static readonly GameplayWriteAuthority s_authority = new(new AccountId(1), Guid.NewGuid(), 1);
 
     public CharacterSaveRepositoryShould()
     {
@@ -141,13 +141,23 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         CharacterRow row = await SeedCharacterAsync(1);
         CharacterAura Aura(int slot, uint auraId) => new()
         {
-            CharacterId = row.Id, Slot = slot, AuraId = auraId, CasterGuid = 5, Stacks = 1, RemainingMs = 4000,
-            DurationMs = 6000, TicksLeft = 1, TickAmount = 2.5f, CritPct = 1f, CasterLevel = 3, PeriodicCarry = 0.75d,
+            CharacterId = row.Id,
+            Slot = slot,
+            AuraId = auraId,
+            CasterGuid = 5,
+            Stacks = 1,
+            RemainingMs = 4000,
+            DurationMs = 6000,
+            TicksLeft = 1,
+            TickAmount = 2.5f,
+            CritPct = 1f,
+            CasterLevel = 3,
+            PeriodicCarry = 0.75d,
             AppliedAt = DateTime.UtcNow,
         };
 
-        await _saves.WriteAsync([new CharacterSaveBatch(row, [], [], [], [], Auras: new CharacterAuraWrite([Aura(0, 1), Aura(1, 2)])) { Authority = Authority }]);
-        await _saves.WriteAsync([new CharacterSaveBatch(row, [], [], [], [], Auras: new CharacterAuraWrite([Aura(0, 7)])) { Authority = Authority }]);
+        await _saves.WriteAsync([new CharacterSaveBatch(row, [], [], [], [], Auras: new CharacterAuraWrite([Aura(0, 1), Aura(1, 2)])) { Authority = s_authority }]);
+        await _saves.WriteAsync([new CharacterSaveBatch(row, [], [], [], [], Auras: new CharacterAuraWrite([Aura(0, 7)])) { Authority = s_authority }]);
 
         await using CharacterDbContext read = _database.CreateDbContext();
         CharacterAura only = Assert.Single(await read.CharacterAuras.AsNoTracking().ToListAsync());
@@ -158,14 +168,17 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     {
         var row = new CharacterRow
         {
-            Id = new CharacterId(id), AccountId = new AccountId(1), Name = $"Saver{id}", CreationDate = DateTime.UtcNow,
+            Id = new CharacterId(id),
+            AccountId = new AccountId(1),
+            Name = $"Saver{id}",
+            CreationDate = DateTime.UtcNow,
         };
         await using CharacterDbContext context = _database.CreateDbContext();
         context.Characters.Add(row);
         await context.SaveChangesAsync();
         var fences = new GameplayFenceRepository(_database);
-        Assert.True(await fences.AdvanceAsync(Authority, false, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
-        Assert.True(await fences.ActivateAsync(Authority, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
+        Assert.True(await fences.AdvanceAsync(s_authority, false, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
+        Assert.True(await fences.ActivateAsync(s_authority, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
         context.Entry(row).State = EntityState.Detached;
         return row;
     }
@@ -190,5 +203,5 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         IReadOnlyList<CharacterInventory>? upsertSlots = null,
         IReadOnlyList<(InventoryType Container, ushort Slot)>? deleteSlots = null,
         CharacterStats? stats = null) =>
-        new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? [], stats) { Authority = Authority };
+        new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? [], stats) { Authority = s_authority };
 }

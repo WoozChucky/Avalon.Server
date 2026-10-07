@@ -17,7 +17,6 @@ using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.World;
@@ -29,7 +28,7 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class WorldPartyContainmentShould
 {
-    private static readonly MapTemplateId TownId = new(1);
+    private static readonly MapTemplateId s_townId = new(1);
     private readonly BreakableClock _clock = new();
     private readonly TestLog _log = new();
     private readonly PartyService _parties;
@@ -53,12 +52,12 @@ public class WorldPartyContainmentShould
     {
         using MapInstance town = TestMapInstances.Build(NewWorld(), mapType: MapType.Town);
         MapInstanceClient inTown = Join(town, 700_001);
-        var mapManager = Substitute.For<IAvalonMapManager>();
-        mapManager.Templates.Returns([new MapTemplate { Id = TownId, MapType = MapType.Town }]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
+        mapManager.Templates.Returns([new MapTemplate { Id = s_townId, MapType = MapType.Town }]);
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(town);
         Avalon.World.World world = await BuildAsync(mapManager, factory);
-        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).Published(world);
+        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100).Published(world);
         _clock.Broken = true;
 
         Exception? thrown = Record.Exception(() =>
@@ -93,7 +92,7 @@ public class WorldPartyContainmentShould
         Avalon.World.World world = await BuildAsync();
         (IWorldConnection a, CharacterEntity character) = InParty();
         IMapInstance target = Substitute.For<IMapInstance>();
-        Guid targetId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
         target.InstanceId.Returns(targetId);
         _clock.Broken = true;
 

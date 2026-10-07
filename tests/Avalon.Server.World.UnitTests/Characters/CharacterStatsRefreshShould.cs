@@ -11,19 +11,31 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// <summary>Writing derived stats to the character, and working out what it is wearing.</summary>
 public class CharacterStatsRefreshShould
 {
-    private static readonly ClassLevelStat WarriorLevel1 = new()
+    private static readonly ClassLevelStat s_warriorLevel1 = new()
     {
-        Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0,
-        Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+        Class = CharacterClass.Warrior,
+        Level = 1,
+        BaseHp = 20,
+        BaseMana = 0,
+        Stamina = 22,
+        Strength = 23,
+        Agility = 20,
+        Intellect = 20,
     };
 
-    private static readonly ClassLevelStat WizardLevel1 = new()
+    private static readonly ClassLevelStat s_wizardLevel1 = new()
     {
-        Class = CharacterClass.Wizard, Level = 1, BaseHp = 16, BaseMana = 20,
-        Stamina = 21, Strength = 20, Agility = 20, Intellect = 23,
+        Class = CharacterClass.Wizard,
+        Level = 1,
+        BaseHp = 16,
+        BaseMana = 20,
+        Stamina = 21,
+        Strength = 20,
+        Agility = 20,
+        Intellect = 23,
     };
 
-    private static readonly ClassLevelStat[] Rows = [WarriorLevel1, WizardLevel1];
+    private static readonly ClassLevelStat[] s_rows = [s_warriorLevel1, s_wizardLevel1];
 
     [Fact]
     public void Refill_both_pools_and_mark_the_stats_for_the_next_save()
@@ -31,7 +43,7 @@ public class CharacterStatsRefreshShould
         CharacterEntity character = New();
         character.ConsumeDirtyFields();
 
-        Assert.True(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(240u, character.Health);
         Assert.Equal(240u, character.CurrentHealth);
@@ -54,11 +66,11 @@ public class CharacterStatsRefreshShould
     public void Keep_the_share_of_health_when_gear_goes_on()
     {
         CharacterEntity character = New();
-        CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
+        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
         character.CurrentHealth = 120;
         character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, EquipTemplates.Chestguard)]);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare, TestCombat.Formula));
 
         Assert.Equal(260u, character.Health);
         Assert.Equal(130u, character.CurrentHealth);
@@ -79,7 +91,7 @@ public class CharacterStatsRefreshShould
         ]);
         character.Container(InventoryType.Bag).Load([Item(0, EquipTemplates.Greatsword)]);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(25u, character.Stats!.Value.Strength);
         Assert.Equal(24u, character.Stats.Value.Stamina);
@@ -94,7 +106,7 @@ public class CharacterStatsRefreshShould
         character.Data!.Health = 150;
         character.CurrentHealth = 150;
 
-        Assert.False(CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.False(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(150u, character.Health);
         Assert.Equal(150u, character.CurrentHealth);
@@ -110,12 +122,12 @@ public class CharacterStatsRefreshShould
         CharacterEntity character = New();
         character.Data!.Class = @class;
 
-        CharacterStatsRefresh.Apply(character, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
+        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
 
         Assert.Equal(regen, character.RegenStat);
     }
 
-    /// <summary>A warrior of <see cref="WarriorLevel1" /> on a Fury pool holding <paramref name="fury" /> of <paramref name="max" />.</summary>
+    /// <summary>A warrior of <see cref="s_warriorLevel1" /> on a Fury pool holding <paramref name="fury" /> of <paramref name="max" />.</summary>
     private static CharacterEntity FuryWarrior(uint fury, uint max = 100)
     {
         CharacterEntity warrior = New();
@@ -136,8 +148,8 @@ public class CharacterStatsRefreshShould
         wizard.PowerType = Avalon.Network.Packets.State.PowerType.Mana;
         wizard.CurrentPower = 0;
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld, TestCombat.Formula));
-        Assert.True(CharacterStatsRefresh.Apply(wizard, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld, TestCombat.Formula));
 
         Assert.Equal(0u, warrior.CurrentPower);
         Assert.Equal(warrior.Health, warrior.CurrentHealth);
@@ -152,7 +164,7 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity warrior = FuryWarrior(fury: 60);
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(60u, warrior.CurrentPower);
@@ -166,7 +178,7 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity warrior = FuryWarrior(fury: 150, max: 200);
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, current, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find, current, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(100u, warrior.CurrentPower);
@@ -178,7 +190,7 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity warrior = FuryWarrior(fury: 60, max: 200);
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(60u, warrior.CurrentPower);   // a share would have been 30
@@ -191,8 +203,14 @@ public class CharacterStatsRefreshShould
         character.Data!.Class = CharacterClass.Hunter;
         ClassLevelStat hunter = new()
         {
-            Class = CharacterClass.Hunter, Level = 1, BaseHp = 18, BaseMana = 10,
-            Stamina = 20, Strength = 21, Agility = 23, Intellect = 20,
+            Class = CharacterClass.Hunter,
+            Level = 1,
+            BaseHp = 18,
+            BaseMana = 10,
+            Stamina = 20,
+            Strength = 21,
+            Agility = 23,
+            Intellect = 20,
         };
 
         CharacterStatsRefresh.Apply(character, [hunter], TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);

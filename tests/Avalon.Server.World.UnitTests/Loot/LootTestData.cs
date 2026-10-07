@@ -2,7 +2,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Loot;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Server.World.UnitTests.Loot;
@@ -21,7 +20,7 @@ internal static class LootTestData
     public static ItemTemplate Sword => TestCharacters.Sword;
 
     public static readonly ItemTemplate Staff = new()
-        { Id = new ItemTemplateId(201), Name = "Staff", Class = ItemClass.Weapon, MaxStackSize = 1 };
+    { Id = new ItemTemplateId(201), Name = "Staff", Class = ItemClass.Weapon, MaxStackSize = 1 };
 
     /// <summary>Declares no stack size at all; treated as 1.</summary>
     public static ItemTemplate Pebble => TestCharacters.Pebble;
@@ -30,14 +29,23 @@ internal static class LootTestData
 
     public static LootTableEntry Item(int sequence, ItemTemplate item, float chance = 100f, int? group = null,
         int min = 1, int max = 1) => new()
-    {
-        Sequence = sequence, ItemTemplateId = item.Id, Chance = chance, GroupId = group, MinCount = min, MaxCount = max
-    };
+        {
+            Sequence = sequence,
+            ItemTemplateId = item.Id,
+            Chance = chance,
+            GroupId = group,
+            MinCount = min,
+            MaxCount = max
+        };
 
     public static LootTableEntry Reference(int sequence, int table, float chance = 100f, int? group = null) => new()
     {
-        Sequence = sequence, ReferenceTableId = new LootTableId(table), Chance = chance, GroupId = group,
-        MinCount = 1, MaxCount = 1
+        Sequence = sequence,
+        ReferenceTableId = new LootTableId(table),
+        Chance = chance,
+        GroupId = group,
+        MinCount = 1,
+        MaxCount = 1
     };
 
     public static LootTable Table(int id, params LootTableEntry[] entries)

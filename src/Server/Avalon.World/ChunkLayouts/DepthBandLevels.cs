@@ -39,7 +39,7 @@ public static class DepthBandLevels
     /// </summary>
     public static string? Problem(IReadOnlyList<ProceduralDepthBand> bands)
     {
-        List<ProceduralDepthBand> ordered = bands.OrderBy(b => b.MinDepth).ToList();
+        var ordered = bands.OrderBy(b => b.MinDepth).ToList();
         for (int i = 0; i < ordered.Count; i++)
         {
             ProceduralDepthBand band = ordered[i];

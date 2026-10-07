@@ -17,7 +17,7 @@ namespace Avalon.Server.World.UnitTests.Characters;
 public class ClassStatFactorsGoldenShould
 {
     /// <summary>Two items that between them carry each of the twelve stats the calculator adds, at odd values.</summary>
-    internal static readonly ItemTemplate[] Gear =
+    internal static readonly ItemTemplate[] s_gear =
     [
         new()
         {
@@ -39,7 +39,7 @@ public class ClassStatFactorsGoldenShould
     /// Class, level, geared (0 or 1), then MaxHealth, MaxPower, Stamina, Strength, Agility, Intellect,
     /// Armor, the bits of BlockPct, DodgePct and CritPct, AttackDamage and AbilityDamage.
     /// </summary>
-    private static readonly string[] Expected =
+    private static readonly string[] s_expected =
     [
         "Warrior,1,0,240,100,22,23,20,20,0,1084227584,1080721146,1084227584,46,4",
         "Warrior,1,1,293,100,25,28,27,31,13,1088421888,1087717245,1091567616,73,25",
@@ -174,13 +174,13 @@ public class ClassStatFactorsGoldenShould
     [Fact]
     public void Reproduce_the_old_calculator_for_every_seeded_class_and_level()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<ClassLevelStat> rows = context.ClassLevelStats.AsNoTracking().ToList();
-        Dictionary<CharacterClass, ClassStatFactors> factors =
+        var rows = context.ClassLevelStats.AsNoTracking().ToList();
+        var factors =
             context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(f => f.Class);
 
-        Dictionary<(CharacterClass, ushort, bool), string> expected = Expected
+        var expected = s_expected
             .Select(line => line.Split(','))
             .ToDictionary(f => (Enum.Parse<CharacterClass>(f[0]), ushort.Parse(f[1]), f[2] == "1"), f => string.Join(",", f.Skip(3)));
 
@@ -190,7 +190,7 @@ public class ClassStatFactorsGoldenShould
         {
             foreach (bool geared in new[] { false, true })
             {
-                DerivedCharacterStats s = CharacterStatsCalculator.Calculate(row, geared ? Gear : [], factors[row.Class]);
+                DerivedCharacterStats s = CharacterStatsCalculator.Calculate(row, geared ? s_gear : [], factors[row.Class]);
                 string actual = string.Join(",", s.MaxHealth, s.MaxPower, s.Stamina, s.Strength, s.Agility, s.Intellect,
                     s.Armor, BitConverter.SingleToInt32Bits(s.BlockPct), BitConverter.SingleToInt32Bits(s.DodgePct),
                     BitConverter.SingleToInt32Bits(s.CritPct), s.AttackDamage, s.AbilityDamage);

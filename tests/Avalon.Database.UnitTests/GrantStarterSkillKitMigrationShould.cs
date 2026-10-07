@@ -13,7 +13,7 @@ public class GrantStarterSkillKitMigrationShould
     [Fact]
     public void Replace_every_characters_abilities_with_its_classes_kit()
     {
-        List<string> sql = new GrantStarterSkillKit().UpOperations.OfType<SqlOperation>().Select(o => o.Sql).ToList();
+        var sql = new GrantStarterSkillKit().UpOperations.OfType<SqlOperation>().Select(o => o.Sql).ToList();
 
         int delete = sql.FindIndex(s => s.Contains("DELETE FROM \"CharacterAbilities\"", StringComparison.Ordinal));
         int insert = sql.FindIndex(s => s.Contains("INSERT INTO \"CharacterAbilities\"", StringComparison.Ordinal));

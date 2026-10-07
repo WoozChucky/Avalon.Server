@@ -40,7 +40,9 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
         if (template is null
             || (template.MinLevel is { } min && character.Level < min)
             || (template.MaxLevel is { } max && character.Level > max))
+        {
             return false;
+        }
 
         Task<IMapInstance> instance;
         PartyId? partyId = null;

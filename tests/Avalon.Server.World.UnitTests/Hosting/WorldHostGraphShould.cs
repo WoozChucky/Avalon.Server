@@ -21,7 +21,6 @@ using Avalon.World.Vendors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Hosting;
 
@@ -286,8 +285,10 @@ public class WorldHostGraphShould
             if (handlerType == typeof(DialogueChooseHandler))
                 Assert.Same(host.Services.GetRequiredService<IQuestProgress>(), CapturedOfType<IQuestProgress>(handler));
             if (handlerType == typeof(CharacterSelectHandler))
+            {
                 Assert.Same(host.Services.GetRequiredService<ICharacterQuestRepository>(),
                     CapturedOfType<ICharacterQuestRepository>(handler));
+            }
         }
         finally
         {

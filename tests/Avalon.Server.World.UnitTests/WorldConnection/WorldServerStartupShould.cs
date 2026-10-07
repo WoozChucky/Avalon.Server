@@ -9,11 +9,11 @@ using Avalon.Infrastructure;
 using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Maintenance;
-using Avalon.World.Reload;
 using Avalon.World.Parties;
-using Avalon.World.Quests;
 using Avalon.World.Persistence;
 using Avalon.World.Pvp;
+using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -31,7 +31,7 @@ namespace Avalon.Server.World.UnitTests.WorldConnection;
 /// </summary>
 public class WorldServerStartupShould
 {
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(5);
 
     private readonly int _port = FreePort();
     private readonly IWorld _world = Substitute.For<IWorld>();
@@ -60,7 +60,7 @@ public class WorldServerStartupShould
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -68,7 +68,7 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Subscribe_to_its_own_reload_channel_once_loaded()
     {
-        var cache = Substitute.For<IReplicatedCache>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>? onReload = null;
         cache.SubscribeAsync(CacheKeys.WorldReloadChannel(1), Arg.Any<Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>>())
             .Returns(call =>
@@ -87,7 +87,7 @@ public class WorldServerStartupShould
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -95,9 +95,9 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Publish_its_script_catalog_once_loaded_and_again_after_a_hot_reload()
     {
-        var cache = Substitute.For<IReplicatedCache>();
-        var scripts = Substitute.For<IScriptManager>();
-        var hotReloader = Substitute.For<IScriptHotReloader>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
+        IScriptHotReloader hotReloader = Substitute.For<IScriptHotReloader>();
         var server = new TestWorldServer(_world, _port, cache, scripts, hotReloader);
         await server.StartAsync(CancellationToken.None);
         try
@@ -115,7 +115,7 @@ public class WorldServerStartupShould
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -132,12 +132,12 @@ public class WorldServerStartupShould
         {
             _load.SetException(new InvalidOperationException("simulated load failure"));
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(Limit));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(s_limit));
             Assert.False(await AcceptsAsync(), "a client was accepted after the world failed to load");
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -147,7 +147,7 @@ public class WorldServerStartupShould
     public async Task Load_persisted_maintenance_before_opening_the_port()
     {
         var read = new TaskCompletionSource<WorldMaintenanceState?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>()).Returns(read.Task);
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
@@ -168,14 +168,14 @@ public class WorldServerStartupShould
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
     [Fact]
     public async Task Never_open_the_port_when_the_maintenance_state_cannot_be_read()
     {
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<WorldMaintenanceState?>(null));
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
@@ -187,12 +187,12 @@ public class WorldServerStartupShould
         {
             _load.SetResult();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(Limit));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(s_limit));
             Assert.False(await AcceptsAsync(), "a client was accepted without a maintenance state");
         }
         finally
         {
-            await server.StopAsync(CancellationToken.None).WaitAsync(Limit);
+            await server.StopAsync(CancellationToken.None).WaitAsync(s_limit);
         }
     }
 
@@ -203,13 +203,13 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Keep_ticking_through_a_restart_drain_until_no_non_Admin_player_is_left()
     {
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(false, 1, null));
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
             Options.Create(new WorldShutdownConfiguration
-                { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
+            { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
         var server = new TestWorldServer(_world, _port, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         _load.SetResult();
@@ -233,7 +233,7 @@ public class WorldServerStartupShould
             // Only the tick ends the drain this early: the stop's own wait runs to the deadline, a minute away.
             ((IAccessLevelAssignable)player).AssignAccessLevel(Avalon.Common.Accounts.AccountAccessLevel.Admin);
 
-            await stopping.WaitAsync(Limit);
+            await stopping.WaitAsync(s_limit);
             Assert.False(player.IsConnected, "the stop after the drain did not close the Admin");
             await _world.Received(1).DeSpawnPlayerAsync(player);
         }
@@ -246,13 +246,13 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Close_and_despawn_everyone_when_the_host_cuts_the_drain_short()
     {
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(false, 1, null));
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
             Options.Create(new WorldShutdownConfiguration
-                { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
+            { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
         var server = new TestWorldServer(_world, _port, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         _load.SetResult();
@@ -266,16 +266,18 @@ public class WorldServerStartupShould
         using (adminServer)
         {
             var player = new Avalon.World.WorldConnection(server, playerClient, NullLoggerFactory.Instance,
-                Substitute.For<IPacketReader>()) { AccountId = new Avalon.Common.ValueObjects.AccountId(42) };
+                Substitute.For<IPacketReader>())
+            { AccountId = new Avalon.Common.ValueObjects.AccountId(42) };
             var admin = new Avalon.World.WorldConnection(server, adminClient, NullLoggerFactory.Instance,
-                Substitute.For<IPacketReader>()) { AccountId = new Avalon.Common.ValueObjects.AccountId(43) };
+                Substitute.For<IPacketReader>())
+            { AccountId = new Avalon.Common.ValueObjects.AccountId(43) };
             ((IAccessLevelAssignable)admin).AssignAccessLevel(Avalon.Common.Accounts.AccountAccessLevel.Admin);
             server.Add(player);
             server.Add(admin);
 
             using var timedOut = new CancellationTokenSource();
             await timedOut.CancelAsync();
-            await server.StopAsync(timedOut.Token).WaitAsync(Limit);
+            await server.StopAsync(timedOut.Token).WaitAsync(s_limit);
 
             Assert.False(player.IsConnected, "the stop did not close the player");
             Assert.False(admin.IsConnected, "the stop did not close the Admin");
@@ -293,7 +295,7 @@ public class WorldServerStartupShould
 
         Task stopping = server.StopAsync(CancellationToken.None);
         _load.SetResult();
-        await stopping.WaitAsync(Limit);
+        await stopping.WaitAsync(s_limit);
 
         Assert.False(await AcceptsAsync(), "the port opened after the server had been stopped");
     }
@@ -304,7 +306,7 @@ public class WorldServerStartupShould
         using var client = new TcpClient();
         try
         {
-            await client.ConnectAsync(IPAddress.Loopback, _port).WaitAsync(Limit);
+            await client.ConnectAsync(IPAddress.Loopback, _port).WaitAsync(s_limit);
             return true;
         }
         catch (SocketException)
@@ -315,7 +317,7 @@ public class WorldServerStartupShould
 
     private static async Task UntilAsync(Func<Task<bool>> done, string failure)
     {
-        DateTime deadline = DateTime.UtcNow + Limit;
+        DateTime deadline = DateTime.UtcNow + s_limit;
         while (!await done())
         {
             Assert.True(DateTime.UtcNow < deadline, failure);
@@ -377,12 +379,16 @@ public class WorldServerStartupShould
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
 
             if (serviceType == typeof(ReloadRequestHandler))
+            {
                 return new ReloadRequestHandler(Substitute.For<IReferenceDataReloader>(), Substitute.For<IReplicatedCache>(),
                     Options.Create(new GameConfiguration { WorldId = 1 }), NullLogger<ReloadRequestHandler>.Instance);
+            }
 
             if (serviceType == typeof(ScriptCatalogPublisher))
+            {
                 return new ScriptCatalogPublisher(scripts, cache, Options.Create(new GameConfiguration { WorldId = 1 }),
                     Substitute.For<ILogger<ScriptCatalogPublisher>>());
+            }
 
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
@@ -393,8 +399,10 @@ public class WorldServerStartupShould
                 return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             if (serviceType == typeof(PartyService))
+            {
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
+            }
 
             // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
             if (serviceType == typeof(QuestService))

@@ -31,13 +31,13 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
 
     public async Task<ChunkLayout> BuildAsync(MapTemplate template, CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var configRepo = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
-        var config = await configRepo.FindByTemplateIdAsync(template.Id, ct)
+        await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+        IProceduralMapConfigRepository configRepo = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
+        ProceduralMapConfig config = await configRepo.FindByTemplateIdAsync(template.Id, ct)
             ?? throw new InvalidProceduralConfigException(
                 $"No ProceduralMapConfig for map {template.Id.Value}");
 
-        var pool = _library.GetByPool(config.ChunkPoolId);
+        IReadOnlyList<ChunkPoolMember> pool = _library.GetByPool(config.ChunkPoolId);
         return _generator.Generate(config, pool, NextSeed(), _library.GetGroupsByPool(config.ChunkPoolId));
     }
 

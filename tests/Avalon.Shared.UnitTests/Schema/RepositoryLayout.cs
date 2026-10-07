@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-
 namespace Avalon.Shared.UnitTests.Schema;
 
 /// <summary>

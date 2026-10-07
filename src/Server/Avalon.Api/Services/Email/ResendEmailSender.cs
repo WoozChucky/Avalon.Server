@@ -1,5 +1,4 @@
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions;
@@ -22,16 +21,20 @@ public sealed class ResendEmailSender(HttpClient http, EmailConfig config) : IEm
         request.Content = JsonContent.Create(new
         {
             from = string.IsNullOrEmpty(config.FromName) ? config.From : $"{config.FromName} <{config.From}>",
-            to = new[] { to }, subject, text = textBody,
+            to = new[] { to },
+            subject,
+            text = textBody,
         });
         try
         {
-            using var response = await http.SendAsync(request, ct);
+            using HttpResponseMessage response = await http.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode) throw new EmailDeliveryException();
-            using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            if (json.RootElement.ValueKind != JsonValueKind.Object || !json.RootElement.TryGetProperty("id", out var id)
+            using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            if (json.RootElement.ValueKind != JsonValueKind.Object || !json.RootElement.TryGetProperty("id", out JsonElement id)
                 || id.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(id.GetString()))
+            {
                 throw new EmailDeliveryException();
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException or IOException)

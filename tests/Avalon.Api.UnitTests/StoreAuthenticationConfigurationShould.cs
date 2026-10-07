@@ -32,7 +32,10 @@ public class StoreAuthenticationConfigurationShould
     {
         var config = new StoreAuthenticationConfiguration
         {
-            SteamAppId = appId, SteamPublisherKey = key, Environment = environment, SteamIdentityPrefix = identity,
+            SteamAppId = appId,
+            SteamPublisherKey = key,
+            Environment = environment,
+            SteamIdentityPrefix = identity,
         };
         Assert.Throws<InvalidOperationException>(() => config.Validate(production: true));
     }

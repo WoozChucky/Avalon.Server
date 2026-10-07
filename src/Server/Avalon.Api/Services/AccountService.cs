@@ -16,6 +16,7 @@ using Avalon.Infrastructure;
 using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
 using OperatingSystem = Avalon.Domain.Auth.OperatingSystem;
 
 namespace Avalon.Api.Services;
@@ -133,7 +134,7 @@ public class AccountService : IAccountService
             throw FailureFor(attempt);
         }
 
-        var account = attempt.Account!;
+        Account account = attempt.Account!;
 
         // A banned or deactivated account gets nothing, not even an MFA hash (#480). Past the
         // password check it is told its status, as the game client is; a wrong password above
@@ -141,7 +142,7 @@ public class AccountService : IAccountService
         if (!AccountAccessCheck.MayHoldSession(account))
             throw new AccountInactiveException(account.Status);
 
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
+        MFASetup? mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
         if (mfaSetup is { Status: MfaSetupStatus.Confirmed })
         {
             // Only its own slots back, and no reset: the login completes at MFA verify.
@@ -198,24 +199,24 @@ public class AccountService : IAccountService
         if (!AccountEmail.IsValid(model.Email))
             throw new BusinessException(AccountEmail.Requirement);
 
-        var sourceKey = await TakeSourceSlotAsync(ipAddress, "Registration");
+        string sourceKey = await TakeSourceSlotAsync(ipAddress, "Registration");
 
-        var username = model.Username.ToUpperInvariant().Trim();
-        var existingAccount = await _accountRepository.FindByUserNameAsync(username, cancellationToken);
+        string username = model.Username.ToUpperInvariant().Trim();
+        Account? existingAccount = await _accountRepository.FindByUserNameAsync(username, cancellationToken);
         if (existingAccount != null)
             throw new BusinessException(UsernameTaken);
 
         // Stored, and so compared, trimmed and lower-cased (#503): A@x.com is a@x.com's account.
-        var email = AccountEmail.Normalise(model.Email);
+        string email = AccountEmail.Normalise(model.Email);
         existingAccount = await _accountRepository.FindByEmailAsync(email, cancellationToken);
         if (existingAccount != null)
             throw new BusinessException(EmailTaken);
 
-        var salt = BCrypt.Net.BCrypt.GenerateSalt();
-        var hash = BCrypt.Net.BCrypt.HashPassword(model.Password.Trim(), salt);
+        string salt = BCrypt.Net.BCrypt.GenerateSalt();
+        string hash = BCrypt.Net.BCrypt.HashPassword(model.Password.Trim(), salt);
 
-        var saltBytes = Encoding.UTF8.GetBytes(salt);
-        var hashBytes = Encoding.UTF8.GetBytes(hash);
+        byte[] saltBytes = Encoding.UTF8.GetBytes(salt);
+        byte[] hashBytes = Encoding.UTF8.GetBytes(hash);
 
         var account = new Account
         {
@@ -260,7 +261,7 @@ public class AccountService : IAccountService
     /// </summary>
     private async Task<string> TakeSourceSlotAsync(IPAddress ipAddress, string action)
     {
-        var sourceKey = LoginSource.FromAddress(ipAddress).Key;
+        string sourceKey = LoginSource.FromAddress(ipAddress).Key;
         if (await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
             return sourceKey;
 
@@ -275,7 +276,7 @@ public class AccountService : IAccountService
     /// </summary>
     private async Task<string> TakeCreationSlotAsync(IPAddress ipAddress)
     {
-        var key = CacheKeys.AuthSourceAccountsCreated(RemoteAddress.SourceOf(ipAddress));
+        string key = CacheKeys.AuthSourceAccountsCreated(RemoteAddress.SourceOf(ipAddress));
         long created = await AttemptBudget.TakeAsync(_cache, key,
             TimeSpan.FromMinutes(_authConfig.AccountCreationWindowMinutes));
         if (created <= _authConfig.MaxAccountsCreatedPerSource)
@@ -296,7 +297,7 @@ public class AccountService : IAccountService
     private async Task<Account> InsertAccountAsync(Account account, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
-        var creationKey = await TakeCreationSlotAsync(ipAddress);
+        string creationKey = await TakeCreationSlotAsync(ipAddress);
         try
         {
             return await _accountRepository.CreateAsync(account, cancellationToken);
@@ -306,7 +307,7 @@ public class AccountService : IAccountService
             await AttemptBudget.GiveBackAsync(_cache, creationKey);
             if (await _accountRepository.FindByUserNameAsync(account.Username, cancellationToken) != null)
                 throw new BusinessException(UsernameTaken, ex);
-            if (await _accountRepository.FindByEmailAsync(account.Email, cancellationToken) != null)
+            if (await _accountRepository.FindByEmailAsync(account.Email!, cancellationToken) != null)
                 throw new BusinessException(EmailTaken, ex);
             throw;
         }
@@ -327,24 +328,26 @@ public class AccountService : IAccountService
     {
         // Through the login policy (#478): a stolen session guessing the current password here
         // spends the same budgets, and locks the same account, as guessing it at login.
-        var proof = await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress,
+        Reauthenticated proof = await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress,
             cancellationToken);
 
-        var salt = BCrypt.Net.BCrypt.GenerateSalt();
-        var hash = BCrypt.Net.BCrypt.HashPassword(newPassword.Trim(), salt);
-        var saltBytes = Encoding.UTF8.GetBytes(salt);
-        var hashBytes = Encoding.UTF8.GetBytes(hash);
+        string salt = BCrypt.Net.BCrypt.GenerateSalt();
+        string hash = BCrypt.Net.BCrypt.HashPassword(newPassword.Trim(), salt);
+        byte[] saltBytes = Encoding.UTF8.GetBytes(salt);
+        byte[] hashBytes = Encoding.UTF8.GetBytes(hash);
 
         // One transaction: the password is written by column (#484), so a lock or a ban written
         // since the account was read survives it, and every refresh token and personal access
         // token the account holds is revoked with it (#483), so none minted with the old password,
         // or with a stolen session, outlives the change.
-        var changed = await _authTransaction.ExecuteAsync(async (context, token) =>
+        bool changed = await _authTransaction.ExecuteAsync(async (context, token) =>
         {
             // Only while still at the version the current password was checked at (#495 review).
             if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes,
                     proof.CredentialsVersion, token) == 0)
+            {
                 return false;
+            }
 
             await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
             await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, accountId,
@@ -372,8 +375,8 @@ public class AccountService : IAccountService
     {
         try
         {
-            var mfaKey = CacheKeys.AccountMfa(accountId.Value);
-            var pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
+            string mfaKey = CacheKeys.AccountMfa(accountId.Value);
+            RedisValue pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
             if (pendingHash.HasValue)
                 await _cache.RemoveAsync(CacheKeys.MfaReverseHash(pendingHash!));
             await _cache.RemoveAsync(mfaKey);
@@ -425,35 +428,35 @@ public class AccountService : IAccountService
         if (!AccountEmail.IsValid(newEmail))
             throw new BusinessException(AccountEmail.Requirement);
 
-        var proof = await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress,
+        Reauthenticated proof = await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress,
             cancellationToken);
 
         // "Email already exists" says whether an address has an account. The proof above gave back
         // its own slots, so this answer takes one of its own (#503 review), as registration does,
         // kept unless the change is started: a stolen password cannot test addresses for free.
-        var sourceKey = await TakeSourceSlotAsync(ipAddress, "Email change");
+        string sourceKey = await TakeSourceSlotAsync(ipAddress, "Email change");
 
-        var email = AccountEmail.Normalise(newEmail);
+        string email = AccountEmail.Normalise(newEmail);
         if (await _accountRepository.FindByEmailAsync(email, cancellationToken) != null)
             throw new BusinessException(EmailTaken);
 
         // The old address, for the notice. Read again: the proof does not hand the row out. Gone
         // since the proof, it is answered as the proof answers a missing account.
-        var oldEmail = (await _accountRepository.FindByIdAsync(accountId, track: false, cancellationToken))?.Email
+        string oldEmail = (await _accountRepository.FindByIdAsync(accountId, track: false, cancellationToken))?.Email
                        ?? throw new AuthenticationException(Reauthentication.InvalidPassword);
 
         // Last of the checks, just before anything is sent (#510 review): a send is never given back,
         // so neither a password holder nor many accounts together can turn this into a mail relay.
         await TakeEmailChangeSendSlotsAsync(accountId, email);
 
-        var raw = _secureRandom.GetBytes(24);
-        var token = Convert.ToBase64String(raw).Replace("+", "-").Replace("/", "_").TrimEnd('=');
-        var tokenHash = Sha256Hex(token);
+        byte[] raw = _secureRandom.GetBytes(24);
+        string token = Convert.ToBase64String(raw).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+        string tokenHash = Sha256Hex(token);
 
         // The email goes last: it is the only part that can hold the separator.
-        var payload = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        string payload = string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{accountId.Value}|{proof.CredentialsVersion}|{email}");
-        await _cache.SetAsync(CacheKeys.EmailChange(tokenHash), payload, EmailChangeLifetime);
+        await _cache.SetAsync(CacheKeys.EmailChange(tokenHash), payload, s_emailChangeLifetime);
 
         // From here the change is stored: a caller dropping the connection must not stop either
         // email, the notice to the old address least of all (#510 review). Each send has its own
@@ -504,7 +507,7 @@ public class AccountService : IAccountService
         }
     }
 
-    private static readonly TimeSpan EmailChangeLifetime = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan s_emailChangeLifetime = TimeSpan.FromMinutes(15);
 
     private const string EmailChangeConfirmSubject = "Confirm your new Avalon email address";
     private const string EmailChangeNoticeSubject = "Your Avalon email address is being changed";
@@ -525,7 +528,7 @@ public class AccountService : IAccountService
             "",
             EmailChangeTokenLabel + token,
             "",
-            $"This confirmation expires in {(int)EmailChangeLifetime.TotalMinutes} minutes.",
+            $"This confirmation expires in {(int)s_emailChangeLifetime.TotalMinutes} minutes.",
             "",
             "If you did not request this change, ignore this email. Your current email address will stay unchanged.");
     }
@@ -579,8 +582,8 @@ public class AccountService : IAccountService
     /// </summary>
     private async Task ReplacePendingEmailChangeAsync(AccountId accountId, string tokenHash)
     {
-        var previous = await _cache.SwapAsync(CacheKeys.AccountEmailChangePending(accountId.Value), tokenHash,
-            EmailChangeLifetime);
+        string? previous = await _cache.SwapAsync(CacheKeys.AccountEmailChangePending(accountId.Value), tokenHash,
+            s_emailChangeLifetime);
         if (!string.IsNullOrEmpty(previous) && !string.Equals(previous, tokenHash, StringComparison.Ordinal))
             await _cache.RemoveAsync(CacheKeys.EmailChange(previous));
     }
@@ -593,8 +596,8 @@ public class AccountService : IAccountService
     /// </summary>
     public async Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default)
     {
-        var key = EmailChangeKey(token);
-        var payload = await _cache.GetAsync(key)
+        string key = EmailChangeKey(token);
+        string payload = await _cache.GetAsync(key)
             ?? throw new BusinessException(InvalidEmailToken);
         // The DEL spends the token, not the GET (#478 review): two confirms can both read it, and
         // only the one whose delete removed it goes on.
@@ -603,14 +606,16 @@ public class AccountService : IAccountService
 
         // {accountId}|{credentialsVersion}|{email}. A token from before #503 has no version and is
         // refused; it would expire within 15 minutes anyway.
-        var parts = payload.Split('|', 3);
+        string[] parts = payload.Split('|', 3);
         if (parts.Length != 3
             || !long.TryParse(parts[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long id)
             || !int.TryParse(parts[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int version))
+        {
             throw new BusinessException("Invalid token payload");
+        }
 
         var accountId = new AccountId(id);
-        var newEmail = parts[2];
+        string newEmail = parts[2];
 
         bool changed;
         try
@@ -669,7 +674,7 @@ public class AccountService : IAccountService
         // a ban that revoked no credentials would leave the banned account a live session.
         await _authTransaction.ExecuteAsync(async (context, token) =>
         {
-            var account = await context.Accounts.FirstOrDefaultAsync(a => a.Id == accountId, token)
+            Account account = await context.Accounts.FirstOrDefaultAsync(a => a.Id == accountId, token)
                 ?? throw new BusinessException("Account not found");
 
             account.Status = (Avalon.Domain.Auth.AccountStatus)state;
@@ -700,11 +705,13 @@ public class AccountService : IAccountService
         // issued before it. Every refresh token and personal access token goes with it, as for a
         // password change. The account then signs in again, which is what gets the new roles onto a
         // game-client connection (the TCP session holds the roles it logged in with).
-        var found = await _authTransaction.ExecuteAsync(async (context, token) =>
+        bool found = await _authTransaction.ExecuteAsync(async (context, token) =>
         {
             if (await AccountRepository.SetAccessLevelAsync(context, accountId,
                     (Avalon.Common.Accounts.AccountAccessLevel)roles, token) == 0)
+            {
                 return false;
+            }
 
             await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
             await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, actorId,
@@ -736,12 +743,12 @@ public class AccountService : IAccountService
         // The only way back into an account whose authenticator is lost. The MFA row goes, and
         // every refresh token and personal access token goes with it in the same transaction, so
         // no session opened before the reset outlives it.
-        var removed = await _authTransaction.ExecuteAsync(async (context, token) =>
+        (bool Found, int Rows) removed = await _authTransaction.ExecuteAsync(async (context, token) =>
         {
             if (await AccountRepository.BumpCredentialsVersionAsync(context, accountId, token) == 0)
                 return (Found: false, Rows: 0);
 
-            var rows = await MfaSetupRepository.DeleteAllForAccountAsync(context, accountId, token);
+            int rows = await MfaSetupRepository.DeleteAllForAccountAsync(context, accountId, token);
             await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
             await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, actorId,
                 DateTime.UtcNow, token);

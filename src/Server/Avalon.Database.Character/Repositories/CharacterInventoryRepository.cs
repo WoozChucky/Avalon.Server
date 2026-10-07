@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Avalon.Database.Character.Repositories;
 
@@ -16,21 +17,21 @@ public class CharacterInventoryRepository(IDbContextFactory<CharacterDbContext> 
 {
     public async Task<CharacterInventory> CreateAsync(CharacterInventory inventory, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using CharacterDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entity = context.TrackForInsert(inventory);
+        EntityEntry<CharacterInventory> entity = context.TrackForInsert(inventory);
         await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
 
     public async Task<IList<CharacterInventory>> CreateAsync(IList<CharacterInventory> inventories, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using CharacterDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         var entityList = new List<CharacterInventory>();
-        foreach (var inventory in inventories)
+        foreach (CharacterInventory inventory in inventories)
         {
-            var entity = context.TrackForInsert(inventory);
+            EntityEntry<CharacterInventory> entity = context.TrackForInsert(inventory);
             entityList.Add(entity.Entity);
         }
         await context.SaveChangesAsync(cancellationToken);
@@ -39,16 +40,16 @@ public class CharacterInventoryRepository(IDbContextFactory<CharacterDbContext> 
 
     public async Task<CharacterInventory> UpdateAsync(CharacterInventory inventory, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using CharacterDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entity = context.TrackForUpdate(inventory);
+        EntityEntry<CharacterInventory> entity = context.TrackForUpdate(inventory);
         await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
 
     public async Task<IReadOnlyCollection<CharacterInventory>> GetByCharacterIdAsync(CharacterId characterId, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using CharacterDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.CharacterInventory
             .AsNoTracking()

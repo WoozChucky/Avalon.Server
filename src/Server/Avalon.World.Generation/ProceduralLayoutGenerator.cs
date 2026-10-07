@@ -38,7 +38,7 @@ public class ProceduralLayoutGenerator
         for (int attempt = 0; attempt < MaxRetries; attempt++)
         {
             int attemptSeed = seed + attempt;
-            if (TryGenerate(config, pool, sets, attemptSeed, out var layout, out error))
+            if (TryGenerate(config, pool, sets, attemptSeed, out ChunkLayout? layout, out error))
                 return layout!;
             // A retried attempt is routine (many forest builds need one); only the last failure is worth a warning.
             if (attempt + 1 < MaxRetries)
@@ -64,7 +64,7 @@ public class ProceduralLayoutGenerator
             m.Template.PortalSlots.Any(p => p.Role == PortalRole.Back)).ToList();
         if (entryCandidates.Count == 0) { error = "No entry-capable chunks"; return false; }
 
-        var entryMember = WeightedPick(entryCandidates, rng);
+        ChunkPoolMember entryMember = WeightedPick(entryCandidates, rng);
         var entryRecord = new PlacedChunkRecord(entryMember.Template, 0, 0, 0, group: null);
         var mainPath = new List<Node> { new([entryRecord]) };
         var grid = new Dictionary<(int, int), PlacedChunkRecord> { [(0, 0)] = entryRecord };
@@ -75,7 +75,7 @@ public class ProceduralLayoutGenerator
         for (int step = 1; step < pathLen; step++)
         {
             bool requiredForward = step == pathLen - 1 && cfg.ForwardPortalTargetMapId is not null;
-            bool requiredBoss    = step == pathLen - 1 && cfg.HasBoss;
+            bool requiredBoss = step == pathLen - 1 && cfg.HasBoss;
             // Mid-path chunks must have ≥2 exits — single-exit chunks (deadends, boss with
             // S-only) trap the walk on their second tick (only exit is the one we entered
             // through). Last step is exempt: boss has 1 exit by design.
@@ -83,7 +83,7 @@ public class ProceduralLayoutGenerator
 
             if (!TryAttachNext(mainPath[^1], pool, groups, grid, links, usedGroups, rng,
                     new AttachRules(requiredBoss, requiredForward, excludeSingleExit, AllowGroups: true,
-                        AllowSetPieces: step >= cfg.MinSetPieceStep), out var placed))
+                        AllowSetPieces: step >= cfg.MinSetPieceStep), out Node? placed))
             {
                 error = $"Could not attach at step {step}";
                 return false;
@@ -96,15 +96,18 @@ public class ProceduralLayoutGenerator
         {
             if (rng.NextDouble() >= cfg.BranchChance) continue;
             int branchLen = rng.Next(1, cfg.BranchMaxDepth + 1);
-            var tail = mainPath[i];
+            Node tail = mainPath[i];
             for (int b = 0; b < branchLen; b++)
             {
                 // Branches may end in deadends, so single-exit chunks are fair game.
                 if (!TryAttachNext(tail, pool, groups, grid, links, usedGroups, rng,
                         new AttachRules(RequiredBoss: false, RequiredForward: false, ExcludeSingleExit: false, AllowGroups: false,
                             AllowSetPieces: false),
-                        out var placed))
+                        out Node? placed))
+                {
                     break;
+                }
+
                 tail = placed!;
             }
         }
@@ -117,19 +120,19 @@ public class ProceduralLayoutGenerator
             new Vector3(r.GridX * cellSize, 0, r.GridZ * cellSize),
             depths.GetValueOrDefault((r.GridX, r.GridZ)), r.Group)).ToList();
 
-        var entry = placedChunks.First(p => p.GridX == 0 && p.GridZ == 0);
+        PlacedChunk entry = placedChunks.First(p => p.GridX == 0 && p.GridZ == 0);
         Node last = mainPath[^1];
         PlacedChunkRecord? bossRec = cfg.HasBoss ? last.Members.FirstOrDefault(m => HasTag(m.Template, "boss")) ?? last.Members[0] : null;
-        var boss = bossRec is null ? null : placedChunks.First(p => p.GridX == bossRec.GridX && p.GridZ == bossRec.GridZ);
+        PlacedChunk? boss = bossRec is null ? null : placedChunks.First(p => p.GridX == bossRec.GridX && p.GridZ == bossRec.GridZ);
         PlacedChunkRecord? forwardRec = bossRec is null
             ? null
             : last.Members.FirstOrDefault(m => m.Template.PortalSlots.Any(p => p.Role == PortalRole.Forward)) ?? bossRec;
-        var forward = forwardRec is null ? null : placedChunks.First(p => p.GridX == forwardRec.GridX && p.GridZ == forwardRec.GridZ);
+        PlacedChunk? forward = forwardRec is null ? null : placedChunks.First(p => p.GridX == forwardRec.GridX && p.GridZ == forwardRec.GridZ);
 
-        var entrySlot = entryMember.Template.SpawnSlots.First(s => s.Tag.Equals("entry", StringComparison.OrdinalIgnoreCase));
-        var entrySpawnWorldPos = ChunkRotation.LocalToWorld(entrySlot.LocalX, entrySlot.LocalY, entrySlot.LocalZ, entry.Rotation, cellSize, entry.WorldPos);
+        ChunkSpawnSlot entrySlot = entryMember.Template.SpawnSlots.First(s => s.Tag.Equals("entry", StringComparison.OrdinalIgnoreCase));
+        Vector3 entrySpawnWorldPos = ChunkRotation.LocalToWorld(entrySlot.LocalX, entrySlot.LocalY, entrySlot.LocalZ, entry.Rotation, cellSize, entry.WorldPos);
 
-        var portals = BuildPortals(entry, entryMember.Template, forward, forwardRec?.Template, cfg, cellSize);
+        IReadOnlyList<PortalPlacement> portals = BuildPortals(entry, entryMember.Template, forward, forwardRec?.Template, cfg, cellSize);
 
         layout = new ChunkLayout(seed, placedChunks, entry, boss, portals, entrySpawnWorldPos, cellSize,
             Config: cfg, ConfigVersion: LayoutConfigVersion.Compute(cfg, pool, groups), MainPathLength: mainPath.Count);
@@ -161,20 +164,20 @@ public class ProceduralLayoutGenerator
         foreach (PlacedChunkRecord from in members)
         {
             ushort rotatedExits = ExitMask.Rotate(from.Template.Exits, from.Rotation);
-            var sides = Enum.GetValues<ExitSide>().OrderBy(_ => rng.Next()).ToArray();
+            ExitSide[] sides = Enum.GetValues<ExitSide>().OrderBy(_ => rng.Next()).ToArray();
 
-            foreach (var side in sides)
+            foreach (ExitSide side in sides)
             {
                 for (byte slot = 0; slot < 3; slot++)
                 {
                     if (!ExitMask.Has(rotatedExits, side, (ExitSlot)slot)) continue;
                     if (from.StitchedMaskGet(side, slot)) continue;
-                    var (dx, dz) = ExitMask.GridDir(side);
+                    (int dx, int dz) = ExitMask.GridDir(side);
                     int nx = from.GridX + dx, nz = from.GridZ + dz;
                     // An exit facing another member of the same set piece faces an occupied cell, so it is skipped here too.
                     if (grid.ContainsKey((nx, nz))) continue;
 
-                    var neededSide = ExitMask.Opposite(side);
+                    ExitSide neededSide = ExitMask.Opposite(side);
                     var candidates = new List<Candidate>();
                     AddChunkCandidates(pool, rules, neededSide, slot, candidates);
 
@@ -183,7 +186,7 @@ public class ProceduralLayoutGenerator
 
                     if (candidates.Count == 0) continue;
 
-                    var choice = candidates[rng.Next(candidates.Count)];
+                    Candidate choice = candidates[rng.Next(candidates.Count)];
                     PlacedChunkRecord anchor;
                     if (choice.Group is null)
                     {
@@ -210,7 +213,7 @@ public class ProceduralLayoutGenerator
     private static void AddChunkCandidates(IReadOnlyList<ChunkPoolMember> pool, AttachRules rules, ExitSide neededSide, byte slot,
         List<Candidate> candidates)
     {
-        foreach (var m in pool)
+        foreach (ChunkPoolMember m in pool)
         {
             if (rules.RequiredBoss && !HasTag(m.Template, "boss")) continue;
             if (rules.RequiredForward && !m.Template.PortalSlots.Any(p => p.Role == PortalRole.Forward)) continue;
@@ -274,9 +277,13 @@ public class ProceduralLayoutGenerator
 
         // The inner edges are open ground: they count as connections for depth.
         foreach (PlacedChunkRecord a in records)
+        {
             foreach (PlacedChunkRecord b in records)
+            {
                 if ((a.GridX + 1 == b.GridX && a.GridZ == b.GridZ) || (a.GridX == b.GridX && a.GridZ + 1 == b.GridZ))
                     links.Add(((a.GridX, a.GridZ), (b.GridX, b.GridZ)));
+            }
+        }
 
         return new Node(records);
     }
@@ -287,8 +294,8 @@ public class ProceduralLayoutGenerator
         var neighbours = new Dictionary<(int, int), List<(int, int)>>();
         foreach (((int, int) a, (int, int) b) in links)
         {
-            if (!neighbours.TryGetValue(a, out var la)) neighbours[a] = la = [];
-            if (!neighbours.TryGetValue(b, out var lb)) neighbours[b] = lb = [];
+            if (!neighbours.TryGetValue(a, out List<(int, int)>? la)) neighbours[a] = la = [];
+            if (!neighbours.TryGetValue(b, out List<(int, int)>? lb)) neighbours[b] = lb = [];
             la.Add(b);
             lb.Add(a);
         }
@@ -298,11 +305,13 @@ public class ProceduralLayoutGenerator
         queue.Enqueue((0, 0));
         while (queue.Count > 0)
         {
-            var cell = queue.Dequeue();
-            if (!neighbours.TryGetValue(cell, out var next)) continue;
-            foreach (var n in next)
+            (int, int) cell = queue.Dequeue();
+            if (!neighbours.TryGetValue(cell, out List<(int, int)>? next)) continue;
+            foreach ((int, int) n in next)
+            {
                 if (depth.TryAdd(n, depth[cell] + 1))
                     queue.Enqueue(n);
+            }
         }
         return depth;
     }
@@ -321,14 +330,14 @@ public class ProceduralLayoutGenerator
         PlacedChunk entry, ChunkTemplate entryT, PlacedChunk? forward, ChunkTemplate? forwardT, ProceduralMapConfig cfg, float cellSize)
     {
         var list = new List<PortalPlacement>();
-        var backSlot = entryT.PortalSlots.First(p => p.Role == PortalRole.Back);
-        var backWorld = ChunkRotation.LocalToWorld(backSlot.LocalX, backSlot.LocalY, backSlot.LocalZ, entry.Rotation, cellSize, entry.WorldPos);
+        ChunkPortalSlot backSlot = entryT.PortalSlots.First(p => p.Role == PortalRole.Back);
+        Vector3 backWorld = ChunkRotation.LocalToWorld(backSlot.LocalX, backSlot.LocalY, backSlot.LocalZ, entry.Rotation, cellSize, entry.WorldPos);
         list.Add(new PortalPlacement(PortalRole.Back, backWorld, cfg.BackPortalTargetMapId));
 
         if (cfg.ForwardPortalTargetMapId is ushort fwd && forward is not null && forwardT is not null)
         {
-            var fSlot = forwardT.PortalSlots.First(p => p.Role == PortalRole.Forward);
-            var fWorld = ChunkRotation.LocalToWorld(fSlot.LocalX, fSlot.LocalY, fSlot.LocalZ, forward.Rotation, cellSize, forward.WorldPos);
+            ChunkPortalSlot fSlot = forwardT.PortalSlots.First(p => p.Role == PortalRole.Forward);
+            Vector3 fWorld = ChunkRotation.LocalToWorld(fSlot.LocalX, fSlot.LocalY, fSlot.LocalZ, forward.Rotation, cellSize, forward.WorldPos);
             list.Add(new PortalPlacement(PortalRole.Forward, fWorld, fwd));
         }
         return list;
@@ -338,7 +347,7 @@ public class ProceduralLayoutGenerator
     {
         float total = items.Sum(i => i.Weight);
         float r = (float)(rng.NextDouble() * total);
-        foreach (var i in items)
+        foreach (ChunkPoolMember i in items)
         {
             r -= i.Weight;
             if (r <= 0) return i;

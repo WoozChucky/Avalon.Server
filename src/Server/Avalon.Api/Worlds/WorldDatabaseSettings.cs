@@ -28,7 +28,9 @@ public static class WorldDatabaseSettings
             || !ushort.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out ushort value)
             || value == 0
             || !string.Equals(text, value.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
+        {
             return false;
+        }
 
         id = new WorldId(value);
         return true;
@@ -43,7 +45,7 @@ public static class WorldDatabaseSettings
         [NotNullWhen(false)] out string? refusal)
     {
         worlds = [];
-        List<IConfigurationSection> entries = configuration.GetSection(Section).GetChildren().ToList();
+        var entries = configuration.GetSection(Section).GetChildren().ToList();
         if (entries.Count == 0)
         {
             refusal =
@@ -66,7 +68,9 @@ public static class WorldDatabaseSettings
 
             if (!TryRead(entry, at, "World", out string? world, out refusal)
                 || !TryRead(entry, at, "Characters", out string? characters, out refusal))
+            {
                 return false;
+            }
 
             parsed.Add(new ConfiguredWorld(id, world, characters));
         }

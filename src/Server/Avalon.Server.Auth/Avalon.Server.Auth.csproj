@@ -47,14 +47,19 @@
     <ProjectReference Include="..\Avalon.ServiceDefaults\Avalon.ServiceDefaults.csproj"/>
   </ItemGroup>
 
+  <!--
+    NU1510: the shared framework provides the Microsoft.Extensions packages below as well. They stay referenced:
+    dropping them could change which build of each assembly the server loads, and the code standard changes no
+    behaviour (#791).
+  -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration"/>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder"/>
-    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine"/>
-    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables"/>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json"/>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
-    <PackageReference Include="Microsoft.Extensions.Logging.Console"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration" NoWarn="NU1510"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" NoWarn="NU1510"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" NoWarn="NU1510"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" NoWarn="NU1510"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" NoWarn="NU1510"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" NoWarn="NU1510"/>
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" NoWarn="NU1510"/>
     <PackageReference Include="Serilog.Enrichers.Thread"/>
     <PackageReference Include="Serilog.Extensions.Logging"/>
     <PackageReference Include="Serilog.Sinks.Console"/>

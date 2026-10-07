@@ -1,7 +1,7 @@
-using System;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Public.Abilities;
@@ -11,13 +11,11 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
-using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ReceivedExtensions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Scripts;
 
@@ -79,7 +77,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Chase_By_Setting_A_Destination_Rather_Than_Moving_Itself()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
 
@@ -96,7 +94,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Teleport_Rather_Than_Walk_When_Snapping_Home()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         (CreatureCombatScript script, ICreature creature, _) =
             BuildScriptReturningHome(locomotion, home: new Vector3(1f, 0f, 1f));
 
@@ -121,15 +119,15 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Keep_Stepping_Toward_Its_Destination_While_Also_Attacking_In_Range()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         var locomotion = new WaypointLocomotion(_ => navigator);
 
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
 
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.SpeedRun.Returns(4f);
         creature.Metadata.Returns(metadata);
         creature.Speed.Returns(4f);
@@ -141,13 +139,13 @@ public class CreatureCombatScriptShould
         target.Position.Returns(targetPosition);
         target.IsDead.Returns(false);
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(creature).Returns((IEncounter?)null);
 
         // MeleeSlots left unconfigured (auto-recursive substitute -> TryClaim returns false) so
         // this is unambiguously the plain "is it in range of the target" case: the destination
         // the creature is still walking toward below is the target's own centre, not a ring slot.
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
 
@@ -185,18 +183,18 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Stop_Locomotion_When_Resetting_To_Idle_At_Spawn()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
 
         ICreature creature = Substitute.For<ICreature>();
         creature.Position.Returns(new Vector3(5f, 0f, 5f));
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(creature).Returns((IEncounter?)null);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
 
@@ -219,7 +217,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Should_pick_top_threat_attacker_as_target()
     {
-        var (script, encounter, _) = BuildScript(out var creature);
+        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature);
 
         ICharacter attacker = Substitute.For<ICharacter>();
         encounter.GetTopThreat(creature).Returns(attacker);
@@ -232,7 +230,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Should_return_null_when_no_encounter_exists_and_no_taunt()
     {
-        var (script, _, combat) = BuildScript(out var creature);
+        (CreatureCombatScript? script, IEncounter _, ICombatService? combat) = BuildScript(out ICreature? creature);
 
         // No encounter for this creature.
         combat.GetEncounterFor(creature).Returns((IEncounter?)null);
@@ -245,14 +243,14 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Should_honor_taunt_until_expiry()
     {
-        var (script, encounter, _) = BuildScript(out var creature);
+        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature);
 
         ICharacter tank = Substitute.For<ICharacter>();
-        ICharacter dps  = Substitute.For<ICharacter>();
+        ICharacter dps = Substitute.For<ICharacter>();
 
         // DPS would normally be top-threat, but tank has an active taunt.
         encounter.GetTopThreat(creature).Returns(dps);
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = DateTime.UtcNow.AddSeconds(5);
 
         IUnit? picked = script.PickTarget();
@@ -263,15 +261,15 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Should_revert_to_top_threat_after_taunt_expires()
     {
-        var (script, encounter, _) = BuildScript(out var creature);
+        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature);
 
         ICharacter tank = Substitute.For<ICharacter>();
-        ICharacter dps  = Substitute.For<ICharacter>();
+        ICharacter dps = Substitute.For<ICharacter>();
 
         encounter.GetTopThreat(creature).Returns(dps);
 
         // Taunt that has already expired.
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = DateTime.UtcNow.AddSeconds(-1);
 
         IUnit? picked = script.PickTarget();
@@ -287,11 +285,11 @@ public class CreatureCombatScriptShould
     public void Time_A_Taunt_By_Its_Clock_Rather_Than_The_Wall_Clock()
     {
         var clock = new FixedTimeProvider(new DateTimeOffset(2040, 1, 1, 12, 0, 0, TimeSpan.Zero));
-        var (script, encounter, _) = BuildScript(out var creature, clock);
+        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature, clock);
         ICharacter tank = Substitute.For<ICharacter>();
-        ICharacter dps  = Substitute.For<ICharacter>();
+        ICharacter dps = Substitute.For<ICharacter>();
         encounter.GetTopThreat(creature).Returns(dps);
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = clock.Now.UtcDateTime.AddSeconds(5);
 
         Assert.Same(tank, script.PickTarget());
@@ -315,7 +313,7 @@ public class CreatureCombatScriptShould
         ICreature creature = Substitute.For<ICreature>();
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         ICharacter tank = Substitute.For<ICharacter>();
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = clock.Now.UtcDateTime.AddSeconds(5);
 
         var script = (CreatureCombatScript)ActivatorUtilities.CreateInstance(
@@ -329,10 +327,10 @@ public class CreatureCombatScriptShould
     public void Hold_A_Taunt_That_Has_Not_Ended_By_Its_Clock()
     {
         var clock = new FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
-        var (script, encounter, _) = BuildScript(out var creature, clock);
+        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature, clock);
         ICharacter tank = Substitute.For<ICharacter>();
         encounter.GetTopThreat(creature).Returns(Substitute.For<ICharacter>());
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = clock.Now.UtcDateTime.AddMilliseconds(1);
 
         Assert.Same(tank, script.PickTarget());
@@ -344,13 +342,13 @@ public class CreatureCombatScriptShould
         // Taunt is an authoritative override, not a tiebreaker. Even if GetTopThreat returns a
         // unit that isn't the taunter (e.g. the threat list disagrees with the taunt due to
         // floating-point edge cases), the taunter wins while the taunt is active.
-        var (script, encounter, _) = BuildScript(out var creature);
+        (CreatureCombatScript? script, IEncounter? encounter, ICombatService _) = BuildScript(out ICreature? creature);
 
-        ICharacter tank      = Substitute.For<ICharacter>();
+        ICharacter tank = Substitute.For<ICharacter>();
         ICharacter someoneElse = Substitute.For<ICharacter>();
 
         encounter.GetTopThreat(creature).Returns(someoneElse);
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = DateTime.UtcNow.AddSeconds(2);
 
         IUnit? picked = script.PickTarget();
@@ -361,7 +359,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Chase_Its_Own_Slot_Rather_Than_The_Targets_Centre()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         var targetPosition = new Vector3(20f, 0f, 0f);
         (CreatureCombatScript script, ICreature creature, _) =
             BuildChasingScript(locomotion, targetAt: targetPosition);
@@ -384,7 +382,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Chase_A_Stand_Off_Point_When_No_Slot_Is_Free()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         var targetPosition = new Vector3(20f, 0f, 0f);
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: targetPosition, slotCount: 1);
@@ -404,7 +402,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Release_Its_Slot_When_It_Stops_Chasing()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f), slotCount: 1);
 
@@ -433,27 +431,27 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Keep_Attacking_Once_Arrived_At_Its_Claimed_Slot_Rather_Than_Alternating()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         var locomotion = new WaypointLocomotion(_ => navigator);
         var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
 
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         creature.Speed.Returns(4f);
 
-        var targetPosition = Vector3.zero;
+        Vector3 targetPosition = Vector3.zero;
         ICharacter target = Substitute.For<ICharacter>();
         target.Guid.Returns(new ObjectGuid(ObjectType.Character, 2));
         target.Position.Returns(targetPosition);
         target.IsDead.Returns(false);
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(creature).Returns((IEncounter?)null);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(meleeSlots);
@@ -503,8 +501,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Attack_A_Surplus_Creature_Once_It_Has_Arrived_At_Its_Stand_Off_Point()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var targetPosition = Vector3.zero;
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        Vector3 targetPosition = Vector3.zero;
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: targetPosition, slotCount: 1);
 
@@ -533,9 +531,9 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Not_Attack_A_Slotted_Creature_Within_The_Tolerance_Band_Before_It_Arrives()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
-        var targetPosition = Vector3.zero;
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
+        Vector3 targetPosition = Vector3.zero;
         (CreatureCombatScript script, ICreature creature, _) =
             BuildChasingScript(locomotion, targetAt: targetPosition, combat: combat);
 
@@ -560,8 +558,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Attack_Once_Its_Basic_Reaches_The_Target_While_Still_Walking_In()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: Vector3.zero, combat: combat);
         target.BodyRadius.Returns(0.5f);
@@ -592,14 +590,14 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Keep_Several_Chasers_Of_One_Target_At_Least_One_Agent_Diameter_Apart()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(call => new List<Vector3> { call.ArgAt<Vector3>(1) });
 
         var locomotion = new WaypointLocomotion(_ => navigator);
         var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
 
         ICharacter target = Substitute.For<ICharacter>();
@@ -607,7 +605,7 @@ public class CreatureCombatScriptShould
         target.Position.Returns(Vector3.zero);
         target.IsDead.Returns(false);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(meleeSlots);
@@ -631,10 +629,10 @@ public class CreatureCombatScriptShould
             ICreature creature = Substitute.For<ICreature>();
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(i + 1)));
             creature.Position.Returns(starts[i]);
-            creature.TauntedBy      = null;
+            creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
 
-            var metadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
             metadata.SpeedRun.Returns(4f);
             creature.Metadata.Returns(metadata);
 
@@ -651,7 +649,7 @@ public class CreatureCombatScriptShould
         // (~0.4 units at SpeedRun 4) jumps clean over WaypointLocomotion's 0.1f arrival window, so
         // creatures never register as arrived and this test's separation would pass on oscillation
         // phase alone rather than on creatures actually standing in their slots.
-        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+        var tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
 
         // Enough ticks to cross ~8.5 units at 4 units/sec (~129 ticks at 1/60s) plus headroom for
         // at least one full swing interval (2.25 s, #627) after arrival, so "dealt damage" is a
@@ -677,14 +675,14 @@ public class CreatureCombatScriptShould
             combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>(), Arg.Any<IAbility>());
         }
 
-        const float agentDiameter = 1.2f;
+        const float AgentDiameter = 1.2f;
         for (int i = 0; i < creatures.Count; i++)
         {
             for (int j = i + 1; j < creatures.Count; j++)
             {
                 float distance = Vector3.Distance(creatures[i].Position, creatures[j].Position);
-                Assert.True(distance >= agentDiameter,
-                    $"Creatures {i} and {j} ended up only {distance} apart — closer than one agent diameter ({agentDiameter}).");
+                Assert.True(distance >= AgentDiameter,
+                    $"Creatures {i} and {j} ended up only {distance} apart — closer than one agent diameter ({AgentDiameter}).");
             }
         }
     }
@@ -704,14 +702,14 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Stand_A_Surplus_Creature_Off_The_Target_Rather_Than_On_It()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(call => new List<Vector3> { call.ArgAt<Vector3>(1) });
 
         var locomotion = new WaypointLocomotion(_ => navigator);
         var meleeSlots = new MeleeSlots(slotCount: 2, radius: 1.0f);
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
 
         ICharacter target = Substitute.For<ICharacter>();
@@ -719,7 +717,7 @@ public class CreatureCombatScriptShould
         target.Position.Returns(Vector3.zero);
         target.IsDead.Returns(false);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(meleeSlots);
@@ -743,10 +741,10 @@ public class CreatureCombatScriptShould
             ICreature creature = Substitute.For<ICreature>();
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(i + 1)));
             creature.Position.Returns(starts[i]);
-            creature.TauntedBy      = null;
+            creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
 
-            var metadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
             metadata.SpeedRun.Returns(4f);
             creature.Metadata.Returns(metadata);
 
@@ -759,7 +757,7 @@ public class CreatureCombatScriptShould
             scripts.Add(script);
         }
 
-        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+        var tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
         for (int tick = 0; tick < 400; tick++)
         {
             foreach (CreatureCombatScript script in scripts)
@@ -820,14 +818,14 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Keep_Several_Chasers_Of_A_Moving_Target_Separated_And_Attacking()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(call => new List<Vector3> { call.ArgAt<Vector3>(1) });
 
         var locomotion = new WaypointLocomotion(_ => navigator);
         var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
 
         var targetVelocity = new Vector3(1f, 0f, 0f); // 1 u/s — slower than every chaser.
@@ -836,7 +834,7 @@ public class CreatureCombatScriptShould
         target.Position.Returns(Vector3.zero);
         target.IsDead.Returns(false);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(meleeSlots);
@@ -857,10 +855,10 @@ public class CreatureCombatScriptShould
             ICreature creature = Substitute.For<ICreature>();
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(i + 1)));
             creature.Position.Returns(starts[i]);
-            creature.TauntedBy      = null;
+            creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
 
-            var metadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
             metadata.SpeedRun.Returns(4f);
             creature.Metadata.Returns(metadata);
 
@@ -873,8 +871,8 @@ public class CreatureCombatScriptShould
             scripts.Add(script);
         }
 
-        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
-        const float agentDiameter = 1.2f;
+        var tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+        const float AgentDiameter = 1.2f;
 
         // 10 simulated seconds: long enough to close the initial ~8.5-unit gap against a target
         // that keeps receding at 1 u/s, then sustain formation for several swing-interval (2.25 s)
@@ -906,8 +904,8 @@ public class CreatureCombatScriptShould
                 for (int j = i + 1; j < creatures.Count; j++)
                 {
                     float distance = Vector3.Distance(creatures[i].Position, creatures[j].Position);
-                    Assert.True(distance >= agentDiameter,
-                        $"Tick {tick}: creatures {i} and {j} were only {distance} apart — closer than one agent diameter ({agentDiameter}).");
+                    Assert.True(distance >= AgentDiameter,
+                        $"Tick {tick}: creatures {i} and {j} were only {distance} apart — closer than one agent diameter ({AgentDiameter}).");
                 }
             }
         }
@@ -943,14 +941,14 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Re_Path_Mid_Walk_When_The_Target_Turns_Away_From_The_Route_Already_Planned()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(call => SmoothedPath(call.ArgAt<Vector3>(0), call.ArgAt<Vector3>(1)));
 
         var locomotion = new WaypointLocomotion(_ => navigator);
         var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
 
         ICharacter target = Substitute.For<ICharacter>();
@@ -961,14 +959,14 @@ public class CreatureCombatScriptShould
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
         creature.Position.Returns(new Vector3(12f, 0f, 0f));
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
 
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.SpeedRun.Returns(4f);
         creature.Metadata.Returns(metadata);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(meleeSlots);
@@ -977,7 +975,7 @@ public class CreatureCombatScriptShould
         var script = new KitCombatScript(creature, context);
         script.OnEnteredRange(target);
 
-        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+        var tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
 
         // 20 ticks = ~1.3 units of a ~10.5-unit approach: unambiguously mid-walk, with plenty of
         // queued waypoints left, so the creature cannot be rescued by a convenient arrival.
@@ -1021,8 +1019,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Attack_With_Its_Basic_Ability_And_Never_A_Raw_Swing()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat);
 
@@ -1040,7 +1038,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Aim_Its_Basic_Along_The_Facing_Toward_The_Target()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         (CreatureCombatScript script, ICreature creature, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(0f, 0f, -1f));
 
@@ -1060,8 +1058,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Do_Nothing_On_Its_Tick_Once_It_Has_Died()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: Vector3.zero, combat: combat);
         creature.CurrentHealth = 10;
@@ -1083,8 +1081,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Release_Stop_And_Chase_The_New_Top_Threat_When_It_Changes()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (CreatureCombatScript script, ICreature creature, ICharacter oldTarget) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f), slotCount: 1, combat: combat);
         script.Update(TimeSpan.FromSeconds(0.1)); // claims the only slot on the old target
@@ -1093,7 +1091,7 @@ public class CreatureCombatScriptShould
         newTarget.Guid.Returns(new ObjectGuid(ObjectType.Character, 2));
         newTarget.Position.Returns(new Vector3(-20f, 0f, 0f));
         newTarget.IsDead.Returns(false);
-        var encounter = Substitute.For<IEncounter>();
+        IEncounter encounter = Substitute.For<IEncounter>();
         encounter.GetTopThreat(creature).Returns(newTarget);
         combat.GetEncounterFor(creature).Returns(encounter);
         locomotion.ClearReceivedCalls();
@@ -1116,7 +1114,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Keep_Running_Home_Without_A_New_Route_While_Still_Walking()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         (CreatureCombatScript script, ICreature creature, _) =
             BuildScriptReturningHome(locomotion, home: new Vector3(1f, 0f, 1f));
         creature.Metadata.SpeedRun.Returns(4f);
@@ -1138,7 +1136,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Ask_For_A_New_Route_Home_When_The_Last_One_Ended_Short()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         var home = new Vector3(1f, 0f, 1f);
         (CreatureCombatScript script, ICreature creature, _) = BuildScriptReturningHome(locomotion, home);
         creature.Metadata.SpeedRun.Returns(4f);
@@ -1158,7 +1156,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Go_Home_At_Full_Health_When_Its_Target_Dies()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
         creature.Health = 100;
@@ -1180,8 +1178,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Leash_Home_At_Full_Health_Past_The_Chase_Distance()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         var targetPosition = new Vector3(41f, 0f, 0f);
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: targetPosition, slotCount: 1, combat: combat);
@@ -1210,8 +1208,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Ask_For_Nothing_Once_Settled_On_Its_Destination()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (CreatureCombatScript script, ICreature creature, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f), combat: combat);
         Vector3? destination = null;
@@ -1237,7 +1235,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Keep_Running_Without_A_New_Route_While_Its_Destination_Holds()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         (CreatureCombatScript script, ICreature creature, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
         creature.Metadata.SpeedRun.Returns(4f);
@@ -1260,8 +1258,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Swing_Once_Per_Attack_Cooldown()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (CreatureCombatScript script, _, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat);
 
@@ -1278,8 +1276,8 @@ public class CreatureCombatScriptShould
     /// <summary>Swings a World-side creature in range of its target for <paramref name="seconds" /> and returns when each swing landed.</summary>
     private List<double> SwingTimes(Avalon.World.Entities.Creature real, double seconds, Action<double>? at = null)
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (CreatureCombatScript script, _, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
         var swings = new List<double>();
@@ -1352,8 +1350,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Swing_at_once_in_the_fight_after_a_leash_reset()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         var real = new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, Health = 100, CurrentHealth = 100 };
         (CreatureCombatScript script, _, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
@@ -1388,8 +1386,8 @@ public class CreatureCombatScriptShould
     [InlineData(0.5f, 0f)]
     public void Swing_on_the_tick_the_countdown_crosses_zero_at_sixty_hertz(float baseAttackTime, float haste)
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         var real = new Avalon.World.Entities.Creature { BaseAttackTime = baseAttackTime, HasteCap = 50f, HastePct = haste };
         (CreatureCombatScript script, _, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
@@ -1397,7 +1395,7 @@ public class CreatureCombatScriptShould
         int tick = 0;
         combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, default, default!)).Do(_ => swingTicks.Add(tick));
 
-        TimeSpan step = TimeSpan.FromSeconds(1d / 60d);
+        var step = TimeSpan.FromSeconds(1d / 60d);
         for (tick = 0; tick < 60 * 12; tick++)
             script.Update(step);
 
@@ -1419,8 +1417,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Count_the_cooldown_down_out_of_reach_too()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         var real = new Avalon.World.Entities.Creature { BaseAttackTime = 1.5f };
         (CreatureCombatScript script, _, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
@@ -1448,8 +1446,8 @@ public class CreatureCombatScriptShould
     [InlineData(typeof(CreaturePatrolScript))]
     public void Attack_Nothing_When_Built_By_Name_With_No_Kit(Type scriptType)
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (_, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat);
         creature.CurrentHealth.Returns(50u);
@@ -1482,8 +1480,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Go_Home_When_No_Route_To_Its_Target_Exists_Past_The_Limit()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f), slotCount: 1, combat: combat);
         creature.Health = 100;
@@ -1519,8 +1517,8 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Never_Give_Up_While_Standing_In_Its_Slot_Waiting_For_Its_Cooldown()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var combat = Substitute.For<ICombatService>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        ICombatService combat = Substitute.For<ICombatService>();
         (CreatureCombatScript script, ICreature creature, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f), combat: combat);
         Vector3? destination = null;
@@ -1651,7 +1649,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Return_To_The_Origin_When_The_Fight_Began_There()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f)); // engages at (0, 0, 0)
         creature.Health = 100;
@@ -1672,7 +1670,7 @@ public class CreatureCombatScriptShould
     [Fact]
     public void Ignore_Hits_While_Returning_Home()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         (CreatureCombatScript script, ICreature creature, _) =
             BuildScriptReturningHome(locomotion, home: new Vector3(1f, 0f, 1f));
         locomotion.HasArrived(creature).Returns(false);
@@ -1698,7 +1696,7 @@ public class CreatureCombatScriptShould
         public WaypointFight(Vector3 targetAt, Vector3? routeEndNearTarget)
         {
             RouteEndNearTarget = routeEndNearTarget;
-            var navigator = Substitute.For<IMapNavigator>();
+            IMapNavigator navigator = Substitute.For<IMapNavigator>();
             navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci =>
             {
                 Vector3 from = ci.ArgAt<Vector3>(0);
@@ -1714,7 +1712,7 @@ public class CreatureCombatScriptShould
             Creature.Position = Vector3.zero;
             Creature.TauntedBy = null;
             Creature.TauntExpiresAt = DateTime.MinValue;
-            var metadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
             metadata.SpeedRun.Returns(4f);
             Creature.Metadata.Returns(metadata);
             Creature.Health.Returns(100u);
@@ -1727,7 +1725,7 @@ public class CreatureCombatScriptShould
             Target.IsDead.Returns(false);
 
             Combat.GetEncounterFor(Creature).Returns((IEncounter?)null);
-            var context = Substitute.For<ISimulationContext>();
+            ISimulationContext context = Substitute.For<ISimulationContext>();
             context.CombatService.Returns(Combat);
             context.Locomotion.Returns(Locomotion);
             context.MeleeSlots.Returns(Slots);
@@ -1776,11 +1774,11 @@ public class CreatureCombatScriptShould
 
     private static List<Vector3> SmoothedPath(Vector3 from, Vector3 to)
     {
-        const float stepSize = 0.5f;
+        const float StepSize = 0.5f;
         var path = new List<Vector3> { from };
 
         float total = Vector3.Distance(from, to);
-        for (float walked = stepSize; walked < total; walked += stepSize)
+        for (float walked = StepSize; walked < total; walked += StepSize)
             path.Add(Vector3.MoveTowards(from, to, walked));
 
         path.Add(to);
@@ -1823,15 +1821,15 @@ public class CreatureCombatScriptShould
         // NSubstitute auto-substitutes reference-type reads. Initialise the taunt fields so
         // the no-taunt branch in PickTarget is the default rather than picking up an
         // auto-stubbed IUnit.
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
 
-        var encounter = Substitute.For<IEncounter>();
-        var combat    = Substitute.For<ICombatService>();
+        IEncounter encounter = Substitute.For<IEncounter>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(creature).Returns(encounter);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
 
         var script = new KitCombatScript(creature, context, time);
@@ -1849,7 +1847,7 @@ public class CreatureCombatScriptShould
             creature = Substitute.For<ICreature>();
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
             creature.Position.Returns(Vector3.zero);
-            creature.TauntedBy      = null;
+            creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
             creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         }
@@ -1883,7 +1881,7 @@ public class CreatureCombatScriptShould
         // creature that has arrived at its slot is already within attack range.
         _meleeSlots = new MeleeSlots(slotCount, radius: 1.5f);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(_meleeSlots);
@@ -1903,7 +1901,7 @@ public class CreatureCombatScriptShould
     {
         ICreature creature = Substitute.For<ICreature>();
         creature.Position.Returns(home);
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         creature.Health.Returns(100u);
@@ -1912,10 +1910,10 @@ public class CreatureCombatScriptShould
         // Returning branch attempt a regen and then, finding nothing again, snap home.
         locomotion.HasArrived(creature).Returns(true);
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(creature).Returns((IEncounter?)null);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
 

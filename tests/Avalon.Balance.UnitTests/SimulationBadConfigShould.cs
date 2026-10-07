@@ -9,10 +9,10 @@ namespace Avalon.Balance.UnitTests;
 /// <summary>A config that parses, or is built in code, can still be wrong: Run says so as an Issue and never throws.</summary>
 public class SimulationBadConfigShould
 {
-    private static readonly RunFilter WarriorNormal3 =
+    private static readonly RunFilter s_warriorNormal3 =
         new(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, new HashSet<string> { "normal-3" });
 
-    private static RunRequest With(BalanceConfig config, int? runs = 5) => new(null, config, WarriorNormal3, runs, 1);
+    private static RunRequest With(BalanceConfig config, int? runs = 5) => new(null, config, s_warriorNormal3, runs, 1);
 
     private static RunResult Run(BalanceConfig config) =>
         Simulation.Run(TestData.Seed(), TestData.Config(), With(config), null, CancellationToken.None);

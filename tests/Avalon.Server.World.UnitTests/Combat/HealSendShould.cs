@@ -9,7 +9,6 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Combat;
@@ -22,11 +21,11 @@ namespace Avalon.Server.World.UnitTests.Combat;
 /// </summary>
 public class HealSendShould
 {
-    private static readonly Vector3 Far = new(500f, 0f, 500f);
+    private static readonly Vector3 s_far = new(500f, 0f, 500f);
 
     private static IAbility Heal()
     {
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(232));
         ability.Metadata.Returns(new AbilityMetadata { Name = "Mending Circle", ScriptName = "x" });
         return ability;
@@ -113,7 +112,7 @@ public class HealSendShould
         MapInstanceClient healer = At(instance, 506_541, Vector3.zero);
         MapInstanceClient target = At(instance, 506_542, new Vector3(2f, 0f, 0f), current: 40);
         MapInstanceClient near = At(instance, 506_543, new Vector3(10f, 0f, 0f));
-        MapInstanceClient far = At(instance, 506_544, Far);
+        MapInstanceClient far = At(instance, 506_544, s_far);
 
         instance.CombatService.ApplyHeal(healer.Character, target.Character, 25, Heal());
 
@@ -126,9 +125,9 @@ public class HealSendShould
     {
         using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain());
         MapInstanceClient target = At(instance, 506_551, Vector3.zero, current: 40);
-        MapInstanceClient healer = At(instance, 506_552, Far);
+        MapInstanceClient healer = At(instance, 506_552, s_far);
         // Beside the healer and far from the target: the heal's point is the target.
-        MapInstanceClient besideHealer = At(instance, 506_553, Far + new Vector3(1f, 0f, 0f));
+        MapInstanceClient besideHealer = At(instance, 506_553, s_far + new Vector3(1f, 0f, 0f));
 
         instance.CombatService.ApplyHeal(healer.Character, target.Character, 25, Heal());
 

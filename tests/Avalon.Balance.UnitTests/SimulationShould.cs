@@ -1,7 +1,7 @@
-using Xunit;
 using System.Text.Json;
 using Avalon.Balance.Core;
 using Avalon.World.Public.Enums;
+using Xunit;
 
 namespace Avalon.Balance.UnitTests;
 
@@ -20,7 +20,7 @@ public class SimulationShould
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick(), null, CancellationToken.None);
         // Same plan through the old path.
         var runner = new BalanceRunner(TestData.Seeded, TestData.Config().Scenarios, TestData.Config().Rotations);
-        var expected = runner.Run(runner.Plan(CharacterClass.Warrior, "normal-3", 20, 1));
+        IReadOnlyList<RowResult> expected = runner.Run(runner.Plan(CharacterClass.Warrior, "normal-3", 20, 1));
 
         Assert.Equal(RunStatus.Done, result.Status);
         Assert.Equal(expected.Select(r => (r.Key, r.WinRatePct)), result.Rows.Select(r => (r.Key, r.WinRatePct)));
@@ -85,7 +85,7 @@ public class SimulationShould
     public void Apply_overrides_to_a_copy_and_never_touch_the_callers_seed()
     {
         SeedTables seed = TestData.Seed();
-        var before = seed.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue;
+        uint before = seed.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue;
 
         RunResult result = Simulation.Run(seed, TestData.Config(), Quick(overrides: """{ "Ability.201.EffectValue": 18 }"""), null, CancellationToken.None);
 
@@ -99,7 +99,7 @@ public class SimulationShould
     {
         SeedTables original = TestData.Seed();
         SeedTables copy = original.Clone();
-        var before = original.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue;
+        uint before = original.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue;
 
         Overrides.Apply(copy, JsonDocument.Parse("""{ "Ability.201.EffectValue": 18 }""").RootElement);
 
@@ -113,7 +113,7 @@ public class SimulationShould
     public void Report_a_bad_config_as_an_issue()
     {
         BalanceConfig config = TestData.Config();
-        var broken = config with { Rotations = new RotationFile { [CharacterClass.Warrior] = [new RotationEntry { Ability = 99999 }] } };
+        BalanceConfig broken = config with { Rotations = new RotationFile { [CharacterClass.Warrior] = [new RotationEntry { Ability = 99999 }] } };
 
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick() with { Config = broken }, null, CancellationToken.None);
 
@@ -218,7 +218,8 @@ public class SimulationShould
     public void Treat_a_null_filter_as_no_filter()
     {
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick() with { Filter = null! }
-            with { RunsPerRow = 1 }, null, CancellationToken.None);
+            with
+        { RunsPerRow = 1 }, null, CancellationToken.None);
 
         Assert.Equal(RunStatus.Done, result.Status);
         Assert.Equal(TestData.Config().Scenarios.Classes.Length * 10 * 3 * 8, result.Rows.Count);

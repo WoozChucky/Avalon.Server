@@ -54,7 +54,9 @@ public static class ItemEquip
 
         if (template.SubClass == ItemSubClass.TwoHanded && target == EquipmentSlots.MainHand
             && equipment.TryGet(EquipmentSlots.OffHand, out _))
+        {
             return EquipTwoHander(character, inventory, bagSlot, template, from, to, logger, beforeApply);
+        }
 
         // Decided first, as TryMove decides it, so a refusal runs nothing before it.
         MoveDecision decision = InventoryMove.Decide(character, findTemplate, bankAccessible: false, from, to, count: null);

@@ -12,13 +12,10 @@ using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
-using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 
@@ -29,7 +26,7 @@ namespace Avalon.Server.World.UnitTests.Combat;
 /// </summary>
 public class HitResultSendShould
 {
-    private static readonly Vector3 Far = new(500f, 0f, 500f);
+    private static readonly Vector3 s_far = new(500f, 0f, 500f);
 
     /// <summary>Takes each hit off health and reports it to its instance, as the combat script does.</summary>
     private sealed class BroadcastingWoundScript(Creature creature, ISimulationContext context) : AiScript(creature, context)
@@ -92,7 +89,7 @@ public class HitResultSendShould
         using MapInstance instance = TestMapInstances.Build(NewWorld(), random: new ScriptedCombatRandom(0.0));
         MapInstanceClient attacker = At(instance, 506_301, Vector3.zero);
         MapInstanceClient near = At(instance, 506_302, new Vector3(5f, 0f, 0f));
-        MapInstanceClient far = At(instance, 506_303, Far);
+        MapInstanceClient far = At(instance, 506_303, s_far);
         Creature boar = AddCreature(instance, 506_801, new Vector3(1f, 0f, 0f), dodge: 30f);
 
         instance.CombatService.ApplyDamage(attacker.Character, boar, 10);
@@ -131,7 +128,7 @@ public class HitResultSendShould
         MapInstanceClient victim = At(instance, 506_313, Vector3.zero);
         victim.Character.GodMode = true;
         MapInstanceClient watcher = At(instance, 506_314, new Vector3(3f, 0f, 0f));
-        MapInstanceClient far = At(instance, 506_315, Far);
+        MapInstanceClient far = At(instance, 506_315, s_far);
         Creature boar = AddCreature(instance, 506_812, new Vector3(1f, 0f, 0f));
 
         instance.CombatService.ApplyDamage(boar, victim.Character, 10);

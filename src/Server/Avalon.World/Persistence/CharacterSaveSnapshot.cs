@@ -21,7 +21,7 @@ namespace Avalon.World.Persistence;
 /// </remarks>
 public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks Marks)
 {
-    private static readonly InventoryType[] Containers = [InventoryType.Equipment, InventoryType.Bag, InventoryType.Bank];
+    private static readonly InventoryType[] s_containers = [InventoryType.Equipment, InventoryType.Bag, InventoryType.Bank];
 
     public CharacterId CharacterId => Batch.Row.Id;
 
@@ -29,15 +29,18 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
     {
         Character row = character.Data
             ?? throw new InvalidOperationException("A character without a row has nothing to save.");
-        var authority = character.GameplayAuthority;
+        GameplayWriteAuthority? authority = character.GameplayAuthority;
         if (connectionAuthority is not null && (authority is null || authority.AccountId != connectionAuthority.AccountId ||
             authority.GameSessionId != connectionAuthority.GameSessionId || authority.FencingToken != connectionAuthority.FencingToken))
+        {
             throw new InvalidOperationException("A save cannot be relabeled by a replacement connection.");
+        }
+
         SaveMarks marks = character.SaveState.TakeMarks();
         DateTime now = DateTime.UtcNow;
 
         Dictionary<ItemInstanceId, InventoryItem> held = [];
-        foreach (InventoryType container in Containers)
+        foreach (InventoryType container in s_containers)
         {
             foreach (InventoryItem item in character.Container(container).Items)
                 held[item.InstanceId] = item;
@@ -77,7 +80,10 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
             {
                 upsertSlots.Add(new CharacterInventory
                 {
-                    CharacterId = row.Id, Container = key.Container, Slot = key.Slot, ItemId = item.InstanceId,
+                    CharacterId = row.Id,
+                    Container = key.Container,
+                    Slot = key.Slot,
+                    ItemId = item.InstanceId,
                 });
             }
             else
@@ -105,10 +111,14 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
                 {
                     active.Add(new CharacterQuest
                     {
-                        CharacterId = row.Id, QuestId = questId, State = quest.State, Stage = quest.Stage, AcceptedAt = quest.AcceptedAt,
+                        CharacterId = row.Id,
+                        QuestId = questId,
+                        State = quest.State,
+                        Stage = quest.Stage,
+                        AcceptedAt = quest.AcceptedAt,
                     });
                     objectives.AddRange(quest.Progress.Select(p => new CharacterQuestObjective
-                        { CharacterId = row.Id, QuestId = questId, ObjectiveId = p.Key, Progress = p.Value }));
+                    { CharacterId = row.Id, QuestId = questId, ObjectiveId = p.Key, Progress = p.Value }));
                 }
                 else if (character.Quests.CompletedAt(questId) is { } at)
                 {
@@ -121,7 +131,8 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
         return new CharacterSaveSnapshot(
             new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats, quests,
-                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks)) { Authority = authority },
+                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks))
+            { Authority = authority },
             marks);
     }
 
@@ -149,11 +160,20 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
             rows.Add(new CharacterAura
             {
-                CharacterId = owner, Slot = rows.Count, AuraId = aura.Id.Value, CasterGuid = SavedCaster(aura.CasterGuid),
-                SourceAbilityId = aura.Source.AbilityId?.Value, Stacks = (int)aura.Stacks, RemainingMs = remaining,
-                DurationMs = aura.DurationMs, TicksLeft = aura.Schedule.TicksLeft, TickAmount = aura.Snapshot.PerTickPerStack,
-                CritPct = aura.Snapshot.CritPct, CasterLevel = aura.Snapshot.CasterLevel,
-                PeriodicCarry = aura.PeriodicCarry, AppliedAt = aura.AppliedAt,
+                CharacterId = owner,
+                Slot = rows.Count,
+                AuraId = aura.Id.Value,
+                CasterGuid = SavedCaster(aura.CasterGuid),
+                SourceAbilityId = aura.Source.AbilityId?.Value,
+                Stacks = (int)aura.Stacks,
+                RemainingMs = remaining,
+                DurationMs = aura.DurationMs,
+                TicksLeft = aura.Schedule.TicksLeft,
+                TickAmount = aura.Snapshot.PerTickPerStack,
+                CritPct = aura.Snapshot.CritPct,
+                CasterLevel = aura.Snapshot.CasterLevel,
+                PeriodicCarry = aura.PeriodicCarry,
+                AppliedAt = aura.AppliedAt,
             });
         }
 
@@ -183,7 +203,9 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
             {
                 insert.Add(new CharacterIgnore
                 {
-                    CharacterId = owner, IgnoredCharacterId = ignoredId, CreatedAt = entry.CreatedAt,
+                    CharacterId = owner,
+                    IgnoredCharacterId = ignoredId,
+                    CreatedAt = entry.CreatedAt,
                 });
             }
         }

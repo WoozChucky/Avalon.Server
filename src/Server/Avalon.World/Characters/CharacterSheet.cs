@@ -36,10 +36,19 @@ public readonly record struct CharacterSheet(
 
     public SCharacterStatsPacket ToPacket() => new()
     {
-        Stamina = Stamina, Strength = Strength, Agility = Agility, Intellect = Intellect, Armor = Armor,
-        AttackDamage = AttackDamage, AbilityDamage = AbilityDamage,
-        CritPct = CritPct, DodgePct = DodgePct, BlockPct = BlockPct,
-        WeaponMin = WeaponMin, WeaponMax = WeaponMax,
-        HastePct = HastePct, MovementSpeed = MovementSpeed,
+        Stamina = Stamina,
+        Strength = Strength,
+        Agility = Agility,
+        Intellect = Intellect,
+        Armor = Armor,
+        AttackDamage = AttackDamage,
+        AbilityDamage = AbilityDamage,
+        CritPct = CritPct,
+        DodgePct = DodgePct,
+        BlockPct = BlockPct,
+        WeaponMin = WeaponMin,
+        WeaponMax = WeaponMax,
+        HastePct = HastePct,
+        MovementSpeed = MovementSpeed,
     };
 }

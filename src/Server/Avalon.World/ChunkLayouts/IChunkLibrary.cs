@@ -33,15 +33,15 @@ public class ChunkLibrary : IChunkLibrary
 
     public async Task LoadAsync(CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var templateRepo = scope.ServiceProvider.GetRequiredService<IChunkTemplateRepository>();
-        var poolRepo     = scope.ServiceProvider.GetRequiredService<IChunkPoolRepository>();
-        var configRepo   = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
+        await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+        IChunkTemplateRepository templateRepo = scope.ServiceProvider.GetRequiredService<IChunkTemplateRepository>();
+        IChunkPoolRepository poolRepo = scope.ServiceProvider.GetRequiredService<IChunkPoolRepository>();
+        IProceduralMapConfigRepository configRepo = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
 
-        var templates = await templateRepo.FindAllWithSlotsAsync(ct);
+        IReadOnlyList<ChunkTemplate> templates = await templateRepo.FindAllWithSlotsAsync(ct);
         _templates = templates.ToDictionary(t => t.Id);
 
-        var pools = await poolRepo.FindAllWithMembershipsAsync(ct);
+        IReadOnlyList<ChunkPool> pools = await poolRepo.FindAllWithMembershipsAsync(ct);
         _pools = pools.ToDictionary(
             p => p.Id,
             p => p.Memberships
@@ -51,28 +51,28 @@ public class ChunkLibrary : IChunkLibrary
 
         _groups = pools.ToDictionary(p => p.Id, LoadGroups);
 
-        var configs = await configRepo.FindAllAsync(ct);
-        foreach (var cfg in configs) ValidatePool(cfg);
+        IReadOnlyList<ProceduralMapConfig> configs = await configRepo.FindAllAsync(ct);
+        foreach (ProceduralMapConfig cfg in configs) ValidatePool(cfg);
 
         _logger.LogInformation("Chunk library loaded: {Templates} templates, {Pools} pools, {Configs} configs",
             _templates.Count, _pools.Count, configs.Count);
     }
 
     public ChunkTemplate GetById(ChunkTemplateId id) =>
-        _templates.TryGetValue(id, out var t) ? t : throw new KeyNotFoundException($"ChunkTemplate {id.Value}");
+        _templates.TryGetValue(id, out ChunkTemplate? t) ? t : throw new KeyNotFoundException($"ChunkTemplate {id.Value}");
 
     public IReadOnlyList<ChunkPoolMember> GetByPool(ChunkPoolId poolId) =>
-        _pools.TryGetValue(poolId, out var list) ? list : Array.Empty<ChunkPoolMember>();
+        _pools.TryGetValue(poolId, out List<ChunkPoolMember>? list) ? list : Array.Empty<ChunkPoolMember>();
 
     public IReadOnlyList<ChunkGroupDefinition> GetGroupsByPool(ChunkPoolId poolId) =>
-        _groups.TryGetValue(poolId, out var list) ? list : Array.Empty<ChunkGroupDefinition>();
+        _groups.TryGetValue(poolId, out List<ChunkGroupDefinition>? list) ? list : Array.Empty<ChunkGroupDefinition>();
 
     public IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids)
     {
         var result = new Dictionary<ChunkTemplateId, ChunkTemplate>();
-        foreach (var id in ids)
+        foreach (ChunkTemplateId id in ids)
         {
-            if (!_templates.TryGetValue(id, out var t))
+            if (!_templates.TryGetValue(id, out ChunkTemplate? t))
                 throw new KeyNotFoundException($"ChunkTemplate {id.Value}");
             result[id] = t;
         }
@@ -89,11 +89,15 @@ public class ChunkLibrary : IChunkLibrary
         foreach (ChunkGroup group in pool.Groups)
         {
             if (ChunkGroupDefinition.From(group, _templates) is { } definition)
+            {
                 groups.Add(definition);
+            }
             else
+            {
                 _logger.LogWarning(
                     "Set piece '{Group}' of pool {Pool} is left out: it has no members or names a chunk template that is not loaded",
                     group.Name, pool.Id.Value);
+            }
         }
 
         return groups;
@@ -101,31 +105,41 @@ public class ChunkLibrary : IChunkLibrary
 
     private void ValidatePool(ProceduralMapConfig cfg)
     {
-        if (!_pools.TryGetValue(cfg.ChunkPoolId, out var members) || members.Count == 0)
+        if (!_pools.TryGetValue(cfg.ChunkPoolId, out List<ChunkPoolMember>? members) || members.Count == 0)
             throw new InvalidProceduralConfigException($"Pool {cfg.ChunkPoolId.Value} empty or missing for map {cfg.MapTemplateId.Value}");
 
         if (!members.Any(m => HasSlotTag(m.Template, "entry") && HasPortalRole(m.Template, PortalRole.Back)))
+        {
             throw new InvalidProceduralConfigException(
                 $"Pool {cfg.ChunkPoolId.Value} contains no entry chunk (needs Spawn_Entry + Portal_Back) for map {cfg.MapTemplateId.Value}");
+        }
 
         IReadOnlyList<ChunkGroupDefinition> groups = GetGroupsByPool(cfg.ChunkPoolId);
 
         if (cfg.HasBoss && !members.Any(m => HasSlotTag(m.Template, "boss")) && !groups.Any(g => g.IsBoss))
+        {
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} HasBoss but pool has no boss-capable chunk");
+        }
 
         if (cfg.ForwardPortalTargetMapId is not null && !members.Any(m => HasPortalRole(m.Template, PortalRole.Forward))
             && !groups.Any(g => g.HasForward))
+        {
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} ForwardPortalTargetMapId set but no chunk has Portal_Forward slot");
+        }
 
         if (cfg.MainPathMin < 2 || cfg.MainPathMax < cfg.MainPathMin || cfg.MainPathMax > 32)
+        {
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} path length constraints invalid ({cfg.MainPathMin}..{cfg.MainPathMax})");
+        }
 
         if (DepthBandLevels.Problem(cfg.DepthBands) is { } bandProblem)
+        {
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} depth bands are invalid: {bandProblem}");
+        }
     }
 
     private static bool HasSlotTag(ChunkTemplate t, string tag) =>

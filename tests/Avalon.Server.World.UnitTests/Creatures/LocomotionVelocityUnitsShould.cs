@@ -7,7 +7,6 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 
@@ -25,8 +24,8 @@ public class LocomotionVelocityUnitsShould
     /// <summary>Loose enough for the crowd's steering, tight enough that a unit vector (1 m/s) fails.</summary>
     private const float Tolerance = 0.15f;
 
-    private static readonly Vector3 Start = new(-10f, 0f, 0f);
-    private static readonly Vector3 Destination = new(10f, 0f, 0f);
+    private static readonly Vector3 s_start = new(-10f, 0f, 0f);
+    private static readonly Vector3 s_destination = new(10f, 0f, 0f);
 
     public static TheoryData<string, float> Cases() => new()
     {
@@ -42,7 +41,7 @@ public class LocomotionVelocityUnitsShould
     /// </summary>
     private static ICreature CreatureAt(Vector3 position, float speed)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
         creature.Speed.Returns(speed);
         creature.Position = position;
@@ -53,12 +52,12 @@ public class LocomotionVelocityUnitsShould
     {
         if (kind == "crowd")
         {
-            return new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value, NavmeshBuildSettings.AgentRadius,
+            return new CrowdLocomotion(CrowdLocomotionShould.s_flatNavMesh.Value, NavmeshBuildSettings.AgentRadius,
                 NullLogger.Instance);
         }
 
-        var navigator = Substitute.For<IMapNavigator>();
-        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([Destination]);
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([s_destination]);
         return new WaypointLocomotion(_ => navigator);
     }
 
@@ -73,10 +72,10 @@ public class LocomotionVelocityUnitsShould
     public void Publish_Velocity_In_Metres_Per_Second_While_Moving(string kind, float speed)
     {
         ICreatureLocomotion locomotion = Build(kind);
-        ICreature creature = CreatureAt(Start, speed);
+        ICreature creature = CreatureAt(s_start, speed);
 
         locomotion.Register(creature, radius: NavmeshBuildSettings.AgentRadius);
-        locomotion.MoveTo(creature, Destination);
+        locomotion.MoveTo(creature, s_destination);
 
         // One second: past the crowd's acceleration ramp (3.5 m/s at 8 m/s^2 takes under half a
         // second) and well short of the 20 m journey at either speed.
@@ -97,10 +96,10 @@ public class LocomotionVelocityUnitsShould
     public void Move_Position_By_Velocity_Times_Elapsed_Seconds(string kind, float speed)
     {
         ICreatureLocomotion locomotion = Build(kind);
-        ICreature creature = CreatureAt(Start, speed);
+        ICreature creature = CreatureAt(s_start, speed);
 
         locomotion.Register(creature, radius: NavmeshBuildSettings.AgentRadius);
-        locomotion.MoveTo(creature, Destination);
+        locomotion.MoveTo(creature, s_destination);
         Tick_(locomotion, 60);
 
         Vector3 before = creature.Position;
@@ -116,10 +115,10 @@ public class LocomotionVelocityUnitsShould
     public void Publish_Zero_Velocity_Once_At_Rest(string kind, float speed)
     {
         ICreatureLocomotion locomotion = Build(kind);
-        ICreature creature = CreatureAt(Start, speed);
+        ICreature creature = CreatureAt(s_start, speed);
 
         locomotion.Register(creature, radius: NavmeshBuildSettings.AgentRadius);
-        locomotion.MoveTo(creature, Destination);
+        locomotion.MoveTo(creature, s_destination);
 
         // 20 m at 2 m/s is ten seconds; allow twenty.
         for (int i = 0; i < 1200 && !locomotion.HasArrived(creature); i++)
@@ -139,10 +138,10 @@ public class LocomotionVelocityUnitsShould
     public void Publish_Zero_Velocity_When_Stopped_Mid_Journey(string kind, float speed)
     {
         ICreatureLocomotion locomotion = Build(kind);
-        ICreature creature = CreatureAt(Start, speed);
+        ICreature creature = CreatureAt(s_start, speed);
 
         locomotion.Register(creature, radius: NavmeshBuildSettings.AgentRadius);
-        locomotion.MoveTo(creature, Destination);
+        locomotion.MoveTo(creature, s_destination);
         Tick_(locomotion, 30);
 
         locomotion.Stop(creature);

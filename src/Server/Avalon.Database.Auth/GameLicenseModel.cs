@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Avalon.Database.Auth;
 
@@ -8,7 +9,7 @@ internal static class GameLicenseModel
 {
     public static void Configure(ModelBuilder model)
     {
-        var license = model.Entity<GameLicense>();
+        EntityTypeBuilder<GameLicense> license = model.Entity<GameLicense>();
         license.HasKey(x => x.Id);
         license.Property(x => x.Id).ValueGeneratedNever();
         license.Property(x => x.AccountId).HasConversion(x => x.Value, x => new AccountId(x));
@@ -30,7 +31,7 @@ internal static class GameLicenseModel
             t.HasCheckConstraint("CK_GameLicenses_Reference", "length(trim(\"LicenseReference\")) > 0 AND \"LicenseReference\" = trim(\"LicenseReference\")");
             t.HasCheckConstraint("CK_GameLicenses_Interval", "(\"ExpiresAt\" IS NULL OR \"ExpiresAt\" > \"GrantedAt\") AND (\"RevokedAt\" IS NULL OR \"RevokedAt\" >= \"GrantedAt\")");
         });
-        var hold = model.Entity<LicenseHold>();
+        EntityTypeBuilder<LicenseHold> hold = model.Entity<LicenseHold>();
         hold.HasKey(x => x.Id);
         hold.Property(x => x.Id).ValueGeneratedNever();
         hold.Property(x => x.CauseKind).HasMaxLength(32);

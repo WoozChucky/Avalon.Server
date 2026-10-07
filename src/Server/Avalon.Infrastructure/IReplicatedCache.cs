@@ -93,7 +93,6 @@ public class ReplicatedCache : IReplicatedCache
 
     private ConnectionMultiplexer _redis = null!;
 
-
     public ReplicatedCache(ILoggerFactory loggerFactory, IOptions<CacheConfiguration> configuration)
     {
         _logger = loggerFactory.CreateLogger<ReplicatedCache>();
@@ -311,20 +310,20 @@ public class ReplicatedCache : IReplicatedCache
 
     public async Task SubscribeAsync(string channel, Action<RedisChannel, RedisValue> handler)
     {
-        var sub = _redis.GetSubscriber();
+        ISubscriber sub = _redis.GetSubscriber();
         // await sub.SubscribeAsync(new RedisChannel(channel, RedisChannel.PatternMode.Auto));
-        await sub.SubscribeAsync(channel, handler);
+        await sub.SubscribeAsync(new RedisChannel(channel, RedisChannel.PatternMode.Auto), handler);
     }
 
     public async Task UnsubscribeAsync(string channel, Action<RedisChannel, RedisValue> handler)
     {
-        var sub = _redis.GetSubscriber();
-        await sub.UnsubscribeAsync(channel, handler);
+        ISubscriber sub = _redis.GetSubscriber();
+        await sub.UnsubscribeAsync(new RedisChannel(channel, RedisChannel.PatternMode.Auto), handler);
     }
 
     public async Task PublishAsync(string channel, string message)
     {
-        var sub = _redis.GetSubscriber();
-        await sub.PublishAsync(channel, message);
+        ISubscriber sub = _redis.GetSubscriber();
+        await sub.PublishAsync(new RedisChannel(channel, RedisChannel.PatternMode.Auto), message);
     }
 }

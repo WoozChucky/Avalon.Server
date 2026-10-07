@@ -1,17 +1,9 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
 using Avalon.Exporter;
 using Avalon.Shared.UnitTests.Schema;
 using Org.BouncyCastle.Asn1.Sec;
-using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.EC;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -210,7 +202,7 @@ public class SessionCryptoVectorsShould
                 : client;
 
             byte[] wire = [.. packet.Nonce, .. packet.Ciphertext];
-            var output = new byte[wire.Length];
+            byte[] output = new byte[wire.Length];
 
             int length = receiver.Decrypt(wire, output);
 
@@ -237,8 +229,8 @@ public class SessionCryptoVectorsShould
 
             using var aes = new AesGcm(key, 16);
 
-            var ciphertext = new byte[packet.Plaintext.Length];
-            var tag = new byte[16];
+            byte[] ciphertext = new byte[packet.Plaintext.Length];
+            byte[] tag = new byte[16];
 
             aes.Encrypt(packet.Nonce, packet.Plaintext, ciphertext, tag);
 

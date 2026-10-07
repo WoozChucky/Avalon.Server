@@ -27,7 +27,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
     public void Dispose() => _database.Dispose();
 
     /// <summary>One browser: the same source and User-Agent for both of its tabs.</summary>
-    private static readonly RefreshCaller Tab = RefreshCaller.From(System.Net.IPAddress.Parse("203.0.113.7"), "Browser/1.0");
+    private static readonly RefreshCaller s_tab = RefreshCaller.From(System.Net.IPAddress.Parse("203.0.113.7"), "Browser/1.0");
 
     private async Task<Account> AccountAsync()
     {
@@ -118,10 +118,10 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var service = new RefreshTokenService(new BothReadFirst(real), new SecureRandom(), TimeProvider.System);
 
         Task<RefreshRotateResult>[] rotations =
-            [service.RotateAsync(issued.RawToken, Tab), service.RotateAsync(issued.RawToken, Tab)];
+            [service.RotateAsync(issued.RawToken, s_tab), service.RotateAsync(issued.RawToken, s_tab)];
         try { await Task.WhenAll(rotations); } catch { /* inspected below */ }
 
-        Assert.Single(rotations, r => r.IsCompletedSuccessfully);
+        _ = Assert.Single(rotations, r => r.IsCompletedSuccessfully);
         Task loser = Assert.Single(rotations, r => r.IsFaulted);
         // Inside the grace window: a plain 401, not a reuse, so the winner's session survives.
         Assert.IsType<RefreshAlreadyRotatedException>(loser.Exception!.InnerException);
@@ -145,7 +145,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var clock = new Clock(DateTimeOffset.UtcNow);
         var service = new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), clock);
         RefreshIssueResult issued = await service.IssueAsync(account.Id, 0);
-        await service.RotateAsync(issued.RawToken, Tab);
+        await service.RotateAsync(issued.RawToken, s_tab);
         return (service, clock, issued);
     }
 
@@ -158,10 +158,10 @@ public sealed class RefreshRotationRaceShould : IDisposable
     [Fact]
     public async Task Answer_a_resent_token_inside_the_grace_window_without_revoking_the_family()
     {
-        var (service, clock, issued) = await RotatedOnceAsync();
+        (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued) = await RotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(4);
 
-        Exception refused = await Assert.ThrowsAnyAsync<Exception>(() => service.RotateAsync(issued.RawToken, Tab));
+        Exception refused = await Assert.ThrowsAnyAsync<Exception>(() => service.RotateAsync(issued.RawToken, s_tab));
 
         Assert.IsType<RefreshAlreadyRotatedException>(refused);
         Assert.Equal(1, await LiveInFamilyAsync(issued.FamilyId));
@@ -171,7 +171,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
     [Fact]
     public async Task Treat_a_replay_from_another_source_inside_the_grace_window_as_a_reuse()
     {
-        var (service, clock, issued) = await RotatedOnceAsync();
+        (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued) = await RotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(1);
 
         await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken,
@@ -183,7 +183,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
     [Fact]
     public async Task Treat_a_replay_with_another_user_agent_inside_the_grace_window_as_a_reuse()
     {
-        var (service, clock, issued) = await RotatedOnceAsync();
+        (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued) = await RotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(1);
 
         await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken,
@@ -212,10 +212,10 @@ public sealed class RefreshRotationRaceShould : IDisposable
     [Fact]
     public async Task Treat_a_replay_after_the_grace_window_as_a_reuse()
     {
-        var (service, clock, issued) = await RotatedOnceAsync();
+        (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued) = await RotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(6);
 
-        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, Tab));
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, s_tab));
 
         Assert.Equal(0, await LiveInFamilyAsync(issued.FamilyId));
     }
@@ -223,13 +223,16 @@ public sealed class RefreshRotationRaceShould : IDisposable
     [Fact]
     public async Task Treat_a_replay_as_a_reuse_once_the_child_has_been_used()
     {
-        var (service, clock, issued) = await RotatedOnceAsync();
+        (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued) = await RotatedOnceAsync();
         await using (AuthDbContext context = _database.CreateDbContext())
+        {
             await context.RefreshTokens.Where(t => t.FamilyId == issued.FamilyId && t.Index == 1)
                 .ExecuteUpdateAsync(s => s.SetProperty(t => t.Usages, 1u).SetProperty(t => t.Revoked, true));
+        }
+
         clock.Now += TimeSpan.FromSeconds(1);
 
-        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, Tab));
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, s_tab));
     }
 
     /// <summary>Records what the service logs.</summary>
@@ -253,7 +256,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var log = new RecordingLogger();
         var service = new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), clock, log);
         RefreshIssueResult issued = await service.IssueAsync(account.Id, 0);
-        await service.RotateAsync(issued.RawToken, Tab);
+        await service.RotateAsync(issued.RawToken, s_tab);
         return (service, clock, issued, log);
     }
 
@@ -268,9 +271,9 @@ public sealed class RefreshRotationRaceShould : IDisposable
     [InlineData(1, "198.51.100.9", "the caller is not the one that rotated it")]
     public async Task Log_a_reuse_with_the_reason_the_grace_did_not_apply(int secondsLater, string? address, string reason)
     {
-        var (service, clock, issued, log) = await LoggedRotatedOnceAsync();
+        (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued, RecordingLogger? log) = await LoggedRotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(secondsLater);
-        RefreshCaller caller = RefreshCaller.From(address is null ? null : System.Net.IPAddress.Parse(address), "Browser/1.0");
+        var caller = RefreshCaller.From(address is null ? null : System.Net.IPAddress.Parse(address), "Browser/1.0");
 
         await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, caller));
 
@@ -286,10 +289,10 @@ public sealed class RefreshRotationRaceShould : IDisposable
     [Fact]
     public async Task Log_nothing_for_a_replay_it_forgives()
     {
-        var (service, clock, issued, log) = await LoggedRotatedOnceAsync();
+        (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued, RecordingLogger? log) = await LoggedRotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(1);
 
-        await Assert.ThrowsAsync<RefreshAlreadyRotatedException>(() => service.RotateAsync(issued.RawToken, Tab));
+        await Assert.ThrowsAsync<RefreshAlreadyRotatedException>(() => service.RotateAsync(issued.RawToken, s_tab));
 
         Assert.Empty(log.Entries);
     }
@@ -308,8 +311,12 @@ public sealed class RefreshRotationRaceShould : IDisposable
 
         RefreshRotation outcome = await real.RotateAsync(parent, new RefreshToken
         {
-            AccountId = account.Id, FamilyId = parent.FamilyId, Index = 1, Hash = [7, 7, 7],
-            CreatedAt = DateTime.UtcNow, ExpiresAt = parent.ExpiresAt,
+            AccountId = account.Id,
+            FamilyId = parent.FamilyId,
+            Index = 1,
+            Hash = [7, 7, 7],
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = parent.ExpiresAt,
         }, DateTime.UtcNow);
 
         Assert.Equal(RefreshRotation.ParentNotLive, outcome);

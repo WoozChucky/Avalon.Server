@@ -5,13 +5,11 @@ using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
-using Avalon.Server.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
-using Avalon.Infrastructure.Login;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -47,7 +45,7 @@ public partial class CAuthHandlerShould
 
     private static Account MakeAccount(string username = "TESTUSER", bool locked = false, bool online = false, int failedLogins = 0)
     {
-        var password = BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid);
+        string password = BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid);
         return new Account
         {
             Username = username,
@@ -143,7 +141,7 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task SendLocked_WhenAccountIsLocked()
     {
-        var account = MakeAccount(locked: true);
+        Account account = MakeAccount(locked: true);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
         var ctx = new AuthPacketContext<CAuthPacket>
@@ -161,7 +159,7 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task SendInvalidCredentials_WhenPasswordIsWrong_AndIncrementFailedLogins()
     {
-        var account = MakeAccount(failedLogins: 0);
+        Account account = MakeAccount(failedLogins: 0);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
         var ctx = new AuthPacketContext<CAuthPacket>
@@ -182,9 +180,9 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task SendLocked_WhenFailedLoginAttemptsReachDefaultThreshold()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L); // the default threshold of 5
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(5L); // the default threshold of 5
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
@@ -202,10 +200,10 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task LockAccount_WhenFailedLoginsReachConfiguredThreshold()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(3L); // the threshold of 3
-        var handler = CreateHandler(maxFailedLogins: 3);
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(3L); // the threshold of 3
+        CAuthHandler handler = CreateHandler(maxFailedLogins: 3);
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
@@ -224,10 +222,10 @@ public partial class CAuthHandlerShould
     public async Task NotLockAccount_WhenFailedLoginsBelowConfiguredThreshold()
     {
         // The row's own count does not decide the lock (#484): only the username budget does.
-        var account = MakeAccount(failedLogins: 40);
+        Account account = MakeAccount(failedLogins: 40);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L); // 5 failures, but threshold is 10
-        var handler = CreateHandler(maxFailedLogins: 10);
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(5L); // 5 failures, but threshold is 10
+        CAuthHandler handler = CreateHandler(maxFailedLogins: 10);
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
@@ -245,9 +243,9 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task ResetFailedLogins_OnSuccessfulLogin_RegardlessOfThreshold()
     {
-        var account = MakeAccount(failedLogins: 3);
+        Account account = MakeAccount(failedLogins: 3);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        var handler = CreateHandler(maxFailedLogins: 10);
+        CAuthHandler handler = CreateHandler(maxFailedLogins: 10);
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
@@ -264,16 +262,16 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task SendAlreadyConnected_WhenAccountIsOnline_AndNoSessionFound()
     {
-        var account = MakeAccount(online: true);
+        Account account = MakeAccount(online: true);
         account.Id = new AccountId(42L);
-        Guid staleSession = Guid.NewGuid();
+        var staleSession = Guid.NewGuid();
         account.OnlineSessionId = staleSession;
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
         // Server.Connections returns empty — no connected session found
-        var hostingOptions = Substitute.For<IOptions<HostingConfiguration>>();
+        IOptions<HostingConfiguration> hostingOptions = Substitute.For<IOptions<HostingConfiguration>>();
         hostingOptions.Value.Returns(new HostingConfiguration { Port = 0, Host = "127.0.0.1" });
-        var securityOptions = Substitute.For<IOptions<HostingSecurity>>();
+        IOptions<HostingSecurity> securityOptions = Substitute.For<IOptions<HostingSecurity>>();
         securityOptions.Value.Returns(new HostingSecurity());
         var server = new AuthServer(
             Substitute.For<IServiceProvider>(),
@@ -307,7 +305,7 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task SendSuccess_AndSetAccountOnline_WhenCredentialsAreValid()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
         var ctx = new AuthPacketContext<CAuthPacket>
@@ -331,7 +329,7 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task SetConnectionAccountId_WhenLoginSucceeds()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.Id = new AccountId(99L);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -350,7 +348,7 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task SetConnectionCredentialsVersion_FromTheRowThePasswordMatched()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.CredentialsVersion = 7;
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -362,9 +360,9 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task SendMfaRequired_WhenAccountHasConfirmedMfa()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         var mfaSetup = new MFASetup { Status = MfaSetupStatus.Confirmed };
-        var mfaSetupRepo = Substitute.For<IMfaSetupRepository>();
+        IMfaSetupRepository mfaSetupRepo = Substitute.For<IMfaSetupRepository>();
         mfaSetupRepo.FindByAccountIdAsync(Arg.Any<AccountId>()).Returns(mfaSetup);
         _mfaHashService.GenerateHashAsync(Arg.Any<Account>()).Returns("test-hash");
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
@@ -386,8 +384,8 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task SendSuccess_WhenAccountHasNoMfa()
     {
-        var account = MakeAccount();
-        var mfaSetupRepo = Substitute.For<IMfaSetupRepository>();
+        Account account = MakeAccount();
+        IMfaSetupRepository mfaSetupRepo = Substitute.For<IMfaSetupRepository>();
         mfaSetupRepo.FindByAccountIdAsync(Arg.Any<AccountId>()).Returns((MFASetup?)null);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -429,7 +427,7 @@ public partial class CAuthHandlerShould
     [InlineData(AccountStatus.Deactivated, true)]
     public async Task Refuse_A_Correct_Password_For_An_Account_That_Is_Not_Active(AccountStatus status, bool mfaConfirmed)
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.Status = status;
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
         if (mfaConfirmed)
@@ -470,7 +468,7 @@ public partial class CAuthHandlerShould
     [InlineData(AccountStatus.Deactivated)]
     public async Task Answer_A_Wrong_Password_For_An_Inactive_Account_As_Invalid_Credentials(AccountStatus status)
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.Status = status;
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -489,7 +487,7 @@ public partial class CAuthHandlerShould
 
     private const string SourceKey = "auth:source:127.0.0.1:failedLogins";
 
-    private static readonly string UsernameKey = UsernameBudget.KeyFor("testuser");
+    private static readonly string s_usernameKey = UsernameBudget.KeyFor("testuser");
 
     private static IOptions<AuthConfiguration> HardeningOptions(int lockoutMinutes = 15, int perSource = 10,
         int sourceWindowMinutes = 15) =>
@@ -520,7 +518,7 @@ public partial class CAuthHandlerShould
     public async Task Run_a_bcrypt_verify_against_a_fixed_hash_when_the_username_is_unknown()
     {
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns((Account?)null);
-        var verifier = Substitute.For<IPasswordVerifier>();
+        IPasswordVerifier verifier = Substitute.For<IPasswordVerifier>();
 
         await LogInAsync(CreateHandler(HardeningOptions(), verifier), "nobody", " " + TestPasswords.Wrong + " ");
 
@@ -542,7 +540,7 @@ public partial class CAuthHandlerShould
     public async Task Answer_a_name_outside_the_rule_as_an_unknown_username(string username)
     {
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
-        var verifier = Substitute.For<IPasswordVerifier>();
+        IPasswordVerifier verifier = Substitute.For<IPasswordVerifier>();
 
         await LogInAsync(CreateHandler(HardeningOptions(), verifier), username, TestPasswords.Valid);
 
@@ -561,10 +559,10 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task Run_a_bcrypt_verify_against_the_fixed_hash_for_a_locked_account()
     {
-        var account = MakeAccount(locked: true);
+        Account account = MakeAccount(locked: true);
         account.LockedUntil = DateTime.UtcNow.AddMinutes(10);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        var verifier = Substitute.For<IPasswordVerifier>();
+        IPasswordVerifier verifier = Substitute.For<IPasswordVerifier>();
 
         await LogInAsync(CreateHandler(HardeningOptions(), verifier), password: TestPasswords.Valid);
 
@@ -586,7 +584,7 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task Refuse_a_locked_account_until_its_lock_expires()
     {
-        var account = MakeAccount(locked: true, failedLogins: 5);
+        Account account = MakeAccount(locked: true, failedLogins: 5);
         account.LockedUntil = DateTime.UtcNow.AddMinutes(5);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -600,7 +598,7 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task Unlock_an_account_whose_lock_has_expired()
     {
-        var account = MakeAccount(locked: true, failedLogins: 5);
+        Account account = MakeAccount(locked: true, failedLogins: 5);
         account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -620,7 +618,7 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task Count_failed_logins_from_zero_after_a_lock_expires()
     {
-        var account = MakeAccount(locked: true, failedLogins: 5);
+        Account account = MakeAccount(locked: true, failedLogins: 5);
         account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -635,9 +633,9 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task Lock_an_account_for_the_configured_duration_when_it_reaches_the_threshold()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L);
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(5L);
 
         DateTime before = DateTime.UtcNow;
         await LogInAsync(CreateHandler(HardeningOptions(lockoutMinutes: 30)), password: TestPasswords.Wrong);
@@ -646,14 +644,14 @@ public partial class CAuthHandlerShould
         Assert.Equal(AuthResult.LOCKED, SentResult());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
             Arg.Is<DateTime?>(d => d >= before.AddMinutes(30) && d <= after.AddMinutes(30)), Arg.Any<CancellationToken>());
-        await _cache.Received(1).HoldCounterAtLeastAsync(UsernameKey, 6, TimeSpan.FromMinutes(30));
+        await _cache.Received(1).HoldCounterAtLeastAsync(s_usernameKey, 6, TimeSpan.FromMinutes(30));
     }
 
     /// <summary>A lock with no end (one set before locks expired, or by hand) is not lifted.</summary>
     [Fact]
     public async Task Keep_refusing_a_locked_account_whose_lock_has_no_end()
     {
-        var account = MakeAccount(locked: true);
+        Account account = MakeAccount(locked: true);
         account.LockedUntil = null;
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -671,9 +669,9 @@ public partial class CAuthHandlerShould
     public async Task Refuse_a_source_past_its_failed_login_limit_before_touching_any_account()
     {
         _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(11L);
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        var verifier = Substitute.For<IPasswordVerifier>();
+        IPasswordVerifier verifier = Substitute.For<IPasswordVerifier>();
 
         await LogInAsync(CreateHandler(HardeningOptions(perSource: 10), verifier), password: TestPasswords.Wrong);
 
@@ -688,7 +686,7 @@ public partial class CAuthHandlerShould
     {
         // The tenth attempt in the window: it takes the last slot.
         _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(10L);
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
         await LogInAsync(CreateHandler(HardeningOptions(perSource: 10)));
@@ -702,7 +700,7 @@ public partial class CAuthHandlerShould
     {
         // The counter expires with its window, so the next increment starts it again at one.
         _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(11L, 1L);
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
         CAuthHandler handler = CreateHandler(HardeningOptions(perSource: 10));
 
@@ -744,7 +742,7 @@ public partial class CAuthHandlerShould
         _accountRepository.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(_ => gate.Task.ContinueWith(_ => (Account?)MakeAccount(), TaskScheduler.Default));
         int verifies = 0;
-        var verifier = Substitute.For<IPasswordVerifier>();
+        IPasswordVerifier verifier = Substitute.For<IPasswordVerifier>();
         verifier.Verify(Arg.Any<string>(), Arg.Any<string>()).Returns(_ =>
         {
             Interlocked.Increment(ref verifies);
@@ -800,7 +798,7 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task Count_an_attempt_on_a_locked_account_against_its_source()
     {
-        var account = MakeAccount(locked: true);
+        Account account = MakeAccount(locked: true);
         account.LockedUntil = DateTime.UtcNow.AddMinutes(10);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -820,7 +818,7 @@ public partial class CAuthHandlerShould
     [InlineData(true)]
     public async Task Reply_to_a_wrong_password_before_writing_the_failure(bool expiredLock)
     {
-        var account = MakeAccount(locked: expiredLock, failedLogins: expiredLock ? 5 : 0);
+        Account account = MakeAccount(locked: expiredLock, failedLogins: expiredLock ? 5 : 0);
         if (expiredLock) account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -843,9 +841,9 @@ public partial class CAuthHandlerShould
     [Fact]
     public async Task Answer_and_lock_from_the_username_budget_not_from_the_row_as_read()
     {
-        var account = MakeAccount(failedLogins: 4);
+        Account account = MakeAccount(failedLogins: 4);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
-        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(1L);
+        _cache.IncrementAsync(s_usernameKey, Arg.Any<TimeSpan>()).Returns(1L);
 
         await LogInAsync(CreateHandler(HardeningOptions()), password: TestPasswords.Wrong);
 
@@ -862,7 +860,7 @@ public partial class CAuthHandlerShould
     public async Task Count_the_source_by_address_and_record_the_full_address(string endPoint, string sourceKey, string address)
     {
         _connection.RemoteEndPoint.Returns(endPoint);
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
         await LogInAsync(CreateHandler(HardeningOptions()), password: TestPasswords.Wrong);
@@ -876,7 +874,7 @@ public partial class CAuthHandlerShould
     public async Task Record_the_full_ipv6_address_as_the_last_login_address()
     {
         _connection.RemoteEndPoint.Returns("[2001:db8:1:2:3:4:5:6]:50000");
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
         await LogInAsync(CreateHandler(HardeningOptions()));

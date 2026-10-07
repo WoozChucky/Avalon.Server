@@ -50,12 +50,20 @@ public sealed class VendorSaveRoundTripShould : IDisposable
             {
                 context.ItemInstances.Add(new ItemInstance
                 {
-                    Id = item.InstanceId, TemplateId = item.TemplateId, CharacterId = character.Data!.Id,
-                    Count = item.Count, Durability = item.Durability, Flags = item.Flags, UpdatedAt = DateTime.UtcNow,
+                    Id = item.InstanceId,
+                    TemplateId = item.TemplateId,
+                    CharacterId = character.Data!.Id,
+                    Count = item.Count,
+                    Durability = item.Durability,
+                    Flags = item.Flags,
+                    UpdatedAt = DateTime.UtcNow,
                 });
                 context.CharacterInventory.Add(new CharacterInventory
                 {
-                    CharacterId = character.Data!.Id, Container = InventoryType.Bag, Slot = item.Slot, ItemId = item.InstanceId,
+                    CharacterId = character.Data!.Id,
+                    Container = InventoryType.Bag,
+                    Slot = item.Slot,
+                    ItemId = item.InstanceId,
                 });
             }
 
@@ -69,7 +77,7 @@ public sealed class VendorSaveRoundTripShould : IDisposable
 
     private async Task SaveAsync(CharacterEntity character)
     {
-        CharacterSaveSnapshot snapshot = CharacterSaveSnapshot.Take(character);
+        var snapshot = CharacterSaveSnapshot.Take(character);
         await _saves.WriteAsync([snapshot.Batch]);
         character.SaveState.Acknowledge(snapshot.Marks);
     }
@@ -154,7 +162,7 @@ public sealed class VendorSaveRoundTripShould : IDisposable
 
         // Back in the slot it left, so the slot's Removed mark became Changed: an update, not a delete.
         Assert.Equal(SaveState.Changed, character.SaveState.SlotState(InventoryType.Bag, 0));
-        CharacterSaveSnapshot snapshot = CharacterSaveSnapshot.Take(character);
+        var snapshot = CharacterSaveSnapshot.Take(character);
         Assert.Contains(snapshot.Batch.UpsertItems, i => i.Id == blade.InstanceId);
         Assert.DoesNotContain(blade.InstanceId, snapshot.Batch.DeleteItems);
         Assert.Contains(snapshot.Batch.UpsertSlots, s => s.Slot == 0 && s.ItemId == blade.InstanceId);

@@ -1,4 +1,3 @@
-using System.IO;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;

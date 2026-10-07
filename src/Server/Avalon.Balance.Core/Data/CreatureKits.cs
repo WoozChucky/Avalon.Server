@@ -11,10 +11,10 @@ public sealed record CreatureKit(AbilityId Basic, IReadOnlyList<AbilityId> Speci
 /// </summary>
 public static class CreatureKits
 {
-    private static readonly IReadOnlySet<AbilityId> None = new HashSet<AbilityId>();
+    private static readonly IReadOnlySet<AbilityId> s_none = new HashSet<AbilityId>();
 
     private static CreatureKit Kit(uint basic, params uint[] specials) =>
-        new(new AbilityId(basic), specials.Select(s => new AbilityId(s)).ToArray(), None);
+        new(new AbilityId(basic), specials.Select(s => new AbilityId(s)).ToArray(), s_none);
 
     /// <summary>
     /// The kits, read once and never written: lookups run for every creature of every fight, from parallel rows.

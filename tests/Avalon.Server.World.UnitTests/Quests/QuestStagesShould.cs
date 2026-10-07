@@ -3,7 +3,6 @@ using Avalon.Domain.World;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -15,13 +14,15 @@ public class QuestStagesShould
     {
         QuestTestWorld w;
         if (recorder is null)
+        {
             w = await QuestTestWorld.CreateAsync();
+        }
         else
         {
             // Howl runs the sample script, so a test can drive progress from inside its real stage-start hook.
             List<QuestTemplate> quests = Chain();
             quests.Single(q => q.Id.Value == Howl).ScriptName = nameof(SampleQuestScript);
-            var scripts = Substitute.For<IScriptManager>();
+            IScriptManager scripts = Substitute.For<IScriptManager>();
             scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
             w = await QuestTestWorld.CreateAsync(quests, scripts: scripts,
                 services: new ServiceCollection().AddSingleton<Microsoft.Extensions.Logging.ILogger<SampleQuestScript>>(recorder).BuildServiceProvider());

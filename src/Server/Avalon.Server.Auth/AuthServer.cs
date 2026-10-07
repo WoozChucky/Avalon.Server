@@ -5,7 +5,6 @@ using System.Security.Cryptography.X509Certificates;
 using Avalon.Common.Telemetry;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
-using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
 using Avalon.Infrastructure;
@@ -284,12 +283,12 @@ public class AuthServer(
 
     protected override object GetContextPacket(IConnection connection, object? packet, Type packetType)
     {
-        var factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
+        Func<IConnection, Packet?, object> factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
             (Func<IConnection, Packet?, object>)s_buildContextMethod.MakeGenericMethod(t).Invoke(null, null)!);
         return factory(connection, packet as Packet);
     }
 
     private static Func<IConnection, Packet?, object> BuildContextFactory<TPacket>() where TPacket : Packet
         => static (conn, pkt) => new AuthPacketContext<TPacket>
-            { Connection = (IAuthConnection)conn!, Packet = (TPacket)pkt! };
+        { Connection = (IAuthConnection)conn!, Packet = (TPacket)pkt! };
 }

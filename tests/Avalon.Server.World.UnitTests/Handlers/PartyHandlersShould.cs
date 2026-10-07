@@ -4,7 +4,6 @@ using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 

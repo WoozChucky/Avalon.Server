@@ -6,8 +6,8 @@ using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
 namespace Avalon.Server.World.UnitTests.Reload;
@@ -25,7 +25,7 @@ public class CombatReloadShould
 
         public ICombatDataRepository Repository()
         {
-            var repository = Substitute.For<ICombatDataRepository>();
+            ICombatDataRepository repository = Substitute.For<ICombatDataRepository>();
             repository.GetFormulasAsync(Arg.Any<CancellationToken>())
                 .Returns(_ => Task.FromResult<IReadOnlyCollection<CombatFormula>>(Formulas.ToList()));
             repository.GetClassStatFactorsAsync(Arg.Any<CancellationToken>())
@@ -34,14 +34,20 @@ public class CombatReloadShould
         }
     }
 
-    private static readonly ClassLevelStat WarriorLevel1 = new()
+    private static readonly ClassLevelStat s_warriorLevel1 = new()
     {
-        Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0,
-        Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+        Class = CharacterClass.Warrior,
+        Level = 1,
+        BaseHp = 20,
+        BaseMana = 0,
+        Stamina = 22,
+        Strength = 23,
+        Agility = 20,
+        Intellect = 20,
     };
 
     private static Task<StaticData> Load(Rows rows) =>
-        TestStaticData.LoadAsync(TestStaticData.Repositories(classStats: () => [WarriorLevel1], combat: rows.Repository()));
+        TestStaticData.LoadAsync(TestStaticData.Repositories(classStats: () => [s_warriorLevel1], combat: rows.Repository()));
 
     [Fact]
     public async Task Load_the_seeded_formula_and_every_class()
@@ -124,7 +130,7 @@ public class CombatReloadShould
 
         spoil(rows);
 
-        var refused = await Assert.ThrowsAsync<InvalidDataException>(() => data.PrepareAsync(ReloadArea.Combat));
+        InvalidDataException refused = await Assert.ThrowsAsync<InvalidDataException>(() => data.PrepareAsync(ReloadArea.Combat));
         Assert.StartsWith(named, refused.Message, StringComparison.Ordinal);
         Assert.Same(before, data.Combat);
     }
@@ -140,13 +146,13 @@ public class CombatReloadShould
     [InlineData(10L, 4_294_967_296L)]
     public void Be_refused_by_the_database_out_of_the_uint_range(long hpPerStamina, long? fixedPower)
     {
-        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
         ClassStatFactors warrior = context.ClassStatFactors.Single(f => f.Class == CharacterClass.Warrior);
         warrior.HpPerStamina = hpPerStamina;
         warrior.FixedPower = fixedPower;
 
-        var refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
+        DbUpdateException refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
         Assert.Contains("CHECK constraint failed", refused.InnerException!.Message, StringComparison.Ordinal);
     }
 
@@ -157,14 +163,14 @@ public class CombatReloadShould
     [InlineData(50f, 10f, 20f)]
     public void Be_refused_by_the_database_outside_the_speed_bounds(float hasteCap, float moveCap, float moveFloor)
     {
-        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
         CombatFormula formula = context.CombatFormulas.Single();
         formula.HasteCap = hasteCap;
         formula.MoveSpeedCap = moveCap;
         formula.MoveSpeedFloor = moveFloor;
 
-        var refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
+        DbUpdateException refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
         Assert.Contains("CHECK constraint failed", refused.InnerException!.Message, StringComparison.Ordinal);
     }
 

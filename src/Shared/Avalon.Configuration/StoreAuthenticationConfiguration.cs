@@ -21,16 +21,20 @@ public sealed class StoreAuthenticationConfiguration
         if (key == Product) return new(key, "avalon", NativeProviderProduct, Product, Environment, Array.Empty<ushort>(), false);
         if (key is "steam.main" or "steam.playtest")
         {
-            var app = ResolveSteamApplication(key == "steam.main" ? SteamAppId : SteamPlaytest.AppId);
+            SteamApplicationSelection? app = ResolveSteamApplication(key == "steam.main" ? SteamAppId : SteamPlaytest.AppId);
             if (app is null || (key == "steam.playtest" && !app.Restricted)) return null;
             return new(key, "steam", app.AppId.ToString(System.Globalization.CultureInfo.InvariantCulture), Product,
                 Environment, app.AllowedWorldIds, app.Restricted);
         }
-        if (key is null || !AdditionalApplications.TryGetValue(key, out var configured) || configured is not { Enabled: true } ||
+        if (key is null || !AdditionalApplications.TryGetValue(key, out GameProviderApplicationConfiguration? configured) || configured is not { Enabled: true } ||
             !SourceText(key, 128) || !SourceText(configured.Provider, 32) || !SourceText(configured.ProviderProductId, 128) ||
             configured.Provider is "steam" or "avalon" || configured.AllowedWorldIds is null ||
             configured.AllowedWorldIds.Contains((ushort)0) || configured.AllowedWorldIds.Distinct().Count() != configured.AllowedWorldIds.Length ||
-            (configured.Restricted && configured.AllowedWorldIds.Length == 0)) return null;
+            (configured.Restricted && configured.AllowedWorldIds.Length == 0))
+        {
+            return null;
+        }
+
         return new(key, configured.Provider, configured.ProviderProductId, Product, Environment, configured.AllowedWorldIds, configured.Restricted);
     }
 
@@ -38,14 +42,17 @@ public sealed class StoreAuthenticationConfiguration
 
     public SteamApplicationSelection? ResolveSteamApplication(uint? appId)
     {
-        var selected = appId ?? SteamAppId;
+        uint selected = appId ?? SteamAppId;
         if (selected == 0) return null;
         if (selected == SteamAppId)
             return new(selected, false, Array.Empty<ushort>());
         if (SteamPlaytest is { Enabled: true } playtest && selected == playtest.AppId &&
             playtest.AllowedWorldIds is { Length: > 0 } worlds && !worlds.Contains((ushort)0) &&
             worlds.Distinct().Count() == worlds.Length)
+        {
             return new(selected, true, Array.AsReadOnly((ushort[])worlds.Clone()));
+        }
+
         return null;
     }
 
@@ -58,7 +65,10 @@ public sealed class StoreAuthenticationConfiguration
             SteamPlaytest.AllowedWorldIds.Contains((ushort)0) ||
             SteamPlaytest.AllowedWorldIds.Distinct().Count() != SteamPlaytest.AllowedWorldIds.Length ||
             (SteamPlaytest.Enabled && (SteamPlaytest.AppId == 0 || SteamPlaytest.AllowedWorldIds.Length == 0)))
+        {
             throw new InvalidOperationException("Invalid Application:StoreAuthentication:SteamPlaytest configuration. Use a distinct positive application ID and nonempty distinct positive allowed world IDs when enabled.");
+        }
+
         if (string.IsNullOrWhiteSpace(SteamPublisherKey) ||
             SteamPublisherKey != SteamPublisherKey.Trim() || PolicyVersion < 1 || DirectGrantsEnabled ||
             (Environment != "production" && Environment != "development") ||

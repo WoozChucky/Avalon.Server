@@ -172,7 +172,9 @@ internal static class TemplateFields
             var kind = (Avalon.Domain.World.AuraModifierKind)(int)w.Kind;
             Avalon.Domain.World.AuraStatModifier? held = row.Modifiers.FirstOrDefault(m => m.Stat == stat);
             if (held is null)
+            {
                 row.Modifiers.Add(new Avalon.Domain.World.AuraStatModifier { AuraId = row.Id, Stat = stat, Kind = kind, Value = w.Value });
+            }
             else
             {
                 held.Kind = kind;

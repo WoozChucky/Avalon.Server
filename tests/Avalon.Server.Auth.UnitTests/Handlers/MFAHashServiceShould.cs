@@ -21,7 +21,7 @@ public class MFAHashServiceShould
     {
         _cache.GetAsync(CacheKeys.MfaReverseHash("myhash")).Returns("42");
 
-        var result = await _service.GetAccountIdAsync("myhash");
+        AccountId? result = await _service.GetAccountIdAsync("myhash");
 
         Assert.NotNull(result);
         Assert.Equal(new AccountId(42L), result);
@@ -79,7 +79,7 @@ public class MFAHashServiceShould
     {
         _cache.GetAsync(CacheKeys.MfaReverseHash("missing")).Returns((string?)null);
 
-        var result = await _service.GetAccountIdAsync("missing");
+        AccountId? result = await _service.GetAccountIdAsync("missing");
 
         Assert.Null(result);
     }

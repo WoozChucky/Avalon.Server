@@ -8,10 +8,10 @@ namespace Avalon.Balance.UnitTests;
 
 public class ConfigFilesShould
 {
-    private static readonly string BalanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
+    private static readonly string s_balanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
 
     private static ScenarioFile CheckedInScenarios() =>
-        ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+        ConfigFileStore.Load(Path.Combine(s_balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
 
     [Fact]
     public void Load_the_checked_in_files_against_the_seed()
@@ -19,8 +19,8 @@ public class ConfigFilesShould
         BalanceData data = TestData.Seeded;
         ScenarioFile scenarios = CheckedInScenarios();
         scenarios.Validate(data);
-        TargetFile targets = ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
-        RotationFile rotations = ConfigFileStore.Load(Path.Combine(BalanceDir, "rotations.json"), ConfigFiles.ParseRotations);
+        TargetFile targets = ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
+        RotationFile rotations = ConfigFileStore.Load(Path.Combine(s_balanceDir, "rotations.json"), ConfigFiles.ParseRotations);
 
         Assert.Equal(Enumerable.Range(1, 10).Select(l => (ushort)l), scenarios.LevelRange());
         Assert.Equal("forest", targets.GradedGear);
@@ -62,7 +62,7 @@ public class ConfigFilesShould
     public void Take_the_starter_profile_from_the_weapon_and_armour_vendors()
     {
         BalanceData data = TestData.Seeded;
-        HashSet<ulong> sold = data.Tables.VendorStocks
+        var sold = data.Tables.VendorStocks
             .Where(v => v.CreatureTemplateId.Value is 12 or 13)
             .Select(v => v.ItemTemplateId.Value)
             .ToHashSet();
@@ -87,7 +87,7 @@ public class ConfigFilesShould
               "scenarios": [ { "id": "town", "pack": [ { "template": 1 } ] } ], "gearProfiles": {} }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() => scenarios.Validate(TestData.Seeded));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => scenarios.Validate(TestData.Seeded));
         Assert.Contains("scenario 'town'", error.Message, StringComparison.Ordinal);
 
         SeedTables tables = SeedSource.Load();
@@ -108,7 +108,7 @@ public class ConfigFilesShould
     {
         RotationFile rotations = ConfigFiles.ParseRotations(json);
 
-        var error = Assert.Throws<InvalidDataException>(() => rotations.Compile(CharacterClass.Warrior, TestData.Seeded));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => rotations.Compile(CharacterClass.Warrior, TestData.Seeded));
         Assert.Contains(message, error.Message, StringComparison.Ordinal);
     }
 
@@ -118,12 +118,12 @@ public class ConfigFilesShould
             ConfigFiles.ParseRotations("{}").Compile(CharacterClass.Wizard, TestData.Seeded));
 
     private static TargetFile CheckedInTargets() =>
-        ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
+        ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
 
     [Fact]
     public void Refuse_a_misspelt_scenario_field()
     {
-        var error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseScenarios("""
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseScenarios("""
             { "runs": 1, "seed": 1, "levels": [1, 1], "classes": ["Warrior"], "gear": ["none"],
               "scenarios": [ { "id": "normal-1", "pack": [ { "rarity": "Normal" } ], "levelOfset": 2 } ], "gearProfiles": {} }
             """));
@@ -135,7 +135,7 @@ public class ConfigFilesShould
     [Fact]
     public void Refuse_a_misspelt_target_band()
     {
-        var error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseTargets("""
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseTargets("""
             { "scenarios": { "normal-1": { "fightSecs": { "min": 4 } } } }
             """));
 
@@ -160,7 +160,7 @@ public class ConfigFilesShould
     {
         TargetFile targets = ConfigFiles.ParseTargets(json);
 
-        var error = Assert.Throws<InvalidDataException>(() => targets.Validate(CheckedInScenarios()));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => targets.Validate(CheckedInScenarios()));
         Assert.Contains(message, error.Message, StringComparison.Ordinal);
     }
 }

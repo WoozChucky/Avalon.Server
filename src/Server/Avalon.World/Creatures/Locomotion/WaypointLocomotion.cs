@@ -153,7 +153,7 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
             next = agent.Path[agent.Next];
         }
 
-        Vector3 direction = Vector3.Normalize(next - creature.Position);
+        var direction = Vector3.Normalize(next - creature.Position);
 
         creature.LookAt(next);
         // Metres per second, not the bare direction (#424): the client extrapolates a creature by

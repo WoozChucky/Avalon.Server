@@ -1,7 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
-using Avalon.World.Pvp;
 using Avalon.World.Public;
+using Avalon.World.Pvp;
 
 namespace Avalon.World.Handlers;
 

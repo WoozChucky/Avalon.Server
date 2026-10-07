@@ -36,7 +36,7 @@ public class DesignTimeFactoriesShould
     [Fact]
     public void Refuse_the_world_context_without_its_connection_string()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             new WorldDbContextDesignTimeFactory().CreateDbContext(Empty()));
 
         Assert.Equal("set Database__World__ConnectionString (or user-secrets) to run dotnet ef against a database",
@@ -46,7 +46,7 @@ public class DesignTimeFactoriesShould
     [Fact]
     public void Refuse_the_characters_context_without_its_connection_string()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             new CharacterDbContextDesignTimeFactory().CreateDbContext(Empty()));
 
         Assert.Equal("set Database__Characters__ConnectionString (or user-secrets) to run dotnet ef against a database",

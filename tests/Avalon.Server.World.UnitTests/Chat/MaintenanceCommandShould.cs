@@ -98,15 +98,15 @@ public sealed class MaintenanceCommandShould
     [Fact]
     public async Task Write_off_the_tick_and_apply_the_committed_state_only_in_the_continuation()
     {
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.AccountId.Returns(new AccountId(7));
         connection.AccessLevel.Returns(AccountAccessLevel.Admin);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         var queued = new List<(Task Task, Action Callback)>();
         connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
             .Do(ci => queued.Add((ci.Arg<Task>(), ci.Arg<Action>())));
-        var repository = Substitute.For<IWorldMaintenanceRepository>();
-        var control = Substitute.For<IWorldMaintenanceControl>();
+        IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceControl control = Substitute.For<IWorldMaintenanceControl>();
         var committed = new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(5));
         control.SetAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(committed);

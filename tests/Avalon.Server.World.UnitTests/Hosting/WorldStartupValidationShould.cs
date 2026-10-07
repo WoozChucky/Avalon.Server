@@ -7,7 +7,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Hosting;
 
@@ -46,7 +45,7 @@ public class WorldStartupValidationShould
             [setting] = " ",
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
 
         Assert.Contains(named, refused.Message, StringComparison.Ordinal);
     }
@@ -68,7 +67,7 @@ public class WorldStartupValidationShould
             ["Hosting:" + setting] = value,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
 
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
@@ -91,7 +90,7 @@ public class WorldStartupValidationShould
             ["Game:InterestRadius"] = value,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
 
         Assert.Contains("InterestRadius", refused.Message, StringComparison.Ordinal);
     }
@@ -112,7 +111,7 @@ public class WorldStartupValidationShould
             ["Game:InterestRemoveMargin"] = value,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
 
         Assert.Contains("InterestRemoveMargin", refused.Message, StringComparison.Ordinal);
     }
@@ -159,7 +158,7 @@ public class WorldStartupValidationShould
             ["Game:" + setting] = value,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
 
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
@@ -232,7 +231,7 @@ public class WorldStartupValidationShould
             ["Game:" + setting] = value,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
 
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
@@ -252,7 +251,7 @@ public class WorldStartupValidationShould
             ["Game:" + setting] = value,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
 
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
@@ -270,7 +269,7 @@ public class WorldStartupValidationShould
             ["Game:MaxIgnoredCharacters"] = value,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
 
         Assert.Contains("MaxIgnoredCharacters", refused.Message, StringComparison.Ordinal);
     }

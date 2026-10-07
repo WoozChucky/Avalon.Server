@@ -1,5 +1,6 @@
 using System.Diagnostics.Metrics;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Commerce;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Commerce;
@@ -31,7 +32,7 @@ public sealed class PaymentReconciliationWorker(IPurchaseRepository purchases, I
     public async Task RunOnceAsync(CancellationToken ct)
     {
         if (!options.Value.Enabled) return;
-        var claims = await purchases.ClaimEventsAsync(clock.GetUtcNow().UtcDateTime, 10, TimeSpan.FromSeconds(120), ct);
+        IReadOnlyList<PaymentEventClaim> claims = await purchases.ClaimEventsAsync(clock.GetUtcNow().UtcDateTime, 10, TimeSpan.FromSeconds(120), ct);
         await Task.WhenAll(claims.Select(async claim =>
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -44,11 +45,11 @@ public sealed class PaymentReconciliationWorker(IPurchaseRepository purchases, I
             await purchases.CompleteEventAsync(claim.Event.Id, claim.LeaseId, result, ct);
             if (!result.Completed) logger.LogInformation("Payment event {EventId} awaits reconciliation with {Reason}.", claim.Event.Id, result.FailureCode);
         }));
-        var now = clock.GetUtcNow().UtcDateTime;
+        DateTime now = clock.GetUtcNow().UtcDateTime;
         if (now >= _nextSweep)
         {
             _nextSweep = now.AddSeconds(60);
-            var candidates = await purchases.FindSweepCandidatesAsync(10, ct);
+            IReadOnlyList<PaymentAttempt> candidates = await purchases.FindSweepCandidatesAsync(10, ct);
             await Task.WhenAll(candidates.Select(async attempt =>
             {
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);

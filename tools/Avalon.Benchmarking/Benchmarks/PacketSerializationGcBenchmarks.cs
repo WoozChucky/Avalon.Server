@@ -51,7 +51,7 @@ public class PacketSerializationGcBenchmarks
         using var ms = new MemoryStream();
         var p = new SCharacterCreatedPacket { Result = SCharacterCreateResult.Success };
         Serializer.Serialize(ms, p);
-        var payload = s_legacyEncrypt(ms.ToArray());
+        byte[] payload = s_legacyEncrypt(ms.ToArray());
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
@@ -86,7 +86,7 @@ public class PacketSerializationGcBenchmarks
             DateTime = DateTime.UtcNow
         };
         Serializer.Serialize(ms, p);
-        var payload = s_legacyEncrypt(ms.ToArray());
+        byte[] payload = s_legacyEncrypt(ms.ToArray());
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

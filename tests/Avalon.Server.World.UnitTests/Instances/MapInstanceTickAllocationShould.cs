@@ -13,7 +13,6 @@ using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
@@ -23,7 +22,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class MapInstanceTickAllocationShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     /// <summary>
     /// What every packet costs however much it holds, beyond its payload: the packet, its encryption
@@ -107,11 +106,11 @@ public class MapInstanceTickAllocationShould
     [Fact]
     public void Tick_between_broadcasts_without_allocating()
     {
-        var (instance, players, creatures) = Build();
+        (MapInstance? instance, QuietConnection[]? players, List<Creature>? creatures) = Build();
         for (int tick = 0; tick < 120; tick++)
         {
             Walk(creatures, tick);
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         // The fewest bytes over three windows of the five ticks after a broadcast.
@@ -124,7 +123,7 @@ public class MapInstanceTickAllocationShould
             while (Sent(players) == sent)
             {
                 Walk(creatures, tick++);
-                instance.Update(Tick);
+                instance.Update(s_tick);
             }
 
             int afterBroadcast = Sent(players);
@@ -132,7 +131,7 @@ public class MapInstanceTickAllocationShould
             for (int quiet = 0; quiet < 4; quiet++)
             {
                 Walk(creatures, quiet);
-                instance.Update(Tick);
+                instance.Update(s_tick);
             }
 
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
@@ -145,11 +144,11 @@ public class MapInstanceTickAllocationShould
     [Fact]
     public void Broadcast_allocating_only_the_packets_it_sends()
     {
-        var (instance, players, creatures) = Build();
+        (MapInstance? instance, QuietConnection[]? players, List<Creature>? creatures) = Build();
         for (int tick = 0; tick < 120; tick++)
         {
             Walk(creatures, tick);
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         // The fewest bytes over three windows, each of six broadcasts, beyond what the sent packets cost.
@@ -162,7 +161,7 @@ public class MapInstanceTickAllocationShould
             for (int tick = 0; tick < 36; tick++)
             {
                 Walk(creatures, tick);
-                instance.Update(Tick);
+                instance.Update(s_tick);
             }
 
             long allocated = GC.GetAllocatedBytesForCurrentThread() - before;

@@ -1,6 +1,5 @@
 using System.Reflection;
 using Avalon.World.Public.Creatures;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 

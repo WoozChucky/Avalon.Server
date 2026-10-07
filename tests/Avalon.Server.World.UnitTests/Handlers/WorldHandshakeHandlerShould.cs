@@ -1,5 +1,4 @@
 using Avalon.Common.Cryptography;
-using Avalon.Network.Packets.Auth;
 using Avalon.Server.World.Handlers;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
@@ -12,7 +11,7 @@ public sealed class WorldHandshakeHandlerShould
 {
     private static WorldHandshakeHandler Handler(string minimum = "0.0.1")
     {
-        var world = Substitute.For<IWorld>(); world.MinVersion.Returns(minimum);
+        IWorld world = Substitute.For<IWorld>(); world.MinVersion.Returns(minimum);
         return new(NullLogger<WorldHandshakeHandler>.Instance, world);
     }
     [Fact]

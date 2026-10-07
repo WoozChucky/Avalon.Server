@@ -1,8 +1,8 @@
-using Avalon.Common.GameAuth;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
+using Avalon.Common.GameAuth;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,15 +19,17 @@ public sealed partial class InternalGameAdmissionController(JoinTicketStore tick
     [ProducesResponseType(typeof(JoinRedemptionReceipt), StatusCodes.Status200OK)]
     public async Task<IActionResult> Redeem(JoinRedemptionRequest request, CancellationToken cancellationToken)
     {
-        var serverId = User.FindFirst(GameServerAuthHandler.ServerIdClaim)?.Value;
+        string? serverId = User.FindFirst(GameServerAuthHandler.ServerIdClaim)?.Value;
         if (!Request.IsHttps || serverId is null) return Unauthorized(JoinRedemptionReceipt.Failure(GameAuthErrors.WorkloadAuthenticationRequired));
         try
         {
-            var receipt = await tickets.RedeemAsync(request.JoinTicket, serverId, request.ConnectionId, request.RedemptionId, cancellationToken);
+            JoinRedemptionReceipt receipt = await tickets.RedeemAsync(request.JoinTicket, serverId, request.ConnectionId, request.RedemptionId, cancellationToken);
             return receipt.Error switch
             {
-                null => Ok(receipt), GameAuthErrors.InProgress or GameAuthErrors.SessionConflict => Conflict(receipt),
-                GameAuthErrors.WorldUnavailable => StatusCode(503, receipt), _ => Unauthorized(receipt),
+                null => Ok(receipt),
+                GameAuthErrors.InProgress or GameAuthErrors.SessionConflict => Conflict(receipt),
+                GameAuthErrors.WorldUnavailable => StatusCode(503, receipt),
+                _ => Unauthorized(receipt),
             };
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)

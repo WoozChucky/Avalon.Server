@@ -8,7 +8,7 @@ public static class ClaimsPrincipalExtensions
 {
     public static AccountId AccountId(this ClaimsPrincipal user)
     {
-        var raw = user.FindFirstValue(ClaimTypes.NameIdentifier)
+        string raw = user.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new InvalidOperationException("missing sub claim");
         return new AccountId(long.Parse(raw));
     }
@@ -23,9 +23,11 @@ public static class ClaimsPrincipalExtensions
     {
         AccountAccessLevel level = 0;
 
-        foreach (var flag in Enum.GetValues<AccountAccessLevel>())
+        foreach (AccountAccessLevel flag in Enum.GetValues<AccountAccessLevel>())
+        {
             if (user.HasClaim(ClaimTypes.GroupSid, flag.ToString()))
                 level |= flag;
+        }
 
         return level;
     }
@@ -35,7 +37,7 @@ public static class ClaimsPrincipalExtensions
     // This helper walks the hierarchy explicitly. Tournament and PTR sit on the Player rung, below
     // GameMaster: they are players with exactly the Player permission set (#447), so they satisfy
     // "at least Player" and nothing higher. Keep them after Player and before GameMaster.
-    private static readonly string[] Ladder =
+    private static readonly string[] s_ladder =
     {
         AvalonRoles.Player, AvalonRoles.Tournament, AvalonRoles.PTR,
         AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console
@@ -43,11 +45,11 @@ public static class ClaimsPrincipalExtensions
 
     public static bool HasRoleAtLeast(this ClaimsPrincipal user, string minRole)
     {
-        var minIdx = Array.IndexOf(Ladder, minRole);
+        int minIdx = Array.IndexOf(s_ladder, minRole);
         if (minIdx < 0) return false;
 
-        for (var i = minIdx; i < Ladder.Length; i++)
-            if (user.IsInRole(Ladder[i])) return true;
+        for (int i = minIdx; i < s_ladder.Length; i++)
+            if (user.IsInRole(s_ladder[i])) return true;
 
         return false;
     }

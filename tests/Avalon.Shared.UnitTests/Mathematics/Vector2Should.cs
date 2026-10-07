@@ -79,7 +79,7 @@ public class Vector2Should
     public void SupportNormalization()
     {
         var v = new Vector2(5f, 0f);
-        var normalized = v.normalized;
+        Vector2 normalized = v.normalized;
 
         Assert.Equal(new Vector2(1f, 0f), normalized);
         Assert.Equal(1f, normalized.magnitude, precision: 5);
@@ -126,7 +126,7 @@ public class Vector2Should
     [Fact]
     public void ReturnZeroForZeroVector()
     {
-        var v = Vector2.zero;
+        Vector2 v = Vector2.zero;
 
         Assert.Equal(0f, v.magnitude);
         Assert.Equal(0f, v.x);
@@ -291,7 +291,7 @@ public class Vector2Should
     public void NegationFlipsSign()
     {
         var v = new Vector2(1f, -2f);
-        var neg = -v;
+        Vector2 neg = -v;
 
         Assert.Equal(-1f, neg.x);
         Assert.Equal(2f, neg.y);

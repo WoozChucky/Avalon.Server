@@ -314,7 +314,7 @@ public static class TownRules
                     throw new InvalidOperationException($"{what} stands in the {exit} doorway lane");
             }
 
-            var corridor = (CorridorMinX - ox, CorridorMaxX - ox, CorridorMinZ - oz, CorridorMaxZ - oz);
+            (float, float, float, float) corridor = (CorridorMinX - ox, CorridorMaxX - ox, CorridorMinZ - oz, CorridorMaxZ - oz);
             if (piece.Y0 < CorridorClearHeight && Overlaps(piece, corridor))
                 throw new InvalidOperationException($"{what} stands in the arrival-to-portal corridor below {CorridorClearHeight} m");
 

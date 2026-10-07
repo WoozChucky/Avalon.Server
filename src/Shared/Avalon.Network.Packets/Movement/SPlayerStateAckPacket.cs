@@ -1,6 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
-using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
+using ProtoBuf;
 
 namespace Avalon.Network.Packets.Movement;
 
@@ -24,8 +24,11 @@ public class SPlayerStateAckPacket : Packet
             new SPlayerStateAckPacket
             {
                 Seq = seq,
-                X = x, Y = y, Z = z,
-                VelX = velX, VelZ = velZ,
+                X = x,
+                Y = y,
+                Z = z,
+                VelX = velX,
+                VelZ = velZ,
                 YawDeg = yawDeg,
             },
             PacketType, Flags, Protocol, encryptFunc);

@@ -1,18 +1,17 @@
-using Avalon.World.Entities;
-using Avalon.World.Public.Enums;
-using Avalon.Server.World.UnitTests.Chat;
-using System.IO;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
+using Avalon.Server.World.UnitTests.Chat;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
 using Avalon.World.Chat;
+using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
 using NSubstitute;
 using ProtoBuf;
 

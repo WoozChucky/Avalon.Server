@@ -56,9 +56,11 @@ public static class AbilityRules
 
         // With neither a direct amount nor an aura the ability would spend its cost and change nothing.
         if (!HasDirectEffect(t.Effects, t.Affects) && t.AuraId is null)
+        {
             return t.Affects == AbilityAffects.Ally
                 ? "the ability does nothing: Effects has no Heal for an Ally ability, and it applies no aura"
                 : "the ability does nothing: Effects has no Damage for a Hostile ability, and it applies no aura";
+        }
 
         return ShapeProblem(t);
     }

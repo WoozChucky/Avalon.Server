@@ -1,12 +1,5 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
 using System.Buffers.Binary;
-using System.IO;
 using System.Net;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Avalon.Hosting.Networking;
 

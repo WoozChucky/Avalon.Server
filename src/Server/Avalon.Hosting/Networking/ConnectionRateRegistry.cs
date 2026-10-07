@@ -1,10 +1,5 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
-using System.Linq;
 using Avalon.Common.Telemetry;
 
 namespace Avalon.Hosting.Networking;

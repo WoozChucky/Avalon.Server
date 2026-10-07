@@ -63,7 +63,7 @@ public sealed class WorldScopedEndpointsShould
     [Fact]
     public async Task Let_no_anonymous_caller_onto_a_world_endpoint()
     {
-        List<RouteEndpoint> open = (await ApiEndpoints())
+        var open = (await ApiEndpoints())
             .Where(e => IsWorldScoped(e) && e.Metadata.GetMetadata<IAllowAnonymous>() is not null)
             .ToList();
 

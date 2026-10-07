@@ -53,7 +53,7 @@ internal sealed class CounterCache
                 {
                     string key = ci.ArgAt<string>(0);
                     Purge(key);
-                    if (!_keys.TryGetValue(key, out var entry)) return 0L;
+                    if (!_keys.TryGetValue(key, out (long Value, DateTime? ExpiresAt) entry)) return 0L;
                     if (entry.Value <= 0 || entry.Value > ci.ArgAt<long>(1)) return entry.Value;
                     _keys[key] = (entry.Value - 1, entry.ExpiresAt);
                     return entry.Value - 1;
@@ -66,7 +66,7 @@ internal sealed class CounterCache
                 {
                     string key = ci.ArgAt<string>(0);
                     Purge(key);
-                    if (!_keys.TryGetValue(key, out var entry) || entry.Value >= ci.ArgAt<long>(1)) return false;
+                    if (!_keys.TryGetValue(key, out (long Value, DateTime? ExpiresAt) entry) || entry.Value >= ci.ArgAt<long>(1)) return false;
                     return _keys.Remove(key);
                 }
             });
@@ -98,7 +98,7 @@ internal sealed class CounterCache
         lock (_gate)
         {
             Purge(key);
-            return _keys.TryGetValue(key, out var entry) ? entry.Value : 0;
+            return _keys.TryGetValue(key, out (long Value, DateTime? ExpiresAt) entry) ? entry.Value : 0;
         }
     }
 
@@ -117,7 +117,7 @@ internal sealed class CounterCache
         lock (_gate)
         {
             Purge(key);
-            return _keys.TryGetValue(key, out var entry) && entry.ExpiresAt is { } at ? at - _now : null;
+            return _keys.TryGetValue(key, out (long Value, DateTime? ExpiresAt) entry) && entry.ExpiresAt is { } at ? at - _now : null;
         }
     }
 
@@ -139,7 +139,7 @@ internal sealed class CounterCache
         lock (_gate)
         {
             Purge(key);
-            if (_keys.TryGetValue(key, out var entry))
+            if (_keys.TryGetValue(key, out (long Value, DateTime? ExpiresAt) entry))
             {
                 _keys[key] = (entry.Value + 1, entry.ExpiresAt);
                 return entry.Value + 1;
@@ -155,7 +155,7 @@ internal sealed class CounterCache
         lock (_gate)
         {
             Purge(key);
-            if (!_keys.TryGetValue(key, out var entry) || entry.Value <= 0) return 0;
+            if (!_keys.TryGetValue(key, out (long Value, DateTime? ExpiresAt) entry) || entry.Value <= 0) return 0;
             _keys[key] = (entry.Value - 1, entry.ExpiresAt);
             return entry.Value - 1;
         }
@@ -166,7 +166,7 @@ internal sealed class CounterCache
         lock (_gate)
         {
             Purge(key);
-            long value = Math.Max(_keys.TryGetValue(key, out var entry) ? entry.Value : 0, floor);
+            long value = Math.Max(_keys.TryGetValue(key, out (long Value, DateTime? ExpiresAt) entry) ? entry.Value : 0, floor);
             _keys[key] = (value, _now + window);
             return value;
         }
@@ -177,7 +177,7 @@ internal sealed class CounterCache
         lock (_gate)
         {
             Purge(key);
-            if (!_keys.TryGetValue(key, out var entry)) return false;
+            if (!_keys.TryGetValue(key, out (long Value, DateTime? ExpiresAt) entry)) return false;
             _keys[key] = (entry.Value, _now + expiry);
             return true;
         }
@@ -185,7 +185,7 @@ internal sealed class CounterCache
 
     private void Purge(string key)
     {
-        if (_keys.TryGetValue(key, out var entry) && entry.ExpiresAt is { } at && at <= _now)
+        if (_keys.TryGetValue(key, out (long Value, DateTime? ExpiresAt) entry) && entry.ExpiresAt is { } at && at <= _now)
             _keys.Remove(key);
     }
 }

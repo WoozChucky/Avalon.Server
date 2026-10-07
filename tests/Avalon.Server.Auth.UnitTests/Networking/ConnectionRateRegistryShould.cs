@@ -1,6 +1,4 @@
 using System.Diagnostics.Metrics;
-using Avalon.Hosting.Networking;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 
@@ -20,7 +18,8 @@ public class ConnectionRateRegistryShould
         public double BytesReceivedRate => 0;
     }
 
-    private static (Meter meter, ConnectionRateRegistry registry) Create() {
+    private static (Meter meter, ConnectionRateRegistry registry) Create()
+    {
         Meter meter = new($"test-{Guid.NewGuid()}");
         return (meter, new ConnectionRateRegistry(meter));
     }

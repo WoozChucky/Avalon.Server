@@ -1,12 +1,4 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
 using System.Diagnostics;
-using System.IO;
-using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
@@ -21,17 +13,17 @@ public class TickDrivenOutboxShould
     /// Long enough that a disposal which waits it out is unmistakable, and never reached by a
     /// disposal that does not — so these tests measure against the budget rather than the clock.
     /// </summary>
-    private static readonly TimeSpan LongBudget = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan s_longBudget = TimeSpan.FromSeconds(10);
 
     /// <summary>What a disposal that waits for nothing is allowed to take.</summary>
-    private static readonly TimeSpan NoWaitCeiling = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan s_noWaitCeiling = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// How long a disposal that is supposed to give up on a peer gets before the test calls it
     /// hung. Not a budget: the failure it catches is a disposal that waits for the peer forever,
     /// so it is set far above anything a loaded runner can add.
     /// </summary>
-    private static readonly TimeSpan DeadlockGuard = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan s_deadlockGuard = TimeSpan.FromSeconds(30);
 
     private static NetworkPacket MakePacket() =>
         SPingPacket.Create(0L, 0L, 0L, 0L);
@@ -81,8 +73,8 @@ public class TickDrivenOutboxShould
     [Fact]
     public void EnqueueThenFlush_WritesAllPacketsToStream()
     {
-        var faultCalled = false;
-        var (stream, ms) = MakeSyncStream();
+        bool faultCalled = false;
+        (PacketStream? stream, MemoryStream? ms) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
             onFault: () => faultCalled = true);
         outbox.Connect(stream);
@@ -102,7 +94,7 @@ public class TickDrivenOutboxShould
     {
         var slow = new SlowStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
-            onFault: () => { }, flushTimeout: LongBudget);
+            onFault: () => { }, flushTimeout: s_longBudget);
         outbox.Connect(new PacketStream(slow));
 
         // First flush starts a slow write
@@ -121,14 +113,14 @@ public class TickDrivenOutboxShould
         var sw = Stopwatch.StartNew();
         await outbox.DisposeAsync();
         sw.Stop();
-        Assert.True(sw.Elapsed < NoWaitCeiling,
-            $"Expected flag cleared after write; DisposeAsync took {sw.ElapsedMilliseconds}ms of a {LongBudget.TotalMilliseconds}ms budget");
+        Assert.True(sw.Elapsed < s_noWaitCeiling,
+            $"Expected flag cleared after write; DisposeAsync took {sw.ElapsedMilliseconds}ms of a {s_longBudget.TotalMilliseconds}ms budget");
     }
 
     [Fact]
     public void Continuation_ClearsInFlightFlag_OnSuccess_AllowingNextFlush()
     {
-        var (stream, ms) = MakeSyncStream();
+        (PacketStream? stream, MemoryStream? ms) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
             onFault: () => { });
         outbox.Connect(stream);
@@ -148,7 +140,7 @@ public class TickDrivenOutboxShould
     [Fact]
     public async Task Continuation_TriggersOnFault_OnIOException_AndLeavesFlagSet()
     {
-        var faultCalled = false;
+        bool faultCalled = false;
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
             onFault: () => faultCalled = true);
         outbox.Connect(new PacketStream(new FaultingStream()));
@@ -164,7 +156,7 @@ public class TickDrivenOutboxShould
     [Fact]
     public void Enqueue_WhenAtCapacity_DropsOldestAndDoesNotThrow()
     {
-        var (stream, _) = MakeSyncStream();
+        (PacketStream? stream, MemoryStream _) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 2,
             onFault: () => { });
         outbox.Connect(stream);
@@ -185,7 +177,7 @@ public class TickDrivenOutboxShould
     [Fact]
     public async Task DisposeAsync_WritesPacketsQueuedSinceTheLastFlush()
     {
-        var (stream, ms) = MakeSyncStream();
+        (PacketStream? stream, MemoryStream? ms) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
             onFault: () => { });
         outbox.Connect(stream);
@@ -202,8 +194,8 @@ public class TickDrivenOutboxShould
     [Fact]
     public async Task DisposeAsync_ReturnsWithinBudget_WhenTheFinalWriteStalls()
     {
-        TimeSpan flush = TimeSpan.FromMilliseconds(100);
-        TimeSpan grace = TimeSpan.FromMilliseconds(20);
+        var flush = TimeSpan.FromMilliseconds(100);
+        var grace = TimeSpan.FromMilliseconds(20);
 
         var slow = new SlowStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
@@ -219,10 +211,10 @@ public class TickDrivenOutboxShould
             // Asserting an elapsed time near flush + grace would instead assert the speed of the
             // runner, which is what made this test flaky; the guard is far above any real budget.
             Task dispose = outbox.DisposeAsync().AsTask();
-            Task finished = await Task.WhenAny(dispose, Task.Delay(DeadlockGuard));
+            Task finished = await Task.WhenAny(dispose, Task.Delay(s_deadlockGuard));
 
             Assert.True(ReferenceEquals(finished, dispose),
-                $"Expected disposal to give up on the stalled write; it was still waiting after {DeadlockGuard.TotalSeconds}s");
+                $"Expected disposal to give up on the stalled write; it was still waiting after {s_deadlockGuard.TotalSeconds}s");
             await dispose;
         }
         finally
@@ -241,7 +233,7 @@ public class TickDrivenOutboxShould
     {
         var faulted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
-            onFault: () => faulted.TrySetResult(), flushTimeout: LongBudget);
+            onFault: () => faulted.TrySetResult(), flushTimeout: s_longBudget);
         outbox.Connect(new PacketStream(new FaultingStream()));
 
         outbox.Enqueue(MakePacket());
@@ -253,24 +245,24 @@ public class TickDrivenOutboxShould
         await outbox.DisposeAsync();
         sw.Stop();
 
-        Assert.True(sw.Elapsed < NoWaitCeiling,
-            $"DisposeAsync took {sw.ElapsedMilliseconds}ms of a {LongBudget.TotalMilliseconds}ms budget — the write it waited for had already ended");
+        Assert.True(sw.Elapsed < s_noWaitCeiling,
+            $"DisposeAsync took {sw.ElapsedMilliseconds}ms of a {s_longBudget.TotalMilliseconds}ms budget — the write it waited for had already ended");
     }
 
     [Fact]
     public async Task DisposeAsync_CompletesPromptly_WhenNoWriteInFlight()
     {
-        var (stream, _) = MakeSyncStream();
+        (PacketStream? stream, MemoryStream _) = MakeSyncStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
-            onFault: () => { }, flushTimeout: LongBudget);
+            onFault: () => { }, flushTimeout: s_longBudget);
         outbox.Connect(stream);
 
         var sw = Stopwatch.StartNew();
         await outbox.DisposeAsync();
         sw.Stop();
 
-        Assert.True(sw.Elapsed < NoWaitCeiling,
-            $"DisposeAsync took {sw.ElapsedMilliseconds}ms of a {LongBudget.TotalMilliseconds}ms budget — it had nothing to wait for");
+        Assert.True(sw.Elapsed < s_noWaitCeiling,
+            $"DisposeAsync took {sw.ElapsedMilliseconds}ms of a {s_longBudget.TotalMilliseconds}ms budget — it had nothing to wait for");
     }
 
     [Fact]
@@ -278,7 +270,7 @@ public class TickDrivenOutboxShould
     {
         var slow = new SlowStream();
         var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
-            onFault: () => { }, flushTimeout: LongBudget);
+            onFault: () => { }, flushTimeout: s_longBudget);
         outbox.Connect(new PacketStream(slow));
 
         outbox.Enqueue(MakePacket());
@@ -291,7 +283,7 @@ public class TickDrivenOutboxShould
         await outbox.DisposeAsync();
         sw.Stop();
 
-        Assert.True(sw.Elapsed < NoWaitCeiling,
-            $"DisposeAsync took {sw.ElapsedMilliseconds}ms of a {LongBudget.TotalMilliseconds}ms budget — the write it waited for completed early");
+        Assert.True(sw.Elapsed < s_noWaitCeiling,
+            $"DisposeAsync took {sw.ElapsedMilliseconds}ms of a {s_longBudget.TotalMilliseconds}ms budget — the write it waited for completed early");
     }
 }

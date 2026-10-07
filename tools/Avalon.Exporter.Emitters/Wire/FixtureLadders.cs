@@ -7,17 +7,17 @@ namespace Avalon.Exporter;
 /// </summary>
 internal static class FixtureNumbers
 {
-    private static readonly decimal[] SignedOrdinary = [11, -3, 1000, -9, 70000, -262144, 5_000_000_000, 19];
-    private static readonly decimal[] UnsignedOrdinary = [7, 300, 65535, 4_000_000_000, 19, 1_000_000, 42];
+    private static readonly decimal[] s_signedOrdinary = [11, -3, 1000, -9, 70000, -262144, 5_000_000_000, 19];
+    private static readonly decimal[] s_unsignedOrdinary = [7, 300, 65535, 4_000_000_000, 19, 1_000_000, 42];
 
     // 2^7, 2^14, 2^21, 2^28 and 2^35, each side of the boundary, plus -1, which is the
     // shortest negative and the longest varint a signed field can produce.
-    private static readonly decimal[] Edges =
+    private static readonly decimal[] s_edges =
     [
         127, 128, 16383, 16384, 2097151, 2097152, 268435455, 268435456, 34359738367, 34359738368, -1,
     ];
 
-    private static readonly float[] Ordinary = [1.5f, -2.25f, 3.1415927f, 1e10f, -7.5e-8f, 0.1f];
+    private static readonly float[] s_ordinary = [1.5f, -2.25f, 3.1415927f, 1e10f, -7.5e-8f, 0.1f];
 
     internal static object Value(Type declared, FixtureVariant variant, string path, int ordinal)
     {
@@ -46,8 +46,8 @@ internal static class FixtureNumbers
             FixtureVariant.Absent or FixtureVariant.Empty => 0m,
             FixtureVariant.Maxima => max,
             FixtureVariant.Minima => min,
-            FixtureVariant.VarintEdges => Choose(Edges, min, max, path, ordinal),
-            _ => Choose(min < 0 ? SignedOrdinary : UnsignedOrdinary, min, max, path, ordinal),
+            FixtureVariant.VarintEdges => Choose(s_edges, min, max, path, ordinal),
+            _ => Choose(min < 0 ? s_signedOrdinary : s_unsignedOrdinary, min, max, path, ordinal),
         };
 
     /// <summary>
@@ -76,7 +76,7 @@ internal static class FixtureNumbers
     };
 
     internal static float OrdinaryFloat(string path, int ordinal) =>
-        Ordinary[FixtureValues.Pick(path, ordinal, Ordinary.Length)];
+        s_ordinary[FixtureValues.Pick(path, ordinal, s_ordinary.Length)];
 }
 
 /// <summary>
@@ -85,7 +85,7 @@ internal static class FixtureNumbers
 /// </summary>
 internal static class FixtureText
 {
-    private static readonly string[] Ordinary =
+    private static readonly string[] s_ordinary =
     [
         "alpha",
         "héllo wörld",
@@ -99,7 +99,7 @@ internal static class FixtureText
     // 127, 128 and 129 UTF-8 bytes. The middle one is where the length prefix stops fitting
     // in a single varint byte; the third is deliberately not ASCII, so a reader that counts
     // characters rather than bytes disagrees about where the field ends.
-    private static readonly string[] Edges =
+    private static readonly string[] s_edges =
     [
         new('x', 127),
         new('y', 128),
@@ -112,18 +112,18 @@ internal static class FixtureText
     // characters - a lint autofix, a copy through a channel that sanitises them - would
     // rewrite it into a second empty string and leave a diff that renders alike on both
     // sides. The empty string itself is what the empty variant carries.
-    private static readonly string[] Minimal = ["\0", "\u0001", " "];
+    private static readonly string[] s_minimal = ["\0", "\u0001", " "];
 
     internal static string? Value(FixtureVariant variant, string path, int ordinal) => variant switch
     {
         FixtureVariant.Absent => null,
         FixtureVariant.Empty => string.Empty,
-        FixtureVariant.Minima => Minimal[FixtureValues.Pick(path, ordinal, Minimal.Length)],
+        FixtureVariant.Minima => s_minimal[FixtureValues.Pick(path, ordinal, s_minimal.Length)],
         // 132 UTF-8 bytes: past the point where the length prefix needs a second byte,
         // without making every long-string vector in the corpus twice the size it has to be.
         FixtureVariant.Maxima => string.Concat(Enumerable.Repeat("Ωx", 44)),
-        FixtureVariant.VarintEdges => Edges[FixtureValues.Pick(path, ordinal, Edges.Length)],
-        _ => Ordinary[FixtureValues.Pick(path, ordinal, Ordinary.Length)],
+        FixtureVariant.VarintEdges => s_edges[FixtureValues.Pick(path, ordinal, s_edges.Length)],
+        _ => s_ordinary[FixtureValues.Pick(path, ordinal, s_ordinary.Length)],
     };
 }
 
@@ -133,7 +133,7 @@ internal static class FixtureText
 /// </summary>
 internal static class FixtureBinary
 {
-    private static readonly byte[][] Ordinary =
+    private static readonly byte[][] s_ordinary =
     [
         [0x01, 0x02, 0x03],
         [0x00],
@@ -149,7 +149,7 @@ internal static class FixtureBinary
         FixtureVariant.Minima => [0x00],
         FixtureVariant.Maxima => Pattern(140),
         FixtureVariant.VarintEdges => Pattern(127 + FixtureValues.Pick(path, ordinal, 3)),
-        _ => Ordinary[FixtureValues.Pick(path, ordinal, Ordinary.Length)],
+        _ => s_ordinary[FixtureValues.Pick(path, ordinal, s_ordinary.Length)],
     };
 
     private static byte[] Pattern(int length)
@@ -171,7 +171,7 @@ internal static class FixtureBinary
 /// </summary>
 internal static class FixtureFloats
 {
-    internal static readonly float[] Specials =
+    internal static readonly float[] s_specials =
     [
         float.NaN,
         BitConverter.Int32BitsToSingle(0x7FC00001),
@@ -207,7 +207,7 @@ internal static class FixtureFloats
         {
             if (string.Equals(paths[position], path, StringComparison.Ordinal))
             {
-                return Specials[(position + ordinal) % Specials.Length];
+                return s_specials[(position + ordinal) % s_specials.Length];
             }
         }
 
@@ -224,7 +224,7 @@ internal static class FixtureFloats
 /// </summary>
 internal static class FixtureBcl
 {
-    private static readonly DateTime[] Moments =
+    private static readonly DateTime[] s_moments =
     [
         new(2026, 9, 10, 12, 0, 0, DateTimeKind.Utc),
         new(1999, 12, 31, 23, 59, 59, DateTimeKind.Unspecified),
@@ -232,7 +232,7 @@ internal static class FixtureBcl
         new(1970, 1, 1, 0, 0, 1, DateTimeKind.Utc),
     ];
 
-    private static readonly Guid[] Identifiers =
+    private static readonly Guid[] s_identifiers =
     [
         new("0f8fad5b-d9cb-469f-a165-70867728950e"),
 
@@ -250,15 +250,15 @@ internal static class FixtureBcl
         // says nothing about how a pre-epoch offset is encoded.
         FixtureVariant.Minima => DateTime.UnixEpoch.AddTicks(-1),
         FixtureVariant.VarintEdges => DateTime.UnixEpoch.AddSeconds(128),
-        _ => Moments[FixtureValues.Pick(path, ordinal, Moments.Length)],
+        _ => s_moments[FixtureValues.Pick(path, ordinal, s_moments.Length)],
     };
 
     internal static Guid Identifier(FixtureVariant variant, string path, int ordinal) => variant switch
     {
         FixtureVariant.Absent or FixtureVariant.Empty or FixtureVariant.Minima => Guid.Empty,
         FixtureVariant.Maxima => new Guid(Enumerable.Repeat((byte)0xff, 16).ToArray()),
-        FixtureVariant.VarintEdges => Identifiers[1],
-        _ => Identifiers[FixtureValues.Pick(path, ordinal, Identifiers.Length)],
+        FixtureVariant.VarintEdges => s_identifiers[1],
+        _ => s_identifiers[FixtureValues.Pick(path, ordinal, s_identifiers.Length)],
     };
 }
 

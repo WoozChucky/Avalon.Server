@@ -17,7 +17,10 @@ public class SUnitRevivePacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public ulong UnitGuid { get; set; }
+    // The wire contract stays as it is: IsRequired would change what is serialized (WireSchemaShould pins it).
+#pragma warning disable PBN0022
     [ProtoMember(2)] public Vector3Dto Position { get; set; } = new();
+#pragma warning restore PBN0022
     [ProtoMember(3)] public uint Health { get; set; }
 
     public static NetworkPacket Create(ObjectGuid unit, Vector3 position, uint health, EncryptFunc encryptFunc)

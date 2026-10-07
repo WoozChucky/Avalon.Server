@@ -1,5 +1,3 @@
-using System;
-
 namespace Avalon.Hosting.Networking;
 
 public readonly struct PacketInfo(Type packetType, Type? packetHandlerType = null)

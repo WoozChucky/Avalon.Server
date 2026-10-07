@@ -1,6 +1,3 @@
-// Licensed to the Avalon MMORPG Game under one or more agreements.
-// Avalon MMORPG Game licenses this file to you under the MIT license.
-
 using System.Linq.Expressions;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -17,7 +14,7 @@ public class CharacterPaginateFilters : EntityPaginateFilter<Character>
 
     public override Expression<Func<Character, bool>> GetFilter()
     {
-        var predicate = PredicateBuilder.New<Character>(true);
+        ExpressionStarter<Character> predicate = PredicateBuilder.New<Character>(true);
 
         if (AccountId is { } aid)
         {
@@ -27,7 +24,7 @@ public class CharacterPaginateFilters : EntityPaginateFilter<Character>
 
         if (!string.IsNullOrEmpty(NameLike))
         {
-            var pattern = $"%{NameLike}%";
+            string pattern = $"%{NameLike}%";
             predicate = predicate.And(c => EF.Functions.ILike(c.Name, pattern));
         }
 

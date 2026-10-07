@@ -15,7 +15,10 @@ public class ChunkRotationShould
     // S-Center = bit 7 (128) W-Center = bit 10 (1024)
     private const ushort N_C = 1 << 1;
     private const ushort E_C = 1 << 4;
+    // N_C, E_C, S_C and W_C name the edge bits as a set; IDE1006 reads the S_ of S_C as a static-field prefix.
+#pragma warning disable IDE1006
     private const ushort S_C = 1 << 7;
+#pragma warning restore IDE1006
     private const ushort W_C = 1 << 10;
 
     [Theory]
@@ -33,14 +36,14 @@ public class ChunkRotationShould
         // Place at an arbitrary cell (3, 5) so a SW-corner-pivot bug would push the
         // footprint into a neighbour cell.
         var origin = new Vector3(3 * CellSize, 0f, 5 * CellSize);
-        var minX = origin.x;
-        var maxX = origin.x + CellSize;
-        var minZ = origin.z;
-        var maxZ = origin.z + CellSize;
+        float minX = origin.x;
+        float maxX = origin.x + CellSize;
+        float minZ = origin.z;
+        float maxZ = origin.z + CellSize;
 
-        foreach (var c in corners)
+        foreach ((float x, float z) c in corners)
         {
-            var w = ChunkRotation.LocalToWorld(c.x, 0f, c.z, rotation, CellSize, origin);
+            Vector3 w = ChunkRotation.LocalToWorld(c.x, 0f, c.z, rotation, CellSize, origin);
             Assert.InRange(w.x, minX - 0.001f, maxX + 0.001f);
             Assert.InRange(w.z, minZ - 0.001f, maxZ + 0.001f);
         }
@@ -50,7 +53,7 @@ public class ChunkRotationShould
     public void Identity_rotation_passes_through()
     {
         var origin = new Vector3(60f, 0f, 90f);
-        var w = ChunkRotation.LocalToWorld(15f, 1f, 5f, rotation: 0, CellSize, origin);
+        Vector3 w = ChunkRotation.LocalToWorld(15f, 1f, 5f, rotation: 0, CellSize, origin);
         Assert.Equal(75f, w.x, precision: 3);
         Assert.Equal(1f, w.y, precision: 3);
         Assert.Equal(95f, w.z, precision: 3);
@@ -62,7 +65,7 @@ public class ChunkRotationShould
         var origin = new Vector3(0f, 0f, 0f);
         for (byte r = 0; r < 4; r++)
         {
-            var w = ChunkRotation.LocalToWorld(CellSize / 2, 0f, CellSize / 2, r, CellSize, origin);
+            Vector3 w = ChunkRotation.LocalToWorld(CellSize / 2, 0f, CellSize / 2, r, CellSize, origin);
             Assert.Equal(CellSize / 2, w.x, precision: 3);
             Assert.Equal(CellSize / 2, w.z, precision: 3);
         }
@@ -78,12 +81,12 @@ public class ChunkRotationShould
     [Fact]
     public void Forest_pool_generates_for_many_seeds()
     {
-        var (pool, cfg) = BuildForestPool();
+        (List<ChunkPoolMember>? pool, ProceduralMapConfig? cfg) = BuildForestPool();
         var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
 
         for (int seed = 0; seed < 50; seed++)
         {
-            var layout = gen.Generate(cfg, pool, seed);
+            ChunkLayout layout = gen.Generate(cfg, pool, seed);
             Assert.NotNull(layout);
             Assert.NotNull(layout.BossChunk);
         }
@@ -100,22 +103,22 @@ public class ChunkRotationShould
     [Fact]
     public void Forest_pool_seed_399888156_produces_non_overlapping_footprints()
     {
-        var (pool, cfg) = BuildForestPool();
+        (List<ChunkPoolMember>? pool, ProceduralMapConfig? cfg) = BuildForestPool();
         var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
 
-        var layout = gen.Generate(cfg, pool, seed: 399888156);
+        ChunkLayout layout = gen.Generate(cfg, pool, seed: 399888156);
 
         // Each chunk's transformed AABB must lie inside its declared (GridX, GridZ) cell.
-        foreach (var chunk in layout.Chunks)
+        foreach (PlacedChunk chunk in layout.Chunks)
         {
-            var minX = chunk.GridX * CellSize;
-            var maxX = minX + CellSize;
-            var minZ = chunk.GridZ * CellSize;
-            var maxZ = minZ + CellSize;
+            float minX = chunk.GridX * CellSize;
+            float maxX = minX + CellSize;
+            float minZ = chunk.GridZ * CellSize;
+            float maxZ = minZ + CellSize;
             (float x, float z)[] corners = { (0, 0), (CellSize, 0), (CellSize, CellSize), (0, CellSize) };
-            foreach (var c in corners)
+            foreach ((float x, float z) c in corners)
             {
-                var w = ChunkRotation.LocalToWorld(c.x, 0f, c.z, chunk.Rotation, layout.CellSize, chunk.WorldPos);
+                Vector3 w = ChunkRotation.LocalToWorld(c.x, 0f, c.z, chunk.Rotation, layout.CellSize, chunk.WorldPos);
                 Assert.InRange(w.x, minX - 0.001f, maxX + 0.001f);
                 Assert.InRange(w.z, minZ - 0.001f, maxZ + 0.001f);
             }
@@ -133,7 +136,7 @@ public class ChunkRotationShould
         };
         if (addEntrySpawn)
             t.SpawnSlots.Add(new ChunkSpawnSlot { Tag = "entry", LocalX = 15, LocalY = 1, LocalZ = 5 });
-        foreach (var tag in spawnTags ?? Array.Empty<string>())
+        foreach (string tag in spawnTags ?? Array.Empty<string>())
             t.SpawnSlots.Add(new ChunkSpawnSlot { Tag = tag, LocalX = 15, LocalY = 1, LocalZ = 15 });
         if (portal is not null)
             t.PortalSlots.Add(new ChunkPortalSlot { Role = portal.Value, LocalX = 15, LocalY = 1, LocalZ = portal.Value == PortalRole.Back ? 5 : 25 });

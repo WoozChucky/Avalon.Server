@@ -138,7 +138,7 @@ public class ApiDatabaseMigratorShould
     {
         await Migrator("DataSource=world-2").MigrateAsync(AuthContexts(), Worlds(), new UnopenedWorlds(), CancellationToken.None);
 
-        List<string> summary = _log.Entries.Where(e => e.Level == LogLevel.Information).Select(e => e.Text).ToList();
+        var summary = _log.Entries.Where(e => e.Level == LogLevel.Information).Select(e => e.Text).ToList();
         Assert.Equal(["World 1: Available", "World 2: Unavailable", "World 3: Available"], summary);
     }
 
@@ -150,12 +150,19 @@ public class ApiDatabaseMigratorShould
 
         IWorldRepository authWorlds = Substitute.For<IWorldRepository>();
         foreach (ushort id in new ushort[] { 1, 2, 3 })
+        {
             authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(new WorldEntity
                 {
-                    Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = AccountAccessLevel.Player,
-                    Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+                    Id = new WorldId(id),
+                    Name = $"World{id}",
+                    AccessLevelRequired = AccountAccessLevel.Player,
+                    Host = "h",
+                    MinVersion = "0.0.1",
+                    Version = "0.0.1",
                 });
+        }
+
         IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindByIdAsync(Arg.Any<ItemTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new ItemTemplate { Id = new ItemTemplateId(1), Name = "Lantern" });

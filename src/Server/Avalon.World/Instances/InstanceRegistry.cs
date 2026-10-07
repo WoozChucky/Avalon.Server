@@ -39,7 +39,7 @@ namespace Avalon.World.Instances;
 /// </remarks>
 public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 {
-    private static readonly TimeSpan ReentryWindow = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan s_reentryWindow = TimeSpan.FromMinutes(15);
 
     private readonly ConcurrentDictionary<Guid, MapInstance> _instances = new();
 
@@ -147,7 +147,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         if (_characterInstanceMap.TryGetValue(characterId, out Dictionary<MapTemplateId, Guid>? characterMap) &&
             characterMap.TryGetValue(templateId, out Guid existingId) &&
             _instances.TryGetValue(existingId, out MapInstance? existing) &&
-            !existing.IsExpired(ReentryWindow))
+            !existing.IsExpired(s_reentryWindow))
         {
             _logger.LogInformation(
                 "Returning existing Normal instance {InstanceId} for character {CharacterId}, map {TemplateId}",
@@ -179,7 +179,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         _partyInstanceMap.TryGetValue(party, out Dictionary<MapTemplateId, Guid>? maps)
         && maps.TryGetValue(templateId, out Guid id)
         && _instances.TryGetValue(id, out MapInstance? instance)
-        && !instance.IsExpired(ReentryWindow)
+        && !instance.IsExpired(s_reentryWindow)
             ? instance
             : null;
 
@@ -300,7 +300,6 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             }
         }
 
-
         return published;
     }
 
@@ -327,7 +326,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 
         _ = build.ContinueWith(static (outcome, state) =>
             {
-                var (registry, pendingBuild) = ((InstanceRegistry, PendingBuild))state!;
+                (InstanceRegistry? registry, PendingBuild? pendingBuild) = ((InstanceRegistry, PendingBuild))state!;
                 registry._finished.Enqueue(new FinishedBuild(pendingBuild, outcome));
             },
             (this, pending), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);

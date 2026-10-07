@@ -1,10 +1,8 @@
-using Avalon.Common.GameAuth;
-using Avalon.Server.World.UnitTests.GameAuth;
 using System.Net;
 using System.Net.Sockets;
-using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Combat;
 using Avalon.Common.Cryptography;
+using Avalon.Common.GameAuth;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
@@ -18,6 +16,8 @@ using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
+using Avalon.Server.World.UnitTests.GameAuth;
+using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
@@ -27,13 +27,13 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
-using Avalon.World.Quests;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
 using Avalon.World.Pvp;
+using Avalon.World.Quests;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -42,6 +42,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Org.BouncyCastle.Crypto;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -61,10 +62,10 @@ public class CharacterLeaveShould : IDisposable
     /// never moves here, so a slow runner only makes a test slower, and this bound only stops a
     /// broken one from hanging. Generous, because a loaded runner can hold pool work back for seconds.
     /// </summary>
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(30);
-    private static readonly CharacterId TheCharacter = new(7);
-    private static readonly CharacterId AnotherCharacter = new(8);
-    private static readonly AccountId TheAccount = new(42L);
+    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(30);
+    private static readonly CharacterId s_theCharacter = new(7);
+    private static readonly CharacterId s_anotherCharacter = new(8);
+    private static readonly AccountId s_theAccount = new(42L);
 
     private readonly List<TcpClient> _sockets = [];
     private readonly TaskCompletionSource _commit = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -92,19 +93,19 @@ public class CharacterLeaveShould : IDisposable
 
                 lock (_written)
                     _written.AddRange(call.Arg<IReadOnlyList<CharacterSaveBatch>>());
-                await _commit.Task.WaitAsync(Limit);
+                await _commit.Task.WaitAsync(s_limit);
                 Volatile.Write(ref _committed, 1);
             });
         _saver = new CharacterSaver(_saves, NullLogger<CharacterSaver>.Instance);
 
-        _characters.FindByAccountAsync(TheAccount, Arg.Any<CancellationToken>())
+        _characters.FindByAccountAsync(s_theAccount, Arg.Any<CancellationToken>())
             .Returns(new List<Character>
             {
-                new() { Id = TheCharacter, AccountId = TheAccount, Name = "Tester7", Level = 3 },
-                new() { Id = AnotherCharacter, AccountId = TheAccount, Name = "Tester8", Level = 1 },
+                new() { Id = s_theCharacter, AccountId = s_theAccount, Name = "Tester7", Level = 3 },
+                new() { Id = s_anotherCharacter, AccountId = s_theAccount, Name = "Tester8", Level = 1 },
             });
         // What happens after a select's read is the rest of the select chain, covered elsewhere.
-        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 lock (_selectReads)
@@ -138,7 +139,7 @@ public class CharacterLeaveShould : IDisposable
         Assert.True(connection.LeaveInProgress);
         Assert.DoesNotContain(live.Guid, town.Characters.Keys);
         CharacterSaveBatch logout = await WrittenAsync();
-        Assert.Equal(TheCharacter, logout.Row.Id);
+        Assert.Equal(s_theCharacter, logout.Row.Id);
         Assert.False(logout.Row.Online);
 
         connection.FlushContinuations();
@@ -153,12 +154,12 @@ public class CharacterLeaveShould : IDisposable
         h.List.Execute(connection, new CCharacterListPacket());
         await UntilAsync(connection, () => connection.Read<SCharacterListPacket>(NetworkPacketType.SMSG_CHARACTER_LIST).Count > 0);
         SCharacterListPacket list = Assert.Single(connection.Read<SCharacterListPacket>(NetworkPacketType.SMSG_CHARACTER_LIST));
-        Assert.Equal([TheCharacter.Value, AnotherCharacter.Value], list.Characters.Select(c => c.CharacterId));
+        Assert.Equal([s_theCharacter.Value, s_anotherCharacter.Value], list.Characters.Select(c => c.CharacterId));
 
-        h.Select.Execute(connection, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+        h.Select.Execute(connection, new CCharacterSelectedPacket { CharacterId = s_anotherCharacter });
         Assert.True(connection.SelectInProgress);
         await UntilAsync(connection, () => SelectReads().Count > 0);
-        Assert.Equal(AnotherCharacter, Assert.Single(SelectReads()).Id);
+        Assert.Equal(s_anotherCharacter, Assert.Single(SelectReads()).Id);
         Assert.False(connection.IsClosing);
         Assert.Single(_written);
     }
@@ -178,7 +179,7 @@ public class CharacterLeaveShould : IDisposable
 
         h.Leave.Execute(leaving, new CCharacterLeavePacket());
         await WrittenAsync();
-        h.Select.Execute(other, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        h.Select.Execute(other, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         other.FlushContinuations();
         Assert.Empty(SelectReads());
@@ -187,7 +188,7 @@ public class CharacterLeaveShould : IDisposable
         _commit.SetResult();
         await UntilAsync(other, () => SelectReads().Count > 0);
 
-        Assert.Equal((TheCharacter, true), Assert.Single(SelectReads()));
+        Assert.Equal((s_theCharacter, true), Assert.Single(SelectReads()));
         leaving.FlushContinuations();
         Assert.Empty(leaving.Results());
         Assert.Single(_written);
@@ -225,7 +226,7 @@ public class CharacterLeaveShould : IDisposable
         await UntilAsync(connection, () => !connection.LeaveInProgress);
 
         Assert.Equal([CharacterLeaveResult.AlreadyLeaving, CharacterLeaveResult.Left], connection.Results());
-        await _saver.WhenIdle(TheCharacter).WaitAsync(Limit);
+        await _saver.WhenIdle(s_theCharacter).WaitAsync(s_limit);
         Assert.Single(_written);
     }
 
@@ -241,11 +242,11 @@ public class CharacterLeaveShould : IDisposable
         Spawn(connection, town);
 
         h.Leave.Execute(connection, new CCharacterLeavePacket());
-        await connection.CloseAsync().WaitAsync(Limit);
+        await connection.CloseAsync().WaitAsync(s_limit);
         server.Tick();
 
         _commit.SetResult();
-        await _saver.WhenIdle(TheCharacter).WaitAsync(Limit);
+        await _saver.WhenIdle(s_theCharacter).WaitAsync(s_limit);
         connection.FlushContinuations();
 
         Assert.Single(_written);
@@ -283,7 +284,7 @@ public class CharacterLeaveShould : IDisposable
 
     private async Task<CharacterSaveBatch> WrittenAsync()
     {
-        DateTime deadline = DateTime.UtcNow + Limit;
+        DateTime deadline = DateTime.UtcNow + s_limit;
         while (true)
         {
             lock (_written)
@@ -300,7 +301,7 @@ public class CharacterLeaveShould : IDisposable
     /// <summary>Runs the connection's continuations, as the tick does, until <paramref name="done" /> holds.</summary>
     private static async Task UntilAsync(RecordingConnection connection, Func<bool> done)
     {
-        DateTime deadline = DateTime.UtcNow + Limit;
+        DateTime deadline = DateTime.UtcNow + s_limit;
         while (true)
         {
             connection.FlushContinuations();
@@ -313,7 +314,7 @@ public class CharacterLeaveShould : IDisposable
 
     private static CharacterEntity Spawn(RecordingConnection connection, MapInstance town)
     {
-        CharacterEntity live = New(TheCharacter.Value);
+        CharacterEntity live = New(s_theCharacter.Value);
         live.Spells.Load(Array.Empty<IAbility>());
         live.InstanceId = town.InstanceId;
         connection.Character = live;
@@ -362,7 +363,7 @@ public class CharacterLeaveShould : IDisposable
         _sockets.Add(clientSide);
         _sockets.Add(serverSide);
 
-        var connection = new RecordingConnection(server, clientSide) { AccountId = TheAccount };
+        var connection = new RecordingConnection(server, clientSide) { AccountId = s_theAccount };
         GameplayTestAdmission.Admit(connection);
         server.Add(connection);
         return connection;
@@ -381,7 +382,7 @@ public class CharacterLeaveShould : IDisposable
             : base(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>())
         {
             // A session reports its public key only once initialized, so each end's is taken from its pair.
-            var clientKeys = AsymmetricCipher.GenerateECDHKeyPair();
+            AsymmetricCipherKeyPair clientKeys = AsymmetricCipher.GenerateECDHKeyPair();
             _client = new AvalonCryptoSession(CryptoRole.Client, clientKeys);
             CryptoSession.Initialize(PublicKey(clientKeys));
             _client.Initialize(PublicKey(ServerCrypto.GetKeyPair()));
@@ -407,7 +408,7 @@ public class CharacterLeaveShould : IDisposable
                 byte[] payload = p.Payload;
                 if (p.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
                 {
-                    var plain = new byte[p.Payload.Length];
+                    byte[] plain = new byte[p.Payload.Length];
                     int length = _client.Decrypt(p.Payload, plain);
                     payload = plain[..length];
                 }
@@ -424,60 +425,64 @@ public class CharacterLeaveShould : IDisposable
     /// <summary>The real world, for its real despawn. It reads the instance registry, which only exists after LoadAsync.</summary>
     private static async Task<Avalon.World.World> LoadedWorldAsync(ICharacterSaver saver, MapInstance? town)
     {
-        var scopedProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider scopedProvider = Substitute.For<IServiceProvider>();
         scopedProvider.GetService(typeof(ICharacterSaver)).Returns(saver);
         scopedProvider.GetService(typeof(IRespawnTargetResolver)).Returns(Substitute.For<IRespawnTargetResolver>());
-        var scope = Substitute.For<IServiceScope>();
+        IServiceScope scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(scopedProvider);
-        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        IServiceScopeFactory scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
 
-        var worldRepository = Substitute.For<IWorldRepository>();
+        IWorldRepository worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Auth.World
             {
-                Name = "test", Host = "127.0.0.1", Port = 0, MinVersion = "0.0.1", Version = "1.0.0"
+                Name = "test",
+                Host = "127.0.0.1",
+                Port = 0,
+                MinVersion = "0.0.1",
+                Version = "1.0.0"
             });
 
-        var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<Avalon.Domain.World.CharacterLevelExperience>());
-        var stats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository stats = Substitute.For<IClassLevelStatRepository>();
         stats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<Avalon.Domain.World.ClassLevelStat>());
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(Array.Empty<Avalon.Domain.World.CharacterCreateInfo>());
-        var items = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<Avalon.Domain.World.ItemTemplate>());
-        var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<Avalon.Domain.World.AbilityTemplate>());
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedText>>([]));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedTextLocale>>([]));
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CharacterClassName>>([]));
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.DialogueNode>>([]));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.DialogueOption>>([]));
-        var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
         creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<Avalon.Domain.World.CreatureTemplate>()));
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CreatureBaseStat>>(
                 [new Avalon.Domain.World.CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CreatureRarityModifier>>([]));
 
         // The town, when a test has one, is what the registry builds for map template 1.
-        var mapManager = Substitute.For<IAvalonMapManager>();
-        var layouts = Substitute.For<IChunkLayoutInstanceFactory>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
+        IChunkLayoutInstanceFactory layouts = Substitute.For<IChunkLayoutInstanceFactory>();
         if (town is not null)
         {
             mapManager.Templates.Returns(new List<MapTemplate>
@@ -487,7 +492,7 @@ public class CharacterLeaveShould : IDisposable
             layouts.BuildAsync(Arg.Any<MapTemplate>(), Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(town);
         }
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory)).Returns(layouts);
 
         var world = new Avalon.World.World(
@@ -512,19 +517,19 @@ public class CharacterLeaveShould : IDisposable
 
         await world.LoadAsync(CancellationToken.None);
         if (town is not null)
-            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).Published(world).WaitAsync(Limit);
+            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).Published(world).WaitAsync(s_limit);
         return world;
     }
 
     /// <summary>A real instance, so what leaving it removes, and what its tick still reaches, is observed.</summary>
     private static MapInstance Town(ICharacterSaveScheduler scheduler)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         serviceProvider.GetService(typeof(ICharacterSaveScheduler)).Returns(scheduler);
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
@@ -580,8 +585,10 @@ public class CharacterLeaveShould : IDisposable
                 return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             if (serviceType == typeof(PartyService))
+            {
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
+            }
 
             // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
             if (serviceType == typeof(QuestService))
@@ -592,8 +599,10 @@ public class CharacterLeaveShould : IDisposable
                 return _itemUses ??= Avalon.Server.World.UnitTests.ItemUse.InertItemUseService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
+            {
                 return Activator.CreateInstance(
                     typeof(NullLogger<>).MakeGenericType(serviceType.GenericTypeArguments[0]));
+            }
 
             if (serviceType.IsInterface || serviceType.IsAbstract)
                 return Substitute.For([serviceType], []);

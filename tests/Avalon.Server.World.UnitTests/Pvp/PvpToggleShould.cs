@@ -4,14 +4,13 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Pvp;
 using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Pvp;
 
 public class PvpToggleShould
 {
-    private static readonly DateTimeOffset Now = new(2026, 9, 26, 12, 0, 0, TimeSpan.Zero);
-    private readonly FixedTimeProvider _clock = new(Now);
+    private static readonly DateTimeOffset s_now = new(2026, 9, 26, 12, 0, 0, TimeSpan.Zero);
+    private readonly FixedTimeProvider _clock = new(s_now);
     private readonly PvpToggle _toggle;
 
     public PvpToggleShould() =>
@@ -40,7 +39,7 @@ public class PvpToggleShould
 
         Assert.Equal(new PvpStatus(true, 300_000), status);
         Assert.True(character.PvpEnabled);
-        Assert.Equal(Now.UtcDateTime.AddMinutes(5), character.PvpOffAt);
+        Assert.Equal(s_now.UtcDateTime.AddMinutes(5), character.PvpOffAt);
     }
 
     /// <summary>PvpOffAt is a timestamp with time zone column, and Npgsql refuses a DateTime that is not UTC.</summary>
@@ -88,10 +87,10 @@ public class PvpToggleShould
         _toggle.Request(character);
         _toggle.Request(character);
 
-        _clock.Now = Now.AddMinutes(5).AddMilliseconds(-1);
+        _clock.Now = s_now.AddMinutes(5).AddMilliseconds(-1);
         Assert.False(_toggle.ExpireIfDue(character));
 
-        _clock.Now = Now.AddMinutes(5);
+        _clock.Now = s_now.AddMinutes(5);
         Assert.True(_toggle.ExpireIfDue(character));
         Assert.False(character.PvpEnabled);
         Assert.Null(character.PvpOffAt);
@@ -103,7 +102,7 @@ public class PvpToggleShould
         CharacterEntity on = TestCharacters.New(1);
         CharacterEntity off = TestCharacters.New(2);
         _toggle.Request(on);
-        _clock.Now = Now.AddYears(1);
+        _clock.Now = s_now.AddYears(1);
 
         Assert.False(_toggle.ExpireIfDue(on));
         Assert.False(_toggle.ExpireIfDue(off));
@@ -122,11 +121,11 @@ public class PvpToggleShould
             _toggle.Request(c);
         }
 
-        _clock.Now = Now.AddMinutes(4);
+        _clock.Now = s_now.AddMinutes(4);
         _toggle.OnPlayerHitPlayer(attacker, target);
 
-        Assert.Equal(Now.UtcDateTime.AddMinutes(9), attacker.PvpOffAt);
-        Assert.Equal(Now.UtcDateTime.AddMinutes(9), target.PvpOffAt);
+        Assert.Equal(s_now.UtcDateTime.AddMinutes(9), attacker.PvpOffAt);
+        Assert.Equal(s_now.UtcDateTime.AddMinutes(9), target.PvpOffAt);
     }
 
     [Fact]
@@ -149,7 +148,7 @@ public class PvpToggleShould
         CharacterEntity character = TestCharacters.New(1);
         _toggle.Request(character);
         _toggle.Request(character);
-        _clock.Now = Now.AddMinutes(5).AddTicks(-1);
+        _clock.Now = s_now.AddMinutes(5).AddTicks(-1);
 
         Assert.Equal(1u, _toggle.StatusOf(character).OffInMs);
     }

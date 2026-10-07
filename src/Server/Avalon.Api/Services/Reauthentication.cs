@@ -3,6 +3,7 @@ using System.Security.Authentication;
 using Avalon.Api.Exceptions;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Login;
 
 namespace Avalon.Api.Services;
@@ -53,7 +54,7 @@ public sealed class Reauthentication : IReauthentication
         if (string.IsNullOrWhiteSpace(password))
             throw new AuthenticationException(InvalidPassword);
 
-        var account = await _accounts.FindByIdAsync(accountId, track: false, cancellationToken)
+        Account account = await _accounts.FindByIdAsync(accountId, track: false, cancellationToken)
                       ?? throw new AuthenticationException(InvalidPassword);
 
         PasswordAttempt attempt = await _policy.CheckAsync(account, password, LoginSource.FromAddress(address),

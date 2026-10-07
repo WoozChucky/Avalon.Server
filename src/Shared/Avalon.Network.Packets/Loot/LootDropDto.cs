@@ -14,7 +14,10 @@ public class LootDropDto
     [ProtoMember(1)] public ulong LootGuid { get; set; }
 
     /// <summary>World position, already on the ground.</summary>
+    // The wire contract stays as it is: IsRequired would change what is serialized (WireSchemaShould pins it).
+#pragma warning disable PBN0022
     [ProtoMember(2)] public Vector3Dto Position { get; set; } = new();
+#pragma warning restore PBN0022
 
     /// <summary>Present for an item drop.</summary>
     [ProtoMember(3)] public ulong? ItemTemplateId { get; set; }

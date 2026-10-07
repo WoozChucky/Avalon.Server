@@ -2,7 +2,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Loot;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Loot;
 
@@ -10,14 +9,22 @@ public class LootCatalogShould
 {
     private static LootTableEntry Item(int sequence, ulong item = 1, float chance = 50f, int? group = null,
         int min = 1, int max = 1) => new()
-    {
-        Sequence = sequence, ItemTemplateId = new ItemTemplateId(item), Chance = chance, GroupId = group,
-        MinCount = min, MaxCount = max
-    };
+        {
+            Sequence = sequence,
+            ItemTemplateId = new ItemTemplateId(item),
+            Chance = chance,
+            GroupId = group,
+            MinCount = min,
+            MaxCount = max
+        };
 
     private static LootTableEntry Reference(int sequence, int table, float chance = 100f) => new()
     {
-        Sequence = sequence, ReferenceTableId = new LootTableId(table), Chance = chance, MinCount = 1, MaxCount = 1
+        Sequence = sequence,
+        ReferenceTableId = new LootTableId(table),
+        Chance = chance,
+        MinCount = 1,
+        MaxCount = 1
     };
 
     private static LootTable Table(int id, string name, params LootTableEntry[] entries)

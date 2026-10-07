@@ -1,7 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Abilities;
@@ -26,7 +25,7 @@ public class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacte
 
     public void Update(TimeSpan deltaTime)
     {
-        foreach (var ability in _abilities)
+        foreach (IAbility ability in _abilities)
         {
             // #627: a cooldown counts down whatever the cast timer holds, which a hasted cast time never
             // matches with the metadata's. An ability being cast has no cooldown running: a cast is refused

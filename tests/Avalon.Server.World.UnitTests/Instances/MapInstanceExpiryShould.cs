@@ -1,6 +1,5 @@
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Instances;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;

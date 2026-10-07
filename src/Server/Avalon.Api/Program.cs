@@ -7,7 +7,6 @@ using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Api.Worlds;
 using Avalon.Hosting;
-using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
@@ -57,8 +56,8 @@ IServiceCollection services = builder.Services;
                 Title = "Avalon.Api",
                 Version = "v1",
                 Description = "The official API for Avalon.",
-                Contact = new OpenApiContact {Name = "Avalon Project", Url = new Uri("https://avalon.monster")},
-                License = new OpenApiLicense {Name = "MIT", Url = new Uri("https://opensource.org/license/mit/")},
+                Contact = new OpenApiContact { Name = "Avalon Project", Url = new Uri("https://avalon.monster") },
+                License = new OpenApiLicense { Name = "MIT", Url = new Uri("https://opensource.org/license/mit/") },
                 TermsOfService = new Uri("https://avalon.monster/terms")
             };
             return Task.CompletedTask;
@@ -69,11 +68,15 @@ IServiceCollection services = builder.Services;
             // The shared System.String reference drops per-property annotations. Keep this proof's
             // bounded wire schema inline, without changing other string contracts.
             if (context.JsonTypeInfo.Type == typeof(Avalon.Api.Contract.AccountEmailVerificationConfirmRequest))
+            {
                 schema.Properties!["token"] = new OpenApiSchema
                 {
-                    Type = JsonSchemaType.String, MinLength = 43, MaxLength = 43,
+                    Type = JsonSchemaType.String,
+                    MinLength = 43,
+                    MaxLength = 43,
                     Pattern = "^[A-Za-z0-9_-]{43}$",
                 };
+            }
             // Preserve the CLR uint32 bounds, including nullable request selectors.
             if (context.JsonTypeInfo.Type == typeof(uint) || context.JsonTypeInfo.Type == typeof(uint?))
             {

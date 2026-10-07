@@ -16,9 +16,13 @@ public sealed class SteamIdentityProvider(ISteamProofVerifier verifier, IOptions
     public async Task<GameIdentityProofResult> VerifyAsync(GameIdentityProofRequest request, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(request.Proof) || request.Proof.Length > GameAuthPolicy.MaximumSteamTicketHexCharacters ||
-            request.Proof.Length % 2 != 0 || !request.Proof.All(Uri.IsHexDigit)) return new(GameIdentityProofStatus.Invalid);
-        var result = await verifier.VerifyAsync(AppId(request.Application), request.Proof, request.ExpectedChallenge, ct);
-        var now = clock.GetUtcNow().UtcDateTime;
+            request.Proof.Length % 2 != 0 || !request.Proof.All(Uri.IsHexDigit))
+        {
+            return new(GameIdentityProofStatus.Invalid);
+        }
+
+        SteamProofResult result = await verifier.VerifyAsync(AppId(request.Application), request.Proof, request.ExpectedChallenge, ct);
+        DateTime now = clock.GetUtcNow().UtcDateTime;
         return result.Status switch
         {
             SteamProofStatus.Verified when result.ProviderSubject is not null =>
@@ -28,6 +32,6 @@ public sealed class SteamIdentityProvider(ISteamProofVerifier verifier, IOptions
         };
     }
     internal static uint AppId(GameApplicationSelection app) => app.Provider == StoreProviders.Steam &&
-        uint.TryParse(app.ProviderProductId, NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id != 0 &&
+        uint.TryParse(app.ProviderProductId, NumberStyles.None, CultureInfo.InvariantCulture, out uint id) && id != 0 &&
         id.ToString(CultureInfo.InvariantCulture) == app.ProviderProductId ? id : throw new ArgumentException("Invalid Steam application binding.");
 }

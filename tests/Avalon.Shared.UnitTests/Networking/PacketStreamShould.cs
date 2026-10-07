@@ -1,11 +1,3 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
-using System.Buffers;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalon.Hosting.Networking;
 using Xunit;
 
@@ -29,7 +21,7 @@ public class PacketStreamShould
         var ps = new PacketStream(ms);
 
         var frames = new System.Collections.Generic.List<byte[]>();
-        await foreach (var frame in ps.EnumerateRawFramesAsync(64, CancellationToken.None))
+        await foreach (ReadOnlyMemory<byte> frame in ps.EnumerateRawFramesAsync(64, CancellationToken.None))
             frames.Add(frame.ToArray());
 
         Assert.Equal(3, frames.Count);
@@ -45,7 +37,7 @@ public class PacketStreamShould
         var ps = new PacketStream(drip);
 
         var frames = new System.Collections.Generic.List<byte[]>();
-        await foreach (var frame in ps.EnumerateRawFramesAsync(64, CancellationToken.None))
+        await foreach (ReadOnlyMemory<byte> frame in ps.EnumerateRawFramesAsync(64, CancellationToken.None))
             frames.Add(frame.ToArray());
 
         Assert.Equal(3, frames.Count);
@@ -68,7 +60,7 @@ public class PacketStreamShould
         var ps = new PacketStream(ms);
 
         var frames = new System.Collections.Generic.List<byte[]>();
-        await foreach (var frame in ps.EnumerateRawFramesAsync(64, CancellationToken.None))
+        await foreach (ReadOnlyMemory<byte> frame in ps.EnumerateRawFramesAsync(64, CancellationToken.None))
             frames.Add(frame.ToArray());
 
         Assert.Single(frames);

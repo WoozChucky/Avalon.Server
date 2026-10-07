@@ -6,7 +6,7 @@ namespace Avalon.Balance.Reporting;
 
 public static class CsvReport
 {
-    private static readonly string[] Header =
+    private static readonly string[] s_header =
     [
         "class", "level", "gear", "scenario", "runs", "win_rate",
         "fight_p10", "fight_median", "fight_p90",
@@ -18,7 +18,7 @@ public static class CsvReport
 
     public static string Render(IReadOnlyList<RowResult> rows, GradeReport grades)
     {
-        var sb = new StringBuilder().Append(string.Join(',', Header)).Append('\n');
+        StringBuilder sb = new StringBuilder().Append(string.Join(',', s_header)).Append('\n');
         foreach (RowResult r in rows)
         {
             string?[] fields =

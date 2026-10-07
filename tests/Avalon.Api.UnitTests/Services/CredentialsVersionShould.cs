@@ -33,8 +33,8 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class CredentialsVersionShould : IDisposable
 {
-    private static readonly string Password = TestPasswords.Valid;
-    private static readonly string NewPassword = TestPasswords.Other;
+    private static readonly string s_password = TestPasswords.Valid;
+    private static readonly string s_newPassword = TestPasswords.Other;
 
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
@@ -55,7 +55,7 @@ public sealed class CredentialsVersionShould : IDisposable
             Username = username,
             Email = $"{username.ToLowerInvariant()}@avalon.monster",
             Salt = Encoding.UTF8.GetBytes(salt),
-            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, salt)),
+            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, salt)),
             JoinDate = DateTime.UtcNow,
             LastLogin = DateTime.UtcNow,
         });
@@ -67,7 +67,7 @@ public sealed class CredentialsVersionShould : IDisposable
         return await context.Accounts.Where(a => a.Id == id).Select(a => a.CredentialsVersion).SingleAsync();
     }
 
-    private static readonly RefreshCaller Caller = RefreshCaller.From(IPAddress.Loopback, "test-agent");
+    private static readonly RefreshCaller s_caller = RefreshCaller.From(IPAddress.Loopback, "test-agent");
 
     private RefreshTokenService Refresh() =>
         new(new RefreshTokenRepository(_database), new SecureRandom(), TimeProvider.System);
@@ -80,7 +80,7 @@ public sealed class CredentialsVersionShould : IDisposable
         TestLogin.Password(accounts ?? _accounts, _cache), reauthentication ?? TestLogin.Reauthentication(_accounts, _cache));
 
     private Task ChangePasswordAsync(AccountId id) =>
-        AccountService().ChangePasswordAsync(id, Password, NewPassword, IPAddress.Loopback);
+        AccountService().ChangePasswordAsync(id, s_password, s_newPassword, IPAddress.Loopback);
 
     private MFAService MfaService() => new(NullLoggerFactory.Instance, new MfaSetupRepository(_database),
         Substitute.For<IMFAHashService>(), new SecureRandom(), _cache);
@@ -119,7 +119,7 @@ public sealed class CredentialsVersionShould : IDisposable
         Account account = await AccountAsync();
 
         await Assert.ThrowsAsync<AuthenticationException>(() =>
-            AccountService().ChangePasswordAsync(account.Id, TestPasswords.Wrong, NewPassword, IPAddress.Loopback));
+            AccountService().ChangePasswordAsync(account.Id, TestPasswords.Wrong, s_newPassword, IPAddress.Loopback));
 
         Assert.Equal(0, await VersionAsync(account.Id));
     }
@@ -228,9 +228,9 @@ public sealed class CredentialsVersionShould : IDisposable
             Arg.Any<CancellationToken>()).Returns(new Reauthenticated(account.Id, 0));
         AccountService service = AccountService(reauthentication: bothReadVersionZero);
 
-        await service.ChangePasswordAsync(account.Id, Password, TestPasswords.Third, IPAddress.Loopback);
+        await service.ChangePasswordAsync(account.Id, s_password, TestPasswords.Third, IPAddress.Loopback);
         AuthenticationException refused = await Assert.ThrowsAsync<AuthenticationException>(() =>
-            service.ChangePasswordAsync(account.Id, Password, TestPasswords.Fourth, IPAddress.Loopback));
+            service.ChangePasswordAsync(account.Id, s_password, TestPasswords.Fourth, IPAddress.Loopback));
 
         Assert.Equal(RefreshTokenService.CredentialsChanged, refused.Message);
         Assert.Equal(1, await VersionAsync(account.Id));
@@ -260,7 +260,7 @@ public sealed class CredentialsVersionShould : IDisposable
             Arg.Any<CancellationToken>()).Returns(true);
 
         (AuthenticateResponse response, AccountId? loggedIn, int version) = await AccountService(racing).Authenticate(
-            new AuthenticateRequest { Username = "owner", Password = Password }, IPAddress.Loopback, default);
+            new AuthenticateRequest { Username = "owner", Password = s_password }, IPAddress.Loopback, default);
         Assert.Equal(AuthenticationResponseStatus.Success, response.Status);
         Assert.Equal(0, version);
 
@@ -294,7 +294,7 @@ public sealed class CredentialsVersionShould : IDisposable
         await using (AuthDbContext context = _database.CreateDbContext())
             await AccountRepository.BumpCredentialsVersionAsync(context, account.Id);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => refresh.RotateAsync(issued.RawToken, Caller));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => refresh.RotateAsync(issued.RawToken, s_caller));
 
         await using AuthDbContext check = _database.CreateDbContext();
         Assert.Equal(1, await check.RefreshTokens.CountAsync(t => t.AccountId == account.Id));
@@ -307,7 +307,7 @@ public sealed class CredentialsVersionShould : IDisposable
         RefreshTokenService refresh = Refresh();
         RefreshIssueResult issued = await refresh.IssueAsync(account.Id, 0);
 
-        RefreshRotateResult rotated = await refresh.RotateAsync(issued.RawToken, Caller);
+        RefreshRotateResult rotated = await refresh.RotateAsync(issued.RawToken, s_caller);
 
         Assert.Equal(0, rotated.CredentialsVersion);
         await using AuthDbContext context = _database.CreateDbContext();
@@ -335,7 +335,7 @@ public sealed class CredentialsVersionShould : IDisposable
     {
         Account account = await AccountAsync();
         Reauthenticated proof = await TestLogin.Reauthentication(_accounts, _cache)
-            .RequireCurrentPasswordAsync(account.Id, Password, IPAddress.Loopback);
+            .RequireCurrentPasswordAsync(account.Id, s_password, IPAddress.Loopback);
         await ChangePasswordAsync(account.Id);
 
         AuthenticationException refused = await Assert.ThrowsAsync<AuthenticationException>(() =>
@@ -351,7 +351,7 @@ public sealed class CredentialsVersionShould : IDisposable
         Account admin = await AccountAsync("ADMINISTRATOR");
         Account target = await AccountAsync();
         Reauthenticated proof = await TestLogin.Reauthentication(_accounts, _cache)
-            .RequireCurrentPasswordAsync(admin.Id, Password, IPAddress.Loopback);
+            .RequireCurrentPasswordAsync(admin.Id, s_password, IPAddress.Loopback);
         await ChangePasswordAsync(admin.Id);
 
         await Assert.ThrowsAsync<AuthenticationException>(() => Pats().MintAdminAsync(
@@ -367,7 +367,7 @@ public sealed class CredentialsVersionShould : IDisposable
         Account account = await AccountAsync();
         await ChangePasswordAsync(account.Id);
         Reauthenticated proof = await TestLogin.Reauthentication(_accounts, _cache)
-            .RequireCurrentPasswordAsync(account.Id, NewPassword, IPAddress.Loopback);
+            .RequireCurrentPasswordAsync(account.Id, s_newPassword, IPAddress.Loopback);
 
         MintResult minted = await Pats().MintSelfAsync(account.Id, AccountAccessLevel.Player, "cli", null, null, proof);
 

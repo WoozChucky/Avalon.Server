@@ -1,12 +1,5 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
 using System.Buffers;
-using System.Collections.Generic;
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
 using Microsoft.Extensions.Logging;
@@ -22,7 +15,7 @@ public class ChannelOutboxShould
     /// hung. Not a budget: the failure it catches is a disposal that waits for the peer forever,
     /// so it is set far above anything a loaded runner can add.
     /// </summary>
-    private static readonly TimeSpan DeadlockGuard = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan s_deadlockGuard = TimeSpan.FromSeconds(30);
 
     [Fact(Skip = "Flaky: polls only 2s for the background drain loop to write, which a loaded " +
                  "runner can exceed. Disabled rather than retuned; see the deadline below.")]
@@ -37,7 +30,7 @@ public class ChannelOutboxShould
         outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
 
         // Poll until bytes arrive or 2s elapses
-        var deadline = DateTime.UtcNow.AddSeconds(2);
+        DateTime deadline = DateTime.UtcNow.AddSeconds(2);
         while (ms.Length == 0 && DateTime.UtcNow < deadline)
             await Task.Delay(10);
 
@@ -97,8 +90,8 @@ public class ChannelOutboxShould
     [Fact]
     public async Task ReturnWithinFlushBudget_WhenTheWriteNeverCompletes()
     {
-        TimeSpan flush = TimeSpan.FromMilliseconds(100);
-        TimeSpan grace = TimeSpan.FromMilliseconds(20);
+        var flush = TimeSpan.FromMilliseconds(100);
+        var grace = TimeSpan.FromMilliseconds(20);
 
         var sink = new BlockingStream();
         var stream = new PacketStream(sink);
@@ -112,17 +105,17 @@ public class ChannelOutboxShould
 
             // The write the close has to abandon must actually be under way first, or the close
             // has nothing to give up on and the test passes for the wrong reason.
-            await sink.WriteStarted.WaitAsync(DeadlockGuard);
+            await sink.WriteStarted.WaitAsync(s_deadlockGuard);
 
             // The claim is that the close gives up on that write at all: the stream only ever
             // releases it in the finally below, so a disposal bounded by the peer never returns.
             // Asserting an elapsed time near flush + grace would instead assert the speed of the
             // runner, which is what made this test flaky; the guard is far above any real budget.
             Task dispose = outbox.DisposeAsync().AsTask();
-            Task finished = await Task.WhenAny(dispose, Task.Delay(DeadlockGuard));
+            Task finished = await Task.WhenAny(dispose, Task.Delay(s_deadlockGuard));
 
             Assert.True(ReferenceEquals(finished, dispose),
-                $"Expected disposal to give up on the stalled write; it was still waiting after {DeadlockGuard.TotalSeconds}s");
+                $"Expected disposal to give up on the stalled write; it was still waiting after {s_deadlockGuard.TotalSeconds}s");
             await dispose;
         }
         finally

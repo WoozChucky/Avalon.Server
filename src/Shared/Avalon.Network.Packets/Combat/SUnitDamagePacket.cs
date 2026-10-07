@@ -1,9 +1,9 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
 using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
-using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -30,7 +30,11 @@ public class SUnitDamagePacket : Packet
         => PacketSerializationHelper.Serialize(
             new SUnitDamagePacket
             {
-                Attacker = attacker.RawValue, Target = target, CurrentHealth = currentHealth, Damage = damage, Result = result,
+                Attacker = attacker.RawValue,
+                Target = target,
+                CurrentHealth = currentHealth,
+                Damage = damage,
+                Result = result,
                 AuraId = auraId,
             },
             PacketType, Flags, Protocol, encryptFunc);

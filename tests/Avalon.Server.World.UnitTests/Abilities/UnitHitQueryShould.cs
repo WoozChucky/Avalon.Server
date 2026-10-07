@@ -3,10 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
-using Avalon.World.Public.Units;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 
@@ -19,7 +16,7 @@ public class UnitHitQueryShould
 
     private ICreature Creature(uint id, float x, float z, float body = 0.5f, uint health = 10)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, id));
         creature.Position.Returns(new Vector3(x, 0f, z));
         creature.BodyRadius.Returns(body);
@@ -30,7 +27,7 @@ public class UnitHitQueryShould
 
     private ICharacter Character(uint id, float x, float z, bool dead = false, uint health = 10)
     {
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, id));
         character.Position.Returns(new Vector3(x, 0f, z));
         character.BodyRadius.Returns(0.5f);

@@ -1,11 +1,9 @@
-using System.IO;
 using Avalon.Common.Accounts;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Loot;
-using Avalon.World;
 using Avalon.World.Chat;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
@@ -15,7 +13,6 @@ using Avalon.World.Pvp;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using ProtoBuf;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Pvp;
 

@@ -1,8 +1,3 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
-using System.Linq;
 using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
 using Org.BouncyCastle.Crypto;
@@ -55,7 +50,7 @@ public class SessionKeyDerivationShould
 
     private static byte[] Open(byte[] sealedPacket, IAvalonCryptoSession session)
     {
-        var output = new byte[sealedPacket.Length];
+        byte[] output = new byte[sealedPacket.Length];
         int length = session.Decrypt(sealedPacket, output);
         return output[..length];
     }
@@ -440,7 +435,7 @@ public class SessionKeyDerivationShould
     {
         using var aes = new AesGcm(key, 16);
 
-        var result = new byte[nonce.Length + plaintext.Length + 16];
+        byte[] result = new byte[nonce.Length + plaintext.Length + 16];
         nonce.CopyTo(result.AsSpan());
 
         aes.Encrypt(

@@ -4,7 +4,6 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Server.Auth.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -29,7 +28,11 @@ public class CMFAConfirmHandlerShould
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => new Account
             {
-                Id = ci.ArgAt<AccountId>(0), Username = "TESTUSER", Email = "t@t", Salt = [1], Verifier = [2],
+                Id = ci.ArgAt<AccountId>(0),
+                Username = "TESTUSER",
+                Email = "t@t",
+                Salt = [1],
+                Verifier = [2],
                 JoinDate = DateTime.UtcNow,
             });
     }
@@ -37,7 +40,7 @@ public class CMFAConfirmHandlerShould
     [Fact]
     public async Task SendRecoveryCodes_WhenCodeIsValid()
     {
-        var codes = new[] { "code1", "code2", "code3" };
+        string[] codes = new[] { "code1", "code2", "code3" };
         _mfaService.ConfirmMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), "123456", Arg.Any<CancellationToken>())
             .Returns(new MFAConfirmResult(true, codes, MFAOperationResult.Success));
 

@@ -78,7 +78,7 @@ public class VendorRulesShould
         bool TonicGone = false,
         uint? CharmSellPrice = null);
 
-    private static readonly BuyCase[] BuyCases =
+    private static readonly BuyCase[] s_buyCases =
     [
         new("Buy one when no count is given", [], 100, TonicSequence, null, VendorResult.Ok, Total: 10),
         new("Multiply the price by the count", [], 100, TonicSequence, 5, VendorResult.Ok, Total: 50),
@@ -134,7 +134,7 @@ public class VendorRulesShould
         new("Check the room before the unique rule", [.. FullBag, At(Vault(3), Charm)], 40, CharmSequence, null, VendorResult.InventoryFull),
     ];
 
-    public static IEnumerable<object[]> BuyCaseNames => BuyCases.Select(c => new object[] { c.Name });
+    public static IEnumerable<object[]> BuyCaseNames => s_buyCases.Select(c => new object[] { c.Name });
 
     private static void Sell(VendorStockState stock, uint sequence, uint count)
     {
@@ -146,12 +146,12 @@ public class VendorRulesShould
     [MemberData(nameof(BuyCaseNames))]
     public void Decide_every_buy(string name)
     {
-        BuyCase row = BuyCases.Single(c => c.Name == name);
+        BuyCase row = s_buyCases.Single(c => c.Name == name);
         CharacterEntity character = Arrange(row.Holding, row.Money, row.Dead);
         VendorStockState stock = Stock();
         Sell(stock, BladeSequence, row.BladesSold);
         Sell(stock, ElixirSequence, row.ElixirsSold);
-        var quests = Substitute.For<IQuestProgress>();
+        IQuestProgress quests = Substitute.For<IQuestProgress>();
         quests.IsMet(Arg.Any<CharacterEntity>(), GatedQuest, QuestRequirementState.Completed).Returns(row.QuestMet);
         Func<ItemTemplateId, ItemTemplate?> find = Find;
         if (row.TonicGone)
@@ -160,8 +160,14 @@ public class VendorRulesShould
         {
             var raised = new ItemTemplate
             {
-                Id = Charm.Id, Name = Charm.Name, Class = Charm.Class, SubClass = Charm.SubClass,
-                MaxStackSize = Charm.MaxStackSize, Flags = Charm.Flags, BuyPrice = Charm.BuyPrice, SellPrice = sellPrice,
+                Id = Charm.Id,
+                Name = Charm.Name,
+                Class = Charm.Class,
+                SubClass = Charm.SubClass,
+                MaxStackSize = Charm.MaxStackSize,
+                Flags = Charm.Flags,
+                BuyPrice = Charm.BuyPrice,
+                SellPrice = sellPrice,
             };
             find = id => id == Charm.Id ? raised : Find(id);
         }
@@ -221,8 +227,14 @@ public class VendorRulesShould
         CharacterEntity character = Arrange([], 1000, dead: false);
         var flagged = new ItemTemplate
         {
-            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
-            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+            Id = Tonic.Id,
+            Name = Tonic.Name,
+            Class = Tonic.Class,
+            SubClass = Tonic.SubClass,
+            MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem,
+            BuyPrice = Tonic.BuyPrice,
+            SellPrice = Tonic.SellPrice,
         };
         ItemTemplate? FindFlagged(ItemTemplateId id) => id == Tonic.Id ? flagged : Find(id);
 
@@ -258,7 +270,7 @@ public class VendorRulesShould
         bool Shop = true,
         bool Dead = false);
 
-    private static readonly SellCase[] SellCases =
+    private static readonly SellCase[] s_sellCases =
     [
         new("Sell a whole stack when no count is given", [At(Bag(0), Tonic, 5)], 0, null, VendorResult.Ok, Payment: 20),
         new("Sell part of a stack", [At(Bag(0), Tonic, 5)], 0, 2, VendorResult.Ok, Payment: 8),
@@ -294,13 +306,13 @@ public class VendorRulesShould
         new("Refuse any sale above a lowered cap", [At(Bag(0), Tonic, 1)], 0, null, VendorResult.MoneyCapReached, Money: 2000, MaxMoney: 1000),
     ];
 
-    public static IEnumerable<object[]> SellCaseNames => SellCases.Select(c => new object[] { c.Name });
+    public static IEnumerable<object[]> SellCaseNames => s_sellCases.Select(c => new object[] { c.Name });
 
     [Theory]
     [MemberData(nameof(SellCaseNames))]
     public void Decide_every_sale(string name)
     {
-        SellCase row = SellCases.Single(c => c.Name == name);
+        SellCase row = s_sellCases.Single(c => c.Name == name);
         CharacterEntity character = Arrange(row.Holding, row.Money, row.Dead);
 
         SellDecision decision = VendorRules.DecideSell(character, row.Shop, row.BagSlot, row.Count, Find, row.MaxMoney);
@@ -330,7 +342,7 @@ public class VendorRulesShould
         bool Shop = true,
         bool Dead = false);
 
-    private static readonly BuybackCase[] BuybackCases =
+    private static readonly BuybackCase[] s_buybackCases =
     [
         new("Buy back the newest sale", [(Tonic, 5, 20)], [], 20, 0, VendorResult.Ok),
         new("Buy back an older sale by its index", [(Tonic, 5, 20), (Blade, 1, 25)], [], 20, 1, VendorResult.Ok),
@@ -356,13 +368,13 @@ public class VendorRulesShould
         new("Refuse to buy back a unique item already owned again", [(Charm, 1, 12)], [At(Bag(0), Charm)], 12, 0, VendorResult.UniqueAlreadyOwned),
     ];
 
-    public static IEnumerable<object[]> BuybackCaseNames => BuybackCases.Select(c => new object[] { c.Name });
+    public static IEnumerable<object[]> BuybackCaseNames => s_buybackCases.Select(c => new object[] { c.Name });
 
     [Theory]
     [MemberData(nameof(BuybackCaseNames))]
     public void Decide_every_buyback(string name)
     {
-        BuybackCase row = BuybackCases.Single(c => c.Name == name);
+        BuybackCase row = s_buybackCases.Single(c => c.Name == name);
         CharacterEntity character = Arrange(row.Holding, row.Money, row.Dead);
         foreach ((ItemTemplate template, uint count, ulong price) in row.Sold)
             character.Buyback.Push(new BuybackEntry(TestCharacters.Item(0, template, count), price));
@@ -395,8 +407,14 @@ public class VendorRulesShould
         character.Buyback.Push(new BuybackEntry(TestCharacters.Item(0, Tonic, 5), 20));
         var flagged = new ItemTemplate
         {
-            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
-            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+            Id = Tonic.Id,
+            Name = Tonic.Name,
+            Class = Tonic.Class,
+            SubClass = Tonic.SubClass,
+            MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem,
+            BuyPrice = Tonic.BuyPrice,
+            SellPrice = Tonic.SellPrice,
         };
         ItemTemplate? FindFlagged(ItemTemplateId id) => id == Tonic.Id ? flagged : Find(id);
 

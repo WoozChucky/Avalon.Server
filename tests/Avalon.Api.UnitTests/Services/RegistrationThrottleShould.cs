@@ -2,7 +2,6 @@ using System.Net;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
-using Avalon.Api;
 using Avalon.Api.Services;
 using Avalon.Database;
 using Avalon.Database.Auth;
@@ -142,7 +141,7 @@ public sealed class RegistrationThrottleShould : IDisposable
     {
         var config = new AuthenticationConfig { MaxAccountsCreatedPerSource = max, AccountCreationWindowMinutes = window };
 
-        var refused = Assert.Throws<InvalidOperationException>(() => ServiceRegistration.ValidateAccountCreationCap(config));
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => ServiceRegistration.ValidateAccountCreationCap(config));
 
         Assert.Contains(setting, refused.Message);
     }

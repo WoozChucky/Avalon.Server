@@ -1,5 +1,3 @@
-using System;
-
 namespace Avalon.Network.Packets.Abstractions;
 
 [Flags]

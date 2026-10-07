@@ -4,7 +4,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -14,7 +13,7 @@ public class EntityTrackingSystemShould
 
     private static IWorldObject MakeObject(ObjectGuid? guid = null)
     {
-        var obj = Substitute.For<IUnit>();
+        IUnit obj = Substitute.For<IUnit>();
         obj.Guid.Returns(guid ?? new ObjectGuid(ObjectType.Creature, 1u));
         return obj;
     }
@@ -31,11 +30,11 @@ public class EntityTrackingSystemShould
     [Fact]
     public void FireEntityAdded_WhenNewObjectAppears()
     {
-        var sut = MakeSut();
+        EntityTrackingSystem sut = MakeSut();
         ObjectGuid? captured = null;
         sut.EntityAdded += g => captured = g;
 
-        var obj = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
+        IWorldObject obj = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
         sut.Update([obj], EmptyDirty());
 
         Assert.NotNull(captured);
@@ -45,8 +44,8 @@ public class EntityTrackingSystemShould
     [Fact]
     public void NotFireEntityAdded_ForAlreadyTrackedObject()
     {
-        var sut = MakeSut();
-        var obj = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
         sut.Update([obj], EmptyDirty());
 
         int addCount = 0;
@@ -59,13 +58,13 @@ public class EntityTrackingSystemShould
     [Fact]
     public void FireEntityAdded_ForEachOfMultipleNewObjects()
     {
-        var sut = MakeSut();
+        EntityTrackingSystem sut = MakeSut();
         var added = new List<ObjectGuid>();
         sut.EntityAdded += added.Add;
 
-        var obj1 = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
-        var obj2 = MakeObject(new ObjectGuid(ObjectType.Creature, 2u));
-        var obj3 = MakeObject(new ObjectGuid(ObjectType.Character, 1u));
+        IWorldObject obj1 = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
+        IWorldObject obj2 = MakeObject(new ObjectGuid(ObjectType.Creature, 2u));
+        IWorldObject obj3 = MakeObject(new ObjectGuid(ObjectType.Character, 1u));
         sut.Update([obj1, obj2, obj3], EmptyDirty());
 
         Assert.Equal(3, added.Count);
@@ -77,7 +76,7 @@ public class EntityTrackingSystemShould
     [Fact]
     public void NotFireEntityAdded_ForEmptyUpdate()
     {
-        var sut = MakeSut();
+        EntityTrackingSystem sut = MakeSut();
         int addCount = 0;
         sut.EntityAdded += _ => addCount++;
 
@@ -93,8 +92,8 @@ public class EntityTrackingSystemShould
     [Fact]
     public void FireEntityRemoved_WhenObjectDisappears()
     {
-        var sut = MakeSut();
-        var obj = MakeObject(new ObjectGuid(ObjectType.Creature, 5u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj = MakeObject(new ObjectGuid(ObjectType.Creature, 5u));
         sut.Update([obj], EmptyDirty());
 
         ObjectGuid? removed = null;
@@ -108,8 +107,8 @@ public class EntityTrackingSystemShould
     [Fact]
     public void NotFireEntityRemoved_WhenObjectStillPresent()
     {
-        var sut = MakeSut();
-        var obj = MakeObject();
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj = MakeObject();
         sut.Update([obj], EmptyDirty());
 
         int removeCount = 0;
@@ -122,9 +121,9 @@ public class EntityTrackingSystemShould
     [Fact]
     public void FireEntityRemoved_ForEachDisappearedObject()
     {
-        var sut = MakeSut();
-        var obj1 = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
-        var obj2 = MakeObject(new ObjectGuid(ObjectType.Creature, 2u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj1 = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
+        IWorldObject obj2 = MakeObject(new ObjectGuid(ObjectType.Creature, 2u));
         sut.Update([obj1, obj2], EmptyDirty());
 
         var removed = new List<ObjectGuid>();
@@ -139,9 +138,9 @@ public class EntityTrackingSystemShould
     [Fact]
     public void OnlyRemoveDisappearedObjects_LeavingRemainingIntact()
     {
-        var sut = MakeSut();
-        var staying = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
-        var leaving = MakeObject(new ObjectGuid(ObjectType.Creature, 2u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject staying = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
+        IWorldObject leaving = MakeObject(new ObjectGuid(ObjectType.Creature, 2u));
         sut.Update([staying, leaving], EmptyDirty());
 
         var removed = new List<ObjectGuid>();
@@ -159,8 +158,8 @@ public class EntityTrackingSystemShould
     [Fact]
     public void FireEntityUpdated_WithCorrectFields_WhenEntityIsInDirtyMap()
     {
-        var sut = MakeSut();
-        var obj = MakeObject(new ObjectGuid(ObjectType.Creature, 3u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj = MakeObject(new ObjectGuid(ObjectType.Creature, 3u));
         sut.Update([obj], EmptyDirty());
 
         GameEntityFields received = GameEntityFields.None;
@@ -173,8 +172,8 @@ public class EntityTrackingSystemShould
     [Fact]
     public void NotFireEntityUpdated_WhenEntityAbsentFromDirtyMap()
     {
-        var sut = MakeSut();
-        var obj = MakeObject(new ObjectGuid(ObjectType.Creature, 4u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj = MakeObject(new ObjectGuid(ObjectType.Creature, 4u));
         sut.Update([obj], EmptyDirty());
 
         int updateCount = 0;
@@ -187,9 +186,9 @@ public class EntityTrackingSystemShould
     [Fact]
     public void FireEntityUpdated_ForEachTrackedObjectPresentInDirtyMap()
     {
-        var sut = MakeSut();
-        var obj1 = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
-        var obj2 = MakeObject(new ObjectGuid(ObjectType.Creature, 2u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj1 = MakeObject(new ObjectGuid(ObjectType.Creature, 1u));
+        IWorldObject obj2 = MakeObject(new ObjectGuid(ObjectType.Creature, 2u));
         sut.Update([obj1, obj2], EmptyDirty());
 
         int updateCount = 0;
@@ -209,8 +208,8 @@ public class EntityTrackingSystemShould
     public void NotFireEntityUpdated_ForNewEntity_EvenIfInDirtyMap()
     {
         // New entities always trigger EntityAdded, never EntityUpdated
-        var sut = MakeSut();
-        var obj = MakeObject(new ObjectGuid(ObjectType.Creature, 9u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj = MakeObject(new ObjectGuid(ObjectType.Creature, 9u));
 
         int updateCount = 0;
         sut.EntityUpdated += (_, _) => updateCount++;
@@ -226,9 +225,9 @@ public class EntityTrackingSystemShould
     [Fact]
     public void HandleAddAndRemoveInSameUpdate()
     {
-        var sut = MakeSut();
-        var old = MakeObject(new ObjectGuid(ObjectType.Creature, 10u));
-        var incoming = MakeObject(new ObjectGuid(ObjectType.Creature, 20u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject old = MakeObject(new ObjectGuid(ObjectType.Creature, 10u));
+        IWorldObject incoming = MakeObject(new ObjectGuid(ObjectType.Creature, 20u));
         sut.Update([old], EmptyDirty());
 
         var added = new List<ObjectGuid>();
@@ -246,37 +245,37 @@ public class EntityTrackingSystemShould
     [Fact]
     public void HandleEmptyInitialUpdate_WithoutError()
     {
-        var sut = MakeSut();
-        var ex = Record.Exception(() => sut.Update([], EmptyDirty()));
+        EntityTrackingSystem sut = MakeSut();
+        Exception ex = Record.Exception(() => sut.Update([], EmptyDirty()));
         Assert.Null(ex);
     }
 
     [Fact]
     public void HandleRepeatedEmptyUpdates_WithoutError()
     {
-        var sut = MakeSut();
+        EntityTrackingSystem sut = MakeSut();
         sut.Update([], EmptyDirty());
-        var ex = Record.Exception(() => sut.Update([], EmptyDirty()));
+        Exception ex = Record.Exception(() => sut.Update([], EmptyDirty()));
         Assert.Null(ex);
     }
 
     [Fact]
     public void HandleLargeNumberOfObjects_WithoutError()
     {
-        var sut = MakeSut();
+        EntityTrackingSystem sut = MakeSut();
         var objects = Enumerable.Range(1, 50)
             .Select(i => MakeObject(new ObjectGuid(ObjectType.Creature, (uint)i)))
             .ToList();
 
-        var ex = Record.Exception(() => sut.Update(objects, EmptyDirty()));
+        Exception ex = Record.Exception(() => sut.Update(objects, EmptyDirty()));
         Assert.Null(ex);
     }
 
     [Fact]
     public void FireEntityAdded_Again_WhenEntityReentersAfterRemoval()
     {
-        var sut = MakeSut();
-        var obj = MakeObject(new ObjectGuid(ObjectType.Creature, 7u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj = MakeObject(new ObjectGuid(ObjectType.Creature, 7u));
         sut.Update([obj], EmptyDirty()); // added
         sut.Update([], EmptyDirty());    // removed
 
@@ -291,8 +290,8 @@ public class EntityTrackingSystemShould
     [Fact]
     public void Report_what_it_tracks_as_of_its_last_update()
     {
-        var sut = MakeSut();
-        var obj = MakeObject(new ObjectGuid(ObjectType.Creature, 8u));
+        EntityTrackingSystem sut = MakeSut();
+        IWorldObject obj = MakeObject(new ObjectGuid(ObjectType.Creature, 8u));
         Assert.False(sut.IsTracked(obj.Guid));
 
         sut.Update([obj], EmptyDirty());

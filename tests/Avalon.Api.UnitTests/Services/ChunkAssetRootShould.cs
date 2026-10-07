@@ -2,7 +2,6 @@ using Avalon.Api.Config;
 using Avalon.Api.Services;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
-using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -43,7 +42,7 @@ public sealed class ChunkAssetRootShould : IDisposable
 
     private MapService Service(string root)
     {
-        var options = Substitute.For<IOptionsSnapshot<MapAssetConfig>>();
+        IOptionsSnapshot<MapAssetConfig> options = Substitute.For<IOptionsSnapshot<MapAssetConfig>>();
         options.Value.Returns(new MapAssetConfig { ChunkAssetRoot = root });
         return new MapService(
             Substitute.For<IMapTemplateRepository>(),
@@ -63,7 +62,7 @@ public sealed class ChunkAssetRootShould : IDisposable
     {
         Template("inside.obj");
 
-        var asset = await Service(_root).GetChunkAssetAsync("inside.obj");
+        ChunkAssetResult? asset = await Service(_root).GetChunkAssetAsync("inside.obj");
 
         Assert.NotNull(asset);
         Assert.Equal("v 0 0 0", System.Text.Encoding.UTF8.GetString(asset.Bytes));
@@ -121,10 +120,10 @@ public sealed class ChunkAssetRootShould : IDisposable
     public async Task Answer_a_refusal_exactly_as_a_missing_asset()
     {
         Template("missing.obj");
-        var missing = await Service(_root).GetChunkAssetAsync("missing.obj");
+        ChunkAssetResult? missing = await Service(_root).GetChunkAssetAsync("missing.obj");
 
         Template("../assets-x/outside.obj");
-        var refused = await Service(_root).GetChunkAssetAsync("outside.obj");
+        ChunkAssetResult? refused = await Service(_root).GetChunkAssetAsync("outside.obj");
 
         Assert.Null(missing);
         Assert.Equal(missing, refused);
@@ -158,7 +157,7 @@ public sealed class ChunkAssetRootShould : IDisposable
 
         Assert.Null(await Service(_root).GetChunkAssetAsync("outside.obj"));
 
-        var (level, text) = Assert.Single(_logs.Entries);
+        (LogLevel level, string? text) = Assert.Single(_logs.Entries);
         Assert.Equal(LogLevel.Warning, level);
         Assert.Contains("4242", text, StringComparison.Ordinal);
         Assert.DoesNotContain("assets-x", text, StringComparison.OrdinalIgnoreCase);
@@ -173,7 +172,7 @@ public sealed class ChunkAssetRootShould : IDisposable
 
         Assert.Null(await Service(_root).GetChunkAssetAsync(NulPath));
 
-        var (level, text) = Assert.Single(_logs.Entries);
+        (LogLevel level, string? text) = Assert.Single(_logs.Entries);
         Assert.Equal(LogLevel.Warning, level);
         Assert.Contains("4242", text, StringComparison.Ordinal);
         Assert.DoesNotContain("side.obj", text, StringComparison.OrdinalIgnoreCase);

@@ -28,17 +28,17 @@ public class NetworkPacketSerializer : IPacketSerializer
 
     public void RegisterPacketSerializers(Assembly? assembly = null)
     {
-        var packetTypes = assembly == null
+        IEnumerable<Type> packetTypes = assembly == null
             ? GetNetworkPacketTypes(typeof(NetworkPacketSerializer).Assembly)
             : GetNetworkPacketTypes(assembly);
 
-        var serializerType = typeof(Serializer);
-        var genericPrepareSerializerMethod = serializerType.GetMethods()
+        Type serializerType = typeof(Serializer);
+        MethodInfo genericPrepareSerializerMethod = serializerType.GetMethods()
             .Single(m => m is { Name: "PrepareSerializer", IsGenericMethod: true } && m.GetParameters().Length == 0);
 
-        foreach (var packetType in packetTypes)
+        foreach (Type packetType in packetTypes)
         {
-            var closedPrepareSerializerMethod = genericPrepareSerializerMethod.MakeGenericMethod(packetType);
+            MethodInfo closedPrepareSerializerMethod = genericPrepareSerializerMethod.MakeGenericMethod(packetType);
             closedPrepareSerializerMethod.Invoke(null, null);
         }
     }

@@ -1,6 +1,5 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
-using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.World;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
@@ -11,7 +10,6 @@ using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Social;
@@ -47,17 +45,17 @@ public class TickThreadGuardSitesShould
     {
         Exception? thrown = TickThreadGuardProbe.OffThread(call);
 
-        var refused = Assert.IsType<InvalidOperationException>(thrown);
+        InvalidOperationException refused = Assert.IsType<InvalidOperationException>(thrown);
         Assert.Contains(operation, refused.Message, StringComparison.Ordinal);
         Assert.Contains("tick thread", refused.Message, StringComparison.Ordinal);
     }
 
     private static IWorldConnection ConnectionHolding(uint characterId)
     {
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, characterId));
         character.Name.Returns("Kaela");
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         return connection;
     }
@@ -77,7 +75,7 @@ public class TickThreadGuardSitesShould
     public void Guard_World_TransferPlayer()
     {
         Avalon.World.World world = LoadedWorld();
-        var target = Substitute.For<IMapInstance>();
+        IMapInstance target = Substitute.For<IMapInstance>();
 
         AssertRefusedOffTick(() => world.TransferPlayer(ConnectionHolding(1), target), "World.TransferPlayer");
         world.TransferPlayer(ConnectionHolding(1), target);
@@ -88,7 +86,7 @@ public class TickThreadGuardSitesShould
     public void Guard_World_SpawnInInstance()
     {
         Avalon.World.World world = LoadedWorld();
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
 
         AssertRefusedOffTick(() => world.SpawnInInstance(ConnectionHolding(1), instance), "World.SpawnInInstance");
         world.SpawnInInstance(ConnectionHolding(1), instance);
@@ -100,7 +98,7 @@ public class TickThreadGuardSitesShould
     public async Task Guard_World_LeaveWorldAsync_and_the_despawn_that_calls_it()
     {
         Avalon.World.World world = LoadedWorld();
-        var empty = Substitute.For<IWorldConnection>(); // holds no character, so the leave ends at once
+        IWorldConnection empty = Substitute.For<IWorldConnection>(); // holds no character, so the leave ends at once
         empty.Character.Returns((ICharacter?)null);
         empty.TakePendingSpawn().Returns((PendingSpawn?)null);
 
@@ -135,7 +133,7 @@ public class TickThreadGuardSitesShould
     [MemberData(nameof(RegistryWrites))]
     public void Guard_every_registry_index_write(string operation)
     {
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([]); // every build fails at once: only the guard is under test
         var registry = new InstanceRegistry(NullLoggerFactory.Instance, mapManager,
             Substitute.For<IChunkLayoutInstanceFactory>(), _guard);

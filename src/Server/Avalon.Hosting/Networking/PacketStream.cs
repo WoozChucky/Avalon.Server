@@ -1,16 +1,7 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace Avalon.Hosting.Networking;
-
-using System.Buffers;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 public class PacketStream(Stream stream) : Stream
 {

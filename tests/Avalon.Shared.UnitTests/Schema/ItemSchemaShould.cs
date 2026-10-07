@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
 using Avalon.Exporter;
 using Xunit;
@@ -38,7 +35,7 @@ public class ItemSchemaShould
     [Fact]
     public void Name_Every_Value_Of_Every_Vocabulary()
     {
-        using JsonDocument document = JsonDocument.Parse(ItemSchema.Generate());
+        using var document = JsonDocument.Parse(ItemSchema.Generate());
         JsonElement enums = document.RootElement.GetProperty("enums");
 
         foreach (string name in new[]
@@ -59,7 +56,7 @@ public class ItemSchemaShould
     [Fact]
     public void Name_The_Vocabulary_A_Collection_Field_Draws_Its_Elements_From()
     {
-        using JsonDocument document = JsonDocument.Parse(ItemSchema.Generate());
+        using var document = JsonDocument.Parse(ItemSchema.Generate());
         JsonElement fields = document.RootElement.GetProperty("fields");
 
         JsonElement allowedClasses = fields.EnumerateArray()
@@ -73,7 +70,7 @@ public class ItemSchemaShould
     [Fact]
     public void Say_Which_Fields_Are_Nullable()
     {
-        using JsonDocument document = JsonDocument.Parse(ItemSchema.Generate());
+        using var document = JsonDocument.Parse(ItemSchema.Generate());
         JsonElement fields = document.RootElement.GetProperty("fields");
 
         JsonElement name = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "Name");

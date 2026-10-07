@@ -9,7 +9,8 @@ public class GameApplicationAccessPolicyShould
 {
     private static StoreAuthenticationConfiguration Configuration() => new()
     {
-        SteamAppId = 2499460, SteamPublisherKey = "private-test-secret",
+        SteamAppId = 2499460,
+        SteamPublisherKey = "private-test-secret",
         SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] },
     };
 
@@ -22,7 +23,7 @@ public class GameApplicationAccessPolicyShould
     [Fact]
     public void Disabled_playtest_is_rejected()
     {
-        var config = Configuration();
+        StoreAuthenticationConfiguration config = Configuration();
         config.SteamPlaytest.Enabled = false;
         config.Validate(true);
         Assert.Null(config.ResolveSteamApplication(2514590));
@@ -31,7 +32,7 @@ public class GameApplicationAccessPolicyShould
     [Fact]
     public void Duplicate_applications_are_invalid()
     {
-        var config = Configuration();
+        StoreAuthenticationConfiguration config = Configuration();
         config.SteamPlaytest.AppId = config.SteamAppId;
         Assert.Throws<InvalidOperationException>(() => config.Validate(true));
     }
@@ -39,7 +40,7 @@ public class GameApplicationAccessPolicyShould
     [Fact]
     public void Enabled_playtest_requires_worlds()
     {
-        var config = Configuration();
+        StoreAuthenticationConfiguration config = Configuration();
         config.SteamPlaytest.AllowedWorldIds = [];
         Assert.Throws<InvalidOperationException>(() => config.Validate(true));
     }
@@ -51,7 +52,7 @@ public class GameApplicationAccessPolicyShould
     [InlineData(3, true)]
     public void Restricted_application_never_allows_an_unlisted_world(ushort world, bool allowed)
     {
-        var config = Configuration();
+        StoreAuthenticationConfiguration config = Configuration();
         var policy = new GameApplicationAccessPolicy(Options.Create(config));
         Assert.Equal(allowed, policy.AllowsWorld(2514590, world));
         Assert.False(policy.AllowsApplication(0));
@@ -65,7 +66,7 @@ public class GameApplicationAccessPolicyShould
     [Fact]
     public void Invalid_world_restrictions_fail_validation()
     {
-        var config = Configuration();
+        StoreAuthenticationConfiguration config = Configuration();
         foreach (ushort[] worlds in new ushort[][] { [0], [3, 3] })
         {
             config.SteamPlaytest.AllowedWorldIds = worlds;

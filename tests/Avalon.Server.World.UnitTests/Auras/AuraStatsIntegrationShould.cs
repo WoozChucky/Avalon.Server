@@ -11,34 +11,37 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 
 /// <summary>What auras do to a unit's stats: a character's refresh folds them in, a creature folds them on the spot.</summary>
 public class AuraStatsIntegrationShould
 {
-    private static readonly DateTimeOffset T0 = new(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset s_t0 = new(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
 
     private static ActiveAura Held(AuraTemplate template, uint stacks = 1) =>
         new(template, new ObjectGuid(), AuraSource.None, stacks, default,
-            AuraSchedule.Start(T0, template.DurationMs, template.TickIntervalMs), template.DurationMs, T0.UtcDateTime);
+            AuraSchedule.Start(s_t0, template.DurationMs, template.TickIntervalMs), template.DurationMs, s_t0.UtcDateTime);
 
-    private static readonly ClassLevelStat WarriorOne = new()
-        { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
+    private static readonly ClassLevelStat s_warriorOne = new()
+    { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
 
-    private static readonly ItemTemplate Plate = new()
+    private static readonly ItemTemplate s_plate = new()
     {
-        Id = new ItemTemplateId(905_001), Name = "Plate", Slot = ItemSlotType.Chest, MaxStackSize = 1,
-        StatType1 = StatType.Armor, StatValue1 = 30,
+        Id = new ItemTemplateId(905_001),
+        Name = "Plate",
+        Slot = ItemSlotType.Chest,
+        MaxStackSize = 1,
+        StatType1 = StatType.Armor,
+        StatValue1 = 30,
     };
 
     private static CharacterEntity Warrior()
     {
         CharacterEntity warrior = TestCharacters.New(905_101);
-        warrior.Container(InventoryType.Equipment).Load([TestCharacters.Item(3, Plate)]);
-        Assert.True(CharacterStatsRefresh.Apply(warrior, [WarriorOne], TestCombat.Factors,
-            id => id == Plate.Id ? Plate : null, CurrentValues.EnterWorld, TestCombat.Formula));
+        warrior.Container(InventoryType.Equipment).Load([TestCharacters.Item(3, s_plate)]);
+        Assert.True(CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors,
+            id => id == s_plate.Id ? s_plate : null, CurrentValues.EnterWorld, TestCombat.Formula));
         return warrior;
     }
 
@@ -48,8 +51,8 @@ public class AuraStatsIntegrationShould
         CharacterEntity warrior = Warrior();
         Assert.Equal(30u, warrior.Stats!.Value.Armor);
 
-        warrior.Auras.Add(Held(AuraTestData.Fortified()), T0);
-        CharacterStatsRefresh.Apply(warrior, [WarriorOne], TestCombat.Factors, id => id == Plate.Id ? Plate : null,
+        warrior.Auras.Add(Held(AuraTestData.Fortified()), s_t0);
+        CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors, id => id == s_plate.Id ? s_plate : null,
             CurrentValues.KeepShare, TestCombat.Formula);
 
         Assert.Equal(36u, warrior.Stats!.Value.Armor);
@@ -61,9 +64,9 @@ public class AuraStatsIntegrationShould
     public void Slow_a_crippled_character()
     {
         CharacterEntity warrior = Warrior();
-        warrior.Auras.Add(Held(AuraTestData.Crippled()), T0);
+        warrior.Auras.Add(Held(AuraTestData.Crippled()), s_t0);
 
-        CharacterStatsRefresh.Apply(warrior, [WarriorOne], TestCombat.Factors, id => id == Plate.Id ? Plate : null,
+        CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors, id => id == s_plate.Id ? s_plate : null,
             CurrentValues.KeepShare, TestCombat.Formula);
 
         Assert.Equal(2.8f, warrior.GetMovementSpeed(), precision: 4);
@@ -71,8 +74,18 @@ public class AuraStatsIntegrationShould
 
     private static Creature Wolf() => new()
     {
-        Guid = new ObjectGuid(ObjectType.Creature, 905_901), Level = 3, Health = 100, CurrentHealth = 100,
-        BaseMaxHealth = 100, Armor = 40, CritPct = 5f, DodgePct = 2f, BlockPct = 1f, DamageMin = 5, DamageMax = 9, Speed = 4f,
+        Guid = new ObjectGuid(ObjectType.Creature, 905_901),
+        Level = 3,
+        Health = 100,
+        CurrentHealth = 100,
+        BaseMaxHealth = 100,
+        Armor = 40,
+        CritPct = 5f,
+        DodgePct = 2f,
+        BlockPct = 1f,
+        DamageMin = 5,
+        DamageMax = 9,
+        Speed = 4f,
     };
 
     [Fact]
@@ -82,7 +95,7 @@ public class AuraStatsIntegrationShould
         AuraTemplate sundered = AuraTestData.Fortified(907);
         sundered.Kind = AuraKind.Harmful;
         sundered.Modifiers[0].Value = -25f;
-        wolf.Auras.Add(Held(sundered), T0);
+        wolf.Auras.Add(Held(sundered), s_t0);
 
         AuraStatsRefresh.Apply(wolf, data: null);
 
@@ -94,15 +107,15 @@ public class AuraStatsIntegrationShould
     public void Slow_a_crippled_creature_and_bound_it_by_the_formula()
     {
         Creature wolf = Wolf();
-        wolf.Auras.Add(Held(AuraTestData.Crippled()), T0);
+        wolf.Auras.Add(Held(AuraTestData.Crippled()), s_t0);
         AuraStatsRefresh.Apply(wolf, data: null);
 
         Assert.Equal(0.7f, wolf.SpeedFactor, precision: 4);
         Assert.Equal(2.8f, CreatureSpeed.Of(wolf), precision: 4);
         Assert.Equal(4f, wolf.Speed);
 
-        wolf.Auras.Add(Held(AuraTestData.Crippled(908), stacks: 1), T0);
-        wolf.Auras.Add(Held(AuraTestData.Crippled(909), stacks: 1), T0);
+        wolf.Auras.Add(Held(AuraTestData.Crippled(908), stacks: 1), s_t0);
+        wolf.Auras.Add(Held(AuraTestData.Crippled(909), stacks: 1), s_t0);
         AuraStatsRefresh.Apply(wolf, data: null);
         Assert.Equal(0.5f, wolf.SpeedFactor, precision: 4);   // -90 points, held at the -50 floor
     }
@@ -110,12 +123,12 @@ public class AuraStatsIntegrationShould
     [Fact]
     public void Walk_a_crippled_creature_at_its_slowed_speed()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([new Vector3(20f, 0f, 0f)]);
         var locomotion = new WaypointLocomotion(_ => navigator);
         Creature wolf = Wolf();
         wolf.Position = Vector3.zero;
-        wolf.Auras.Add(Held(AuraTestData.Crippled()), T0);
+        wolf.Auras.Add(Held(AuraTestData.Crippled()), s_t0);
         AuraStatsRefresh.Apply(wolf, data: null);
 
         locomotion.Register(wolf, radius: 0.5f);
@@ -137,7 +150,7 @@ public class AuraStatsIntegrationShould
         vigour.Modifiers[0].Value = 10f;
 
         wolf.Rescale(1.6);
-        wolf.Auras.Add(Held(vigour), T0);
+        wolf.Auras.Add(Held(vigour), s_t0);
         AuraStatsRefresh.Apply(wolf, data: null);
 
         Assert.Equal(176u, wolf.Health);

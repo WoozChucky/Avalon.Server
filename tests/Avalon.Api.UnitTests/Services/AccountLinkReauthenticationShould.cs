@@ -31,7 +31,7 @@ public class AccountLinkReauthenticationShould
     [Fact]
     public async Task Require_current_password_even_with_a_browser_session()
     {
-        var proof = await _service.RequireAsync(_account, "correct", null, IPAddress.Loopback, CancellationToken.None);
+        LinkReauthenticated proof = await _service.RequireAsync(_account, "correct", null, IPAddress.Loopback, CancellationToken.None);
         Assert.Null(proof.Error);
         await _password.Received(1).RequireCurrentPasswordAsync(_account.Id, "correct", IPAddress.Loopback, Arg.Any<CancellationToken>());
         Assert.Null(proof.ConfirmedMfaId);
@@ -42,7 +42,7 @@ public class AccountLinkReauthenticationShould
     {
         _mfa.FindByAccountIdAsync(_account.Id, Arg.Any<CancellationToken>()).Returns(new MFASetup
         { Id = Guid.NewGuid(), Account = _account, AccountId = _account.Id, Secret = [1], Status = MfaSetupStatus.Confirmed });
-        var proof = await _service.RequireAsync(_account, "correct", null, IPAddress.Loopback, CancellationToken.None);
+        LinkReauthenticated proof = await _service.RequireAsync(_account, "correct", null, IPAddress.Loopback, CancellationToken.None);
         Assert.Equal("MFA_REQUIRED", proof.Error);
         await _hashes.DidNotReceive().GenerateHashAsync(Arg.Any<Account>());
     }

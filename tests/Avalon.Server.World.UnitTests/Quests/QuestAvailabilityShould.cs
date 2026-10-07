@@ -4,7 +4,6 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -12,11 +11,11 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// <summary>The one availability rule (#433), pure: not done, not held, prerequisite done, level, class, script, room.</summary>
 public class QuestAvailabilityShould
 {
-    private static readonly QuestCatalog Catalog = new(Chain().Append(
+    private static readonly QuestCatalog s_catalog = new(Chain().Append(
             Quest(7299, level: 1).WithStage(0, Kill(72991, Boar, 1))).ToList().Also(q => q[^1].ClassRequirement = CharacterClass.Wizard),
         QuestTestData.Creatures(), Items(), Roots(Giver, Ender, TalkTarget), FindScript, NullLoggerFactory.Instance);
 
-    private static QuestView Q(uint id) => Catalog.TryGet(id, out QuestView? q) ? q : throw new InvalidOperationException();
+    private static QuestView Q(uint id) => s_catalog.TryGet(id, out QuestView? q) ? q : throw new InvalidOperationException();
 
     private static CharacterEntity Character(ushort level = 1)
     {

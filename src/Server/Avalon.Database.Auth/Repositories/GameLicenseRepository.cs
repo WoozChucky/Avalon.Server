@@ -18,13 +18,13 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
 {
     public async Task<GameLicense?> FindAsync(Guid id, CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
         return await db.GameLicenses.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
     }
 
     public async Task<GameLicense?> FindAsync(AccountId account, string provider, string environment, string reference, CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
         return await db.GameLicenses.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == account &&
             x.Provider == provider && x.Environment == environment && x.LicenseReference == reference, ct);
     }
@@ -32,8 +32,8 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
     public async Task<GameLicense?> FindActiveAsync(AccountId account, string provider, string environment, string product,
         string providerProductId, DateTime now, CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        var rows = await db.GameLicenses.AsNoTracking().Where(x => x.AccountId == account && x.Provider == provider &&
+        await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
+        List<GameLicense> rows = await db.GameLicenses.AsNoTracking().Where(x => x.AccountId == account && x.Provider == provider &&
             x.Environment == environment && x.Product == product && x.ProviderProductId == providerProductId &&
             x.RevokedAt == null && x.SuspendedAt == null && x.GrantedAt <= now && (x.ExpiresAt == null || x.ExpiresAt > now))
             .OrderBy(x => x.GrantedAt).ThenBy(x => x.Id).ToListAsync(ct);
@@ -43,8 +43,8 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
     public async Task<GameLicense> RecordGrantAsync(GameLicense license, CancellationToken ct = default)
     {
         Validate(license);
-        await using var db = await factory.CreateDbContextAsync(ct);
-        var existing = await db.GameLicenses.AsNoTracking().SingleOrDefaultAsync(x => x.Provider == license.Provider &&
+        await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
+        GameLicense? existing = await db.GameLicenses.AsNoTracking().SingleOrDefaultAsync(x => x.Provider == license.Provider &&
             x.Environment == license.Environment && x.LicenseReference == license.LicenseReference, ct);
         if (existing is not null) return Match(existing, license);
         db.GameLicenses.Add(license);
@@ -65,15 +65,26 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
             decision.AuthorizedUntil > decision.ObservedAt.AddMinutes(5) ||
             (decision.ProviderExpiresAt is { } expiry && (expiry.Kind != DateTimeKind.Utc || decision.AuthorizedUntil > expiry)) ||
             (!decision.OwnsProduct && decision.AuthorizedUntil > decision.ObservedAt))
+        {
             throw new ArgumentException("Invalid bounded license decision.", nameof(decision));
-        await using var db = await factory.CreateDbContextAsync(ct);
-        var license = await db.GameLicenses.SingleOrDefaultAsync(x => x.Id == id, ct);
+        }
+
+        await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
+        GameLicense? license = await db.GameLicenses.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (license is null || license.AuthorityRevision != expectedRevision || expectedRevision == long.MaxValue ||
-            decision.ObservedAt < license.GrantedAt || decision.ObservedAt < license.LastObservedAt) return null;
+            decision.ObservedAt < license.GrantedAt || decision.ObservedAt < license.LastObservedAt)
+        {
+            return null;
+        }
+
         if (license.RevokedAt is not null && decision.OwnsProduct)
         {
             if (license.AuthorityKind == LicenseAuthorityKind.StoredGrant || !decision.Reestablish ||
-                decision.ObservedAt <= license.LastObservedAt) return null;
+                decision.ObservedAt <= license.LastObservedAt)
+            {
+                return null;
+            }
+
             license.AuthorityRevision++;
             license.RevokedAt = null;
         }
@@ -83,7 +94,11 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
             license.RevokedAt = decision.ObservedAt;
         }
         if (decision.OwnsProduct && decision.ObservedAt == license.LastObservedAt &&
-            decision.AuthorizedUntil != license.VerifiedUntil) return null;
+            decision.AuthorizedUntil != license.VerifiedUntil)
+        {
+            return null;
+        }
+
         license.LastObservedAt = decision.ObservedAt;
         license.VerifiedUntil = decision.OwnsProduct ? decision.AuthorizedUntil : null;
         // Negative evidence invalidates the revision; its expiry remains audit evidence and
@@ -109,6 +124,8 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
             (license.ExpiresAt is { } expiry && (expiry.Kind != DateTimeKind.Utc || expiry <= license.GrantedAt)) ||
             (license.RevokedAt is { } revoked && (revoked.Kind != DateTimeKind.Utc || revoked < license.GrantedAt)) ||
             license.LastObservedAt is not null || license.VerifiedUntil is not null)
+        {
             throw new ArgumentException("Invalid source-bound license.", nameof(license));
+        }
     }
 }

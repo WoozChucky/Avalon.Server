@@ -12,7 +12,7 @@ namespace Avalon.Database.UnitTests;
 /// </summary>
 public class RepositoryContextLifetimeShould
 {
-    private static readonly Assembly[] DatabaseAssemblies =
+    private static readonly Assembly[] s_databaseAssemblies =
     [
         typeof(Auth.Repositories.AccountRepository).Assembly,
         typeof(Character.Repositories.CharacterRepository).Assembly,
@@ -23,7 +23,7 @@ public class RepositoryContextLifetimeShould
     public static TheoryData<Type> RepositoryTypes()
     {
         TheoryData<Type> data = new();
-        foreach (Type type in DatabaseAssemblies
+        foreach (Type type in s_databaseAssemblies
                      .SelectMany(assembly => assembly.GetTypes())
                      .Where(type => type is { IsClass: true, IsInterface: false } &&
                                     type.Name.EndsWith("Repository", StringComparison.Ordinal))

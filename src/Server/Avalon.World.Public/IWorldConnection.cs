@@ -1,6 +1,6 @@
 using Avalon.Common;
-using Avalon.Common.GameAuth;
 using Avalon.Common.Accounts;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.World.Public.Characters;
@@ -16,14 +16,14 @@ public interface IWorldConnection : IConnection
     /// <summary>
     ///     Gets or sets the account ID associated with the connection.
     /// </summary>
-    public AccountId? AccountId { get; set; }
+    AccountId? AccountId { get; set; }
     GameplayWriteAuthority? GameplayAuthority => null;
     bool IsGameplayAuthorized => false;
 
     /// <summary>
     ///     Gets or sets the character associated with the connection.
     /// </summary>
-    public ICharacter? Character { get; set; }
+    ICharacter? Character { get; set; }
 
     /// <summary>
     ///     The character built by character-select, waiting to be spawned. Null once it has been
@@ -31,7 +31,7 @@ public interface IWorldConnection : IConnection
     ///     <see cref="Character" /> is still null: the character exists but nothing on the tick
     ///     can see it.
     /// </summary>
-    public PendingSpawn? PendingSpawn { get; }
+    PendingSpawn? PendingSpawn { get; }
 
     /// <summary>
     ///     True from the moment a character select is accepted until the entity is handed over as
@@ -39,7 +39,7 @@ public interface IWorldConnection : IConnection
     ///     <see cref="PendingSpawn" /> are BOTH null across that span, which is several database
     ///     round trips long, so this is the only thing that says a select is under way.
     /// </summary>
-    public bool SelectInProgress { get; }
+    bool SelectInProgress { get; }
 
     /// <summary>
     ///     When the in-flight select began, as <c>DateTime.UtcNow.Ticks</c>, or 0 when none is.
@@ -86,7 +86,7 @@ public interface IWorldConnection : IConnection
     ///     Whether the socket is still up. The tick reads it before acting on a connection's
     ///     pending spawn; a dropped connection's pending spawn belongs to the despawn.
     /// </summary>
-    public bool IsConnected { get; }
+    bool IsConnected { get; }
 
     /// <summary>
     ///     Whether a close has been asked for. Set at once by the close, while
@@ -110,31 +110,31 @@ public interface IWorldConnection : IConnection
     /// <summary>
     ///     Gets the latency of the connection.
     /// </summary>
-    public long Latency { get; }
+    long Latency { get; }
 
     /// <summary>
     ///     Gets the round-trip time of the connection.
     /// </summary>
-    public long RoundTripTime { get; }
+    long RoundTripTime { get; }
 
     /// <summary>
     ///     Gets the tick at which the packet now being handled was read off the socket. A handler runs
     ///     on the world tick, so reading the clock inside one measures the wait for that tick as well.
     /// </summary>
-    public long CurrentPacketArrivedTicks { get; }
+    long CurrentPacketArrivedTicks { get; }
 
     /// <summary>
     ///     Gets a value indicating whether the connection is in-game.
     /// </summary>
-    public bool InGame { get; }
+    bool InGame { get; }
 
     /// <summary>
     ///     Gets a value indicating whether the connection is in a map.
     /// </summary>
-    public bool InMap { get; }
+    bool InMap { get; }
 
     /// <summary>Gets or sets the last accepted input sequence number.</summary>
-    public uint LastInputSeq { get; set; }
+    uint LastInputSeq { get; set; }
 
     /// <summary>
     ///     Raw <c>ObjectGuid</c> of the unit the player is currently targeting, or <c>null</c>
@@ -142,7 +142,7 @@ public interface IWorldConnection : IConnection
     ///     <c>ThreatBroadcastService</c> to decide which encounter's threat list to mirror back
     ///     to this client via <c>SThreatListPacket</c>.
     /// </summary>
-    public ulong? CurrentTargetGuid { get; set; }
+    ulong? CurrentTargetGuid { get; set; }
 
     /// <summary>
     ///     The account's locale, read once during character-select and cached. Defaults to enUS, so

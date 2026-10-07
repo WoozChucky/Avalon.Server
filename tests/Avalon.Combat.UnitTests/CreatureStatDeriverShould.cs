@@ -3,20 +3,19 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Combat.UnitTests;
 
 public class CreatureStatDeriverShould
 {
-    private static readonly CreatureBaseStat[] BaseStats =
+    private static readonly CreatureBaseStat[] s_baseStats =
     [
         new() { Level = 1, Health = 40,  DamageMin = 3, DamageMax = 5,  Experience = 15 },
         new() { Level = 2, Health = 52,  DamageMin = 4, DamageMax = 7,  Experience = 25 },
         new() { Level = 5, Health = 106, DamageMin = 9, DamageMax = 14, Experience = 85 },
     ];
 
-    private static readonly CreatureRarityModifier[] Rarities =
+    private static readonly CreatureRarityModifier[] s_rarities =
     [
         new() { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f },
         new() { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.0f, ExperienceMultiplier = 15.0f,
@@ -24,12 +23,12 @@ public class CreatureStatDeriverShould
     ];
 
     private static CreatureStatDeriver NewDeriver() =>
-        new(BaseStats, Rarities, NullLoggerFactory.Instance);
+        new(s_baseStats, s_rarities, NullLoggerFactory.Instance);
 
     /// <summary>The seeded level-10 row, armour 30 (#506).</summary>
     private static CreatureStatDeriver ArmouredDeriver() =>
         new([new CreatureBaseStat { Level = 10, Health = 312, DamageMin = 26, DamageMax = 39, Experience = 320, Armor = 30 }],
-            Rarities, NullLoggerFactory.Instance);
+            s_rarities, NullLoggerFactory.Instance);
 
     private static ICreatureMetadata Template(
         CreatureRarity rarity = CreatureRarity.Normal,
@@ -39,7 +38,7 @@ public class CreatureStatDeriverShould
         uint? exp = null,
         float armor = 1f)
     {
-        var template = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata template = Substitute.For<ICreatureMetadata>();
         template.ArmorModifier.Returns(armor);
         template.Rarity.Returns(rarity);
         template.HealthModifier.Returns(health);
@@ -187,6 +186,6 @@ public class CreatureStatDeriverShould
     public void Refuse_To_Be_Built_With_No_Base_Stats_At_All()
     {
         Assert.Throws<InvalidOperationException>(() =>
-            new CreatureStatDeriver([], Rarities, NullLoggerFactory.Instance));
+            new CreatureStatDeriver([], s_rarities, NullLoggerFactory.Instance));
     }
 }

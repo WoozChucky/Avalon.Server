@@ -36,15 +36,20 @@ public class ProceduralChunkLayoutSourceShould
             new ChunkGroupCell(Chunk(21, S), 0, 0), new ChunkGroupCell(Chunk(22, 0), 1, 0),
             new ChunkGroupCell(Chunk(23, 0), 0, 1), new ChunkGroupCell(Chunk(24, 0, "boss"), 1, 1),
         ]);
-        var library = Substitute.For<IChunkLibrary>();
+        IChunkLibrary library = Substitute.For<IChunkLibrary>();
         library.GetByPool(poolId).Returns([new ChunkPoolMember(Chunk(1, N, "entry", PortalRole.Back), 1f)]);
         library.GetGroupsByPool(poolId).Returns([arena]);
 
-        var configs = Substitute.For<IProceduralMapConfigRepository>();
+        IProceduralMapConfigRepository configs = Substitute.For<IProceduralMapConfigRepository>();
         configs.FindByTemplateIdAsync(mapId, Arg.Any<CancellationToken>()).Returns(new ProceduralMapConfig
         {
-            MapTemplateId = mapId, ChunkPoolId = poolId, SpawnTableId = new SpawnTableId(1),
-            MainPathMin = 2, MainPathMax = 2, HasBoss = true, BackPortalTargetMapId = 1,
+            MapTemplateId = mapId,
+            ChunkPoolId = poolId,
+            SpawnTableId = new SpawnTableId(1),
+            MainPathMin = 2,
+            MainPathMax = 2,
+            HasBoss = true,
+            BackPortalTargetMapId = 1,
         });
         IServiceScopeFactory scopes = new ServiceCollection().AddScoped(_ => configs).BuildServiceProvider()
             .GetRequiredService<IServiceScopeFactory>();

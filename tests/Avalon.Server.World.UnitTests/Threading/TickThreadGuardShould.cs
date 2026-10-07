@@ -45,7 +45,7 @@ public class TickThreadGuardShould
 
         Exception? thrown = TickThreadGuardProbe.OffThread(() => guard.AssertOnTick("World.TransferPlayer"));
 
-        var refused = Assert.IsType<InvalidOperationException>(thrown);
+        InvalidOperationException refused = Assert.IsType<InvalidOperationException>(thrown);
         Assert.Contains("World.TransferPlayer", refused.Message, StringComparison.Ordinal);
     }
 

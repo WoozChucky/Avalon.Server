@@ -1,4 +1,3 @@
-using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
@@ -10,15 +9,14 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Combat;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.World;
 
@@ -30,7 +28,7 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class MovementAimShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private readonly TestArena _arena = new();
     private readonly InstanceAbilityCastSystem _casts;
@@ -42,18 +40,18 @@ public class MovementAimShould
 
     public MovementAimShould()
     {
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAbilityScript(nameof(ConeAbilityScript)).Returns(typeof(ConeAbilityScript));
         _casts = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), scripts, _arena);
 
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.RunInstantAbility(default!, default, default!).ReturnsForAnyArgs(ci =>
             _casts.RunInstant(ci.ArgAt<IUnit>(0), ci.ArgAt<AbilityAim>(1), ci.ArgAt<IAbility>(2)));
         instance.QueueAbility(default!, default, default!).ReturnsForAnyArgs(ci =>
             _casts.QueueAbility(ci.ArgAt<IUnit>(0), ci.ArgAt<AbilityAim>(1), ci.ArgAt<IAbility>(2)));
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.GetInstanceById(Arg.Any<Guid>()).Returns(instance);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
         _handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
 
@@ -150,7 +148,7 @@ public class MovementAimShould
         _caster.Orientation = new Vector3(0f, 90f, 0f);   // turned to +X during the cast
         for (int i = 0; i < 16; i++)
         {
-            _casts.Update(Tick, []);
+            _casts.Update(s_tick, []);
         }
 
         (_, _, uint castId, AbilityFootprint? started) = Assert.Single(_arena.Started);

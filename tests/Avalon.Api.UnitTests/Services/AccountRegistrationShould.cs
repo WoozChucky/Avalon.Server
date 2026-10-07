@@ -1,7 +1,7 @@
 using System.Net;
-using Avalon.Api.Exceptions;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
+using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -91,7 +91,7 @@ public class AccountRegistrationShould : IDisposable
             IPAddress.Loopback,
             CancellationToken.None);
 
-        Device device = (Device)spy.ReceivedCalls()
+        var device = (Device)spy.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IDeviceRepository.CreateAsync))
             .GetArguments()[0]!;
 
@@ -162,7 +162,7 @@ public class AccountRegistrationShould : IDisposable
         Task[] both = [first, second];
         try { await Task.WhenAll(both); } catch { /* inspected below */ }
 
-        Assert.Single(both, t => t.IsCompletedSuccessfully);
+        _ = Assert.Single(both, t => t.IsCompletedSuccessfully);
         Task loser = Assert.Single(both, t => t.IsFaulted);
         BusinessException taken = Assert.IsType<BusinessException>(loser.Exception!.InnerException);
         Assert.Equal("Username already exists", taken.Message);

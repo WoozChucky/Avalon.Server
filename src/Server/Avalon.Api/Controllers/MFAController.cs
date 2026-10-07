@@ -5,6 +5,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -49,7 +50,7 @@ public class MFAController : BaseController
         await _reauthentication.RequireCurrentPasswordAsync(_authContext.Account!.Id, request.CurrentPassword,
             SourceAddress, CancellationToken);
 
-        var result = await _mfaService.SetupMFAAsync(_authContext.Account!, _authConfig.Issuer, CancellationToken);
+        MFASetupResult result = await _mfaService.SetupMFAAsync(_authContext.Account!, _authConfig.Issuer, CancellationToken);
         if (!result.Success)
             return Problem(result.Status.ToString(), statusCode: 400);
         return new SetupMFAResponse { Uri = result.OtpUri! };
@@ -59,8 +60,8 @@ public class MFAController : BaseController
     public async Task<ActionResult<ConfirmMFAResponse>> ConfirmMFA([FromBody] ConfirmMFARequest request)
     {
         // At the version the request's credential was checked against (#495 re-review).
-        var account = _authContext.Account!;
-        var result = await _mfaService.ConfirmMFAAsync(account.Id, account.CredentialsVersion, request.Code,
+        Account account = _authContext.Account!;
+        MFAConfirmResult result = await _mfaService.ConfirmMFAAsync(account.Id, account.CredentialsVersion, request.Code,
             CancellationToken);
         if (result.CredentialsChanged)
             return Unauthorized();
@@ -84,8 +85,8 @@ public class MFAController : BaseController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ResetMFA([FromBody] ResetMFARequest request)
     {
-        var account = _authContext.Account!;
-        var reset = await _mfaService.ResetMFAAsync(account.Id, account.CredentialsVersion, request.RecoveryCode1,
+        Account account = _authContext.Account!;
+        MFAResetResult reset = await _mfaService.ResetMFAAsync(account.Id, account.CredentialsVersion, request.RecoveryCode1,
             request.RecoveryCode2, request.RecoveryCode3, CancellationToken);
         if (reset.CredentialsChanged)
             return Unauthorized();
@@ -118,7 +119,7 @@ public class MFAController : BaseController
                 return FailureFor(attempt);
         }
 
-        var account = attempt.Account!;
+        Account account = attempt.Account!;
 
         // The code was right, so the caller holds the account: a banned or deactivated one is
         // told its status, as at login, and gets no session (#480). The hash outlives the password
@@ -131,12 +132,14 @@ public class MFAController : BaseController
         // answer, with the slots kept.
         if (!await _accountRepository.TryRecordApiLoginAsync(account.Id, attempt.Source.Ip, DateTime.UtcNow,
                 CancellationToken))
+        {
             return FailureFor(attempt);
+        }
 
         await _mfaPolicy.CompleteAsync(attempt);
 
         // The account was read by the policy, which checked its version against the hash's (#495).
-        var issue = await _refreshService.IssueAsync(account.Id, account.CredentialsVersion, CancellationToken);
+        RefreshIssueResult issue = await _refreshService.IssueAsync(account.Id, account.CredentialsVersion, CancellationToken);
         SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
 
         return new AuthenticateResponse
@@ -157,7 +160,7 @@ public class MFAController : BaseController
     [ProducesResponseType(typeof(MfaStatusResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<MfaStatusResponse>> GetStatus()
     {
-        var enrolled = await _mfaService.IsEnrolledAsync(_authContext.Account!.Id, CancellationToken);
+        bool enrolled = await _mfaService.IsEnrolledAsync(_authContext.Account!.Id, CancellationToken);
         return new MfaStatusResponse { Enrolled = enrolled };
     }
 }

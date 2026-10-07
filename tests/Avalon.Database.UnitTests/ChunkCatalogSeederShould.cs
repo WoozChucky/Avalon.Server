@@ -21,7 +21,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [Fact]
     public async Task Seed_the_committed_catalog_into_an_empty_database()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext db = database.CreateDbContext();
 
         await ChunkCatalogSeeder.SeedAsync(db, CommittedMapsRoot());
@@ -41,7 +41,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [Fact]
     public async Task Keep_ids_and_rows_when_run_again()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         string root = CommittedMapsRoot();
 
         await using (WorldDbContext first = database.CreateDbContext())
@@ -63,7 +63,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [Fact]
     public async Task Update_a_changed_chunk_in_place()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         string root = CopyOfCommittedMaps();
         await using (WorldDbContext first = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(first, root);
@@ -85,7 +85,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [Fact]
     public async Task Refuse_a_layout_naming_an_unknown_chunk_and_write_nothing()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         string root = CopyOfCommittedMaps();
         string layout = Path.Combine(root, "TownLayouts", "1.json");
         File.WriteAllText(layout, File.ReadAllText(layout).Replace("\"town_se_01\"", "\"town_missing_01\""));
@@ -105,7 +105,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [Fact]
     public async Task Refuse_a_chunk_without_its_geometry()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         string root = CopyOfCommittedMaps();
         File.Delete(Path.Combine(root, "Chunks", "forest_path_02.obj"));
 
@@ -175,7 +175,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         string root = CopyOfCommittedMaps();
         WriteGroupMembers(root, "g");
         WriteGroup(root, "test_pool", "test_group", "g");
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext db = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(db, root);
 
@@ -195,7 +195,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         string root = CopyOfCommittedMaps();
         WriteGroupMembers(root, "g");
         WriteGroup(root, "test_pool", "test_group", "g");
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext first = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(first, root);
         await using (WorldDbContext second = database.CreateDbContext())
@@ -217,7 +217,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         string root = CopyOfCommittedMaps();
         WriteGroupMembers(root, "g", innerExit);
         WriteGroup(root, pool, "test_group", prefix, neX, neZ);
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext db = database.CreateDbContext();
 
         await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
@@ -233,7 +233,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
                 { "chunk": "forest_path_01", "cellX": 0, "cellZ": 0 },
                 { "chunk": "forest_path_02", "cellX": 1, "cellZ": 0 } ] } ] }
             """);
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext db = database.CreateDbContext();
 
         await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
@@ -251,7 +251,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
     private static async Task<InvalidDataException> RefuseAndWriteNothing(string root)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext db = database.CreateDbContext();
 
         InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
@@ -350,7 +350,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         string root = CopyOfCommittedMaps();
         WriteGroupMembers(root, "g");
         WriteGroup(root, "test_pool", "test_group", "g");
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext first = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(first, root);
 
@@ -368,7 +368,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [Fact]
     public async Task Seed_the_forests_spawn_table_and_config_into_an_empty_database()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext db = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(db, CommittedMapsRoot());
 
@@ -391,7 +391,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         JsonObject map = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         Assert.True(map.Remove("minSetPieceStep"));
         File.WriteAllText(path, map.ToJsonString());
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext db = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(db, root);
 
@@ -404,18 +404,24 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [Fact]
     public async Task Adopt_the_existing_spawn_table_and_config_keeping_their_ids()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext before = database.CreateDbContext())
         {
             before.SpawnTables.Add(new SpawnTable
             {
-                Id = new SpawnTableId(1), Name = "forest_creatures",
+                Id = new SpawnTableId(1),
+                Name = "forest_creatures",
                 Entries = [new SpawnTableEntry { Tag = "pack", CreatureId = new CreatureTemplateId(2), Weight = 1f, MinCount = 1, MaxCount = 2 }],
             });
             before.ProceduralMapConfigs.Add(new ProceduralMapConfig
             {
-                MapTemplateId = new MapTemplateId(2), ChunkPoolId = new ChunkPoolId(1), SpawnTableId = new SpawnTableId(1),
-                MainPathMin = 2, MainPathMax = 3, HasBoss = true, BackPortalTargetMapId = 1,
+                MapTemplateId = new MapTemplateId(2),
+                ChunkPoolId = new ChunkPoolId(1),
+                SpawnTableId = new SpawnTableId(1),
+                MainPathMin = 2,
+                MainPathMax = 3,
+                HasBoss = true,
+                BackPortalTargetMapId = 1,
             });
             await before.SaveChangesAsync();
         }
@@ -447,7 +453,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
               "depthBands": [ { "minDepth": 1, "maxDepth": 3, "minLevel": 1, "maxLevel": 3 },
                               { "minDepth": 4, "maxDepth": null, "minLevel": 3, "maxLevel": 6 } ] }
             """);
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext first = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(first, root);
         await using (WorldDbContext second = database.CreateDbContext())
@@ -472,7 +478,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         string text = File.ReadAllText(path);
         Assert.Contains(from, text, StringComparison.Ordinal);
         File.WriteAllText(path, text.Replace(from, to, StringComparison.Ordinal));
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext db = database.CreateDbContext();
 
         await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
@@ -489,7 +495,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         string source = File.ReadAllText(Path.Combine(root, "ProceduralMaps", "2.json"));
         File.WriteAllText(Path.Combine(root, "ProceduralMaps", $"{mapId}.json"),
             source.Replace("\"mapTemplateId\": 2", $"\"mapTemplateId\": {mapId}", StringComparison.Ordinal));
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext db = database.CreateDbContext();
 
         await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
@@ -537,7 +543,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
             entries.Add(SpawnEntry("leader", 8, 1, 1));
             entries.Add(SpawnEntry("leader_pack", 5, 2, 3));
         });
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext db = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(db, root);
 
@@ -630,7 +636,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         JsonObject map = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         map["depthBands"]!.AsArray().Single(b => (int)b!["minDepth"]! == 8)!["maxLevel"] = 10;
         File.WriteAllText(path, map.ToJsonString());
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext db = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(db, root);
 
@@ -694,7 +700,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
     private static async Task<InvalidDataException> RefuseProceduralDataAndWriteNothing(string root)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext db = database.CreateDbContext();
 
         InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));

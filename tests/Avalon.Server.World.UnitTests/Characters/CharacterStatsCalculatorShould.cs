@@ -19,7 +19,7 @@ public class CharacterStatsCalculatorShould
 {
     private static ClassLevelStat SeededRow(CharacterClass @class, ushort level)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         return context.ClassLevelStats.AsNoTracking().ToList().Single(s => s.Class == @class && s.Level == level);
     }
@@ -127,13 +127,23 @@ public class CharacterStatsCalculatorShould
     {
         var boots = new ItemTemplate
         {
-            Id = new ItemTemplateId(700), Name = "Boots", Slot = ItemSlotType.Feet,
-            StatType1 = StatType.MovementSpeed, StatValue1 = 50, StatType2 = StatType.AttackSpeed, StatValue2 = 9,
+            Id = new ItemTemplateId(700),
+            Name = "Boots",
+            Slot = ItemSlotType.Feet,
+            StatType1 = StatType.MovementSpeed,
+            StatValue1 = 50,
+            StatType2 = StatType.AttackSpeed,
+            StatValue2 = 9,
         };
         var sword = new ItemTemplate
         {
-            Id = new ItemTemplateId(702), Name = "Sword", Slot = ItemSlotType.MainHand,
-            StatType1 = StatType.AttackSpeed, StatValue1 = 3, StatType2 = StatType.MovementSpeed, StatValue2 = 10,
+            Id = new ItemTemplateId(702),
+            Name = "Sword",
+            Slot = ItemSlotType.MainHand,
+            StatType1 = StatType.AttackSpeed,
+            StatValue1 = 3,
+            StatType2 = StatType.MovementSpeed,
+            StatValue2 = 10,
         };
         ClassLevelStat row = SeededRow(CharacterClass.Warrior, 1);
 
@@ -148,9 +158,15 @@ public class CharacterStatsCalculatorShould
     {
         var trinket = new ItemTemplate
         {
-            Id = new ItemTemplateId(701), Name = "Trinket", Slot = ItemSlotType.Neck,
-            StatType1 = StatType.Armor, StatValue1 = 1, StatType10 = StatType.Armor, StatValue10 = 2,
-            StatType5 = StatType.Armor, StatValue5 = null,
+            Id = new ItemTemplateId(701),
+            Name = "Trinket",
+            Slot = ItemSlotType.Neck,
+            StatType1 = StatType.Armor,
+            StatValue1 = 1,
+            StatType10 = StatType.Armor,
+            StatValue10 = 2,
+            StatType5 = StatType.Armor,
+            StatValue5 = null,
         };
 
         Assert.Equal(3u, Calc(SeededRow(CharacterClass.Hunter, 1), [trinket]).Armor);

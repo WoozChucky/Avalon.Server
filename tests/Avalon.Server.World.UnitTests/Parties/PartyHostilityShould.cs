@@ -1,6 +1,5 @@
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Public.Enums;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Parties;
 

@@ -35,8 +35,10 @@ public sealed class WorldShutdownConfiguration : IValidatableObject
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (SaveMargin < MinimumSaveMargin)
+        {
             yield return new ValidationResult(
                 $"SaveMargin must be at least {MinimumSaveMargin} (the shutdown's save wait and the drain's backstop)",
                 [nameof(SaveMargin)]);
+        }
     }
 }

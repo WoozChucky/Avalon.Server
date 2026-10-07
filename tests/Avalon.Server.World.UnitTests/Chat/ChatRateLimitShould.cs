@@ -5,8 +5,8 @@ using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Chat;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -18,7 +18,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Chat;
 

@@ -15,7 +15,7 @@ public class ItemIdAllocatorShould
     {
         var allocator = new ItemIdAllocator();
 
-        List<Guid> ids = Enumerable.Range(0, 100_000).Select(_ => allocator.Next().Value).ToList();
+        var ids = Enumerable.Range(0, 100_000).Select(_ => allocator.Next().Value).ToList();
 
         Assert.Equal(ids.Count, ids.Distinct().Count());
     }

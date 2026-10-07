@@ -1,10 +1,10 @@
-using Avalon.World.Persistence;
+using System.Runtime.CompilerServices;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
+using Avalon.World.Maintenance;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Maintenance;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Characters;
@@ -16,7 +16,7 @@ namespace Avalon.World.Characters;
 /// </summary>
 public static class CharacterReadinessBarrier
 {
-    private static readonly ConditionalWeakTable<IWorldConnection, Task<WorldEntryDecision>> PendingChecks = new();
+    private static readonly ConditionalWeakTable<IWorldConnection, Task<WorldEntryDecision>> s_pendingChecks = new();
 
     /// <summary>Checks current admission off the tick before a pending character becomes visible.</summary>
     public static void RequestRelease(IWorldConnection connection, IWorld world, ILogger logger,
@@ -24,8 +24,10 @@ public static class CharacterReadinessBarrier
         TimeProvider? clock = null)
     {
         if (!connection.IsConnected || connection.IsClosing || connection.AccountId is null ||
-            connection.PendingSpawn is not { } pending || PendingChecks.TryGetValue(connection, out _))
+            connection.PendingSpawn is not { } pending || s_pendingChecks.TryGetValue(connection, out _))
+        {
             return;
+        }
 
         Task<WorldEntryDecision> check = WorldDatabaseWork.ThreadPool.Run(async () =>
         {
@@ -39,10 +41,10 @@ public static class CharacterReadinessBarrier
                 return default;
             }
         });
-        PendingChecks.Add(connection, check);
+        s_pendingChecks.Add(connection, check);
         connection.EnqueueContinuation(check, decision =>
         {
-            PendingChecks.Remove(connection);
+            s_pendingChecks.Remove(connection);
             if (!connection.IsConnected || connection.IsClosing || !ReferenceEquals(connection.PendingSpawn, pending))
                 return;
 
@@ -69,7 +71,9 @@ public static class CharacterReadinessBarrier
                 }
             }
             else
+            {
                 released = Release(connection, world, logger);
+            }
 
             if (released) onSpawn?.Invoke();
         });
@@ -131,7 +135,7 @@ public static class CharacterReadinessBarrier
             if (connection.PendingSpawn is not { } pending)
                 continue;
 
-            TimeSpan waited = TimeSpan.FromTicks(nowTicks - pending.SinceTicks);
+            var waited = TimeSpan.FromTicks(nowTicks - pending.SinceTicks);
             bool reported = connection.LoadReportedEarly;
             if (!reported && waited < timeout)
                 continue;
@@ -202,7 +206,7 @@ public static class CharacterReadinessBarrier
             if (!connection.SelectInProgress)
                 continue;
 
-            TimeSpan waited = TimeSpan.FromTicks(nowTicks - connection.SelectStartedTicks);
+            var waited = TimeSpan.FromTicks(nowTicks - connection.SelectStartedTicks);
             if (waited < timeout)
                 continue;
 

@@ -1,4 +1,3 @@
-using System.Collections;
 using Avalon.Api.Templates;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
@@ -17,7 +16,7 @@ namespace Avalon.Api.UnitTests.Templates;
 /// </summary>
 public class TemplateVersionShould
 {
-    private static readonly string[] NotStored = ["Stackable", "BodyRemoveTimer"];
+    private static readonly string[] s_notStored = ["Stackable", "BodyRemoveTimer"];
 
     public static TheoryData<string, string> ItemColumns => Columns(typeof(ItemTemplate));
     public static TheoryData<string, string> AbilityColumns => Columns(typeof(AbilityTemplate));
@@ -58,6 +57,8 @@ public class TemplateVersionShould
         Assert.NotEqual(TemplateVersion.Of(a), TemplateVersion.Of(b));
     }
 
+    // kind only names each case in the test results; the theories read the column.
+#pragma warning disable xUnit1026
     [Theory]
     [MemberData(nameof(ItemColumns))]
     public void Change_with_any_item_column(string kind, string column) =>
@@ -77,6 +78,7 @@ public class TemplateVersionShould
     [MemberData(nameof(AuraColumns))]
     public void Change_with_any_aura_column(string kind, string column) =>
         AssertChanges(Aura, TemplateVersion.Of, column);
+#pragma warning restore xUnit1026
 
     [Fact]
     public void Cover_the_base_damage_coefficient_of_an_aura() =>
@@ -148,8 +150,10 @@ public class TemplateVersionShould
             return Convert.ChangeType(1, type, System.Globalization.CultureInfo.InvariantCulture);
 
         if (current is IConvertible)
+        {
             return Convert.ChangeType(Convert.ToDouble(current, System.Globalization.CultureInfo.InvariantCulture) + 1, type,
                 System.Globalization.CultureInfo.InvariantCulture);
+        }
 
         throw new NotSupportedException($"No way to vary a {type.Name}; teach {nameof(Different)} about it.");
     }
@@ -170,7 +174,7 @@ public class TemplateVersionShould
         TheoryData<string, string> data = [];
         foreach (IProperty property in type.GetProperties().Where(p => !p.IsShadowProperty()))
             data.Add(entity.Name, property.Name);
-        Assert.DoesNotContain(type.GetProperties(), p => NotStored.Contains(p.Name, StringComparer.Ordinal));
+        Assert.DoesNotContain(type.GetProperties(), p => s_notStored.Contains(p.Name, StringComparer.Ordinal));
         return data;
     }
 

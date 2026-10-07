@@ -12,8 +12,8 @@ namespace Avalon.Api.UnitTests.GameAuth;
 
 internal static class TestGameAuthorization
 {
-    private static readonly ConditionalWeakTable<IGameContextStore, MemoryGameLicenses> Repositories = new();
-    public static MemoryGameLicenses Licenses(IGameContextStore store) => Repositories.GetValue(store, _ => new());
+    private static readonly ConditionalWeakTable<IGameContextStore, MemoryGameLicenses> s_repositories = new();
+    public static MemoryGameLicenses Licenses(IGameContextStore store) => s_repositories.GetValue(store, _ => new());
     public static GameAuthorizationService Create(IGameContextStore store, AuthAttemptStore attempts, GameAuthCryptography crypto,
         IAccountRepository accounts, IRefreshTokenRepository families, IExternalIdentityRepository identities,
         ILicenseObservationRepository observations, ISteamProofVerifier proof, ISteamOwnershipClient ownership,
@@ -37,7 +37,7 @@ internal sealed class MemoryGameLicenses : IGameLicenseRepository
         Task.FromResult(Rows.OrderBy(x => x.GrantedAt).ThenBy(x => x.Id).FirstOrDefault(x => x.Provider == provider && x.ProviderProductId == providerProductId && x.Authorizes(account, product, environment, now)));
     public Task<GameLicense> RecordGrantAsync(GameLicense row, CancellationToken ct = default)
     {
-        var existing = Rows.SingleOrDefault(x => x.Provider == row.Provider && x.Environment == row.Environment && x.LicenseReference == row.LicenseReference);
+        GameLicense? existing = Rows.SingleOrDefault(x => x.Provider == row.Provider && x.Environment == row.Environment && x.LicenseReference == row.LicenseReference);
         if (existing is not null)
         {
             if (existing.AccountId != row.AccountId || existing.Product != row.Product || existing.ProviderSubject != row.ProviderSubject || existing.ProviderProductId != row.ProviderProductId)
@@ -48,7 +48,7 @@ internal sealed class MemoryGameLicenses : IGameLicenseRepository
     }
     public Task<GameLicense?> ApplyDecisionAsync(Guid id, long expectedRevision, LicenseAuthorityDecision decision, CancellationToken ct = default)
     {
-        var row = Rows.SingleOrDefault(x => x.Id == id);
+        GameLicense? row = Rows.SingleOrDefault(x => x.Id == id);
         if (row is null || row.AuthorityRevision != expectedRevision || decision.ObservedAt < row.LastObservedAt) return Task.FromResult<GameLicense?>(null);
         if (row.RevokedAt is not null && decision.OwnsProduct)
         {

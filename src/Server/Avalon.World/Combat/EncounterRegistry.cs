@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Units;
 
@@ -14,7 +13,7 @@ public sealed class EncounterRegistry : IEncounterRegistry
     public EncounterRegistry(CombatConfig config, TimeProvider? time = null)
     {
         _config = config;
-        _time   = time;
+        _time = time;
     }
 
     public IReadOnlyCollection<IEncounter> Active => _active;
@@ -28,7 +27,7 @@ public sealed class EncounterRegistry : IEncounterRegistry
 
     public IEncounter? FindEncounterContaining(IUnit unit)
     {
-        foreach (var enc in _active)
+        foreach (Encounter enc in _active)
         {
             if (enc.Hostiles.Contains(unit) || enc.Players.Contains(unit))
                 return enc;

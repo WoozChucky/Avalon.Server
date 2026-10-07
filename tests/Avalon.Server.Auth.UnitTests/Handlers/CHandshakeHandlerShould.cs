@@ -1,7 +1,5 @@
 using Avalon.Common.Cryptography;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Handshake;
-using Avalon.Server.Auth;
 using Avalon.Server.Auth.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;

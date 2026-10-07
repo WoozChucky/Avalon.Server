@@ -1,6 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
-using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
+using ProtoBuf;
 
 namespace Avalon.Network.Packets.Social;
 
@@ -40,8 +40,13 @@ public class SChatMessagePacket : Packet
         => PacketSerializationHelper.Serialize(
             new SChatMessagePacket
             {
-                AccountId = accountId, CharacterId = characterId, CharacterName = characterName, Message = message,
-                DateTime = dateTime, Channel = channel, TargetName = targetName,
+                AccountId = accountId,
+                CharacterId = characterId,
+                CharacterName = characterName,
+                Message = message,
+                DateTime = dateTime,
+                Channel = channel,
+                TargetName = targetName,
                 CharacterClass = characterClass
             },
             PacketType, Flags, Protocol, encryptFunc);

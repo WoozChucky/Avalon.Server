@@ -14,7 +14,7 @@ public class ProceduralGenerationBenchmark
     private ProceduralMapConfig _cfg = default!;
 
     [Params(10, 20, 50)] public int PoolSize;
-    [Params(5, 10, 15)]  public int PathLen;
+    [Params(5, 10, 15)] public int PathLen;
 
     [GlobalSetup]
     public void Setup()
@@ -24,8 +24,8 @@ public class ProceduralGenerationBenchmark
         _cfg = new ProceduralMapConfig
         {
             MapTemplateId = new MapTemplateId(1),
-            ChunkPoolId   = new ChunkPoolId(1),
-            SpawnTableId  = new SpawnTableId(1),
+            ChunkPoolId = new ChunkPoolId(1),
+            SpawnTableId = new SpawnTableId(1),
             MainPathMin = (ushort)PathLen,
             MainPathMax = (ushort)PathLen,
             BranchChance = 0,
@@ -44,14 +44,16 @@ public class ProceduralGenerationBenchmark
         var list = new List<ChunkPoolMember>(capacity: size);
 
         // Entry chunk: N-center exit, Spawn_Entry + Portal_Back.
-        var entry = MakeChunk(1, entryTag: true, exits: 0b_0000_0000_0000_0010, back: true);
+        ChunkTemplate entry = MakeChunk(1, entryTag: true, exits: 0b_0000_0000_0000_0010, back: true);
         list.Add(new ChunkPoolMember(entry, Weight: 1f));
 
         // Fill rest with N+S center through-corridors.
         for (int i = 2; i <= size; i++)
+        {
             list.Add(new ChunkPoolMember(
                 MakeChunk(i, entryTag: false, exits: 0b_0000_0000_1000_0010, back: false),
                 Weight: 1f));
+        }
 
         return list;
     }

@@ -5,7 +5,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Public.Abilities;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 
@@ -14,15 +13,22 @@ public class AuraTemplateSchemaShould
 {
     private static AuraTemplate Fortified(uint id = 900) => new()
     {
-        Id = new AuraId(id), Name = "Fortified", Icon = "fortified", Kind = AuraKind.Helpful, DurationMs = 30000,
-        PeriodicKind = AuraPeriodicKind.None, ScalingStat = ScalingStat.Attack, Stacking = AuraStacking.Refresh, MaxStacks = 1,
+        Id = new AuraId(id),
+        Name = "Fortified",
+        Icon = "fortified",
+        Kind = AuraKind.Helpful,
+        DurationMs = 30000,
+        PeriodicKind = AuraPeriodicKind.None,
+        ScalingStat = ScalingStat.Attack,
+        Stacking = AuraStacking.Refresh,
+        MaxStacks = 1,
         Modifiers = [new AuraStatModifier { AuraId = new AuraId(id), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f }],
     };
 
     [Fact]
     public async Task Read_an_aura_back_whole_with_its_modifiers()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext context = database.CreateDbContext())
         {
             context.AuraTemplates.Add(Fortified());
@@ -58,7 +64,7 @@ public class AuraTemplateSchemaShould
     [MemberData(nameof(Refused))]
     public async Task Refuse_a_row_the_world_could_not_run(string _, string constraint, Action<AuraTemplate> breakIt)
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext context = database.CreateDbContext();
         AuraTemplate aura = Fortified();
         breakIt(aura);
@@ -71,7 +77,7 @@ public class AuraTemplateSchemaShould
     [Fact]
     public async Task Refuse_an_ability_naming_an_aura_that_does_not_exist()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext context = database.CreateDbContext();
         AbilityTemplate cleave = context.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == 200);
         cleave.AuraId = new AuraId(999);
@@ -82,7 +88,7 @@ public class AuraTemplateSchemaShould
     [Fact]
     public async Task Delete_an_auras_modifiers_with_it()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using (WorldDbContext context = database.CreateDbContext())
         {
             context.AuraTemplates.Add(Fortified());

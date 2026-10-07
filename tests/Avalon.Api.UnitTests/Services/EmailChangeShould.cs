@@ -5,25 +5,25 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
+using Avalon.Api.Services.Email;
+using Avalon.Api.UnitTests.Authentication;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
+using Avalon.Server.Auth.UnitTests.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Avalon.Api.Services.Email;
-using Avalon.Api.UnitTests.Authentication;
-using Avalon.Infrastructure.Login;
-using CapturingLogs = Avalon.Api.UnitTests.Middlewares.ForwardedHeadersShould.CapturingLogs;
-using Avalon.Server.Auth.UnitTests.Services;
 using NSubstitute;
 using StackExchange.Redis;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
+using CapturingLogs = Avalon.Api.UnitTests.Middlewares.ForwardedHeadersShould.CapturingLogs;
 
 namespace Avalon.Api.UnitTests.Services;
 
@@ -39,7 +39,7 @@ public sealed class EmailChangeShould : IDisposable
     [Fact]
     public async Task ConfirmedEmailChangeVerifiesTheNewAddress()
     {
-        var account = await AccountAsync();
+        Account account = await AccountAsync();
         await ChangeAsync(account.Id, "verified@avalon.monster");
         Assert.NotNull((await StoredAsync(account.Id)).EmailVerifiedAt);
     }
@@ -236,7 +236,7 @@ public sealed class EmailChangeShould : IDisposable
 
     // ---------------- "Email already exists" costs a slot (review, #503) ----------------
 
-    private static readonly string SourceKey = SourceBudget.KeyFor(IPAddress.Loopback);
+    private static readonly string s_sourceKey = SourceBudget.KeyFor(IPAddress.Loopback);
 
     /// <summary>
     /// The start answers whether an address is taken, once the password is proved. The proof gives
@@ -254,7 +254,7 @@ public sealed class EmailChangeShould : IDisposable
         await Assert.ThrowsAsync<BusinessException>(() => Service(counters.Cache)
             .InitiateEmailChangeAsync(account.Id, "taken@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));
 
-        Assert.Equal(1, counters.CountOf(SourceKey));
+        Assert.Equal(1, counters.CountOf(s_sourceKey));
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public sealed class EmailChangeShould : IDisposable
         await Service(counters.Cache)
             .InitiateEmailChangeAsync(account.Id, "free@avalon.monster", TestPasswords.Valid, IPAddress.Loopback);
 
-        Assert.Equal(0, counters.CountOf(SourceKey));
+        Assert.Equal(0, counters.CountOf(s_sourceKey));
     }
 
     [Fact]
@@ -279,8 +279,10 @@ public sealed class EmailChangeShould : IDisposable
         int budget = new AuthenticationConfig().MaxFailedLoginsPerSource;
 
         for (int i = 0; i < budget; i++)
+        {
             await Assert.ThrowsAsync<BusinessException>(() =>
                 service.InitiateEmailChangeAsync(account.Id, "taken@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));
+        }
 
         await Assert.ThrowsAsync<AccountLockedException>(() =>
             service.InitiateEmailChangeAsync(account.Id, "taken@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));
@@ -578,7 +580,7 @@ public sealed class EmailChangeShould : IDisposable
         _mail.FailFor = to => to == "new@avalon.monster";
         _cache.RemoveAsync(Arg.Is<string>(k => k.StartsWith("auth:emailChange:", StringComparison.Ordinal)))
             .Returns<bool>(_ => throw new StackExchange.Redis.RedisConnectionException(
-                StackExchange.Redis.ConnectionFailureType.UnableToConnect, "down"));
+                StackExchange.Redis.ConnectionFailureType.UnableToConnect, StackExchange.Redis.CommandFlags.CommandRetryNever, "down"));
 
         await Assert.ThrowsAsync<EmailDeliveryException>(() => StartWithAsync(account, "new@avalon.monster"));
 
@@ -680,7 +682,8 @@ public sealed class EmailChangeShould : IDisposable
         {
             Content = System.Net.Http.Json.JsonContent.Create(new
             {
-                newEmail = "moved@avalon.monster", currentPassword = TestPasswords.Valid,
+                newEmail = "moved@avalon.monster",
+                currentPassword = TestPasswords.Valid,
             }),
         };
         start.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
@@ -707,7 +710,9 @@ public sealed class EmailChangeShould : IDisposable
         var sender = new PickupEmailSender(
             new Avalon.Api.Config.EmailConfig
             {
-                Sender = Avalon.Api.Config.EmailSenderKind.Pickup, PickupDirectory = pickup, From = "noreply@avalon.monster",
+                Sender = Avalon.Api.Config.EmailSenderKind.Pickup,
+                PickupDirectory = pickup,
+                From = "noreply@avalon.monster",
             }, TimeProvider.System);
         try
         {
@@ -721,7 +726,8 @@ public sealed class EmailChangeShould : IDisposable
             {
                 Content = System.Net.Http.Json.JsonContent.Create(new
                 {
-                    newEmail = "moved@avalon.monster", currentPassword = TestPasswords.Valid,
+                    newEmail = "moved@avalon.monster",
+                    currentPassword = TestPasswords.Valid,
                 }),
             };
             start.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",

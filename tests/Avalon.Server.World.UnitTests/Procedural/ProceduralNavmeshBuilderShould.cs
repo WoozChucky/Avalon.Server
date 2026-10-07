@@ -1,9 +1,9 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.ChunkLayouts;
+using DotRecast.Detour;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -20,7 +20,7 @@ public class ProceduralNavmeshBuilderShould
             EntrySpawnWorldPos: Vector3.zero, CellSize: 30f);
 
         var b = new ChunkLayoutNavmeshBuilder(NullLoggerFactory.Instance, Substitute.For<IChunkLibrary>());
-        var mesh = await b.BuildAsync(layout, CancellationToken.None);
+        DtNavMesh mesh = await b.BuildAsync(layout, CancellationToken.None);
         Assert.NotNull(mesh);
     }
 }

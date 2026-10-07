@@ -2,7 +2,6 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
 using Avalon.World.Entities;
 using Avalon.World.Quests;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;

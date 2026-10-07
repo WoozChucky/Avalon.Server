@@ -75,8 +75,11 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
         if (wanted is null) return known.ToList();
         if (wanted.Count == 0) throw new PlanRefusedException(path, $"The {what} filter is empty; leave it out to keep every one");
         foreach (T value in wanted)
+        {
             if (!known.Contains(value))
                 throw new PlanRefusedException(path, unknown(value));
+        }
+
         return known.Where(wanted.Contains).ToList();
     }
 
@@ -88,7 +91,7 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
     /// </exception>
     public IReadOnlyList<RowResult> Run(RunPlan plan, CancellationToken ct = default, Action<RowResult>? onRowDone = null)
     {
-        Dictionary<CharacterClass, IReadOnlyList<CompiledRotationEntry>> compiled =
+        var compiled =
             plan.Classes.ToDictionary(c => c, c => rotations.Compile(c, data));
         RowKey[] keys = plan.Keys().ToArray();
         var results = new RowResult[keys.Length];
@@ -124,7 +127,7 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
     /// </summary>
     private static RowResult Aggregate(RowKey key, List<FightResult> fights, PlayerSnapshot snapshot)
     {
-        List<FightResult> wins = fights.Where(f => f.Won).ToList();
+        var wins = fights.Where(f => f.Won).ToList();
         double[] spenders = fights.Where(f => f.FirstSpenderSeconds is not null).Select(f => f.FirstSpenderSeconds!.Value).ToArray();
 
         return new RowResult(
@@ -150,8 +153,8 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
     /// <summary>The player's derived stats and each ability's per-hit amount (AbilityAmounts, as the client is told).</summary>
     private PlayerSnapshot Snapshot(RowKey key, IReadOnlyList<ItemTemplate> worn)
     {
-        SimPlayer player = SimPlayer.Create(data, key.Class, key.Level, worn);
-        var s = player.Stats;
+        var player = SimPlayer.Create(data, key.Class, key.Level, worn);
+        DerivedCharacterStats s = player.Stats;
         return new PlayerSnapshot(s.MaxHealth, s.MaxPower, s.AttackDamage, s.AbilityDamage, s.Armor, s.CritPct, s.DodgePct,
             s.BlockPct, player.HastePct,
             player.Abilities.Select(a =>

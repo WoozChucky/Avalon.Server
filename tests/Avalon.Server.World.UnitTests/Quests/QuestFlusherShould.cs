@@ -7,7 +7,6 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using Avalon.World.Quests;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -28,7 +27,7 @@ public class QuestFlusherShould
         QuestTestWorld w = await QuestTestWorld.CreateAsync();
         QuestClient c = w.Join();
         QuestTestWorld.Complete(c, Hunt);
-        var quest = c.Character.Quests.Start(Tusks, DateTime.UnixEpoch);
+        ActiveQuest quest = c.Character.Quests.Start(Tusks, DateTime.UnixEpoch);
         c.Character.Quests.SetProgress(quest, TusksCollect, 1);
 
         Tick(w, c);

@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.World.Repositories;
 
@@ -16,7 +17,7 @@ public class MapChunkPlacementRepository(IDbContextFactory<WorldDbContext> conte
 {
     public async Task<IReadOnlyList<MapChunkPlacement>> FindByMapAsync(MapTemplateId mapId, CancellationToken ct = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(ct);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(ct);
 
         return await context.MapChunkPlacements
             .AsNoTracking()
@@ -30,16 +31,16 @@ public class MapChunkPlacementRepository(IDbContextFactory<WorldDbContext> conte
         CancellationToken ct = default)
     {
         // Both saves are in this one method, so the context created here spans the transaction.
-        await using var context = await contextFactory.CreateDbContextAsync(ct);
-        await using var tx = await context.Database.BeginTransactionAsync(ct);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(ct);
+        await using IDbContextTransaction tx = await context.Database.BeginTransactionAsync(ct);
 
-        var existing = await context.MapChunkPlacements
+        List<MapChunkPlacement> existing = await context.MapChunkPlacements
             .Where(p => p.MapTemplateId == mapId)
             .ToListAsync(ct);
         context.MapChunkPlacements.RemoveRange(existing);
         await context.SaveChangesAsync(ct);
 
-        foreach (var placement in placements)
+        foreach (MapChunkPlacement placement in placements)
         {
             context.TrackForInsert(placement);
         }

@@ -14,7 +14,7 @@ namespace Avalon.Api.UnitTests.Templates;
 public class TemplateReloadSignalShould
 {
     private const ushort World = 7;
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan s_timeout = TimeSpan.FromSeconds(10);
 
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly FakeTimeProvider _time = new();
@@ -43,7 +43,7 @@ public class TemplateReloadSignalShould
     }
 
     private RedisTemplateReloadSignal Sut() => new(_cache,
-        Options.Create(new TemplateEditingOptions { EditableWorlds = [World], ReloadTimeout = Timeout }),
+        Options.Create(new TemplateEditingOptions { EditableWorlds = [World], ReloadTimeout = s_timeout }),
         _time, NullLogger<RedisTemplateReloadSignal>.Instance);
 
     private static WorldId Id => new(World);
@@ -67,7 +67,7 @@ public class TemplateReloadSignalShould
     }
 
     private void Answer(Guid requestId, params ReloadOutcomeMessage[] outcomes) =>
-        _handlers[0](CacheKeys.WorldReloadResultChannel(World),
+        _handlers[0](new RedisChannel(CacheKeys.WorldReloadResultChannel(World), RedisChannel.PatternMode.Auto),
             ReloadMessageJson.Serialize(new ReloadResultMessage(requestId, outcomes)));
 
     [Fact]
@@ -93,7 +93,7 @@ public class TemplateReloadSignalShould
         // The world's answer can beat PublishAsync's own completion: the request must already be pending.
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(call =>
         {
-            var request = JsonSerializer.Deserialize<ReloadRequestMessage>(call.ArgAt<string>(1), ReloadMessageJson.Options)!;
+            ReloadRequestMessage request = JsonSerializer.Deserialize<ReloadRequestMessage>(call.ArgAt<string>(1), ReloadMessageJson.Options)!;
             Answer(request.RequestId, new ReloadOutcomeMessage("Items", true, "instant"));
             return Task.CompletedTask;
         });
@@ -118,7 +118,7 @@ public class TemplateReloadSignalShould
         Assert.Contains("\"requestId\":", raw, StringComparison.Ordinal);
         Assert.Contains("\"areas\":[\"Items\"]", raw, StringComparison.Ordinal);
 
-        _time.Advance(Timeout);
+        _time.Advance(s_timeout);
         await pending;
     }
 
@@ -163,7 +163,7 @@ public class TemplateReloadSignalShould
         await Task.Delay(50);
         Assert.False(pending.IsCompleted);
 
-        _time.Advance(Timeout);
+        _time.Advance(s_timeout);
 
         TemplateReloadResult result = await pending;
         Assert.Equal(TemplateReloadResult.Pending, result.Status);
@@ -177,7 +177,7 @@ public class TemplateReloadSignalShould
         Task<TemplateReloadResult> pending = sut.RequestAsync(Id, TemplateReloadArea.Items, CancellationToken.None);
         ReloadRequestMessage request = await NextPublishedAsync(0);
 
-        _time.Advance(Timeout - TimeSpan.FromMilliseconds(1));
+        _time.Advance(s_timeout - TimeSpan.FromMilliseconds(1));
         await Task.Delay(50);
         Assert.False(pending.IsCompleted);
 
@@ -191,7 +191,7 @@ public class TemplateReloadSignalShould
         RedisTemplateReloadSignal sut = Sut();
         Task<TemplateReloadResult> pending = sut.RequestAsync(Id, TemplateReloadArea.Items, CancellationToken.None);
         ReloadRequestMessage request = await NextPublishedAsync(0);
-        _time.Advance(Timeout);
+        _time.Advance(s_timeout);
         Assert.Equal(TemplateReloadResult.Pending, (await pending).Status);
 
         // The entry is gone: a late answer is ignored and does not throw into the Redis callback.

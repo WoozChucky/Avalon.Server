@@ -1,9 +1,7 @@
 using Avalon.Network.Packets.Generic;
-using Avalon.World;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 

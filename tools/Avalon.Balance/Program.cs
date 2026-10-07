@@ -13,7 +13,7 @@ using Avalon.World.Public.Enums;
 
 try
 {
-    CliOptions options = CliOptions.Parse(args);
+    var options = CliOptions.Parse(args);
     if (options.Help)
     {
         Console.WriteLine("Usage: Avalon.Balance [--class C] [--scenario ID] [--runs N] [--seed N] [--overrides FILE] [--out DIR]");
@@ -83,7 +83,9 @@ static string Commit(string root)
     {
         using var git = Process.Start(new ProcessStartInfo("git", "rev-parse --short HEAD")
         {
-            WorkingDirectory = root, RedirectStandardOutput = true, UseShellExecute = false,
+            WorkingDirectory = root,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
         });
         if (git is null) return "unknown";
         string sha = git.StandardOutput.ReadToEnd().Trim();

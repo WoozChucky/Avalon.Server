@@ -51,7 +51,9 @@ public static class CombatRules
                 target.CurrentPower = 0;
         }
         else if (target.PowerType == PowerType.Fury)
+        {
             target.GainPower(Fury.FromDamageTaken(lost, before, target.Health, Fury.DefaultFromDamageTaken));
+        }
 
         return lost;
     }

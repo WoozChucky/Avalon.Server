@@ -3,7 +3,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Exporter;
 using Avalon.World.Public.Enums;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -34,7 +33,7 @@ public class ItemCatalogShould
     [Fact]
     public void Render_An_Empty_Catalog_As_An_Empty_Array()
     {
-        using JsonDocument document = JsonDocument.Parse(ItemCatalog.Render([]));
+        using var document = JsonDocument.Parse(ItemCatalog.Render([]));
 
         Assert.Empty(document.RootElement.GetProperty("items").EnumerateArray());
     }
@@ -48,7 +47,7 @@ public class ItemCatalogShould
     [Fact]
     public void Render_A_Null_Name_As_An_Empty_String_Never_Omitted()
     {
-        using JsonDocument document = JsonDocument.Parse(ItemCatalog.Render([Template(1, null)]));
+        using var document = JsonDocument.Parse(ItemCatalog.Render([Template(1, null)]));
 
         JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
         Assert.True(item.TryGetProperty("name", out JsonElement name));
@@ -60,7 +59,7 @@ public class ItemCatalogShould
     public void Render_Rows_In_Id_Order_So_A_Diff_Reads()
     {
         string json = ItemCatalog.Render([Template(30, "c"), Template(10, "a"), Template(20, "b")]);
-        using JsonDocument document = JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json);
 
         Assert.Equal(
             [10L, 20L, 30L],
@@ -77,7 +76,7 @@ public class ItemCatalogShould
     [Fact]
     public void Render_The_Id_As_A_Bare_Number_Not_A_Wrapped_Object()
     {
-        using JsonDocument document = JsonDocument.Parse(ItemCatalog.Render([Template(7, "x")]));
+        using var document = JsonDocument.Parse(ItemCatalog.Render([Template(7, "x")]));
 
         JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
         JsonElement id = item.GetProperty("id");
@@ -101,7 +100,7 @@ public class ItemCatalogShould
         template.StatType1 = StatType.Strength;
         template.StatValue1 = 7;
 
-        using JsonDocument document = JsonDocument.Parse(ItemCatalog.Render([template]));
+        using var document = JsonDocument.Parse(ItemCatalog.Render([template]));
         JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
 
         Assert.Equal(4u, item.GetProperty("damageMin1").GetUInt32());
@@ -119,7 +118,7 @@ public class ItemCatalogShould
     [Fact]
     public void Omit_Unset_Optional_Fields_Rather_Than_Writing_Null()
     {
-        using JsonDocument document = JsonDocument.Parse(ItemCatalog.Render([Template(1, "x")]));
+        using var document = JsonDocument.Parse(ItemCatalog.Render([Template(1, "x")]));
         JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
 
         Assert.False(item.TryGetProperty("slot", out _));
@@ -141,7 +140,7 @@ public class ItemCatalogShould
         ItemTemplate template = Template(1, "x");
         template.AllowedClasses = [CharacterClass.Warrior, CharacterClass.Healer];
 
-        using JsonDocument document = JsonDocument.Parse(ItemCatalog.Render([template]));
+        using var document = JsonDocument.Parse(ItemCatalog.Render([template]));
         JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
         JsonElement allowedClasses = item.GetProperty("allowedClasses");
 
@@ -191,7 +190,7 @@ public class ItemCatalogConnectionShould
 
     // The test assembly declares no UserSecretsId, so a developer's own user-secrets for the World
     // database project cannot decide these tests; production reads that project's.
-    private static readonly System.Reflection.Assembly NoUserSecrets = typeof(ItemCatalogConnectionShould).Assembly;
+    private static readonly System.Reflection.Assembly s_noUserSecrets = typeof(ItemCatalogConnectionShould).Assembly;
 
     private static void InWorkingDirectoryWithAppsettings(string? variable, Action body)
     {
@@ -220,7 +219,7 @@ public class ItemCatalogConnectionShould
     public void Not_Read_An_Appsettings_File_In_The_Working_Directory() =>
         InWorkingDirectoryWithAppsettings(variable: null, () =>
         {
-            string? connectionString = ItemCatalog.ConnectionString(NoUserSecrets);
+            string? connectionString = ItemCatalog.ConnectionString(s_noUserSecrets);
 
             Assert.Null(connectionString);
             string? reason = ItemCatalog.ReadinessFor(connectionString);
@@ -232,7 +231,7 @@ public class ItemCatalogConnectionShould
     public void Use_The_Connection_String_The_Environment_Names() =>
         InWorkingDirectoryWithAppsettings(FromEnvironment, () =>
         {
-            string? connectionString = ItemCatalog.ConnectionString(NoUserSecrets);
+            string? connectionString = ItemCatalog.ConnectionString(s_noUserSecrets);
 
             Assert.Equal(FromEnvironment, connectionString);
             Assert.Null(ItemCatalog.ReadinessFor(connectionString));
@@ -241,5 +240,5 @@ public class ItemCatalogConnectionShould
     [Fact]
     public void Treat_A_Blank_Environment_Value_As_Not_Configured() =>
         InWorkingDirectoryWithAppsettings("   ", () =>
-            Assert.Null(ItemCatalog.ConnectionString(NoUserSecrets)));
+            Assert.Null(ItemCatalog.ConnectionString(s_noUserSecrets)));
 }

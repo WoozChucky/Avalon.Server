@@ -87,7 +87,7 @@ public class SimplePriorityQueueShould
         var queue = new SimplePriorityQueue<string, int>();
         queue.Enqueue("item", 1);
 
-        var result = queue.TryDequeue(out var dequeued);
+        bool result = queue.TryDequeue(out string? dequeued);
 
         Assert.True(result);
         Assert.Equal("item", dequeued);
@@ -98,7 +98,7 @@ public class SimplePriorityQueueShould
     {
         var queue = new SimplePriorityQueue<string, int>();
 
-        var result = queue.TryDequeue(out var dequeued);
+        bool result = queue.TryDequeue(out string? dequeued);
 
         Assert.False(result);
         Assert.Null(dequeued);
@@ -111,7 +111,7 @@ public class SimplePriorityQueueShould
         queue.Enqueue("a", 5);
         queue.Enqueue("b", 1);
 
-        var first = queue.First;
+        string first = queue.First;
 
         Assert.Equal("b", first);
         Assert.Equal(2, queue.Count);
@@ -184,7 +184,7 @@ public class SimplePriorityQueueShould
         queue.Enqueue("a", 5);
         queue.Enqueue("b", 1);
 
-        var found = queue.TryFirst(out var first);
+        bool found = queue.TryFirst(out string? first);
 
         Assert.True(found);
         Assert.Equal("b", first);
@@ -196,7 +196,7 @@ public class SimplePriorityQueueShould
     {
         var queue = new SimplePriorityQueue<string, int>();
 
-        var found = queue.TryFirst(out var first);
+        bool found = queue.TryFirst(out string? first);
 
         Assert.False(found);
         Assert.Null(first);

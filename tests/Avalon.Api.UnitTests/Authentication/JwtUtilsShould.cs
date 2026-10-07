@@ -11,7 +11,7 @@ namespace Avalon.Api.UnitTests.Authentication;
 
 public class JwtUtilsShould
 {
-    private static readonly AuthenticationConfig Config = new()
+    private static readonly AuthenticationConfig s_config = new()
     {
         IssuerSigningKey = new string('k', 64),
         Issuer = "test",
@@ -46,10 +46,10 @@ public class JwtUtilsShould
     [Fact]
     public void EmitPlayerGroupSidClaim_WhenAccountHasPlayerFlagOnly()
     {
-        var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
-        var token = sut.GenerateJwtToken(MakeAccount(AccountAccessLevel.Player));
+        var sut = new JwtUtils(s_config, JwtSigningKey.Create(s_config));
+        string token = sut.GenerateJwtToken(MakeAccount(AccountAccessLevel.Player));
 
-        var groupSids = ReadGroupSids(token);
+        string[] groupSids = ReadGroupSids(token);
 
         Assert.Contains("Player", groupSids);
     }
@@ -57,26 +57,26 @@ public class JwtUtilsShould
     [Fact]
     public void EmitAllMatchingGroupSidClaims_WhenAccountHasMultipleFlags()
     {
-        var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
-        var token = sut.GenerateJwtToken(MakeAccount(
+        var sut = new JwtUtils(s_config, JwtSigningKey.Create(s_config));
+        string token = sut.GenerateJwtToken(MakeAccount(
             AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
 
-        var groupSids = ReadGroupSids(token);
+        string[] groupSids = ReadGroupSids(token);
 
-        Assert.Contains("Player",     groupSids);
+        Assert.Contains("Player", groupSids);
         Assert.Contains("GameMaster", groupSids);
-        Assert.Contains("Admin",      groupSids);
+        Assert.Contains("Admin", groupSids);
     }
 
     [Fact]
     public void EmitLauncherFamilyOnlyForLauncherToken()
     {
-        var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
-        var account = MakeAccount(AccountAccessLevel.Player);
+        var sut = new JwtUtils(s_config, JwtSigningKey.Create(s_config));
+        Account account = MakeAccount(AccountAccessLevel.Player);
         var familyId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
 
-        var website = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateJwtToken(account));
-        var launcher = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateLauncherJwtToken(account, familyId));
+        JwtSecurityToken website = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateJwtToken(account));
+        JwtSecurityToken launcher = new JwtSecurityTokenHandler().ReadJwtToken(sut.GenerateLauncherJwtToken(account, familyId));
 
         Assert.DoesNotContain(website.Claims, claim => claim.Type == JwtUtils.LauncherFamilyClaim);
         Assert.Equal(familyId.ToString(), launcher.Claims.Single(claim => claim.Type == JwtUtils.LauncherFamilyClaim).Value);

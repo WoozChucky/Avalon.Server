@@ -5,7 +5,6 @@ using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -51,9 +50,15 @@ public class ChunkGroupGenerationShould
 
     private static ProceduralMapConfig Config(int min, int max, bool boss) => new()
     {
-        MapTemplateId = new MapTemplateId(20), ChunkPoolId = new ChunkPoolId(1), SpawnTableId = new SpawnTableId(1),
-        MainPathMin = (ushort)min, MainPathMax = (ushort)max, BranchChance = 0.5f, BranchMaxDepth = 2,
-        HasBoss = boss, BackPortalTargetMapId = 1,
+        MapTemplateId = new MapTemplateId(20),
+        ChunkPoolId = new ChunkPoolId(1),
+        SpawnTableId = new SpawnTableId(1),
+        MainPathMin = (ushort)min,
+        MainPathMax = (ushort)max,
+        BranchChance = 0.5f,
+        BranchMaxDepth = 2,
+        HasBoss = boss,
+        BackPortalTargetMapId = 1,
     };
 
     private static ProceduralLayoutGenerator Generator() => new(NullLoggerFactory.Instance);
@@ -78,7 +83,7 @@ public class ChunkGroupGenerationShould
         for (int seed = 0; seed < 400; seed++)
         {
             if (TryGenerate(seed) is not { } layout) { failed++; continue; }
-            List<PlacedChunk> members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
+            var members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
             if (members.Count == 0) continue;
             placed++;
 
@@ -107,7 +112,7 @@ public class ChunkGroupGenerationShould
         for (int seed = 0; seed < 200; seed++)
         {
             if (TryGenerate(seed) is not { } layout) { failed++; continue; }
-            List<PlacedChunk> members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
+            var members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
             if (members.Count == 0) continue;
             placed++;
 
@@ -150,7 +155,7 @@ public class ChunkGroupGenerationShould
             try { layout = Generator().Generate(config, Pool(), seed, [Clearing()]); }
             catch (ProceduralGenerationFailedException) { failed++; continue; }
 
-            List<PlacedChunk> members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
+            var members = layout.Chunks.Where(c => c.Group == "clearing").ToList();
             if (members.Count == 0) continue;
             placed++;
             Assert.True(members.Min(m => m.Depth) >= 5, $"seed {seed}: the clearing starts at step {members.Min(m => m.Depth)}");
@@ -201,7 +206,7 @@ public class ChunkGroupGenerationShould
     private static ILoggerFactory FactoryFor(out CreatureAbilitiesShould.ListLogger logs)
     {
         logs = new CreatureAbilitiesShould.ListLogger();
-        var factory = Substitute.For<ILoggerFactory>();
+        ILoggerFactory factory = Substitute.For<ILoggerFactory>();
         factory.CreateLogger(Arg.Any<string>()).Returns(logs);
         return factory;
     }
@@ -259,7 +264,7 @@ public class ChunkGroupGenerationShould
     {
         ProceduralMapConfig config = Config(10, 16, boss: true);
         config.BranchMaxDepth = 3;
-        Dictionary<ChunkTemplateId, string> names = ForestLikePool().ToDictionary(m => m.Template.Id, m => m.Template.Name);
+        var names = ForestLikePool().ToDictionary(m => m.Template.Id, m => m.Template.Name);
 
         ChunkLayout layout = Generator().Generate(config, ForestLikePool(), seed);
 

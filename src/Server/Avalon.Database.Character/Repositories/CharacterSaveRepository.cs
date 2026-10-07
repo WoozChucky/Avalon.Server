@@ -1,5 +1,5 @@
-using Avalon.Common.ValueObjects;
 using Avalon.Common.GameAuth;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
@@ -71,7 +71,7 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
     public Task WriteAsync(IReadOnlyList<CharacterSaveBatch> batches, CancellationToken cancellationToken = default) =>
         transactions.ExecuteAsync(async (context, token) =>
         {
-            var guards = await GuardAsync(context, batches, token);
+            AccountGameplayFence[] guards = await GuardAsync(context, batches, token);
             context.ValidatedGameplaySave = true;
             // Every delete, for every batch, before any upsert: a row one batch removes and another
             // adds (a trade) must end up present, whichever order the batches came in.
@@ -121,8 +121,8 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
                 if (batch.UpsertItems.Count > 0)
                 {
                     // One query per batch for which of its items already exist, not one per item.
-                    List<ItemInstanceId> ids = batch.UpsertItems.Select(i => i.Id).ToList();
-                    HashSet<ItemInstanceId> existingItems = (await context.ItemInstances
+                    var ids = batch.UpsertItems.Select(i => i.Id).ToList();
+                    var existingItems = (await context.ItemInstances
                             .Where(i => ids.Contains(i.Id))
                             .Select(i => i.Id)
                             .ToListAsync(token))
@@ -178,8 +178,8 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
                     if (write.Completed.Count > 0)
                     {
                         CharacterId who = batch.Row.Id;
-                        List<uint> ids = write.Completed.Select(c => c.QuestId).ToList();
-                        HashSet<uint> stored = (await context.CharacterCompletedQuests
+                        var ids = write.Completed.Select(c => c.QuestId).ToList();
+                        var stored = (await context.CharacterCompletedQuests
                                 .Where(c => c.CharacterId == who && ids.Contains(c.QuestId))
                                 .Select(c => c.QuestId)
                                 .ToListAsync(token))
@@ -210,7 +210,7 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
         if (ignores.Rewrite.Count == 0)
             return;
 
-        List<CharacterId> rewrite = ignores.Rewrite.ToList();
+        var rewrite = ignores.Rewrite.ToList();
         await context.CharacterIgnores
             .Where(i => i.CharacterId == owner && rewrite.Contains(i.IgnoredCharacterId))
             .ExecuteDeleteAsync(token);

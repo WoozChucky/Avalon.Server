@@ -6,7 +6,6 @@ using Avalon.World.Maps.Navigation;
 using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -51,7 +50,7 @@ internal static class GeneratedChunkBake
         File.WriteAllText(path, sb.ToString());
         try
         {
-            var result = new TileNavMeshBuilder().Build(RcSampleInputGeomProvider.LoadFile(path), NavmeshBuildSettings.Create());
+            NavMeshBuildResult result = new TileNavMeshBuilder().Build(RcSampleInputGeomProvider.LoadFile(path), NavmeshBuildSettings.Create());
             Assert.NotNull(result?.NavMesh);
             var navigator = new MapNavigator(NullLoggerFactory.Instance);
             navigator.LoadFromNavMesh(result!.NavMesh);

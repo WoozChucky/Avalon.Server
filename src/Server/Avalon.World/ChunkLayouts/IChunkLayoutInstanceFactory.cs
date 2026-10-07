@@ -2,7 +2,6 @@ using Avalon.Domain.World;
 using Avalon.World.Instances;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
-using Avalon.World.Public;
 using DotRecast.Detour;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -50,15 +49,15 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
     public async Task<MapInstance> BuildAsync(MapTemplate template, uint? ownerCharacterId, CancellationToken ct,
         PartyId? ownerPartyId = null)
     {
-        var source = _resolver.Resolve(template, out var kind);
-        var layout = await source.BuildAsync(template, ct);
+        IChunkLayoutSource source = _resolver.Resolve(template, out ChunkLayoutSourceKind kind);
+        ChunkLayout layout = await source.BuildAsync(template, ct);
 
         DtNavMesh navMesh = await _navBuilder.BuildAsync(layout, ct);
 
         var navigator = new MapNavigator(_lf);
         navigator.LoadFromNavMesh(navMesh);
 
-        var world = _sp.GetRequiredService<IWorld>();
+        IWorld world = _sp.GetRequiredService<IWorld>();
         var instance = new MapInstance(_lf, _sp, world, template.Id, ownerCharacterId, layout, navigator, layout.Seed,
             template.MapType, ownerPartyId: ownerPartyId);
 

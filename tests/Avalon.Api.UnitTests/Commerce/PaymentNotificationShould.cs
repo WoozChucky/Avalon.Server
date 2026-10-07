@@ -17,9 +17,9 @@ public sealed class PaymentNotificationShould
     [Fact]
     public async Task Signature_verified_before_inbox()
     {
-        var repository = Substitute.For<IPurchaseRepository>();
+        IPurchaseRepository repository = Substitute.For<IPurchaseRepository>();
         var provider = new NotificationProvider { Invalid = true };
-        var service = Service(repository, provider);
+        PaymentNotificationService service = Service(repository, provider);
         Assert.Equal(NotificationAcceptance.Invalid, await service.AcceptAsync("alternate", "payload"u8.ToArray(), new Dictionary<string, string>(), CancellationToken.None));
         await repository.DidNotReceiveWithAnyArgs().AcceptEventAsync(default!, default);
         provider.Invalid = false;
@@ -30,7 +30,7 @@ public sealed class PaymentNotificationShould
     [Fact]
     public async Task External_notification_cannot_request_an_internal_operation_replay()
     {
-        var repository = Substitute.For<IPurchaseRepository>();
+        IPurchaseRepository repository = Substitute.For<IPurchaseRepository>();
         var provider = new NotificationProvider { ResourceKind = "reconciliation" };
         Assert.Equal(NotificationAcceptance.Invalid, await Service(repository, provider).AcceptAsync("alternate", "payload"u8.ToArray(), new Dictionary<string, string>(), CancellationToken.None));
         await repository.DidNotReceiveWithAnyArgs().AcceptEventAsync(default!, default);
@@ -39,7 +39,7 @@ public sealed class PaymentNotificationShould
     [Fact]
     public async Task Database_failure_never_acknowledges_event()
     {
-        var repository = Substitute.For<IPurchaseRepository>();
+        IPurchaseRepository repository = Substitute.For<IPurchaseRepository>();
         repository.AcceptEventAsync(Arg.Any<PaymentEvent>(), Arg.Any<CancellationToken>()).Returns<Task<bool>>(_ => throw new SqliteException("database unavailable", 5));
         await Assert.ThrowsAsync<SqliteException>(() => Service(repository, new()).AcceptAsync("alternate", "payload"u8.ToArray(), new Dictionary<string, string>(), CancellationToken.None));
     }
@@ -47,10 +47,10 @@ public sealed class PaymentNotificationShould
     [Fact]
     public async Task Duplicate_valid_event_is_acknowledged_and_oversized_body_never_parsed()
     {
-        var repository = Substitute.For<IPurchaseRepository>();
+        IPurchaseRepository repository = Substitute.For<IPurchaseRepository>();
         repository.AcceptEventAsync(Arg.Any<PaymentEvent>(), Arg.Any<CancellationToken>()).Returns(false);
         var provider = new NotificationProvider();
-        var service = Service(repository, provider);
+        PaymentNotificationService service = Service(repository, provider);
         Assert.Equal(NotificationAcceptance.Accepted, await service.AcceptAsync("alternate", "payload"u8.ToArray(), new Dictionary<string, string>(), CancellationToken.None));
         Assert.Equal(NotificationAcceptance.Invalid, await service.AcceptAsync("alternate", new byte[CommercePolicy.MaximumNotificationBytes + 1], new Dictionary<string, string>(), CancellationToken.None));
         Assert.Equal(1, provider.Calls);
@@ -59,7 +59,7 @@ public sealed class PaymentNotificationShould
     [Fact]
     public void Route_is_anonymous_bounded_and_does_not_use_browser_authority()
     {
-        var type = typeof(PaymentNotificationsController);
+        Type type = typeof(PaymentNotificationsController);
         Assert.NotNull(type.GetCustomAttribute<AllowAnonymousAttribute>());
         Assert.Equal("payments/notifications", type.GetCustomAttribute<RouteAttribute>()!.Template);
         Assert.NotNull(type.GetCustomAttribute<RequestSizeLimitAttribute>());

@@ -14,7 +14,7 @@ public class ChunkPoolRepository(IDbContextFactory<WorldDbContext> contextFactor
 {
     public async Task<IReadOnlyList<ChunkPool>> FindAllWithMembershipsAsync(CancellationToken ct = default)
     {
-        await using var context = await CreateContextAsync(ct);
+        await using WorldDbContext context = await CreateContextAsync(ct);
 
         return await context.ChunkPools.AsNoTracking()
             .Include(p => p.Memberships)

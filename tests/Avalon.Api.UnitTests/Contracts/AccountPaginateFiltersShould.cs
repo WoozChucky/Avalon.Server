@@ -11,9 +11,13 @@ namespace Avalon.Api.UnitTests.Contracts;
 /// </summary>
 public class AccountPaginateFiltersShould
 {
-    private static readonly Account Stored = new()
+    private static readonly Account s_stored = new()
     {
-        Id = new AccountId(7), Username = "PLAYER", Email = "player@avalon.monster", Salt = [1], Verifier = [2],
+        Id = new AccountId(7),
+        Username = "PLAYER",
+        Email = "player@avalon.monster",
+        Salt = [1],
+        Verifier = [2],
         JoinDate = DateTime.UtcNow,
     };
 
@@ -21,9 +25,9 @@ public class AccountPaginateFiltersShould
     [InlineData("player@avalon.monster")]
     [InlineData(" Player@Avalon.MONSTER ")]
     public void Match_an_email_in_any_case(string email) =>
-        Assert.True(new AccountPaginateFilters { Email = email }.GetFilter().Compile()(Stored));
+        Assert.True(new AccountPaginateFilters { Email = email }.GetFilter().Compile()(s_stored));
 
     [Fact]
     public void Not_match_another_email() =>
-        Assert.False(new AccountPaginateFilters { Email = "other@avalon.monster" }.GetFilter().Compile()(Stored));
+        Assert.False(new AccountPaginateFilters { Email = "other@avalon.monster" }.GetFilter().Compile()(s_stored));
 }

@@ -1,7 +1,3 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
 using Avalon.Common.Cryptography;
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Crypto;
@@ -39,7 +35,7 @@ public class SharedSecretShould
 
     private static AsymmetricCipherKeyPair GeneratePair(SecureRandom random)
     {
-        var generator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
+        IAsymmetricCipherKeyPairGenerator generator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
         generator.Init(new ECKeyGenerationParameters(SecObjectIdentifiers.SecP256r1, random));
         return generator.GenerateKeyPair();
     }

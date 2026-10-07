@@ -68,7 +68,9 @@ public sealed class ItemUseService(
         if (!SlotRef.TryParse(container, slot, out SlotRef at) || at.Container != InventoryType.Bag
             || !InventoryMove.IsUsable(character, at)
             || !character.Container(InventoryType.Bag).TryGet(at.Slot, out InventoryItem item))
+        {
             return ItemUseAnswer.Of(ItemUseResult.NotFound);
+        }
 
         if (FindTemplate(item.TemplateId) is not { } template)
             return ItemUseAnswer.Of(ItemUseResult.NotUsable);
@@ -175,15 +177,20 @@ public sealed class ItemUseService(
             if (use.Character.IsDead
                 || !use.Character.Container(InventoryType.Bag).TryGet(use.Item.Slot, out InventoryItem now)
                 || !now.InstanceId.Equals(use.Item.InstanceId))
+            {
                 return ItemUseAnswer.Of(ItemUseResult.Interrupted);
+            }
 
             return Complete(use with { Item = now }, recheck: true);
         }
         catch (Exception e)
         {
             if (!Throttled("complete", out int suppressed))
+            {
                 logger.LogError(e, "Completing the item use {RequestId} of {Character} threw. {Suppressed} earlier throws were not logged",
                     use.RequestId, use.Character.Name, suppressed);
+            }
+
             return ItemUseAnswer.Of(ItemUseResult.InternalError);
         }
     }
@@ -210,8 +217,10 @@ public sealed class ItemUseService(
         {
             InventoryRemoveResult removed = tools.Economy.InventoryOf(use.Character).TryRemove(use.Item.InstanceId, context.Consumed);
             if (removed != InventoryRemoveResult.Ok)
+            {
                 logger.LogError("Consuming {Count} of item {Item} after its use by {Character} failed: {Result}",
                     context.Consumed, use.Item.InstanceId, use.Character.Name, removed);
+            }
         }
 
         return ItemUseAnswer.Of(ItemUseResult.Ok);
@@ -253,9 +262,11 @@ public sealed class ItemUseService(
     {
         string script = use.Script.GetType().Name;
         if (!Throttled($"{script}.{hook}", out int suppressed))
+        {
             logger.LogError(e, "Item script {Script} {Hook} threw for {Character} using item template {Item}. " +
                                "{Suppressed} earlier throws of it were not logged",
                 script, hook, use.Character.Name, use.Template.Id.Value, suppressed);
+        }
     }
 
     /// <summary>
@@ -295,9 +306,12 @@ public sealed class ItemUseService(
         if (type is null)
         {
             if (!Throttled($"missing:{template.UseScript}", out int suppressed))
+            {
                 logger.LogError("Item template {Item} names item script {Script}, and no ItemScript is called that. " +
                                 "{Suppressed} earlier uses naming it were not logged",
                     template.Id.Value, template.UseScript, suppressed);
+            }
+
             return null;
         }
 
@@ -312,9 +326,12 @@ public sealed class ItemUseService(
         catch (Exception e)
         {
             if (!Throttled($"unbuildable:{type.Name}", out int suppressed))
+            {
                 logger.LogError(e, "Item script {Script} cannot be built; item template {Item} cannot be used. " +
                                    "{Suppressed} earlier failures of it were not logged",
                     type.Name, template.Id.Value, suppressed);
+            }
+
             built = null;
         }
 

@@ -17,14 +17,14 @@ public sealed class GameAdmissionControllerShould
     [Fact]
     public void Reject_body_selected_account_session_fence_and_server_identity()
     {
-        var credential = new string('A', 43);
+        string credential = new string('A', 43);
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<GameJoinRequest>("{\"GameContextCredential\":\"" + credential + "\",\"WorldId\":1,\"AccountId\":\"1\"}"));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<JoinRedemptionRequest>("{\"JoinTicket\":\"" + credential + "\",\"ServerId\":\"world-other\"}"));
     }
     [Fact]
     public void Require_the_dedicated_workload_scheme_and_bound_noncacheable_requests()
     {
-        var type = typeof(InternalGameAdmissionController);
+        Type type = typeof(InternalGameAdmissionController);
         Assert.Equal(GameServerAuthHandler.Scheme, type.GetCustomAttribute<AuthorizeAttribute>()!.AuthenticationSchemes);
         Assert.Null(type.GetCustomAttribute<AllowAnonymousAttribute>());
         Assert.True(type.GetCustomAttribute<ResponseCacheAttribute>()!.NoStore);

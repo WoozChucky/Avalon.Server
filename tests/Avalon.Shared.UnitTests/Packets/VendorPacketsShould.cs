@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Vendor;
@@ -118,7 +116,9 @@ public class VendorPacketsShould
         Assert.Equal("1806", Hex(new VendorBuybackDto { Price = 6 }));
         VendorBuybackDto read = RoundTrip(new VendorBuybackDto
         {
-            Index = 2, Price = 30, Item = new ItemSlotDto { Container = 1, Slot = 4, ItemTemplateId = 701, Count = 1, Durability = 42 },
+            Index = 2,
+            Price = 30,
+            Item = new ItemSlotDto { Container = 1, Slot = 4, ItemTemplateId = 701, Count = 1, Durability = 42 },
         });
         Assert.Equal((2u, 30UL, 701UL, 42u), (read.Index, read.Price, read.Item!.ItemTemplateId, read.Item.Durability));
     }

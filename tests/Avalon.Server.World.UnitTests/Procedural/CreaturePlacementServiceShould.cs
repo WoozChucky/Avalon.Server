@@ -2,8 +2,8 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
-using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
@@ -16,11 +16,11 @@ public class CreaturePlacementServiceShould
     [Fact]
     public async Task Spawn_creature_for_each_spawn_slot_using_SpawnTable_weights()
     {
-        var creature = Substitute.For<ICreature>();
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreature creature = Substitute.For<ICreature>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(creature);
 
-        var library = Substitute.For<IChunkLibrary>();
+        IChunkLibrary library = Substitute.For<IChunkLibrary>();
         var chunkTpl = new ChunkTemplate
         {
             Id = new ChunkTemplateId(1),
@@ -31,7 +31,7 @@ public class CreaturePlacementServiceShould
         };
         library.GetById(new ChunkTemplateId(1)).Returns(chunkTpl);
 
-        var spawnTableRepo = Substitute.For<ISpawnTableRepository>();
+        ISpawnTableRepository spawnTableRepo = Substitute.For<ISpawnTableRepository>();
         spawnTableRepo.FindByIdAsync(new SpawnTableId(1), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new SpawnTable
             {
@@ -42,7 +42,7 @@ public class CreaturePlacementServiceShould
                 }
             });
 
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         var layout = new ChunkLayout(
             Seed: 1,
             Chunks: new[] { new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero) },
@@ -64,11 +64,11 @@ public class CreaturePlacementServiceShould
     [Fact]
     public async Task Skip_entry_and_empty_slots()
     {
-        var creature = Substitute.For<ICreature>();
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreature creature = Substitute.For<ICreature>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(creature);
 
-        var library = Substitute.For<IChunkLibrary>();
+        IChunkLibrary library = Substitute.For<IChunkLibrary>();
         var chunkTpl = new ChunkTemplate
         {
             Id = new ChunkTemplateId(1),
@@ -80,11 +80,11 @@ public class CreaturePlacementServiceShould
         };
         library.GetById(new ChunkTemplateId(1)).Returns(chunkTpl);
 
-        var spawnTableRepo = Substitute.For<ISpawnTableRepository>();
+        ISpawnTableRepository spawnTableRepo = Substitute.For<ISpawnTableRepository>();
         spawnTableRepo.FindByIdAsync(new SpawnTableId(1), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new SpawnTable { Id = new SpawnTableId(1), Entries = new List<SpawnTableEntry>() });
 
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         var layout = new ChunkLayout(
             Seed: 1,
             Chunks: new[] { new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero) },

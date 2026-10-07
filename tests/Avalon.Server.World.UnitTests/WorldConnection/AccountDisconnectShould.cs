@@ -6,7 +6,6 @@ using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ProtoBuf;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 

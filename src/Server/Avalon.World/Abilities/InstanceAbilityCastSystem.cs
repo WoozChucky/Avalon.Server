@@ -113,8 +113,12 @@ public class InstanceAbilityCastSystem(
         uint castId = TakeCastId();
         _abilityQueue.Add(new AbilityInstance
         {
-            Caster = caster, Ability = ability, Script = script, CastStartPosition = caster.Position,
-            HastePct = haste, CastId = castId,
+            Caster = caster,
+            Ability = ability,
+            Script = script,
+            CastStartPosition = caster.Position,
+            HastePct = haste,
+            CastId = castId,
         });
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.

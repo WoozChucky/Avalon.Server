@@ -1,6 +1,7 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
+using Avalon.Common.ValueObjects;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -25,7 +26,7 @@ public class AccountCharactersController : BaseController
     [ProducesResponseType(typeof(CharacterListDto), StatusCodes.Status200OK)]
     public Task<CharacterListDto> GetAll(CancellationToken ct)
     {
-        var accountId = _authContext.Account?.Id
+        AccountId accountId = _authContext.Account?.Id
             ?? throw new InvalidOperationException("Account not loaded");
 
         return _service.GetAsync(accountId, User.AccessLevel(), ct);

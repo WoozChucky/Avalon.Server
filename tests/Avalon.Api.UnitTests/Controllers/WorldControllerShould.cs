@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Claims;
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
@@ -8,6 +9,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.WorldMaintenance;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
@@ -45,8 +47,8 @@ public class WorldControllerShould
                 Arg.Any<CancellationToken>(), null, SortDirection.Ascending)
             .Returns(new PagedResult<WorldDto>(1, 50, 0, new List<WorldDto>()));
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.List(1, 50, CancellationToken.None);
+        WorldController sut = MakeSut(User(7, AvalonRoles.Player));
+        PagedResult<WorldDto> result = await sut.List(1, 50, CancellationToken.None);
 
         Assert.Equal(0, result.TotalCount);
     }
@@ -56,8 +58,8 @@ public class WorldControllerShould
     {
         _service.GetAsync((ushort)1, Arg.Any<Avalon.Common.Accounts.AccountAccessLevel>(), Arg.Any<CancellationToken>()).Returns((WorldDto?)null);
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        WorldController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -68,8 +70,8 @@ public class WorldControllerShould
         _service.GetAsync((ushort)1, Arg.Any<Avalon.Common.Accounts.AccountAccessLevel>(), Arg.Any<CancellationToken>())
             .Returns(new WorldDto { Id = 1, Name = "n" });
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        WorldController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
     }
@@ -81,8 +83,8 @@ public class WorldControllerShould
         _service.CreateAsync(request, Arg.Any<CancellationToken>())
             .Returns(new WorldDto { Id = 42, Name = "x" });
 
-        var sut = MakeSut(User(99, AvalonRoles.Admin));
-        var result = await sut.Create(request, CancellationToken.None);
+        WorldController sut = MakeSut(User(99, AvalonRoles.Admin));
+        IActionResult result = await sut.Create(request, CancellationToken.None);
 
         Assert.IsType<CreatedAtActionResult>(result);
     }
@@ -93,8 +95,8 @@ public class WorldControllerShould
         _service.UpdateAsync((ushort)1, Arg.Any<UpdateWorldRequest>(), Arg.Any<CancellationToken>())
             .Returns((WorldDto?)null);
 
-        var sut = MakeSut(User(99, AvalonRoles.Admin));
-        var result = await sut.Update(1, new UpdateWorldRequest(), CancellationToken.None);
+        WorldController sut = MakeSut(User(99, AvalonRoles.Admin));
+        IActionResult result = await sut.Update(1, new UpdateWorldRequest(), CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -105,8 +107,8 @@ public class WorldControllerShould
         _service.UpdateAsync((ushort)1, Arg.Any<UpdateWorldRequest>(), Arg.Any<CancellationToken>())
             .Returns(new WorldDto { Id = 1, Name = "updated" });
 
-        var sut = MakeSut(User(99, AvalonRoles.Admin));
-        var result = await sut.Update(1, new UpdateWorldRequest { Name = "updated" }, CancellationToken.None);
+        WorldController sut = MakeSut(User(99, AvalonRoles.Admin));
+        IActionResult result = await sut.Update(1, new UpdateWorldRequest { Name = "updated" }, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
     }
@@ -114,17 +116,17 @@ public class WorldControllerShould
     [Fact]
     public async Task Maintenance_actions_return_persisted_state_and_validate_grace()
     {
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
         var enabled = new WorldMaintenanceState(true, 7, now.AddMinutes(5));
         _maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>()).Returns(enabled);
         _control.SetAsync(new WorldId(1), true, TimeSpan.FromMinutes(5), Arg.Any<string>(),
             Arg.Any<CancellationToken>()).Returns(enabled);
         _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(true);
-        var sut = MakeSut(User(7, AvalonRoles.Admin));
+        WorldController sut = MakeSut(User(7, AvalonRoles.Admin));
 
-        var read = Assert.IsType<OkObjectResult>(await sut.GetMaintenance(1, CancellationToken.None));
+        OkObjectResult read = Assert.IsType<OkObjectResult>(await sut.GetMaintenance(1, CancellationToken.None));
         Assert.True(Assert.IsType<WorldMaintenanceDto>(read.Value).Ready);
-        var post = Assert.IsType<OkObjectResult>(await sut.EnableMaintenance(1,
+        OkObjectResult post = Assert.IsType<OkObjectResult>(await sut.EnableMaintenance(1,
             new WorldMaintenanceRequest(), CancellationToken.None));
         Assert.Equal(now.AddMinutes(5), Assert.IsType<WorldMaintenanceDto>(post.Value).DeadlineUtc);
         Assert.IsType<BadRequestResult>(await sut.EnableMaintenance(1,
@@ -141,9 +143,9 @@ public class WorldControllerShould
         var disabled = new WorldMaintenanceState(false, 8, null);
         _control.SetAsync(new WorldId(1), false, TimeSpan.FromMinutes(5), Arg.Any<string>(),
             Arg.Any<CancellationToken>()).Returns(disabled);
-        var sut = MakeSut(User(7, AvalonRoles.Admin));
+        WorldController sut = MakeSut(User(7, AvalonRoles.Admin));
 
-        var result = Assert.IsType<OkObjectResult>(await sut.DisableMaintenance(1, CancellationToken.None));
+        OkObjectResult result = Assert.IsType<OkObjectResult>(await sut.DisableMaintenance(1, CancellationToken.None));
 
         Assert.False(Assert.IsType<WorldMaintenanceDto>(result.Value).Enabled);
         await _control.Received(1).SetAsync(new WorldId(1), false, TimeSpan.FromMinutes(5),
@@ -153,7 +155,7 @@ public class WorldControllerShould
     [Fact]
     public async Task Maintenance_missing_world_is_404()
     {
-        var sut = MakeSut(User(7, AvalonRoles.Admin));
+        WorldController sut = MakeSut(User(7, AvalonRoles.Admin));
         Assert.IsType<NotFoundResult>(await sut.GetMaintenance(999, CancellationToken.None));
         Assert.IsType<NotFoundResult>(await sut.EnableMaintenance(999, new WorldMaintenanceRequest(),
             CancellationToken.None));
@@ -166,8 +168,8 @@ public class WorldControllerShould
     [InlineData(nameof(WorldController.DisableMaintenance))]
     public void Maintenance_actions_require_admin_policy(string action)
     {
-        var method = typeof(WorldController).GetMethod(action)!;
-        var attribute = Assert.Single(method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute),
+        MethodInfo method = typeof(WorldController).GetMethod(action)!;
+        AuthorizeAttribute attribute = Assert.Single(method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute),
             false).Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>());
         Assert.Equal(AvalonRoles.Admin, attribute.Policy);
     }

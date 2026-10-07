@@ -14,7 +14,6 @@ using Avalon.World.Public.Units;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Scripts.Creatures;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.World;
@@ -27,8 +26,8 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class ScriptHotReloadCorpseShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
-    private static readonly MapTemplateId TownId = new(1);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly MapTemplateId s_townId = new(1);
 
     /// <summary>Reports the given script types on its first poll, and nothing after.</summary>
     private sealed class OneShotScriptHotReloader(params Type[] types) : IScriptHotReloader
@@ -52,14 +51,14 @@ public class ScriptHotReloadCorpseShould
     /// <summary>A loaded world whose one town instance is <paramref name="instance" />.</summary>
     private static async Task<Avalon.World.World> WorldHolding(MapInstance instance)
     {
-        var mapManager = Substitute.For<IAvalonMapManager>();
-        mapManager.Templates.Returns([new MapTemplate { Id = TownId, MapType = MapType.Town }]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
+        mapManager.Templates.Returns([new MapTemplate { Id = s_townId, MapType = MapType.Town }]);
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(instance);
 
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
             new OneShotScriptHotReloader(typeof(AggroDefendScript)), intervalSeconds: 1, mapManager, factory);
-        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).Published(world);
+        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100).Published(world);
         return world;
     }
 
@@ -67,7 +66,7 @@ public class ScriptHotReloadCorpseShould
     private static void HotReload(Avalon.World.World world)
     {
         world.Update(TimeSpan.FromSeconds(1));
-        world.Update(Tick);
+        world.Update(s_tick);
     }
 
     private static Creature AggroCreature(uint id, Vector3 position) => new()
@@ -131,7 +130,7 @@ public class ScriptHotReloadCorpseShould
     [Fact]
     public async Task Leave_a_corpse_still_with_a_character_inside_its_aggro_range()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci => [ci.ArgAt<Vector3>(1)]);
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         navigator.HasVisibility(default, default).ReturnsForAnyArgs(true);   // the detector sees the character
@@ -149,7 +148,7 @@ public class ScriptHotReloadCorpseShould
         Avalon.World.World world = await WorldHolding(instance);
         HotReload(world);
         for (int i = 0; i < 300; i++)
-            world.Update(Tick);
+            world.Update(s_tick);
 
         Assert.Equal(Vector3.zero, corpse.Position);
         navigator.DidNotReceive().FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>());

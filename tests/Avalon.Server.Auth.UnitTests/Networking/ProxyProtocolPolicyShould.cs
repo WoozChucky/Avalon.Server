@@ -1,8 +1,6 @@
 using System.Net;
 using Avalon.Configuration;
-using Avalon.Hosting.Networking;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 
@@ -56,7 +54,7 @@ public class ProxyProtocolPolicyShould
         HostingConfiguration hosting = new();
         config.GetSection("Hosting").Bind(hosting);
 
-        ProxyProtocolPolicy policy = ProxyProtocolPolicy.From(hosting.ProxyProtocol);
+        var policy = ProxyProtocolPolicy.From(hosting.ProxyProtocol);
 
         Assert.True(policy.IsTrusted(IPAddress.Parse("10.42.0.7")));
         Assert.Equal(TimeSpan.FromSeconds(5), policy.HeaderTimeout);

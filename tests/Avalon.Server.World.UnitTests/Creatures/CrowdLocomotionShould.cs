@@ -11,7 +11,6 @@ using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 
@@ -31,7 +30,7 @@ public class CrowdLocomotionShould
     /// so <c>MapInstanceLocomotionShould</c> can bake a <see cref="CrowdLocomotion" /> over the same
     /// mesh without duplicating this bake.
     /// </summary>
-    internal static readonly Lazy<DtNavMesh> FlatNavMesh = new(BakeFlatGround, isThreadSafe: true);
+    internal static readonly Lazy<DtNavMesh> s_flatNavMesh = new(BakeFlatGround, isThreadSafe: true);
 
     private static DtNavMesh BakeFlatGround()
     {
@@ -47,14 +46,14 @@ public class CrowdLocomotionShould
         int[] faces = [0, 1, 2, 0, 2, 3];
 
         var geom = new RcSampleInputGeomProvider(vertices, faces);
-        var result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
+        NavMeshBuildResult result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
         Assert.NotNull(result?.NavMesh);
         return result!.NavMesh;
     }
 
     private static (CrowdLocomotion Locomotion, DtCrowd Crowd) BuildOverAFlatNavMesh()
     {
-        var locomotion = new CrowdLocomotion(FlatNavMesh.Value, NavmeshBuildSettings.AgentRadius,
+        var locomotion = new CrowdLocomotion(s_flatNavMesh.Value, NavmeshBuildSettings.AgentRadius,
             NullLogger.Instance);
         return (locomotion, CrowdOf(locomotion));
     }
@@ -85,7 +84,7 @@ public class CrowdLocomotionShould
 
     private static ICreature CreatureAt(Vector3 position)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
         creature.Position.Returns(position);
         creature.Speed.Returns(NavmeshBuildSettings.AgentMaxSpeed);
@@ -93,7 +92,7 @@ public class CrowdLocomotionShould
     }
 
     /// <summary>A player's ObjectGuid is a Character guid, distinct from every CreatureAt guid above.</summary>
-    private static readonly ObjectGuid PlayerGuid = new(ObjectType.Character, 500);
+    private static readonly ObjectGuid s_playerGuid = new(ObjectType.Character, 500);
 
     [Fact]
     public void Add_An_Agent_When_A_Creature_Registers()
@@ -229,7 +228,7 @@ public class CrowdLocomotionShould
 
     /// <summary>
     /// The tolerance this class advertises has to actually describe its own arrival decision — the
-    /// same value <see cref="Arrived" /> in the production class uses internally, not a
+    /// same value <c>CrowdLocomotion.Arrived</c> in the production class uses internally, not a
     /// coincidentally similar one — or a caller relying on it (CreatureCombatScript's in-range
     /// check) would under-trust how close "arrived" really means and never consider itself close
     /// enough. Registers with the default production agent radius (0.6f, larger than the 0.3f
@@ -383,7 +382,7 @@ public class CrowdLocomotionShould
     {
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
 
-        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+        locomotion.SyncPlayer(s_playerGuid, new Vector3(1f, 0f, 1f));
 
         DtCrowdAgent agent = Assert.Single(crowd.GetActiveAgents());
         Assert.Equal(0f, agent.option.maxSpeed);
@@ -398,10 +397,10 @@ public class CrowdLocomotionShould
     public void Overwrite_A_Player_Agents_Position_Rather_Than_Reading_It_Back()
     {
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+        locomotion.SyncPlayer(s_playerGuid, new Vector3(1f, 0f, 1f));
 
         locomotion.Update(TimeSpan.FromSeconds(0.1));
-        locomotion.SyncPlayer(PlayerGuid, new Vector3(5f, 0f, 5f));
+        locomotion.SyncPlayer(s_playerGuid, new Vector3(5f, 0f, 5f));
 
         DtCrowdAgent agent = Assert.Single(crowd.GetActiveAgents());
         Assert.InRange(agent.npos.X, 4.9f, 5.1f);
@@ -411,9 +410,9 @@ public class CrowdLocomotionShould
     public void Drop_A_Player_Agent_When_The_Player_Leaves()
     {
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+        locomotion.SyncPlayer(s_playerGuid, new Vector3(1f, 0f, 1f));
 
-        locomotion.RemovePlayer(PlayerGuid);
+        locomotion.RemovePlayer(s_playerGuid);
 
         Assert.Empty(crowd.GetActiveAgents());
     }
@@ -423,10 +422,10 @@ public class CrowdLocomotionShould
     public void Tolerate_Removing_A_Player_Twice()
     {
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+        locomotion.SyncPlayer(s_playerGuid, new Vector3(1f, 0f, 1f));
 
-        locomotion.RemovePlayer(PlayerGuid);
-        locomotion.RemovePlayer(PlayerGuid);
+        locomotion.RemovePlayer(s_playerGuid);
+        locomotion.RemovePlayer(s_playerGuid);
 
         Assert.Empty(crowd.GetActiveAgents());
     }
@@ -437,7 +436,7 @@ public class CrowdLocomotionShould
     {
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
 
-        locomotion.RemovePlayer(PlayerGuid);
+        locomotion.RemovePlayer(s_playerGuid);
 
         Assert.Empty(crowd.GetActiveAgents());
     }
@@ -459,11 +458,11 @@ public class CrowdLocomotionShould
         ICreature creature = CreatureAt(Vector3.zero);
         locomotion.Register(creature, radius: 0.5f);
 
-        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+        locomotion.SyncPlayer(s_playerGuid, new Vector3(1f, 0f, 1f));
         locomotion.Update(TimeSpan.FromSeconds(0.1));
 
-        Assert.Contains(PlayerGuid, PlayerAgentsOf(locomotion).Keys);
-        Assert.DoesNotContain(PlayerGuid, CreatureAgentsOf(locomotion).Keys);
+        Assert.Contains(s_playerGuid, PlayerAgentsOf(locomotion).Keys);
+        Assert.DoesNotContain(s_playerGuid, CreatureAgentsOf(locomotion).Keys);
 
         // Belt and braces: the only ICreature this class knows about at all is the registered
         // creature above, so nothing about the player could have been written even if the
@@ -529,7 +528,7 @@ public class CrowdLocomotionShould
         var playerPosition = new Vector3(0f, 0f, 0f);
 
         locomotion.Register(creature, radius: 0.5f);
-        locomotion.SyncPlayer(PlayerGuid, playerPosition);
+        locomotion.SyncPlayer(s_playerGuid, playerPosition);
         locomotion.MoveTo(creature, destination);
 
         DtCrowdAgent creatureAgent = CreatureAgentsOf(locomotion)[creature.Guid];
@@ -540,7 +539,7 @@ public class CrowdLocomotionShould
         float maxLateralDeviation = 0f;
         for (int i = 0; i < 300 && creatureAgent.npos.X < 0f; i++)
         {
-            locomotion.SyncPlayer(PlayerGuid, playerPosition);
+            locomotion.SyncPlayer(s_playerGuid, playerPosition);
             locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
             maxLateralDeviation = MathF.Max(maxLateralDeviation, MathF.Abs(creatureAgent.npos.Z));
         }

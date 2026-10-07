@@ -1,15 +1,11 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Avalon.Configuration;
-using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
-using Avalon.Network.Packets;
-using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 

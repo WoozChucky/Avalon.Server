@@ -1,10 +1,13 @@
+using System.Security.Cryptography.X509Certificates;
 using Avalon.Combat;
 using Avalon.Database;
 using Avalon.Database.Auth.Extensions;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Extensions;
 using Avalon.Database.Extensions;
 using Avalon.Database.World.Extensions;
 using Avalon.Infrastructure.Extensions;
+using Avalon.Infrastructure.WorldMaintenance;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
@@ -12,9 +15,11 @@ using Avalon.World.Chat;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.GameAuth;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
 using Avalon.World.Loot;
+using Avalon.World.Maintenance;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
@@ -24,21 +29,16 @@ using Avalon.World.Pvp;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
 using Avalon.World.Respawn;
-using Avalon.World.Maintenance;
-using Avalon.Infrastructure.WorldMaintenance;
-using Avalon.Database.Auth.Repositories;
-using Microsoft.Extensions.Options;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Social;
 using Avalon.World.Threading;
-using Avalon.World.GameAuth;
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.World.Extensions;
 
@@ -49,13 +49,13 @@ public static class ServiceExtensions
         services.AddOptions<WorldHostingSecurity>().BindConfiguration("Hosting:Security")
             .Validate(s => !string.IsNullOrWhiteSpace(s.CertificatePath), "A world TLS certificate is required.").ValidateOnStart();
         services.AddOptions<GameAdmissionOptions>().BindConfiguration(GameAdmissionOptions.Section)
-            .PostConfigure<IConfiguration>((admission, config) => admission.WorldId = ushort.TryParse(config["Game:WorldId"], out var id) ? id : (ushort)0)
+            .PostConfigure<IConfiguration>((admission, config) => admission.WorldId = ushort.TryParse(config["Game:WorldId"], out ushort id) ? id : (ushort)0)
             .Validate(a => a.IsValid(), "World admission requires a fixed HTTPS API origin, server identity, workload certificate and API certificate SHA-256 pin.").ValidateOnStart();
         services.AddSingleton(sp => new WorldTlsTransport(sp.GetRequiredService<IOptions<WorldHostingSecurity>>().Value));
         services.AddHttpClient("AvalonGameWorkload").ConfigurePrimaryHttpMessageHandler(sp =>
         {
-            var admission = sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value;
-            var certificate = X509CertificateLoader.LoadPkcs12FromFile(admission.ClientCertificatePath, admission.ClientCertificatePassword);
+            GameAdmissionOptions admission = sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value;
+            X509Certificate2 certificate = X509CertificateLoader.LoadPkcs12FromFile(admission.ClientCertificatePath, admission.ClientCertificatePassword);
             if (!certificate.HasPrivateKey || certificate.NotBefore.ToUniversalTime() > DateTime.UtcNow || certificate.NotAfter.ToUniversalTime() <= DateTime.UtcNow)
                 throw new InvalidOperationException("A current workload client certificate with a private key is required.");
             return new WorkloadHttpHandler(certificate, admission.ApiCertificateSha256, sp.GetRequiredService<TimeProvider>());

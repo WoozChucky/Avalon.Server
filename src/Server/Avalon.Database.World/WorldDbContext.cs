@@ -4,7 +4,6 @@ using Avalon.Configuration;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
-using PowerType = Avalon.Network.Packets.State.PowerType;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +14,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PowerType = Avalon.Network.Packets.State.PowerType;
 
 namespace Avalon.Database.World;
 
@@ -213,15 +213,15 @@ public class WorldDbContext : DbContext
         builder.HasKey(b => b.Level);
 
         builder.HasData(
-            new CreatureBaseStat { Level = 1,  Health = 40,  DamageMin = 3,  DamageMax = 5,  Experience = 15, Armor = 0 },
-            new CreatureBaseStat { Level = 2,  Health = 52,  DamageMin = 4,  DamageMax = 7,  Experience = 25, Armor = 3 },
-            new CreatureBaseStat { Level = 3,  Health = 66,  DamageMin = 5,  DamageMax = 9,  Experience = 40, Armor = 7 },
-            new CreatureBaseStat { Level = 4,  Health = 84,  DamageMin = 7,  DamageMax = 11, Experience = 60, Armor = 10 },
-            new CreatureBaseStat { Level = 5,  Health = 106, DamageMin = 9,  DamageMax = 14, Experience = 85, Armor = 13 },
-            new CreatureBaseStat { Level = 6,  Health = 133, DamageMin = 11, DamageMax = 17, Experience = 115, Armor = 17 },
-            new CreatureBaseStat { Level = 7,  Health = 166, DamageMin = 14, DamageMax = 21, Experience = 150, Armor = 20 },
-            new CreatureBaseStat { Level = 8,  Health = 206, DamageMin = 17, DamageMax = 26, Experience = 195, Armor = 23 },
-            new CreatureBaseStat { Level = 9,  Health = 254, DamageMin = 21, DamageMax = 32, Experience = 250, Armor = 27 },
+            new CreatureBaseStat { Level = 1, Health = 40, DamageMin = 3, DamageMax = 5, Experience = 15, Armor = 0 },
+            new CreatureBaseStat { Level = 2, Health = 52, DamageMin = 4, DamageMax = 7, Experience = 25, Armor = 3 },
+            new CreatureBaseStat { Level = 3, Health = 66, DamageMin = 5, DamageMax = 9, Experience = 40, Armor = 7 },
+            new CreatureBaseStat { Level = 4, Health = 84, DamageMin = 7, DamageMax = 11, Experience = 60, Armor = 10 },
+            new CreatureBaseStat { Level = 5, Health = 106, DamageMin = 9, DamageMax = 14, Experience = 85, Armor = 13 },
+            new CreatureBaseStat { Level = 6, Health = 133, DamageMin = 11, DamageMax = 17, Experience = 115, Armor = 17 },
+            new CreatureBaseStat { Level = 7, Health = 166, DamageMin = 14, DamageMax = 21, Experience = 150, Armor = 20 },
+            new CreatureBaseStat { Level = 8, Health = 206, DamageMin = 17, DamageMax = 26, Experience = 195, Armor = 23 },
+            new CreatureBaseStat { Level = 9, Health = 254, DamageMin = 21, DamageMax = 32, Experience = 250, Armor = 27 },
             new CreatureBaseStat { Level = 10, Health = 312, DamageMin = 26, DamageMax = 39, Experience = 320, Armor = 30 });
     }
 
@@ -235,9 +235,9 @@ public class WorldDbContext : DbContext
 
         builder.HasData(
             new CreatureRarityModifier { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f, CritPct = 0f, DodgePct = 0f, BlockPct = 0f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Elite,  HealthMultiplier = 2.5f, DamageMultiplier = 1.4f, ExperienceMultiplier = 3.0f, CritPct = 5f, DodgePct = 3f, BlockPct = 0f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Rare,   HealthMultiplier = 4.0f, DamageMultiplier = 1.7f, ExperienceMultiplier = 6.0f, CritPct = 8f, DodgePct = 5f, BlockPct = 5f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.2f, ExperienceMultiplier = 15.0f, CritPct = 10f, DodgePct = 5f, BlockPct = 10f });
+            new CreatureRarityModifier { Rarity = CreatureRarity.Elite, HealthMultiplier = 2.5f, DamageMultiplier = 1.4f, ExperienceMultiplier = 3.0f, CritPct = 5f, DodgePct = 3f, BlockPct = 0f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Rare, HealthMultiplier = 4.0f, DamageMultiplier = 1.7f, ExperienceMultiplier = 6.0f, CritPct = 8f, DodgePct = 5f, BlockPct = 5f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Boss, HealthMultiplier = 8.0f, DamageMultiplier = 2.2f, ExperienceMultiplier = 15.0f, CritPct = 10f, DodgePct = 5f, BlockPct = 10f });
     }
 
     private static void Configure(EntityTypeBuilder<CharacterLevelExperience> builder)
@@ -245,21 +245,21 @@ public class WorldDbContext : DbContext
         builder.HasKey(b => b.Level);
 
         builder.HasData(
-            new CharacterLevelExperience {Level = 1, Experience = 400},
-            new CharacterLevelExperience {Level = 2, Experience = 900},
-            new CharacterLevelExperience {Level = 3, Experience = 1400},
-            new CharacterLevelExperience {Level = 4, Experience = 2100},
-            new CharacterLevelExperience {Level = 5, Experience = 2800},
-            new CharacterLevelExperience {Level = 6, Experience = 3600},
-            new CharacterLevelExperience {Level = 7, Experience = 4500},
-            new CharacterLevelExperience {Level = 8, Experience = 5400},
-            new CharacterLevelExperience {Level = 9, Experience = 6500},
-            new CharacterLevelExperience {Level = 10, Experience = 7600},
-            new CharacterLevelExperience {Level = 11, Experience = 8700},
-            new CharacterLevelExperience {Level = 12, Experience = 9800},
-            new CharacterLevelExperience {Level = 13, Experience = 11000},
-            new CharacterLevelExperience {Level = 14, Experience = 12300},
-            new CharacterLevelExperience {Level = 15, Experience = 13600}
+            new CharacterLevelExperience { Level = 1, Experience = 400 },
+            new CharacterLevelExperience { Level = 2, Experience = 900 },
+            new CharacterLevelExperience { Level = 3, Experience = 1400 },
+            new CharacterLevelExperience { Level = 4, Experience = 2100 },
+            new CharacterLevelExperience { Level = 5, Experience = 2800 },
+            new CharacterLevelExperience { Level = 6, Experience = 3600 },
+            new CharacterLevelExperience { Level = 7, Experience = 4500 },
+            new CharacterLevelExperience { Level = 8, Experience = 5400 },
+            new CharacterLevelExperience { Level = 9, Experience = 6500 },
+            new CharacterLevelExperience { Level = 10, Experience = 7600 },
+            new CharacterLevelExperience { Level = 11, Experience = 8700 },
+            new CharacterLevelExperience { Level = 12, Experience = 9800 },
+            new CharacterLevelExperience { Level = 13, Experience = 11000 },
+            new CharacterLevelExperience { Level = 14, Experience = 12300 },
+            new CharacterLevelExperience { Level = 15, Experience = 13600 }
         );
     }
 
@@ -269,7 +269,7 @@ public class WorldDbContext : DbContext
 
         ValueConverter<List<ItemTemplateId>, string> itemIdConverter = new(
             v => string.Join(",", v.Select(i => i.Value)),
-            v => v.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries)
+            v => v.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(val => new ItemTemplateId(ulong.Parse(val))).ToList());
 
         ValueComparer<List<ItemTemplateId>> itemIdComparer = new(
@@ -283,7 +283,7 @@ public class WorldDbContext : DbContext
 
         ValueConverter<List<AbilityId>, string> abilityIdConverter = new(
             v => string.Join(",", v.Select(i => i.Value)),
-            v => v.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries)
+            v => v.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(val => new AbilityId(uint.Parse(val))).ToList());
 
         ValueComparer<List<AbilityId>> abilityIdComparer = new(
@@ -340,7 +340,7 @@ public class WorldDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<ClassLevelStat> builder)
     {
-        builder.HasKey(b => new {b.Class, b.Level});
+        builder.HasKey(b => new { b.Class, b.Level });
 
         builder.HasData(new ClassLevelStat
         {
@@ -555,50 +555,50 @@ public class WorldDbContext : DbContext
         // alternates +1 and +2, so it keeps alternating. Every formula reproduces levels 1-5 exactly.
         // Provisional, like the creature numbers: revisited in the combat-balance pass (#506).
         builder.HasData(
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level =  6, BaseHp = 120, BaseMana =   0, Stamina = 32, Strength = 33, Agility = 27, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level =  7, BaseHp = 140, BaseMana =   0, Stamina = 34, Strength = 35, Agility = 29, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level =  8, BaseHp = 160, BaseMana =   0, Stamina = 36, Strength = 37, Agility = 30, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level =  9, BaseHp = 180, BaseMana =   0, Stamina = 38, Strength = 39, Agility = 32, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 10, BaseHp = 200, BaseMana =   0, Stamina = 40, Strength = 41, Agility = 33, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 11, BaseHp = 220, BaseMana =   0, Stamina = 42, Strength = 43, Agility = 35, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 12, BaseHp = 240, BaseMana =   0, Stamina = 44, Strength = 45, Agility = 36, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 13, BaseHp = 260, BaseMana =   0, Stamina = 46, Strength = 47, Agility = 38, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 14, BaseHp = 280, BaseMana =   0, Stamina = 48, Strength = 49, Agility = 39, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 15, BaseHp = 300, BaseMana =   0, Stamina = 50, Strength = 51, Agility = 41, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 16, BaseHp = 320, BaseMana =   0, Stamina = 52, Strength = 53, Agility = 42, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level =  6, BaseHp =  96, BaseMana = 120, Stamina = 26, Strength = 20, Agility = 25, Intellect = 33 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level =  7, BaseHp = 112, BaseMana = 140, Stamina = 27, Strength = 20, Agility = 26, Intellect = 35 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level =  8, BaseHp = 128, BaseMana = 160, Stamina = 28, Strength = 20, Agility = 27, Intellect = 37 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level =  9, BaseHp = 144, BaseMana = 180, Stamina = 29, Strength = 20, Agility = 28, Intellect = 39 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 10, BaseHp = 160, BaseMana = 200, Stamina = 30, Strength = 20, Agility = 29, Intellect = 41 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 11, BaseHp = 176, BaseMana = 220, Stamina = 31, Strength = 20, Agility = 30, Intellect = 43 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 12, BaseHp = 192, BaseMana = 240, Stamina = 32, Strength = 20, Agility = 31, Intellect = 45 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 13, BaseHp = 208, BaseMana = 260, Stamina = 33, Strength = 20, Agility = 32, Intellect = 47 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 14, BaseHp = 224, BaseMana = 280, Stamina = 34, Strength = 20, Agility = 33, Intellect = 49 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 15, BaseHp = 240, BaseMana = 300, Stamina = 35, Strength = 20, Agility = 34, Intellect = 51 },
-            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 16, BaseHp = 256, BaseMana = 320, Stamina = 36, Strength = 20, Agility = 35, Intellect = 53 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level =  6, BaseHp = 108, BaseMana =  60, Stamina = 25, Strength = 26, Agility = 33, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level =  7, BaseHp = 126, BaseMana =  70, Stamina = 26, Strength = 27, Agility = 35, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level =  8, BaseHp = 144, BaseMana =  80, Stamina = 27, Strength = 28, Agility = 37, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level =  9, BaseHp = 162, BaseMana =  90, Stamina = 28, Strength = 29, Agility = 39, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 10, BaseHp = 180, BaseMana = 100, Stamina = 29, Strength = 30, Agility = 41, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 11, BaseHp = 198, BaseMana = 110, Stamina = 30, Strength = 31, Agility = 43, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 12, BaseHp = 216, BaseMana = 120, Stamina = 31, Strength = 32, Agility = 45, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 13, BaseHp = 234, BaseMana = 130, Stamina = 32, Strength = 33, Agility = 47, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 14, BaseHp = 252, BaseMana = 140, Stamina = 33, Strength = 34, Agility = 49, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 15, BaseHp = 270, BaseMana = 150, Stamina = 34, Strength = 35, Agility = 51, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 16, BaseHp = 288, BaseMana = 160, Stamina = 35, Strength = 36, Agility = 53, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level =  6, BaseHp = 108, BaseMana = 120, Stamina = 25, Strength = 20, Agility = 26, Intellect = 33 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level =  7, BaseHp = 126, BaseMana = 140, Stamina = 26, Strength = 20, Agility = 27, Intellect = 35 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level =  8, BaseHp = 144, BaseMana = 160, Stamina = 27, Strength = 20, Agility = 28, Intellect = 37 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level =  9, BaseHp = 162, BaseMana = 180, Stamina = 28, Strength = 20, Agility = 29, Intellect = 39 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 10, BaseHp = 180, BaseMana = 200, Stamina = 29, Strength = 20, Agility = 30, Intellect = 41 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 11, BaseHp = 198, BaseMana = 220, Stamina = 30, Strength = 20, Agility = 31, Intellect = 43 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 12, BaseHp = 216, BaseMana = 240, Stamina = 31, Strength = 20, Agility = 32, Intellect = 45 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 13, BaseHp = 234, BaseMana = 260, Stamina = 32, Strength = 20, Agility = 33, Intellect = 47 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 14, BaseHp = 252, BaseMana = 280, Stamina = 33, Strength = 20, Agility = 34, Intellect = 49 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 15, BaseHp = 270, BaseMana = 300, Stamina = 34, Strength = 20, Agility = 35, Intellect = 51 },
-            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 16, BaseHp = 288, BaseMana = 320, Stamina = 35, Strength = 20, Agility = 36, Intellect = 53 });
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 6, BaseHp = 120, BaseMana = 0, Stamina = 32, Strength = 33, Agility = 27, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 7, BaseHp = 140, BaseMana = 0, Stamina = 34, Strength = 35, Agility = 29, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 8, BaseHp = 160, BaseMana = 0, Stamina = 36, Strength = 37, Agility = 30, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 9, BaseHp = 180, BaseMana = 0, Stamina = 38, Strength = 39, Agility = 32, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 10, BaseHp = 200, BaseMana = 0, Stamina = 40, Strength = 41, Agility = 33, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 11, BaseHp = 220, BaseMana = 0, Stamina = 42, Strength = 43, Agility = 35, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 12, BaseHp = 240, BaseMana = 0, Stamina = 44, Strength = 45, Agility = 36, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 13, BaseHp = 260, BaseMana = 0, Stamina = 46, Strength = 47, Agility = 38, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 14, BaseHp = 280, BaseMana = 0, Stamina = 48, Strength = 49, Agility = 39, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 15, BaseHp = 300, BaseMana = 0, Stamina = 50, Strength = 51, Agility = 41, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 16, BaseHp = 320, BaseMana = 0, Stamina = 52, Strength = 53, Agility = 42, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 6, BaseHp = 96, BaseMana = 120, Stamina = 26, Strength = 20, Agility = 25, Intellect = 33 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 7, BaseHp = 112, BaseMana = 140, Stamina = 27, Strength = 20, Agility = 26, Intellect = 35 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 8, BaseHp = 128, BaseMana = 160, Stamina = 28, Strength = 20, Agility = 27, Intellect = 37 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 9, BaseHp = 144, BaseMana = 180, Stamina = 29, Strength = 20, Agility = 28, Intellect = 39 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 10, BaseHp = 160, BaseMana = 200, Stamina = 30, Strength = 20, Agility = 29, Intellect = 41 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 11, BaseHp = 176, BaseMana = 220, Stamina = 31, Strength = 20, Agility = 30, Intellect = 43 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 12, BaseHp = 192, BaseMana = 240, Stamina = 32, Strength = 20, Agility = 31, Intellect = 45 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 13, BaseHp = 208, BaseMana = 260, Stamina = 33, Strength = 20, Agility = 32, Intellect = 47 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 14, BaseHp = 224, BaseMana = 280, Stamina = 34, Strength = 20, Agility = 33, Intellect = 49 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 15, BaseHp = 240, BaseMana = 300, Stamina = 35, Strength = 20, Agility = 34, Intellect = 51 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 16, BaseHp = 256, BaseMana = 320, Stamina = 36, Strength = 20, Agility = 35, Intellect = 53 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 6, BaseHp = 108, BaseMana = 60, Stamina = 25, Strength = 26, Agility = 33, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 7, BaseHp = 126, BaseMana = 70, Stamina = 26, Strength = 27, Agility = 35, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 8, BaseHp = 144, BaseMana = 80, Stamina = 27, Strength = 28, Agility = 37, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 9, BaseHp = 162, BaseMana = 90, Stamina = 28, Strength = 29, Agility = 39, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 10, BaseHp = 180, BaseMana = 100, Stamina = 29, Strength = 30, Agility = 41, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 11, BaseHp = 198, BaseMana = 110, Stamina = 30, Strength = 31, Agility = 43, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 12, BaseHp = 216, BaseMana = 120, Stamina = 31, Strength = 32, Agility = 45, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 13, BaseHp = 234, BaseMana = 130, Stamina = 32, Strength = 33, Agility = 47, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 14, BaseHp = 252, BaseMana = 140, Stamina = 33, Strength = 34, Agility = 49, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 15, BaseHp = 270, BaseMana = 150, Stamina = 34, Strength = 35, Agility = 51, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 16, BaseHp = 288, BaseMana = 160, Stamina = 35, Strength = 36, Agility = 53, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 6, BaseHp = 108, BaseMana = 120, Stamina = 25, Strength = 20, Agility = 26, Intellect = 33 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 7, BaseHp = 126, BaseMana = 140, Stamina = 26, Strength = 20, Agility = 27, Intellect = 35 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 8, BaseHp = 144, BaseMana = 160, Stamina = 27, Strength = 20, Agility = 28, Intellect = 37 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 9, BaseHp = 162, BaseMana = 180, Stamina = 28, Strength = 20, Agility = 29, Intellect = 39 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 10, BaseHp = 180, BaseMana = 200, Stamina = 29, Strength = 20, Agility = 30, Intellect = 41 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 11, BaseHp = 198, BaseMana = 220, Stamina = 30, Strength = 20, Agility = 31, Intellect = 43 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 12, BaseHp = 216, BaseMana = 240, Stamina = 31, Strength = 20, Agility = 32, Intellect = 45 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 13, BaseHp = 234, BaseMana = 260, Stamina = 32, Strength = 20, Agility = 33, Intellect = 47 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 14, BaseHp = 252, BaseMana = 280, Stamina = 33, Strength = 20, Agility = 34, Intellect = 49 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 15, BaseHp = 270, BaseMana = 300, Stamina = 34, Strength = 20, Agility = 35, Intellect = 51 },
+            new ClassLevelStat { Class = CharacterClass.Healer, Level = 16, BaseHp = 288, BaseMana = 320, Stamina = 35, Strength = 20, Agility = 36, Intellect = 53 });
     }
 
     /// <summary>Quests (#433). Reference data; QuestCatalog validates it on load and on /reload quests.</summary>
@@ -657,21 +657,41 @@ public class WorldDbContext : DbContext
         builder.HasData(
             new QuestTemplate
             {
-                Id = 1, TitleTextId = 25, DescriptionTextId = 26, CompletionTextId = 27,
-                GiverCreatureId = 1, EnderCreatureId = 1, LevelRequirement = 1,
-                RewardExperience = 150, RewardMoney = 100,
+                Id = 1,
+                TitleTextId = 25,
+                DescriptionTextId = 26,
+                CompletionTextId = 27,
+                GiverCreatureId = 1,
+                EnderCreatureId = 1,
+                LevelRequirement = 1,
+                RewardExperience = 150,
+                RewardMoney = 100,
             },
             new QuestTemplate
             {
-                Id = 2, TitleTextId = 29, DescriptionTextId = 30, CompletionTextId = 31,
-                GiverCreatureId = 1, EnderCreatureId = 2, LevelRequirement = 1, RequiredQuestId = 1,
-                RewardExperience = 250, RewardMoney = 150,
+                Id = 2,
+                TitleTextId = 29,
+                DescriptionTextId = 30,
+                CompletionTextId = 31,
+                GiverCreatureId = 1,
+                EnderCreatureId = 2,
+                LevelRequirement = 1,
+                RequiredQuestId = 1,
+                RewardExperience = 250,
+                RewardMoney = 150,
             },
             new QuestTemplate
             {
-                Id = 3, TitleTextId = 33, DescriptionTextId = 34, CompletionTextId = 35,
-                GiverCreatureId = 2, EnderCreatureId = 2, LevelRequirement = 2, RequiredQuestId = 2,
-                RewardExperience = 600, RewardMoney = 400,
+                Id = 3,
+                TitleTextId = 33,
+                DescriptionTextId = 34,
+                CompletionTextId = 35,
+                GiverCreatureId = 2,
+                EnderCreatureId = 2,
+                LevelRequirement = 2,
+                RequiredQuestId = 2,
+                RewardExperience = 600,
+                RewardMoney = 400,
             });
 
         // The second chain (forest content pass): 4 → 5 → 6 → 7 → 8, beside 1 → 2 → 3. Numbers are first drafts for
@@ -679,33 +699,67 @@ public class WorldDbContext : DbContext
         builder.HasData(
             new QuestTemplate
             {
-                Id = 4, TitleTextId = 43, DescriptionTextId = 44, CompletionTextId = 45,
-                GiverCreatureId = 14, EnderCreatureId = 14, LevelRequirement = 2,
-                RewardExperience = 300, RewardMoney = 200,
+                Id = 4,
+                TitleTextId = 43,
+                DescriptionTextId = 44,
+                CompletionTextId = 45,
+                GiverCreatureId = 14,
+                EnderCreatureId = 14,
+                LevelRequirement = 2,
+                RewardExperience = 300,
+                RewardMoney = 200,
             },
             new QuestTemplate
             {
-                Id = 5, TitleTextId = 47, DescriptionTextId = 48, CompletionTextId = 49,
-                GiverCreatureId = 13, EnderCreatureId = 13, LevelRequirement = 3, RequiredQuestId = 4,
-                RewardExperience = 400, RewardMoney = 250,
+                Id = 5,
+                TitleTextId = 47,
+                DescriptionTextId = 48,
+                CompletionTextId = 49,
+                GiverCreatureId = 13,
+                EnderCreatureId = 13,
+                LevelRequirement = 3,
+                RequiredQuestId = 4,
+                RewardExperience = 400,
+                RewardMoney = 250,
             },
             new QuestTemplate
             {
-                Id = 6, TitleTextId = 51, DescriptionTextId = 52, CompletionTextId = 53,
-                GiverCreatureId = 3, EnderCreatureId = 11, LevelRequirement = 4, RequiredQuestId = 5,
-                RewardExperience = 500, RewardMoney = 300,
+                Id = 6,
+                TitleTextId = 51,
+                DescriptionTextId = 52,
+                CompletionTextId = 53,
+                GiverCreatureId = 3,
+                EnderCreatureId = 11,
+                LevelRequirement = 4,
+                RequiredQuestId = 5,
+                RewardExperience = 500,
+                RewardMoney = 300,
             },
             new QuestTemplate
             {
-                Id = 7, TitleTextId = 55, DescriptionTextId = 56, CompletionTextId = 57,
-                GiverCreatureId = 2, EnderCreatureId = 2, LevelRequirement = 5, RequiredQuestId = 6,
-                RewardExperience = 700, RewardMoney = 400,
+                Id = 7,
+                TitleTextId = 55,
+                DescriptionTextId = 56,
+                CompletionTextId = 57,
+                GiverCreatureId = 2,
+                EnderCreatureId = 2,
+                LevelRequirement = 5,
+                RequiredQuestId = 6,
+                RewardExperience = 700,
+                RewardMoney = 400,
             },
             new QuestTemplate
             {
-                Id = 8, TitleTextId = 59, DescriptionTextId = 60, CompletionTextId = 61,
-                GiverCreatureId = 1, EnderCreatureId = 1, LevelRequirement = 7, RequiredQuestId = 7,
-                RewardExperience = 1500, RewardMoney = 1000,
+                Id = 8,
+                TitleTextId = 59,
+                DescriptionTextId = 60,
+                CompletionTextId = 61,
+                GiverCreatureId = 1,
+                EnderCreatureId = 1,
+                LevelRequirement = 7,
+                RequiredQuestId = 7,
+                RewardExperience = 1500,
+                RewardMoney = 1000,
             });
     }
 
@@ -1729,28 +1783,28 @@ public class WorldDbContext : DbContext
     private static ItemTemplate ForestArmourPiece(
         ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, ItemSlotType slot,
         params (StatType Type, uint Value)[] stats) => new()
-    {
-        Id = id,
-        Name = name,
-        Class = ItemClass.Armor,
-        SubClass = subClass,
-        Flags = ItemTemplateFlags.None,
-        MaxStackSize = 1,
-        DisplayId = (uint)id,
-        Rarity = ItemRarity.Uncommon,
-        BuyPrice = 200,
-        SellPrice = 50,
-        Slot = slot,
-        AllowedClasses = [characterClass],
-        ItemPower = 3,
-        RequiredLevel = 1,
-        StatType1 = stats.Length > 0 ? stats[0].Type : null,
-        StatValue1 = stats.Length > 0 ? stats[0].Value : null,
-        StatType2 = stats.Length > 1 ? stats[1].Type : null,
-        StatValue2 = stats.Length > 1 ? stats[1].Value : null,
-        StatType3 = stats.Length > 2 ? stats[2].Type : null,
-        StatValue3 = stats.Length > 2 ? stats[2].Value : null,
-    };
+        {
+            Id = id,
+            Name = name,
+            Class = ItemClass.Armor,
+            SubClass = subClass,
+            Flags = ItemTemplateFlags.None,
+            MaxStackSize = 1,
+            DisplayId = (uint)id,
+            Rarity = ItemRarity.Uncommon,
+            BuyPrice = 200,
+            SellPrice = 50,
+            Slot = slot,
+            AllowedClasses = [characterClass],
+            ItemPower = 3,
+            RequiredLevel = 1,
+            StatType1 = stats.Length > 0 ? stats[0].Type : null,
+            StatValue1 = stats.Length > 0 ? stats[0].Value : null,
+            StatType2 = stats.Length > 1 ? stats[1].Type : null,
+            StatValue2 = stats.Length > 1 ? stats[1].Value : null,
+            StatType3 = stats.Length > 2 ? stats[2].Type : null,
+            StatValue3 = stats.Length > 2 ? stats[2].Value : null,
+        };
 
     /// <summary>
     /// A Common starter weapon (#432): level 1, for one class, main hand. Every one rolls 4-7 (#506),
@@ -1760,29 +1814,29 @@ public class WorldDbContext : DbContext
     private static ItemTemplate StarterWeapon(
         ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, uint attackSpeed,
         (StatType Type, uint Value) stat) => new()
-    {
-        Id = id,
-        Name = name,
-        Class = ItemClass.Weapon,
-        SubClass = subClass,
-        Flags = ItemTemplateFlags.None,
-        MaxStackSize = 1,
-        DisplayId = (uint)id,
-        Rarity = ItemRarity.Common,
-        BuyPrice = 120,
-        SellPrice = 30,
-        Slot = ItemSlotType.MainHand,
-        AllowedClasses = [characterClass],
-        ItemPower = 2,
-        RequiredLevel = 1,
-        DamageMin1 = 4,
-        DamageMax1 = 7,
-        DamageType1 = DamageType.Physical,
-        StatType1 = StatType.AttackSpeed,
-        StatValue1 = attackSpeed,
-        StatType2 = stat.Type,
-        StatValue2 = stat.Value,
-    };
+        {
+            Id = id,
+            Name = name,
+            Class = ItemClass.Weapon,
+            SubClass = subClass,
+            Flags = ItemTemplateFlags.None,
+            MaxStackSize = 1,
+            DisplayId = (uint)id,
+            Rarity = ItemRarity.Common,
+            BuyPrice = 120,
+            SellPrice = 30,
+            Slot = ItemSlotType.MainHand,
+            AllowedClasses = [characterClass],
+            ItemPower = 2,
+            RequiredLevel = 1,
+            DamageMin1 = 4,
+            DamageMax1 = 7,
+            DamageType1 = DamageType.Physical,
+            StatType1 = StatType.AttackSpeed,
+            StatValue1 = attackSpeed,
+            StatType2 = stat.Type,
+            StatValue2 = stat.Value,
+        };
 
     /// <summary>
     /// A piece of Common starter armour (#432): level 1, for one class, with up to three stats.
@@ -1791,28 +1845,28 @@ public class WorldDbContext : DbContext
     private static ItemTemplate StarterArmourPiece(
         ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, ItemSlotType slot, uint buyPrice,
         params (StatType Type, uint Value)[] stats) => new()
-    {
-        Id = id,
-        Name = name,
-        Class = ItemClass.Armor,
-        SubClass = subClass,
-        Flags = ItemTemplateFlags.None,
-        MaxStackSize = 1,
-        DisplayId = (uint)id,
-        Rarity = ItemRarity.Common,
-        BuyPrice = buyPrice,
-        SellPrice = buyPrice / 4,
-        Slot = slot,
-        AllowedClasses = [characterClass],
-        ItemPower = 2,
-        RequiredLevel = 1,
-        StatType1 = stats.Length > 0 ? stats[0].Type : null,
-        StatValue1 = stats.Length > 0 ? stats[0].Value : null,
-        StatType2 = stats.Length > 1 ? stats[1].Type : null,
-        StatValue2 = stats.Length > 1 ? stats[1].Value : null,
-        StatType3 = stats.Length > 2 ? stats[2].Type : null,
-        StatValue3 = stats.Length > 2 ? stats[2].Value : null,
-    };
+        {
+            Id = id,
+            Name = name,
+            Class = ItemClass.Armor,
+            SubClass = subClass,
+            Flags = ItemTemplateFlags.None,
+            MaxStackSize = 1,
+            DisplayId = (uint)id,
+            Rarity = ItemRarity.Common,
+            BuyPrice = buyPrice,
+            SellPrice = buyPrice / 4,
+            Slot = slot,
+            AllowedClasses = [characterClass],
+            ItemPower = 2,
+            RequiredLevel = 1,
+            StatType1 = stats.Length > 0 ? stats[0].Type : null,
+            StatValue1 = stats.Length > 0 ? stats[0].Value : null,
+            StatType2 = stats.Length > 1 ? stats[1].Type : null,
+            StatValue2 = stats.Length > 1 ? stats[1].Value : null,
+            StatType3 = stats.Length > 2 ? stats[2].Type : null,
+            StatValue3 = stats.Length > 2 ? stats[2].Value : null,
+        };
 
     private static void Configure(EntityTypeBuilder<MapTemplate> builder)
     {
@@ -1828,24 +1882,24 @@ public class WorldDbContext : DbContext
         // (Maps/spawn-tables.json), chunk pool and set pieces are seeded from Maps/ by ChunkCatalogSeeder on every World
         // start, not by migrations.
         builder.HasData(new MapTemplate
-            {
-                Id = 1,
-                Name = "world.bin",
-                Description = "Glimmerdell",
-                MapType = MapType.Town,
-                PvP = false,
-                MinLevel = 1,
-                MaxLevel = 60,
-                AreaTableId = 0,
-                LoadingScreenId = 0,
-                CorpseX = 0,
-                CorpseY = 0,
-                MaxPlayers = 30,
-                DefaultSpawnX = 25f,
-                DefaultSpawnY = 51f,
-                DefaultSpawnZ = 25f,
-                LogoutMapId = null
-            },
+        {
+            Id = 1,
+            Name = "world.bin",
+            Description = "Glimmerdell",
+            MapType = MapType.Town,
+            PvP = false,
+            MinLevel = 1,
+            MaxLevel = 60,
+            AreaTableId = 0,
+            LoadingScreenId = 0,
+            CorpseX = 0,
+            CorpseY = 0,
+            MaxPlayers = 30,
+            DefaultSpawnX = 25f,
+            DefaultSpawnY = 51f,
+            DefaultSpawnZ = 25f,
+            LogoutMapId = null
+        },
             new MapTemplate
             {
                 Id = 2,
@@ -2034,43 +2088,78 @@ public class WorldDbContext : DbContext
         builder.HasData(
             new MapCreatureSpawn
             {
-                Id = 1, MapTemplateId = 1, CreatureTemplateId = 1,     // Uriel, (16.6, 23) in front of the town hall's porch, facing the arrival point
-                OffsetX = 1.6f, OffsetY = 0f, OffsetZ = 8f, Facing = 191f
+                Id = 1,
+                MapTemplateId = 1,
+                CreatureTemplateId = 1,     // Uriel, (16.6, 23) in front of the town hall's porch, facing the arrival point
+                OffsetX = 1.6f,
+                OffsetY = 0f,
+                OffsetZ = 8f,
+                Facing = 191f
             },
             new MapCreatureSpawn
             {
-                Id = 2, MapTemplateId = 1, CreatureTemplateId = 2,     // Borin Stoutbeard, (16.9, 37) in front of the hunter's lodge porch, facing the path to the gate
-                OffsetX = 1.9f, OffsetY = 0f, OffsetZ = 22f, Facing = 270f
+                Id = 2,
+                MapTemplateId = 1,
+                CreatureTemplateId = 2,     // Borin Stoutbeard, (16.9, 37) in front of the hunter's lodge porch, facing the path to the gate
+                OffsetX = 1.9f,
+                OffsetY = 0f,
+                OffsetZ = 22f,
+                Facing = 270f
             },
             new MapCreatureSpawn
             {
-                Id = 3, MapTemplateId = 1, CreatureTemplateId = 3,     // Innkeeper, (50, 47.2) in front of the inn's porch, facing the square's centre (45, 45)
-                OffsetX = 35f, OffsetY = 0f, OffsetZ = 32.2f, Facing = 246f
+                Id = 3,
+                MapTemplateId = 1,
+                CreatureTemplateId = 3,     // Innkeeper, (50, 47.2) in front of the inn's porch, facing the square's centre (45, 45)
+                OffsetX = 35f,
+                OffsetY = 0f,
+                OffsetZ = 32.2f,
+                Facing = 246f
             });
 
         // Marta (#463), the banker, (36.8, 49.4) on the bank's lower step, facing the square's centre (45, 45).
         builder.HasData(new MapCreatureSpawn
         {
-            Id = 4, MapTemplateId = 1, CreatureTemplateId = 11,     // Marta Ledgerwell
-            OffsetX = 21.8f, OffsetY = 0f, OffsetZ = 34.4f, Facing = 118f
+            Id = 4,
+            MapTemplateId = 1,
+            CreatureTemplateId = 11,     // Marta Ledgerwell
+            OffsetX = 21.8f,
+            OffsetY = 0f,
+            OffsetZ = 34.4f,
+            Facing = 118f
         });
 
         // The vendors (#432), in the market, each facing the market centre (45, 15).
         builder.HasData(
             new MapCreatureSpawn
             {
-                Id = 5, MapTemplateId = 1, CreatureTemplateId = 12,     // Garrick Emberforge, (39, 18.2) in front of the smithy's lean-to
-                OffsetX = 24f, OffsetY = 0f, OffsetZ = 3.2f, Facing = 118f
+                Id = 5,
+                MapTemplateId = 1,
+                CreatureTemplateId = 12,     // Garrick Emberforge, (39, 18.2) in front of the smithy's lean-to
+                OffsetX = 24f,
+                OffsetY = 0f,
+                OffsetZ = 3.2f,
+                Facing = 118f
             },
             new MapCreatureSpawn
             {
-                Id = 6, MapTemplateId = 1, CreatureTemplateId = 13,     // Hilde Brassbuckle, (53.9, 15) in front of the armourer's counter
-                OffsetX = 38.9f, OffsetY = 0f, OffsetZ = 0f, Facing = 270f
+                Id = 6,
+                MapTemplateId = 1,
+                CreatureTemplateId = 13,     // Hilde Brassbuckle, (53.9, 15) in front of the armourer's counter
+                OffsetX = 38.9f,
+                OffsetY = 0f,
+                OffsetZ = 0f,
+                Facing = 270f
             },
             new MapCreatureSpawn
             {
-                Id = 7, MapTemplateId = 1, CreatureTemplateId = 14,     // Tobin Marrowfield, (51.5, 22.2) in front of the general-goods counter
-                OffsetX = 36.5f, OffsetY = 0f, OffsetZ = 7.2f, Facing = 222f
+                Id = 7,
+                MapTemplateId = 1,
+                CreatureTemplateId = 14,     // Tobin Marrowfield, (51.5, 22.2) in front of the general-goods counter
+                OffsetX = 36.5f,
+                OffsetY = 0f,
+                OffsetZ = 7.2f,
+                Facing = 222f
             });
     }
 
@@ -2344,25 +2433,25 @@ public class WorldDbContext : DbContext
 
         builder.HasData(
             // Uriel (template 1).
-            new DialogueNode { Id = 1, CreatureTemplateId = 1, IsRoot = true,  TextId = 1 },
+            new DialogueNode { Id = 1, CreatureTemplateId = 1, IsRoot = true, TextId = 1 },
             new DialogueNode { Id = 2, CreatureTemplateId = 1, IsRoot = false, TextId = 2 },
             new DialogueNode { Id = 3, CreatureTemplateId = 1, IsRoot = false, TextId = 3 },
             // Borin Stoutbeard (template 2).
-            new DialogueNode { Id = 4, CreatureTemplateId = 2, IsRoot = true,  TextId = 4 },
+            new DialogueNode { Id = 4, CreatureTemplateId = 2, IsRoot = true, TextId = 4 },
             new DialogueNode { Id = 5, CreatureTemplateId = 2, IsRoot = false, TextId = 5 },
             // Innkeeper (template 3).
-            new DialogueNode { Id = 6, CreatureTemplateId = 3, IsRoot = true,  TextId = 6 });
+            new DialogueNode { Id = 6, CreatureTemplateId = 3, IsRoot = true, TextId = 6 });
 
         // Marta Ledgerwell (template 11, #463).
         builder.HasData(new DialogueNode { Id = 7, CreatureTemplateId = 11, IsRoot = true, TextId = 15 });
 
         // The vendors (#432): a root (the greeting) and a trade node (the trade line) each.
         builder.HasData(
-            new DialogueNode { Id = 8,  CreatureTemplateId = 12, IsRoot = true,  TextId = 17 },   // Garrick
-            new DialogueNode { Id = 9,  CreatureTemplateId = 12, IsRoot = false, TextId = 18 },
-            new DialogueNode { Id = 10, CreatureTemplateId = 13, IsRoot = true,  TextId = 19 },   // Hilde
+            new DialogueNode { Id = 8, CreatureTemplateId = 12, IsRoot = true, TextId = 17 },   // Garrick
+            new DialogueNode { Id = 9, CreatureTemplateId = 12, IsRoot = false, TextId = 18 },
+            new DialogueNode { Id = 10, CreatureTemplateId = 13, IsRoot = true, TextId = 19 },   // Hilde
             new DialogueNode { Id = 11, CreatureTemplateId = 13, IsRoot = false, TextId = 20 },
-            new DialogueNode { Id = 12, CreatureTemplateId = 14, IsRoot = true,  TextId = 21 },   // Tobin
+            new DialogueNode { Id = 12, CreatureTemplateId = 14, IsRoot = true, TextId = 21 },   // Tobin
             new DialogueNode { Id = 13, CreatureTemplateId = 14, IsRoot = false, TextId = 22 });
     }
 
@@ -2391,15 +2480,15 @@ public class WorldDbContext : DbContext
         // Every node ends with a "Farewell." (text 10) so a player always has a way out. A node
         // with no options would leave the client showing text it cannot dismiss.
         builder.HasData(
-            new DialogueOption { Id = 1,  NodeId = 1, TextId = 7,  NextNodeId = 2,    SortOrder = 0 },
-            new DialogueOption { Id = 2,  NodeId = 1, TextId = 10, NextNodeId = null, SortOrder = 1 },
-            new DialogueOption { Id = 3,  NodeId = 2, TextId = 8,  NextNodeId = 3,    SortOrder = 0 },
-            new DialogueOption { Id = 4,  NodeId = 2, TextId = 10, NextNodeId = null, SortOrder = 1 },
-            new DialogueOption { Id = 5,  NodeId = 3, TextId = 10, NextNodeId = null, SortOrder = 0 },
-            new DialogueOption { Id = 6,  NodeId = 4, TextId = 9,  NextNodeId = 5,    SortOrder = 0 },
-            new DialogueOption { Id = 7,  NodeId = 4, TextId = 10, NextNodeId = null, SortOrder = 1 },
-            new DialogueOption { Id = 8,  NodeId = 5, TextId = 10, NextNodeId = null, SortOrder = 0 },
-            new DialogueOption { Id = 9,  NodeId = 6, TextId = 10, NextNodeId = null, SortOrder = 0 });
+            new DialogueOption { Id = 1, NodeId = 1, TextId = 7, NextNodeId = 2, SortOrder = 0 },
+            new DialogueOption { Id = 2, NodeId = 1, TextId = 10, NextNodeId = null, SortOrder = 1 },
+            new DialogueOption { Id = 3, NodeId = 2, TextId = 8, NextNodeId = 3, SortOrder = 0 },
+            new DialogueOption { Id = 4, NodeId = 2, TextId = 10, NextNodeId = null, SortOrder = 1 },
+            new DialogueOption { Id = 5, NodeId = 3, TextId = 10, NextNodeId = null, SortOrder = 0 },
+            new DialogueOption { Id = 6, NodeId = 4, TextId = 9, NextNodeId = 5, SortOrder = 0 },
+            new DialogueOption { Id = 7, NodeId = 4, TextId = 10, NextNodeId = null, SortOrder = 1 },
+            new DialogueOption { Id = 8, NodeId = 5, TextId = 10, NextNodeId = null, SortOrder = 0 },
+            new DialogueOption { Id = 9, NodeId = 6, TextId = 10, NextNodeId = null, SortOrder = 0 });
 
         // Marta (#463). "Open my bank." opens the bank and leads back to her greeting, so the
         // conversation, and the bank with it, stays open; "Farewell." ends both.
@@ -2412,22 +2501,22 @@ public class WorldDbContext : DbContext
         // open. "Farewell." ends both.
         builder.HasData(
             // Garrick: root 8, trade 9.
-            new DialogueOption { Id = 12, NodeId = 8,  TextId = 23, NextNodeId = 9,    SortOrder = 0 },
-            new DialogueOption { Id = 13, NodeId = 8,  TextId = 24, NextNodeId = 8,    SortOrder = 1, Action = DialogueOptionAction.OpenShop },
-            new DialogueOption { Id = 14, NodeId = 8,  TextId = 10, NextNodeId = null, SortOrder = 2 },
-            new DialogueOption { Id = 15, NodeId = 9,  TextId = 24, NextNodeId = 9,    SortOrder = 0, Action = DialogueOptionAction.OpenShop },
-            new DialogueOption { Id = 16, NodeId = 9,  TextId = 10, NextNodeId = null, SortOrder = 1 },
+            new DialogueOption { Id = 12, NodeId = 8, TextId = 23, NextNodeId = 9, SortOrder = 0 },
+            new DialogueOption { Id = 13, NodeId = 8, TextId = 24, NextNodeId = 8, SortOrder = 1, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 14, NodeId = 8, TextId = 10, NextNodeId = null, SortOrder = 2 },
+            new DialogueOption { Id = 15, NodeId = 9, TextId = 24, NextNodeId = 9, SortOrder = 0, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 16, NodeId = 9, TextId = 10, NextNodeId = null, SortOrder = 1 },
             // Hilde: root 10, trade 11.
-            new DialogueOption { Id = 17, NodeId = 10, TextId = 23, NextNodeId = 11,   SortOrder = 0 },
-            new DialogueOption { Id = 18, NodeId = 10, TextId = 24, NextNodeId = 10,   SortOrder = 1, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 17, NodeId = 10, TextId = 23, NextNodeId = 11, SortOrder = 0 },
+            new DialogueOption { Id = 18, NodeId = 10, TextId = 24, NextNodeId = 10, SortOrder = 1, Action = DialogueOptionAction.OpenShop },
             new DialogueOption { Id = 19, NodeId = 10, TextId = 10, NextNodeId = null, SortOrder = 2 },
-            new DialogueOption { Id = 20, NodeId = 11, TextId = 24, NextNodeId = 11,   SortOrder = 0, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 20, NodeId = 11, TextId = 24, NextNodeId = 11, SortOrder = 0, Action = DialogueOptionAction.OpenShop },
             new DialogueOption { Id = 21, NodeId = 11, TextId = 10, NextNodeId = null, SortOrder = 1 },
             // Tobin: root 12, trade 13.
-            new DialogueOption { Id = 22, NodeId = 12, TextId = 23, NextNodeId = 13,   SortOrder = 0 },
-            new DialogueOption { Id = 23, NodeId = 12, TextId = 24, NextNodeId = 12,   SortOrder = 1, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 22, NodeId = 12, TextId = 23, NextNodeId = 13, SortOrder = 0 },
+            new DialogueOption { Id = 23, NodeId = 12, TextId = 24, NextNodeId = 12, SortOrder = 1, Action = DialogueOptionAction.OpenShop },
             new DialogueOption { Id = 24, NodeId = 12, TextId = 10, NextNodeId = null, SortOrder = 2 },
-            new DialogueOption { Id = 25, NodeId = 13, TextId = 24, NextNodeId = 13,   SortOrder = 0, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 25, NodeId = 13, TextId = 24, NextNodeId = 13, SortOrder = 0, Action = DialogueOptionAction.OpenShop },
             new DialogueOption { Id = 26, NodeId = 13, TextId = 10, NextNodeId = null, SortOrder = 1 });
     }
 
@@ -2444,9 +2533,9 @@ public class WorldDbContext : DbContext
 
         builder.HasData(
             new CharacterClassName { Class = CharacterClass.Warrior, TextId = 11 },
-            new CharacterClassName { Class = CharacterClass.Wizard,  TextId = 12 },
-            new CharacterClassName { Class = CharacterClass.Hunter,  TextId = 13 },
-            new CharacterClassName { Class = CharacterClass.Healer,  TextId = 14 });
+            new CharacterClassName { Class = CharacterClass.Wizard, TextId = 12 },
+            new CharacterClassName { Class = CharacterClass.Hunter, TextId = 13 },
+            new CharacterClassName { Class = CharacterClass.Healer, TextId = 14 });
     }
 
     /// <summary>Loot tables (issue #460). Rolled on the tick when a creature dies; see Avalon.World.Loot.</summary>
@@ -2668,7 +2757,12 @@ public class WorldDbContext : DbContext
             new VendorStock { Id = 30, CreatureTemplateId = 14, Sequence = 6, ItemTemplateId = 11 },
             new VendorStock
             {
-                Id = 31, CreatureTemplateId = 14, Sequence = 7, ItemTemplateId = 56, MaxStock = 5, RestockSeconds = 600
+                Id = 31,
+                CreatureTemplateId = 14,
+                Sequence = 7,
+                ItemTemplateId = 56,
+                MaxStock = 5,
+                RestockSeconds = 600
             });
     }
 
@@ -2791,45 +2885,45 @@ public class WorldDbContext : DbContext
     private static AbilityTemplate CreatureAbility(uint id, string name, AbilityShape shape, uint cooldown,
         float baseDamage, float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false,
         uint castTime = 0, SpellEffect effects = SpellEffect.Damage, uint? aura = null) => new()
-    {
-        Id = id,
-        Name = name,
-        CastTime = castTime,
-        Cooldown = cooldown,
-        Cost = 0,
-        Range = (shape == AbilityShape.Projectile ? reach : Math.Max(reach, radius)) switch
         {
-            <= 2f => SpellRange.Melee,
-            <= 5f => SpellRange.Short,
-            <= 10f => SpellRange.Medium,
-            _ => SpellRange.Long,
-        },
-        Effects = effects,
-        EffectValue = 0,
-        AllowedClasses = [],
-        ScriptName = shape switch
-        {
-            AbilityShape.Circle => "CircleAbilityScript",
-            AbilityShape.Cone => "ConeAbilityScript",
-            _ => "ProjectileAbilityScript",
-        },
-        ThreatMultiplier = 1f,
-        HealThreatPerHp = 0f,
-        AimMode = shape == AbilityShape.Projectile ? AbilityAimMode.Cursor : AbilityAimMode.Movement,
-        Shape = shape,
-        Anchor = AbilityAnchor.Caster,
-        Reach = reach,
-        Radius = radius,
-        ArcDegrees = arc,
-        ProjectileSpeed = speed,
-        Pierce = pierce,
-        Affects = AbilityAffects.Hostile,
-        PowerGainPerHit = 0,
-        ScalingStat = ScalingStat.Attack,
-        ScalingCoefficient = 0f,
-        BaseDamageCoefficient = baseDamage,
-        AuraId = aura is { } a ? new AuraId(a) : null,
-    };
+            Id = id,
+            Name = name,
+            CastTime = castTime,
+            Cooldown = cooldown,
+            Cost = 0,
+            Range = (shape == AbilityShape.Projectile ? reach : Math.Max(reach, radius)) switch
+            {
+                <= 2f => SpellRange.Melee,
+                <= 5f => SpellRange.Short,
+                <= 10f => SpellRange.Medium,
+                _ => SpellRange.Long,
+            },
+            Effects = effects,
+            EffectValue = 0,
+            AllowedClasses = [],
+            ScriptName = shape switch
+            {
+                AbilityShape.Circle => "CircleAbilityScript",
+                AbilityShape.Cone => "ConeAbilityScript",
+                _ => "ProjectileAbilityScript",
+            },
+            ThreatMultiplier = 1f,
+            HealThreatPerHp = 0f,
+            AimMode = shape == AbilityShape.Projectile ? AbilityAimMode.Cursor : AbilityAimMode.Movement,
+            Shape = shape,
+            Anchor = AbilityAnchor.Caster,
+            Reach = reach,
+            Radius = radius,
+            ArcDegrees = arc,
+            ProjectileSpeed = speed,
+            Pierce = pierce,
+            Affects = AbilityAffects.Hostile,
+            PowerGainPerHit = 0,
+            ScalingStat = ScalingStat.Attack,
+            ScalingCoefficient = 0f,
+            BaseDamageCoefficient = baseDamage,
+            AuraId = aura is { } a ? new AuraId(a) : null,
+        };
 
     /// <summary>
     /// The pool a class spends from (#652), as the World's <c>ClassPowerType</c> gives a character at select: a kit
@@ -2849,40 +2943,40 @@ public class WorldDbContext : DbContext
         AbilityAffects affects = AbilityAffects.Hostile, int powerGainPerHit = 0,
         ScalingStat scaling = ScalingStat.Attack, float coefficient = 0f, float weapon = 0f, SpellEffect? effects = null,
         uint? aura = null) => new()
-    {
-        Id = id,
-        Name = name,
-        CastTime = castTime,
-        Cooldown = cooldown,
-        Cost = cost,
-        CostPowerType = cost == 0 ? PowerType.None : ClassPool(cls),
-        Range = range,
-        Effects = effects ?? (affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage),
-        EffectValue = value,
-        AllowedClasses = [cls],
-        ScriptName = shape switch
         {
-            AbilityShape.Circle => "CircleAbilityScript",
-            AbilityShape.Cone => "ConeAbilityScript",
-            _ => "ProjectileAbilityScript",
-        },
-        ThreatMultiplier = 1f,
-        HealThreatPerHp = affects == AbilityAffects.Ally ? 0.5f : 0f,
-        AimMode = aim,
-        Shape = shape,
-        Anchor = anchor,
-        Reach = reach,
-        Radius = radius,
-        ArcDegrees = arc,
-        ProjectileSpeed = speed,
-        Pierce = pierce,
-        Affects = affects,
-        PowerGainPerHit = powerGainPerHit,
-        ScalingStat = scaling,
-        ScalingCoefficient = coefficient,
-        BaseDamageCoefficient = weapon,
-        AuraId = aura is { } a ? new AuraId(a) : null,
-    };
+            Id = id,
+            Name = name,
+            CastTime = castTime,
+            Cooldown = cooldown,
+            Cost = cost,
+            CostPowerType = cost == 0 ? PowerType.None : ClassPool(cls),
+            Range = range,
+            Effects = effects ?? (affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage),
+            EffectValue = value,
+            AllowedClasses = [cls],
+            ScriptName = shape switch
+            {
+                AbilityShape.Circle => "CircleAbilityScript",
+                AbilityShape.Cone => "ConeAbilityScript",
+                _ => "ProjectileAbilityScript",
+            },
+            ThreatMultiplier = 1f,
+            HealThreatPerHp = affects == AbilityAffects.Ally ? 0.5f : 0f,
+            AimMode = aim,
+            Shape = shape,
+            Anchor = anchor,
+            Reach = reach,
+            Radius = radius,
+            ArcDegrees = arc,
+            ProjectileSpeed = speed,
+            Pierce = pierce,
+            Affects = affects,
+            PowerGainPerHit = powerGainPerHit,
+            ScalingStat = scaling,
+            ScalingCoefficient = coefficient,
+            BaseDamageCoefficient = weapon,
+            AuraId = aura is { } a ? new AuraId(a) : null,
+        };
 
     /// <summary>
     /// Auras: timed effects abilities, items and scripts put on units. Reference data; the world's AuraCatalog validates
@@ -2943,11 +3037,21 @@ public class WorldDbContext : DbContext
     private static AuraTemplate Aura(uint id, string name, AuraKind kind, uint durationMs, uint tickIntervalMs,
         AuraPeriodicKind periodic, float periodicBase, ScalingStat stat, float coefficient, AuraStacking stacking,
         uint maxStacks, float baseDamage = 0f) => new()
-    {
-        Id = id, Name = name, Icon = name.ToLowerInvariant(), Kind = kind, DurationMs = durationMs,
-        TickIntervalMs = tickIntervalMs, PeriodicKind = periodic, PeriodicBase = periodicBase, ScalingStat = stat,
-        ScalingCoefficient = coefficient, BaseDamageCoefficient = baseDamage, Stacking = stacking, MaxStacks = maxStacks,
-    };
+        {
+            Id = id,
+            Name = name,
+            Icon = name.ToLowerInvariant(),
+            Kind = kind,
+            DurationMs = durationMs,
+            TickIntervalMs = tickIntervalMs,
+            PeriodicKind = periodic,
+            PeriodicBase = periodicBase,
+            ScalingStat = stat,
+            ScalingCoefficient = coefficient,
+            BaseDamageCoefficient = baseDamage,
+            Stacking = stacking,
+            MaxStacks = maxStacks,
+        };
 
     /// <summary>
     /// One stat an aura modifies, at most one row per stat. Stat 1-10 (AuraStat); Kind 1 Flat, 2 Percent. The value may be
@@ -3024,7 +3128,9 @@ public class WorldDbContext : DbContext
                          "PowerPerIntellect", "PowerPerAgility", "AttackPerStrength", "AttackPerAgility",
                          "AbilityPerIntellect", "BaseBlock", "BaseDodge", "BaseCrit",
                      })
+            {
                 t.HasCheckConstraint($"CK_ClassStatFactors_{column}", Finite(column));
+            }
 
             // The whole-number factors are bigint; the calculator takes them as uint (#506 review).
             t.HasCheckConstraint("CK_ClassStatFactors_HpPerStamina", $"\"HpPerStamina\" >= 0 AND \"HpPerStamina\" <= {uint.MaxValue}");

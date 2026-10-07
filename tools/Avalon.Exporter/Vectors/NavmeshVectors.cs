@@ -34,17 +34,17 @@ public static class NavmeshVectors
         var text = new StringBuilder();
         text.Append(Header);
 
-        var rays = 0;
-        var grounds = 0;
+        int rays = 0;
+        int grounds = 0;
 
-        foreach (LayoutSpec spec in Layouts)
+        foreach (LayoutSpec spec in s_layouts)
         {
             Emit(text, spec, ref rays, ref grounds);
         }
 
         Lf.Write(outputPath, text.ToString());
 
-        Console.WriteLine($"wrote {outputPath} ({Layouts.Count} layouts; {rays} rays, {grounds} ground samples)");
+        Console.WriteLine($"wrote {outputPath} ({s_layouts.Count} layouts; {rays} rays, {grounds} ground samples)");
     }
 
     // ---------------------------------------------------------------- the layouts and their queries
@@ -74,7 +74,7 @@ public static class NavmeshVectors
     private static GroundSpec Ground(float x, float z, string label, float y = SampleFromY)
         => new(x, y, z, label);
 
-    private static readonly IReadOnlyList<LayoutSpec> Layouts =
+    private static readonly IReadOnlyList<LayoutSpec> s_layouts =
     [
         // The live town: four chunks, unrotated, walled apart along x = 30 and z = 30 with doorways
         // at 12..18 and 42..48, and since the town beautification built up with solid buildings and
@@ -338,11 +338,11 @@ public static class NavmeshVectors
 
     private static (int Tiles, int Polys, int Verts) Counts(DtNavMesh mesh)
     {
-        var tiles = 0;
-        var polys = 0;
-        var verts = 0;
+        int tiles = 0;
+        int polys = 0;
+        int verts = 0;
 
-        for (var i = 0; i < mesh.GetMaxTiles(); ++i)
+        for (int i = 0; i < mesh.GetMaxTiles(); ++i)
         {
             DtMeshTile tile = mesh.GetTile(i);
             if (tile?.data?.header is null) continue;

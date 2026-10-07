@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Units;
@@ -11,7 +9,7 @@ public sealed class Encounter : IEncounter
     private readonly CombatConfig _config;
     private readonly TimeProvider _time;
     private readonly HashSet<IUnit> _hostiles = new();
-    private readonly HashSet<IUnit> _players  = new();
+    private readonly HashSet<IUnit> _players = new();
     private readonly Dictionary<IUnit, Dictionary<IUnit, float>> _threat = new();
 
     // Reused every tick by Update: the attackers whose threat decayed to nothing. The tick allocates nothing.
@@ -20,21 +18,21 @@ public sealed class Encounter : IEncounter
     /// <param name="time">The instance's clock, the one the rest of the world times by (#614).</param>
     public Encounter(CombatConfig config, TimeProvider? time = null)
     {
-        _config        = config;
-        _time          = time ?? TimeProvider.System;
-        Id             = Guid.NewGuid();
-        SpawnedAt      = Now;
+        _config = config;
+        _time = time ?? TimeProvider.System;
+        Id = Guid.NewGuid();
+        SpawnedAt = Now;
         LastDamageTime = Now;
     }
 
     private DateTime Now => _time.GetUtcNow().UtcDateTime;
 
-    public Guid     Id             { get; }
-    public DateTime SpawnedAt      { get; }
+    public Guid Id { get; }
+    public DateTime SpawnedAt { get; }
     public DateTime LastDamageTime { get; private set; }
 
     public IReadOnlyCollection<IUnit> Hostiles => _hostiles;
-    public IReadOnlyCollection<IUnit> Players  => _players;
+    public IReadOnlyCollection<IUnit> Players => _players;
 
     public bool ShouldEnd { get; private set; }
 
@@ -43,7 +41,7 @@ public sealed class Encounter : IEncounter
         if (!_hostiles.Add(hostile))
             return;
         var list = new Dictionary<IUnit, float>();
-        foreach (var p in _players)
+        foreach (IUnit p in _players)
             list[p] = _config.InitialThreatSeed;
         _threat[hostile] = list;
     }
@@ -52,29 +50,29 @@ public sealed class Encounter : IEncounter
     {
         if (!_players.Add(player))
             return;
-        foreach (var h in _hostiles)
+        foreach (IUnit h in _hostiles)
             _threat[h][player] = _config.InitialThreatSeed;
     }
 
     public void RemovePlayer(IUnit player)
     {
         _players.Remove(player);
-        foreach (var threatList in _threat.Values)
+        foreach (Dictionary<IUnit, float> threatList in _threat.Values)
             threatList.Remove(player);
     }
 
     public IReadOnlyDictionary<IUnit, float> GetThreatList(IUnit hostile)
-        => _threat.TryGetValue(hostile, out var list)
+        => _threat.TryGetValue(hostile, out Dictionary<IUnit, float>? list)
             ? list
             : new Dictionary<IUnit, float>();
 
     public IUnit? GetTopThreat(IUnit hostile)
     {
-        if (!_threat.TryGetValue(hostile, out var list) || list.Count == 0)
+        if (!_threat.TryGetValue(hostile, out Dictionary<IUnit, float>? list) || list.Count == 0)
             return null;
         IUnit? top = null;
-        var    max = float.MinValue;
-        foreach (var (u, t) in list)
+        float max = float.MinValue;
+        foreach ((IUnit? u, float t) in list)
         {
             if (t > max)
             {
@@ -87,9 +85,9 @@ public sealed class Encounter : IEncounter
 
     public void AddThreat(IUnit hostile, IUnit attacker, float amount)
     {
-        if (!_threat.TryGetValue(hostile, out var list))
+        if (!_threat.TryGetValue(hostile, out Dictionary<IUnit, float>? list))
             return;
-        list.TryGetValue(attacker, out var cur);
+        list.TryGetValue(attacker, out float cur);
         list[attacker] = cur + amount;
         LastDamageTime = Now;
     }
@@ -115,24 +113,24 @@ public sealed class Encounter : IEncounter
     public void Update(TimeSpan deltaTime)
     {
         float dt = (float)deltaTime.TotalSeconds;
-        foreach (var (hostile, threatList) in _threat)
+        foreach ((IUnit? hostile, Dictionary<IUnit, float>? threatList) in _threat)
         {
             _decayed.Clear();
-            foreach (var (attacker, threat) in threatList)
+            foreach ((IUnit? attacker, float threat) in threatList)
             {
                 float rate = _config.DefaultDecayRatePerSecond;
                 if (Vector3.Distance(attacker.Position, hostile.Position) > _config.EngagementRadius)
                     rate *= _config.OutOfRangeDecayMultiplier;
                 float next = threat - rate * dt;
                 if (next <= 0) _decayed.Add(attacker);
-                else           threatList[attacker] = next;
+                else threatList[attacker] = next;
             }
-            foreach (var u in _decayed) threatList.Remove(u);
+            foreach (IUnit u in _decayed) threatList.Remove(u);
         }
         _decayed.Clear();
 
         bool noHostiles = _hostiles.Count == 0;
-        bool pastGrace  = (Now - LastDamageTime).TotalSeconds >= _config.EncounterEndGraceSeconds;
+        bool pastGrace = (Now - LastDamageTime).TotalSeconds >= _config.EncounterEndGraceSeconds;
         ShouldEnd = noHostiles && pastGrace;
     }
 }

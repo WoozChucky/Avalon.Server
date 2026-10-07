@@ -14,7 +14,7 @@ public sealed class SteamWebLinkOptions
             throw new InvalidOperationException(Section + ":CallbackUrl must be a trusted HTTPS URL ending in " + CallbackPath + ".");
         if (!Valid(SiteUrl)) throw new InvalidOperationException(Section + ":SiteUrl must be a trusted HTTPS site URL.");
     }
-    private static bool Valid(string value) => Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == "https" &&
+    private static bool Valid(string value) => Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) && uri.Scheme == "https" &&
         uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0;
     public string ChallengeUrl(Guid id) { Validate(); return CallbackUrl[..^"callback".Length] + "challenge/" + id.ToString("N"); }
     public string ResultUrl(Guid? id, bool failed = false)

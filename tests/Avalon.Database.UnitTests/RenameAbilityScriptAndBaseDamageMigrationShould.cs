@@ -30,7 +30,7 @@ public class RenameAbilityScriptAndBaseDamageMigrationShould
     [Fact]
     public void Map_the_renamed_properties_to_the_renamed_columns()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         IEntityType entity = context.Model.FindEntityType(typeof(AbilityTemplate))!;

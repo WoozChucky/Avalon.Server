@@ -1,5 +1,4 @@
 using System.Buffers;
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
@@ -16,7 +15,7 @@ public static class OutboxSerializer
         temp.Reset();
         Serializer.Serialize(temp, packet);
         WriteVarint(burst, (uint)temp.Written);
-        var dest = burst.GetSpan(temp.Written);
+        Span<byte> dest = burst.GetSpan(temp.Written);
         temp.WrittenSpan.CopyTo(dest);
         burst.Advance(temp.Written);
     }

@@ -1,7 +1,4 @@
-using System.IO;
 using Avalon.Common;
-using Avalon.Common.Accounts;
-using Avalon.Common.Cryptography;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -15,9 +12,7 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
-using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
@@ -38,8 +33,8 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class MapInstanceVendorShould
 {
-    private static readonly ObjectGuid SmithGuid = new(ObjectType.Creature, 92);
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly ObjectGuid s_smithGuid = new(ObjectType.Creature, 92);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private readonly FixedTimeProvider _clock = new(new DateTimeOffset(Now));
     private StaticData _data = null!;
@@ -70,7 +65,7 @@ public class MapInstanceVendorShould
 
     private MapInstance Build(IWorld world)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         serviceProvider.GetService(typeof(TimeProvider)).Returns(_clock);
@@ -97,8 +92,8 @@ public class MapInstanceVendorShould
 
         if (shopOpen)
         {
-            connection.CurrentDialogue = (SmithGuid, new DialogueNodeId(1));
-            character.OpenShopNpc = SmithGuid;
+            connection.CurrentDialogue = (s_smithGuid, new DialogueNodeId(1));
+            character.OpenShopNpc = s_smithGuid;
         }
 
         instance.AddCharacter(connection);
@@ -107,7 +102,7 @@ public class MapInstanceVendorShould
 
     /// <summary>What choosing "Show me your wares." leaves in the instance.</summary>
     private VendorStockState SmithStock(MapInstance instance) =>
-        instance.Vendors.For(SmithGuid, Smith, _data.Vendors.RowsFor(Smith));
+        instance.Vendors.For(s_smithGuid, Smith, _data.Vendors.RowsFor(Smith));
 
     private static uint? BladesLeft(VendorStockState stock) =>
         stock.Available(stock.Rows.Single(r => r.Sequence == BladeSequence));
@@ -128,7 +123,7 @@ public class MapInstanceVendorShould
         VendorStockState stock = SmithStock(instance);
 
         stock.Take(stock.Rows.Single(r => r.Sequence == BladeSequence), 2, ClockNow);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal((uint?)0, Assert.Single(first.Lists()).Entries.Single(e => e.Sequence == BladeSequence).Stock);
         Assert.Equal((uint?)0, Assert.Single(second.Lists()).Entries.Single(e => e.Sequence == BladeSequence).Stock);
@@ -144,14 +139,14 @@ public class MapInstanceVendorShould
         Client second = Join(instance, 432_002, shopOpen: true);
         VendorStockState stock = SmithStock(instance);
         stock.Take(stock.Rows.Single(r => r.Sequence == BladeSequence), 2, ClockNow);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         _clock.Now = _clock.Now.AddSeconds(59);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         Assert.Single(first.Lists());
 
         _clock.Now = _clock.Now.AddSeconds(1);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         foreach (Client client in new[] { first, second })
         {
@@ -171,8 +166,8 @@ public class MapInstanceVendorShould
         Client first = Join(instance, 432_001, shopOpen: true);
         SmithStock(instance);
 
-        instance.Update(Tick);
-        instance.Update(Tick);
+        instance.Update(s_tick);
+        instance.Update(s_tick);
 
         Assert.Empty(first.Lists());
     }
@@ -188,13 +183,13 @@ public class MapInstanceVendorShould
         Client first = Join(instance, 432_001, shopOpen: true);
         Client second = Join(instance, 432_002, shopOpen: true);
         SmithStock(instance);
-        Assert.True(instance.Vendors.TryGet(SmithGuid, out VendorStockState? stock));
+        Assert.True(instance.Vendors.TryGet(s_smithGuid, out VendorStockState? stock));
         Assert.NotEqual(VendorResult.NotFound, BuyCharm(first.Character, stock));
         List<VendorStock> rows = Rows();
         rows.RemoveAll(r => r.Id == 4);
 
         _data.Apply(new VendorsPatch(Catalog(rows)));
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal([1u, 2u, 3u], Assert.Single(first.Lists()).Entries.Select(e => e.Sequence));
         Assert.Equal([1u, 2u, 3u], Assert.Single(second.Lists()).Entries.Select(e => e.Sequence));
@@ -213,21 +208,26 @@ public class MapInstanceVendorShould
         Client second = Join(instance, 432_002, shopOpen: true);
         Client browsing = Join(instance, 432_003, shopOpen: false);
         SmithStock(instance);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         var dearerTonic = new ItemTemplate
         {
-            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass,
-            MaxStackSize = Tonic.MaxStackSize, BuyPrice = 15, SellPrice = Tonic.SellPrice,
+            Id = Tonic.Id,
+            Name = Tonic.Name,
+            Class = Tonic.Class,
+            SubClass = Tonic.SubClass,
+            MaxStackSize = Tonic.MaxStackSize,
+            BuyPrice = 15,
+            SellPrice = Tonic.SellPrice,
         };
         _data.Apply(new ItemsPatch(Items.Select(t => t.Id == Tonic.Id ? dearerTonic : t).ToList()));
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal(15u, Assert.Single(first.Lists()).Entries.Single(e => e.Sequence == TonicSequence).Price);
         Assert.Equal(15u, Assert.Single(second.Lists()).Entries.Single(e => e.Sequence == TonicSequence).Price);
         Assert.Empty(browsing.Lists());
 
-        instance.Update(Tick);
+        instance.Update(s_tick);
         Assert.Single(first.Lists());
     }
 
@@ -240,7 +240,7 @@ public class MapInstanceVendorShould
         SmithStock(instance);
 
         for (int tick = 0; tick < 10; tick++)
-            instance.Update(Tick);
+            instance.Update(s_tick);
 
         Assert.Empty(first.Lists());
     }
@@ -258,19 +258,19 @@ public class MapInstanceVendorShould
         VendorStockState stock = SmithStock(instance);
         first.Connection.CurrentDialogue = null;
         first.Character.CloseNpcWindows();
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         List<VendorStock> rows = Rows();
         rows.Single(r => r.Id == 2).MaxStock = 5;
         _data.Apply(new VendorsPatch(Catalog(rows)));
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         _clock.Now = _clock.Now.AddSeconds(59);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         Assert.Equal((uint?)2, BladesLeft(stock));
 
         _clock.Now = _clock.Now.AddSeconds(1);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal((uint?)5, BladesLeft(stock));
         Assert.Empty(first.Lists());
@@ -291,11 +291,11 @@ public class MapInstanceVendorShould
         stock.Take(stock.Rows.Single(r => r.Sequence == BladeSequence), 2, ClockNow);
 
         _clock.Now = _clock.Now.AddSeconds(59);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         Assert.Equal((uint?)0, BladesLeft(stock));
 
         _clock.Now = _clock.Now.AddSeconds(1);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         Assert.Equal((uint?)2, BladesLeft(stock));
     }
 
@@ -307,10 +307,10 @@ public class MapInstanceVendorShould
         Join(instance, 432_001, shopOpen: true);
         Join(instance, 432_002, shopOpen: true);
         SmithStock(instance);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         _world.ClearReceivedCalls();
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         _ = _world.Received(1).Data;
     }
@@ -318,14 +318,14 @@ public class MapInstanceVendorShould
     [Fact]
     public void Tick_an_instance_nobody_shopped_in_without_reading_vendor_data()
     {
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>());
         // world.Data is deliberately left unconfigured, so it is null: the pass must not run.
         using MapInstance instance = Build(world);
         Join(instance, 432_001, shopOpen: true);
 
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal(0, instance.Vendors.Count);
         _ = world.DidNotReceive().Data;
@@ -343,8 +343,8 @@ public class MapInstanceVendorShould
         using MapInstance instance = Build(new QuietWorld(_data));
         var shopping = new QuietConnection(Inventory.TestCharacters.New(432_001));
         var browsing = new QuietConnection(Inventory.TestCharacters.New(432_002));
-        shopping.CurrentDialogue = (SmithGuid, new DialogueNodeId(1));
-        ((CharacterEntity)shopping.Character!).OpenShopNpc = SmithGuid;
+        shopping.CurrentDialogue = (s_smithGuid, new DialogueNodeId(1));
+        ((CharacterEntity)shopping.Character!).OpenShopNpc = s_smithGuid;
         instance.AddCharacter(shopping);
         instance.AddCharacter(browsing);
         VendorStockState stock = SmithStock(instance);

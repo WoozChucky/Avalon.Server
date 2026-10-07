@@ -1,15 +1,9 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
-using Avalon.Common.Cryptography;
 using Avalon.Configuration;
-using Avalon.Hosting.PluginTypes;
 using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
@@ -257,10 +251,10 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             KeepAlive.Apply(client.Client);
 
             // will dispose once connection finished executing (canceled or disconnect)
-            await using var scope = _serviceProvider.CreateAsyncScope();
+            await using AsyncServiceScope scope = _serviceProvider.CreateAsyncScope();
 
             // cannot inject tcp client here
-            var connection = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider, client, this);
+            T connection = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider, client, this);
             // Registered before it starts: the auth server's liveness sweep (#555) reads Connections.
             AddConnection(connection);
             registered = connection;
@@ -281,7 +275,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public void ForAllConnections(Action<IConnection> callback)
     {
-        foreach (var (_, connection) in Connections)
+        foreach ((Guid _, IConnection? connection) in Connections)
         {
             callback(connection);
         }
@@ -306,15 +300,15 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             return;
         }
 
-        if (!PacketManager.TryGetPacketInfo(header.Type, out var details) || details.PacketHandlerType is null)
+        if (!PacketManager.TryGetPacketInfo(header.Type, out PacketInfo details) || details.PacketHandlerType is null)
         {
             _logger.LogWarning("Could not find a handler for packet {PacketType}", header.Type);
             return;
         }
 
-        if (!HandlerCache.TryGetValue(details.PacketType, out var handlerCache))
+        if (!HandlerCache.TryGetValue(details.PacketType, out PacketHandlerCache? handlerCache))
         {
-            var objectFactory = ActivatorUtilities.CreateFactory(details.PacketHandlerType, []);
+            ObjectFactory objectFactory = ActivatorUtilities.CreateFactory(details.PacketHandlerType, []);
             handlerCache = new PacketHandlerCache
             {
                 HandlerFactory = sp => objectFactory(sp, null)
@@ -322,14 +316,14 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             HandlerCache[details.PacketType] = handlerCache;
         }
 
-        var context = GetContextPacket(connection, payload, details.PacketType);
+        object context = GetContextPacket(connection, payload, details.PacketType);
 
         using PacketDispatch dispatch = PacketTelemetry.Begin(header.Type, DescribeConnection(connection), _logger);
         try
         {
-            await using var scope = _serviceProvider.CreateAsyncScope();
+            await using AsyncServiceScope scope = _serviceProvider.CreateAsyncScope();
 
-            var packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
+            object packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
             await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _connectionsStopping).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (IsStopping)
@@ -347,7 +341,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public void CallConnectionListener(IConnection connection)
     {
-        foreach (var listener in _connectionListeners) listener(connection);
+        foreach (Func<IConnection, bool> listener in _connectionListeners) listener(connection);
     }
 
     /// <summary>

@@ -1,5 +1,3 @@
-using Avalon.Common;
-using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
@@ -9,6 +7,7 @@ using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Chat;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
@@ -16,7 +15,6 @@ using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -488,7 +486,7 @@ public class World : IWorld
         await _mapManager.LoadAsync();
         await _chunkLibrary.LoadAsync(token);
 
-        var chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
+        IChunkLayoutInstanceFactory chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
         var registry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory, _tick);
         _registry = registry;
         InstanceRegistry = registry;
@@ -633,7 +631,7 @@ public class World : IWorld
     }
 
     /// <summary>The town a dead logout goes to when the respawn town cannot be looked up at all.</summary>
-    private static readonly MapTemplateId FallbackTownId = new(1);
+    private static readonly MapTemplateId s_fallbackTownId = new(1);
 
     /// <summary>
     /// The database half of "logout while dead": resolves the respawn town for the map the character
@@ -662,20 +660,20 @@ public class World : IWorld
         }
         catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            MapTemplate? fallback = templates.FirstOrDefault(t => t.Id == FallbackTownId);
+            MapTemplate? fallback = templates.FirstOrDefault(t => t.Id == s_fallbackTownId);
             if (fallback is null)
             {
                 logger.LogError(e,
                     "Finding the respawn town for character {CharacterId}, who logged out dead on map {MapId}, failed, " +
                     "and town {FallbackTownId} is not loaded; saving it where it died",
-                    row.Id.Value, diedOn.Value, FallbackTownId.Value);
+                    row.Id.Value, diedOn.Value, s_fallbackTownId.Value);
                 return;
             }
 
             logger.LogError(e,
                 "Finding the respawn town for character {CharacterId}, who logged out dead on map {MapId}, failed; " +
                 "saving it at town {FallbackTownId}",
-                row.Id.Value, diedOn.Value, FallbackTownId.Value);
+                row.Id.Value, diedOn.Value, s_fallbackTownId.Value);
             MoveTo(row, fallback);
             return;
         }
@@ -732,7 +730,7 @@ public class World : IWorld
 
     private void ApplyScriptsHotReload(List<Type> aiScriptTypes)
     {
-        Dictionary<string, Type> scriptTypeDict =
+        var scriptTypeDict =
             aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
         foreach ((string name, Type type) in scriptTypeDict)
             _hotReloaded[name] = type;
@@ -772,7 +770,7 @@ public class World : IWorld
         foreach ((ICreature entity, Type scriptType) in toUpdate)
         {
             instance.RemoveCreature(entity);
-            AiScript? script =
+            var script =
                 ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, instance) as AiScript;
             entity.Script = script;
             instance.AddCreature(entity);

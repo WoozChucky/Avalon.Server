@@ -23,7 +23,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -39,7 +38,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class InstanceTransferReplicationShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
     private const ushort TownMap = 1;
     private const ushort ForestMap = 2;
 
@@ -145,7 +144,7 @@ public class InstanceTransferReplicationShould
         Ticks(maps.Forest, 2);
         traveller.Character.IsDead = true;
         traveller.Sent.Clear();
-        var resolver = Substitute.For<IRespawnTargetResolver>();
+        IRespawnTargetResolver resolver = Substitute.For<IRespawnTargetResolver>();
         resolver.ResolveTownAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
             .Returns(new MapTemplateId(TownMap));
         var handler = new RespawnAtTownHandler(NullLogger<RespawnAtTownHandler>.Instance, maps.World, resolver,
@@ -169,7 +168,7 @@ public class InstanceTransferReplicationShould
     {
         Assert.Equal(dropped.Order(), client.Removed().Order());
 
-        List<NetworkPacketType> order = client.Sent.Select(p => p.Header.Type).ToList();
+        var order = client.Sent.Select(p => p.Header.Type).ToList();
         int remove = order.IndexOf(NetworkPacketType.SMSG_WORLD_STATE_REMOVE);
         Assert.Equal(remove, order.LastIndexOf(NetworkPacketType.SMSG_WORLD_STATE_REMOVE));
         Assert.True(remove < order.IndexOf(NetworkPacketType.SMSG_MAP_TRANSITION));
@@ -193,7 +192,7 @@ public class InstanceTransferReplicationShould
     {
         for (int i = 0; i < count; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
     }
 
@@ -244,26 +243,30 @@ public class InstanceTransferReplicationShould
                 new() { Id = new MapTemplateId(TownMap), MapType = MapType.Town, Name = "town", Description = "" },
                 new() { Id = new MapTemplateId(ForestMap), MapType = MapType.Normal, Name = "forest", Description = "" },
             };
-            var mapManager = Substitute.For<IAvalonMapManager>();
+            IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
             mapManager.Templates.Returns(templates);
 
-            var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+            IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
             factory.BuildAsync(Arg.Is<MapTemplate>(t => t.Id == new MapTemplateId(TownMap)), Arg.Any<uint?>(),
                 Arg.Any<CancellationToken>()).Returns(town);
             factory.BuildAsync(Arg.Is<MapTemplate>(t => t.Id == new MapTemplateId(ForestMap)), Arg.Any<uint?>(),
                 Arg.Any<CancellationToken>()).Returns(forest);
 
-            var serviceProvider = Substitute.For<IServiceProvider>();
+            IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
             serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory)).Returns(factory);
 
-            var worldRepository = Substitute.For<IWorldRepository>();
+            IWorldRepository worldRepository = Substitute.For<IWorldRepository>();
             worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(new Avalon.Domain.Auth.World
                 {
-                    Name = "test", Host = "127.0.0.1", Port = 0, MinVersion = "0.0.1", Version = "1.0.0",
+                    Name = "test",
+                    Host = "127.0.0.1",
+                    Port = 0,
+                    MinVersion = "0.0.1",
+                    Version = "1.0.0",
                 });
 
-            var chunks = Substitute.For<IChunkLibrary>();
+            IChunkLibrary chunks = Substitute.For<IChunkLibrary>();
             chunks.GetById(Arg.Any<ChunkTemplateId>()).Returns(new ChunkTemplate { Name = "chunk" });
 
             TestStaticDataRepositories r = TestStaticData.Repositories();

@@ -21,14 +21,18 @@ public class WorldVendorCatalogShould
     [Fact]
     public async Task Load_the_vendor_catalog_from_the_repository_the_world_was_given()
     {
-        var worldRepository = Substitute.For<IWorldRepository>();
+        IWorldRepository worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Auth.World
             {
-                Name = "test", Host = "127.0.0.1", Port = 0, MinVersion = "0.0.1", Version = "1.0.0",
+                Name = "test",
+                Host = "127.0.0.1",
+                Port = 0,
+                MinVersion = "0.0.1",
+                Version = "1.0.0",
             });
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
             .Returns(Substitute.For<IChunkLayoutInstanceFactory>());
 

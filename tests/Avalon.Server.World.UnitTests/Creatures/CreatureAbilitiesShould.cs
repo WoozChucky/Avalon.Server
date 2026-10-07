@@ -7,15 +7,14 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 
 /// <summary>#163: a creature holds its own clones of the abilities its script declares, and their cooldowns.</summary>
 public class CreatureAbilitiesShould
 {
-    private static readonly AbilityId Bite = new(302);
-    private static readonly AbilityId Claw = new(303);
+    private static readonly AbilityId s_bite = new(302);
+    private static readonly AbilityId s_claw = new(303);
 
     internal static AbilityCatalog Catalog(params AbilityTemplate[] templates) =>
         new(templates, NullLoggerFactory.Instance);
@@ -31,27 +30,27 @@ public class CreatureAbilitiesShould
     [Fact]
     public void Give_each_creature_its_own_clones()
     {
-        AbilityCatalog catalog = Catalog(Row(Bite), Row(Claw));
+        AbilityCatalog catalog = Catalog(Row(s_bite), Row(s_claw));
         var wolf = new Creature { Name = "Wolf" };
         var other = new Creature { Name = "Wolf" };
 
-        wolf.Abilities.Load(catalog, new CreatureAbilityKit(Bite, Claw), NullLogger.Instance, wolf.Name);
-        other.Abilities.Load(catalog, new CreatureAbilityKit(Bite, Claw), NullLogger.Instance, other.Name);
+        wolf.Abilities.Load(catalog, new CreatureAbilityKit(s_bite, s_claw), NullLogger.Instance, wolf.Name);
+        other.Abilities.Load(catalog, new CreatureAbilityKit(s_bite, s_claw), NullLogger.Instance, other.Name);
 
-        Assert.Equal([Bite, Claw], wolf.Abilities.All.Select(a => a.AbilityId));
-        Assert.Same(wolf.Abilities[Bite], wolf.Abilities.Basic);
-        Assert.NotSame(wolf.Abilities[Bite], other.Abilities[Bite]);
+        Assert.Equal([s_bite, s_claw], wolf.Abilities.All.Select(a => a.AbilityId));
+        Assert.Same(wolf.Abilities[s_bite], wolf.Abilities.Basic);
+        Assert.NotSame(wolf.Abilities[s_bite], other.Abilities[s_bite]);
 
-        wolf.Abilities[Claw]!.CooldownTimer = 5f;
-        Assert.Equal(0f, other.Abilities[Claw]!.CooldownTimer);
+        wolf.Abilities[s_claw]!.CooldownTimer = 5f;
+        Assert.Equal(0f, other.Abilities[s_claw]!.CooldownTimer);
     }
 
     [Fact]
     public void Tick_cooldowns_down_and_gate_readiness_on_them()
     {
         var wolf = new Creature { Name = "Wolf" };
-        wolf.Abilities.Load(Catalog(Row(Bite), Row(Claw)), new CreatureAbilityKit(Bite, Claw), NullLogger.Instance, "Wolf");
-        IAbility claw = wolf.Abilities[Claw]!;
+        wolf.Abilities.Load(Catalog(Row(s_bite), Row(s_claw)), new CreatureAbilityKit(s_bite, s_claw), NullLogger.Instance, "Wolf");
+        IAbility claw = wolf.Abilities[s_claw]!;
         claw.CooldownTimer = 1f;
 
         Assert.False(CreatureAbilities.IsReady(claw));
@@ -71,9 +70,9 @@ public class CreatureAbilitiesShould
         var logs = new ListLogger();
         var wolf = new Creature { Name = "Wolf" };
 
-        wolf.Abilities.Load(Catalog(Row(Bite)), new CreatureAbilityKit(Bite, Claw), logs, "Wolf");
+        wolf.Abilities.Load(Catalog(Row(s_bite)), new CreatureAbilityKit(s_bite, s_claw), logs, "Wolf");
 
-        Assert.Equal([Bite], wolf.Abilities.All.Select(a => a.AbilityId));
+        Assert.Equal([s_bite], wolf.Abilities.All.Select(a => a.AbilityId));
         Assert.NotNull(wolf.Abilities.Basic);
         (LogLevel level, string message) = Assert.Single(logs.Entries);
         Assert.Equal(LogLevel.Error, level);
@@ -85,10 +84,10 @@ public class CreatureAbilitiesShould
     {
         var wolf = new Creature { Name = "Wolf" };
 
-        wolf.Abilities.Load(Catalog(Row(Claw)), new CreatureAbilityKit(Bite, Claw), NullLogger.Instance, "Wolf");
+        wolf.Abilities.Load(Catalog(Row(s_claw)), new CreatureAbilityKit(s_bite, s_claw), NullLogger.Instance, "Wolf");
 
         Assert.Null(wolf.Abilities.Basic);
-        Assert.Equal([Claw], wolf.Abilities.All.Select(a => a.AbilityId));
+        Assert.Equal([s_claw], wolf.Abilities.All.Select(a => a.AbilityId));
     }
 
     [Fact]
@@ -96,7 +95,7 @@ public class CreatureAbilitiesShould
     {
         var wolf = new Creature { Name = "Wolf" };
 
-        wolf.Abilities.Load(Catalog(Row(Bite)), new CreatureAbilityKit(Bite, Bite), NullLogger.Instance, "Wolf");
+        wolf.Abilities.Load(Catalog(Row(s_bite)), new CreatureAbilityKit(s_bite, s_bite), NullLogger.Instance, "Wolf");
 
         Assert.Single(wolf.Abilities.All);
     }
@@ -105,7 +104,7 @@ public class CreatureAbilitiesShould
     public void Take_every_cooldown_off_on_reset()
     {
         var wolf = new Creature { Name = "Wolf" };
-        wolf.Abilities.Load(Catalog(Row(Bite), Row(Claw)), new CreatureAbilityKit(Bite, Claw), NullLogger.Instance, "Wolf");
+        wolf.Abilities.Load(Catalog(Row(s_bite), Row(s_claw)), new CreatureAbilityKit(s_bite, s_claw), NullLogger.Instance, "Wolf");
         foreach (IAbility ability in wolf.Abilities.All)
             ability.CooldownTimer = 3f;
 

@@ -2,7 +2,6 @@ using Avalon.Infrastructure;
 using Avalon.Server.World.Presence;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Presence;
 
@@ -24,7 +23,7 @@ public sealed class WorldReadyHeartbeatServiceShould
     [Fact]
     public async Task Publish_only_after_listener_and_tick_are_ready()
     {
-        var service = Service();
+        WorldReadyHeartbeatService service = Service();
         await service.PublishOnceAsync(CancellationToken.None);
         _ticks = 1;
         await service.PublishOnceAsync(CancellationToken.None);
@@ -41,7 +40,7 @@ public sealed class WorldReadyHeartbeatServiceShould
     {
         _listening = true;
         _ticks = 1;
-        var service = Service();
+        WorldReadyHeartbeatService service = Service();
         await service.PublishOnceAsync(CancellationToken.None);
         await service.PublishOnceAsync(CancellationToken.None);
         await _cache.Received(1).SetAsync(CacheKeys.WorldReady(1), "1", TimeSpan.FromSeconds(5));

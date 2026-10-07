@@ -90,7 +90,7 @@ internal sealed class KitPatrolScript(ICreature creature, ISimulationContext con
 /// </summary>
 internal sealed class CastRig
 {
-    private static readonly ConditionalWeakTable<ISimulationContext, CastRig> Rigs = new();
+    private static readonly ConditionalWeakTable<ISimulationContext, CastRig> s_rigs = new();
 
     private readonly ISimulationContext _context;
     private readonly Dictionary<IUnit, KitCombatScript> _scripts = new(ReferenceEqualityComparer.Instance);
@@ -107,7 +107,7 @@ internal sealed class CastRig
     /// <summary>Every cast started, instant or queued, in order.</summary>
     public List<(IUnit Caster, AbilityAim Aim, IAbility Ability)> Casts { get; } = [];
 
-    public static CastRig Of(ISimulationContext context) => Rigs.GetValue(context, c => new CastRig(c));
+    public static CastRig Of(ISimulationContext context) => s_rigs.GetValue(context, c => new CastRig(c));
 
     public static void Register(ISimulationContext context, IUnit creature, KitCombatScript script) =>
         Of(context)._scripts[creature] = script;

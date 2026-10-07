@@ -1,5 +1,4 @@
 using Avalon.ChunkGen;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 

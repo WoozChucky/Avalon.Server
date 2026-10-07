@@ -1,10 +1,9 @@
-using Avalon.World.Persistence;
-using Avalon.World.Public;
 using Avalon.Database.Character.Repositories;
-using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
+using Avalon.World.Persistence;
+using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -38,7 +37,7 @@ public class CharacterDeletetHandler(
 
         if (connection.GameplayAuthority is not { } authority || authority.AccountId != connection.AccountId || connection.IsClosing)
         { connection.Close(); return; }
-        var work = WorldDatabaseWork.ThreadPool.Run(async () =>
+        Task<bool> work = WorldDatabaseWork.ThreadPool.Run(async () =>
         {
             try { return await characterRepository.DeleteForGameplayAsync(authority, packet.CharacterId, CancellationToken.None); }
             catch (Exception error)

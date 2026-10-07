@@ -3,9 +3,9 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Inventory;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -17,17 +17,17 @@ namespace Avalon.Server.World.UnitTests.Entities;
 /// </summary>
 public class InventoryAssemblerShould
 {
-    private static readonly CharacterId Owner = new(1);
+    private static readonly CharacterId s_owner = new(1);
 
     private static CharacterInventory Row(InventoryType container, ushort slot, Guid itemId) =>
-        new() { CharacterId = Owner, Container = container, Slot = slot, ItemId = new ItemInstanceId(itemId) };
+        new() { CharacterId = s_owner, Container = container, Slot = slot, ItemId = new ItemInstanceId(itemId) };
 
     private static ItemInstance Instance(Guid id, ulong template = 5, uint count = 1, uint durability = 50) =>
         new()
         {
             Id = new ItemInstanceId(id),
             TemplateId = new ItemTemplateId(template),
-            CharacterId = Owner,
+            CharacterId = s_owner,
             Count = count,
             Durability = durability,
             Flags = ItemInstanceFlags.None,
@@ -42,7 +42,7 @@ public class InventoryAssemblerShould
     {
         Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid();
 
-        var result = Assemble(
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble(
             [Row(InventoryType.Equipment, 0, a), Row(InventoryType.Bag, 1, b), Row(InventoryType.Bank, 2, c)],
             [Instance(a), Instance(b), Instance(c)]);
 
@@ -54,13 +54,13 @@ public class InventoryAssemblerShould
     [Fact]
     public void Carry_The_Instance_Data_Onto_The_Item()
     {
-        Guid id = Guid.NewGuid();
+        var id = Guid.NewGuid();
 
-        var result = Assemble(
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble(
             [Row(InventoryType.Bag, 3, id)],
             [Instance(id, template: 4242, count: 7, durability: 33)]);
 
-        var item = Assert.Single(result[InventoryType.Bag]);
+        InventoryItem item = Assert.Single(result[InventoryType.Bag]);
         Assert.Equal((ushort)3, item.Slot);
         Assert.Equal(new ItemTemplateId(4242), item.TemplateId);
         Assert.Equal(new ItemInstanceId(id), item.InstanceId);
@@ -76,11 +76,11 @@ public class InventoryAssemblerShould
     {
         Guid first = Guid.NewGuid(), second = Guid.NewGuid();
 
-        var result = Assemble(
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble(
             [Row(InventoryType.Bag, 2, first), Row(InventoryType.Bag, 2, second)],
             [Instance(first, template: 11), Instance(second, template: 22)]);
 
-        var item = Assert.Single(result[InventoryType.Bag]);
+        InventoryItem item = Assert.Single(result[InventoryType.Bag]);
         Assert.Equal(new ItemTemplateId(11), item.TemplateId);
     }
 
@@ -91,9 +91,9 @@ public class InventoryAssemblerShould
     [Fact]
     public void Keep_An_Item_Whose_Count_Is_Zero()
     {
-        Guid id = Guid.NewGuid();
+        var id = Guid.NewGuid();
 
-        var result = Assemble([Row(InventoryType.Bag, 0, id)], [Instance(id, count: 0)]);
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble([Row(InventoryType.Bag, 0, id)], [Instance(id, count: 0)]);
 
         Assert.Equal(0u, Assert.Single(result[InventoryType.Bag]).Count);
     }
@@ -104,11 +104,11 @@ public class InventoryAssemblerShould
     [Fact]
     public void Skip_A_Row_Whose_Container_Is_Not_A_Known_One()
     {
-        Guid id = Guid.NewGuid();
-        var row = Row(InventoryType.Bag, 0, id);
+        var id = Guid.NewGuid();
+        CharacterInventory row = Row(InventoryType.Bag, 0, id);
         row.Container = (InventoryType)999;
 
-        var result = Assemble([row], [Instance(id)]);
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble([row], [Instance(id)]);
 
         Assert.All(result.Values, list => Assert.Empty(list));
     }
@@ -118,18 +118,18 @@ public class InventoryAssemblerShould
     {
         Guid present = Guid.NewGuid(), orphan = Guid.NewGuid();
 
-        var result = Assemble(
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble(
             [Row(InventoryType.Bag, 0, orphan), Row(InventoryType.Bag, 1, present)],
             [Instance(present, template: 9)]);
 
-        var item = Assert.Single(result[InventoryType.Bag]);
+        InventoryItem item = Assert.Single(result[InventoryType.Bag]);
         Assert.Equal(new ItemTemplateId(9), item.TemplateId);
     }
 
     [Fact]
     public void Return_A_List_For_Every_Container_When_There_Is_Nothing()
     {
-        var result = Assemble([], []);
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble([], []);
 
         Assert.Empty(result[InventoryType.Equipment]);
         Assert.Empty(result[InventoryType.Bag]);
@@ -140,11 +140,11 @@ public class InventoryAssemblerShould
     [Fact]
     public void Carry_the_charges_onto_the_item()
     {
-        Guid id = Guid.NewGuid();
+        var id = Guid.NewGuid();
         ItemInstance instance = Instance(id);
         instance.Charges = 6;
 
-        var result = Assemble([Row(InventoryType.Bag, 0, id)], [instance]);
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble([Row(InventoryType.Bag, 0, id)], [instance]);
 
         Assert.Equal(6u, Assert.Single(result[InventoryType.Bag]).Charges);
     }

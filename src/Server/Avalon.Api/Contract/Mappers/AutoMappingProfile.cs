@@ -1,6 +1,5 @@
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Api.Contract.Mappers;
 
@@ -10,7 +9,11 @@ public static class MappingExtensions
     {
         Id = account.Id,
         Username = account.Username,
+        // AccountDto.Email is declared non-nullable but carries the account's nullable email as it is; the code
+        // standard changes no contract (#791).
+#pragma warning disable CS8601
         Email = account.Email,
+#pragma warning restore CS8601
         EmailVerifiedAt = account.EmailVerifiedAt,
         JoinDate = account.JoinDate,
         LastIp = account.LastIp,
@@ -32,7 +35,7 @@ public static class MappingExtensions
         WorldName = worldName,
         Name = character.Name,
         Class = character.Class,
-        Gender = (CharacterGender) character.Gender,
+        Gender = (CharacterGender)character.Gender,
         Level = character.Level,
         Experience = character.Experience,
         Map = character.Map,

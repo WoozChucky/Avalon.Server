@@ -25,7 +25,7 @@ public class PortalPlacementService : IPortalPlacementService
         // so no BossChunk deref is required here. cfg is accepted-but-unused to keep the door
         // open for future portal config derived from procedural settings.
         _ = cfg;
-        foreach (var p in layout.Portals)
+        foreach (PortalPlacement p in layout.Portals)
         {
             var guid = new ObjectGuid(ObjectType.Portal, _nextGuid++);
             sink.AddPortal(new PortalInstance(guid, p.WorldPos, p.Radius, p.TargetMapId, (byte)p.Role));

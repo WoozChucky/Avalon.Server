@@ -1,10 +1,10 @@
-using Avalon.Common.GameAuth;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Contract;
-using Avalon.Configuration;
 using Avalon.Api.Middlewares;
+using Avalon.Common.GameAuth;
+using Avalon.Configuration;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +27,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
             return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol)), nameof(ProviderAttempt));
         try
         {
-            var reply = await authorization.CreateProviderAttemptAsync(request.ApplicationKey, request.ProtocolVersion,
+            AuthAttemptReply? reply = await authorization.CreateProviderAttemptAsync(request.ApplicationKey, request.ProtocolVersion,
                 request.ClientRunId, request.LinkChallenge, request.GameContextCredential, 0, cancellationToken);
             return LogResult(reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) :
                 Ok(new ProviderAuthAttemptReply(reply.AttemptCredential, reply.ExpectedSteamIdentity, reply.ExpiresAt)), nameof(ProviderAttempt));
@@ -72,7 +72,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
         if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired));
         try
         {
-            var reply = await links.ProposalAsync(request.GameContextCredential, request.PkceVerifier, cancellationToken);
+            LinkProposalReply reply = await links.ProposalAsync(request.GameContextCredential, request.PkceVerifier, cancellationToken);
             return reply.Error is null ? Ok(reply) : Unauthorized(reply);
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
@@ -85,7 +85,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
         [FromServices] ILogger<GameAuthController> logger, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(async () =>
     {
-        var reply = await authorization.CompleteAccountLinkAsync(links, request.GameContextCredential,
+        GameAuthReply reply = await authorization.CompleteAccountLinkAsync(links, request.GameContextCredential,
             request.ConsentCode, request.PkceVerifier, requestId, request.Accepted, cancellationToken);
         if (reply.AccountId is not null && reply.GameContextCredential is not null)
             logger.LogInformation("Store identity linked for account {AccountId}, provider {Provider}", reply.AccountId, StoreProviders.Steam);
@@ -97,12 +97,14 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
         if (!Request.IsHttps) return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired)), operation);
         try
         {
-            var reply = await action();
+            GameAuthReply reply = await action();
             if (reply.GameContextCredential is not null || reply.Error is null) return LogResult(Ok(reply), operation);
             return LogResult(reply.Error switch
             {
-                GameAuthErrors.InProgress => StatusCode(409, reply), GameAuthErrors.ProviderUnavailable => StatusCode(503, reply),
-                GameAuthErrors.AccountMismatch => Conflict(reply), _ => Unauthorized(reply),
+                GameAuthErrors.InProgress => StatusCode(409, reply),
+                GameAuthErrors.ProviderUnavailable => StatusCode(503, reply),
+                GameAuthErrors.AccountMismatch => Conflict(reply),
+                _ => Unauthorized(reply),
             }, operation);
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)

@@ -13,7 +13,7 @@ namespace Avalon.Balance.Service.UnitTests;
 
 public class RunEndpointsShould
 {
-    private static readonly Dictionary<string, string?> Paused = new() { ["Balance:RunWorker"] = "false" };
+    private static readonly Dictionary<string, string?> s_paused = new() { ["Balance:RunWorker"] = "false" };
 
     private const string SmallRun =
         """{"filter":{"classes":["Warrior"],"scenarios":["normal-3"]},"runsPerRow":10}""";
@@ -59,7 +59,7 @@ public class RunEndpointsShould
     [Fact]
     public async Task Answer_422_with_the_issues_for_a_refused_request()
     {
-        await using WebApplication app = BalanceTestHost.Build(extra: Paused);
+        await using WebApplication app = BalanceTestHost.Build(extra: s_paused);
         await app.StartAsync();
 
         HttpResponseMessage response = await Client(app).PostAsync("/runs", Json("""{"runsPerRow":1001}"""));
@@ -73,7 +73,7 @@ public class RunEndpointsShould
     [Fact]
     public async Task Answer_400_for_a_body_that_is_not_json()
     {
-        await using WebApplication app = BalanceTestHost.Build(extra: Paused);
+        await using WebApplication app = BalanceTestHost.Build(extra: s_paused);
         await app.StartAsync();
 
         HttpResponseMessage response = await Client(app).PostAsync("/runs", Json("{not json"));
@@ -84,7 +84,7 @@ public class RunEndpointsShould
     [Fact]
     public async Task Answer_429_for_the_fifth_run()
     {
-        await using WebApplication app = BalanceTestHost.Build(extra: Paused);
+        await using WebApplication app = BalanceTestHost.Build(extra: s_paused);
         await app.StartAsync();
         HttpClient client = Client(app);
 
@@ -98,7 +98,7 @@ public class RunEndpointsShould
     [Fact]
     public async Task Answer_404_for_an_unknown_run()
     {
-        await using WebApplication app = BalanceTestHost.Build(extra: Paused);
+        await using WebApplication app = BalanceTestHost.Build(extra: s_paused);
         await app.StartAsync();
         HttpClient client = Client(app);
 
@@ -109,7 +109,7 @@ public class RunEndpointsShould
     [Fact]
     public async Task Cancel_a_queued_run_with_204()
     {
-        await using WebApplication app = BalanceTestHost.Build(extra: Paused);
+        await using WebApplication app = BalanceTestHost.Build(extra: s_paused);
         await app.StartAsync();
         HttpClient client = Client(app);
         RunAcceptedDto? run = await (await client.PostAsync("/runs", Json(SmallRun)))
@@ -126,7 +126,7 @@ public class RunEndpointsShould
     [Fact]
     public async Task Require_the_secret_for_runs()
     {
-        await using WebApplication app = BalanceTestHost.Build(extra: Paused);
+        await using WebApplication app = BalanceTestHost.Build(extra: s_paused);
         await app.StartAsync();
 
         HttpResponseMessage response = await app.GetTestClient().PostAsync("/runs", Json(SmallRun));

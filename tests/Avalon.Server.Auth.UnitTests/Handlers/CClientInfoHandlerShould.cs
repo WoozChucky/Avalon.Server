@@ -1,7 +1,5 @@
 using Avalon.Common.Cryptography;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Handshake;
-using Avalon.Server.Auth;
 using Avalon.Server.Auth.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -60,7 +58,7 @@ public class CClientInfoHandlerShould
     [Fact]
     public async Task DoNothing_WhenPublicKeySizeIsInvalid()
     {
-        var invalidKey = new byte[ValidKeySize + 8]; // wrong size
+        byte[] invalidKey = new byte[ValidKeySize + 8]; // wrong size
 
         var ctx = new AuthPacketContext<CClientInfoPacket>
         {
@@ -77,7 +75,7 @@ public class CClientInfoHandlerShould
     [Fact]
     public async Task InitializeCryptoAndSendHandshake_WhenPublicKeyIsValid()
     {
-        var validKey = new byte[ValidKeySize];
+        byte[] validKey = new byte[ValidKeySize];
         new Random().NextBytes(validKey);
 
         var ctx = new AuthPacketContext<CClientInfoPacket>

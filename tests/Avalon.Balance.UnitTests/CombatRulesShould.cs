@@ -32,7 +32,7 @@ public class CombatRulesShould
     [Fact]
     public void Start_a_wizard_full_of_mana_regenerating_from_intellect()
     {
-        SimPlayer wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
 
         Assert.Equal(wizard.Power, wizard.CurrentPower);
         Assert.Equal(wizard.Stats.Intellect, wizard.RegenStat);
@@ -111,7 +111,7 @@ public class CombatRulesShould
     [Fact]
     public void Keep_mana_on_the_hit_that_kills()
     {
-        SimPlayer wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         uint mana = wizard.CurrentPower!.Value;
 
         CombatRules.HitPlayer(wizard, 100_000);
@@ -167,7 +167,7 @@ public class CombatRulesShould
         boar.Specials.Single().CooldownLeft = 5f;
         Assert.Equal(300u, boar.Choose()!.Id);         // Gore
 
-        SimCreature fly = SimCreature.Create(Data, Data.Creature(6), 1, 0);
+        var fly = SimCreature.Create(Data, Data.Creature(6), 1, 0);
         Assert.Equal(317u, fly.Choose()!.Id);          // Venom Spit ready
         fly.Specials.Single(s => s.Id == 317).CooldownLeft = 5f;
         Assert.Equal(304u, fly.Choose()!.Id);          // Sting, never Blight Spit in melee
@@ -176,7 +176,7 @@ public class CombatRulesShould
     [Fact]
     public void Restore_no_more_than_the_health_missing()
     {
-        SimPlayer healer = SimPlayer.Create(Data, CharacterClass.Healer, 1, []);
+        var healer = SimPlayer.Create(Data, CharacterClass.Healer, 1, []);
         healer.CurrentHealth = healer.Health - 5;
 
         Assert.Equal(5u, CombatRules.HealPlayer(healer, 40));

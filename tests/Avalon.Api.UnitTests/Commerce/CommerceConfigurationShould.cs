@@ -1,10 +1,10 @@
+using System.Text.Json;
 using Avalon.Api.Commerce;
 using Avalon.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using System.Text.Json;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Commerce;
@@ -22,11 +22,11 @@ public sealed class CommerceConfigurationShould
     [InlineData("multibanco")]
     public void Bind_exactly_the_configured_payment_methods_without_appending_defaults(string method)
     {
-        var configured = Valid();
+        CommerceConfiguration configured = Valid();
         configured.PaymentMethods = [method];
         using var json = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(configured));
-        var configuration = new ConfigurationBuilder().AddJsonStream(json).Build();
-        var bound = configuration.Get<CommerceConfiguration>()!;
+        IConfigurationRoot configuration = new ConfigurationBuilder().AddJsonStream(json).Build();
+        CommerceConfiguration bound = configuration.Get<CommerceConfiguration>()!;
 
         Assert.Equal(new[] { method }, bound.PaymentMethods);
         Assert.True(Validator(true).Validate(null, bound).Succeeded);
@@ -45,7 +45,7 @@ public sealed class CommerceConfigurationShould
     [InlineData("key")]
     public void Reject_unsafe_enabled_configuration_without_echoing_secrets(string defect)
     {
-        var config = Valid();
+        CommerceConfiguration config = Valid();
         switch (defect)
         {
             case "live": config.PaymentEnvironment = "live"; break;
@@ -59,7 +59,7 @@ public sealed class CommerceConfigurationShould
             case "origin": config.PublicSiteOrigin = "https://example.test/?secret=test"; break;
             case "key": config.ApiKey = "sk_live_private"; break;
         }
-        var result = Validator(true).Validate(null, config);
+        ValidateOptionsResult result = Validator(true).Validate(null, config);
         Assert.True(result.Failed);
         Assert.DoesNotContain(config.ApiKey, result.FailureMessage!);
     }
@@ -70,7 +70,7 @@ public sealed class CommerceConfigurationShould
     [Fact]
     public void Missing_method_list_is_a_safe_configuration_failure()
     {
-        var config = Valid();
+        CommerceConfiguration config = Valid();
         config.PaymentMethods = null!;
         Assert.True(Validator(true).Validate(null, config).Failed);
     }
@@ -78,7 +78,7 @@ public sealed class CommerceConfigurationShould
     [Fact]
     public void Amount_and_currency_are_configuration_and_another_provider_can_supply_its_own_settings_rules()
     {
-        var config = Valid();
+        CommerceConfiguration config = Valid();
         config.AmountMinor = 1200;
         config.Currency = "usd";
         Assert.True(Validator(true).Validate(null, config).Succeeded);
@@ -88,10 +88,10 @@ public sealed class CommerceConfigurationShould
         config.ProviderAccountId = "merchant-123";
         config.ApiKey = "opaque-provider-key";
         config.WebhookSecret = "opaque-signing-key";
-        var host = Substitute.For<IHostEnvironment>();
+        IHostEnvironment host = Substitute.For<IHostEnvironment>();
         host.EnvironmentName = Environments.Development;
         var validator = new CommerceOptionsValidator(host, Options.Create(new StoreAuthenticationConfiguration
-            { Environment = "development", SteamIdentityPrefix = "avalon-auth-dev" }),
+        { Environment = "development", SteamIdentityPrefix = "avalon-auth-dev" }),
             [new PaymentProviderRegistration("another-provider", _ => true)]);
         Assert.True(validator.Validate(null, config).Succeeded);
         config.Provider = "unregistered-provider";
@@ -100,15 +100,20 @@ public sealed class CommerceConfigurationShould
 
     internal static CommerceConfiguration Valid() => new()
     {
-        Enabled = true, PublicSiteOrigin = "https://example.test", OfferId = "base-eur",
-        ProviderPriceId = "price_test", ProviderCatalogProductId = "prod_test", ProviderAccountId = "acct_test",
-        ApiKey = "sk_test_private", WebhookSecret = "whsec_private",
+        Enabled = true,
+        PublicSiteOrigin = "https://example.test",
+        OfferId = "base-eur",
+        ProviderPriceId = "price_test",
+        ProviderCatalogProductId = "prod_test",
+        ProviderAccountId = "acct_test",
+        ApiKey = "sk_test_private",
+        WebhookSecret = "whsec_private",
         PaymentMethods = ["card"],
     };
 
     private static CommerceOptionsValidator Validator(bool development)
     {
-        var host = Substitute.For<IHostEnvironment>();
+        IHostEnvironment host = Substitute.For<IHostEnvironment>();
         host.EnvironmentName = development ? Environments.Development : Environments.Production;
         return new(host, Options.Create(new StoreAuthenticationConfiguration { Environment = "development", SteamIdentityPrefix = "avalon-auth-dev" }), [StripePaymentProvider.Registration]);
     }

@@ -25,8 +25,8 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class HotReloadPublishedInstanceShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
-    private static readonly MapTemplateId TownId = new(1);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly MapTemplateId s_townId = new(1);
 
     /// <summary>What a script was before the reload.</summary>
     private sealed class BeforeReloadScript(ICreature creature, ISimulationContext context) : AiScript(creature, context)
@@ -82,16 +82,16 @@ public class HotReloadPublishedInstanceShould
     public async Task Give_an_instance_built_during_a_reload_the_reloaded_scripts_when_it_is_published()
     {
         var build = new TaskCompletionSource<MapInstance>();
-        var mapManager = Substitute.For<IAvalonMapManager>();
-        mapManager.Templates.Returns([new MapTemplate { Id = TownId, MapType = MapType.Town }]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
+        mapManager.Templates.Returns([new MapTemplate { Id = s_townId, MapType = MapType.Town }]);
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(build.Task);
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
             new OneShotScriptHotReloader(typeof(ReloadedScript)), intervalSeconds: 1, mapManager, factory);
 
-        Task<IMapInstance> requested = world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        Task<IMapInstance> requested = world.InstanceRegistry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
         world.Update(TimeSpan.FromSeconds(1)); // polls the reloader
-        world.Update(Tick);                    // applies the reload, while the town is still building
+        world.Update(s_tick);                    // applies the reload, while the town is still building
 
         using MapInstance town = TestMapInstances.Build(NewWorld(), mapType: MapType.Town);
         Creature outdated = CreatureRunning(639_201, town);
@@ -103,7 +103,7 @@ public class HotReloadPublishedInstanceShould
         Assert.Empty(world.InstanceRegistry.ActiveInstances);
         Assert.IsType<BeforeReloadScript>(outdated.Script);
 
-        world.Update(Tick);
+        world.Update(s_tick);
 
         Assert.Same(town, await requested.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.Same(town, Assert.Single(world.InstanceRegistry.ActiveInstances));
@@ -116,16 +116,16 @@ public class HotReloadPublishedInstanceShould
     public async Task Keep_a_script_already_of_the_reloaded_type()
     {
         var build = new TaskCompletionSource<MapInstance>();
-        var mapManager = Substitute.For<IAvalonMapManager>();
-        mapManager.Templates.Returns([new MapTemplate { Id = TownId, MapType = MapType.Town }]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
+        mapManager.Templates.Returns([new MapTemplate { Id = s_townId, MapType = MapType.Town }]);
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(build.Task);
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
             new OneShotScriptHotReloader(typeof(ReloadedScript)), intervalSeconds: 1, mapManager, factory);
 
-        _ = world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100);
+        _ = world.InstanceRegistry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100);
         world.Update(TimeSpan.FromSeconds(1));
-        world.Update(Tick);
+        world.Update(s_tick);
 
         using MapInstance town = TestMapInstances.Build(NewWorld(), mapType: MapType.Town);
         Creature current = CreatureRunning(639_203, town);
@@ -133,7 +133,7 @@ public class HotReloadPublishedInstanceShould
         current.Script = already;
         build.SetResult(town);
 
-        world.Update(Tick);
+        world.Update(s_tick);
 
         Assert.Same(already, current.Script);
     }

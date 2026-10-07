@@ -3,10 +3,8 @@ using System.Net;
 using System.Net.Sockets;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
-using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets;
-using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -80,7 +78,7 @@ public class ServerBaseShould
 
     private static TestServerBase CreateServer(ushort port)
     {
-        var opts = Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = port });
+        IOptions<HostingConfiguration> opts = Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = port });
         return new TestServerBase(Substitute.For<IPacketManager>(), opts);
     }
 
@@ -95,7 +93,7 @@ public class ServerBaseShould
     public async Task ReleaseListeningPort_AfterStopAsync()
     {
         ushort port = GetFreePort();
-        var server = CreateServer(port);
+        TestServerBase server = CreateServer(port);
 
         await server.StartAsync(CancellationToken.None);
         await server.StopAsync(CancellationToken.None);
@@ -113,11 +111,11 @@ public class ServerBaseShould
     public async Task CompleteWithoutException_WhenStoppedWithNoConnections()
     {
         ushort port = GetFreePort();
-        var server = CreateServer(port);
+        TestServerBase server = CreateServer(port);
 
         await server.StartAsync(CancellationToken.None);
 
-        var exception = await Record.ExceptionAsync(() => server.StopAsync(CancellationToken.None));
+        Exception exception = await Record.ExceptionAsync(() => server.StopAsync(CancellationToken.None));
 
         Assert.Null(exception);
     }
@@ -290,7 +288,7 @@ public class ServerBaseShould
     {
         ushort port = GetFreePort();
         ServiceProvider services = new ServiceCollection().AddSingleton(probe).BuildServiceProvider();
-        var opts = Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = port });
+        IOptions<HostingConfiguration> opts = Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = port });
         return (new ProbeServer(services, opts, logger: logger, telemetry: telemetry) { RealDelays = realDelays },
             services, port);
     }
@@ -437,7 +435,7 @@ public class ServerBaseShould
         using var watchdog = new EscapeWatchdog();
         using var gate = new ManualResetEventSlim(false);
         var packetProbe = new PacketProbe { Gate = gate };
-        var packets = Substitute.For<IPacketManager>();
+        IPacketManager packets = Substitute.For<IPacketManager>();
         packets.TryGetPacketInfo(Arg.Any<NetworkPacketType>(), out Arg.Any<PacketInfo>())
             .Returns(call =>
             {
@@ -449,7 +447,7 @@ public class ServerBaseShould
         await using ServiceProvider services = new ServiceCollection().AddSingleton(packetProbe).BuildServiceProvider();
         var server = new ProbeServer(services,
             Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = port }), packets, logger);
-        var connection = Substitute.For<IConnection>();
+        IConnection connection = Substitute.For<IConnection>();
         var header = new NetworkPacketHeader { Type = NetworkPacketType.CMSG_PONG };
 
         // A packet that arrives while the shutdown is closing connections, as AuthServer's does.
@@ -457,7 +455,7 @@ public class ServerBaseShould
 
         await server.StartAsync(CancellationToken.None);
         // On its own thread: the handler blocks inside its dispatch until the stop has finished.
-        Task during = Task.Run(() => server.CallListener(connection, header, null));
+        var during = Task.Run(() => server.CallListener(connection, header, null));
         await packetProbe.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await server.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
         gate.Set();
@@ -633,8 +631,11 @@ public class ServerBaseShould
         {
             string? error = null;
             foreach (KeyValuePair<string, object?> tag in tags)
+            {
                 if (tag.Key == "error.type")
                     error = tag.Value as string;
+            }
+
             counted.Enqueue((value, error));
         });
         listener.Start();

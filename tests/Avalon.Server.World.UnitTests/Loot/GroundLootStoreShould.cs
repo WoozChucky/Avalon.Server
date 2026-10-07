@@ -1,7 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Loot;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Loot;
 
@@ -9,7 +8,10 @@ public class GroundLootStoreShould
 {
     private static GroundLoot Pile(uint id) => new()
     {
-        Guid = new ObjectGuid(ObjectType.Loot, id), Position = Vector3.zero, Gold = 10, FreeForAllAt = DateTime.UnixEpoch
+        Guid = new ObjectGuid(ObjectType.Loot, id),
+        Position = Vector3.zero,
+        Gold = 10,
+        FreeForAllAt = DateTime.UnixEpoch
     };
 
     [Fact]

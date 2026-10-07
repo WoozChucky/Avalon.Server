@@ -6,7 +6,6 @@ using Avalon.World.Instances;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -19,7 +18,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class CreatureDeathReplicationShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     /// <summary>Takes each hit off health, as the combat scripts do.</summary>
     private sealed class CorpseTestWoundScript(Creature creature, ISimulationContext context) : AiScript(creature, context)
@@ -116,7 +115,7 @@ public class CreatureDeathReplicationShould
     {
         for (int i = 0; i < count; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
     }
 

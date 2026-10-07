@@ -3,7 +3,6 @@ using Avalon.Network.Packets.Abstractions.Attributes;
 using Avalon.Server.Auth.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Hosting;
 

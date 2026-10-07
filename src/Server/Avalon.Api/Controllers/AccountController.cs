@@ -8,6 +8,7 @@ using Avalon.Api.Services.Email;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Extensions;
+using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -45,7 +46,7 @@ public class AccountController : BaseController
     [ProducesResponseType(typeof(AccountDto), 200)]
     public async Task<AccountDto> Get()
     {
-        var dto = (_authContext.Account ?? throw new Exception("Account not loaded")).ToDto();
+        AccountDto dto = (_authContext.Account ?? throw new Exception("Account not loaded")).ToDto();
         return await Task.FromResult(dto);
     }
 
@@ -55,10 +56,10 @@ public class AccountController : BaseController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> FindById([FromRoute] long id, CancellationToken ct)
     {
-        var account = await _accountService.FindByIdAsync(new AccountId(id), ct);
+        Account? account = await _accountService.FindByIdAsync(new AccountId(id), ct);
         if (account is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, account, new ReadRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, account, new ReadRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
         return Ok(account.ToDto());
@@ -69,7 +70,7 @@ public class AccountController : BaseController
     [ProducesResponseType(typeof(PagedResult<AccountDto>), 200)]
     public async Task<PagedResult<AccountDto>> Paginate([FromQuery] AccountPaginateFilters filters)
     {
-        var results = (await _accountService.Paginate(filters, HttpContext.RequestAborted)).MapTo(x => x.ToDto());
+        PagedResult<AccountDto> results = (await _accountService.Paginate(filters, HttpContext.RequestAborted)).MapTo(x => x.ToDto());
         return results;
     }
 
@@ -77,12 +78,12 @@ public class AccountController : BaseController
     [HttpPost("authenticate", Name = "Authenticate")]
     public async Task<AuthenticateResponse> Authenticate([FromBody] AuthenticateRequest model)
     {
-        var (response, accountId, credentialsVersion) = await _accountService.Authenticate(model, SourceAddress, CancellationToken);
+        (AuthenticateResponse? response, AccountId? accountId, int credentialsVersion) = await _accountService.Authenticate(model, SourceAddress, CancellationToken);
         if (accountId is not null)
         {
             // Against the version the password was checked at (#495): a change committed since
             // refuses the family, and the caller gets 401 instead of this response.
-            var issue = await _refreshService.IssueAsync(accountId.Value, credentialsVersion, CancellationToken);
+            RefreshIssueResult issue = await _refreshService.IssueAsync(accountId.Value, credentialsVersion, CancellationToken);
             SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
         }
         return response;
@@ -92,13 +93,13 @@ public class AccountController : BaseController
     [HttpPost("register", Name = "Register")]
     public async Task<RegisterResponse> Register([FromBody] RegisterRequest model)
     {
-        var userAgent = Request.Headers.UserAgent.ToString();
-        var language = Request.Headers.AcceptLanguage.ToString();
+        string userAgent = Request.Headers.UserAgent.ToString();
+        string language = Request.Headers.AcceptLanguage.ToString();
         // The source budget needs the caller's address (#495): an address-less caller is refused
         // with 400, as it is at login, rather than sharing one budget with every other such caller.
-        var (response, accountId) = await _accountService.Register(model, userAgent, SourceAddress, CancellationToken);
+        (RegisterResponse? response, AccountId? accountId) = await _accountService.Register(model, userAgent, SourceAddress, CancellationToken);
         // A new account starts at credentials version 0 (#495).
-        var issue = await _refreshService.IssueAsync(accountId, 0, CancellationToken);
+        RefreshIssueResult issue = await _refreshService.IssueAsync(accountId, 0, CancellationToken);
         SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
         return response;
     }
@@ -108,7 +109,7 @@ public class AccountController : BaseController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ChangePassword([FromBody] AccountPasswordChangeRequest request, CancellationToken ct)
     {
-        var accountId = User.AccountId();
+        AccountId accountId = User.AccountId();
         await _accountService.ChangePasswordAsync(accountId, request.CurrentPassword, request.NewPassword, SourceAddress, ct);
         return NoContent();
     }
@@ -169,7 +170,7 @@ public class AccountController : BaseController
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
-        if (Request.Cookies.TryGetValue(_authConfig.RefreshCookieName, out var raw) && !string.IsNullOrEmpty(raw))
+        if (Request.Cookies.TryGetValue(_authConfig.RefreshCookieName, out string? raw) && !string.IsNullOrEmpty(raw))
         {
             try { await _refreshService.RevokeAsync(raw, ct); } catch { /* idempotent */ }
         }
@@ -226,7 +227,7 @@ public class AccountController : BaseController
             });
         }
 
-        var found = await _accountService.RemoveMfaAsync(new AccountId(id), User.AccountId(), ct);
+        bool found = await _accountService.RemoveMfaAsync(new AccountId(id), User.AccountId(), ct);
         return found ? NoContent() : NotFound();
     }
 }

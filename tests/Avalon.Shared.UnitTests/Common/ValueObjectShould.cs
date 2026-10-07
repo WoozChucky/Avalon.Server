@@ -41,7 +41,7 @@ public class ValueObjectShould
         Assert.False(vo1 == vo2);
         Assert.True(vo1 != vo2);
         Assert.False(vo1.Equals(vo2));
-        
+
         Assert.True(vo2 == null);
         Assert.False(vo2 != null);
     }

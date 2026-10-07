@@ -101,7 +101,7 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
         ushort rolled = level ?? RollLevel(template);
         DerivedCreatureStats stats = creatures.Stats.Derive(template, rolled);
 
-        Creature creature = new Creature
+        var creature = new Creature
         {
             Guid = new ObjectGuid(ObjectType.Creature, IObject.GenerateId()),
             TemplateId = template.Id,

@@ -93,15 +93,17 @@ public class AccessLevelsShould
     [Fact]
     public void Agree_With_ForWorld_For_Every_Required_And_Actual_Combination()
     {
-        const int all = 0b11_1111;
-        for (var required = 0; required <= all; required++)
-        for (var actual = 0; actual <= all; actual++)
+        const int All = 0b11_1111;
+        for (int required = 0; required <= All; required++)
         {
-            var r = (AccountAccessLevel)required;
-            var a = (AccountAccessLevel)actual;
-            Assert.True(
-                AccessLevels.ForWorld(r).Allows(a) == ((r & AccessLevels.WorldsEnterableBy(a)) != 0),
-                $"required={r}, actual={a}");
+            for (int actual = 0; actual <= All; actual++)
+            {
+                var r = (AccountAccessLevel)required;
+                var a = (AccountAccessLevel)actual;
+                Assert.True(
+                    AccessLevels.ForWorld(r).Allows(a) == ((r & AccessLevels.WorldsEnterableBy(a)) != 0),
+                    $"required={r}, actual={a}");
+            }
         }
     }
 

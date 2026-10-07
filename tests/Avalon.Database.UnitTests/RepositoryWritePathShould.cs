@@ -18,7 +18,7 @@ public class RepositoryWritePathShould
     [Fact]
     public async Task Insert_a_dependent_that_names_its_principal_by_foreign_key()
     {
-        using SqliteDatabase<Auth.AuthDbContext> database = SqliteDatabase.Auth();
+        using var database = SqliteDatabase.Auth();
         AccountRepository accounts = new(database);
         DeviceRepository devices = new(database);
 
@@ -45,7 +45,7 @@ public class RepositoryWritePathShould
     [Fact]
     public async Task Refuse_a_dependent_that_names_its_principal_by_navigation()
     {
-        using SqliteDatabase<Auth.AuthDbContext> database = SqliteDatabase.Auth();
+        using var database = SqliteDatabase.Auth();
         AccountRepository accounts = new(database);
         DeviceRepository devices = new(database);
 
@@ -78,7 +78,7 @@ public class RepositoryWritePathShould
     [Fact]
     public async Task Refuse_a_parent_that_carries_a_new_child()
     {
-        using SqliteDatabase<World.WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         ChunkPoolRepository pools = new(database);
 
         ChunkTemplate template;
@@ -121,7 +121,7 @@ public class RepositoryWritePathShould
     [Fact]
     public async Task Insert_an_owned_collection_with_its_owner()
     {
-        using SqliteDatabase<World.WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         ChunkTemplateRepository templates = new(database);
 
         await templates.CreateAsync(new ChunkTemplate
@@ -142,14 +142,16 @@ public class RepositoryWritePathShould
     [Fact]
     public async Task Insert_a_list_of_dependents_that_name_their_principal_by_foreign_key()
     {
-        using SqliteDatabase<Character.CharacterDbContext> database = SqliteDatabase.Characters();
+        using var database = SqliteDatabase.Characters();
         Character.Repositories.CharacterRepository characters = new(database);
         Character.Repositories.ItemInstanceRepository items = new(database);
         Character.Repositories.CharacterInventoryRepository slots = new(database);
 
         Domain.Characters.Character owner = await characters.CreateAsync(new Domain.Characters.Character
         {
-            AccountId = new AccountId(1), Name = "Holder", CreationDate = DateTime.UtcNow,
+            AccountId = new AccountId(1),
+            Name = "Holder",
+            CreationDate = DateTime.UtcNow,
         });
 
         List<ItemInstance> created = await items.CreateAsync([NewItemInstance(owner.Id), NewItemInstance(owner.Id)]);
@@ -157,7 +159,10 @@ public class RepositoryWritePathShould
         await slots.CreateAsync(created
             .Select((item, index) => new Domain.Characters.CharacterInventory
             {
-                CharacterId = owner.Id, Container = InventoryType.Bag, Slot = (ushort)index, ItemId = item.Id,
+                CharacterId = owner.Id,
+                Container = InventoryType.Bag,
+                Slot = (ushort)index,
+                ItemId = item.Id,
             })
             .ToList());
 
@@ -173,7 +178,7 @@ public class RepositoryWritePathShould
     [Fact]
     public async Task Refuse_an_update_whose_entity_names_its_principal_by_navigation()
     {
-        using SqliteDatabase<Auth.AuthDbContext> database = SqliteDatabase.Auth();
+        using var database = SqliteDatabase.Auth();
         AccountRepository accounts = new(database);
         DeviceRepository devices = new(database);
 
@@ -214,7 +219,7 @@ public class RepositoryWritePathShould
     [Fact]
     public async Task Fail_loudly_when_an_owner_with_owned_rows_is_updated()
     {
-        using SqliteDatabase<World.WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         ChunkTemplateRepository templates = new(database);
         ChunkTemplateId id = new(8888);
 

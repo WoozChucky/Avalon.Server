@@ -1,7 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
-using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
+using ProtoBuf;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -28,7 +28,7 @@ public class CAuthPacket : Packet
 
         Serializer.Serialize(memoryStream, authPacket);
 
-        var buffer = encryptFunc(memoryStream.ToArray());
+        byte[] buffer = encryptFunc(memoryStream.ToArray());
 
         return new NetworkPacket
         {

@@ -58,6 +58,7 @@ nav:
     - Development Setup: development-setup.md
     - Configuration: configuration-reference.md
     - Contributing: contributing.md
+    - Coding Standard: coding-standard.md
   - Architecture:
     - Overview: architecture-startup-flow.md
     - Decisions: architecture-decisions.md

@@ -39,9 +39,17 @@ public class StaticDataRulesShould
     private static ClassStatFactors[] Factors() => Enum.GetValues<CharacterClass>()
         .Select(c => new ClassStatFactors
         {
-            Class = c, HpPerStamina = 10, PowerPerIntellect = 1, PowerPerAgility = 0, FixedPower = null,
-            AttackPerStrength = 2, AttackPerAgility = 0, AbilityPerIntellect = 0.2,
-            BaseBlock = 5f, BaseDodge = 3f, BaseCrit = 5f,
+            Class = c,
+            HpPerStamina = 10,
+            PowerPerIntellect = 1,
+            PowerPerAgility = 0,
+            FixedPower = null,
+            AttackPerStrength = 2,
+            AttackPerAgility = 0,
+            AbilityPerIntellect = 0.2,
+            BaseBlock = 5f,
+            BaseDodge = 3f,
+            BaseCrit = 5f,
         })
         .ToArray();
 
@@ -68,7 +76,7 @@ public class StaticDataRulesShould
     [Fact]
     public void Build_the_seeded_combat_data()
     {
-        var (formula, byClass) = CombatDataRules.Build([Formula()], Factors());
+        (CombatFormula? formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors>? byClass) = CombatDataRules.Build([Formula()], Factors());
         Assert.Equal(CombatFormula.SingletonId, formula.Id);
         Assert.Equal(Enum.GetValues<CharacterClass>().Length, byClass.Count);
     }

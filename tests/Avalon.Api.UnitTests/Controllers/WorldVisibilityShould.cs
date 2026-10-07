@@ -4,15 +4,16 @@ using Avalon.Api.Controllers;
 using Avalon.Api.Services;
 using Avalon.Api.UnitTests.Services;
 using Avalon.Common.Accounts;
+using Avalon.Database;
+using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
-using Avalon.Database;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.WorldMaintenance;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Xunit;
 using NSubstitute;
+using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
 
@@ -33,7 +34,7 @@ public sealed class WorldVisibilityShould : IDisposable
 
     public WorldVisibilityShould()
     {
-        using var context = _database.CreateDbContext();
+        using AuthDbContext context = _database.CreateDbContext();
         // Replace the seeded worlds so the test states every world it reasons about.
         context.Worlds.RemoveRange(context.Worlds.ToList());
         context.Worlds.AddRange(
@@ -82,7 +83,7 @@ public sealed class WorldVisibilityShould : IDisposable
     [Fact]
     public async Task List_only_the_worlds_a_player_may_enter()
     {
-        var result = await MakeSut(AccountAccessLevel.Player).List(1, 50, CancellationToken.None);
+        PagedResult<WorldDto> result = await MakeSut(AccountAccessLevel.Player).List(1, 50, CancellationToken.None);
 
         Assert.Equal(new[] { PlayerWorld }, result.Items.Select(w => w.Id));
         Assert.Equal(1, result.TotalCount);
@@ -91,7 +92,7 @@ public sealed class WorldVisibilityShould : IDisposable
     [Fact]
     public async Task Count_only_visible_worlds_when_paging()
     {
-        var result = await MakeSut(AccountAccessLevel.Player).List(1, 1, CancellationToken.None);
+        PagedResult<WorldDto> result = await MakeSut(AccountAccessLevel.Player).List(1, 1, CancellationToken.None);
 
         Assert.Equal(new[] { PlayerWorld }, result.Items.Select(w => w.Id));
         Assert.Equal(1, result.TotalCount);
@@ -106,7 +107,7 @@ public sealed class WorldVisibilityShould : IDisposable
     [InlineData(AccountAccessLevel.Player | AccountAccessLevel.Admin, new[] { PlayerWorld, AdminWorld, PtrWorld })]
     public async Task List_what_the_tcp_world_list_would_show(AccountAccessLevel level, ushort[] expected)
     {
-        var result = await MakeSut(level).List(1, 50, CancellationToken.None);
+        PagedResult<WorldDto> result = await MakeSut(level).List(1, 50, CancellationToken.None);
 
         Assert.Equal(expected.Order(), result.Items.Select(w => w.Id).Order());
         Assert.Equal(expected.Length, result.TotalCount);
@@ -115,7 +116,7 @@ public sealed class WorldVisibilityShould : IDisposable
     [Fact]
     public async Task List_nothing_for_a_caller_with_no_access_level()
     {
-        var result = await MakeSut(0).List(1, 50, CancellationToken.None);
+        PagedResult<WorldDto> result = await MakeSut(0).List(1, 50, CancellationToken.None);
 
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalCount);
@@ -126,7 +127,7 @@ public sealed class WorldVisibilityShould : IDisposable
     [InlineData(PtrWorld)]
     public async Task Answer_404_for_a_world_a_player_may_not_enter(ushort id)
     {
-        var result = await MakeSut(AccountAccessLevel.Player).Get(id, CancellationToken.None);
+        IActionResult result = await MakeSut(AccountAccessLevel.Player).Get(id, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -137,8 +138,8 @@ public sealed class WorldVisibilityShould : IDisposable
     public async Task Answer_a_hidden_world_with_the_same_404_as_a_missing_one(AccountAccessLevel level)
     {
         // PTR (32) and Tournament (16) are numerically above Admin (4), so a <= test would let them in.
-        var hidden = await MakeSut(level).Get(AdminWorld, CancellationToken.None);
-        var missing = await MakeSut(level).Get(999, CancellationToken.None);
+        IActionResult hidden = await MakeSut(level).Get(AdminWorld, CancellationToken.None);
+        IActionResult missing = await MakeSut(level).Get(999, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(hidden);
         Assert.IsType<NotFoundResult>(missing);
@@ -147,16 +148,16 @@ public sealed class WorldVisibilityShould : IDisposable
     [Fact]
     public async Task Return_a_world_a_player_may_enter()
     {
-        var result = await MakeSut(AccountAccessLevel.Player).Get(PlayerWorld, CancellationToken.None);
+        IActionResult result = await MakeSut(AccountAccessLevel.Player).Get(PlayerWorld, CancellationToken.None);
 
-        var ok = Assert.IsType<OkObjectResult>(result);
+        OkObjectResult ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(PlayerWorld, Assert.IsType<WorldDto>(ok.Value).Id);
     }
 
     [Fact]
     public async Task Return_a_staff_world_to_staff()
     {
-        var result = await MakeSut(AccountAccessLevel.Admin).Get(AdminWorld, CancellationToken.None);
+        IActionResult result = await MakeSut(AccountAccessLevel.Admin).Get(AdminWorld, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
     }
@@ -164,21 +165,21 @@ public sealed class WorldVisibilityShould : IDisposable
     [Fact]
     public async Task Sort_derived_status_across_all_visible_worlds_before_paging()
     {
-        using (var context = _database.CreateDbContext())
+        using (AuthDbContext context = _database.CreateDbContext())
         {
-            var staff = context.Worlds.Single(w => w.Id == new WorldId(AdminWorld));
+            WorldEntity staff = context.Worlds.Single(w => w.Id == new WorldId(AdminWorld));
             staff.MaintenanceEnabled = true;
             context.SaveChanges();
         }
 
-        var readiness = Substitute.For<IWorldReadiness>();
+        IWorldReadiness readiness = Substitute.For<IWorldReadiness>();
         readiness.IsReadyAsync(PlayerWorld, Arg.Any<CancellationToken>()).Returns(true);
         var service = new WorldService(new WorldRepository(_database),
             new Avalon.Api.Worlds.WorldDatabases([]), readiness);
 
-        var first = await service.ListAsync(AccountAccessLevel.Admin, 1, 1,
+        PagedResult<WorldDto> first = await service.ListAsync(AccountAccessLevel.Admin, 1, 1,
             sortBy: "status", sortDirection: SortDirection.Ascending);
-        var last = await service.ListAsync(AccountAccessLevel.Admin, 3, 1,
+        PagedResult<WorldDto> last = await service.ListAsync(AccountAccessLevel.Admin, 3, 1,
             sortBy: "status", sortDirection: SortDirection.Ascending);
 
         Assert.Equal(3, first.TotalCount);

@@ -48,7 +48,7 @@ public class VendorListBuilderShould : IAsyncLifetime
     [Fact]
     public void List_a_gated_row_once_its_quest_is_met()
     {
-        var quests = Substitute.For<IQuestProgress>();
+        IQuestProgress quests = Substitute.For<IQuestProgress>();
         quests.IsMet(_w.Main.Character, GatedQuest, QuestRequirementState.Completed).Returns(true);
 
         SVendorListPacket list = Build(quests);
@@ -77,8 +77,14 @@ public class VendorListBuilderShould : IAsyncLifetime
     {
         var flagged = new ItemTemplate
         {
-            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
-            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+            Id = Tonic.Id,
+            Name = Tonic.Name,
+            Class = Tonic.Class,
+            SubClass = Tonic.SubClass,
+            MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem,
+            BuyPrice = Tonic.BuyPrice,
+            SellPrice = Tonic.SellPrice,
         };
         _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList()));
 
@@ -112,8 +118,14 @@ public class VendorListBuilderShould : IAsyncLifetime
     {
         var flagged = new ItemTemplate
         {
-            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
-            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+            Id = Tonic.Id,
+            Name = Tonic.Name,
+            Class = Tonic.Class,
+            SubClass = Tonic.SubClass,
+            MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem,
+            BuyPrice = Tonic.BuyPrice,
+            SellPrice = Tonic.SellPrice,
         };
         CharacterEntity character = _w.Main.Character;
         character.Buyback.Push(new BuybackEntry(TestCharacters.Item(3, Blade, durability: 42), 25));

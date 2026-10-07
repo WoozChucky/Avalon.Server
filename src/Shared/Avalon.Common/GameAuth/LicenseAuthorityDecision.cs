@@ -4,14 +4,14 @@ public enum LicenseAuthorityKind { StoredGrant, VerifiedOwnership }
 
 public sealed class LicenseAuthorityDecision
 {
-    public LicenseAuthorityDecision(bool OwnsProduct, DateTime ObservedAt, DateTime AuthorizedUntil,
-        DateTime? ProviderExpiresAt = null, bool Reestablish = false)
+    public LicenseAuthorityDecision(bool ownsProduct, DateTime observedAt, DateTime authorizedUntil,
+        DateTime? providerExpiresAt = null, bool reestablish = false)
     {
-        this.OwnsProduct = OwnsProduct;
-        this.ObservedAt = ObservedAt;
-        this.AuthorizedUntil = AuthorizedUntil;
-        this.ProviderExpiresAt = ProviderExpiresAt;
-        this.Reestablish = Reestablish;
+        OwnsProduct = ownsProduct;
+        ObservedAt = observedAt;
+        AuthorizedUntil = authorizedUntil;
+        ProviderExpiresAt = providerExpiresAt;
+        Reestablish = reestablish;
     }
 
     public bool OwnsProduct { get; }

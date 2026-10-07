@@ -1,16 +1,14 @@
-using System.Linq.Expressions;
 using System.Text;
 using Avalon.Common.ValueObjects;
-using Avalon.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
-using Avalon.Infrastructure.Login;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -93,7 +91,7 @@ public sealed class LoginRaceShould : IDisposable
             Substitute.For<IMFAHashService>(), Substitute.For<IMfaSetupRepository>(), Options(2),
             new BCryptPasswordVerifier());
 
-        foreach (var _ in new[] { 1, 2 })
+        foreach (int _ in new[] { 1, 2 })
         {
             await handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
             {
@@ -121,7 +119,7 @@ public sealed class LoginRaceShould : IDisposable
             AfterRead = () => LockAsync(account.Id),
         };
 
-        var connection = Connection();
+        IAuthConnection connection = Connection();
         var handler = new CAuthHandler(NullLoggerFactory.Instance, stale, Substitute.For<IReplicatedCache>(),
             Substitute.For<IMFAHashService>(), Substitute.For<IMfaSetupRepository>(), Options(5),
             new BCryptPasswordVerifier());
@@ -156,7 +154,7 @@ public sealed class LoginRaceShould : IDisposable
         mfa.VerifyMFAAsync("hash", "123456", Arg.Any<CancellationToken>())
             .Returns(new MFAVerifyResult(true, account.Id));
 
-        var connection = Connection();
+        IAuthConnection connection = Connection();
         var handler = new CMFAVerifyHandler(NullLoggerFactory.Instance, mfa, stale, Substitute.For<IReplicatedCache>(),
             LiveHash(account.Id), Options(5));
 
@@ -196,7 +194,7 @@ public sealed class LoginRaceShould : IDisposable
         var handler = new CMFAVerifyHandler(NullLoggerFactory.Instance, mfa, _accounts, new CounterCache().Cache,
             LiveHash(account.Id), Options(5));
 
-        for (var i = 0; i < 5; i++)
+        for (int i = 0; i < 5; i++)
         {
             await handler.ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
             {
@@ -270,8 +268,10 @@ public sealed class LoginRaceShould : IDisposable
     {
         Account account = await _accounts.CreateAsync(NewAccount());
         await using (AuthDbContext context = _database.CreateDbContext())
+        {
             await context.Accounts.Where(a => a.Id == account.Id)
                 .ExecuteUpdateAsync(s => s.SetProperty(a => a.FailedLogins, 2));
+        }
 
         Assert.True(await _accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion, "10.0.0.3", DateTime.UtcNow,
             Guid.NewGuid()));
@@ -309,8 +309,10 @@ public sealed class LoginRaceShould : IDisposable
     {
         Account account = await _accounts.CreateAsync(NewAccount());
         await using (AuthDbContext context = _database.CreateDbContext())
+        {
             await context.Accounts.Where(a => a.Id == account.Id)
                 .ExecuteUpdateAsync(s => s.SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1));
+        }
 
         Assert.False(await _accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion,
             "10.0.0.5", DateTime.UtcNow, Guid.NewGuid()));
@@ -321,8 +323,8 @@ public sealed class LoginRaceShould : IDisposable
     public async Task Only_one_ticket_can_claim_an_offline_account()
     {
         Account staleOffline = await _accounts.CreateAsync(NewAccount());
-        Guid firstSession = Guid.NewGuid();
-        Guid secondSession = Guid.NewGuid();
+        var firstSession = Guid.NewGuid();
+        var secondSession = Guid.NewGuid();
 
         Assert.True(await _accounts.TryRecordTicketLoginAsync(staleOffline.Id, staleOffline.CredentialsVersion,
             "10.0.0.6", DateTime.UtcNow, firstSession));

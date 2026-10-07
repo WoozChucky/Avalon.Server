@@ -1,4 +1,3 @@
-using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Entities;
@@ -6,14 +5,13 @@ using Avalon.World.Items;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;
 
 /// <summary>An item's cast bar (item use): taking damage never ends it; moving, dying and leaving do.</summary>
 public class ItemUseCastsShould
 {
-    private static readonly ItemTemplateId Scroll = new(3);
+    private static readonly ItemTemplateId s_scroll = new(3);
 
     private readonly RecordingAudience _audience = new();
     private readonly CharacterEntity _character = Inventory.TestCharacters.New(7);
@@ -27,9 +25,14 @@ public class ItemUseCastsShould
 
     private void Start(float seconds = 3f) => _casts.Start(new PendingItemUse
     {
-        Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = _casts.TakeCastId(),
-        CastTimeSeconds = seconds, CanComplete = () => _canComplete,
-        Completed = () => _ends.Add("completed"), Interrupted = () => _ends.Add("interrupted"),
+        Character = _character,
+        Item = s_scroll,
+        StartPosition = _character.Position,
+        CastId = _casts.TakeCastId(),
+        CastTimeSeconds = seconds,
+        CanComplete = () => _canComplete,
+        Completed = () => _ends.Add("completed"),
+        Interrupted = () => _ends.Add("interrupted"),
     });
 
     [Fact]
@@ -42,7 +45,7 @@ public class ItemUseCastsShould
         _casts.Update(TimeSpan.FromSeconds(1));
 
         Assert.Equal(["completed"], _ends);
-        Assert.Equal([("start", Scroll, 1u), ("finish", Scroll, 1u)], _audience.Sent);
+        Assert.Equal([("start", s_scroll, 1u), ("finish", s_scroll, 1u)], _audience.Sent);
         Assert.False(_casts.IsCasting(_character.Guid));
     }
 
@@ -55,7 +58,7 @@ public class ItemUseCastsShould
         _casts.Update(TimeSpan.FromMilliseconds(16));
 
         Assert.Equal(["interrupted"], _ends);
-        Assert.Equal(("interrupt", Scroll, 1u), _audience.Sent[^1]);
+        Assert.Equal(("interrupt", s_scroll, 1u), _audience.Sent[^1]);
     }
 
     [Fact]
@@ -121,9 +124,14 @@ public class ItemUseCastsShould
     {
         _casts.Start(new PendingItemUse
         {
-            Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = 9,
-            CastTimeSeconds = 0.5f, CanComplete = () => true,
-            Completed = () => throw new InvalidOperationException("boom"), Interrupted = () => { },
+            Character = _character,
+            Item = s_scroll,
+            StartPosition = _character.Position,
+            CastId = 9,
+            CastTimeSeconds = 0.5f,
+            CanComplete = () => true,
+            Completed = () => throw new InvalidOperationException("boom"),
+            Interrupted = () => { },
         });
 
         _casts.Update(TimeSpan.FromSeconds(1));
@@ -142,15 +150,24 @@ public class ItemUseCastsShould
         var otherEnds = new List<string>();
         PendingItemUse OtherCast(float seconds) => new()
         {
-            Character = other, Item = Scroll, StartPosition = other.Position, CastId = _casts.TakeCastId(),
-            CastTimeSeconds = seconds, CanComplete = () => true,
-            Completed = () => otherEnds.Add($"completed {seconds}"), Interrupted = () => otherEnds.Add($"interrupted {seconds}"),
+            Character = other,
+            Item = s_scroll,
+            StartPosition = other.Position,
+            CastId = _casts.TakeCastId(),
+            CastTimeSeconds = seconds,
+            CanComplete = () => true,
+            Completed = () => otherEnds.Add($"completed {seconds}"),
+            Interrupted = () => otherEnds.Add($"interrupted {seconds}"),
         };
 
         _casts.Start(new PendingItemUse
         {
-            Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = _casts.TakeCastId(),
-            CastTimeSeconds = 1f, CanComplete = () => true,
+            Character = _character,
+            Item = s_scroll,
+            StartPosition = _character.Position,
+            CastId = _casts.TakeCastId(),
+            CastTimeSeconds = 1f,
+            CanComplete = () => true,
             Completed = () =>
             {
                 _casts.Interrupt(other.Guid);
@@ -174,9 +191,14 @@ public class ItemUseCastsShould
         var casts = new ItemUseCasts(_audience, () => ++_lastId, logger);
         casts.Start(new PendingItemUse
         {
-            Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = casts.TakeCastId(),
-            CastTimeSeconds = 1f, CanComplete = () => throw new InvalidOperationException("boom"),
-            Completed = () => _ends.Add("completed"), Interrupted = () => _ends.Add("interrupted"),
+            Character = _character,
+            Item = s_scroll,
+            StartPosition = _character.Position,
+            CastId = casts.TakeCastId(),
+            CastTimeSeconds = 1f,
+            CanComplete = () => throw new InvalidOperationException("boom"),
+            Completed = () => _ends.Add("completed"),
+            Interrupted = () => _ends.Add("interrupted"),
         });
 
         casts.Update(TimeSpan.FromSeconds(1));

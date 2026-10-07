@@ -35,7 +35,7 @@ public static class Overrides
                 && Supports(p.PropertyType));
     }
 
-    internal static readonly Dictionary<string, Table> Tables = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, Table> s_tables = new(StringComparer.Ordinal)
     {
         ["Ability"] = new(typeof(AbilityTemplate), ["Id"],
             (t, k) => t.AbilityTemplates.FirstOrDefault(a => Text(a.Id.Value) == k),
@@ -91,8 +91,8 @@ public static class Overrides
             if (parts.Length < 2)
                 throw new InvalidDataException($"Override '{key}' is not Table.key.Column");
 
-            if (!Tables.TryGetValue(parts[0], out Table? table))
-                throw new InvalidDataException($"Override '{key}': unknown table '{parts[0]}' (known: {string.Join(", ", Tables.Keys)})");
+            if (!s_tables.TryGetValue(parts[0], out Table? table))
+                throw new InvalidDataException($"Override '{key}': unknown table '{parts[0]}' (known: {string.Join(", ", s_tables.Keys)})");
 
             string rowKey = string.Join('.', parts[1..^1]);
             if (table.Keyless && rowKey.Length > 0)
@@ -153,9 +153,12 @@ public static class Overrides
         try
         {
             if (target.IsEnum)
+            {
                 return json.ValueKind == JsonValueKind.String
                     ? Enum.Parse(target, json.GetString()!, ignoreCase: false)
                     : Enum.ToObject(target, json.GetInt64());
+            }
+
             if (target == typeof(bool)) return json.GetBoolean();
             if (target == typeof(string)) return json.GetString();
             if (target == typeof(float)) return json.GetSingle();

@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
@@ -9,8 +10,8 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Items;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Creatures;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -18,13 +19,18 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// <summary>MapInstance hosts item cast bars with its own cast ids and the existing cast packets.</summary>
 public class MapInstanceItemUseShould
 {
-    private static readonly ItemTemplateId Scroll = new(3);
+    private static readonly ItemTemplateId s_scroll = new(3);
 
     private static PendingItemUse Pending(MapInstanceClient client, List<string> ends, float seconds = 3f) => new()
     {
-        Character = client.Character, Item = Scroll, StartPosition = client.Character.Position,
-        CastId = 0, CastTimeSeconds = seconds, CanComplete = () => true,
-        Completed = () => ends.Add("completed"), Interrupted = () => ends.Add("interrupted"),
+        Character = client.Character,
+        Item = s_scroll,
+        StartPosition = client.Character.Position,
+        CastId = 0,
+        CastTimeSeconds = seconds,
+        CanComplete = () => true,
+        Completed = () => ends.Add("completed"),
+        Interrupted = () => ends.Add("interrupted"),
     };
 
     [Fact]
@@ -48,9 +54,14 @@ public class MapInstanceItemUseShould
         uint castId = instance.ItemUses.TakeCastId();
         instance.ItemUses.Start(new PendingItemUse
         {
-            Character = client.Character, Item = Scroll, StartPosition = client.Character.Position, CastId = castId,
-            CastTimeSeconds = 3f, CanComplete = () => true,
-            Completed = () => ends.Add("completed"), Interrupted = () => ends.Add("interrupted"),
+            Character = client.Character,
+            Item = s_scroll,
+            StartPosition = client.Character.Position,
+            CastId = castId,
+            CastTimeSeconds = 3f,
+            CanComplete = () => true,
+            Completed = () => ends.Add("completed"),
+            Interrupted = () => ends.Add("interrupted"),
         });
 
         instance.Update(TimeSpan.FromSeconds(3.1));
@@ -100,7 +111,7 @@ public class MapInstanceItemUseShould
     {
         MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _);
         MapInstanceClient client = Join(instance, 7);
-        var row = AbilityTestData.Circle(1);
+        AbilityTemplate row = AbilityTestData.Circle(1);
         row.Cost = 30;
         row.CostPowerType = PowerType.Mana;
         row.CastTime = castTimeMs;
@@ -141,8 +152,11 @@ public class MapInstanceItemUseShould
         var creature = new Creature
         {
             Guid = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, id),
-            Metadata = Loot.LootTestData.BoarTemplate(null), Position = new Avalon.Common.Mathematics.Vector3(0, 0, 3),
-            Health = 100, CurrentHealth = 100, Level = 1,
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = new Avalon.Common.Mathematics.Vector3(0, 0, 3),
+            Health = 100,
+            CurrentHealth = 100,
+            Level = 1,
         };
         instance.AddCreature(creature);
         return creature;
@@ -270,10 +284,10 @@ public class MapInstanceItemUseShould
         // Once armed, its health reads 100 when the expired summons are gathered and throws when the removal reads it.
         bool armed = false;
         int reads = 0;
-        var broken = Substitute.For<Avalon.World.Public.Creatures.ICreature>();
+        ICreature broken = Substitute.For<Avalon.World.Public.Creatures.ICreature>();
         broken.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 94));
         broken.Name.Returns("Broken");
-        var metadata = Substitute.For<Avalon.World.Public.Creatures.ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<Avalon.World.Public.Creatures.ICreatureMetadata>();
         metadata.Id.Returns(new CreatureTemplateId(4));
         broken.Metadata.Returns(metadata);
         broken.CurrentHealth.Returns(_ => armed && ++reads == 2 ? throw new InvalidOperationException("boom") : 100u);

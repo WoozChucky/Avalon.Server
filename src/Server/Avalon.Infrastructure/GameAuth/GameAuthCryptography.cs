@@ -1,6 +1,6 @@
-using Avalon.Common.GameAuth;
 using System.Security.Cryptography;
 using System.Text;
+using Avalon.Common.GameAuth;
 
 namespace Avalon.Infrastructure.GameAuth;
 
@@ -31,10 +31,10 @@ public sealed class GameAuthCryptography
 
     public string ProtectText(string value, string binding)
     {
-        var bytes = Encoding.UTF8.GetBytes(value);
-        var nonce = RandomNumberGenerator.GetBytes(AesNonceBytes);
-        var tag = new byte[AesTagBytes];
-        var cipher = new byte[bytes.Length];
+        byte[] bytes = Encoding.UTF8.GetBytes(value);
+        byte[] nonce = RandomNumberGenerator.GetBytes(AesNonceBytes);
+        byte[] tag = new byte[AesTagBytes];
+        byte[] cipher = new byte[bytes.Length];
         using var aes = new AesGcm(_receiptKey, AesTagBytes);
         aes.Encrypt(nonce, bytes, cipher, tag, Encoding.UTF8.GetBytes(binding));
         CryptographicOperations.ZeroMemory(bytes);
@@ -46,9 +46,9 @@ public sealed class GameAuthCryptography
 
     public string UnprotectText(string envelope, string binding)
     {
-        var bytes = Convert.FromBase64String(envelope);
+        byte[] bytes = Convert.FromBase64String(envelope);
         if (bytes.Length < EnvelopeHeaderBytes || bytes.Length > GameAuthPolicy.MaximumBodyBytes) throw new CryptographicException("Invalid game receipt.");
-        var clear = new byte[bytes.Length - EnvelopeHeaderBytes];
+        byte[] clear = new byte[bytes.Length - EnvelopeHeaderBytes];
         using var aes = new AesGcm(_receiptKey, AesTagBytes);
         aes.Decrypt(bytes.AsSpan(0, AesNonceBytes), bytes.AsSpan(EnvelopeHeaderBytes), bytes.AsSpan(AesNonceBytes, AesTagBytes), clear, Encoding.UTF8.GetBytes(binding));
         try { return Encoding.UTF8.GetString(clear); }

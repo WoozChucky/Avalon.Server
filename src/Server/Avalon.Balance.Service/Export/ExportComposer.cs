@@ -18,7 +18,7 @@ public static partial class ExportComposer
     private const int MaxSlugLength = 40;
     private const int WorstMetrics = 10;
 
-    private static readonly JsonSerializerOptions OverrideFormat = new()
+    private static readonly JsonSerializerOptions s_overrideFormat = new()
     {
         WriteIndented = true,
         IndentSize = 2,
@@ -119,10 +119,12 @@ public static partial class ExportComposer
     {
         var sorted = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
         foreach ((string key, JsonElement value) in given)
+        {
             if (!stale.Contains(key))
                 sorted.Add(key, value);
+        }
 
-        return JsonSerializer.Serialize(sorted, OverrideFormat) + "\n";
+        return JsonSerializer.Serialize(sorted, s_overrideFormat) + "\n";
     }
 
     public static string Slug(string title)
@@ -179,10 +181,13 @@ public static partial class ExportComposer
             {
                 sb.Append("Worst metrics:\n\n| Metric | Row | Value | Band | Grade |\n| --- | --- | --- | --- | --- |\n");
                 foreach (MetricDto m in worst)
+                {
                     sb.Append("| ").Append(Cell(m.Metric)).Append(" | ").Append(Cell(m.RowId ?? "")).Append(" | ")
                         .Append(Cell(Number(m.Value))).Append(" | ")
                         .Append(Cell($"{Number(m.Band.Min)} to {Number(m.Band.Max)} {m.Unit}")).Append(" | ")
                         .Append(Cell(m.Grade)).Append(" |\n");
+                }
+
                 sb.Append('\n');
             }
         }

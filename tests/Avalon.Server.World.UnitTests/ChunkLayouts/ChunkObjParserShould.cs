@@ -6,7 +6,6 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Maps.Navigation;
 using DotRecast.Detour;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 
@@ -18,7 +17,7 @@ namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 public sealed class ChunkObjParserShould : IDisposable
 {
     /// <summary>A floor and one 4 x 4 m box at (10-14, 10-14), written by the generator so every face is wound outward.</summary>
-    private static readonly string Plain =
+    private static readonly string s_plain =
         ObjWriter.Write(new ChunkPiece("plain_01", [], [new BoxBlocker(10, 14, 10, 14)], [], ["test"]));
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"avalon-obj-parser-{Guid.NewGuid():N}");
@@ -31,12 +30,12 @@ public sealed class ChunkObjParserShould : IDisposable
     [Fact]
     public async Task Bake_a_chunk_with_material_lines_exactly_as_without_them()
     {
-        string tagged = Plain
+        string tagged = s_plain
             .Replace("o Floor\n", "mtllib town.mtl\no Floor\nusemtl stone\ns off\n", StringComparison.Ordinal)
             .Replace("o Blocker_1\n", "g props\no Blocker_1\nusemtl wood\n", StringComparison.Ordinal);
-        Assert.NotEqual(Plain, tagged);   // the replacements found their lines
+        Assert.NotEqual(s_plain, tagged);   // the replacements found their lines
 
-        DtNavMesh plain = await Bake("plain_01", Plain);
+        DtNavMesh plain = await Bake("plain_01", s_plain);
         DtNavMesh withMaterials = await Bake("tagged_01", tagged);
 
         Assert.Equal(Counts(plain), Counts(withMaterials));
@@ -56,7 +55,7 @@ public sealed class ChunkObjParserShould : IDisposable
 
         var placed = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
         var layout = new ChunkLayout(0, [placed], placed, null, [], Vector3.zero, 30f);
-        ChunkLayoutNavmeshBuilder builder = ChunkLayoutNavmeshBuilder.ForTesting(
+        var builder = ChunkLayoutNavmeshBuilder.ForTesting(
             NullLoggerFactory.Instance, new OneChunkLibrary(name), Path.Combine(_root, name));
         return await builder.BuildAsync(layout, CancellationToken.None);
     }

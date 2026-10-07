@@ -1,14 +1,14 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using System.Net;
 using System.Security.Authentication;
+using System.Text.Json;
 using Avalon.Api.Exceptions;
 using Avalon.Database.Auth;
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using StackExchange.Redis;
 

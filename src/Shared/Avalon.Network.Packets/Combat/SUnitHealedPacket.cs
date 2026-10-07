@@ -36,8 +36,13 @@ public class SUnitHealedPacket : Packet
         => PacketSerializationHelper.Serialize(
             new SUnitHealedPacket
             {
-                Healer = healer, Target = target, Amount = amount, CurrentHealth = currentHealth, AbilityId = abilityId,
-                Result = result, AuraId = auraId,
+                Healer = healer,
+                Target = target,
+                Amount = amount,
+                CurrentHealth = currentHealth,
+                AbilityId = abilityId,
+                Result = result,
+                AuraId = auraId,
             },
             PacketType, Flags, Protocol, encrypt);
 }

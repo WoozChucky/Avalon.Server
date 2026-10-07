@@ -1,7 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using AuthenticateRequest = Avalon.Api.Contract.AuthenticateRequest;
-using RefreshResponse = Avalon.Api.Contract.RefreshResponse;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
@@ -12,6 +10,8 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
 using static Avalon.Api.UnitTests.Authentication.ApiAuthHost;
+using AuthenticateRequest = Avalon.Api.Contract.AuthenticateRequest;
+using RefreshResponse = Avalon.Api.Contract.RefreshResponse;
 
 namespace Avalon.Api.UnitTests.Authentication;
 
@@ -51,7 +51,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
     }
 
     private static bool SetsRefreshCookie(HttpResponseMessage response, string value) =>
-        response.Headers.TryGetValues("Set-Cookie", out var cookies)
+        response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? cookies)
         && cookies.Any(c => c.StartsWith($"{AuthConfig.RefreshCookieName}={value}", StringComparison.Ordinal));
 
     // Lifetime validation must not lock a client out of renewing: refresh is anonymous and reads
@@ -251,5 +251,5 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
     }
 
     private static bool SetsAnyCookie(HttpResponseMessage response) =>
-        response.Headers.TryGetValues("Set-Cookie", out var cookies) && cookies.Any();
+        response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? cookies) && cookies.Any();
 }

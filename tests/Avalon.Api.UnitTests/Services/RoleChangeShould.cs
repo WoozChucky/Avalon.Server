@@ -35,7 +35,7 @@ public sealed class RoleChangeShould : IDisposable
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
-    private static readonly AccountId Admin = new(1);
+    private static readonly AccountId s_admin = new(1);
 
     public RoleChangeShould()
     {
@@ -74,7 +74,7 @@ public sealed class RoleChangeShould : IDisposable
         Substitute.For<ISecureRandom>(), new DbTransactionRunner<AuthDbContext>(_database),
         new AuthenticationConfig(), TestLogin.Password(_accounts, _cache), TestLogin.Reauthentication(_accounts, _cache));
 
-    private Task DemoteAsync(AccountId id) => Service().UpdateRolesAsync(id, ContractLevel.Player, Admin);
+    private Task DemoteAsync(AccountId id) => Service().UpdateRolesAsync(id, ContractLevel.Player, s_admin);
 
     private const AccountAccessLevel GameMaster = AccountAccessLevel.Player | AccountAccessLevel.GameMaster;
 
@@ -118,7 +118,7 @@ public sealed class RoleChangeShould : IDisposable
 
         PersonalAccessToken? stored = await Pats().FindByRawTokenAsync(minted.Token);
         Assert.NotNull(stored!.RevokedAt);
-        Assert.Equal(Admin, stored.RevokedBy);
+        Assert.Equal(s_admin, stored.RevokedBy);
     }
 
     [Theory]
@@ -128,7 +128,7 @@ public sealed class RoleChangeShould : IDisposable
     {
         Account account = await AccountAsync(GameMaster);
 
-        await Service().UpdateRolesAsync(account.Id, roles, Admin);
+        await Service().UpdateRolesAsync(account.Id, roles, s_admin);
 
         Account stored = await StoredAsync(account.Id);
         Assert.Equal((AccountAccessLevel)roles, stored.AccessLevel);
@@ -162,7 +162,7 @@ public sealed class RoleChangeShould : IDisposable
     {
         Account account = await AccountAsync(GameMaster);
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
 
         await DemoteAsync(account.Id);
 

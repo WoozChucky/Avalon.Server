@@ -49,7 +49,7 @@ public static class JwtAccountRevalidation
         AccountAccessCheck.Remember(context.HttpContext, account);
 
         var source = principal.Identity as ClaimsIdentity;
-        var claims = principal.Claims.Where(c => !string.Equals(c.Type, ClaimTypes.GroupSid, StringComparison.Ordinal))
+        IEnumerable<Claim> claims = principal.Claims.Where(c => !string.Equals(c.Type, ClaimTypes.GroupSid, StringComparison.Ordinal))
             .Concat(AccountAccessCheck.RoleClaims(roles));
         var identity = new ClaimsIdentity(claims, source?.AuthenticationType ?? context.Scheme.Name,
             source?.NameClaimType ?? ClaimTypes.Name, ClaimTypes.GroupSid);

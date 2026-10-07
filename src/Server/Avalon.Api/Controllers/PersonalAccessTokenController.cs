@@ -61,10 +61,10 @@ public class PersonalAccessTokenController : BaseController
             return StatusCode(StatusCodes.Status403Forbidden, "PAT cannot mint new PATs");
 
         // A token that outlives the session needs the password, not just the session (#483).
-        var proof = await _reauthentication.RequireCurrentPasswordAsync(User.AccountId(), req.CurrentPassword,
+        Reauthenticated proof = await _reauthentication.RequireCurrentPasswordAsync(User.AccountId(), req.CurrentPassword,
             SourceAddress, ct);
 
-        var result = await _service.MintSelfAsync(
+        MintResult result = await _service.MintSelfAsync(
             callerId: User.AccountId(),
             callerRoles: CollectRoles(User),
             name: req.Name,
@@ -89,7 +89,7 @@ public class PersonalAccessTokenController : BaseController
     [HttpGet]
     public async Task<IList<PatDto>> List(CancellationToken ct)
     {
-        var list = await _service.ListByAccountAsync(User.AccountId(), includeRevoked: true, ct);
+        List<PersonalAccessToken> list = await _service.ListByAccountAsync(User.AccountId(), includeRevoked: true, ct);
         return list.Select(ToDto).ToList();
     }
 
@@ -98,10 +98,10 @@ public class PersonalAccessTokenController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromRoute] uint id, CancellationToken ct)
     {
-        var pat = await _service.GetAsync(new PersonalAccessTokenId(id), ct);
+        PersonalAccessToken? pat = await _service.GetAsync(new PersonalAccessTokenId(id), ct);
         if (pat is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, pat, new ReadRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, pat, new ReadRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
         return Ok(ToDto(pat));
@@ -110,10 +110,10 @@ public class PersonalAccessTokenController : BaseController
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> Revoke([FromRoute] uint id, CancellationToken ct)
     {
-        var pat = await _service.GetAsync(new PersonalAccessTokenId(id), ct);
+        PersonalAccessToken? pat = await _service.GetAsync(new PersonalAccessTokenId(id), ct);
         if (pat is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, pat, new WriteRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, pat, new WriteRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
         await _service.RevokeAsync(pat, User.AccountId(), ct);
@@ -133,10 +133,10 @@ public class PersonalAccessTokenController : BaseController
 
         // The calling admin's own password (#483): this route can mint for any account, the
         // admin's own included, so without it the self-service check would be one route away.
-        var proof = await _reauthentication.RequireCurrentPasswordAsync(User.AccountId(), req.CurrentPassword,
+        Reauthenticated proof = await _reauthentication.RequireCurrentPasswordAsync(User.AccountId(), req.CurrentPassword,
             SourceAddress, ct);
 
-        var result = await _service.MintAdminAsync(
+        MintResult result = await _service.MintAdminAsync(
             callerRoles: CollectRoles(User),
             targetAccountId: new AccountId(req.AccountId),
             name: req.Name,
@@ -165,7 +165,7 @@ public class PersonalAccessTokenController : BaseController
         [FromQuery] bool includeRevoked = false,
         CancellationToken ct = default)
     {
-        var list = await _service.ListByAccountAsync(new AccountId(accountId), includeRevoked, ct);
+        List<PersonalAccessToken> list = await _service.ListByAccountAsync(new AccountId(accountId), includeRevoked, ct);
         return list.Select(ToDto).ToList();
     }
 
@@ -173,7 +173,7 @@ public class PersonalAccessTokenController : BaseController
     [Authorize(Policy = AvalonRoles.Admin)]
     public async Task<IActionResult> RevokeAllForAccount([FromRoute] long accountId, CancellationToken ct)
     {
-        var count = await _service.RevokeAllForAccountAsync(new AccountId(accountId), User.AccountId(), ct);
+        int count = await _service.RevokeAllForAccountAsync(new AccountId(accountId), User.AccountId(), ct);
         return Ok(new { revoked = count });
     }
 }

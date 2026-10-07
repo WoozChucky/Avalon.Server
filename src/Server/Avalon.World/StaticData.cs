@@ -69,11 +69,11 @@ public class StaticData(
         {
             case ReloadArea.Dialogue:
             {
-                var texts = await localizedTextRepository.GetAllAsync(ct);
-                var locales = await localizedTextRepository.GetAllLocalesAsync(ct);
-                var classNames = await localizedTextRepository.GetAllClassNamesAsync(ct);
-                var nodes = await dialogueRepository.GetAllNodesAsync(ct);
-                var options = await dialogueRepository.GetAllOptionsAsync(ct);
+                IReadOnlyCollection<LocalizedText> texts = await localizedTextRepository.GetAllAsync(ct);
+                IReadOnlyCollection<LocalizedTextLocale> locales = await localizedTextRepository.GetAllLocalesAsync(ct);
+                IReadOnlyCollection<CharacterClassName> classNames = await localizedTextRepository.GetAllClassNamesAsync(ct);
+                IReadOnlyCollection<DialogueNode> nodes = await dialogueRepository.GetAllNodesAsync(ct);
+                IReadOnlyCollection<DialogueOption> options = await dialogueRepository.GetAllOptionsAsync(ct);
 
                 return new DialoguePatch(
                     new LocalizedTextCatalog(texts, locales, classNames, loggerFactory),
@@ -87,8 +87,8 @@ public class StaticData(
                 IReadOnlyCollection<CreatureTemplate> templates =
                     (await creatureTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
                 CreaturesPatch.Validate(templates);
-                var baseStats = await creatureBaseStatRepository.GetAllAsync(ct);
-                var rarities = await creatureRarityModifierRepository.GetAllAsync(ct);
+                IReadOnlyCollection<CreatureBaseStat> baseStats = await creatureBaseStatRepository.GetAllAsync(ct);
+                IReadOnlyCollection<CreatureRarityModifier> rarities = await creatureRarityModifierRepository.GetAllAsync(ct);
 
                 // Built from the collections just read, never from the ones currently applied —
                 // capturing the applied ones is exactly the trap this work removes.
@@ -226,8 +226,10 @@ public class StaticData(
 
         ILogger<StaticData> logger = loggerFactory.CreateLogger<StaticData>();
         foreach (string problem in problems)
+        {
             logger.LogError("The live dialogue leaves {Problem}; the quest cannot be talked through until the dialogue is fixed " +
                             "(a /reload quests would refuse it)", problem);
+        }
     }
 
     /// <summary>
@@ -247,7 +249,7 @@ public class StaticData(
     /// </summary>
     public void ApplyPending()
     {
-        while (_pending.TryDequeue(out var item))
+        while (_pending.TryDequeue(out (StaticDataPatch Patch, TaskCompletionSource Done) item))
         {
             try
             {

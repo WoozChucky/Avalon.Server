@@ -1,6 +1,3 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -28,13 +25,13 @@ public class ValueObjectJsonConverter<TObject, TValue> : JsonConverter<TObject>
 
         // The value object owns its invariants in its constructor, so go through it rather than
         // writing the backing field directly.
-        ConstructorInfo? constructor = typeToConvert.GetConstructor(new[] {typeof(TValue)});
+        ConstructorInfo? constructor = typeToConvert.GetConstructor(new[] { typeof(TValue) });
         if (constructor == null)
         {
             throw new JsonException($"No suitable constructor found for type {typeToConvert}.");
         }
 
-        return (TObject)constructor.Invoke(new object[] {value});
+        return (TObject)constructor.Invoke(new object[] { value });
     }
 
     public override void Write(Utf8JsonWriter writer, TObject value, JsonSerializerOptions options) =>

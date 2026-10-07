@@ -1,4 +1,3 @@
-using System.IO;
 using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.Mathematics;
@@ -25,7 +24,7 @@ internal static class TestTown
     /// <summary>Wires <paramref name="world" /> to <paramref name="data" /> and a registry holding only <paramref name="instances" />.</summary>
     public static void Stub(IWorld world, StaticData data, params (Guid Id, IMapInstance Instance)[] instances)
     {
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.GetInstanceById(Arg.Any<Guid>()).Returns((IMapInstance?)null);
         foreach ((Guid id, IMapInstance instance) in instances)
             registry.GetInstanceById(id).Returns(instance);
@@ -39,9 +38,9 @@ internal static class TestTown
     public static ICreature AddNpc(
         Dictionary<ObjectGuid, ICreature> creatures, ObjectGuid guid, CreatureTemplateId template, string name, Vector3 at)
     {
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.Id.Returns(template);
-        var npc = Substitute.For<ICreature>();
+        ICreature npc = Substitute.For<ICreature>();
         npc.Guid.Returns(guid);
         npc.Name.Returns(name);
         npc.CurrentHealth.Returns(100u);

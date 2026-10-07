@@ -6,7 +6,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Api.Services;
@@ -106,8 +105,8 @@ public sealed class RefreshTokenService : IRefreshTokenService
     private async Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
         SessionClient client, string? deviceName, CancellationToken cancellationToken)
     {
-        var now = _time.GetUtcNow().UtcDateTime;
-        var (raw, hash) = Generate();
+        DateTime now = _time.GetUtcNow().UtcDateTime;
+        (string? raw, byte[]? hash) = Generate();
         // Not a secret (tokens are looked up by hash); time-ordered because (AccountId, FamilyId) is indexed.
         var familyId = Guid.CreateVersion7();
 
@@ -142,21 +141,21 @@ public sealed class RefreshTokenService : IRefreshTokenService
     private async Task<RefreshRotateResult> RotateAsync(string rawToken, RefreshCaller caller, SessionClient expected,
         CancellationToken cancellationToken)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
-        var row = await _repository.FindByHashAsync(hash, cancellationToken)
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        RefreshToken row = await _repository.FindByHashAsync(hash, cancellationToken)
             ?? throw new UnauthorizedAccessException("Unknown refresh token");
         // Another client's token is unknown here (#591): refused before the revoked check, so the
         // website's session is never taken for stolen, and ended, by a launcher presenting it.
         if (row.Client != expected)
             throw new UnauthorizedAccessException("Unknown refresh token");
 
-        var now = _time.GetUtcNow().UtcDateTime;
+        DateTime now = _time.GetUtcNow().UtcDateTime;
         if (row.ExpiresAt <= now) throw new UnauthorizedAccessException("Refresh token expired");
 
         if (row.Revoked)
             await RefuseRevokedParentAsync(row, caller, now, cancellationToken);
 
-        var (newRaw, newHash) = Generate();
+        (string? newRaw, byte[]? newHash) = Generate();
         var child = new RefreshToken
         {
             AccountId = row.AccountId,
@@ -228,8 +227,8 @@ public sealed class RefreshTokenService : IRefreshTokenService
 
     public async Task RevokeAsync(string rawToken, CancellationToken cancellationToken = default)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
-        var row = await _repository.FindByHashAsync(hash, cancellationToken);
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        RefreshToken? row = await _repository.FindByHashAsync(hash, cancellationToken);
         if (row is null || row.Revoked) return;
 
         row.Revoked = true;
@@ -238,8 +237,8 @@ public sealed class RefreshTokenService : IRefreshTokenService
 
     public async Task RevokeLauncherSessionAsync(string rawToken, CancellationToken cancellationToken = default)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
-        var row = await _repository.FindByHashAsync(hash, cancellationToken);
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        RefreshToken? row = await _repository.FindByHashAsync(hash, cancellationToken);
         if (row is not { Client: SessionClient.Launcher }) return;
 
         await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
@@ -257,9 +256,9 @@ public sealed class RefreshTokenService : IRefreshTokenService
 
     private (string RawToken, byte[] Hash) Generate()
     {
-        var bytes = _random.GetBytes(32);
-        var raw = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+        byte[] bytes = _random.GetBytes(32);
+        string raw = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return (raw, hash);
     }
 }

@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalon.Configuration;
-using Avalon.Database;
 using Avalon.Database.World;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +28,7 @@ public static class AbilityCatalogExport
     public const string FileName = "ability-catalog-v1.json";
 
     // camelCase, matching item-catalog-v1.json.
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    private static readonly JsonSerializerOptions s_serializerOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -50,7 +49,7 @@ public static class AbilityCatalogExport
 
         using var context = new WorldDbContext(NullLoggerFactory.Instance, options);
 
-        List<AbilityTemplate> templates = context.AbilityTemplates.AsNoTracking().ToList();
+        var templates = context.AbilityTemplates.AsNoTracking().ToList();
 
         Lf.Write(path, Render(templates));
         Console.WriteLine($"wrote {path} ({templates.Count} ability templates)");
@@ -69,7 +68,7 @@ public static class AbilityCatalogExport
                      "auraId: the aura each unit the ability affects receives (see aura-catalog), or null.",
             Abilities: templates.OrderBy(template => template.Id.Value).Select(Row.From).ToList());
 
-        return JsonSerializer.Serialize(document, SerializerOptions) + "\n";
+        return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
     }
 
     private sealed record CatalogDocument(

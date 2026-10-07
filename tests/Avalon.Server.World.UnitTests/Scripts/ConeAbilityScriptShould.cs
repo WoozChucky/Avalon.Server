@@ -7,7 +7,6 @@ using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Scripts.Abilities;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Abilities.AbilityTestData;
 
 namespace Avalon.Server.World.UnitTests.Scripts;

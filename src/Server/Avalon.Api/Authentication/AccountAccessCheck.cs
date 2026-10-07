@@ -18,7 +18,7 @@ namespace Avalon.Api.Authentication;
 /// </summary>
 public static class AccountAccessCheck
 {
-    private static readonly AccountAccessLevel[] Flags =
+    private static readonly AccountAccessLevel[] s_flags =
         Enum.GetValues<AccountAccessLevel>().Where(flag => flag != 0).ToArray();
 
     /// <summary>
@@ -72,7 +72,7 @@ public static class AccountAccessCheck
 
     /// <summary>One <see cref="ClaimTypes.GroupSid"/> claim per flag set in <paramref name="roles"/>.</summary>
     public static IEnumerable<Claim> RoleClaims(AccountAccessLevel roles) =>
-        Flags.Where(flag => (roles & flag) == flag)
+        s_flags.Where(flag => (roles & flag) == flag)
             .Select(flag => new Claim(ClaimTypes.GroupSid, flag.ToString()));
 
     /// <summary>
@@ -83,9 +83,14 @@ public static class AccountAccessCheck
     {
         AccountAccessLevel roles = 0;
         foreach (Claim claim in principal.FindAll(ClaimTypes.GroupSid))
-            foreach (AccountAccessLevel flag in Flags)
+        {
+            foreach (AccountAccessLevel flag in s_flags)
+            {
                 if (string.Equals(claim.Value, flag.ToString(), StringComparison.Ordinal))
                     roles |= flag;
+            }
+        }
+
         return roles;
     }
 }

@@ -1,5 +1,6 @@
 using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Character;
 using Avalon.Database.Character.Extensions;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World;
@@ -85,7 +86,7 @@ public sealed class CurrentWorldContextsShould : IDisposable
 
         await using (Request(null))
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => items.FindByIdAsync(new ItemTemplateId(1)));
+            InvalidOperationException ex = await Assert.ThrowsAsync<InvalidOperationException>(() => items.FindByIdAsync(new ItemTemplateId(1)));
             Assert.StartsWith("No world selected for this request", ex.Message);
         }
     }
@@ -96,7 +97,7 @@ public sealed class CurrentWorldContextsShould : IDisposable
         _http.HttpContext = null;
         ICharacterRepository characters = _provider.GetRequiredService<ICharacterRepository>();
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => characters.FindByAccountAsync(new AccountId(7)));
+        InvalidOperationException ex = await Assert.ThrowsAsync<InvalidOperationException>(() => characters.FindByAccountAsync(new AccountId(7)));
         Assert.StartsWith("No world selected", ex.Message);
     }
 
@@ -164,7 +165,7 @@ public sealed class CurrentWorldContextsShould : IDisposable
         ]), NullLoggerFactory.Instance);
 
         using WorldDbContext world = factory.CreateWorld(new WorldId(2));
-        using var characters = factory.CreateCharacters(new WorldId(1));
+        using CharacterDbContext characters = factory.CreateCharacters(new WorldId(1));
 
         Assert.Equal("Host=w2;Database=world_two", world.Database.GetConnectionString());
         Assert.Equal("Host=c1;Database=characters_one", characters.Database.GetConnectionString());
@@ -177,7 +178,7 @@ public sealed class CurrentWorldContextsShould : IDisposable
             [new ConfiguredWorld(new WorldId(1), "Host=w1;Password=secret", "Host=c1;Password=secret")]),
             NullLoggerFactory.Instance);
 
-        var ex = Assert.Throws<InvalidOperationException>(() => factory.CreateWorld(new WorldId(9)));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => factory.CreateWorld(new WorldId(9)));
 
         Assert.StartsWith("World 9 is not configured", ex.Message);
         Assert.DoesNotContain("secret", ex.Message, StringComparison.Ordinal);

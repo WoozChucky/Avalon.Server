@@ -1,4 +1,3 @@
-using Avalon.Api;
 using Avalon.Api.Config;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,7 +33,7 @@ public class LoginLimitsShould
     [InlineData(nameof(AuthenticationConfig.MaxFailedMfaAttempts))]
     public void Refuse_to_start_with_a_limit_below_one(string setting)
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => StartWith(setting, "0"));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(setting, "0"));
 
         Assert.Contains($"Application:Authentication:{setting}", ex.Message, StringComparison.Ordinal);
     }
@@ -55,20 +54,25 @@ public class LoginLimitsShould
         var logger = new CapturingLogger();
         var limits = new AuthenticationConfig
         {
-            MaxFailedLoginAttempts = 6, LockoutDurationMinutes = 16, MaxFailedLoginsPerSource = 11,
-            FailedLoginSourceWindowMinutes = 17, MaxFailedMfaAttempts = 4,
+            MaxFailedLoginAttempts = 6,
+            LockoutDurationMinutes = 16,
+            MaxFailedLoginsPerSource = 11,
+            FailedLoginSourceWindowMinutes = 17,
+            MaxFailedMfaAttempts = 4,
         };
 
         Avalon.Infrastructure.Login.LoginLimitsValidation.LogAtStartup(logger, limits, "Application:Authentication");
 
-        var (level, message) = Assert.Single(logger.Entries);
+        (Microsoft.Extensions.Logging.LogLevel level, string? message) = Assert.Single(logger.Entries);
         Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Information, level);
         foreach (string expected in new[]
                  {
                      "Application:Authentication", "MaxFailedLoginAttempts=6", "LockoutDurationMinutes=16",
                      "MaxFailedLoginsPerSource=11", "FailedLoginSourceWindowMinutes=17", "MaxFailedMfaAttempts=4",
                  })
+        {
             Assert.Contains(expected, message, StringComparison.Ordinal);
+        }
     }
 
     private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger

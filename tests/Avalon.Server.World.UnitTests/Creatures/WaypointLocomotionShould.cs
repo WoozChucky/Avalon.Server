@@ -5,7 +5,6 @@ using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 
@@ -17,7 +16,7 @@ public class WaypointLocomotionShould
 {
     private static ICreature CreatureAt(Vector3 position)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new Avalon.Common.ObjectGuid(ObjectType.Creature, 1));
         creature.Position.Returns(position);
         creature.Speed.Returns(4f);
@@ -26,14 +25,14 @@ public class WaypointLocomotionShould
 
     private static (WaypointLocomotion Locomotion, IMapNavigator Navigator) Build()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         return (new WaypointLocomotion(_ => navigator), navigator);
     }
 
     [Fact]
     public void Advance_A_Creature_Toward_Its_Destination()
     {
-        var (locomotion, navigator) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns([new Vector3(10f, 0f, 0f)]);
@@ -58,7 +57,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Come_To_Rest_When_No_Path_Exists()
     {
-        var (locomotion, navigator) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([]);
 
@@ -81,7 +80,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Report_A_Tolerance_Consistent_With_Its_Own_Arrival_Decision()
     {
-        var (locomotion, navigator) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
         var destination = new Vector3(1f, 0f, 0f);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([destination]);
@@ -115,7 +114,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Report_Arrival_Even_Above_SpeedRun_Six()
     {
-        var (locomotion, navigator) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
         creature.Speed.Returns(60f); // step = 60 * (1/60) = 1f at the real tick rate
         var destination = new Vector3(0.5f, 0f, 0f);
@@ -124,7 +123,7 @@ public class WaypointLocomotionShould
         locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, destination);
 
-        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+        var tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
         for (int tick = 0; tick < 20; tick++)
         {
             locomotion.Update(tickInterval);
@@ -136,7 +135,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Report_Arrival_Once_The_Last_Waypoint_Is_Consumed()
     {
-        var (locomotion, navigator) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns([new Vector3(1f, 0f, 0f)]);
@@ -152,7 +151,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Place_A_Teleported_Creature_Without_Walking_It()
     {
-        var (locomotion, _) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator _) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
 
         locomotion.Register(creature, radius: 0.5f);
@@ -170,7 +169,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Discard_A_Queued_Path_When_Teleported()
     {
-        var (locomotion, navigator) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns([new Vector3(10f, 0f, 0f)]);
@@ -191,7 +190,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Tolerate_Register_And_Unregister_Being_Called_Twice()
     {
-        var (locomotion, _) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator _) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
 
         locomotion.Register(creature, radius: 0.5f);
@@ -217,7 +216,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Keep_Advancing_An_Already_Moving_Creature_When_Registered_Again()
     {
-        var (locomotion, navigator) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns([new Vector3(10f, 0f, 0f)]);
@@ -246,7 +245,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Ignore_A_Synced_Player_Entirely()
     {
-        var (locomotion, navigator) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator? navigator) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns([new Vector3(10f, 0f, 0f)]);
@@ -266,7 +265,7 @@ public class WaypointLocomotionShould
     [Fact]
     public void Ignore_Removing_A_Player_That_Was_Never_Synced()
     {
-        var (locomotion, _) = Build();
+        (WaypointLocomotion? locomotion, IMapNavigator _) = Build();
         var playerGuid = new ObjectGuid(ObjectType.Character, 500);
 
         locomotion.RemovePlayer(playerGuid);

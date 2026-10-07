@@ -7,7 +7,6 @@ using Avalon.World.Abilities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Scripts.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 

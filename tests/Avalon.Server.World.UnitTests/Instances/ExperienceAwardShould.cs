@@ -11,7 +11,6 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
@@ -27,8 +26,8 @@ public class ExperienceAwardShould
     public void Scale_The_Award_A_Character_Actually_Receives_By_The_Maps_Band()
     {
         // ForestDungeon's band is 1-5; a level 9 character is four levels out, so 0.75^4 = 0.3164.
-        const int creatureExperience = 1000;
-        var world = Substitute.For<Avalon.World.IWorld>();
+        const int CreatureExperience = 1000;
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>
         {
@@ -46,7 +45,7 @@ public class ExperienceAwardShould
             Guid = new ObjectGuid(ObjectType.Creature, 880_001),
             Metadata = Substitute.For<ICreatureMetadata>(),
             Level = 9, // the killer's level: 5 or more below it, the level gap would award nothing
-            Experience = creatureExperience
+            Experience = CreatureExperience
         };
         instance.AddCreature(creature);
 
@@ -69,7 +68,7 @@ public class ExperienceAwardShould
     [Fact]
     public void Award_A_Real_Kills_Experience_Once()
     {
-        var world = Substitute.For<Avalon.World.IWorld>();
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>());
         StaticData data = LoadedStaticData();
@@ -108,7 +107,7 @@ public class ExperienceAwardShould
     [Fact]
     public void Award_A_Patrolling_Creatures_Kill_Experience_Once()
     {
-        var world = Substitute.For<Avalon.World.IWorld>();
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>());
         StaticData data = LoadedStaticData();
@@ -152,7 +151,7 @@ public class ExperienceAwardShould
     [Fact]
     public void Ignore_A_Kill_Of_A_Creature_This_Instance_Does_Not_Hold()
     {
-        var world = Substitute.For<Avalon.World.IWorld>();
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>());
         StaticData data = LoadedStaticData();
@@ -187,7 +186,7 @@ public class ExperienceAwardShould
     [Fact]
     public void Award_Nothing_When_The_Killers_Level_Has_No_Experience_Requirement()
     {
-        var world = Substitute.For<Avalon.World.IWorld>();
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>());
         StaticData data = LoadedStaticData();
@@ -225,7 +224,7 @@ public class ExperienceAwardShould
     [Fact]
     public void Still_Take_The_Kill_When_Working_Out_Who_Shares_It_Throws()
     {
-        var world = Substitute.For<Avalon.World.IWorld>();
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>());
         StaticData data = LoadedStaticData();
@@ -267,7 +266,7 @@ public class ExperienceAwardShould
     [Fact]
     public async Task Level_Up_Twice_When_One_Kill_Covers_Two_Levels()
     {
-        var world = Substitute.For<Avalon.World.IWorld>();
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate>());   // no band: the award is the creature's whole experience
         StaticData data = await TestStaticData.LoadAsync(levels:
@@ -348,19 +347,19 @@ public class ExperienceAwardShould
     /// </summary>
     internal static StaticData LoadedStaticData()
     {
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());
 
-        var stats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository stats = Substitute.For<IClassLevelStatRepository>();
         stats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<ClassLevelStat>());
 
-        var items = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<ItemTemplate>());
 
-        var abilities = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AbilityTemplate>());
 
-        var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         // Well above anything a single scaled award can reach, so this kill cannot level the
         // character up and the assertion is on the award itself. The level-10 row keeps 9 below the maximum
         // level, where nothing is awarded (#735).
@@ -371,20 +370,20 @@ public class ExperienceAwardShould
                 new CharacterLevelExperience { Level = 10, Experience = 7000 },
             ]));
 
-        var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
         creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<CreatureTemplate>()));
 
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
                 [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
 
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
@@ -392,7 +391,7 @@ public class ExperienceAwardShould
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())

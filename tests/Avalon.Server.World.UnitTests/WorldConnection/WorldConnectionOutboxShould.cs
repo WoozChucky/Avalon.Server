@@ -1,17 +1,10 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using Avalon.Hosting.Networking;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 
@@ -22,10 +15,10 @@ public class WorldConnectionOutboxShould : IDisposable
 
     public WorldConnectionOutboxShould()
     {
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 
-        var (clientSide, serverSide) = CreateLoopbackPair();
+        (TcpClient? clientSide, TcpClient? serverSide) = CreateLoopbackPair();
         _serverSide = serverSide;
 
         _connection = new Avalon.World.WorldConnection(
@@ -49,7 +42,7 @@ public class WorldConnectionOutboxShould : IDisposable
         int port = ((IPEndPoint)listener.LocalEndpoint!).Port;
         var clientSide = new TcpClient();
         clientSide.Connect(IPAddress.Loopback, port);
-        var serverSide = listener.AcceptTcpClient();
+        TcpClient serverSide = listener.AcceptTcpClient();
         listener.Stop();
         return (clientSide, serverSide);
     }

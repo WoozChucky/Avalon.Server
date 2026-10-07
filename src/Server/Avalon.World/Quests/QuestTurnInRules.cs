@@ -37,16 +37,19 @@ public static class QuestTurnInRules
             // refuse it after the quest items left, so the turn-in is refused instead.
             if (findTemplate(reward.ItemTemplateId) is not { } template
                 || template.Flags.HasFlag(ItemTemplateFlags.Unique))
+            {
                 return QuestResult.Error;
+            }
+
             paid.Add((template, reward.Count));
         }
 
-        HashSet<ulong> questItems = quest.Objectives
+        var questItems = quest.Objectives
             .Where(o => o.Type == QuestObjectiveType.Collect)
             .Select(o => o.ItemTemplateId!.Value)
             .ToHashSet();
-        var bag = character.Container(InventoryType.Bag);
-        Dictionary<ushort, InventoryItem> bagAfter = bag.Items
+        CharacterInventoryContainer bag = character.Container(InventoryType.Bag);
+        var bagAfter = bag.Items
             .Where(i => !questItems.Contains(i.TemplateId.Value))
             .ToDictionary(i => i.Slot);
         if (!Fits(bagAfter, bag.Capacity, rewards))

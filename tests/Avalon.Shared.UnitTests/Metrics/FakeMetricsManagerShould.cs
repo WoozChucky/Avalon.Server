@@ -9,7 +9,7 @@ public class FakeMetricsManagerShould
     public void NotThrowWhenDisposedOnce()
     {
         var sut = new FakeMetricsManager();
-        var ex = Record.Exception(() => sut.Dispose());
+        Exception ex = Record.Exception(() => sut.Dispose());
         Assert.Null(ex);
     }
 
@@ -18,7 +18,7 @@ public class FakeMetricsManagerShould
     {
         var sut = new FakeMetricsManager();
         sut.Dispose();
-        var ex = Record.Exception(() => sut.Dispose());
+        Exception ex = Record.Exception(() => sut.Dispose());
         Assert.Null(ex);
     }
 
@@ -28,7 +28,7 @@ public class FakeMetricsManagerShould
         var sut = new FakeMetricsManager();
         sut.Dispose();
 
-        var ex = Record.Exception(() =>
+        Exception ex = Record.Exception(() =>
         {
             sut.Start();
             sut.Stop();

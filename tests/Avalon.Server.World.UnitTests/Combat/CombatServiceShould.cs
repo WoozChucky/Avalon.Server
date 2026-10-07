@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
@@ -14,7 +12,7 @@ using Avalon.World.Public.Units;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
+using NSubstitute.Core;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 
@@ -23,10 +21,10 @@ public class CombatServiceShould
     [Fact]
     public void Should_spawn_encounter_on_first_damage()
     {
-        var (svc, reg) = BuildService();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
-        var ability  = StubAbility(threatMul: 1.0f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
+        IAbility ability = StubAbility(threatMul: 1.0f);
 
         svc.ApplyDamage(attacker, target, 10, ability);
 
@@ -41,26 +39,26 @@ public class CombatServiceShould
     {
         // Regression: ResolveOrSpawn must classify by TYPE, not by ROLE.
         // mob-attacks-player is the primary combat scenario and must populate the encounter.
-        var (svc, reg) = BuildService();
-        var attacker = StubCreature();
-        var target   = StubCharacter(CharacterClass.Warrior);
-        var ability  = StubAbility(threatMul: 1.0f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICreature attacker = StubCreature();
+        ICharacter target = StubCharacter(CharacterClass.Warrior);
+        IAbility ability = StubAbility(threatMul: 1.0f);
 
         svc.ApplyDamage(attacker, target, 10, ability);
 
         Assert.Single(reg.Active);
         var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
         Assert.Contains(attacker, enc.Hostiles);
-        Assert.Contains(target,   enc.Players);
+        Assert.Contains(target, enc.Players);
     }
 
     [Fact]
     public void Should_call_OnHit_on_target_with_attacker_and_damage()
     {
-        var (svc, _) = BuildService();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
-        var ability  = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry _) = BuildService();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
+        IAbility ability = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 25, ability);
 
@@ -72,10 +70,10 @@ public class CombatServiceShould
     {
         // MarkCombat exists only on ICharacter (not IUnit / ICreature) — see ICharacter.cs.
         // Combat tag is therefore only applied to character participants.
-        var (svc, _) = BuildService();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
-        var ability  = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry _) = BuildService();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
+        IAbility ability = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 10, ability);
 
@@ -87,26 +85,26 @@ public class CombatServiceShould
     {
         // Warrior class threat = 2.0; ability multiplier = 1.5; damage = 10
         // Expected threat = 10 * 1.5 * 2.0 = 30.0 (seed = 0)
-        var (svc, reg) = BuildService(initialThreatSeed: 0);
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
-        var ability  = StubAbility(threatMul: 1.5f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
+        IAbility ability = StubAbility(threatMul: 1.5f);
 
         svc.ApplyDamage(attacker, target, 10, ability);
 
         var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
-        var threats = enc.GetThreatList(target);
+        IReadOnlyDictionary<IUnit, float> threats = enc.GetThreatList(target);
         Assert.Equal(30.0f, threats[attacker], 3);
     }
 
     [Fact]
     public void Should_use_existing_encounter_when_attacker_already_in_one()
     {
-        var (svc, reg) = BuildService();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var t1       = StubCreature();
-        var t2       = StubCreature();
-        var ability  = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature t1 = StubCreature();
+        ICreature t2 = StubCreature();
+        IAbility ability = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, t1, 10, ability);
         svc.ApplyDamage(attacker, t2, 10, ability);
@@ -121,12 +119,12 @@ public class CombatServiceShould
     public void Should_not_throw_when_target_is_not_a_creature()
     {
         // Damage between two characters (PvP scenario, out of scope V1) — defensive code shouldn't blow up.
-        var (svc, _) = BuildService();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCharacter(CharacterClass.Hunter);
-        var ability  = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry _) = BuildService();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICharacter target = StubCharacter(CharacterClass.Hunter);
+        IAbility ability = StubAbility(1.0f);
 
-        var ex = Record.Exception(() => svc.ApplyDamage(attacker, target, 10, ability));
+        Exception ex = Record.Exception(() => svc.ApplyDamage(attacker, target, 10, ability));
         Assert.Null(ex);
         target.Received(1).OnHit(attacker, 10u);
     }
@@ -134,27 +132,27 @@ public class CombatServiceShould
     [Fact]
     public void Should_spawn_encounter_on_aggro_range_entry()
     {
-        var (svc, reg) = BuildService();
-        var hostile = StubCreature();
-        var player  = StubCharacter(CharacterClass.Hunter);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICreature hostile = StubCreature();
+        ICharacter player = StubCharacter(CharacterClass.Hunter);
 
         svc.EnterCombat(hostile, player);
 
         Assert.Single(reg.Active);
         var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
         Assert.Contains(hostile, enc.Hostiles);
-        Assert.Contains(player,  enc.Players);
+        Assert.Contains(player, enc.Players);
         Assert.Equal(1.0f, enc.GetThreatList(hostile)[player]);
     }
 
     [Fact]
     public void Should_use_existing_encounter_when_aggro_added_to_already_engaged_pack()
     {
-        var (svc, reg) = BuildService();
-        var h1 = StubCreature();
-        var h2 = StubCreature();
-        var player = StubCharacter(CharacterClass.Hunter);
-        var ability = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICreature h1 = StubCreature();
+        ICreature h2 = StubCreature();
+        ICharacter player = StubCharacter(CharacterClass.Hunter);
+        IAbility ability = StubAbility(1.0f);
 
         svc.ApplyDamage(player, h1, 10, ability);
         svc.EnterCombat(h2, player);   // h2 wanders into aggro range during fight
@@ -168,11 +166,11 @@ public class CombatServiceShould
     [Fact]
     public void Should_merge_when_attacker_in_existing_encounter_attacks_new_hostile()
     {
-        var (svc, reg) = BuildService();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var h1 = StubCreature();
-        var h2 = StubCreature();
-        var ability = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature h1 = StubCreature();
+        ICreature h2 = StubCreature();
+        IAbility ability = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, h1, 10, ability);
         svc.ApplyDamage(attacker, h2, 10, ability);
@@ -186,11 +184,11 @@ public class CombatServiceShould
     [Fact]
     public void Should_keep_separate_encounters_when_neutral_pack_not_attacked()
     {
-        var (svc, reg) = BuildService();
-        var p   = StubCharacter(CharacterClass.Warrior);
-        var h1  = StubCreature();
-        var h2  = StubCreature();   // neutral pack — never attacked
-        var ab  = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICharacter p = StubCharacter(CharacterClass.Warrior);
+        ICreature h1 = StubCreature();
+        ICreature h2 = StubCreature();   // neutral pack — never attacked
+        IAbility ab = StubAbility(1.0f);
 
         svc.ApplyDamage(p, h1, 10, ab);
         // h2 never engaged → no encounter for it
@@ -203,36 +201,36 @@ public class CombatServiceShould
     [Fact]
     public void Should_cap_merge_at_50_hostile_participants()
     {
-        var (svc, reg) = BuildService();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var ability  = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        IAbility ability = StubAbility(1.0f);
 
         for (int i = 0; i < 51; i++)
         {
-            var h = StubCreature();
+            ICreature h = StubCreature();
             svc.ApplyDamage(attacker, h, 1, ability);
         }
 
         // Expect 2 encounters: first capped at 50, the 51st spawns a new encounter.
         Assert.Equal(2, reg.Active.Count);
         var encounters = System.Linq.Enumerable.ToList(reg.Active);
-        int firstCount  = encounters[0].Hostiles.Count;
+        int firstCount = encounters[0].Hostiles.Count;
         int secondCount = encounters[1].Hostiles.Count;
         Assert.True(firstCount + secondCount == 51);
         Assert.True(firstCount == 50 || secondCount == 50);
-        Assert.True(firstCount == 1  || secondCount == 1);
+        Assert.True(firstCount == 1 || secondCount == 1);
     }
 
     [Fact]
     public void Should_split_heal_threat_evenly_across_hostiles_in_encounter()
     {
-        var (svc, reg) = BuildService(initialThreatSeed: 0);
-        var healer = StubCharacter(CharacterClass.Healer);
-        var ally   = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
+        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(300u); // room for the whole 100: heal threat counts only what is restored (#531)
-        var hostile1 = StubCreature();
-        var hostile2 = StubCreature();
-        var healAbility = Substitute.For<IAbility>();
+        ICreature hostile1 = StubCreature();
+        ICreature hostile2 = StubCreature();
+        IAbility healAbility = Substitute.For<IAbility>();
         healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
 
         // Set up encounter: ally is engaged with both hostiles.
@@ -251,11 +249,11 @@ public class CombatServiceShould
     [Fact]
     public void Should_not_generate_heal_threat_when_target_not_in_encounter()
     {
-        var (svc, reg) = BuildService();
-        var healer = StubCharacter(CharacterClass.Healer);
-        var ally   = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(300u); // room to restore, so the heal reaches the guard this test is named for
-        var ab = Substitute.For<IAbility>();
+        IAbility ab = Substitute.For<IAbility>();
         ab.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
 
         svc.ApplyHeal(healer, ally, 100, ab);
@@ -266,19 +264,19 @@ public class CombatServiceShould
     [Fact]
     public void Should_skip_heal_threat_when_HealThreatPerHp_is_zero()
     {
-        var (svc, reg) = BuildService(initialThreatSeed: 0);
-        var healer = StubCharacter(CharacterClass.Healer);
-        var ally   = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
+        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(300u); // room to restore, so the heal reaches the guard this test is named for
-        var hostile = StubCreature();
-        var healAbility = Substitute.For<IAbility>();
+        ICreature hostile = StubCreature();
+        IAbility healAbility = Substitute.For<IAbility>();
         healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.0f });
 
         svc.EnterCombat(hostile, ally);
         svc.ApplyHeal(healer, ally, 100, healAbility);
 
         var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
-        var threats = enc.GetThreatList(hostile);
+        IReadOnlyDictionary<IUnit, float> threats = enc.GetThreatList(hostile);
         Assert.False(threats.ContainsKey(healer));
     }
 
@@ -287,13 +285,13 @@ public class CombatServiceShould
     {
         // A unit can sit above its maximum (equipment removed, a buff that raised it dropped).
         // A heal must never take health away: 120 of 100 stays 120, restores 0 and adds no threat (#548).
-        var (svc, reg) = BuildService(initialThreatSeed: 0);
-        var healer = StubCharacter(CharacterClass.Healer);
-        var ally   = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
+        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(100u);
         ally.CurrentHealth.Returns(120u);
-        var hostile = StubCreature();
-        var healAbility = Substitute.For<IAbility>();
+        ICreature hostile = StubCreature();
+        IAbility healAbility = Substitute.For<IAbility>();
         healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
 
         svc.EnterCombat(hostile, ally);
@@ -307,12 +305,12 @@ public class CombatServiceShould
     [Fact]
     public void Should_cap_a_heal_at_maximum_health()
     {
-        var (svc, _) = BuildService();
-        var healer = StubCharacter(CharacterClass.Healer);
-        var ally   = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry _) = BuildService();
+        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(100u);
         ally.CurrentHealth.Returns(90u);
-        var healAbility = Substitute.For<IAbility>();
+        IAbility healAbility = Substitute.For<IAbility>();
         healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
 
         svc.ApplyHeal(healer, ally, 50, healAbility);
@@ -324,12 +322,12 @@ public class CombatServiceShould
     [Fact]
     public void Should_leave_a_unit_at_exactly_maximum_health_where_it_is()
     {
-        var (svc, _) = BuildService();
-        var healer = StubCharacter(CharacterClass.Healer);
-        var ally   = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry _) = BuildService();
+        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(100u);
         ally.CurrentHealth.Returns(100u);
-        var healAbility = Substitute.For<IAbility>();
+        IAbility healAbility = Substitute.For<IAbility>();
         healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
 
         svc.ApplyHeal(healer, ally, 50, healAbility);
@@ -340,11 +338,11 @@ public class CombatServiceShould
     [Fact]
     public void Should_set_taunt_caster_above_top_threat()
     {
-        var (svc, reg) = BuildService(initialThreatSeed: 0);
-        var hostile = StubCreature();
-        var dpsCharacter = StubCharacter(CharacterClass.Hunter);
-        var tankCharacter = StubCharacter(CharacterClass.Warrior);
-        var dmgAbility = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
+        ICreature hostile = StubCreature();
+        ICharacter dpsCharacter = StubCharacter(CharacterClass.Hunter);
+        ICharacter tankCharacter = StubCharacter(CharacterClass.Warrior);
+        IAbility dmgAbility = StubAbility(1.0f);
 
         // DPS deals damage and pulls aggro.
         svc.ApplyDamage(dpsCharacter, hostile, 100, dmgAbility);
@@ -356,7 +354,7 @@ public class CombatServiceShould
         svc.ApplyTaunt(tankCharacter, hostile, 5000);
 
         var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
-        var threats = enc.GetThreatList(hostile);
+        IReadOnlyDictionary<IUnit, float> threats = enc.GetThreatList(hostile);
         Assert.True(threats[tankCharacter] > beforeTaunt);
         Assert.True(threats[tankCharacter] > threats[dpsCharacter]);
         Assert.Same(tankCharacter, hostile.TauntedBy);
@@ -365,13 +363,13 @@ public class CombatServiceShould
     [Fact]
     public void Should_set_taunt_expires_at_in_future()
     {
-        var (svc, _) = BuildService();
-        var hostile = StubCreature();
-        var caster  = StubCharacter(CharacterClass.Warrior);
-        var dmgAb = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry _) = BuildService();
+        ICreature hostile = StubCreature();
+        ICharacter caster = StubCharacter(CharacterClass.Warrior);
+        IAbility dmgAb = StubAbility(1.0f);
 
         svc.ApplyDamage(caster, hostile, 1, dmgAb);   // ensure encounter exists
-        var before = System.DateTime.UtcNow;
+        DateTime before = System.DateTime.UtcNow;
         svc.ApplyTaunt(caster, hostile, 5000);
 
         Assert.True(hostile.TauntExpiresAt >= before.AddMilliseconds(4900));
@@ -381,9 +379,9 @@ public class CombatServiceShould
     [Fact]
     public void Should_noop_taunt_when_target_not_in_encounter()
     {
-        var (svc, reg) = BuildService();
-        var hostile = StubCreature();
-        var caster  = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICreature hostile = StubCreature();
+        ICharacter caster = StubCharacter(CharacterClass.Warrior);
 
         svc.ApplyTaunt(caster, hostile, 5000);
 
@@ -396,13 +394,13 @@ public class CombatServiceShould
     {
         var cfg = new CombatConfig { InitialThreatSeed = 0, EncounterEndGraceSeconds = 0.05f };
         var reg = new EncounterRegistry(cfg);
-        var ctx = Substitute.For<ISimulationContext>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
         var svc = new CombatService(cfg, reg, ctx);
 
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
         target.Position.Returns(default(Avalon.Common.Mathematics.Vector3));
-        var ability  = StubAbility(1.0f);
+        IAbility ability = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 10, ability);
         var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
@@ -419,13 +417,13 @@ public class CombatServiceShould
     {
         // Lethal blow — creature's CurrentHealth is 0 after OnHit. CombatService should
         // call OnParticipantDied and broadcast SUnitDeathPacket via the simulation context.
-        var (svc, _, ctx) = BuildServiceWithContext();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
+        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx) = BuildServiceWithContext();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
         // Substitute creature: simulate the script's lethal-hit behaviour by returning 0 HP after OnHit.
         // It is alive before the hit, since a corpse takes no hits (#588).
         target.WhenForAnyArgs(t => t.OnHit(default!, default)).Do(_ => target.CurrentHealth.Returns(0u));
-        var ab = StubAbility(1.0f);
+        IAbility ab = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 9999u, ab);
 
@@ -436,11 +434,11 @@ public class CombatServiceShould
     public void Should_broadcast_death_when_character_isdead_after_hit()
     {
         // Character death path — IsDead flag, not CurrentHealth==0 alone.
-        var (svc, _, ctx) = BuildServiceWithContext();
-        var attacker = StubCreature();
-        var target   = StubCharacter(CharacterClass.Hunter);
+        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx) = BuildServiceWithContext();
+        ICreature attacker = StubCreature();
+        ICharacter target = StubCharacter(CharacterClass.Hunter);
         target.IsDead.Returns(true);   // simulate post-OnHit death state
-        var ab = StubAbility(1.0f);
+        IAbility ab = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 9999u, ab);
 
@@ -450,11 +448,11 @@ public class CombatServiceShould
     [Fact]
     public void Should_not_broadcast_death_when_target_survives()
     {
-        var (svc, _, ctx) = BuildServiceWithContext();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
+        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx) = BuildServiceWithContext();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
         target.CurrentHealth.Returns(50u);   // alive after the hit
-        var ab = StubAbility(1.0f);
+        IAbility ab = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 10u, ab);
 
@@ -465,9 +463,9 @@ public class CombatServiceShould
     public void Should_route_raw_damage_through_apply_damage()
     {
         // Raw-damage overload — used by CreatureCombatScript for melee swings (no IAbility).
-        var (svc, reg, _) = BuildServiceWithContext();
-        var attacker = StubCreature();
-        var target   = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext _) = BuildServiceWithContext();
+        ICreature attacker = StubCreature();
+        ICharacter target = StubCharacter(CharacterClass.Warrior);
         target.CurrentHealth.Returns(100u);   // alive
 
         svc.ApplyDamage(attacker, target, 5u);
@@ -483,10 +481,10 @@ public class CombatServiceShould
         // moves the character to the supplied position, and broadcasts SUnitRevivePacket.
         var cfg = new CombatConfig { ReviveHealthFraction = 0.25f };
         var reg = new EncounterRegistry(cfg);
-        var ctx = Substitute.For<ISimulationContext>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
         var svc = new CombatService(cfg, reg, ctx);
 
-        var ch = StubCharacter(CharacterClass.Warrior);
+        ICharacter ch = StubCharacter(CharacterClass.Warrior);
         ch.Health.Returns(400u);
         ch.IsDead.Returns(true);
         var pos = new Avalon.Common.Mathematics.Vector3(1, 2, 3);
@@ -495,7 +493,7 @@ public class CombatServiceShould
 
         Assert.False(ch.IsDead);
         ch.Received().CurrentHealth = 100u;       // 400 * 0.25
-        ch.Received().Position      = pos;
+        ch.Received().Position = pos;
         ctx.Received(1).BroadcastUnitRevive(ch, pos, 100u);
     }
 
@@ -506,10 +504,10 @@ public class CombatServiceShould
         // so the state is internally consistent (alive but at 0 HP would be a degenerate state).
         var cfg = new CombatConfig { ReviveHealthFraction = 0.001f };
         var reg = new EncounterRegistry(cfg);
-        var ctx = Substitute.For<ISimulationContext>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
         var svc = new CombatService(cfg, reg, ctx);
 
-        var ch = StubCharacter(CharacterClass.Warrior);
+        ICharacter ch = StubCharacter(CharacterClass.Warrior);
         ch.Health.Returns(100u);          // 100 * 0.001 = 0.1 → truncates to 0
         ch.IsDead.Returns(true);
         var pos = new Avalon.Common.Mathematics.Vector3(0, 0, 0);
@@ -527,10 +525,10 @@ public class CombatServiceShould
         // RevivePlayer is character-only (creatures use respawner, not revive).
         var cfg = new CombatConfig();
         var reg = new EncounterRegistry(cfg);
-        var ctx = Substitute.For<ISimulationContext>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
         var svc = new CombatService(cfg, reg, ctx);
 
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
 
         svc.RevivePlayer(creature, default);
 
@@ -543,11 +541,11 @@ public class CombatServiceShould
     [Fact]
     public void Should_drop_player_zeroing_threat_across_all_hostiles()
     {
-        var (svc, reg) = BuildService(initialThreatSeed: 0);
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var hostile1 = StubCreature();
-        var hostile2 = StubCreature();
-        var ability  = StubAbility(1.0f);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature hostile1 = StubCreature();
+        ICreature hostile2 = StubCreature();
+        IAbility ability = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, hostile1, 10, ability);
         svc.ApplyDamage(attacker, hostile2, 10, ability);
@@ -563,10 +561,10 @@ public class CombatServiceShould
     [Fact]
     public void Should_noop_drop_when_player_not_in_any_encounter()
     {
-        var (svc, reg) = BuildService();
-        var attacker = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
 
-        var ex = Record.Exception(() => svc.DropPlayerFromEncounter(attacker));
+        Exception ex = Record.Exception(() => svc.DropPlayerFromEncounter(attacker));
         Assert.Null(ex);
         Assert.Empty(reg.Active);
     }
@@ -575,9 +573,9 @@ public class CombatServiceShould
     public void Should_apply_default_threat_multiplier_on_raw_damage()
     {
         // Warrior class threat = 2.0; default multiplier = 1.0; damage = 10 → 20.0 (seed = 0).
-        var (svc, reg, _) = BuildServiceWithContext(initialThreatSeed: 0);
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext _) = BuildServiceWithContext(initialThreatSeed: 0);
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
         target.CurrentHealth.Returns(50u);
 
         svc.ApplyDamage(attacker, target, 10u);
@@ -592,11 +590,11 @@ public class CombatServiceShould
         // Town NPCs are never killable. The guard sits at the very top of ApplyDamageCore — the
         // single chokepoint every damage source funnels through — so an invulnerable target costs
         // no encounter, no threat, no combat tag, and never reaches OnHit.
-        var (svc, reg) = BuildService();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
         target.Invulnerable.Returns(true);
-        var ability  = StubAbility(1.0f);
+        IAbility ability = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 25, ability);
 
@@ -611,9 +609,9 @@ public class CombatServiceShould
         // Creature melee (CreatureCombatScript) uses the 3-arg overload. Both overloads share
         // ApplyDamageCore, and this pins that they do — a guard added to only one would leave
         // creature-on-NPC damage live.
-        var (svc, reg) = BuildService();
-        var attacker = StubCreature();
-        var target   = StubCreature();
+        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        ICreature attacker = StubCreature();
+        ICreature target = StubCreature();
         target.Invulnerable.Returns(true);
 
         svc.ApplyDamage(attacker, target, 25);
@@ -631,9 +629,9 @@ public class CombatServiceShould
     [Fact]
     public void Report_a_kill_once_before_the_encounter_death_and_the_death_broadcast()
     {
-        var (svc, reg, ctx, outcomes) = BuildServiceWithOutcomes();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
         target.CurrentHealth.Returns(10u);
         target.When(t => t.OnHit(attacker, 10)).Do(_ => target.CurrentHealth.Returns(0u));
 
@@ -658,8 +656,8 @@ public class CombatServiceShould
     [Fact]
     public void Not_report_a_kill_for_a_creature_already_at_zero_health()
     {
-        var (svc, _, _, outcomes) = BuildServiceWithOutcomes();
-        var target = StubCreature();
+        (CombatService? svc, EncounterRegistry _, ISimulationContext _, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        ICreature target = StubCreature();
         target.CurrentHealth.Returns(0u);
 
         svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), target, 10);
@@ -671,8 +669,8 @@ public class CombatServiceShould
     [Fact]
     public void Not_report_a_kill_when_the_hit_leaves_the_creature_alive()
     {
-        var (svc, _, _, outcomes) = BuildServiceWithOutcomes();
-        var target = StubCreature();
+        (CombatService? svc, EncounterRegistry _, ISimulationContext _, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        ICreature target = StubCreature();
 
         svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), target, 10);
 
@@ -686,12 +684,12 @@ public class CombatServiceShould
     [Fact]
     public void Report_a_living_characters_damage_and_nothing_for_a_corpse()
     {
-        var (svc, _, _, outcomes) = BuildServiceWithOutcomes();
-        var attacker = StubCreature();
-        var target   = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(546);
+        (CombatService? svc, EncounterRegistry _, ISimulationContext _, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        ICreature attacker = StubCreature();
+        CharacterEntity target = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(546);
         target.Health = 100;
         target.CurrentHealth = 100;
-        var ability  = StubAbility(1.0f);
+        IAbility ability = StubAbility(1.0f);
         ability.AbilityId.Returns(new Avalon.Common.ValueObjects.AbilityId(7));
 
         svc.ApplyDamage(attacker, target, 30, ability);
@@ -709,13 +707,13 @@ public class CombatServiceShould
     [Fact]
     public void Keep_a_god_mode_character_in_combat_without_damaging_it()
     {
-        var (svc, reg, ctx, outcomes) = BuildServiceWithOutcomes();
-        var attacker = StubCreature();
-        var target = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(547);
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        ICreature attacker = StubCreature();
+        CharacterEntity target = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(547);
         target.Health = 100;
         target.CurrentHealth = 100;
         target.GodMode = true;
-        var ability = StubAbility(1.0f);
+        IAbility ability = StubAbility(1.0f);
         ability.AbilityId.Returns(new Avalon.Common.ValueObjects.AbilityId(7));
 
         svc.ApplyDamage(attacker, target, 30, ability);
@@ -732,9 +730,9 @@ public class CombatServiceShould
     [Fact]
     public void Restore_raw_incoming_damage_when_god_mode_is_disabled()
     {
-        var (svc, _, _, outcomes) = BuildServiceWithOutcomes();
-        var attacker = StubCreature();
-        var target = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(548);
+        (CombatService? svc, EncounterRegistry _, ISimulationContext _, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        ICreature attacker = StubCreature();
+        CharacterEntity target = Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(548);
         target.Health = 100;
         target.CurrentHealth = 100;
         target.GodMode = true;
@@ -756,9 +754,9 @@ public class CombatServiceShould
     [Fact]
     public void Kill_a_creature_once_when_a_hit_exceeds_its_remaining_health()
     {
-        var (svc, _, ctx, outcomes) = BuildServiceWithOutcomes();
-        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
-        var attacker = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        (Creature? creature, CreatureCombatScript _) = CreatureWithCombatScript(ctx, health: 30);
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
 
         svc.ApplyDamage(attacker, creature, 100);
 
@@ -770,9 +768,9 @@ public class CombatServiceShould
     [Fact]
     public void Kill_a_creature_when_a_hit_equals_its_remaining_health()
     {
-        var (svc, _, ctx, outcomes) = BuildServiceWithOutcomes();
-        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
-        var attacker = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        (Creature? creature, CreatureCombatScript _) = CreatureWithCombatScript(ctx, health: 30);
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
 
         svc.ApplyDamage(attacker, creature, 30);
 
@@ -784,9 +782,9 @@ public class CombatServiceShould
     [Fact]
     public void Leave_the_rest_of_a_creatures_health_after_a_smaller_hit()
     {
-        var (svc, _, ctx, outcomes) = BuildServiceWithOutcomes();
-        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
-        var attacker = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        (Creature? creature, CreatureCombatScript _) = CreatureWithCombatScript(ctx, health: 30);
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
 
         svc.ApplyDamage(attacker, creature, 12);
 
@@ -800,8 +798,8 @@ public class CombatServiceShould
     [Fact]
     public void Ignore_an_overkill_hit_on_a_returning_creature()
     {
-        var (svc, _, ctx, outcomes) = BuildServiceWithOutcomes();
-        var (creature, script) = CreatureWithCombatScript(ctx, health: 30);
+        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        (Creature? creature, CreatureCombatScript? script) = CreatureWithCombatScript(ctx, health: 30);
         script.State = CreatureCombatScript.CombatState.Returning;
 
         svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), creature, 100);
@@ -818,9 +816,9 @@ public class CombatServiceShould
     [Fact]
     public void Hand_a_creatures_script_no_more_damage_than_its_remaining_health()
     {
-        var (svc, _, _, _) = BuildServiceWithOutcomes();
-        var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = StubCreature();
+        (CombatService? svc, EncounterRegistry _, ISimulationContext _, ICombatOutcomes _) = BuildServiceWithOutcomes();
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICreature target = StubCreature();
         target.CurrentHealth.Returns(30u);
 
         svc.ApplyDamage(attacker, target, 100);
@@ -835,14 +833,14 @@ public class CombatServiceShould
     [Fact]
     public void Refuse_a_hit_on_a_creature_that_is_already_dead()
     {
-        var (svc, reg, ctx, outcomes) = BuildServiceWithOutcomes();
-        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
-        var killer = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
+        (Creature? creature, CreatureCombatScript _) = CreatureWithCombatScript(ctx, health: 30);
+        ICharacter killer = StubCharacter(CharacterClass.Warrior);
         svc.ApplyDamage(killer, creature, 100);
         ctx.ClearReceivedCalls();
         outcomes.ClearReceivedCalls();
 
-        var other = StubCharacter(CharacterClass.Hunter);
+        ICharacter other = StubCharacter(CharacterClass.Hunter);
         svc.ApplyDamage(other, creature, 50, StubAbility(1.0f));
 
         Assert.Equal(0u, creature.CurrentHealth);
@@ -857,8 +855,8 @@ public class CombatServiceShould
     [Fact]
     public void Not_pass_a_hit_on_a_dead_creature_to_its_script()
     {
-        var (svc, reg, ctx) = BuildServiceWithContext();
-        var target = StubCreature();
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext? ctx) = BuildServiceWithContext();
+        ICreature target = StubCreature();
         target.CurrentHealth.Returns(0u);
 
         svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), target, 10);
@@ -875,9 +873,9 @@ public class CombatServiceShould
     [Fact]
     public void Kill_a_creature_whose_script_is_hit_directly_for_more_than_its_health()
     {
-        var ctx = Substitute.For<ISimulationContext>();
-        var (creature, script) = CreatureWithCombatScript(ctx, health: 30);
-        var killer = StubCharacter(CharacterClass.Warrior);
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
+        (Creature? creature, CreatureCombatScript? script) = CreatureWithCombatScript(ctx, health: 30);
+        ICharacter killer = StubCharacter(CharacterClass.Warrior);
 
         script.OnHit(killer, 100);
 
@@ -889,9 +887,9 @@ public class CombatServiceShould
     [Fact]
     public void Broadcast_the_killing_hit_before_the_death()
     {
-        var (svc, _, ctx, _) = BuildServiceWithOutcomes();
-        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
-        var killer = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry _, ISimulationContext? ctx, ICombatOutcomes _) = BuildServiceWithOutcomes();
+        (Creature? creature, CreatureCombatScript _) = CreatureWithCombatScript(ctx, health: 30);
+        ICharacter killer = StubCharacter(CharacterClass.Warrior);
 
         svc.ApplyDamage(killer, creature, 100);
 
@@ -916,9 +914,9 @@ public class CombatServiceShould
     [MemberData(nameof(ReturningScripts))]
     public void Refuse_a_hit_on_a_creature_that_is_returning_home(string scriptName)
     {
-        var (svc, reg, ctx, outcomes) = BuildServiceWithOutcomes();
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext? ctx, ICombatOutcomes? outcomes) = BuildServiceWithOutcomes();
         Creature creature = CreatureReturningHome(ctx, scriptName, health: 30);
-        var attacker = StubCharacter(CharacterClass.Warrior);
+        ICharacter attacker = StubCharacter(CharacterClass.Warrior);
 
         svc.ApplyDamage(attacker, creature, 10, StubAbility(1.0f));
 
@@ -939,20 +937,20 @@ public class CombatServiceShould
     {
         var cfg = new CombatConfig();
         var reg = new EncounterRegistry(cfg);
-        var ctx = Substitute.For<ISimulationContext>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
         var svc = new CombatService(cfg, reg, ctx);
         ctx.CombatService.Returns(svc);
-        var slots = Substitute.For<IMeleeSlots>();
+        IMeleeSlots slots = Substitute.For<IMeleeSlots>();
         ctx.MeleeSlots.Returns(slots);
         var home = new Avalon.Common.Mathematics.Vector3(5f, 0f, 5f);
         var creature = new Creature
         {
-            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 610),
-            Metadata      = Substitute.For<ICreatureMetadata>(),
-            Name          = "Wolf",
-            Health        = 30,
+            Guid = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 610),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Name = "Wolf",
+            Health = 30,
             CurrentHealth = 30,
-            Position      = home,
+            Position = home,
         };
         var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx);
         creature.Script = script;
@@ -976,7 +974,7 @@ public class CombatServiceShould
         script.Update(TimeSpan.FromSeconds(0.1));
 
         slots.ReceivedWithAnyArgs().TryClaim(default!, default!, default!, default!, out _);
-        foreach (var call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
+        foreach (ICall? call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
             Assert.Equal(puller.Guid, call.GetArguments()[0]);
     }
 
@@ -987,13 +985,13 @@ public class CombatServiceShould
     [Fact]
     public void Add_no_heal_threat_to_a_creature_that_is_returning_home()
     {
-        var (svc, reg) = BuildService(initialThreatSeed: 0);
-        var healer = StubCharacter(CharacterClass.Healer);
-        var ally   = StubCharacter(CharacterClass.Warrior);
+        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
+        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(300u);
         Creature returning = CreatureReturningHome(Substitute.For<ISimulationContext>(), nameof(CreatureCombatScript), health: 30);
-        var fighting = StubCreature();
-        var heal = Substitute.For<IAbility>();
+        ICreature fighting = StubCreature();
+        IAbility heal = Substitute.For<IAbility>();
         heal.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
         svc.EnterCombat(returning, ally);
         svc.EnterCombat(fighting, ally);
@@ -1015,8 +1013,8 @@ public class CombatServiceShould
         var cfg = new CombatConfig();
         var reg = new EncounterRegistry(cfg, clock);
         var svc = new CombatService(cfg, reg, Substitute.For<ISimulationContext>(), time: clock);
-        var tank = StubCharacter(CharacterClass.Warrior);
-        var creature = StubCreature();
+        ICharacter tank = StubCharacter(CharacterClass.Warrior);
+        ICreature creature = StubCreature();
         svc.EnterCombat(creature, tank);
 
         svc.ApplyTaunt(tank, creature, 3000);
@@ -1036,8 +1034,8 @@ public class CombatServiceShould
         var cfg = new CombatConfig { EncounterEndGraceSeconds = 5f };
         var reg = new EncounterRegistry(cfg, clock);
         var svc = new CombatService(cfg, reg, Substitute.For<ISimulationContext>(), time: clock);
-        var creature = StubCreature();
-        var player = StubCharacter(CharacterClass.Warrior);
+        ICreature creature = StubCreature();
+        ICharacter player = StubCharacter(CharacterClass.Warrior);
         svc.ApplyDamage(player, creature, 10);
         ((Encounter)reg.Active.Single()).OnParticipantDied(creature);
 
@@ -1053,7 +1051,7 @@ public class CombatServiceShould
     [Fact]
     public void Not_pull_a_creature_that_is_returning_home_into_combat()
     {
-        var (svc, reg, ctx) = BuildServiceWithContext();
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext? ctx) = BuildServiceWithContext();
         Creature creature = CreatureReturningHome(ctx, nameof(CreatureCombatScript), health: 30);
 
         svc.EnterCombat(creature, StubCharacter(CharacterClass.Warrior));
@@ -1064,14 +1062,14 @@ public class CombatServiceShould
     [Fact]
     public void Not_taunt_a_creature_that_is_returning_home()
     {
-        var (svc, reg, ctx) = BuildServiceWithContext();
-        var (creature, script) = CreatureWithCombatScript(ctx, health: 30);
-        var puller = StubCharacter(CharacterClass.Hunter);
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext? ctx) = BuildServiceWithContext();
+        (Creature? creature, CreatureCombatScript? script) = CreatureWithCombatScript(ctx, health: 30);
+        ICharacter puller = StubCharacter(CharacterClass.Hunter);
         script.OnEnteredRange(puller);
         svc.EnterCombat(creature, puller);
         script.OnCharacterLeft(puller); // Returning, still in the encounter it fought in
 
-        var tank = StubCharacter(CharacterClass.Warrior);
+        ICharacter tank = StubCharacter(CharacterClass.Warrior);
         svc.ApplyTaunt(tank, creature, 3000);
 
         Assert.Null(creature.TauntedBy);
@@ -1090,20 +1088,20 @@ public class CombatServiceShould
     {
         var cfg = new CombatConfig();
         var reg = new EncounterRegistry(cfg);
-        var ctx = Substitute.For<ISimulationContext>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
         var svc = new CombatService(cfg, reg, ctx);
         ctx.CombatService.Returns(svc);
-        var slots = Substitute.For<IMeleeSlots>();
+        IMeleeSlots slots = Substitute.For<IMeleeSlots>();
         ctx.MeleeSlots.Returns(slots);
         var home = new Avalon.Common.Mathematics.Vector3(5f, 0f, 5f);
         var creature = new Creature
         {
-            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 614),
-            Metadata      = Substitute.For<ICreatureMetadata>(),
-            Name          = "Wolf",
-            Health        = 30,
+            Guid = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 614),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Name = "Wolf",
+            Health = 30,
             CurrentHealth = 30,
-            Position      = home,
+            Position = home,
         };
         var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx);
         creature.Script = script;
@@ -1113,7 +1111,7 @@ public class CombatServiceShould
         fought.Position.Returns(home);
         script.OnEnteredRange(fought);
         svc.ApplyDamage(creature, fought, 5);       // it swung at the player: seeded threat
-        var other = StubCreature();
+        ICreature other = StubCreature();
         svc.ApplyDamage(fought, other, 10);         // the player also fights another creature
         var enc = (Encounter)reg.FindEncounterContaining(fought)!;
         float threatOnOther = enc.GetThreatList(other)[fought];
@@ -1139,7 +1137,7 @@ public class CombatServiceShould
         script.Update(TimeSpan.FromSeconds(0.1));
 
         slots.ReceivedWithAnyArgs().TryClaim(default!, default!, default!, default!, out _);
-        foreach (var call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
+        foreach (ICall? call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
             Assert.Equal(puller.Guid, call.GetArguments()[0]);
     }
 
@@ -1164,20 +1162,20 @@ public class CombatServiceShould
         var clock = new FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
         var cfg = new CombatConfig();
         var reg = new EncounterRegistry(cfg, clock);
-        var ctx = Substitute.For<ISimulationContext>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
         var svc = new CombatService(cfg, reg, ctx, time: clock);
         ctx.CombatService.Returns(svc);
-        var slots = Substitute.For<IMeleeSlots>();
+        IMeleeSlots slots = Substitute.For<IMeleeSlots>();
         ctx.MeleeSlots.Returns(slots);
         var home = new Avalon.Common.Mathematics.Vector3(5f, 0f, 5f);
         var creature = new Creature
         {
-            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 614),
-            Metadata      = Substitute.For<ICreatureMetadata>(),
-            Name          = "Wolf",
-            Health        = 30,
+            Guid = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 614),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Name = "Wolf",
+            Health = 30,
             CurrentHealth = 30,
-            Position      = home,
+            Position = home,
         };
         var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx, clock);
         creature.Script = script;
@@ -1202,7 +1200,7 @@ public class CombatServiceShould
         script.Update(TimeSpan.FromSeconds(0.1));
 
         slots.ReceivedWithAnyArgs().TryClaim(default!, default!, default!, default!, out _);
-        foreach (var call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
+        foreach (ICall? call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
             Assert.Equal(puller.Guid, call.GetArguments()[0]);
     }
 
@@ -1215,16 +1213,16 @@ public class CombatServiceShould
         ctx.MeleeSlots.Returns(Substitute.For<IMeleeSlots>());
         var creature = new Creature
         {
-            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 610),
-            Metadata      = Substitute.For<ICreatureMetadata>(),
-            Name          = "Wolf",
-            Health        = health,
+            Guid = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 610),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Name = "Wolf",
+            Health = health,
             CurrentHealth = health,
         };
         AiScript script = scriptName switch
         {
             nameof(CreatureCombatScript) => new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx),
-            nameof(AggroDefendScript)    => new AggroDefendScript(NullLoggerFactory.Instance, creature, ctx),
+            nameof(AggroDefendScript) => new AggroDefendScript(NullLoggerFactory.Instance, creature, ctx),
             nameof(CreaturePatrolScript) => new CreaturePatrolScript(NullLoggerFactory.Instance, creature, ctx),
             _ => throw new ArgumentOutOfRangeException(nameof(scriptName)),
         };
@@ -1241,10 +1239,10 @@ public class CombatServiceShould
         ctx.MeleeSlots.Returns(Substitute.For<IMeleeSlots>());
         var creature = new Creature
         {
-            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 588),
-            Metadata      = Substitute.For<ICreatureMetadata>(),
-            Name          = "Wolf",
-            Health        = health,
+            Guid = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 588),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Name = "Wolf",
+            Health = health,
             CurrentHealth = health,
         };
         var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx);
@@ -1256,14 +1254,14 @@ public class CombatServiceShould
     {
         var cfg = new CombatConfig();
         var reg = new EncounterRegistry(cfg);
-        var ctx = Substitute.For<ISimulationContext>();
-        var outcomes = Substitute.For<ICombatOutcomes>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
+        ICombatOutcomes outcomes = Substitute.For<ICombatOutcomes>();
         return (new CombatService(cfg, reg, ctx, outcomes: outcomes), reg, ctx, outcomes);
     }
 
     private static (CombatService, EncounterRegistry) BuildService(float initialThreatSeed = 1.0f)
     {
-        var (svc, reg, _) = BuildServiceWithContext(initialThreatSeed);
+        (CombatService? svc, EncounterRegistry? reg, ISimulationContext _) = BuildServiceWithContext(initialThreatSeed);
         return (svc, reg);
     }
 
@@ -1271,14 +1269,14 @@ public class CombatServiceShould
     {
         var cfg = new CombatConfig { InitialThreatSeed = initialThreatSeed };
         var reg = new EncounterRegistry(cfg);
-        var ctx = Substitute.For<ISimulationContext>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
         var svc = new CombatService(cfg, reg, ctx);
         return (svc, reg, ctx);
     }
 
     private static ICharacter StubCharacter(CharacterClass cls)
     {
-        var c = Substitute.For<ICharacter>();
+        ICharacter c = Substitute.For<ICharacter>();
         c.Class.Returns(cls);
         // CurrentHealth defaults to 0u for value-type substitutes, which would trip the new
         // death-detection check in CombatService. Default to "alive" so existing tests stay green;
@@ -1296,7 +1294,7 @@ public class CombatServiceShould
         // death-detection path in CombatService and remove the creature from the encounter
         // unintentionally. Default to "alive" (positive HP) so existing tests stay green; tests
         // that exercise the death path explicitly set CurrentHealth back to 0.
-        var c = Substitute.For<ICreature>();
+        ICreature c = Substitute.For<ICreature>();
         c.TauntedBy = null;
         c.CurrentHealth.Returns(100u);
         return c;
@@ -1306,11 +1304,11 @@ public class CombatServiceShould
     {
         var meta = new AbilityMetadata
         {
-            Name             = "Test",
-            ScriptName       = "x",
+            Name = "Test",
+            ScriptName = "x",
             ThreatMultiplier = threatMul,
         };
-        var ab = Substitute.For<IAbility>();
+        IAbility ab = Substitute.For<IAbility>();
         ab.Metadata.Returns(meta);
         return ab;
     }

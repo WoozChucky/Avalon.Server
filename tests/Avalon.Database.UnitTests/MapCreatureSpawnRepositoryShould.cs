@@ -16,7 +16,7 @@ public class MapCreatureSpawnRepositoryShould
     [Fact]
     public async Task Load_A_Spawns_Path_With_Its_Points()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
 
         await using (WorldDbContext write = database.CreateDbContext())
         {

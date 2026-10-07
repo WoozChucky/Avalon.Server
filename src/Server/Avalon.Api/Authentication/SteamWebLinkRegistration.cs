@@ -1,8 +1,9 @@
-using Avalon.Common.GameAuth;
 using System.Security.Claims;
 using AspNet.Security.OpenId;
 using AspNet.Security.OpenId.Steam;
+using Avalon.Common.GameAuth;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
@@ -32,7 +33,7 @@ public static class SteamWebLinkRegistration
             o.RemoteAuthenticationTimeout = GameAuthPolicy.WebLinkLifetime;
             o.Events.OnRedirectToIdentityProvider = context =>
             {
-                var trusted = context.HttpContext.RequestServices.GetRequiredService<IOptions<SteamWebLinkOptions>>().Value;
+                SteamWebLinkOptions trusted = context.HttpContext.RequestServices.GetRequiredService<IOptions<SteamWebLinkOptions>>().Value;
                 trusted.Validate();
                 context.Properties.Items[OpenIdAuthenticationConstants.Properties.ReturnTo] = trusted.CallbackUrl;
                 context.ProtocolMessage.Realm = trusted.CallbackUrl[..^SteamWebLinkOptions.CallbackPath.Length];
@@ -42,17 +43,17 @@ public static class SteamWebLinkRegistration
             o.Events.OnTicketReceived = async context =>
             {
                 context.HandleResponse(); // Never sign in a Steam principal or mint an Avalon bearer token.
-                var services = context.HttpContext.RequestServices;
-                var trusted = services.GetRequiredService<IOptions<SteamWebLinkOptions>>().Value;
-                var ok = false; Guid? transaction = null;
-                if (context.Properties?.Items.TryGetValue(TransactionProperty, out var value) == true && Guid.TryParseExact(value, "N", out var id))
+                IServiceProvider services = context.HttpContext.RequestServices;
+                SteamWebLinkOptions trusted = services.GetRequiredService<IOptions<SteamWebLinkOptions>>().Value;
+                bool ok = false; Guid? transaction = null;
+                if (context.Properties?.Items.TryGetValue(TransactionProperty, out string? value) == true && Guid.TryParseExact(value, "N", out Guid id))
                 {
                     transaction = id;
-                    var cookie = context.Request.Cookies[CookieName(id)] ?? string.Empty;
-                    var store = services.GetRequiredService<SteamWebLinkStore>();
-                    var record = await store.ReadCallbackAsync(id, cookie, context.HttpContext.RequestAborted);
-                    var root = record is null ? null : await services.GetRequiredService<IAccountRepository>().FindByIdAsync(record.AccountId, false, context.HttpContext.RequestAborted);
-                    var claimed = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                    string cookie = context.Request.Cookies[CookieName(id)] ?? string.Empty;
+                    SteamWebLinkStore store = services.GetRequiredService<SteamWebLinkStore>();
+                    SteamWebLinkRecord? record = await store.ReadCallbackAsync(id, cookie, context.HttpContext.RequestAborted);
+                    Account? root = record is null ? null : await services.GetRequiredService<IAccountRepository>().FindByIdAsync(record.AccountId, false, context.HttpContext.RequestAborted);
+                    string? claimed = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
                     if (root is not null && claimed is not null && context.HttpContext.Items["steam-link.nonce"] is string nonce)
                         ok = await store.VerifyAsync(id, cookie, root, claimed, nonce, context.HttpContext.RequestAborted);
                 }

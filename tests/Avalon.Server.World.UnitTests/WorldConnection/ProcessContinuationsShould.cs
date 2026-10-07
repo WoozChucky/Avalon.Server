@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Hosting.Networking;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -17,10 +16,10 @@ public sealed class ProcessContinuationsShould : IDisposable
     {
         // Build a mock that satisfies both IWorldServer and IServerBase (WorldConnection
         // casts its first arg to IServerBase in the base constructor).
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 
-        var (clientSide, serverSide) = CreateLoopbackPair();
+        (TcpClient? clientSide, TcpClient? serverSide) = CreateLoopbackPair();
         _serverSide = serverSide;
 
         _connection = new Avalon.World.WorldConnection(
@@ -47,7 +46,7 @@ public sealed class ProcessContinuationsShould : IDisposable
         int port = ((IPEndPoint)listener.LocalEndpoint!).Port;
         var clientSide = new TcpClient();
         clientSide.Connect(IPAddress.Loopback, port);
-        var serverSide = listener.AcceptTcpClient();
+        TcpClient serverSide = listener.AcceptTcpClient();
         listener.Stop();
         return (clientSide, serverSide);
     }
@@ -57,7 +56,7 @@ public sealed class ProcessContinuationsShould : IDisposable
     {
         var tcs = new TaskCompletionSource();
         tcs.SetException(new InvalidOperationException("simulated DB fault"));
-        var callbackInvoked = false;
+        bool callbackInvoked = false;
 
         _connection.EnqueueContinuation(tcs.Task, () => callbackInvoked = true);
         _connection.FlushContinuations();
@@ -72,7 +71,7 @@ public sealed class ProcessContinuationsShould : IDisposable
         // running is re-enqueued past the count snapshot, so it waits for the next tick
         // instead of spinning in this one.
         var tcs = new TaskCompletionSource();
-        var callbackInvoked = false;
+        bool callbackInvoked = false;
 
         _connection.EnqueueContinuation(tcs.Task, () => callbackInvoked = true);
 
@@ -104,7 +103,7 @@ public sealed class ProcessContinuationsShould : IDisposable
     [Fact]
     public void Contain_a_callback_that_throws_and_still_run_the_callbacks_queued_after_it()
     {
-        var laterInvoked = false;
+        bool laterInvoked = false;
 
         _connection.EnqueueContinuation(Task.CompletedTask, () => throw new NullReferenceException("simulated"));
         _connection.EnqueueContinuation(Task.FromResult(1), _ => laterInvoked = true);
@@ -127,9 +126,9 @@ public sealed class ProcessContinuationsShould : IDisposable
     [Fact]
     public void Run_the_callback_of_a_task_that_succeeds_while_the_flush_is_reading_it()
     {
-        const int iterations = 50_000;
+        const int Iterations = 50_000;
         TaskCompletionSource<bool>? pending = null;
-        var stop = false;
+        bool stop = false;
         var completer = new Thread(() =>
         {
             var spin = new SpinWait();
@@ -145,18 +144,19 @@ public sealed class ProcessContinuationsShould : IDisposable
                 tcs.SetResult(true);
                 Volatile.Write(ref pending, null);
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         completer.Start();
 
-        var lost = 0;
+        int lost = 0;
         try
         {
             // Bounded in time too, so a slow or single-core runner only runs fewer rounds.
             var budget = System.Diagnostics.Stopwatch.StartNew();
-            for (var i = 0; i < iterations && budget.Elapsed < TimeSpan.FromSeconds(3); i++)
+            for (int i = 0; i < Iterations && budget.Elapsed < TimeSpan.FromSeconds(3); i++)
             {
                 var tcs = new TaskCompletionSource<bool>();
-                var invoked = false;
+                bool invoked = false;
                 _connection.EnqueueContinuation(tcs.Task, _ => invoked = true);
                 Volatile.Write(ref pending, tcs);
 

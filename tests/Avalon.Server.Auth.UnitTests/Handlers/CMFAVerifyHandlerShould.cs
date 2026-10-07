@@ -4,12 +4,11 @@ using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
-using Avalon.Server.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
-using Avalon.Infrastructure.Login;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -62,7 +61,7 @@ public class CMFAVerifyHandlerShould
     [Fact]
     public async Task SendSuccess_AndSetAccountOnline_WhenCodeIsValid()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         var accountId = new AccountId(1L);
         _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
         _accountRepository.FindByIdAsync(accountId).Returns(account);
@@ -92,7 +91,7 @@ public class CMFAVerifyHandlerShould
     [Fact]
     public async Task SendMfaFailed_WhenTheHashPredatesACredentialsChange()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.CredentialsVersion = 2;
         _accountRepository.FindByIdAsync(account.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(account);
         _mfaHashService.GetHashCredentialsVersionAsync("valid-hash").Returns(0);
@@ -112,7 +111,7 @@ public class CMFAVerifyHandlerShould
     [Fact]
     public async Task KeepTheCredentialsVersionItsProofWasCheckedAt()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         account.CredentialsVersion = 4;
         _accountRepository.FindByIdAsync(account.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(account);
         _mfaHashService.GetHashCredentialsVersionAsync("valid-hash").Returns(4);
@@ -186,7 +185,7 @@ public class CMFAVerifyHandlerShould
     public async Task SendAlreadyConnected_WhenAccountIsOnlineAfterVerify()
     {
         var accountId = new AccountId(42L);
-        var account = MakeAccount(id: 42L);
+        Account account = MakeAccount(id: 42L);
         account.Online = true;
 
         _mfaHashService.GetAccountIdAsync(Arg.Any<string>()).Returns(accountId);
@@ -194,9 +193,9 @@ public class CMFAVerifyHandlerShould
         _accountRepository.FindByIdAsync(accountId).Returns(account);
 
         // Server with empty connections list — no connected session found
-        var hostingOptions = Substitute.For<IOptions<HostingConfiguration>>();
+        IOptions<HostingConfiguration> hostingOptions = Substitute.For<IOptions<HostingConfiguration>>();
         hostingOptions.Value.Returns(new HostingConfiguration { Port = 0, Host = "127.0.0.1" });
-        var securityOptions = Substitute.For<IOptions<HostingSecurity>>();
+        IOptions<HostingSecurity> securityOptions = Substitute.For<IOptions<HostingSecurity>>();
         securityOptions.Value.Returns(new HostingSecurity());
         var server = new AuthServer(
             Substitute.For<IServiceProvider>(),
@@ -236,7 +235,7 @@ public class CMFAVerifyHandlerShould
         AccountStatus status, AuthResult expected)
     {
         // Active when the password step issued the hash; the status changes before the code arrives.
-        var account = MakeAccount();
+        Account account = MakeAccount();
         Assert.Equal(AccountStatus.Active, account.Status);
         var accountId = new AccountId(1L);
         _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
@@ -249,7 +248,7 @@ public class CMFAVerifyHandlerShould
             Connection = _connection
         });
 
-        NetworkPacket sent = (NetworkPacket)_connection.ReceivedCalls()
+        var sent = (NetworkPacket)_connection.ReceivedCalls()
             .Single(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
             .GetArguments()[0]!;
         // FakeAvalonCryptoSession.Encrypt is a pass-through, so the payload is the plain protobuf.
@@ -312,7 +311,7 @@ public class CMFAVerifyHandlerShould
 
     private SAuthResultPacket SentPacket()
     {
-        NetworkPacket sent = (NetworkPacket)_connection.ReceivedCalls()
+        var sent = (NetworkPacket)_connection.ReceivedCalls()
             .Single(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
             .GetArguments()[0]!;
         using var stream = new MemoryStream(sent.Payload);
@@ -326,7 +325,7 @@ public class CMFAVerifyHandlerShould
     [Fact]
     public async Task Refuse_a_valid_code_for_an_account_locked_after_the_password_step()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         var accountId = new AccountId(1L);
         _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
         _accountRepository.FindByIdAsync(accountId).Returns(account);
@@ -485,7 +484,7 @@ public class CMFAVerifyHandlerShould
     [Fact]
     public async Task Not_count_a_correct_code_towards_the_account_lock()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         var accountId = new AccountId(1L);
         _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
         _accountRepository.FindByIdAsync(accountId).Returns(account);
@@ -520,7 +519,7 @@ public class CMFAVerifyHandlerShould
     [Fact]
     public async Task Give_back_its_source_slot_on_a_correct_code()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         var accountId = new AccountId(1L);
         _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
         _accountRepository.FindByIdAsync(accountId).Returns(account);
@@ -535,7 +534,7 @@ public class CMFAVerifyHandlerShould
     public async Task Record_the_full_ipv6_address_as_the_last_login_address()
     {
         _connection.RemoteEndPoint.Returns("[2001:db8:1:2:3:4:5:6]:50000");
-        var account = MakeAccount();
+        Account account = MakeAccount();
         var accountId = new AccountId(1L);
         _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
         _accountRepository.FindByIdAsync(accountId).Returns(account);
@@ -549,7 +548,7 @@ public class CMFAVerifyHandlerShould
     [Fact]
     public async Task Accept_a_valid_code_for_an_account_whose_lock_has_expired()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         var accountId = new AccountId(1L);
         _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
         _accountRepository.FindByIdAsync(accountId).Returns(account);

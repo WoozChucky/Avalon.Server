@@ -14,7 +14,7 @@ namespace Avalon.Server.Auth;
 
 public interface IAuthConnection : IConnection
 {
-    public AccountId? AccountId { get; set; }
+    AccountId? AccountId { get; set; }
 
     /// <summary>
     /// The credentials version of the row this connection's login proved (#495). World select
@@ -130,7 +130,6 @@ public class AuthConnection : Connection, IAuthConnection
         DiagnosticsConfig.Auth.BytesReceived.Add(size);
         DiagnosticsConfig.Auth.PacketsReceived.Add(1);
     }
-
 
     protected override long GetServerTime() => Server.ServerTime;
 

@@ -8,7 +8,6 @@ using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 
@@ -20,7 +19,7 @@ public class AuraScriptHooksShould
 
     public AuraScriptHooksShould()
     {
-        var manager = Substitute.For<IScriptManager>();
+        IScriptManager manager = Substitute.For<IScriptManager>();
         manager.GetAuraScript(Arg.Any<string>()).Returns(call => AuraHarness.TestScript(call.Arg<string>()));
         var host = new AuraScripts(manager, new ServiceCollection().BuildServiceProvider(), TimeProvider.System,
             NullLogger<AuraScripts>.Instance);

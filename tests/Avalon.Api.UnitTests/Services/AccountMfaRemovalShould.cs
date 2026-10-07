@@ -28,7 +28,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public class AccountMfaRemovalShould : IDisposable
 {
-    private static readonly string Password = TestPasswords.Valid;
+    private static readonly string s_password = TestPasswords.Valid;
     private const string PendingHash = "PENDINGLOGINHASH";
 
     private readonly SqliteAuthDatabase _database = new();
@@ -179,11 +179,11 @@ public class AccountMfaRemovalShould : IDisposable
         Account account = await CreateAccountAsync("REDISDOWN");
         await CreateConfirmedMfaAsync(account.Id);
         _redis.HashGetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<CommandFlags>())
-            .Returns<Task<RedisValue>>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task<RedisValue>>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
         _cache.RemoveAsync(Arg.Any<string>())
-            .Returns<Task<bool>>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task<bool>>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
         var logs = new CapturingLoggerFactory();
 
         Assert.True(await MakeService(logs).RemoveMfaAsync(account.Id, _admin));
@@ -203,7 +203,7 @@ public class AccountMfaRemovalShould : IDisposable
         Account account = await CreateAccountAsync("HALFDOWN");
         await CreateConfirmedMfaAsync(account.Id);
         _redis.HashGetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<CommandFlags>())
-            .Returns<Task<RedisValue>>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task<RedisValue>>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
 
         Assert.True(await MakeService().RemoveMfaAsync(account.Id, _admin));
 
@@ -224,7 +224,7 @@ public class AccountMfaRemovalShould : IDisposable
         TestLogin.Password(new AccountRepository(_database), _cache),
         TestLogin.Reauthentication(new AccountRepository(_database), _cache));
 
-    private static AuthenticateRequest Login(string username) => new() { Username = username, Password = Password };
+    private static AuthenticateRequest Login(string username) => new() { Username = username, Password = s_password };
 
     private async Task<Account> CreateAccountAsync(string username)
     {
@@ -234,7 +234,7 @@ public class AccountMfaRemovalShould : IDisposable
             Username = username,
             Email = $"{username.ToLowerInvariant()}@avalon.monster",
             Salt = Encoding.UTF8.GetBytes(salt),
-            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, salt)),
+            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, salt)),
             SessionKey = [],
             LastIp = "127.0.0.1",
             LastAttemptIp = string.Empty,

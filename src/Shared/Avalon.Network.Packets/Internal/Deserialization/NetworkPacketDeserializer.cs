@@ -32,7 +32,7 @@ public class NetworkPacketDeserializer : IPacketDeserializer
 
     public Task<T?> DeserializeFromNetwork<T>(Stream source) where T : class
     {
-        var packet = Serializer.DeserializeWithLengthPrefix<T>(source, PrefixStyle.Base128);
+        T packet = Serializer.DeserializeWithLengthPrefix<T>(source, PrefixStyle.Base128);
         return Task.FromResult(packet ?? null);
     }
 
@@ -43,23 +43,23 @@ public class NetworkPacketDeserializer : IPacketDeserializer
 
     public void RegisterPacketDeserializers(Assembly? assembly = null)
     {
-        var packetTypes = assembly == null
+        IEnumerable<Type> packetTypes = assembly == null
             ? GetNetworkPacketTypes(typeof(NetworkPacketDeserializer).Assembly)
             : GetNetworkPacketTypes(assembly);
 
-        var serializerType = typeof(Serializer);
+        Type serializerType = typeof(Serializer);
 
-        var genericDeserializeMethod = serializerType.GetMethods()
+        MethodInfo genericDeserializeMethod = serializerType.GetMethods()
             .Single(m => m is { Name: "Deserialize", IsGenericMethod: true } && m.GetParameters().Length == 1);
 
-        foreach (var packetType in packetTypes)
+        foreach (Type packetType in packetTypes)
         {
-            var packetTypeValue = packetType.GetField(PacketTypeFieldName, BindingFlags.Public | BindingFlags.Static)
+            object? packetTypeValue = packetType.GetField(PacketTypeFieldName, BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
 
             if (packetTypeValue is NetworkPacketType pType)
             {
-                var closedDeserializeMethod = genericDeserializeMethod.MakeGenericMethod(packetType);
+                MethodInfo closedDeserializeMethod = genericDeserializeMethod.MakeGenericMethod(packetType);
 
                 _packetDeserializerMethods.TryAdd(packetType, closedDeserializeMethod);
                 _packetDeserializerFactories.TryAdd(pType, InternalDeserialization);

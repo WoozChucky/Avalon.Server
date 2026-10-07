@@ -46,7 +46,7 @@ public class ItemTemplateController : BaseController
             PageSize = pageSize is < 1 or > 50 ? 50 : pageSize,
         };
 
-        var result = await _repository.PaginateAsync(filter, track: false, ct);
+        PagedResult<ItemTemplate> result = await _repository.PaginateAsync(filter, track: false, ct);
         return result.MapTo(ToDto);
     }
 
@@ -55,7 +55,7 @@ public class ItemTemplateController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get([FromRoute] ulong id, CancellationToken ct)
     {
-        var template = await _repository.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
+        ItemTemplate? template = await _repository.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
         if (template is null)
             return NotFound();
 

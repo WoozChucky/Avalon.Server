@@ -11,7 +11,6 @@ using Avalon.World.Public.Maps;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 
@@ -22,7 +21,7 @@ namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 /// </summary>
 public class AuthoredCreaturePlacementShould
 {
-    private static readonly MapTemplateId TownMap = new(1);
+    private static readonly MapTemplateId s_townMap = new(1);
 
     [Fact]
     public async Task Place_Each_Authored_Row_At_Its_Offset_From_The_Maps_Entry_Point()
@@ -33,7 +32,7 @@ public class AuthoredCreaturePlacementShould
         ICreature uriel = StubCreature(1);
         ICreature innkeeper = StubCreature(2);
 
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         spawner.Spawn(Arg.Is<CreatureInfo>(i => i.PrototypeIndex == 1)).Returns(uriel);
         spawner.Spawn(Arg.Is<CreatureInfo>(i => i.PrototypeIndex == 2)).Returns(innkeeper);
 
@@ -42,7 +41,7 @@ public class AuthoredCreaturePlacementShould
         await BuildService(spawner,
                 Row(1, creature: 1, offset: new Vector3(-3f, 0f, 4f), facing: 143f),
                 Row(2, creature: 2, offset: new Vector3(0f, 0f, 7f), facing: 180f))
-            .PlaceAuthoredAsync(instance, LayoutEnteringAt(new Vector3(100f, 5f, 200f)), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(instance, LayoutEnteringAt(new Vector3(100f, 5f, 200f)), s_townMap, CancellationToken.None);
 
         // Entry (100, 5, 200) + offset, with Y replaced by the sampled ground height.
         spawner.Received(1).Spawn(Arg.Is<CreatureInfo>(i =>
@@ -60,13 +59,13 @@ public class AuthoredCreaturePlacementShould
         // OffsetY is a hint for the vertical search box, not the answer. Without the snap an NPC
         // authored at the wrong height hovers or sinks, and the value is hand-written seed data.
         ICreature npc = StubCreature(1);
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(npc);
 
         IMapInstance instance = StubInstance(groundHeight: 41.5f);
 
         await BuildService(spawner, Row(1, creature: 1, offset: new Vector3(0f, 0f, 0f), facing: 0f))
-            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         spawner.Received(1).Spawn(Arg.Is<CreatureInfo>(i => i.Position.y == 41.5f));
     }
@@ -77,11 +76,11 @@ public class AuthoredCreaturePlacementShould
         // CreatureInfo carries no orientation, so facing has to be applied after the spawn. Without
         // it every NPC in town stares north.
         ICreature npc = StubCreature(1);
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(npc);
 
         await BuildService(spawner, Row(1, creature: 1, offset: Vector3.zero, facing: 217f))
-            .PlaceAuthoredAsync(StubInstance(0f), LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(StubInstance(0f), LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         Assert.Equal(217f, npc.Orientation.y);
     }
@@ -92,7 +91,7 @@ public class AuthoredCreaturePlacementShould
         // Same reasoning as the procedural path: placement runs inside MapInstance construction, so
         // a throw makes the town unenterable for everyone over one mistyped id.
         ICreature good = StubCreature(2);
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         spawner.Spawn(Arg.Is<CreatureInfo>(i => i.PrototypeIndex == 999))
             .Returns(_ => throw new Exception("Could not find creature template 999"));
         spawner.Spawn(Arg.Is<CreatureInfo>(i => i.PrototypeIndex == 2)).Returns(good);
@@ -102,7 +101,7 @@ public class AuthoredCreaturePlacementShould
         await BuildService(spawner,
                 Row(1, creature: 999, offset: Vector3.zero, facing: 0f),
                 Row(2, creature: 2, offset: Vector3.zero, facing: 0f))
-            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         instance.Received(1).AddCreature(good);
     }
@@ -111,11 +110,11 @@ public class AuthoredCreaturePlacementShould
     public async Task Place_Nothing_On_A_Map_With_No_Authored_Rows()
     {
         // Every procedural map hits this path too, and none of them has authored rows today.
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         IMapInstance instance = StubInstance(0f);
 
         await BuildService(spawner)
-            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(instance, LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         spawner.DidNotReceiveWithAnyArgs().Spawn(default(CreatureInfo)!);
         instance.DidNotReceiveWithAnyArgs().AddCreature(default!);
@@ -129,7 +128,7 @@ public class AuthoredCreaturePlacementShould
     public async Task Give_The_Creature_Its_Spawns_Path_In_World_Coordinates()
     {
         ICreature guard = StubCreature(1);
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(guard);
 
         MapCreatureSpawn row = Row(1, creature: 1, offset: Vector3.zero, facing: 0f);
@@ -146,7 +145,7 @@ public class AuthoredCreaturePlacementShould
 
         await BuildService(spawner, row)
             .PlaceAuthoredAsync(StubInstance(groundHeight: 12f), LayoutEnteringAt(new Vector3(100f, 5f, 200f)),
-                TownMap, CancellationToken.None);
+                s_townMap, CancellationToken.None);
 
         guard.Received(1).PatrolPath = Arg.Is<IReadOnlyList<PatrolPoint>>(path =>
             path.Count == 2
@@ -158,11 +157,11 @@ public class AuthoredCreaturePlacementShould
     public async Task Give_No_Path_To_A_Spawn_That_Names_None()
     {
         ICreature npc = StubCreature(1);
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(npc);
 
         await BuildService(spawner, Row(1, creature: 1, offset: Vector3.zero, facing: 0f))
-            .PlaceAuthoredAsync(StubInstance(groundHeight: 0f), LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+            .PlaceAuthoredAsync(StubInstance(groundHeight: 0f), LayoutEnteringAt(Vector3.zero), s_townMap, CancellationToken.None);
 
         npc.DidNotReceiveWithAnyArgs().PatrolPath = default!;
     }
@@ -170,7 +169,7 @@ public class AuthoredCreaturePlacementShould
     private static MapCreatureSpawn Row(int id, ulong creature, Vector3 offset, float facing) => new()
     {
         Id = new MapCreatureSpawnId(id),
-        MapTemplateId = TownMap,
+        MapTemplateId = s_townMap,
         CreatureTemplateId = new CreatureTemplateId(creature),
         OffsetX = offset.x,
         OffsetY = offset.y,
@@ -189,11 +188,11 @@ public class AuthoredCreaturePlacementShould
 
     private static IMapInstance StubInstance(float groundHeight)
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>())
             .Returns(groundHeight);
 
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(navigator);
         return instance;
     }
@@ -215,7 +214,7 @@ public class AuthoredCreaturePlacementShould
 
     private static CreaturePlacementService BuildService(ICreatureSpawner spawner, params MapCreatureSpawn[] rows)
     {
-        var authored = Substitute.For<IMapCreatureSpawnRepository>();
+        IMapCreatureSpawnRepository authored = Substitute.For<IMapCreatureSpawnRepository>();
         authored.FindByMapAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<MapCreatureSpawn>>(rows));
 

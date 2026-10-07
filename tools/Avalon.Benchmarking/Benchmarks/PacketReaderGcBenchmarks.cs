@@ -1,5 +1,3 @@
-using System.IO;
-using System.Linq;
 using System.Reflection;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Character;

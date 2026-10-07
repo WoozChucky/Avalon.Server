@@ -8,7 +8,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Enums;
 using Avalon.World.Scripts.Abstractions;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.World;
@@ -20,8 +19,8 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class WorldInstanceContainmentShould
 {
-    private static readonly MapTemplateId TownId = new(1);
-    private static readonly MapTemplateId DungeonId = new(2);
+    private static readonly MapTemplateId s_townId = new(1);
+    private static readonly MapTemplateId s_dungeonId = new(2);
 
     private sealed class SilentReloader : IScriptHotReloader
     {
@@ -47,17 +46,17 @@ public class WorldInstanceContainmentShould
         IWorldConnection healthy = townThrows ? inDungeon.Connection : inTown.Connection;
         broken.When(c => c.UpdateMap()).Do(_ => throw new InvalidOperationException("broken instance"));
 
-        var mapManager = Substitute.For<IAvalonMapManager>();
+        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([
-            new MapTemplate { Id = TownId, MapType = MapType.Town },
-            new MapTemplate { Id = DungeonId, MapType = MapType.Normal },
+            new MapTemplate { Id = s_townId, MapType = MapType.Town },
+            new MapTemplate { Id = s_dungeonId, MapType = MapType.Normal },
         ]);
-        var factory = Substitute.For<IChunkLayoutInstanceFactory>();
+        IChunkLayoutInstanceFactory factory = Substitute.For<IChunkLayoutInstanceFactory>();
         factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(town, dungeon);
         Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
             new SilentReloader(), intervalSeconds: 60, mapManager, factory);
-        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(TownId, maxPlayers: 100).Published(world);
-        await world.InstanceRegistry.GetOrCreateNormalInstanceAsync(639_102, DungeonId).Published(world);
+        await world.InstanceRegistry.GetOrCreateTownInstanceAsync(s_townId, maxPlayers: 100).Published(world);
+        await world.InstanceRegistry.GetOrCreateNormalInstanceAsync(639_102, s_dungeonId).Published(world);
         Assert.Equal(2, world.InstanceRegistry.ActiveInstances.Count);
 
         Exception? thrown = Record.Exception(() => world.Update(TimeSpan.FromSeconds(1d / 60d)));

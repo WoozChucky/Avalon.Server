@@ -1,8 +1,8 @@
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Configuration;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.Auth.Handlers;
@@ -25,12 +25,12 @@ public class CMFASetupHandler : IAuthPacketHandler<CMFASetupPacket>
 
     public async Task ExecuteAsync(AuthPacketContext<CMFASetupPacket> ctx, CancellationToken token = default)
     {
-        var account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
+        Account? account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
             "MFA setup", token);
         if (account == null)
             return;
 
-        var result = await _mfaService.SetupMFAAsync(account, _authConfig.Issuer, token);
+        MFASetupResult result = await _mfaService.SetupMFAAsync(account, _authConfig.Issuer, token);
 
         ctx.Connection.Send(SMFASetupPacket.Create(
             result.OtpUri ?? string.Empty,

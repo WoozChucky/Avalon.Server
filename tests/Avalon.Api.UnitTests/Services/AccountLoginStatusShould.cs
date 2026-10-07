@@ -30,7 +30,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public class AccountLoginStatusShould
 {
-    private static readonly string Password = TestPasswords.Valid;
+    private static readonly string s_password = TestPasswords.Valid;
 
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
     private readonly IJwtUtils _jwt = Substitute.For<IJwtUtils>();
@@ -51,15 +51,20 @@ public class AccountLoginStatusShould
         TestLogin.Password(_accounts, Substitute.For<IReplicatedCache>()),
         TestLogin.Reauthentication(_accounts, Substitute.For<IReplicatedCache>()));
 
-    private static readonly byte[] Verifier =
-        Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, BCrypt.Net.BCrypt.GenerateSalt(4)));
+    private static readonly byte[] s_verifier =
+        Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, BCrypt.Net.BCrypt.GenerateSalt(4)));
 
     private void AccountIs(DomainStatus status, bool mfa = false)
     {
         var account = new Account
         {
-            Id = new AccountId(7), Username = "CALLER", Email = "c@avalon.monster",
-            Salt = [1], Verifier = Verifier, JoinDate = DateTime.UtcNow, Status = status,
+            Id = new AccountId(7),
+            Username = "CALLER",
+            Email = "c@avalon.monster",
+            Salt = [1],
+            Verifier = s_verifier,
+            JoinDate = DateTime.UtcNow,
+            Status = status,
         };
         _accounts.FindByUserNameAsync("CALLER", Arg.Any<CancellationToken>()).Returns(account);
         _mfaSetups.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
@@ -78,7 +83,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(DomainStatus.Active);
 
-        var (response, accountId, _) = await LoginAsync(Password);
+        (AuthenticateResponse? response, AccountId? accountId, int _) = await LoginAsync(s_password);
 
         Assert.Equal("jwt", response.Token);
         Assert.Equal(7, accountId!.Value);
@@ -94,7 +99,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(status, mfa);
 
-        var refused = await Assert.ThrowsAsync<AccountInactiveException>(() => LoginAsync(Password));
+        AccountInactiveException refused = await Assert.ThrowsAsync<AccountInactiveException>(() => LoginAsync(s_password));
 
         Assert.Equal(status, refused.Status);
         Assert.Equal(expected, refused.Message);
@@ -112,7 +117,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(status);
 
-        var refused = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong));
+        AuthenticationException refused = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong));
 
         Assert.Equal("Invalid username or password", refused.Message);
         _jwt.DidNotReceiveWithAnyArgs().GenerateJwtToken(default!);

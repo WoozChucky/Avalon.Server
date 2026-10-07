@@ -1,5 +1,3 @@
-using Avalon.Common.ValueObjects;
-
 namespace Avalon.Api.Contract;
 
 public class AccountDto

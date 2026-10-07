@@ -63,7 +63,7 @@ internal static class TestStaticData
 
     public static async Task<StaticData> LoadAsync(TestStaticDataRepositories repositories)
     {
-        StaticData data = repositories.ToStaticData();
+        var data = repositories.ToStaticData();
         await data.LoadAsync();
         return data;
     }
@@ -85,40 +85,40 @@ internal static class TestStaticData
         Func<IReadOnlyCollection<AbilityTemplate>>? abilities = null,
         Func<IReadOnlyCollection<AuraTemplate>>? auras = null)
     {
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>([]));
 
-        var classStatRepository = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository classStatRepository = Substitute.For<IClassLevelStatRepository>();
         classStatRepository.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(classStats?.Invoke() ?? []));
 
-        var itemRepository = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository itemRepository = Substitute.For<IItemTemplateRepository>();
         itemRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult((items?.Invoke() ?? []).ToList()));
 
-        var abilityRepository = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilityRepository = Substitute.For<IAbilityTemplateRepository>();
         abilityRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult((abilities?.Invoke() ?? []).ToList()));
 
-        var levelRepository = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository levelRepository = Substitute.For<ICharacterLevelExperienceRepository>();
         levelRepository.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(levels?.Invoke() ?? []));
 
-        var creatureRepository = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository creatureRepository = Substitute.For<ICreatureTemplateRepository>();
         creatureRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult((creatures?.Invoke() ?? []).ToList()));
 
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
                 [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
 
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
-        var textRepository = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository textRepository = Substitute.For<ILocalizedTextRepository>();
         textRepository.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(texts?.Invoke() ?? []));
         textRepository.GetAllLocalesAsync(Arg.Any<CancellationToken>())
@@ -126,13 +126,13 @@ internal static class TestStaticData
         textRepository.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(nodes?.Invoke() ?? []));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(options?.Invoke() ?? []));
 
-        var auraRepository = Substitute.For<IAuraTemplateRepository>();
+        IAuraTemplateRepository auraRepository = Substitute.For<IAuraTemplateRepository>();
         auraRepository.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<AuraTemplate>>(auras?.Invoke() ?? []));
 

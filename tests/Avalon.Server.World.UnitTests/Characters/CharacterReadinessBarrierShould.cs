@@ -1,4 +1,3 @@
-using Avalon.Common.ValueObjects;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Public;
@@ -16,13 +15,13 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// </summary>
 public class CharacterReadinessBarrierShould
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan s_timeout = TimeSpan.FromSeconds(15);
 
     private static (IWorldConnection connection, ICharacter character, IMapInstance instance)
         Pending(long sinceTicks)
     {
         ICharacter character = PendingSpawnConnection.Character();
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
 
         IWorldConnection connection =
             PendingSpawnConnection.Create(new PendingSpawn(character, instance, sinceTicks));
@@ -34,10 +33,10 @@ public class CharacterReadinessBarrierShould
     public void Not_spawn_a_character_whose_barrier_has_not_expired()
     {
         long now = DateTime.UtcNow.Ticks;
-        var (connection, _, _) = Pending(now - TimeSpan.FromSeconds(14).Ticks);
+        (IWorldConnection? connection, ICharacter _, IMapInstance _) = Pending(now - TimeSpan.FromSeconds(14).Ticks);
         IWorld world = Substitute.For<IWorld>();
 
-        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, Timeout,
+        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, s_timeout,
             NullLogger.Instance);
 
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
@@ -55,14 +54,14 @@ public class CharacterReadinessBarrierShould
     {
         long now = DateTime.UtcNow.Ticks;
         ICharacter character = PendingSpawnConnection.Character();
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         IWorldConnection connection = PendingSpawnConnection.Create();
         connection.BeginSelect(now);
         connection.NoteLoadReportedEarly();
         connection.SetPendingSpawn(character, instance, now);
         IWorld world = Substitute.For<IWorld>();
 
-        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, Timeout, NullLogger.Instance);
+        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, s_timeout, NullLogger.Instance);
 
         world.Received(1).SpawnInInstance(connection, instance);
         Assert.Same(character, connection.Character);
@@ -73,10 +72,10 @@ public class CharacterReadinessBarrierShould
     public void Spawn_a_character_whose_barrier_has_expired()
     {
         long now = DateTime.UtcNow.Ticks;
-        var (connection, character, instance) = Pending(now - TimeSpan.FromSeconds(16).Ticks);
+        (IWorldConnection? connection, ICharacter? character, IMapInstance? instance) = Pending(now - TimeSpan.FromSeconds(16).Ticks);
         IWorld world = Substitute.For<IWorld>();
 
-        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, Timeout,
+        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, s_timeout,
             NullLogger.Instance);
 
         world.Received(1).SpawnInInstance(connection, instance);
@@ -92,12 +91,12 @@ public class CharacterReadinessBarrierShould
     public void Spawn_an_expired_character_once_however_many_ticks_pass()
     {
         long now = DateTime.UtcNow.Ticks;
-        var (connection, _, _) = Pending(now - TimeSpan.FromSeconds(16).Ticks);
+        (IWorldConnection? connection, ICharacter _, IMapInstance _) = Pending(now - TimeSpan.FromSeconds(16).Ticks);
         IWorld world = Substitute.For<IWorld>();
 
-        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, Timeout, NullLogger.Instance);
-        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, Timeout, NullLogger.Instance);
-        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, Timeout, NullLogger.Instance);
+        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, s_timeout, NullLogger.Instance);
+        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, s_timeout, NullLogger.Instance);
+        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, s_timeout, NullLogger.Instance);
 
         world.ReceivedWithAnyArgs(1).SpawnInInstance(default!, default!);
     }
@@ -105,7 +104,7 @@ public class CharacterReadinessBarrierShould
     [Fact]
     public void Spawn_on_the_clients_report_without_waiting_for_the_barrier()
     {
-        var (connection, character, instance) = Pending(DateTime.UtcNow.Ticks);
+        (IWorldConnection? connection, ICharacter? character, IMapInstance? instance) = Pending(DateTime.UtcNow.Ticks);
         IWorld world = Substitute.For<IWorld>();
 
         Assert.True(CharacterReadinessBarrier.Release(connection, world, NullLogger.Instance));
@@ -133,7 +132,7 @@ public class CharacterReadinessBarrierShould
     [Fact]
     public void Leave_the_connection_without_a_character_when_the_spawn_throws()
     {
-        var (connection, _, _) = Pending(DateTime.UtcNow.Ticks);
+        (IWorldConnection? connection, ICharacter _, IMapInstance _) = Pending(DateTime.UtcNow.Ticks);
         IWorld world = Substitute.For<IWorld>();
         world.When(w => w.SpawnInInstance(Arg.Any<IWorldConnection>(), Arg.Any<IMapInstance>()))
             .Do(_ => throw new InvalidOperationException("instance is full"));
@@ -151,7 +150,7 @@ public class CharacterReadinessBarrierShould
     [Fact]
     public void Hand_the_pending_spawn_back_and_close_when_the_spawn_throws()
     {
-        var (connection, character, instance) = Pending(DateTime.UtcNow.Ticks);
+        (IWorldConnection? connection, ICharacter? character, IMapInstance? instance) = Pending(DateTime.UtcNow.Ticks);
         IWorld world = Substitute.For<IWorld>();
         world.When(w => w.SpawnInInstance(Arg.Any<IWorldConnection>(), Arg.Any<IMapInstance>()))
             .Do(_ => throw new InvalidOperationException("instance is full"));
@@ -172,11 +171,11 @@ public class CharacterReadinessBarrierShould
     public void Leave_a_dropped_connection_to_the_despawn()
     {
         long now = DateTime.UtcNow.Ticks;
-        var (connection, _, _) = Pending(now - TimeSpan.FromSeconds(16).Ticks);
+        (IWorldConnection? connection, ICharacter _, IMapInstance _) = Pending(now - TimeSpan.FromSeconds(16).Ticks);
         connection.IsConnected.Returns(false);
         IWorld world = Substitute.For<IWorld>();
 
-        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, Timeout, NullLogger.Instance);
+        CharacterReadinessBarrier.ReleaseExpired([connection], world, now, s_timeout, NullLogger.Instance);
 
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
         Assert.NotNull(connection.PendingSpawn);

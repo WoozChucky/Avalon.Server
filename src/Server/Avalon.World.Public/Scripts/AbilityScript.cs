@@ -27,7 +27,7 @@ public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim a
 
     public GameEntityFields ConsumeDirtyFields()
     {
-        var dirty = _dirtyFields;
+        GameEntityFields dirty = _dirtyFields;
         _dirtyFields = GameEntityFields.None;
         return dirty;
     }
@@ -36,7 +36,6 @@ public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim a
     public bool HasUnsentChanges => _dirtyFields != GameEntityFields.None;
 
     public abstract object State { get; set; }
-
 
     public abstract Vector3 Position { get; set; }
     public abstract Vector3 Velocity { get; set; }

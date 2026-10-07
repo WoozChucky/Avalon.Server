@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;

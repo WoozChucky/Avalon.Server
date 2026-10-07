@@ -2,7 +2,6 @@ using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
-using Avalon.Infrastructure;
 
 namespace Avalon.Infrastructure.Login;
 

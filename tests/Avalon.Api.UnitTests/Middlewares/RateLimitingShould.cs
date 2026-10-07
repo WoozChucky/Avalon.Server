@@ -4,7 +4,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
-using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Middlewares;
 using Avalon.Api.UnitTests.Authentication;
@@ -12,6 +11,7 @@ using Avalon.Common.Accounts;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -112,7 +112,7 @@ public sealed class RateLimitingShould
         using HttpResponseMessage refused = await SendForResponseAsync(host);
 
         Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
-        var problem = await refused.Content.ReadFromJsonAsync<ProblemDetails>();
+        ProblemDetails? problem = await refused.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.Equal(429, problem!.Status);
         Assert.Equal("LOCKED", problem.Detail);
         Assert.True(refused.Headers.RetryAfter?.Delta is { TotalSeconds: >= 1 },
@@ -287,7 +287,7 @@ public sealed class RateLimitingShould
     [Fact]
     public async Task Not_look_up_a_personal_access_token_early_when_disabled()
     {
-        var authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        IAuthenticationService authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
         HttpContext context = PatRequest(authentication, enabled: false, requiresAuthorization: true);
 
         await ApiRateLimiting.IdentifyPersonalAccessTokenAsync(context);
@@ -298,7 +298,7 @@ public sealed class RateLimitingShould
     [Fact]
     public async Task Look_up_a_personal_access_token_early_when_enabled_on_an_endpoint_that_authorizes()
     {
-        var authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        IAuthenticationService authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
         authentication.AuthenticateAsync(Arg.Any<HttpContext>(), Arg.Any<string?>())
             .Returns(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
         HttpContext context = PatRequest(authentication, enabled: true, requiresAuthorization: true);
@@ -322,7 +322,7 @@ public sealed class RateLimitingShould
         Assert.Equal(HttpStatusCode.OK, await SendAsync(host, token: PatToken, scheme: "Avalon"));
 
         await host.Pats.DidNotReceiveWithAnyArgs().FindByRawTokenAsync(default!, default);
-        await host.Pats.DidNotReceiveWithAnyArgs().TouchLastUsedAsync(default, default);
+        await host.Pats.DidNotReceiveWithAnyArgs().TouchLastUsedAsync(default!, default);
     }
 
     private static HttpContext PatRequest(Microsoft.AspNetCore.Authentication.IAuthenticationService authentication,
@@ -360,7 +360,7 @@ public sealed class RateLimitingShould
     [Fact]
     public async Task Bound_concurrent_made_up_token_lookups_from_one_source()
     {
-        var authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        IAuthenticationService authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
         int inFlight = 0, maxInFlight = 0, lookups = 0;
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         authentication.AuthenticateAsync(Arg.Any<HttpContext>(), Arg.Any<string?>()).Returns(async _ =>
@@ -399,7 +399,7 @@ public sealed class RateLimitingShould
     [Fact]
     public async Task Not_spend_the_failed_lookup_budget_on_a_valid_token()
     {
-        var authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
+        IAuthenticationService authentication = Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationService>();
         var principal = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
             [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "7")], "AV"));
         authentication.AuthenticateAsync(Arg.Any<HttpContext>(), Arg.Any<string?>())
@@ -500,10 +500,16 @@ public sealed class RateLimitingShould
         listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
         {
             foreach (KeyValuePair<string, object?> tag in tags)
+            {
                 if (tag.Key == "partition")
+                {
                     lock (measured)
+                    {
                         for (long i = 0; i < value; i++)
                             measured.Add(tag.Value as string);
+                    }
+                }
+            }
         });
         listener.Start();
 

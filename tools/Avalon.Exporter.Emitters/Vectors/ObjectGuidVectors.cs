@@ -17,20 +17,22 @@ public static class ObjectGuidVectors
         var w = new StringWriter { NewLine = "\n" };
         w.Write(Header);
 
-        var types = new[] { ObjectType.None, ObjectType.Character, ObjectType.Creature,
+        ObjectType[] types = new[] { ObjectType.None, ObjectType.Character, ObjectType.Creature,
                             ObjectType.Spell, ObjectType.SpellProjectile, ObjectType.Portal,
                             ObjectType.Loot };
         // Zero, one, a value with bits in every byte of the low 32, and the top of the range.
-        var ids = new uint[] { 0u, 1u, 0x12345678u, uint.MaxValue };
+        uint[] ids = new uint[] { 0u, 1u, 0x12345678u, uint.MaxValue };
 
-        var rows = 0;
+        int rows = 0;
         foreach (ObjectType t in types)
+        {
             foreach (uint id in ids)
             {
                 var g = new ObjectGuid(t, id);
                 w.WriteLine($"raw {g.RawValue:x16} type {(int)g.Type} id {g.Id}");
                 ++rows;
             }
+        }
 
         Lf.Write(outputPath, w.ToString());
         Console.WriteLine($"wrote {outputPath} ({rows} vectors; {types.Length} types x {ids.Length} ids)");

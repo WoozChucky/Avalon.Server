@@ -1,4 +1,3 @@
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 
 namespace Avalon.Hosting.Networking;

@@ -1,10 +1,9 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Entities;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -14,7 +13,7 @@ public class PortalPlacementServiceShould
     public void Place_back_portal_at_entry_chunk_with_back_target_map_id()
     {
         var captured = new List<PortalInstance>();
-        var sink = Substitute.For<IPortalSink>();
+        IPortalSink sink = Substitute.For<IPortalSink>();
         sink.When(s => s.AddPortal(Arg.Any<PortalInstance>()))
             .Do(ci => captured.Add(ci.Arg<PortalInstance>()));
 
@@ -41,7 +40,7 @@ public class PortalPlacementServiceShould
     public void Place_back_and_forward_portals_when_both_configured()
     {
         var captured = new List<PortalInstance>();
-        var sink = Substitute.For<IPortalSink>();
+        IPortalSink sink = Substitute.For<IPortalSink>();
         sink.When(s => s.AddPortal(Arg.Any<PortalInstance>()))
             .Do(ci => captured.Add(ci.Arg<PortalInstance>()));
 

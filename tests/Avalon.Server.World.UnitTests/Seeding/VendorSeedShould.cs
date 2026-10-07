@@ -5,7 +5,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Dialogue;
 using Avalon.World.Public.Dialogue;
-using Avalon.World.Public.Enums;
 using Avalon.World.Vendors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,7 +17,7 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// </summary>
 public class VendorSeedShould
 {
-    private static readonly (ulong Id, string Name, string SubName)[] Vendors =
+    private static readonly (ulong Id, string Name, string SubName)[] s_vendors =
     [
         (12, "Garrick Emberforge", "Weapons Dealer"),
         (13, "Hilde Brassbuckle", "Armourer"),
@@ -26,7 +25,7 @@ public class VendorSeedShould
     ];
 
     /// <summary>Each starter piece and the forest piece it is scaled from (#432: each starter piece is 60% of its forest piece).</summary>
-    private static readonly (ulong Starter, ulong Forest)[] Tiers =
+    private static readonly (ulong Starter, ulong Forest)[] s_tiers =
     [
         (32, 7), (33, 5), (34, 6), (35, 8),
         (36, 12), (37, 13), (38, 14), (39, 15), (40, 16),
@@ -59,11 +58,11 @@ public class VendorSeedShould
     [Fact]
     public void Seed_the_three_vendors_as_unkillable_town_npcs_that_drop_nothing()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
+        var templates = context.CreatureTemplates.AsNoTracking().ToList();
 
-        foreach ((ulong id, string name, string subName) in Vendors)
+        foreach ((ulong id, string name, string subName) in s_vendors)
         {
             CreatureTemplate vendor = templates.Single(t => t.Id.Value == id);
             Assert.Equal((name, subName), (vendor.Name, vendor.SubName));
@@ -78,9 +77,9 @@ public class VendorSeedShould
     [Fact]
     public void Place_the_vendors_in_the_market_on_map_one_facing_its_centre()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<MapCreatureSpawn> spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
+        var spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
 
         (ulong Template, float X, float Z, float Facing)[] expected =
         [
@@ -101,11 +100,11 @@ public class VendorSeedShould
     [Fact]
     public void Make_each_of_the_three_a_vendor_and_no_one_else()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         var actions = new DialogueActions(context.DialogueNodes.AsNoTracking().ToList(), context.DialogueOptions.AsNoTracking().ToList());
 
-        foreach ((ulong id, _, _) in Vendors)
+        foreach ((ulong id, _, _) in s_vendors)
         {
             Assert.True(NpcInteraction.IsVendor(actions, new CreatureTemplateId(id)));
             Assert.False(NpcInteraction.IsBanker(actions, new CreatureTemplateId(id)));
@@ -118,14 +117,14 @@ public class VendorSeedShould
     [Fact]
     public void Offer_trade_wares_and_farewell_and_keep_the_shop_open_on_both_nodes()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<DialogueNode> nodes = context.DialogueNodes.AsNoTracking().ToList();
-        List<DialogueOption> options = context.DialogueOptions.AsNoTracking().ToList();
+        var nodes = context.DialogueNodes.AsNoTracking().ToList();
+        var options = context.DialogueOptions.AsNoTracking().ToList();
         var catalog = new DialogueCatalog(nodes, options, NullLoggerFactory.Instance);
         var actions = new DialogueActions(nodes, options);
 
-        foreach ((ulong id, _, _) in Vendors)
+        foreach ((ulong id, _, _) in s_vendors)
         {
             DialogueNodeView root = catalog.GetRoot(new CreatureTemplateId(id))!;
             Assert.Equal(3, root.Options.Count);
@@ -154,10 +153,10 @@ public class VendorSeedShould
     [Fact]
     public void Write_and_translate_every_vendor_line()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        Dictionary<int, string> texts = context.LocalizedTexts.AsNoTracking().ToList().ToDictionary(t => t.Id.Value, t => t.Text);
-        List<LocalizedTextLocale> locales = context.LocalizedTextLocales.AsNoTracking().ToList();
+        var texts = context.LocalizedTexts.AsNoTracking().ToList().ToDictionary(t => t.Id.Value, t => t.Text);
+        var locales = context.LocalizedTextLocales.AsNoTracking().ToList();
 
         Assert.Equal("Steel, stave or string, traveller. What'll it be?", texts[17]);
         Assert.Equal("Every blade here I hammered myself. Won't match what the forest spits out, but it'll keep you breathing till you find better.", texts[18]);
@@ -175,7 +174,7 @@ public class VendorSeedShould
     [Fact]
     public void Seed_the_starter_tier_as_twenty_four_common_items_one_class_each()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         Dictionary<ulong, ItemTemplate> items = Items(context);
 
@@ -193,18 +192,18 @@ public class VendorSeedShould
     [Fact]
     public void Make_every_starter_piece_sixty_percent_of_its_forest_piece()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         Dictionary<ulong, ItemTemplate> items = Items(context);
 
-        foreach ((ulong starterId, ulong forestId) in Tiers)
+        foreach ((ulong starterId, ulong forestId) in s_tiers)
         {
             ItemTemplate starter = items[starterId], forest = items[forestId];
 
             Assert.Equal((forest.Class, forest.SubClass, forest.Slot, forest.AllowedClasses[0]),
                 (starter.Class, starter.SubClass, starter.Slot, starter.AllowedClasses[0]));
 
-            Dictionary<StatType, uint> expected = Stats(forest).ToDictionary(
+            var expected = Stats(forest).ToDictionary(
                 s => s.Key, s => s.Key == StatType.AttackSpeed ? s.Value : SixtyPercent(s.Value));
             Assert.Equal(expected, Stats(starter));
 
@@ -226,7 +225,7 @@ public class VendorSeedShould
     [Fact]
     public void Seed_the_greater_health_potion_like_the_health_potion()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         Dictionary<ulong, ItemTemplate> items = Items(context);
         ItemTemplate greater = items[56], health = items[1];
@@ -240,7 +239,7 @@ public class VendorSeedShould
     [Fact]
     public void Stock_every_vendor_as_the_spec_lists()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         List<VendorStock> rows = Stock(context);
 
@@ -266,7 +265,7 @@ public class VendorSeedShould
     [Fact]
     public void Cost_the_greater_potion_two_health_potions()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         List<VendorStock> rows = Stock(context);
 
@@ -279,7 +278,7 @@ public class VendorSeedShould
     [Fact]
     public void Load_every_seeded_stock_row_without_refusing_any()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         var catalog = new VendorCatalog(Stock(context), Items(context).Values.ToList(), NullLoggerFactory.Instance);
@@ -291,7 +290,7 @@ public class VendorSeedShould
     [Fact]
     public void Seed_no_quest_gated_rows()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         List<VendorStock> rows = Stock(context);

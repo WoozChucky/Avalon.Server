@@ -5,7 +5,6 @@ using Avalon.World.Abilities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Maps;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 
@@ -15,7 +14,7 @@ namespace Avalon.Server.World.UnitTests.Abilities;
 /// </summary>
 public class AbilityFootprintShould
 {
-    private static readonly Vector3 Origin = new(2f, 1f, 3f);
+    private static readonly Vector3 s_origin = new(2f, 1f, 3f);
     private readonly IMapNavigator _navigator = Substitute.For<IMapNavigator>();
 
     public AbilityFootprintShould() =>
@@ -25,7 +24,7 @@ public class AbilityFootprintShould
         AbilityMetadataMapper.From(template);
 
     private AbilityFootprint Resolve(Avalon.Domain.World.AbilityTemplate template, AbilityAim aim) =>
-        AbilityFootprint.Resolve(Meta(template), aim, Origin, _navigator)!.Value;
+        AbilityFootprint.Resolve(Meta(template), aim, s_origin, _navigator)!.Value;
 
     [Fact]
     public void Centre_a_caster_anchored_circle_on_the_origin_with_its_radius()
@@ -33,8 +32,8 @@ public class AbilityFootprintShould
         AbilityFootprint footprint = Resolve(AbilityTestData.Circle(1, radius: 4f), new AbilityAim(new Vector3(0f, 0f, 1f), null));
 
         Assert.Equal(AbilityShape.Circle, footprint.Shape);
-        Assert.Equal(Origin, footprint.Origin);
-        Assert.Equal(Origin, footprint.Centre);
+        Assert.Equal(s_origin, footprint.Origin);
+        Assert.Equal(s_origin, footprint.Centre);
         Assert.Null(footprint.Direction);
         Assert.Equal((4f, 0f, 0f), (footprint.Radius, footprint.Reach, footprint.ArcDegrees));
     }
@@ -54,7 +53,7 @@ public class AbilityFootprintShould
     public void Pull_an_aimed_circle_back_where_the_walkable_ray_stops()
     {
         var wall = new Vector3(2f, 1f, 5f);
-        _navigator.RaycastWalkable(Origin, Arg.Any<Vector3>()).Returns(wall);
+        _navigator.RaycastWalkable(s_origin, Arg.Any<Vector3>()).Returns(wall);
 
         AbilityFootprint footprint = Resolve(AbilityTestData.AimedCircle(1, reach: 15f),
             new AbilityAim(new Vector3(0f, 0f, 1f), new Vector3(2f, 0f, 13f)));
@@ -100,7 +99,7 @@ public class AbilityFootprintShould
     [Fact]
     public void Cut_a_projectile_lane_where_the_walkable_ray_stops()
     {
-        _navigator.RaycastWalkable(Origin, Arg.Any<Vector3>()).Returns(new Vector3(2f, 1f, 9f));
+        _navigator.RaycastWalkable(s_origin, Arg.Any<Vector3>()).Returns(new Vector3(2f, 1f, 9f));
 
         AbilityFootprint footprint = Resolve(AbilityTestData.Projectile(1, reach: 12f),
             new AbilityAim(new Vector3(1f, 0f, 0f), new Vector3(2f, 0f, 4f)));
@@ -111,7 +110,7 @@ public class AbilityFootprintShould
     [Fact]
     public void Carry_every_member_onto_the_wire()
     {
-        var footprint = new AbilityFootprint(AbilityShape.Cone, Origin, new Vector3(0f, 0f, 1f), null, 0f, 4f, 90f);
+        var footprint = new AbilityFootprint(AbilityShape.Cone, s_origin, new Vector3(0f, 0f, 1f), null, 0f, 4f, 90f);
 
         AbilityFootprintDto dto = footprint.ToDto();
 

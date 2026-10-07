@@ -51,7 +51,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     public static readonly TimeSpan StatusInterval = TimeSpan.FromMilliseconds(250);
 
     // Second marks the countdown is announced at, highest first (spec 2026-09-30 section 2).
-    private static readonly int[] CountdownMarks = [60, 30, 10, 5, 4, 3, 2, 1];
+    private static readonly int[] s_countdownMarks = [60, 30, 10, 5, 4, 3, 2, 1];
     private readonly Dictionary<uint, PartyCountdown> _countdowns = [];
     private readonly Dictionary<uint, PendingReturn> _returning = [];   // countdown ran out, return under way (#700)
 
@@ -150,7 +150,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         if (!_onlineCharacters.TryIdByName(targetName, out uint targetId)
             || OnlineConnection(targetId) is not { Character: { } target } targetConnection)
+        {
             return PartyResult.NotFound;
+        }
 
         if (targetId == inviterId)
             return PartyResult.Self;
@@ -161,7 +163,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         if (party is not null && party.Members.Count >= Config.MaxPartySize)
             return PartyResult.PartyFull;
 
-        TimeSpan timeout = TimeSpan.FromSeconds(Config.PartyInviteTimeoutSeconds);
+        var timeout = TimeSpan.FromSeconds(Config.PartyInviteTimeoutSeconds);
         var invite = new PartyInvite(inviterId, inviter.Name, target.Name, party?.Id, time.GetUtcNow() + timeout);
 
         // A target ignoring the inviter never sees the invite (#723). Only after every refusal, so the inviter is
@@ -405,7 +407,8 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         int delay = Config.PartyReturnRetrySeconds;
         _countdowns[characterId] = new PartyCountdown(pending.InstanceId, pending.Party,
-            time.GetUtcNow() + TimeSpan.FromSeconds(delay)) { NextMark = CountdownMarks.Length, Retries = attempt };
+            time.GetUtcNow() + TimeSpan.FromSeconds(delay))
+        { NextMark = s_countdownMarks.Length, Retries = attempt };
         logger.LogWarning(failure,
             "Return to town of character {CharacterId} failed (attempt {Attempt} of {Attempts}); trying again in {Seconds} s",
             characterId, attempt, MaxReturnRetries + 1, delay);
@@ -439,7 +442,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
                 var status = MemberStatus.Of(character);
                 if (_statusSent.TryGetValue(id, out (MemberStatus Status, DateTimeOffset At) last)
                     && (last.Status == status || now - last.At < StatusInterval))
+                {
                     continue;
+                }
 
                 _statusSent[id] = (status, now);
                 for (int j = 0; j < party.Members.Count; j++)
@@ -447,7 +452,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
                     uint other = party.Members[j].Id.Value;
                     if (other == id || OnlineConnection(other) is not { Character: { } watcher } connection
                         || watcher.InstanceId != character.InstanceId)
+                    {
                         continue;
+                    }
 
                     connection.Send(SPartyMemberStatusPacket.Create(id, status.Health, status.MaxHealth, status.Power,
                         status.MaxPower, status.PowerType, status.IsDead, connection.CryptoSession.Encrypt));
@@ -477,15 +484,18 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     {
         if (OnlineConnection(characterId)?.Character is not { } character
             || !_instances.IsPartyInstance(party.Id, character.InstanceId))
+        {
             return false;
+        }
 
         int grace = Config.PartyLeaveGraceSeconds;
         int next = 0;
-        while (next < CountdownMarks.Length && CountdownMarks[next] >= grace)
+        while (next < s_countdownMarks.Length && s_countdownMarks[next] >= grace)
             next++;
 
         _countdowns[characterId] = new PartyCountdown(character.InstanceId, party.Id,
-            time.GetUtcNow() + TimeSpan.FromSeconds(grace)) { NextMark = next };
+            time.GetUtcNow() + TimeSpan.FromSeconds(grace))
+        { NextMark = next };
         _returning.Remove(characterId);
 
         string why = reason switch
@@ -527,8 +537,8 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
             int seconds = (int)Math.Ceiling(remaining);
             int announce = 0;
-            while (countdown.NextMark < CountdownMarks.Length && seconds <= CountdownMarks[countdown.NextMark])
-                announce = CountdownMarks[countdown.NextMark++];
+            while (countdown.NextMark < s_countdownMarks.Length && seconds <= s_countdownMarks[countdown.NextMark])
+                announce = s_countdownMarks[countdown.NextMark++];
 
             if (announce > 0)
                 SendLine(id, $"Returning to town in {Seconds(announce)}.");

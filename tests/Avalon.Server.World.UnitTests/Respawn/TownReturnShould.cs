@@ -10,7 +10,6 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
 using NSubstitute;
 using NSubstitute.ClearExtensions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Respawn;
 
@@ -182,7 +181,7 @@ public class TownReturnShould
         _town.Start(_connection, revive: false, dropEncounter: true,
             failed: e => handed.Add((e, _connection.RespawnInFlight)));
 
-        var (failure, flagWhenHanded) = Assert.Single(handed);
+        (Exception? failure, bool flagWhenHanded) = Assert.Single(handed);
         Assert.IsType<InvalidOperationException>(failure);
         Assert.False(flagWhenHanded);
         Assert.Empty(_log.Errors);

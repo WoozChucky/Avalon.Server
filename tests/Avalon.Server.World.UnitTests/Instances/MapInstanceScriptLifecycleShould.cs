@@ -10,13 +10,10 @@ using Avalon.Server.World.UnitTests.Scripts;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
-using Avalon.World.Public.Combat;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -29,13 +26,13 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class MapInstanceScriptLifecycleShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private static void Ticks(MapInstance instance, int count)
     {
         for (int i = 0; i < count; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
     }
 
@@ -50,7 +47,7 @@ public class MapInstanceScriptLifecycleShould
             Health = 100,
             CurrentHealth = 100,
         };
-        var script = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
+        AiScript script = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
         creature.Script = script;   // a creature takes its damage through its script
         instance.AddCreature(creature);
         return (creature, script);
@@ -188,7 +185,7 @@ public class MapInstanceScriptLifecycleShould
         handler.Execute(failing.Connection, CastAt(541, 0f, 10f));   // first, so it throws ahead of the other
         handler.Execute(other.Connection, CastAt(210, 0f, 10f));
         Ticks(instance, 7);
-        List<ulong> seen = watcher.Added().Where(s => IsProjectile(s.Guid)).Select(s => s.Guid).ToList();
+        var seen = watcher.Added().Where(s => IsProjectile(s.Guid)).Select(s => s.Guid).ToList();
         Assert.Equal(2, seen.Count);
 
         Ticks(instance, 180);   // the broken script throws on its tenth update

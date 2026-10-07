@@ -58,8 +58,8 @@ public sealed class QuestCatalog
 
     public static readonly QuestCatalog Empty = new([], [], [], [], _ => null, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
 
-    private static readonly IReadOnlyList<QuestView> NoQuests = [];
-    private static readonly IReadOnlyList<QuestDropView> NoDrops = [];
+    private static readonly IReadOnlyList<QuestView> s_noQuests = [];
+    private static readonly IReadOnlyList<QuestDropView> s_noDrops = [];
 
     private readonly Dictionary<uint, QuestView> _byId;
     private readonly Dictionary<ulong, IReadOnlyList<QuestView>> _byGiver;
@@ -75,9 +75,9 @@ public sealed class QuestCatalog
         ILoggerFactory loggerFactory)
     {
         ILogger<QuestCatalog> logger = loggerFactory.CreateLogger<QuestCatalog>();
-        HashSet<ulong> knownCreatures = creatures.Select(c => c.Id.Value).ToHashSet();
+        var knownCreatures = creatures.Select(c => c.Id.Value).ToHashSet();
         // A creature template with a root node, as DialogueCatalog.GetRoot will find one (#737).
-        HashSet<ulong> dialogueRoots = dialogueNodes.Where(n => n.IsRoot).Select(n => n.CreatureTemplateId.Value).ToHashSet();
+        var dialogueRoots = dialogueNodes.Where(n => n.IsRoot).Select(n => n.CreatureTemplateId.Value).ToHashSet();
         Dictionary<ulong, ItemTemplate> knownItems = [];
         foreach (ItemTemplate item in items)
             knownItems.TryAdd(item.Id.Value, item);
@@ -138,14 +138,14 @@ public sealed class QuestCatalog
 
     /// <summary>The quests this NPC gives, by level requirement then id. No allocation.</summary>
     public IReadOnlyList<QuestView> GivenBy(CreatureTemplateId npc) =>
-        _byGiver.TryGetValue(npc.Value, out IReadOnlyList<QuestView>? list) ? list : NoQuests;
+        _byGiver.TryGetValue(npc.Value, out IReadOnlyList<QuestView>? list) ? list : s_noQuests;
 
     /// <summary>The quests handed in to this NPC, by id. No allocation.</summary>
     public IReadOnlyList<QuestView> EndedBy(CreatureTemplateId npc) =>
-        _byEnder.TryGetValue(npc.Value, out IReadOnlyList<QuestView>? list) ? list : NoQuests;
+        _byEnder.TryGetValue(npc.Value, out IReadOnlyList<QuestView>? list) ? list : s_noQuests;
 
     public IReadOnlyList<QuestDropView> DropsFrom(CreatureTemplateId creature) =>
-        _dropsByCreature.TryGetValue(creature.Value, out IReadOnlyList<QuestDropView>? list) ? list : NoDrops;
+        _dropsByCreature.TryGetValue(creature.Value, out IReadOnlyList<QuestDropView>? list) ? list : s_noDrops;
 
     public bool IsQuestNpc(CreatureTemplateId npc) => _byGiver.ContainsKey(npc.Value) || _byEnder.ContainsKey(npc.Value);
 
@@ -159,7 +159,7 @@ public sealed class QuestCatalog
         List<string> problems = [];
         foreach (QuestView quest in _byId.Values.OrderBy(q => q.Id))
         {
-            List<string> found = DialogueProblem(quest.GiverCreatureId.Value, quest.EnderCreatureId.Value,
+            var found = DialogueProblem(quest.GiverCreatureId.Value, quest.EnderCreatureId.Value,
                 quest.Objectives.Where(o => o.Type == QuestObjectiveType.Talk && o.CreatureTemplateId is not null)
                     .OrderBy(o => o.Id).Select(o => (o.Id, o.CreatureTemplateId!.Value)),
                 creature => dialogue.GetRoot(new CreatureTemplateId(creature)) is not null).ToList();
@@ -209,7 +209,7 @@ public sealed class QuestCatalog
 
         if (quest.Stages.Count == 0)
             return "it has no stages";
-        List<int> sequences = quest.Stages.Select(s => s.Sequence).Order().ToList();
+        var sequences = quest.Stages.Select(s => s.Sequence).Order().ToList();
         if (!sequences.SequenceEqual(Enumerable.Range(0, sequences.Count)))
             return $"stages {string.Join(",", sequences)} do not run 0..n without gaps";
 
@@ -237,8 +237,11 @@ public sealed class QuestCatalog
                 return $"objective {objective.Id} is Scripted but the quest has no script";
             if (objective.Type == QuestObjectiveType.Collect
                 && !collectedBy.TryAdd(objective.ItemTemplateId!.Value, objective.Id))
+            {
                 return $"objective {objective.Id} collects item template {objective.ItemTemplateId.Value}, which objective " +
                        $"{collectedBy[objective.ItemTemplateId.Value]} already collects";
+            }
+
             if (objective.CreatureTemplateId is { } creature && !creatures.Contains(creature.Value))
                 return $"objective {objective.Id} names creature template {creature.Value}, which does not exist";
             if (objective.ItemTemplateId is { } itemId)
@@ -313,7 +316,7 @@ public sealed class QuestCatalog
         bool any = false;
         foreach ((uint id, (QuestTemplate row, _)) in candidates.OrderBy(c => c.Key).ToList())
         {
-            List<ulong> collected = row.Objectives
+            var collected = row.Objectives
                 .Where(o => o.Type == QuestObjectiveType.Collect)
                 .Select(o => o.ItemTemplateId!.Value)
                 .ToList();
@@ -343,7 +346,7 @@ public sealed class QuestCatalog
         {
             HashSet<uint> seen = [];
             uint? next = candidates[id].Row.RequiredQuestId?.Value;
-            while (next is { } step && candidates.TryGetValue(step, out var parent) && seen.Add(step))
+            while (next is { } step && candidates.TryGetValue(step, out (QuestTemplate Row, Type? Script) parent) && seen.Add(step))
             {
                 if (step == id)
                 {

@@ -48,7 +48,7 @@ public class WorldController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get([FromRoute] ushort id, CancellationToken ct)
     {
-        var world = await _service.GetAsync(id, User.AccessLevel(), ct);
+        WorldDto? world = await _service.GetAsync(id, User.AccessLevel(), ct);
         return world is null ? NotFound() : Ok(world);
     }
 
@@ -58,7 +58,7 @@ public class WorldController : BaseController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateWorldRequest request, CancellationToken ct)
     {
-        var world = await _service.CreateAsync(request, ct);
+        WorldDto world = await _service.CreateAsync(request, ct);
         return CreatedAtAction(nameof(Get), new { id = world.Id }, world);
     }
 
@@ -71,7 +71,7 @@ public class WorldController : BaseController
         [FromBody] UpdateWorldRequest request,
         CancellationToken ct)
     {
-        var world = await _service.UpdateAsync(id, request, ct);
+        WorldDto? world = await _service.UpdateAsync(id, request, ct);
         return world is null ? NotFound() : Ok(world);
     }
 
@@ -81,7 +81,7 @@ public class WorldController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetMaintenance([FromRoute] ushort id, CancellationToken ct)
     {
-        var state = await _maintenance.ReadAsync(new WorldId(id), ct);
+        WorldMaintenanceState? state = await _maintenance.ReadAsync(new WorldId(id), ct);
         if (state is null) return NotFound();
         bool ready = await _readiness.IsReadyAsync(id, ct);
         return Ok(WorldMaintenanceDto.From(state, ready));
@@ -98,7 +98,7 @@ public class WorldController : BaseController
     {
         int graceMinutes = request?.GraceMinutes ?? 5;
         if (graceMinutes is < 1 or > 60) return BadRequest();
-        var state = await _control.SetAsync(new WorldId(id), true,
+        WorldMaintenanceState? state = await _control.SetAsync(new WorldId(id), true,
             TimeSpan.FromMinutes(graceMinutes), $"account:{User.AccountId().Value}", ct);
         if (state is null) return NotFound();
         bool ready = await _readiness.IsReadyAsync(id, ct);
@@ -111,7 +111,7 @@ public class WorldController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DisableMaintenance([FromRoute] ushort id, CancellationToken ct)
     {
-        var state = await _control.SetAsync(new WorldId(id), false,
+        WorldMaintenanceState? state = await _control.SetAsync(new WorldId(id), false,
             TimeSpan.FromMinutes(5), $"account:{User.AccountId().Value}", ct);
         if (state is null) return NotFound();
         bool ready = await _readiness.IsReadyAsync(id, ct);

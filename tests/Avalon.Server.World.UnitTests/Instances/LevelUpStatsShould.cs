@@ -2,17 +2,17 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
-using Avalon.World.Handlers;
-using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -27,7 +27,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class LevelUpStatsShould
 {
-    private static readonly ClassLevelStat[] WarriorRows =
+    private static readonly ClassLevelStat[] s_warriorRows =
     [
         new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
         new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 40, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
@@ -37,14 +37,14 @@ public class LevelUpStatsShould
     public async Task Recalculate_at_the_new_level_and_refill_on_a_level_up()
     {
         StaticData data = await TestStaticData.LoadAsync(
-            classStats: WarriorRows,
+            classStats: s_warriorRows,
             levels:
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
                 new CharacterLevelExperience { Level = 2, Experience = 500 },
                 new CharacterLevelExperience { Level = 3, Experience = 900 },   // level 2 is not the maximum (#735)
             ]);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
         world.Data.Returns(data);
@@ -89,7 +89,7 @@ public class LevelUpStatsShould
     {
         List<ClassLevelStat> classStats;
         List<CharacterLevelExperience> levels;
-        using (SqliteDatabase<WorldDbContext> database = SqliteDatabase.World())
+        using (var database = SqliteDatabase.World())
         using (WorldDbContext context = database.CreateDbContext())
         {
             classStats = context.ClassLevelStats.AsNoTracking().ToList();
@@ -97,7 +97,7 @@ public class LevelUpStatsShould
         }
 
         StaticData data = await TestStaticData.LoadAsync(classStats: classStats, levels: levels);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
         world.Data.Returns(data);
@@ -138,7 +138,7 @@ public class LevelUpStatsShould
     public async Task Keep_a_warriors_fury_capped_through_a_level_up_its_cleave_caused(uint maxBefore, uint furyBefore, uint furyAfter)
     {
         StaticData data = await TestStaticData.LoadAsync(
-            classStats: WarriorRows,
+            classStats: s_warriorRows,
             levels:
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
@@ -187,13 +187,13 @@ public class LevelUpStatsShould
     public async Task Level_up_a_dead_killer_without_refilling_its_corpse()
     {
         StaticData data = await TestStaticData.LoadAsync(
-            classStats: WarriorRows,
+            classStats: s_warriorRows,
             levels:
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
                 new CharacterLevelExperience { Level = 2, Experience = 500 },
             ]);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
         world.Data.Returns(data);
@@ -231,13 +231,13 @@ public class LevelUpStatsShould
     public async Task Level_up_and_keep_the_old_maximums_when_the_new_level_has_no_row()
     {
         StaticData data = await TestStaticData.LoadAsync(
-            classStats: [WarriorRows[0]],
+            classStats: [s_warriorRows[0]],
             levels:
             [
                 new CharacterLevelExperience { Level = 1, Experience = 100 },
                 new CharacterLevelExperience { Level = 2, Experience = 500 },
             ]);
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
         world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
         world.Data.Returns(data);

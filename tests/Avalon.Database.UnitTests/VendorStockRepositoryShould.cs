@@ -17,13 +17,16 @@ public class VendorStockRepositoryShould
 {
     private static VendorStock Row(int id, uint sequence, ulong item = 1) => new()
     {
-        Id = id, CreatureTemplateId = new CreatureTemplateId(11), Sequence = sequence, ItemTemplateId = new ItemTemplateId(item),
+        Id = id,
+        CreatureTemplateId = new CreatureTemplateId(11),
+        Sequence = sequence,
+        ItemTemplateId = new ItemTemplateId(item),
     };
 
     [Fact]
     public async Task Load_Every_Row_With_Its_Costs()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
 
         await using (WorldDbContext write = database.CreateDbContext())
         {
@@ -56,7 +59,7 @@ public class VendorStockRepositoryShould
     [Fact]
     public async Task Refuse_A_Limited_Row_With_No_Restock_Timer()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
 
         VendorStock row = Row(900, 1);
@@ -69,7 +72,7 @@ public class VendorStockRepositoryShould
     [Fact]
     public async Task Refuse_A_Restock_Timer_On_An_Unlimited_Row()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
 
         VendorStock row = Row(900, 1);
@@ -82,7 +85,7 @@ public class VendorStockRepositoryShould
     [Fact]
     public async Task Refuse_A_Max_Stock_Of_Zero()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
 
         VendorStock row = Row(900, 1);
@@ -96,7 +99,7 @@ public class VendorStockRepositoryShould
     [Fact]
     public async Task Refuse_A_Quest_Id_Without_A_State()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
 
         VendorStock row = Row(900, 1);
@@ -109,7 +112,7 @@ public class VendorStockRepositoryShould
     [Fact]
     public async Task Refuse_A_Cost_Count_Of_Zero()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
 
         VendorStock row = Row(900, 1, item: 2);
@@ -122,7 +125,7 @@ public class VendorStockRepositoryShould
     [Fact]
     public async Task Refuse_Two_Rows_With_One_Sequence_For_One_Vendor()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
 
         write.VendorStocks.AddRange(Row(900, 1), Row(901, 1, item: 2));

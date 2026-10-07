@@ -1,7 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
-using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
+using ProtoBuf;
 
 namespace Avalon.Network.Packets.Character;
 
@@ -21,7 +21,7 @@ public class CCharacterListPacket : Packet
 
         Serializer.Serialize(memoryStream, p);
 
-        var encrypted = encrypt(memoryStream.ToArray());
+        byte[] encrypted = encrypt(memoryStream.ToArray());
 
         return new NetworkPacket
         {

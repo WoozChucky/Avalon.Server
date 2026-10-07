@@ -1,5 +1,5 @@
-using Avalon.Common.GameAuth;
 using System.Text.Json;
+using Avalon.Common.GameAuth;
 
 namespace Avalon.Infrastructure.GameAuth;
 
@@ -87,7 +87,7 @@ public sealed record AuthAttemptRecord
 
 public static class GameAuthJson
 {
-    private static readonly JsonSerializerOptions Options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, MaxDepth = GameAuthPolicy.MaximumJsonDepth };
-    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);
-    public static T? Deserialize<T>(string? value) where T : class => value is null ? null : JsonSerializer.Deserialize<T>(value, Options);
+    private static readonly JsonSerializerOptions s_options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, MaxDepth = GameAuthPolicy.MaximumJsonDepth };
+    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, s_options);
+    public static T? Deserialize<T>(string? value) where T : class => value is null ? null : JsonSerializer.Deserialize<T>(value, s_options);
 }

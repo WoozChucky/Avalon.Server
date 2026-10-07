@@ -2,9 +2,9 @@ using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Maintenance;
 using NSubstitute;
-using Avalon.Server.World.UnitTests.Loot;
 
 namespace Avalon.Server.World.UnitTests.Maintenance;
 
@@ -21,14 +21,22 @@ public sealed class WorldEntryGateShould
         bool deadlinePassed, bool expected)
     {
         var clock = new FixedTimeProvider(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero));
-        var maintenance = Substitute.For<IWorldMaintenanceRepository>();
-        var accounts = Substitute.For<IAccountRepository>();
+        IWorldMaintenanceRepository maintenance = Substitute.For<IWorldMaintenanceRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(enabled, 1,
                 deadlinePassed ? clock.Now.UtcDateTime : clock.Now.UtcDateTime.AddMinutes(10)));
         accounts.FindByIdAsync(new AccountId(7), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(new Account { Id = new AccountId(7), AccessLevel = access,
-                Username = "TEST", Salt = [], Verifier = [], Email = "a@b.com", JoinDate = DateTime.UtcNow });
+            .Returns(new Account
+            {
+                Id = new AccountId(7),
+                AccessLevel = access,
+                Username = "TEST",
+                Salt = [],
+                Verifier = [],
+                Email = "a@b.com",
+                JoinDate = DateTime.UtcNow
+            });
 
         var gate = new WorldEntryGate(new WorldId(1), maintenance, accounts, clock);
         WorldEntryDecision decision = await gate.CheckAsync(new AccountId(7), CancellationToken.None);
@@ -40,7 +48,7 @@ public sealed class WorldEntryGateShould
     [Fact]
     public async Task Refuse_when_state_is_unreadable()
     {
-        var maintenance = Substitute.For<IWorldMaintenanceRepository>();
+        IWorldMaintenanceRepository maintenance = Substitute.For<IWorldMaintenanceRepository>();
         maintenance.ReadAsync(Arg.Any<WorldId>(), Arg.Any<CancellationToken>())
             .Returns<Task<WorldMaintenanceState?>>(_ => throw new InvalidOperationException("offline"));
         var gate = new WorldEntryGate(new WorldId(1), maintenance, Substitute.For<IAccountRepository>());
@@ -51,13 +59,21 @@ public sealed class WorldEntryGateShould
     public async Task Expire_an_open_decision_after_five_seconds_even_without_a_notification()
     {
         var clock = new FixedTimeProvider(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero));
-        var maintenance = Substitute.For<IWorldMaintenanceRepository>();
-        var accounts = Substitute.For<IAccountRepository>();
+        IWorldMaintenanceRepository maintenance = Substitute.For<IWorldMaintenanceRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(false, 0, null));
         accounts.FindByIdAsync(new AccountId(7), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(new Account { Id = new AccountId(7), AccessLevel = AccountAccessLevel.Player,
-                Username = "TEST", Salt = [], Verifier = [], Email = "a@b.com", JoinDate = clock.Now.UtcDateTime });
+            .Returns(new Account
+            {
+                Id = new AccountId(7),
+                AccessLevel = AccountAccessLevel.Player,
+                Username = "TEST",
+                Salt = [],
+                Verifier = [],
+                Email = "a@b.com",
+                JoinDate = clock.Now.UtcDateTime
+            });
         var gate = new WorldEntryGate(new WorldId(1), maintenance, accounts, clock);
 
         WorldEntryDecision decision = await gate.CheckAsync(new AccountId(7), CancellationToken.None);

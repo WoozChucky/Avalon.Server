@@ -2,7 +2,6 @@ using System.Text.Json;
 using Avalon.ChunkGen;
 using Avalon.Common.Mathematics;
 using Avalon.World.Maps.Navigation;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -51,8 +50,10 @@ public class ForestPiecesShould
                 Assert.InRange(slot.X, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
                 Assert.InRange(slot.Z, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
                 foreach (Blocker blocker in piece.Blockers)
+                {
                     Assert.True(blocker.DistanceTo(slot.X, slot.Z) >= SlotClearance,
                         $"{piece.Name}: {slot} is {blocker.DistanceTo(slot.X, slot.Z):0.00} m from {blocker}");
+                }
             }
         }
     }
@@ -74,7 +75,7 @@ public class ForestPiecesShould
                 };
                 foreach (Blocker blocker in piece.Blockers)
                 {
-                    var b = blocker.Bounds;
+                    (float MinX, float MaxX, float MinZ, float MaxZ) b = blocker.Bounds;
                     bool overlaps = b.MinX < maxX && b.MaxX > minX && b.MinZ < maxZ && b.MaxZ > minZ;
                     Assert.False(overlaps, $"{piece.Name}: {blocker} stands in its {side} exit");
                 }
@@ -137,13 +138,13 @@ public class ForestPiecesShould
     [Fact]
     public void List_the_pieces_in_the_pool_and_group_files()
     {
-        using JsonDocument pools = JsonDocument.Parse(File.ReadAllText(Path.Combine(Maps, "chunk-pools.json")));
-        List<string> forest = pools.RootElement.GetProperty("forest_pool").EnumerateArray().Select(e => e.GetString()!).ToList();
+        using var pools = JsonDocument.Parse(File.ReadAllText(Path.Combine(Maps, "chunk-pools.json")));
+        var forest = pools.RootElement.GetProperty("forest_pool").EnumerateArray().Select(e => e.GetString()!).ToList();
         Assert.All(ForestPieces.Singles(), p => Assert.Contains(p.Name, forest));
         Assert.DoesNotContain(forest, n => ForestPieces.Groups().Any(g => n.StartsWith(g.Name + "_", StringComparison.Ordinal)));
         Assert.DoesNotContain("forest_boss_01", forest);   // owner decision 5
 
-        using JsonDocument groups = JsonDocument.Parse(File.ReadAllText(Path.Combine(Maps, "chunk-groups.json")));
+        using var groups = JsonDocument.Parse(File.ReadAllText(Path.Combine(Maps, "chunk-groups.json")));
         var listed = groups.RootElement.GetProperty("forest_pool").EnumerateArray().ToDictionary(
             g => g.GetProperty("name").GetString()!,
             g => g.GetProperty("members").EnumerateArray()

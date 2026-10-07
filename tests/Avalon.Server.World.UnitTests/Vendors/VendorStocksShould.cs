@@ -8,8 +8,8 @@ namespace Avalon.Server.World.UnitTests.Vendors;
 /// <summary>A town instance's vendor stock: one state per vendor creature, updated on the instance's tick.</summary>
 public class VendorStocksShould
 {
-    private static readonly ObjectGuid SmithGuid = new(ObjectType.Creature, 92);
-    private static readonly ObjectGuid PedlarGuid = new(ObjectType.Creature, 93);
+    private static readonly ObjectGuid s_smithGuid = new(ObjectType.Creature, 92);
+    private static readonly ObjectGuid s_pedlarGuid = new(ObjectType.Creature, 93);
 
     [Fact]
     public void Keep_one_state_per_vendor_creature()
@@ -17,13 +17,13 @@ public class VendorStocksShould
         VendorCatalog catalog = Catalog();
         var stocks = new VendorStocks();
 
-        VendorStockState first = stocks.For(SmithGuid, Smith, catalog.RowsFor(Smith));
-        VendorStockState again = stocks.For(SmithGuid, Smith, catalog.RowsFor(Smith));
-        stocks.For(PedlarGuid, Pedlar, catalog.RowsFor(Pedlar));
+        VendorStockState first = stocks.For(s_smithGuid, Smith, catalog.RowsFor(Smith));
+        VendorStockState again = stocks.For(s_smithGuid, Smith, catalog.RowsFor(Smith));
+        stocks.For(s_pedlarGuid, Pedlar, catalog.RowsFor(Pedlar));
 
         Assert.Same(first, again);
         Assert.Equal(2, stocks.Count);
-        Assert.True(stocks.TryGet(SmithGuid, out VendorStockState? found));
+        Assert.True(stocks.TryGet(s_smithGuid, out VendorStockState? found));
         Assert.Same(first, found);
         Assert.False(stocks.TryGet(new ObjectGuid(ObjectType.Creature, 94), out _));
     }
@@ -33,7 +33,7 @@ public class VendorStocksShould
     {
         VendorCatalog catalog = Catalog();
         var stocks = new VendorStocks();
-        VendorStockState smith = stocks.For(SmithGuid, Smith, catalog.RowsFor(Smith));
+        VendorStockState smith = stocks.For(s_smithGuid, Smith, catalog.RowsFor(Smith));
         VendorStockView blade = smith.Rows.Single(r => r.Sequence == BladeSequence);
         smith.Take(blade, 2, Now);
 
@@ -46,7 +46,7 @@ public class VendorStocksShould
     public void Reconcile_every_vendor_against_the_current_catalog()
     {
         var stocks = new VendorStocks();
-        VendorStockState smith = stocks.For(SmithGuid, Smith, Catalog().RowsFor(Smith));
+        VendorStockState smith = stocks.For(s_smithGuid, Smith, Catalog().RowsFor(Smith));
         smith.ClearChanged();
 
         List<VendorStock> rows = Rows();
@@ -63,7 +63,7 @@ public class VendorStocksShould
     {
         VendorCatalog catalog = Catalog();
         var stocks = new VendorStocks();
-        VendorStockState smith = stocks.For(SmithGuid, Smith, catalog.RowsFor(Smith));
+        VendorStockState smith = stocks.For(s_smithGuid, Smith, catalog.RowsFor(Smith));
         smith.Take(smith.Rows.Single(r => r.Sequence == BladeSequence), 1, Now);
 
         stocks.ClearChanged();
@@ -78,8 +78,8 @@ public class VendorStocksShould
         VendorCatalog catalog = Catalog();
         IReadOnlyCollection<ItemTemplate> items = Items;   // one snapshot, as StaticData holds it between reloads
         var stocks = new VendorStocks();
-        VendorStockState smith = stocks.For(SmithGuid, Smith, catalog.RowsFor(Smith));
-        stocks.For(PedlarGuid, Pedlar, catalog.RowsFor(Pedlar));
+        VendorStockState smith = stocks.For(s_smithGuid, Smith, catalog.RowsFor(Smith));
+        stocks.For(s_pedlarGuid, Pedlar, catalog.RowsFor(Pedlar));
         smith.Take(smith.Rows.Single(r => r.Sequence == BladeSequence), 1, Now);   // a timer is running, not due
         stocks.Update(Now, catalog, items);
         stocks.ClearChanged();

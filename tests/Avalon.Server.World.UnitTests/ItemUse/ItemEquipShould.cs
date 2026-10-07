@@ -8,7 +8,6 @@ using Avalon.World.Items;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Inventory.EquipTemplates;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -103,8 +102,13 @@ public class ItemEquipShould
     {
         var heavy = new ItemTemplate
         {
-            Id = new ItemTemplateId(650), Name = "Heavy Maul", Class = ItemClass.Weapon, SubClass = ItemSubClass.TwoHanded,
-            MaxStackSize = 1, Slot = ItemSlotType.MainHand, RequiredLevel = 9,
+            Id = new ItemTemplateId(650),
+            Name = "Heavy Maul",
+            Class = ItemClass.Weapon,
+            SubClass = ItemSubClass.TwoHanded,
+            MaxStackSize = 1,
+            Slot = ItemSlotType.MainHand,
+            RequiredLevel = 9,
         };
         Bag(Item(0, heavy));
         Worn(Item(EquipmentSlots.OffHand, Buckler));

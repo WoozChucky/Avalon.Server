@@ -7,6 +7,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Instances;
+using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -24,7 +25,7 @@ namespace Avalon.Server.World.UnitTests.Combat;
 /// </summary>
 public class CastHasteShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private const uint CleaveId = 200;
     private const uint BurstId = 201;
@@ -68,8 +69,8 @@ public class CastHasteShould
 
     private static void TickFor(MapInstance instance, double seconds)
     {
-        for (int i = 0; i < (int)Math.Ceiling(seconds / Tick.TotalSeconds); i++)
-            instance.Update(Tick);
+        for (int i = 0; i < (int)Math.Ceiling(seconds / s_tick.TotalSeconds); i++)
+            instance.Update(s_tick);
     }
 
     [Fact]
@@ -187,7 +188,7 @@ public class CastHasteShould
     public void Count_a_cooldown_down_while_the_cast_timer_holds_a_hasted_time()
     {
         var container = new Avalon.World.Abilities.CharacterAbilityContainer(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
-        var burst = AbilityTestData.Game(Burst());
+        GameAbility burst = AbilityTestData.Game(Burst());
         burst.CastTimeTimer = 1f / 1.25f;   // what a hasted cast sets
         burst.CooldownTimer = 2f;
         container.Load([burst]);

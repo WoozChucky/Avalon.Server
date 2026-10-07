@@ -21,12 +21,12 @@ public class AvalonAuthenticationHandlerShould
     private readonly IPersonalAccessTokenService _pats = Substitute.For<IPersonalAccessTokenService>();
     private readonly IAccountService _accounts = Substitute.For<IAccountService>();
 
-    private static readonly AvalonAuthenticationSchemeOptions Options = new();
+    private static readonly AvalonAuthenticationSchemeOptions s_options = new();
 
     private async Task<AuthenticateResult> Authenticate(string? header)
     {
-        var monitor = Substitute.For<IOptionsMonitor<AvalonAuthenticationSchemeOptions>>();
-        monitor.Get(Arg.Any<string>()).Returns(Options);
+        IOptionsMonitor<AvalonAuthenticationSchemeOptions> monitor = Substitute.For<IOptionsMonitor<AvalonAuthenticationSchemeOptions>>();
+        monitor.Get(Arg.Any<string>()).Returns(s_options);
 
         var handler = new AvalonAuthenticationHandler(monitor, NullLoggerFactory.Instance, UrlEncoder.Default, _pats, _accounts);
         var context = new DefaultHttpContext();
@@ -39,32 +39,38 @@ public class AvalonAuthenticationHandlerShould
 
     private static Account MakeAccount(AccountAccessLevel roles = AccountAccessLevel.Player, AccountStatus status = AccountStatus.Active) => new()
     {
-        Id = new AccountId(7), Username = "u", Email = "u@t",
-        Salt = new byte[] {1}, Verifier = new byte[] {2},
-        JoinDate = DateTime.UtcNow, AccessLevel = roles, Status = status,
+        Id = new AccountId(7),
+        Username = "u",
+        Email = "u@t",
+        Salt = new byte[] { 1 },
+        Verifier = new byte[] { 2 },
+        JoinDate = DateTime.UtcNow,
+        AccessLevel = roles,
+        Status = status,
     };
 
     private static PersonalAccessToken MakePat(string token, AccountAccessLevel roles = AccountAccessLevel.Player,
         DateTime? expiresAt = null, DateTime? revokedAt = null) => new()
-    {
-        Id = new PersonalAccessTokenId(5),
-        AccountId = new AccountId(7),
-        TokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token)),
-        Name = "ci",
-        TokenPrefix = token[..8],
-        Roles = roles,
-        CreatedAt = DateTime.UtcNow,
-        ExpiresAt = expiresAt ?? DateTime.UtcNow.AddDays(1),
-        RevokedAt = revokedAt,
-    };
+        {
+            Id = new PersonalAccessTokenId(5),
+            AccountId = new AccountId(7),
+            TokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token)),
+            Name = "ci",
+            TokenPrefix = token[..8],
+            Roles = roles,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = expiresAt ?? DateTime.UtcNow.AddDays(1),
+            RevokedAt = revokedAt,
+        };
 
-    [Fact] public async Task NoResult_WhenHeaderMissing() =>
+    [Fact]
+    public async Task NoResult_WhenHeaderMissing() =>
         Assert.False((await Authenticate(null)).Succeeded);
 
     [Fact]
     public async Task NoResult_WhenSchemePrefixIsBearer()
     {
-        var result = await Authenticate("Bearer xyz");
+        AuthenticateResult result = await Authenticate("Bearer xyz");
         Assert.False(result.Succeeded);
         Assert.Null(result.Failure);
     }
@@ -72,72 +78,72 @@ public class AvalonAuthenticationHandlerShould
     [Fact]
     public async Task Fail_WhenTokenPrefixWrong()
     {
-        var result = await Authenticate("Avalon not-a-pat");
+        AuthenticateResult result = await Authenticate("Avalon not-a-pat");
         Assert.NotNull(result.Failure);
     }
 
     [Fact]
     public async Task Fail_WhenTokenLengthWrong()
     {
-        var result = await Authenticate("Avalon avp_short");
+        AuthenticateResult result = await Authenticate("Avalon avp_short");
         Assert.NotNull(result.Failure);
     }
 
     [Fact]
     public async Task Fail_WhenTokenUnknown()
     {
-        var valid = "avp_" + new string('A', 43);
+        string valid = "avp_" + new string('A', 43);
         _pats.FindByRawTokenAsync(valid, Arg.Any<CancellationToken>()).Returns((PersonalAccessToken?)null);
 
-        var result = await Authenticate("Avalon " + valid);
+        AuthenticateResult result = await Authenticate("Avalon " + valid);
         Assert.NotNull(result.Failure);
     }
 
     [Fact]
     public async Task Fail_WhenTokenRevoked()
     {
-        var token = "avp_" + new string('A', 43);
+        string token = "avp_" + new string('A', 43);
         _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>())
              .Returns(MakePat(token, revokedAt: DateTime.UtcNow.AddMinutes(-1)));
         _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(MakeAccount());
 
-        var result = await Authenticate("Avalon " + token);
+        AuthenticateResult result = await Authenticate("Avalon " + token);
         Assert.NotNull(result.Failure);
     }
 
     [Fact]
     public async Task Fail_WhenTokenExpired()
     {
-        var token = "avp_" + new string('A', 43);
+        string token = "avp_" + new string('A', 43);
         _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>())
              .Returns(MakePat(token, expiresAt: DateTime.UtcNow.AddMinutes(-1)));
 
-        var result = await Authenticate("Avalon " + token);
+        AuthenticateResult result = await Authenticate("Avalon " + token);
         Assert.NotNull(result.Failure);
     }
 
     [Fact]
     public async Task Fail_WhenAccountInactive()
     {
-        var token = "avp_" + new string('A', 43);
+        string token = "avp_" + new string('A', 43);
         _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>()).Returns(MakePat(token));
         _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
                  .Returns(MakeAccount(status: AccountStatus.Banned));
 
-        var result = await Authenticate("Avalon " + token);
+        AuthenticateResult result = await Authenticate("Avalon " + token);
         Assert.NotNull(result.Failure);
     }
 
     [Fact]
     public async Task Success_WithPatIdClaimAndTokenRoles()
     {
-        var token = "avp_" + new string('A', 43);
+        string token = "avp_" + new string('A', 43);
         _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>()).Returns(MakePat(token, AccountAccessLevel.Player));
         // The account must still hold Player: claims are the token's roles masked by the account's current ones.
         _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
                  .Returns(MakeAccount(AccountAccessLevel.Player | AccountAccessLevel.Admin));
 
-        var result = await Authenticate("Avalon " + token);
+        AuthenticateResult result = await Authenticate("Avalon " + token);
 
         Assert.True(result.Succeeded);
         Assert.Contains(result.Principal!.Claims, c => c.Type == "pat_id" && c.Value == "5");
@@ -151,16 +157,16 @@ public class AvalonAuthenticationHandlerShould
     [Fact]
     public async Task NotGrantAdmin_WhenAccountWasDemotedAfterMinting()
     {
-        var token = "avp_" + new string('A', 43);
+        string token = "avp_" + new string('A', 43);
         _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>())
              .Returns(MakePat(token, AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
         _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
                  .Returns(MakeAccount(AccountAccessLevel.Player));
 
-        var result = await Authenticate("Avalon " + token);
+        AuthenticateResult result = await Authenticate("Avalon " + token);
 
         Assert.True(result.Succeeded);
-        var roles = result.Principal!.Claims.Where(c => c.Type == ClaimTypes.GroupSid).Select(c => c.Value).ToArray();
+        string[] roles = result.Principal!.Claims.Where(c => c.Type == ClaimTypes.GroupSid).Select(c => c.Value).ToArray();
         Assert.DoesNotContain("Admin", roles);
         Assert.DoesNotContain("GameMaster", roles);
         Assert.Equal(new[] { "Player" }, roles);
@@ -171,15 +177,15 @@ public class AvalonAuthenticationHandlerShould
     [Fact]
     public async Task KeepNarrowerTokenScope_WhenAccountHoldsMore()
     {
-        var token = "avp_" + new string('A', 43);
+        string token = "avp_" + new string('A', 43);
         _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>()).Returns(MakePat(token, AccountAccessLevel.Player));
         _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
                  .Returns(MakeAccount(AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
 
-        var result = await Authenticate("Avalon " + token);
+        AuthenticateResult result = await Authenticate("Avalon " + token);
 
         Assert.True(result.Succeeded);
-        var roles = result.Principal!.Claims.Where(c => c.Type == ClaimTypes.GroupSid).Select(c => c.Value).ToArray();
+        string[] roles = result.Principal!.Claims.Where(c => c.Type == ClaimTypes.GroupSid).Select(c => c.Value).ToArray();
         Assert.Equal(new[] { "Player" }, roles);
     }
 }

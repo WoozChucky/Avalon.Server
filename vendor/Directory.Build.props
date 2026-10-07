@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Vendored code (the git submodules under vendor/) is not ours: it builds as its upstream intends and nothing here
+    restyles or reports it. This file ends MSBuild's search for Directory.Build.props, so the repository's code
+    standard (../Directory.Build.props) does not reach it; warning level 0 keeps its compiler warnings out of the
+    build output; and vendor.globalconfig marks every vendored source generated, so analyzers and dotnet format
+    leave it alone.
+  -->
+  <PropertyGroup>
+    <WarningLevel>0</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)vendor.globalconfig" />
+  </ItemGroup>
+</Project>

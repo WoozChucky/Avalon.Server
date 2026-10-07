@@ -31,7 +31,8 @@ public class BankFlowShould : IAsyncLifetime
         new DialogueChooseHandler(NullLogger<DialogueChooseHandler>.Instance, _w.World).Execute(_w.Connection,
             new CDialogueChoosePacket
             {
-                TargetGuid = BankerWorld.BankerGuid.RawValue, NodeId = BankerWorld.BankerRoot,
+                TargetGuid = BankerWorld.BankerGuid.RawValue,
+                NodeId = BankerWorld.BankerRoot,
                 OptionId = BankerWorld.OpenBankOption,
             });
     }
@@ -40,7 +41,11 @@ public class BankFlowShould : IAsyncLifetime
         new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, _w.World, new CharacterEconomy(_w.World, new ItemIdAllocator()))
             .Execute(_w.Connection, new CItemMovePacket
             {
-                RequestId = request, FromContainer = (uint)from, FromSlot = fromSlot, ToContainer = (uint)to, ToSlot = toSlot,
+                RequestId = request,
+                FromContainer = (uint)from,
+                FromSlot = fromSlot,
+                ToContainer = (uint)to,
+                ToSlot = toSlot,
             });
 
     private ItemRequestResult LastResult() =>
@@ -100,7 +105,8 @@ public class BankFlowShould : IAsyncLifetime
         new DialogueChooseHandler(NullLogger<DialogueChooseHandler>.Instance, _w.World).Execute(_w.Connection,
             new CDialogueChoosePacket
             {
-                TargetGuid = BankerWorld.BankerGuid.RawValue, NodeId = BankerWorld.BankerRoot,
+                TargetGuid = BankerWorld.BankerGuid.RawValue,
+                NodeId = BankerWorld.BankerRoot,
                 OptionId = BankerWorld.FarewellOption,
             });
 

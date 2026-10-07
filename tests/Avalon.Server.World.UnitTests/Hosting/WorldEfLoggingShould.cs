@@ -5,7 +5,6 @@ using Avalon.World;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Hosting;
 

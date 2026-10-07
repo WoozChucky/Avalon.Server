@@ -1,6 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
-using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
+using ProtoBuf;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -28,8 +28,13 @@ public class SCharacterDamagePacket : Packet
         => PacketSerializationHelper.Serialize(
             new SCharacterDamagePacket
             {
-                Attacker = attacker, Target = target, CurrentHealth = currentHealth, Damage = damage, AbilityId = abilityId,
-                Result = result, AuraId = auraId,
+                Attacker = attacker,
+                Target = target,
+                CurrentHealth = currentHealth,
+                Damage = damage,
+                AbilityId = abilityId,
+                Result = result,
+                AuraId = auraId,
             },
             PacketType, Flags, Protocol, encryptFunc);
 }

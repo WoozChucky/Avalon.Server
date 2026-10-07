@@ -2,11 +2,11 @@ using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Hosting.Telemetry;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
-using Avalon.Hosting.Telemetry;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Telemetry;
 using Microsoft.Extensions.Options;
@@ -66,7 +66,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             return;
         }
 
-        var account = attempt.Account!;
+        Account account = attempt.Account!;
 
         // Both slots stay taken until the login is recorded, or an MFA hash is issued: a right
         // password refused below keeps its slots exactly as a wrong one does (#484 review).
@@ -82,19 +82,19 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             return;
         }
 
-        var mfa = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, token);
+        MFASetup? mfa = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, token);
         if (mfa is { Status: MfaSetupStatus.Confirmed })
         {
             // Only its own slots back, and no reset: the login is not complete until the code is
             // accepted, and each password login makes a fresh hash with fresh code attempts.
             await _policy.GiveBackAsync(attempt);
-            var mfaHash = await _mfaHashService.GenerateHashAsync(account);
+            string mfaHash = await _mfaHashService.GenerateHashAsync(account);
             ctx.Connection.Send(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED, ctx.Connection.CryptoSession.Encrypt));
             Record(ctx, LoginTelemetry.Tag(AuthResult.MFA_REQUIRED), account.Id);
             return;
         }
 
-        var lastIp = attempt.Source.Ip;
+        string lastIp = attempt.Source.Ip;
         AuthResult? startRefusal = await GameLoginCompletion.TryStartAsync(ctx.Connection, account, lastIp,
             FailureResult(attempt), _accountRepository, _cache, _logger, token);
         if (startRefusal is { } result)

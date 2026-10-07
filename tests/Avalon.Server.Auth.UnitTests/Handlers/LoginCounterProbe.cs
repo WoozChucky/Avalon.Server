@@ -9,14 +9,14 @@ namespace Avalon.Server.Auth.UnitTests.Handlers;
 /// </summary>
 internal sealed class LoginCounterProbe : IDisposable
 {
-    private static readonly AsyncLocal<LoginCounterProbe?> Current = new();
+    private static readonly AsyncLocal<LoginCounterProbe?> s_current = new();
     private readonly MeterListener _listener = new();
 
     public List<string> Results { get; } = [];
 
     public LoginCounterProbe()
     {
-        Current.Value = this;
+        s_current.Value = this;
         _listener.InstrumentPublished = (instrument, l) =>
         {
             if (instrument.Meter == DiagnosticsConfig.Auth.Meter && instrument.Name == "avalon.auth.logins")
@@ -24,7 +24,7 @@ internal sealed class LoginCounterProbe : IDisposable
         };
         _listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
         {
-            if (Current.Value != this) return;
+            if (s_current.Value != this) return;
             foreach (KeyValuePair<string, object?> tag in tags)
                 if (tag.Key == "result") Results.Add((string)tag.Value!);
         });

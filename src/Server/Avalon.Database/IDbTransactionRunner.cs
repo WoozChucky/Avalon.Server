@@ -1,7 +1,5 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database;
 
@@ -35,9 +33,9 @@ public sealed class DbTransactionRunner<TContext>(IDbContextFactory<TContext> co
     public async Task<TResult> ExecuteAsync<TResult>(Func<TContext, CancellationToken, Task<TResult>> work,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using TContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // An uncommitted transaction rolls back when it is disposed, so the throw path needs no catch.
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
         TResult result = await work(context, cancellationToken);
 

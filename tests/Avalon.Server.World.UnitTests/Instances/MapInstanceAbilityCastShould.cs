@@ -1,4 +1,3 @@
-using System.IO;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -9,24 +8,17 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
-using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
-using Avalon.World.Public.Combat;
-using Avalon.World.Scripts;
-using Avalon.World.Scripts.Abilities;
-using Microsoft.Extensions.Logging.Abstractions;
-using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
-using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using NSubstitute;
 using ProtoBuf;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -37,14 +29,14 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class MapInstanceAbilityCastShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     /// <summary>Seven 60 Hz ticks: past the 0.1 s state broadcast interval.</summary>
     private static void TickUntilBroadcast(MapInstance instance)
     {
         for (int i = 0; i < 7; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
     }
 
@@ -86,7 +78,7 @@ public class MapInstanceAbilityCastShould
 
     private static IAbility HealAbility()
     {
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(232));
         ability.Metadata.Returns(new AbilityMetadata { Name = "Heal", ScriptName = "x" });
         return ability;
@@ -94,7 +86,7 @@ public class MapInstanceAbilityCastShould
 
     private static IAbility DamageAbility(uint id)
     {
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(id));
         ability.Metadata.Returns(new AbilityMetadata { Name = "Strike", ScriptName = "x" });
         return ability;
@@ -128,7 +120,7 @@ public class MapInstanceAbilityCastShould
         MapInstanceClient victim = Join(instance, 164_121);
         victim.Character.Health = 100;
         victim.Character.CurrentHealth = 100;
-        var attacker = Substitute.For<ICreature>();
+        ICreature attacker = Substitute.For<ICreature>();
         attacker.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_900u));
 
         instance.CombatService.ApplyDamage(attacker, victim.Character, 10, DamageAbility(id: 211));
@@ -146,7 +138,7 @@ public class MapInstanceAbilityCastShould
         MapInstanceClient victim = Join(instance, 164_131);
         victim.Character.Health = 100;
         victim.Character.CurrentHealth = 100;
-        var attacker = Substitute.For<ICreature>();
+        ICreature attacker = Substitute.For<ICreature>();
         attacker.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_901u));
 
         instance.CombatService.ApplyDamage(attacker, victim.Character, 10);
@@ -163,7 +155,7 @@ public class MapInstanceAbilityCastShould
         using MapInstance instance = TestMapInstances.Build(NewWorld());
         MapInstanceClient caster = Join(instance, 164_101);
         MapInstanceClient watcher = Join(instance, 164_102);
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(211));
         ability.Metadata.Returns(new AbilityMetadata { Name = "Flame Burst", ScriptName = "x", CastTime = 0.75f });
         ability.CastTimeTimer.Returns(0.6f);   // #627: the time the cast system set, haste included
@@ -235,7 +227,7 @@ public class MapInstanceAbilityCastShould
             new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
         for (int i = 0; i < 30; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
@@ -262,7 +254,7 @@ public class MapInstanceAbilityCastShould
             Health = 100,
             CurrentHealth = 100,
         };
-        var ai = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
+        AiScript ai = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
         creature.Script = ai;   // a creature takes its damage through its script
         instance.AddCreature(creature);
         caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f))]);
@@ -271,7 +263,7 @@ public class MapInstanceAbilityCastShould
             new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
         for (int i = 0; i < 30; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         List<(string Kind, ObjectState? State)> seen = [];
@@ -346,7 +338,7 @@ public class MapInstanceAbilityCastShould
         wizard.Character.Orientation = new Vector3(0f, 180f, 0f);   // turned round: facing -Z, towards the other
         for (int i = 0; i < 12; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.Empty(wizard.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
@@ -433,7 +425,7 @@ public class MapInstanceAbilityCastShould
             new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 20f } });
         for (int i = 0; i < 90; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.Empty(hunter.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
@@ -492,16 +484,16 @@ public class MapInstanceAbilityCastShould
             new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
         for (int i = 0; i < 3; i++)
         {
-            instance.Update(Tick);   // the projectile hits and finishes, three ticks short of the next broadcast
+            instance.Update(s_tick);   // the projectile hits and finishes, three ticks short of the next broadcast
         }
 
         Assert.Equal(40u, creature.CurrentHealth);
         instance.RemoveCharacter(caster.Connection);
-        instance.Update(Tick);   // nobody is here
+        instance.Update(s_tick);   // nobody is here
         MapInstanceClient next = Join(instance, 164_242);
         for (int i = 0; i < 30; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.DoesNotContain(next.Added(), s => new ObjectGuid(s.Guid).Type == ObjectType.SpellProjectile);

@@ -8,14 +8,11 @@ using Avalon.World.Abilities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
-using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abilities;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.World;
 
@@ -27,8 +24,8 @@ namespace Avalon.Server.World.UnitTests.World;
 [Collection(nameof(RecordingAbilityScript))]
 public class InstanceAbilityCastSystemContainmentShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
-    private static readonly AbilityAim Aim = new(new Vector3(0f, 0f, 1f), new Vector3(0f, 0f, 10f));
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly AbilityAim s_aim = new(new Vector3(0f, 0f, 1f), new Vector3(0f, 0f, 10f));
 
     private readonly IScriptManager _scripts = Substitute.For<IScriptManager>();
     private readonly RecordingLoggerFactory _logs = new();
@@ -61,7 +58,7 @@ public class InstanceAbilityCastSystemContainmentShould
 
     private static ICharacter Caster(uint id)
     {
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, id));
         character.PowerType.Returns(PowerType.Mana);
         character.CurrentPower.Returns(100u);
@@ -88,13 +85,13 @@ public class InstanceAbilityCastSystemContainmentShould
         ICharacter caster = Caster(541_001);
         GameAbility ability = Ability(541_011, nameof(PrepareThrowingAbilityScript));
 
-        _sut.RunInstant(caster, Aim, ability);
+        _sut.RunInstant(caster, s_aim, ability);
 
         AssertLoggedError(541_011, caster);
         Assert.Single(_arena.InterruptsOf(caster), ability);
 
         // Nothing is left behind: the next cast fires.
-        Assert.True(_sut.RunInstant(caster, Aim, Ability(541_012, nameof(RecordingAbilityScript))));
+        Assert.True(_sut.RunInstant(caster, s_aim, Ability(541_012, nameof(RecordingAbilityScript))));
         Assert.Single(RecordingAbilityScript.Prepared);
     }
 
@@ -105,10 +102,10 @@ public class InstanceAbilityCastSystemContainmentShould
         ICharacter other = Caster(541_003);
         GameAbility broken = Ability(541_013, nameof(PrepareThrowingAbilityScript), castTime: 0.01f);
         GameAbility fine = Ability(541_014, nameof(RecordingAbilityScript), castTime: 0.01f);
-        Assert.True(_sut.QueueAbility(failing, Aim, broken));
-        Assert.True(_sut.QueueAbility(other, Aim, fine));
+        Assert.True(_sut.QueueAbility(failing, s_aim, broken));
+        Assert.True(_sut.QueueAbility(other, s_aim, fine));
 
-        _sut.Update(Tick, []);
+        _sut.Update(s_tick, []);
 
         AssertLoggedError(541_013, failing);
         Assert.Single(_arena.InterruptsOf(failing), broken);
@@ -127,23 +124,23 @@ public class InstanceAbilityCastSystemContainmentShould
         ICharacter other = _arena.Player(541_005, 0f, 0f);
         _arena.Creature(0f, 5f);
         GameAbility broken = Ability(541_015, nameof(UpdateThrowingAbilityScript));
-        Assert.True(_sut.RunInstant(failing, Aim, broken));   // first in the list, so it throws ahead of the other
-        Assert.True(_sut.RunInstant(other, Aim, Projectile(541_016)));
+        Assert.True(_sut.RunInstant(failing, s_aim, broken));   // first in the list, so it throws ahead of the other
+        Assert.True(_sut.RunInstant(other, s_aim, Projectile(541_016)));
 
         List<IWorldObject> objects = [];
         for (int i = 0; i < UpdateThrowingAbilityScript.ThrowOnUpdate - 1; i++)
         {
             objects.Clear();
-            _sut.Update(Tick, objects);
+            _sut.Update(s_tick, objects);
         }
 
         Assert.Equal(2, objects.Count);
-        var thrower = Assert.Single(objects.OfType<UpdateThrowingAbilityScript>());
-        var projectile = Assert.Single(objects.OfType<ProjectileAbilityScript>());
+        UpdateThrowingAbilityScript thrower = Assert.Single(objects.OfType<UpdateThrowingAbilityScript>());
+        ProjectileAbilityScript projectile = Assert.Single(objects.OfType<ProjectileAbilityScript>());
         Vector3 before = projectile.Position;
 
         objects.Clear();
-        _sut.Update(Tick, objects);   // the thrower's tenth Update throws
+        _sut.Update(s_tick, objects);   // the thrower's tenth Update throws
 
         Assert.Equal(UpdateThrowingAbilityScript.ThrowOnUpdate, thrower.Updates);
         AssertLoggedError(541_015, failing);
@@ -155,7 +152,7 @@ public class InstanceAbilityCastSystemContainmentShould
         // It is never ticked again, and the projectile still lands.
         for (int i = 0; i < 90; i++)
         {
-            _sut.Update(Tick, []);
+            _sut.Update(s_tick, []);
         }
 
         Assert.Equal(UpdateThrowingAbilityScript.ThrowOnUpdate, thrower.Updates);
@@ -179,13 +176,13 @@ public class InstanceAbilityCastSystemContainmentShould
         ICharacter flyer = _arena.Player(541_010, 0f, 0f);
         GameAbility dropped = Ability(541_019, nameof(RecordingAbilityScript), castTime: 0.01f);
         GameAbility fine = Ability(541_020, nameof(RecordingAbilityScript), castTime: 0.01f);
-        Assert.True(_sut.QueueAbility(dead, Aim, dropped));
-        Assert.True(_sut.QueueAbility(other, Aim, fine));
-        Assert.True(_sut.RunInstant(flyer, Aim, Projectile(541_021)));
+        Assert.True(_sut.QueueAbility(dead, s_aim, dropped));
+        Assert.True(_sut.QueueAbility(other, s_aim, fine));
+        Assert.True(_sut.RunInstant(flyer, s_aim, Projectile(541_021)));
         dead.IsDead.Returns(true);
 
         List<IWorldObject> objects = [];
-        _sut.Update(Tick, objects);
+        _sut.Update(s_tick, objects);
 
         Assert.Single(_arena.InterruptsOf(dead), dropped);
         Assert.False(dropped.Casting);
@@ -193,7 +190,7 @@ public class InstanceAbilityCastSystemContainmentShould
         Assert.Same(other, who);
         Assert.Single(objects);   // the projectile still ticked
 
-        _sut.Update(Tick, []);   // the cast is gone: nothing throws, nothing is sent again
+        _sut.Update(s_tick, []);   // the cast is gone: nothing throws, nothing is sent again
 
         Assert.Single(_arena.InterruptsOf(dead));
         Assert.Contains(_logs.Entries, e => e.Level == LogLevel.Error && e.Exception is InvalidOperationException);
@@ -207,10 +204,10 @@ public class InstanceAbilityCastSystemContainmentShould
         ICharacter leaving = _arena.Player(541_006, 0f, 0f);
         ICharacter staying = _arena.Player(541_007, 0f, 0f);
         _arena.Creature(0f, 5f);
-        Assert.True(_sut.RunInstant(leaving, Aim, Projectile(541_017)));
-        Assert.True(_sut.RunInstant(staying, Aim, Projectile(541_018)));
+        Assert.True(_sut.RunInstant(leaving, s_aim, Projectile(541_017)));
+        Assert.True(_sut.RunInstant(staying, s_aim, Projectile(541_018)));
         List<IWorldObject> objects = [];
-        _sut.Update(Tick, objects);
+        _sut.Update(s_tick, objects);
         Assert.Equal(2, objects.Count);
 
         _sut.CancelScriptsOf(leaving);
@@ -218,7 +215,7 @@ public class InstanceAbilityCastSystemContainmentShould
         for (int i = 0; i < 90; i++)
         {
             objects.Clear();
-            _sut.Update(Tick, objects);
+            _sut.Update(s_tick, objects);
             Assert.True(objects.Count <= 1);
         }
 

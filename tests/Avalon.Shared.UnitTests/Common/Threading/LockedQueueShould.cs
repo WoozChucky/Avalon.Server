@@ -32,9 +32,9 @@ public class LockedQueueShould
         queue.Add(second);
         queue.Add(third);
 
-        Assert.True(queue.Next(out var r1));
-        Assert.True(queue.Next(out var r2));
-        Assert.True(queue.Next(out var r3));
+        Assert.True(queue.Next(out Item? r1));
+        Assert.True(queue.Next(out Item? r2));
+        Assert.True(queue.Next(out Item? r3));
 
         Assert.Same(first, r1);
         Assert.Same(second, r2);
@@ -46,7 +46,7 @@ public class LockedQueueShould
     {
         var queue = new LockedQueue<Item>();
 
-        var result = queue.Next(out var item);
+        bool result = queue.Next(out Item? item);
 
         Assert.False(result);
         Assert.Null(item);
@@ -59,7 +59,7 @@ public class LockedQueueShould
         var item = new Item("ready");
         queue.Add(item);
 
-        var result = queue.Next(out var dequeued, _ => true);
+        bool result = queue.Next(out Item? dequeued, _ => true);
 
         Assert.True(result);
         Assert.Same(item, dequeued);
@@ -73,7 +73,7 @@ public class LockedQueueShould
         var item = new Item("not-ready");
         queue.Add(item);
 
-        var result = queue.Next(out var dequeued, _ => false);
+        bool result = queue.Next(out Item? dequeued, _ => false);
 
         Assert.False(result);
         Assert.Null(dequeued);
@@ -87,7 +87,7 @@ public class LockedQueueShould
         var item = new Item("peek-me");
         queue.Add(item);
 
-        var peeked = queue.Peek();
+        Item peeked = queue.Peek();
 
         Assert.Same(item, peeked);
         Assert.False(queue.IsEmpty());
@@ -102,7 +102,7 @@ public class LockedQueueShould
 
         queue.PopFront();
 
-        Assert.True(queue.Next(out var remaining));
+        Assert.True(queue.Next(out Item? remaining));
         Assert.Equal("b", remaining!.Label);
     }
 
@@ -111,7 +111,7 @@ public class LockedQueueShould
     {
         var queue = new LockedQueue<Item>();
 
-        var exception = Record.Exception(() => queue.PopFront());
+        Exception exception = Record.Exception(() => queue.PopFront());
 
         Assert.Null(exception);
     }
@@ -142,7 +142,7 @@ public class LockedQueueShould
     {
         var queue = new LockedQueue<Item>();
 
-        var result = queue.Next(out var item, _ => true);
+        bool result = queue.Next(out Item? item, _ => true);
 
         Assert.False(result);
         Assert.Null(item);

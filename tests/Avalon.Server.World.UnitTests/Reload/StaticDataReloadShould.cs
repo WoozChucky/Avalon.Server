@@ -4,11 +4,13 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
+using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Localization;
 using Avalon.World.Reload;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Reload;
 
@@ -122,7 +124,7 @@ public class StaticDataReloadShould
         bad.BaseAttackTime = seconds;
         repos.Templates = [Template(1), bad];
 
-        var refused = await Assert.ThrowsAsync<InvalidDataException>(() => data.PrepareAsync(ReloadArea.Creatures));
+        InvalidDataException refused = await Assert.ThrowsAsync<InvalidDataException>(() => data.PrepareAsync(ReloadArea.Creatures));
 
         Assert.StartsWith("CreatureTemplate 2", refused.Message, StringComparison.Ordinal);
         Assert.Contains("BaseAttackTime", refused.Message, StringComparison.Ordinal);
@@ -146,11 +148,11 @@ public class StaticDataReloadShould
     [Fact]
     public void Be_refused_by_the_database_below_half_a_second()
     {
-        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
         context.CreatureTemplates.First().BaseAttackTime = 0.4f;
 
-        var refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
+        DbUpdateException refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
         Assert.Contains("CHECK constraint failed", refused.InnerException!.Message, StringComparison.Ordinal);
     }
 
@@ -189,8 +191,8 @@ public class StaticDataReloadShould
     public async Task Make_Reloaded_Dialogue_Visible_Through_Its_Properties()
     {
         (StaticData data, _) = await LoadedData(creatureCount: 1);
-        var textsBefore = data.LocalizedTexts;
-        var dialogueBefore = data.Dialogue;
+        ILocalizedTextCatalog textsBefore = data.LocalizedTexts;
+        IDialogueCatalog dialogueBefore = data.Dialogue;
 
         data.Apply(await data.PrepareAsync(ReloadArea.Dialogue));
 
@@ -351,7 +353,7 @@ public class StaticDataReloadShould
     {
         var log = new TestLog();
         List<DialogueNode> nodes = Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget);
-        StaticData data = TestStaticData.Repositories(
+        var data = TestStaticData.Repositories(
             items: Quests.QuestTestData.Items,
             creatures: Quests.QuestTestData.Creatures,
             nodes: () => nodes,
@@ -379,7 +381,7 @@ public class StaticDataReloadShould
     {
         var log = new TestLog();
         List<DialogueNode> nodes = Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget);
-        StaticData data = TestStaticData.Repositories(
+        var data = TestStaticData.Repositories(
             items: Quests.QuestTestData.Items,
             creatures: Quests.QuestTestData.Creatures,
             nodes: () => nodes,
@@ -405,17 +407,17 @@ public class StaticDataReloadShould
             Templates = Enumerable.Range(1, creatureCount).Select(i => Template((ulong)i)).ToList()
         };
 
-        var templates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository templates = Substitute.For<ICreatureTemplateRepository>();
         templates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(repos.Templates.ToList()));
 
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => repos.FailBaseStats
                 ? Task.FromException<IReadOnlyCollection<CreatureBaseStat>>(new InvalidOperationException("db down"))
                 : Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(repos.BaseStats.ToList()));
 
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>(
             [
@@ -426,27 +428,27 @@ public class StaticDataReloadShould
                 }
             ]));
 
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>(repos.CreateInfos.ToList()));
 
-        var classLevelStats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository classLevelStats = Substitute.For<IClassLevelStatRepository>();
         classLevelStats.FindAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<ClassLevelStat>>(repos.ClassStats.ToList()));
 
-        var itemTemplates = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository itemTemplates = Substitute.For<IItemTemplateRepository>();
         itemTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(repos.Items.ToList()));
 
-        var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(repos.Abilities.ToList()));
 
-        var characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
         characterLevelExperiences.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>(repos.Levels.ToList()));
 
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<LocalizedText>>(repos.Texts.ToList()));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
@@ -454,7 +456,7 @@ public class StaticDataReloadShould
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<DialogueNode>>(repos.Nodes.ToList()));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())

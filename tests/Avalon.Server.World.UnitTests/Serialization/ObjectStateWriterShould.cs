@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-using System.Linq;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
@@ -13,7 +10,6 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Serialization;
 using NSubstitute;
 using ProtoBuf;
-using Xunit;
 using WireRarity = Avalon.Network.Packets.State.CreatureRarity;
 using WorldRarity = Avalon.World.Public.Enums.CreatureRarity;
 
@@ -144,7 +140,7 @@ public class ObjectStateWriterShould
     [InlineData(GameEntityFields.CreatureUpdate)]
     public void Never_advertise_CanInteract_for_a_creature_that_is_not_the_world_side_Creature(GameEntityFields fields)
     {
-        var creature = NSubstitute.Substitute.For<ICreature>();
+        ICreature creature = NSubstitute.Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 6));
         creature.Name.Returns("Impostor");
         creature.Metadata.Returns(new Avalon.Domain.World.CreatureTemplate { Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3) });
@@ -178,7 +174,7 @@ public class ObjectStateWriterShould
     [InlineData(100u, false)]
     public void Report_a_creature_dead_exactly_at_0_health(uint currentHealth, bool dead)
     {
-        Creature creature = (Creature)Npc(canInteract: false);
+        var creature = (Creature)Npc(canInteract: false);
         creature.Health = 100;
         creature.CurrentHealth = currentHealth;
 
@@ -190,7 +186,7 @@ public class ObjectStateWriterShould
     [Fact]
     public void Report_any_creature_at_0_health_as_dead()
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 6));
         creature.Metadata.Returns(new Avalon.Domain.World.CreatureTemplate { Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3) });
         creature.CurrentHealth.Returns(0u);
@@ -212,7 +208,7 @@ public class ObjectStateWriterShould
     [Fact]
     public void Mark_a_creatures_death_state_changed_when_its_health_reaches_0()
     {
-        Creature creature = (Creature)Npc(canInteract: false);
+        var creature = (Creature)Npc(canInteract: false);
         creature.CurrentHealth = 100;
         creature.ConsumeDirtyFields();
 
@@ -267,11 +263,12 @@ public class ObjectStateWriterShould
     [Fact]
     public void Never_send_a_rarity_for_a_creature_that_is_not_the_world_side_Creature()
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 6));
         creature.Metadata.Returns(new Avalon.Domain.World.CreatureTemplate
         {
-            Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3), Rarity = WorldRarity.Boss,
+            Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3),
+            Rarity = WorldRarity.Boss,
         });
 
         Assert.Null(ObjectStateWriter.From(creature, GameEntityFields.All).Rarity);

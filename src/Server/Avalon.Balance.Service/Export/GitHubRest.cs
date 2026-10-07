@@ -14,7 +14,7 @@ public sealed class GitHubRest(HttpClient http) : IGitHub
     public const string BaseBranch = "main";
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
-    private static readonly UTF8Encoding Utf8NoBom = new(false);
+    private static readonly UTF8Encoding s_utf8NoBom = new(false);
 
     /// <summary>Sets the base address, the headers (including the token) and the timeout.</summary>
     public static void Configure(HttpClient client, string repository, string token)
@@ -41,12 +41,14 @@ public sealed class GitHubRest(HttpClient http) : IGitHub
             || !root.TryGetProperty("sha", out JsonElement sha) || sha.ValueKind != JsonValueKind.String
             || !root.TryGetProperty("content", out JsonElement content) || content.ValueKind != JsonValueKind.String
             || !root.TryGetProperty("encoding", out JsonElement encoding) || !string.Equals(encoding.GetString(), "base64", StringComparison.Ordinal))
+        {
             throw new GitHubApiException("GET", $"contents/{path}", (int)response.StatusCode, "unexpected response shape");
+        }
 
         try
         {
             // GitHub wraps the base64 every 60 characters; the decoder ignores the newlines.
-            return (sha.GetString()!, Utf8NoBom.GetString(Convert.FromBase64String(content.GetString()!)));
+            return (sha.GetString()!, s_utf8NoBom.GetString(Convert.FromBase64String(content.GetString()!)));
         }
         catch (FormatException)
         {
@@ -75,7 +77,7 @@ public sealed class GitHubRest(HttpClient http) : IGitHub
         var body = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["message"] = message,
-            ["content"] = Convert.ToBase64String(Utf8NoBom.GetBytes(text)),
+            ["content"] = Convert.ToBase64String(s_utf8NoBom.GetBytes(text)),
             ["branch"] = branch,
         };
         if (existingSha is not null)
@@ -94,7 +96,9 @@ public sealed class GitHubRest(HttpClient http) : IGitHub
         using JsonDocument document = await ReadAsync(response, "POST", "pulls", ct).ConfigureAwait(false);
         if (document.RootElement.ValueKind == JsonValueKind.Object
             && document.RootElement.TryGetProperty("html_url", out JsonElement url) && url.ValueKind == JsonValueKind.String)
+        {
             return url.GetString()!;
+        }
 
         throw new GitHubApiException("POST", "pulls", (int)response.StatusCode, "unexpected response shape");
     }
@@ -103,7 +107,7 @@ public sealed class GitHubRest(HttpClient http) : IGitHub
     {
         var request = new HttpRequestMessage(method, relative)
         {
-            Content = new StringContent(JsonSerializer.Serialize(body), Utf8NoBom, "application/json"),
+            Content = new StringContent(JsonSerializer.Serialize(body), s_utf8NoBom, "application/json"),
         };
         return http.SendAsync(request, ct);
     }

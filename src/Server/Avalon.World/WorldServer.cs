@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -17,9 +18,9 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
+using Avalon.World.GameAuth;
 using Avalon.World.Inventory;
 using Avalon.World.Maintenance;
-using System.Globalization;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Presence;
@@ -30,7 +31,6 @@ using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Telemetry;
 using Avalon.World.Threading;
-using Avalon.World.GameAuth;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -88,10 +88,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         await _world.DeSpawnPlayerAsync(connection).ConfigureAwait(false);
         try { await connection.WhenPendingOperationsIdle().ConfigureAwait(false); } catch (Exception) { }
-        var pendingAdmission = connection.AdmissionWork;
+        Task<WorldAdmissionResult>? pendingAdmission = connection.AdmissionWork;
         if (pendingAdmission is not null)
             try { await pendingAdmission.ConfigureAwait(false); } catch (Exception) { }
-        var lease = connection.GameSessionLease ?? (pendingAdmission is { IsCompletedSuccessfully: true } ? pendingAdmission.Result.Lease : null);
+        GameSessionLease? lease = connection.GameSessionLease ?? (pendingAdmission is { IsCompletedSuccessfully: true } ? pendingAdmission.Result.Lease : null);
         if (lease is not null)
             await Task.Run(() => AdmissionClient.EndAsync(lease, CancellationToken.None), CancellationToken.None).ConfigureAwait(false);
     }
@@ -105,8 +105,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IntPtr h = CreateWaitableTimerExW(IntPtr.Zero, null,
             CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
         if (h == IntPtr.Zero)
+        {
             throw new InvalidOperationException(
                 "High-resolution waitable timer unavailable (requires Windows 10 1803+).");
+        }
+
         return h;
     }
 
@@ -141,8 +144,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             "Ensure the method is non-public, static, and not overloaded.");
 
     // Tick scheduling
-    private static readonly long TicksPerFrame = Stopwatch.Frequency / 60; // 60Hz
-    private static readonly long SpinThresholdTicks = Stopwatch.Frequency / 1000; // 1ms
+    private static readonly long s_ticksPerFrame = Stopwatch.Frequency / 60; // 60Hz
+    private static readonly long s_spinThresholdTicks = Stopwatch.Frequency / 1000; // 1ms
 
     private Thread? _tickThread;
     private volatile bool _tickRunning;
@@ -244,13 +247,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
         _maintenanceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The maintenance countdown");
-        
+
         _logger.LogInformation("R2R enabled: {R2R}",
             System.Runtime.CompilerServices.RuntimeFeature.IsSupported("IsDynamicCodeCompiled"));
 
         PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>();
 
-        Dictionary<NetworkPacketType, Type> packetHandlers = typeof(WorldServer).Assembly.GetTypes()
+        var packetHandlers = typeof(WorldServer).Assembly.GetTypes()
             .Where(x => x.GetCustomAttribute<PacketHandlerAttribute>() != null)
             .ToDictionary(x => x.GetCustomAttribute<PacketHandlerAttribute>()!.PacketType, x => x);
 
@@ -326,13 +329,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Validate certificate loading and workload configuration before the port becomes ready.
-        var transport = TlsTransport;
-        var admission = AdmissionClient;
+        WorldTlsTransport transport = TlsTransport;
+        IGameAdmissionClient admission = AdmissionClient;
         await Task.Run(() => _scriptManager.Load(), stoppingToken);
 
         // The names this world accepts, for the admin app. Required, as the reload handler below is: a host that
         // builds a WorldServer registers the publisher, so a missing one fails startup rather than going unnoticed.
-        var catalog = _services.GetRequiredService<ScriptCatalogPublisher>();
+        ScriptCatalogPublisher catalog = _services.GetRequiredService<ScriptCatalogPublisher>();
         await catalog.PublishAsync();
 
         await _world.LoadAsync(stoppingToken);
@@ -391,7 +394,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // When the host signals shutdown, stop the tick loop.
         // 1 frame (~16ms) of shutdown latency is acceptable and avoids
         // a second sync primitive to wake the timer early.
-        await using var _ = stoppingToken.Register(static state =>
+        await using CancellationTokenRegistration _ = stoppingToken.Register(static state =>
             ((WorldServer)state!)._tickRunning = false, this);
 
         await _tickExited.Task;
@@ -501,7 +504,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // From here until the loop ends, World-side state that only the tick may change refuses any other thread
         // (while the guard is enabled, #639). Unbound in the finally, so the shutdown despawn that runs once the tick is joined passes.
         _tickThreadGuard?.Bind();
-        long next = Stopwatch.GetTimestamp() + TicksPerFrame;
+        long next = Stopwatch.GetTimestamp() + s_ticksPerFrame;
         TimeSpan prev = _gameTime.Elapsed;
 
         try
@@ -517,7 +520,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                     prev = now;
 
                     long tickStart = Stopwatch.GetTimestamp();
-                    long overshootTicks = tickStart - (next - TicksPerFrame);
+                    long overshootTicks = tickStart - (next - s_ticksPerFrame);
                     double overshootUs = TicksToUs(overshootTicks);
                     _deadlineOvershootHist.Record((long)overshootUs);
                     _deadlineOvershoot.Record(overshootUs);
@@ -543,17 +546,21 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
                 // Sleep until ~1ms before deadline...
                 long remaining = next - Stopwatch.GetTimestamp();
-                if (remaining > SpinThresholdTicks)
+                if (remaining > s_spinThresholdTicks)
                 {
-                    long sleepTicks = remaining - SpinThresholdTicks;
+                    long sleepTicks = remaining - s_spinThresholdTicks;
                     if (OperatingSystem.IsWindows() && _waitableTimer != IntPtr.Zero)
+                    {
                         WaitHighRes(_waitableTimer, sleepTicks);
+                    }
                     else
+                    {
                         // Dedicated tick thread loop: Task.Delay would hop threads and add jitter
                         // well above the sub-millisecond budget of the 60Hz tick deadline.
 #pragma warning disable MA0045
                         Thread.Sleep(TimeSpan.FromMilliseconds(
                             sleepTicks * 1000.0 / Stopwatch.Frequency));
+                    }
 #pragma warning restore MA0045
                 }
 
@@ -562,16 +569,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                     Thread.SpinWait(64);
 
                 // Deadline-based, not delta-based: prevents drift.
-                next += TicksPerFrame;
+                next += s_ticksPerFrame;
 
                 // Spiral-of-death guard: if we fell >4 frames behind
                 // (GC pause, huge packet burst), resync instead of catching up.
                 long lag = Stopwatch.GetTimestamp() - next;
-                if (lag > TicksPerFrame * 4)
+                if (lag > s_ticksPerFrame * 4)
                 {
                     _logger.LogWarning("Tick loop fell {LagMs}ms behind; resyncing",
                         lag * 1000 / Stopwatch.Frequency);
-                    next = Stopwatch.GetTimestamp() + TicksPerFrame;
+                    next = Stopwatch.GetTimestamp() + s_ticksPerFrame;
                 }
             }
         }
@@ -596,7 +603,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         ImmutableArray<IWorldConnection> conns = Connections;
 
         // Revoked or expiring sessions leave their instance before packets and simulation run.
-        foreach (var connection in conns)
+        foreach (IWorldConnection connection in conns)
             if (connection is WorldConnection admitted) admitted.AdvanceGameplayLease();
 
         // Before the session pass, so a cutoff blocks a non-Admin's queued packets on the tick it arrives. Applies a
@@ -621,7 +628,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // rather than being beaten to it, and before the world update, so a character released here
         // is simulated on the tick that released it.
         long barrierNowTicks = DateTime.UtcNow.Ticks;
-        TimeSpan barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
+        var barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
 
         CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger,
             _entryGate, _maintenanceCoordinator, _time);
@@ -724,7 +731,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     }
 
     private static readonly double s_usPerTick = 1_000_000.0 / Stopwatch.Frequency;
-    static double TicksToUs(long t) => t * s_usPerTick;
+    private static double TicksToUs(long t) => t * s_usPerTick;
 
     private bool NewConnection(IConnection connection) => true;
 
@@ -739,14 +746,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     protected override object GetContextPacket(IConnection connection, object? packet, Type packetType)
     {
-        var factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
+        Func<IConnection, Packet?, object> factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
             (Func<IConnection, Packet?, object>)s_buildContextMethod.MakeGenericMethod(t).Invoke(null, null)!);
         return factory(connection, packet as Packet);
     }
 
     private static Func<IConnection, Packet?, object> BuildContextFactory<TPacket>() where TPacket : Packet
         => static (conn, pkt) => new WorldPacketContext<TPacket>
-            { Connection = (IWorldConnection)conn!, Packet = (TPacket)pkt! };
+        { Connection = (IWorldConnection)conn!, Packet = (TPacket)pkt! };
 
     private void PublishCatalogOnHotReload(ScriptCatalogPublisher catalog) =>
         _scriptHotReloader.ScriptsHotReloaded += types =>
@@ -766,7 +773,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         // The API asks this world, and only this world, to reload after a template save. Required: a host that
         // builds a WorldServer registers the handler, so a missing one fails startup rather than going unnoticed.
-        var reloads = _services.GetRequiredService<ReloadRequestHandler>();
+        ReloadRequestHandler reloads = _services.GetRequiredService<ReloadRequestHandler>();
         await _cache.SubscribeAsync(CacheKeys.WorldReloadChannel(_world.Id.Value), reloads.OnMessage);
     }
 
@@ -778,7 +785,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         if (_maintenanceCoordinator is null || !long.TryParse(value.ToString(), NumberStyles.None,
                 CultureInfo.InvariantCulture, out long revision))
+        {
             return;
+        }
 
         _ = ApplyMaintenanceNoticeAsync(revision);
     }
@@ -798,12 +807,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     /// <summary>A notice requests an authoritative heartbeat. A delayed notice cannot kill a newer positive grant.</summary>
     public static int NotifyGameContextRevocation(IEnumerable<IWorldConnection> connections, string message)
     {
-        if (!GameContextRevocations.TryParse(message, out var accountId, out var contextId)) return 0;
+        if (!GameContextRevocations.TryParse(message, out AccountId? accountId, out Guid contextId)) return 0;
         int notified = 0;
-        foreach (var connection in connections.OfType<WorldConnection>())
+        foreach (WorldConnection connection in connections.OfType<WorldConnection>())
         {
             if (connection.GameSessionLease is not { } lease || lease.Authority.AccountId != accountId ||
-                (contextId != Guid.Empty && lease.GameContextId != contextId)) continue;
+                (contextId != Guid.Empty && lease.GameContextId != contextId))
+            {
+                continue;
+            }
+
             connection.RequestGameplayRevalidation(); ++notified;
         }
         return notified;

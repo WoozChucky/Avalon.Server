@@ -1,3 +1,4 @@
+using System.Net;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
@@ -6,6 +7,7 @@ using Avalon.Api.Exceptions;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -45,19 +47,19 @@ public sealed class AccountRefreshController : BaseController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<RefreshResponse>> Refresh(CancellationToken ct)
     {
-        if (!Request.Cookies.TryGetValue(_authConfig.RefreshCookieName, out var raw) || string.IsNullOrEmpty(raw))
+        if (!Request.Cookies.TryGetValue(_authConfig.RefreshCookieName, out string? raw) || string.IsNullOrEmpty(raw))
             return Unauthorized();
 
         try
         {
             // Behind a trusted proxy that forwarded no client, the address is the proxy's, shared by
             // every caller behind it: such a caller gets no source, so no refresh grace (#495 final review).
-            var peer = HttpContext.Connection.RemoteIpAddress;
+            IPAddress? peer = HttpContext.Connection.RemoteIpAddress;
             if (peer is not null && ForwardedHeadersSetup.IsTrustedProxy(_forwarded, peer))
                 peer = null;
             var caller = RefreshCaller.From(peer, Request.Headers.UserAgent.ToString());
-            var rotated = await _refresh.RotateAsync(raw, caller, ct);
-            var account = await _accounts.FindByIdAsync(rotated.AccountId, track: false, ct);
+            RefreshRotateResult rotated = await _refresh.RotateAsync(raw, caller, ct);
+            Account? account = await _accounts.FindByIdAsync(rotated.AccountId, track: false, ct);
             if (!AccountAccessCheck.MayHoldSession(account))
             {
                 // The rotation above already minted a successor. A missing or non-Active account

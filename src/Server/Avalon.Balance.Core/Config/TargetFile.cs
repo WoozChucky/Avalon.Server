@@ -42,11 +42,13 @@ public sealed class TargetFile
         if (Global.KillsPerLevel is null) throw new InvalidDataException("targets: global killsPerLevel is missing");
         if (GradedGear is null) throw new InvalidDataException("targets: gradedGear is missing");
 
-        HashSet<string> ids = scenarios.Scenarios.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+        var ids = scenarios.Scenarios.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
 
         if (!scenarios.Gear.Contains(GradedGear, StringComparer.Ordinal))
+        {
             throw new InvalidDataException(
                 $"targets: gradedGear '{GradedGear}' is not one of the scenarios' gear ({string.Join(", ", scenarios.Gear)})");
+        }
 
         foreach ((string id, ScenarioTargets targets) in Scenarios)
         {

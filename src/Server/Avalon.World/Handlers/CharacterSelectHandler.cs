@@ -1,13 +1,12 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Avalon.Combat;
+using Avalon.Common.GameAuth;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
-using Avalon.Common.GameAuth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
-using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -25,6 +24,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
+using Avalon.World.Maintenance;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -35,7 +35,6 @@ using Avalon.World.Respawn;
 using Avalon.World.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Avalon.World.Maintenance;
 
 namespace Avalon.World.Handlers;
 
@@ -175,7 +174,9 @@ public class CharacterSelectHandler(
     {
         if (connection.Character != null || connection.PendingSpawn != null || connection.SelectInProgress ||
             connection.LeaveInProgress || connection.IsClosing || connection.AccountId is not { } accountId)
+        {
             return;
+        }
 
         IReadOnlyList<Task> kickedWork = TakeOverFromOtherSessions(connection, accountId, packet.CharacterId);
         if (kickedWork.Count > 0)
@@ -309,7 +310,9 @@ public class CharacterSelectHandler(
     {
         if (connection.IsConnected && !connection.IsClosing && connection.SelectStartedTicks == select &&
             (connection is not WorldConnection live || live.IsGameplayAuthorized))
+        {
             return true;
+        }
 
         logger.LogInformation(
             "Abandoning a character select for account {AccountId}: it was cancelled, or its connection was kicked or closed",
@@ -394,12 +397,12 @@ public class CharacterSelectHandler(
 
         // Only a guard-validated read proves that the selected character now belongs to this
         // account. A guessed character ID must never disconnect another account's live session.
-        var ghosts = worldServer.SessionsHoldingCharacter(character.Id, connection)
+        IWorldConnection[] ghosts = worldServer.SessionsHoldingCharacter(character.Id, connection)
             .Where(other => other.AccountId != connection.AccountId).ToArray();
         if (ghosts.Length > 0)
         {
             var draining = new List<Task>();
-            foreach (var other in ghosts)
+            foreach (IWorldConnection? other in ghosts)
             {
                 other.CancelSelect();
                 draining.Add(world.DeSpawnPlayerAsync(other));
@@ -470,7 +473,7 @@ public class CharacterSelectHandler(
                 respawnTargetResolver.ResolveTownAsync(loadedTemplate.Id, CancellationToken.None),
                 townMapId =>
                 {
-                    var townTpl = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId);
+                    MapTemplate? townTpl = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId);
                     if (townTpl == null)
                     {
                         logger.LogError("Resolved town map {TownMapId} not found in MapTemplates",

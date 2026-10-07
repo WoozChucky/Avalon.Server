@@ -11,8 +11,8 @@ public sealed class WorldReadyHeartbeatService(
     IReplicatedCache cache,
     ILogger<WorldReadyHeartbeatService> logger) : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan Ttl = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_interval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan s_ttl = TimeSpan.FromSeconds(5);
     private long _lastPublishedTick = -1;
 
     public async Task PublishOnceAsync(CancellationToken ct)
@@ -21,13 +21,13 @@ public sealed class WorldReadyHeartbeatService(
         if (!isListening() || ticks <= 0 || ticks == _lastPublishedTick)
             return;
 
-        if (await cache.SetAsync(CacheKeys.WorldReady(worldId), "1", Ttl))
+        if (await cache.SetAsync(CacheKeys.WorldReady(worldId), "1", s_ttl))
             _lastPublishedTick = ticks;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(Interval);
+        using var timer = new PeriodicTimer(s_interval);
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))

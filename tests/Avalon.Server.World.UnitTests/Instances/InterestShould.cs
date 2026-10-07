@@ -2,19 +2,18 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Instances;
 using Avalon.World.Public.Instances;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>#593: the rule that decides which objects a client's world-state replication covers.</summary>
 public class InterestShould
 {
-    private static readonly ObjectGuid Watcher = new(ObjectType.Character, 593_001);
-    private static readonly ObjectGuid Other = new(ObjectType.Creature, 593_002);
-    private static readonly InterestRange Range = new(60f, 10f);
+    private static readonly ObjectGuid s_watcher = new(ObjectType.Character, 593_001);
+    private static readonly ObjectGuid s_other = new(ObjectType.Creature, 593_002);
+    private static readonly InterestRange s_range = new(60f, 10f);
 
     private static bool Visible(float x, bool tracked, float y = 0f, float z = 0f) =>
-        Interest.IsVisible(Watcher, Vector3.zero, Other, new Vector3(x, y, z), tracked, Range);
+        Interest.IsVisible(s_watcher, Vector3.zero, s_other, new Vector3(x, y, z), tracked, s_range);
 
     [Fact] public void Add_an_object_inside_the_radius() => Assert.True(Visible(59f, tracked: false));
     [Fact] public void Add_an_object_exactly_at_the_radius() => Assert.True(Visible(60f, tracked: false));
@@ -28,8 +27,8 @@ public class InterestShould
     [Fact]
     public void Always_show_the_watcher_itself_even_far_or_unplaced()
     {
-        Assert.True(Interest.IsVisible(Watcher, Vector3.zero, Watcher, new Vector3(1e6f, 0, 0), false, Range));
-        Assert.True(Interest.IsVisible(Watcher, new Vector3(float.NaN, 0, 0), Watcher, new Vector3(float.NaN, 0, 0), false, Range));
+        Assert.True(Interest.IsVisible(s_watcher, Vector3.zero, s_watcher, new Vector3(1e6f, 0, 0), false, s_range));
+        Assert.True(Interest.IsVisible(s_watcher, new Vector3(float.NaN, 0, 0), s_watcher, new Vector3(float.NaN, 0, 0), false, s_range));
     }
 
     [Theory]
@@ -39,13 +38,13 @@ public class InterestShould
 
     [Fact]
     public void Show_nothing_else_to_a_watcher_at_a_non_finite_position() =>
-        Assert.False(Interest.IsVisible(Watcher, new Vector3(float.NaN, 0, 0), Other, Vector3.zero, true, Range));
+        Assert.False(Interest.IsVisible(s_watcher, new Vector3(float.NaN, 0, 0), s_other, Vector3.zero, true, s_range));
 
     [Fact]
     public void Treat_an_overflowing_distance_as_far() =>
-        Assert.False(Interest.IsVisible(Watcher, new Vector3(-3e38f, 0, 0), Other, new Vector3(3e38f, 0, 0), true, Range));
+        Assert.False(Interest.IsVisible(s_watcher, new Vector3(-3e38f, 0, 0), s_other, new Vector3(3e38f, 0, 0), true, s_range));
 
     [Fact]
     public void Remove_at_the_radius_when_the_margin_is_zero() =>
-        Assert.False(Interest.IsVisible(Watcher, Vector3.zero, Other, new Vector3(60.01f, 0, 0), true, new InterestRange(60f, 0f)));
+        Assert.False(Interest.IsVisible(s_watcher, Vector3.zero, s_other, new Vector3(60.01f, 0, 0), true, new InterestRange(60f, 0f)));
 }

@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services.Email;
@@ -26,8 +25,8 @@ public sealed class ResendEmailSenderShould
             ["Application:Email:FromName"] = "Avalon",
             ["Application:Email:ResendApiKey"] = Secret,
         };
-        var config = ApiConfiguration.Bind(new ConfigurationBuilder().AddInMemoryCollection(settings).Build()).Email!;
-        var env = Substitute.For<IHostEnvironment>(); env.EnvironmentName.Returns("Production");
+        EmailConfig config = ApiConfiguration.Bind(new ConfigurationBuilder().AddInMemoryCollection(settings).Build()).Email!;
+        IHostEnvironment env = Substitute.For<IHostEnvironment>(); env.EnvironmentName.Returns("Production");
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddEmail(config, env);
@@ -51,11 +50,14 @@ public sealed class ResendEmailSenderShould
     }
 
     [Theory]
-    [InlineData(401)] [InlineData(429)] [InlineData(500)] [InlineData(302)]
+    [InlineData(401)]
+    [InlineData(429)]
+    [InlineData(500)]
+    [InlineData(302)]
     public async Task DoesNotLeakSecretsOnFailure(int status)
     {
         var handler = new Handler { Status = (HttpStatusCode)status, Response = "provider-secret " + Secret };
-        var ex = await Assert.ThrowsAsync<EmailDeliveryException>(() => Sender(handler).SendAsync("player@example.test", "Verify", "raw-token", default));
+        EmailDeliveryException ex = await Assert.ThrowsAsync<EmailDeliveryException>(() => Sender(handler).SendAsync("player@example.test", "Verify", "raw-token", default));
         Assert.DoesNotContain(Secret, ex.ToString());
         Assert.DoesNotContain("raw-token", ex.ToString());
         Assert.Null(ex.InnerException);
@@ -63,7 +65,9 @@ public sealed class ResendEmailSenderShould
     }
 
     [Theory]
-    [InlineData("{}")] [InlineData("{\"id\":\"\"}")] [InlineData("not-json")]
+    [InlineData("{}")]
+    [InlineData("{\"id\":\"\"}")]
+    [InlineData("not-json")]
     public async Task RefusesMalformedSuccess(string response)
     {
         await Assert.ThrowsAsync<EmailDeliveryException>(() => Sender(new Handler { Response = response }).SendAsync("player@example.test", "Verify", "token", default));

@@ -10,10 +10,10 @@ public sealed class WorldDatabaseWorkShould
         var workers = new WorldDatabaseWork(1, 2);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var first = workers.Run(async () => { entered.SetResult(); await release.Task; if (release.Task.IsCompleted) throw new InvalidOperationException("fixture"); return 0; });
+        Task<int> first = workers.Run(async () => { entered.SetResult(); await release.Task; if (release.Task.IsCompleted) throw new InvalidOperationException("fixture"); return 0; });
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         int secondStarted = 0;
-        var second = workers.Run(() => { Interlocked.Increment(ref secondStarted); return Task.FromResult(2); });
+        Task<int> second = workers.Run(() => { Interlocked.Increment(ref secondStarted); return Task.FromResult(2); });
         await Assert.ThrowsAsync<WorldWorkUnavailableException>(() => workers.Run(() => Task.FromResult(3)));
         Assert.Equal(0, secondStarted);
         release.SetResult();
@@ -38,7 +38,8 @@ public sealed class WorldDatabaseWorkShould
                 release.Wait(TimeSpan.FromSeconds(10));
                 return Task.FromResult(42);
             }));
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         tick.Start();
         try
         {

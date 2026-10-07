@@ -66,25 +66,25 @@ public class ScriptManager : IScriptManager
 
         _aiScripts = aiScripts.ToDictionary(t => t.Name, t => t);
 
-        var abilityScripts = FindScriptTypes<AbilityScript>();
+        List<Type> abilityScripts = FindScriptTypes<AbilityScript>();
 
         _logger.LogInformation("Loaded {Count} ability scripts", abilityScripts.Count);
 
         _abilityScripts = abilityScripts.ToDictionary(t => t.Name, t => t);
 
-        var questScripts = FindScriptTypes<QuestScript>();
+        List<Type> questScripts = FindScriptTypes<QuestScript>();
 
         _logger.LogInformation("Loaded {Count} quest scripts", questScripts.Count);
 
         _questScripts = questScripts.ToDictionary(t => t.Name, t => t);
 
-        var itemScripts = FindScriptTypes<ItemScript>();
+        List<Type> itemScripts = FindScriptTypes<ItemScript>();
 
         _logger.LogInformation("Loaded {Count} item scripts", itemScripts.Count);
 
         _itemScripts = itemScripts.ToDictionary(t => t.Name, t => t);
 
-        var auraScripts = FindScriptTypes<AuraScript>();
+        List<Type> auraScripts = FindScriptTypes<AuraScript>();
 
         _logger.LogInformation("Loaded {Count} aura scripts", auraScripts.Count);
 
@@ -120,12 +120,12 @@ public class ScriptManager : IScriptManager
 
     public Type? GetAiScript(string name)
     {
-        return _aiScripts.TryGetValue(name, out var scriptType) ? scriptType : null;
+        return _aiScripts.TryGetValue(name, out Type? scriptType) ? scriptType : null;
     }
 
     public Type? GetAbilityScript(string name)
     {
-        return _abilityScripts.TryGetValue(name, out var scriptType) ? scriptType : null;
+        return _abilityScripts.TryGetValue(name, out Type? scriptType) ? scriptType : null;
     }
 
     public Type? GetQuestScript(string name) =>
@@ -139,17 +139,17 @@ public class ScriptManager : IScriptManager
 
     private List<Type> FindScriptTypes<TBaseType>()
     {
-        var baseType = typeof(TBaseType);
-        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+        Type baseType = typeof(TBaseType);
+        Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
         var inheritedTypes = new List<Type>();
 
-        foreach (var assembly in assemblies)
+        foreach (Assembly assembly in assemblies)
         {
             try
             {
-                var types = assembly.GetTypes();
-                foreach (var type in types)
+                Type[] types = assembly.GetTypes();
+                foreach (Type type in types)
                 {
                     if (type.IsSubclassOf(baseType) && !type.IsAbstract)
                     {
@@ -160,7 +160,7 @@ public class ScriptManager : IScriptManager
             catch (ReflectionTypeLoadException e)
             {
                 _logger.LogError(e, "Failed to load types from assembly {Assembly}", assembly.FullName);
-                foreach (var loaderException in e.LoaderExceptions)
+                foreach (Exception? loaderException in e.LoaderExceptions)
                 {
                     _logger.LogError(loaderException, "Loader exception");
                 }

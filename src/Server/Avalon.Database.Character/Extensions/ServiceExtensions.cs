@@ -19,8 +19,8 @@ public static class ServiceExtensions
         // may hold one. IOptions, not IOptionsSnapshot — the factory is a singleton.
         services.AddSingleton<IDbContextFactory<CharacterDbContext>>(provider =>
         {
-            var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
-            var options = provider.GetRequiredService<IOptions<DatabaseConfiguration>>();
+            ILoggerFactory loggerFactory = provider.GetRequiredService<ILoggerFactory>();
+            IOptions<DatabaseConfiguration> options = provider.GetRequiredService<IOptions<DatabaseConfiguration>>();
             return new DelegateDbContextFactory<CharacterDbContext>(() => new CharacterDbContext(loggerFactory, options));
         });
 

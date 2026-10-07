@@ -57,9 +57,12 @@ public partial class WorldConnection
             _heartbeat = null;
             if (heartbeat.IsCompletedSuccessfully)
             {
-                var reply = heartbeat.Result;
+                SessionLeaseResponse reply = heartbeat.Result;
                 if (reply.Error is null) { if (!lease.TryRenew(reply)) lease.Revoke(); }
-                else if (reply.Error is not (GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending)) lease.Revoke();
+                else if (reply.Error is not (GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending))
+                {
+                    lease.Revoke();
+                }
             }
         }
         // Leave time for the final save under the still-valid durable fence. No outage grants more time.

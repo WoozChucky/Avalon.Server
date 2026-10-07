@@ -8,7 +8,6 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World;
 using Avalon.Database.World.Extensions;
 using Avalon.Domain.Auth;
-using Avalon.Domain.World;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
@@ -32,12 +31,18 @@ public sealed class WorldScopedDataShould : IAsyncLifetime
             world2.SaveChanges();
         }
         foreach (ushort id in new ushort[] { 1, 2 })
+        {
             _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(new WorldEntity
                 {
-                    Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = AccountAccessLevel.Player,
-                    Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+                    Id = new WorldId(id),
+                    Name = $"World{id}",
+                    AccessLevelRequired = AccountAccessLevel.Player,
+                    Host = "h",
+                    MinVersion = "0.0.1",
+                    Version = "0.0.1",
                 });
+        }
 
         _host = await ApiAuthHost.StartAsync(configure: services =>
         {

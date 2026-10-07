@@ -26,7 +26,7 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         var client = new TcpClient(); client.Connect((IPEndPoint)listener.LocalEndpoint);
-        var peer = listener.AcceptTcpClient();
+        TcpClient peer = listener.AcceptTcpClient();
         server ??= Substitute.For<IWorldServer, IServerBase>();
         var result = new WorldAdmissionConnection(server, client, peer);
         typeof(Avalon.World.WorldConnection).GetField("_tlsAuthenticated", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(result, tls);
@@ -37,9 +37,18 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
         clock ??= TimeProvider.System;
         return GameSessionLease.TryCreate(new()
         {
-            State = "active", AccountId = "42", GameSessionId = Guid.NewGuid().ToString("D"), GameContextId = Guid.NewGuid().ToString("D"),
-            FencingToken = "7", ServerId = "world-one", WorldId = 1, AccessLevel = 1, CredentialsVersion = 3, SessionEpoch = "9",
-            LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(44), AuthorizationUntil = clock.GetUtcNow().UtcDateTime.AddMinutes(5)
+            State = "active",
+            AccountId = "42",
+            GameSessionId = Guid.NewGuid().ToString("D"),
+            GameContextId = Guid.NewGuid().ToString("D"),
+            FencingToken = "7",
+            ServerId = "world-one",
+            WorldId = 1,
+            AccessLevel = 1,
+            CredentialsVersion = 3,
+            SessionEpoch = "9",
+            LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(44),
+            AuthorizationUntil = clock.GetUtcNow().UtcDateTime.AddMinutes(5)
         }, "world-one", 1, clock)!;
     }
     public new void Dispose() { base.Dispose(); _peer.Dispose(); }

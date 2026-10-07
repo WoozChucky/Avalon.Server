@@ -37,8 +37,8 @@ public class NotificationService : INotificationService
         CancellationToken cancellationToken)
     {
 
-        var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id, cancellationToken);
-        var device = devices.FirstOrDefault(x => x.Name == userAgent);
+        List<Device> devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id, cancellationToken);
+        Device? device = devices.FirstOrDefault(x => x.Name == userAgent);
 
         if (device == null)
         {
@@ -90,7 +90,7 @@ public class NotificationService : INotificationService
 
         var subscription = new PushSubscription(request.Endpoint, request.Keys.P256DH, request.Keys.Auth);
 
-        var notification = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+        string notification = JsonSerializer.Serialize(payload, new JsonSerializerOptions
         {
             WriteIndented = true
         });
@@ -100,12 +100,12 @@ public class NotificationService : INotificationService
 
     public async Task SendNotificationAsync(Account account, string message, CancellationToken cancellationToken = default)
     {
-        var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id, cancellationToken);
+        List<Device> devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id, cancellationToken);
 
         var webPushClient = new WebPushClient();
         webPushClient.SetVapidDetails(_vapidDetails);
 
-        foreach (var device in devices)
+        foreach (Device device in devices)
         {
             try
             {
@@ -120,7 +120,7 @@ public class NotificationService : INotificationService
 
     private async Task SendNotificationAsync(Device device, string message, CancellationToken cancellationToken)
     {
-        var deviceMetadata = JsonSerializer.Deserialize<PushSubscriptionRequest>(device.Metadata);
+        PushSubscriptionRequest? deviceMetadata = JsonSerializer.Deserialize<PushSubscriptionRequest>(device.Metadata);
         if (deviceMetadata == null)
         {
             throw new InvalidOperationException("Device metadata is missing");
@@ -151,7 +151,7 @@ public class NotificationService : INotificationService
             }
         };
 
-        var notification = JsonSerializer.Serialize(payload, _jsonSerializerOptions);
+        string notification = JsonSerializer.Serialize(payload, _jsonSerializerOptions);
 
         var webPushClient = new WebPushClient();
 

@@ -5,7 +5,6 @@ using System.Security.Cryptography.X509Certificates;
 using Avalon.World.GameAuth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
@@ -24,13 +23,16 @@ public sealed class WorkloadHttpHandlerShould
         request.CertificateExtensions.Add(names.Build());
         request.CertificateExtensions.Add(new X509KeyUsageExtension(usage, true));
         if (eku is not null) request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection { new(eku) }, false));
-        using var temporary = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddHours(1));
+        using X509Certificate2 temporary = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddHours(1));
         return X509CertificateLoader.LoadPkcs12(temporary.Export(X509ContentType.Pfx), null);
     }
     private static string Pin(X509Certificate2 certificate) => Convert.ToHexString(SHA256.HashData(certificate.RawData));
 
     [Theory]
-    [InlineData(null)] [InlineData("")] [InlineData("AA")] [InlineData("invalid")]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("AA")]
+    [InlineData("invalid")]
     public void Refuse_missing_or_malformed_pins(string? pin)
     {
         Assert.False(ApiCertificateTrust.IsValidPin(pin));
@@ -40,11 +42,11 @@ public sealed class WorkloadHttpHandlerShould
     [Fact]
     public void Trust_only_the_exact_current_server_leaf_and_still_require_name_and_server_authentication()
     {
-        using var certificate = Certificate();
-        using var other = Certificate();
-        using var clientOnly = Certificate(ClientEku);
-        using var noEku = Certificate(null);
-        using var wrongUsage = Certificate(usage: X509KeyUsageFlags.KeyEncipherment);
+        using X509Certificate2 certificate = Certificate();
+        using X509Certificate2 other = Certificate();
+        using X509Certificate2 clientOnly = Certificate(ClientEku);
+        using X509Certificate2 noEku = Certificate(null);
+        using X509Certificate2 wrongUsage = Certificate(usage: X509KeyUsageFlags.KeyEncipherment);
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var trust = new ApiCertificateTrust(Pin(certificate), clock);
         Assert.True(trust.Validate(certificate, SslPolicyErrors.RemoteCertificateChainErrors));
@@ -53,7 +55,7 @@ public sealed class WorkloadHttpHandlerShould
         Assert.False(trust.Validate(null, SslPolicyErrors.RemoteCertificateNotAvailable));
         Assert.False(trust.Validate(certificate, SslPolicyErrors.RemoteCertificateNameMismatch));
         Assert.False(trust.Validate(certificate, SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch));
-        foreach (var invalid in new[] { clientOnly, noEku, wrongUsage })
+        foreach (X509Certificate2? invalid in new[] { clientOnly, noEku, wrongUsage })
             Assert.False(new ApiCertificateTrust(Pin(invalid), clock).Validate(invalid, SslPolicyErrors.None));
         var before = new FakeTimeProvider(new DateTimeOffset(certificate.NotBefore.ToUniversalTime()).AddSeconds(-1));
         Assert.False(new ApiCertificateTrust(Pin(certificate), before).Validate(certificate, SslPolicyErrors.None));
@@ -66,9 +68,9 @@ public sealed class WorkloadHttpHandlerShould
     [Fact]
     public async Task Authenticate_a_private_leaf_over_real_mTLS_and_refuse_an_expired_pooled_connection()
     {
-        using var server = Certificate();
-        using var client = Certificate(ClientEku);
-        await using var fixture = await Listener.Start(server, client);
+        using X509Certificate2 server = Certificate();
+        using X509Certificate2 client = Certificate(ClientEku);
+        await using Listener fixture = await Listener.Start(server, client);
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         using var http = new HttpClient(new WorkloadHttpHandler(client, Pin(server), clock));
         Assert.Equal(HttpStatusCode.OK, (await http.GetAsync(fixture.Url)).StatusCode);
@@ -81,16 +83,18 @@ public sealed class WorkloadHttpHandlerShould
     }
 
     [Theory]
-    [InlineData("pin")] [InlineData("hostname")] [InlineData("expiry")]
+    [InlineData("pin")]
+    [InlineData("hostname")]
+    [InlineData("expiry")]
     public async Task Refuse_wrong_pin_wrong_hostname_or_expiry_before_any_HTTP_request(string failure)
     {
-        using var server = Certificate();
-        using var client = Certificate(ClientEku);
-        await using var fixture = await Listener.Start(server, client);
+        using X509Certificate2 server = Certificate();
+        using X509Certificate2 client = Certificate(ClientEku);
+        await using Listener fixture = await Listener.Start(server, client);
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         if (failure == "expiry") clock.SetUtcNow(new DateTimeOffset(server.NotAfter.ToUniversalTime()));
         using var http = new HttpClient(new WorkloadHttpHandler(client, failure == "pin" ? new string('0', 64) : Pin(server), clock));
-        var url = failure == "hostname" ? fixture.Url.Replace("localhost", "127.0.0.1") : fixture.Url;
+        string url = failure == "hostname" ? fixture.Url.Replace("localhost", "127.0.0.1") : fixture.Url;
         await Assert.ThrowsAsync<HttpRequestException>(() => http.GetAsync(url));
         Assert.Equal(0, fixture.Requests);
     }
@@ -102,7 +106,7 @@ public sealed class WorkloadHttpHandlerShould
         public string Url => application.Urls.Single().Replace("127.0.0.1", "localhost");
         public static async Task<Listener> Start(X509Certificate2 server, X509Certificate2 client)
         {
-            var builder = WebApplication.CreateBuilder();
+            WebApplicationBuilder builder = WebApplication.CreateBuilder();
             builder.Logging.ClearProviders();
             builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0, listen =>
                 listen.UseHttps(new HttpsConnectionAdapterOptions
@@ -111,7 +115,7 @@ public sealed class WorkloadHttpHandlerShould
                     ClientCertificateMode = ClientCertificateMode.RequireCertificate,
                     ClientCertificateValidation = (presented, _, _) => Pin(presented) == Pin(client)
                 })));
-            var app = builder.Build();
+            WebApplication app = builder.Build();
             var fixture = new Listener(app);
             app.MapGet("/", () => { Interlocked.Increment(ref fixture._requests); return "ok"; });
             await app.StartAsync();

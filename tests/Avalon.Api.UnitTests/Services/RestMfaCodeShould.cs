@@ -22,11 +22,15 @@ namespace Avalon.Api.UnitTests.Services;
 public sealed class RestMfaCodeShould
 {
     private const string Hash = "HASH";
-    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_bound = TimeSpan.FromSeconds(5);
 
     private readonly Account _account = new()
     {
-        Id = new AccountId(7), Username = "CALLER", Email = "c@avalon.monster", Salt = [1], Verifier = [2],
+        Id = new AccountId(7),
+        Username = "CALLER",
+        Email = "c@avalon.monster",
+        Salt = [1],
+        Verifier = [2],
         JoinDate = DateTime.UtcNow,
     };
 
@@ -59,16 +63,26 @@ public sealed class RestMfaCodeShould
         {
             MFASetup row;
             lock (_gate)
+            {
                 row = new MFASetup
                 {
-                    Id = _row, AccountId = _account.Id, Secret = _secret, RecoveryCode1 = [], RecoveryCode2 = [],
-                    RecoveryCode3 = [], Status = MfaSetupStatus.Confirmed, CreatedAt = DateTime.UtcNow,
-                    ConfirmedAt = DateTime.UtcNow, LastAcceptedTotpStep = _lastAcceptedStep,
+                    Id = _row,
+                    AccountId = _account.Id,
+                    Secret = _secret,
+                    RecoveryCode1 = [],
+                    RecoveryCode2 = [],
+                    RecoveryCode3 = [],
+                    Status = MfaSetupStatus.Confirmed,
+                    CreatedAt = DateTime.UtcNow,
+                    ConfirmedAt = DateTime.UtcNow,
+                    LastAcceptedTotpStep = _lastAcceptedStep,
                 };
+            }
+
             if (_holdReads)
             {
                 if (Interlocked.Increment(ref _setupReads) == 2) _bothRead.TrySetResult();
-                await _bothRead.Task.WaitAsync(Bound);
+                await _bothRead.Task.WaitAsync(s_bound);
             }
 
             return (MFASetup?)row;
@@ -141,7 +155,7 @@ public sealed class RestMfaCodeShould
 
         MfaCodeAttempt[] results = await Task.WhenAll(
             Task.Run(() => VerifyAsync(policy, previous)),
-            Task.Run(() => VerifyAsync(policy, current))).WaitAsync(Bound);
+            Task.Run(() => VerifyAsync(policy, current))).WaitAsync(s_bound);
 
         Assert.Single(results, r => r.Result == MfaCodeCheck.Correct);
     }

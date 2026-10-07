@@ -66,15 +66,19 @@ public sealed class VendorStockState
             return;
 
         if (!_limited.TryGetValue(row.Id, out Limited? limited))
+        {
             throw new InvalidOperationException(
                 $"Taking {count} of limited stock row {row.Id}, which this vendor's state does not track; the caller resolves rows from Rows.");
+        }
 
         if (count == 0)
             return;
 
         if (count > limited.Count)
+        {
             throw new InvalidOperationException(
                 $"Taking {count} of stock row {row.Id}, which has {limited.Count} left; the caller checks Available first.");
+        }
 
         limited.Count -= count;
         limited.RestockAt ??= now.AddSeconds(limited.RestockSeconds);

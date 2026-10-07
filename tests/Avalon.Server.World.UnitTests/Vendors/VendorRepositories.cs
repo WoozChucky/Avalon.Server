@@ -10,7 +10,7 @@ internal static class VendorRepositories
     /// <summary>Read on every call, so a test can change what the next reload sees.</summary>
     public static IVendorStockRepository Of(Func<IReadOnlyCollection<VendorStock>> rows)
     {
-        var repository = Substitute.For<IVendorStockRepository>();
+        IVendorStockRepository repository = Substitute.For<IVendorStockRepository>();
         repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult(rows()));
         return repository;
     }

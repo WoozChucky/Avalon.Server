@@ -4,7 +4,6 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Server.Auth.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -29,7 +28,11 @@ public class CMFAResetHandlerShould
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => new Account
             {
-                Id = ci.ArgAt<AccountId>(0), Username = "TESTUSER", Email = "t@t", Salt = [1], Verifier = [2],
+                Id = ci.ArgAt<AccountId>(0),
+                Username = "TESTUSER",
+                Email = "t@t",
+                Salt = [1],
+                Verifier = [2],
                 JoinDate = DateTime.UtcNow,
             });
     }

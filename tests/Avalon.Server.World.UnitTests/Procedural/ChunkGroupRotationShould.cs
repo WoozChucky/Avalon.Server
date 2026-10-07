@@ -1,6 +1,5 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.ChunkLayouts;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -32,14 +31,14 @@ public class ChunkGroupRotationShould
     [InlineData(3)]
     public void Agree_with_rotating_the_whole_group_about_its_centre(byte rotation)
     {
-        const float cell = 30f;
+        const float Cell = 30f;
         foreach ((int x, int z) in new[] { (0, 0), (1, 0), (0, 1), (1, 1) })
         {
             (int rx, int rz) = ChunkGroupRotation.RotateCell(x, z, 2, 2, rotation);
             foreach ((float lx, float lz) in new[] { (3f, 7f), (29f, 1f), (15f, 22f) })
             {
-                Vector3 member = ChunkRotation.LocalToWorld(lx, 0f, lz, rotation, cell, new Vector3(rx * cell, 0f, rz * cell));
-                Vector3 whole = ChunkRotation.LocalToWorld(x * cell + lx, 0f, z * cell + lz, rotation, 2 * cell, Vector3.zero);
+                Vector3 member = ChunkRotation.LocalToWorld(lx, 0f, lz, rotation, Cell, new Vector3(rx * Cell, 0f, rz * Cell));
+                Vector3 whole = ChunkRotation.LocalToWorld(x * Cell + lx, 0f, z * Cell + lz, rotation, 2 * Cell, Vector3.zero);
 
                 Assert.Equal(whole.x, member.x, 3);
                 Assert.Equal(whole.z, member.z, 3);

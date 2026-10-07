@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Instances;
@@ -49,7 +50,7 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
     private void OnTownResolved(IWorldConnection connection, ICharacter ch, MapTemplateId townMapId, bool revive,
         bool dropEncounter, Action<Exception>? failed)
     {
-        var maxPlayers = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId)?.MaxPlayers ?? 30;
+        ushort maxPlayers = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId)?.MaxPlayers ?? 30;
 
         Then(connection, ch, world.InstanceRegistry.GetOrCreateTownInstanceAsync(townMapId, (ushort)maxPlayers), failed,
             townInstance => OnInstanceReady(connection, ch, townMapId, townInstance, revive, dropEncounter));
@@ -144,7 +145,7 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
 
             // Resolve spawn coords from the town's chunk layout. Fall back to template defaults defensively.
             float spawnX, spawnY, spawnZ;
-            var townTemplate = world.MapTemplates.First(t => t.Id == townMapId);
+            MapTemplate townTemplate = world.MapTemplates.First(t => t.Id == townMapId);
             if (townInstance is MapInstance mi && mi.EntrySpawnWorldPos is { } s)
             {
                 spawnX = s.x; spawnY = s.y; spawnZ = s.z;

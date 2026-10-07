@@ -15,14 +15,14 @@ public class ProceduralMapConfigRepository(IDbContextFactory<WorldDbContext> con
 {
     public async Task<ProceduralMapConfig?> FindByTemplateIdAsync(MapTemplateId id, CancellationToken ct = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(ct);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(ct);
 
         return await context.ProceduralMapConfigs.AsNoTracking().FirstOrDefaultAsync(c => c.MapTemplateId == id, ct);
     }
 
     public async Task<IReadOnlyList<ProceduralMapConfig>> FindAllAsync(CancellationToken ct = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(ct);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(ct);
 
         return await context.ProceduralMapConfigs.AsNoTracking().ToListAsync(ct);
     }

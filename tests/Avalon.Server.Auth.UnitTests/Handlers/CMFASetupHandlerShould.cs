@@ -4,7 +4,6 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -45,7 +44,7 @@ public class CMFASetupHandlerShould
     [Fact]
     public async Task SendOtpUri_WhenSetupInitiated()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
         _mfaService.SetupMFAAsync(account, "Avalon", Arg.Any<CancellationToken>()).Returns(
             new MFASetupResult(true, "otpauth://totp/Avalon:test@test.com?secret=ABC", MFAOperationResult.Success));
@@ -64,7 +63,7 @@ public class CMFASetupHandlerShould
     [Fact]
     public async Task SendAlreadyEnabled_WhenMfaAlreadyConfirmed()
     {
-        var account = MakeAccount();
+        Account account = MakeAccount();
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
         _mfaService.SetupMFAAsync(account, "Avalon", Arg.Any<CancellationToken>()).Returns(
             new MFASetupResult(false, null, MFAOperationResult.AlreadyEnabled));

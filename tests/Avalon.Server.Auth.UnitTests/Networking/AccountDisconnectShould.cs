@@ -2,7 +2,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure;
-using Avalon.Network.Packets;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -23,9 +22,9 @@ public sealed class AccountDisconnectShould
 
     private AuthServer Server()
     {
-        var hosting = Substitute.For<IOptions<HostingConfiguration>>();
+        IOptions<HostingConfiguration> hosting = Substitute.For<IOptions<HostingConfiguration>>();
         hosting.Value.Returns(new HostingConfiguration { Port = 0, Host = "127.0.0.1" });
-        var security = Substitute.For<IOptions<HostingSecurity>>();
+        IOptions<HostingSecurity> security = Substitute.For<IOptions<HostingSecurity>>();
         security.Value.Returns(new HostingSecurity());
         return new AuthServer(Substitute.For<IServiceProvider>(), Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance, Substitute.For<IAccountRepository>(), _cache, hosting, security);
@@ -109,12 +108,12 @@ public sealed class AccountDisconnectShould
     [Fact]
     public void Spare_a_connection_that_logged_in_after_this_servers_own_publish_for_the_account()
     {
-        const long publishedAt = 1_000;
-        IAuthConnection oldSession = LoggedInAt(7, publishedAt - 10);
-        IAuthConnection freshLogin = LoggedInAt(7, publishedAt + 10);
+        const long PublishedAt = 1_000;
+        IAuthConnection oldSession = LoggedInAt(7, PublishedAt - 10);
+        IAuthConnection freshLogin = LoggedInAt(7, PublishedAt + 10);
 
         int closed = AuthServer.CloseAccountConnections([oldSession, freshLogin], "7", NullLogger.Instance,
-            id => id.Value == 7 ? publishedAt : null);
+            id => id.Value == 7 ? PublishedAt : null);
 
         Assert.Equal(1, closed);
         oldSession.Received(1).Close();

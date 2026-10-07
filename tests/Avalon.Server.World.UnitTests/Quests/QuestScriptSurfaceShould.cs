@@ -6,7 +6,6 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Quests;
 
@@ -16,7 +15,7 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestScriptSurfaceShould
 {
-    private static readonly HashSet<Type> ReadOnlyParameters =
+    private static readonly HashSet<Type> s_readOnlyParameters =
         [typeof(IQuestContext), typeof(IQuestCharacter), typeof(QuestCreatureView), typeof(QuestInstanceView), typeof(int)];
 
     [Fact]
@@ -26,9 +25,13 @@ public class QuestScriptSurfaceShould
 
         Assert.NotEmpty(hooks);
         foreach (MethodInfo hook in hooks)
+        {
             foreach (ParameterInfo parameter in hook.GetParameters())
-                Assert.True(ReadOnlyParameters.Contains(parameter.ParameterType),
+            {
+                Assert.True(s_readOnlyParameters.Contains(parameter.ParameterType),
                     $"{hook.Name}({parameter.ParameterType.Name} {parameter.Name}) hands a script something it could change");
+            }
+        }
     }
 
     [Theory]
@@ -49,8 +52,8 @@ public class QuestScriptSurfaceShould
     public void Copy_a_creature_into_its_view_without_sharing_its_guid()
     {
         var live = new ObjectGuid(ObjectType.Creature, 42);
-        var creature = Substitute.For<ICreature>();
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreature creature = Substitute.For<ICreature>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.Id.Returns(new CreatureTemplateId(704));
         creature.Metadata.Returns(metadata);
         creature.Guid.Returns(live);
@@ -58,7 +61,7 @@ public class QuestScriptSurfaceShould
         creature.Level.Returns((ushort)3);
         creature.CurrentHealth.Returns(0u);
 
-        QuestCreatureView view = QuestCreatureView.From(creature);
+        var view = QuestCreatureView.From(creature);
 
         Assert.Equal((704ul, "Boar", (ushort)3, true), (view.TemplateId.Value, view.Name, view.Level, view.IsDead));
         Assert.Equal(live.RawValue, view.Guid.RawValue);
@@ -69,7 +72,7 @@ public class QuestScriptSurfaceShould
     public void Copy_an_instance_into_its_view()
     {
         var id = Guid.NewGuid();
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.InstanceId.Returns(id);
         instance.TemplateId.Returns(new MapTemplateId(2));
         instance.MapType.Returns(MapType.Normal);

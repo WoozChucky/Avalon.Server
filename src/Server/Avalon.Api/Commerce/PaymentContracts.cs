@@ -1,5 +1,3 @@
-using Avalon.Domain.Commerce;
-
 namespace Avalon.Api.Commerce;
 
 public sealed record CheckoutCreateCommand(Guid OrderId, Guid AttemptId, string OperationKey, string PriceReference,

@@ -1,10 +1,10 @@
 using Avalon.Common;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
 using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
-using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -53,7 +53,11 @@ public class SUnitStartCastPacket : Packet
         => PacketSerializationHelper.Serialize(
             new SUnitStartCastPacket
             {
-                Caster = caster.RawValue, CastTime = castTime, AbilityId = abilityId, CastId = castId, Footprint = footprint,
+                Caster = caster.RawValue,
+                CastTime = castTime,
+                AbilityId = abilityId,
+                CastId = castId,
+                Footprint = footprint,
             },
             PacketType, Flags, Protocol, encryptFunc);
 }

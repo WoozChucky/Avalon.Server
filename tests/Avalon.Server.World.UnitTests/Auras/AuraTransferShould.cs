@@ -15,7 +15,6 @@ using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Auras;
@@ -26,20 +25,25 @@ namespace Avalon.Server.World.UnitTests.Auras;
 /// </summary>
 public class AuraTransferShould
 {
-    private static readonly DateTimeOffset T0 = new(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
-    private static readonly TimeSpan Frame = TimeSpan.FromSeconds(1d / 60d);
-    private readonly FakeTimeProvider _clock = new(T0);
+    private static readonly DateTimeOffset s_t0 = new(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
+    private static readonly TimeSpan s_frame = TimeSpan.FromSeconds(1d / 60d);
+    private readonly FakeTimeProvider _clock = new(s_t0);
 
     private CharacterEntity Character(uint id)
     {
         var row = new Character
         {
-            Id = new CharacterId(id), AccountId = new AccountId(1), Name = $"Tester{id}", Class = CharacterClass.Warrior,
+            Id = new CharacterId(id),
+            AccountId = new AccountId(1),
+            Name = $"Tester{id}",
+            Class = CharacterClass.Warrior,
             CreationDate = DateTime.UtcNow,
         };
         return new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), _clock)
         {
-            Data = row, Health = 500, CurrentHealth = 400,
+            Data = row,
+            Health = 500,
+            CurrentHealth = 400,
         };
     }
 
@@ -55,7 +59,7 @@ public class AuraTransferShould
             new CharacterAura
             {
                 CharacterId = new CharacterId(914_000), Slot = 0, AuraId = 901, CasterGuid = 0, Stacks = 1, RemainingMs = 7500,
-                DurationMs = 12000, TicksLeft = 3, TickAmount = 3f, CritPct = 0f, CasterLevel = 1, AppliedAt = T0.UtcDateTime,
+                DurationMs = 12000, TicksLeft = 3, TickAmount = 3f, CritPct = 0f, CasterLevel = 1, AppliedAt = s_t0.UtcDateTime,
             },
         ], data, 32, NullLogger.Instance);
 
@@ -79,9 +83,9 @@ public class AuraTransferShould
         CharacterEntity character = Character(914_001);
         GiveBleed(character, await DataAsync());
         character.Auras.ResumeHeld(_clock.GetUtcNow());   // in the world
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
-        var target = Substitute.For<IMapInstance>();
+        IMapInstance target = Substitute.For<IMapInstance>();
         DateTimeOffset? heldAtArrival = null;
         target.When(t => t.AddCharacter(connection)).Do(_ => heldAtArrival = character.Auras.HeldSince);
 
@@ -105,7 +109,7 @@ public class AuraTransferShould
         GiveBleed(character, data);
         MapInstanceClient client = Join(from, character);
         _clock.Advance(TimeSpan.FromMilliseconds(1500));
-        from.Update(Frame);
+        from.Update(s_frame);
         Assert.Equal(397u, character.CurrentHealth);
         DateTimeOffset end = Assert.Single(character.Auras.All).Schedule.ExpiresAt;
 
@@ -114,14 +118,14 @@ public class AuraTransferShould
         ActiveAura bleed = Assert.Single(character.Auras.All);
         Assert.Equal((end.AddSeconds(10), 2), (bleed.Schedule.ExpiresAt, bleed.Schedule.TicksLeft));
         Assert.Null(character.Auras.HeldSince);
-        to.Update(Frame);
+        to.Update(s_frame);
         Assert.Equal(397u, character.CurrentHealth);   // nothing paid for the gap
 
         _clock.Advance(TimeSpan.FromSeconds(3));
-        to.Update(Frame);
+        to.Update(s_frame);
         Assert.Equal(394u, character.CurrentHealth);
         _clock.Advance(TimeSpan.FromSeconds(3));
-        to.Update(Frame);
+        to.Update(s_frame);
         Assert.Equal(391u, character.CurrentHealth);
         Assert.Equal(0, character.Auras.Count);
     }
@@ -136,15 +140,15 @@ public class AuraTransferShould
         StaticData data = await DataAsync();
         MapInstance from = Instance(data);
         MapInstance to = Instance(data);
-        to.Update(Frame);   // empty, it now stands still
+        to.Update(s_frame);   // empty, it now stands still
         CharacterEntity character = Character(914_021);
         GiveBleed(character, data);
         MapInstanceClient client = Join(from, character);
         _clock.Advance(TimeSpan.FromMilliseconds(1500));   // the first tick is due; no pass took it
 
         Move(client, from, to, TimeSpan.FromSeconds(2));
-        _clock.Advance(Frame);
-        to.Update(Frame);
+        _clock.Advance(s_frame);
+        to.Update(s_frame);
 
         Assert.Equal(397u, character.CurrentHealth);
         Assert.Equal(2, Assert.Single(character.Auras.All).Schedule.TicksLeft);

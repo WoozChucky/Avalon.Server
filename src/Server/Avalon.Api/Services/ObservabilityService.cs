@@ -1,6 +1,3 @@
-// Licensed to the Avalon MMORPG Game under one or more agreements.
-// Avalon MMORPG Game licenses this file to you under the MIT license.
-
 using Avalon.Api.Contract;
 using Avalon.Api.Worlds;
 using Avalon.Common.Accounts;
@@ -13,7 +10,6 @@ using Avalon.Infrastructure;
 using Avalon.Infrastructure.Presence;
 using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using AvalonWorld = Avalon.Domain.Auth.World;
 
@@ -140,7 +136,7 @@ public class ObservabilityService : IObservabilityService
                    .ThenBy(r => r.CharacterId)
                    .ToList();
 
-        List<OnlinePlayerDto> pageItems = rows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var pageItems = rows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
         return new PagedResult<OnlinePlayerDto>(page, pageSize, rows.Count, pageItems);
     }
@@ -273,23 +269,25 @@ public class ObservabilityService : IObservabilityService
 
     private async Task<InstancePresenceDto> ToDtoAsync(
         InstancePresenceSnapshot instance, ushort worldId, CancellationToken ct) => new()
-    {
-        InstanceId = instance.InstanceId,
-        TemplateId = instance.TemplateId,
-        TemplateName = await TemplateNameAsync(worldId, instance.TemplateId, ct),
-        Seed = instance.Seed,
-        MapType = ParseMapType(instance.MapType),
-        WorldId = worldId,
-        OwnerCharacterId = instance.OwnerCharacterId,
-        Characters = (instance.Characters ?? []).Select(ToDto).ToList(),
-    };
+        {
+            InstanceId = instance.InstanceId,
+            TemplateId = instance.TemplateId,
+            TemplateName = await TemplateNameAsync(worldId, instance.TemplateId, ct),
+            Seed = instance.Seed,
+            MapType = ParseMapType(instance.MapType),
+            WorldId = worldId,
+            OwnerCharacterId = instance.OwnerCharacterId,
+            Characters = (instance.Characters ?? []).Select(ToDto).ToList(),
+        };
 
     private static CharacterPresenceDto ToDto(CharacterPresenceSnapshot c) => new()
     {
         CharacterId = c.CharacterId,
         Name = c.Name,
         Class = c.Class,
-        X = c.X, Y = c.Y, Z = c.Z,
+        X = c.X,
+        Y = c.Y,
+        Z = c.Z,
         Orientation = c.Orientation,
         Level = c.Level,
         CurrentHealth = c.CurrentHealth,

@@ -36,9 +36,18 @@ public class QuestTemplateControllerShould
 
     private static QuestTemplate Quest() => new()
     {
-        Id = 3, TitleTextId = 33, DescriptionTextId = 34, CompletionTextId = 35,
-        GiverCreatureId = 2, EnderCreatureId = 11, LevelRequirement = 2, ClassRequirement = CharacterClass.Hunter,
-        RequiredQuestId = 2, ScriptName = "AlphaHowlScript", RewardExperience = 600, RewardMoney = 400,
+        Id = 3,
+        TitleTextId = 33,
+        DescriptionTextId = 34,
+        CompletionTextId = 35,
+        GiverCreatureId = 2,
+        EnderCreatureId = 11,
+        LevelRequirement = 2,
+        ClassRequirement = CharacterClass.Hunter,
+        RequiredQuestId = 2,
+        ScriptName = "AlphaHowlScript",
+        RewardExperience = 600,
+        RewardMoney = 400,
         Stages =
         [
             new QuestStage { QuestId = 3, Sequence = 1, DescriptionTextId = 41 },

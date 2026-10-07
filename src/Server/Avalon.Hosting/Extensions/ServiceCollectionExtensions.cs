@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using System.Reflection;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
@@ -23,7 +21,7 @@ public static class ServiceCollectionExtensions
     /// The logging providers the hosts register, by the alias configuration names them with:
     /// Serilog (<see cref="AddCustomLogging"/>) and the OpenTelemetry log exporter.
     /// </summary>
-    private static readonly string[] NamedLoggingProviders = ["Serilog", "OpenTelemetry"];
+    private static readonly string[] s_namedLoggingProviders = ["Serilog", "OpenTelemetry"];
 
     private const string MESSAGE_TEMPLATE =
         "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
@@ -61,7 +59,7 @@ public static class ServiceCollectionExtensions
                 .SelectMany(x => x.ExportedTypes)
                 .Where(x =>
                     x.IsAssignableTo(typeof(IPacketHandlerNew)) &&
-                    x is {IsClass: true, IsAbstract: false, IsInterface: false})
+                    x is { IsClass: true, IsAbstract: false, IsInterface: false })
                 .OrderBy(x => x.FullName)
                 .ToArray();
             return ActivatorUtilities.CreateInstance<PacketManager>(provider, packetTypes, handlerTypes);
@@ -153,7 +151,7 @@ public static class ServiceCollectionExtensions
         services.Configure<LoggerFilterOptions>(options =>
         {
             options.Rules.Insert(0, new LoggerFilterRule(null, EntityFrameworkCategory, LogLevel.Warning, null));
-            foreach (string provider in NamedLoggingProviders)
+            foreach (string provider in s_namedLoggingProviders)
             {
                 options.Rules.Insert(0, new LoggerFilterRule(provider, EntityFrameworkCategory, LogLevel.Warning, null));
             }

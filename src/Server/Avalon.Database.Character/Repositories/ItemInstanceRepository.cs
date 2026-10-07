@@ -17,7 +17,7 @@ public class ItemInstanceRepository(IDbContextFactory<CharacterDbContext> contex
     public async Task<IReadOnlyList<ItemInstance>> GetByCharacterIdAsync(
         CharacterId characterId, CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
+        await using CharacterDbContext context = await CreateContextAsync(cancellationToken);
 
         return await context.ItemInstances
             .AsNoTracking()

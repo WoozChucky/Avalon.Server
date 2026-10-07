@@ -2,10 +2,8 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Avalon.Configuration;
 using Avalon.Hosting.Telemetry;
-using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 
@@ -23,7 +21,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     private readonly List<Activity> _spans = [];
     private readonly List<(string Instrument, double Value, Dictionary<string, object?> Tags)> _measurements = [];
 
-    private static readonly PacketTags Tags = new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "203.0.113.7", 42, 7);
+    private static readonly PacketTags s_tags = new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "203.0.113.7", 42, 7);
 
     public PacketDispatchTelemetryShould()
     {
@@ -66,7 +64,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     [Fact]
     public void Start_one_server_span_per_packet_with_who_sent_it()
     {
-        using (Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger())) { }
+        using (Create().Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ScopeLogger())) { }
 
         Activity span = Assert.Single(_spans);
         Assert.Equal("packet CMSG_AUTH", span.DisplayName);
@@ -83,7 +81,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     [Fact]
     public void Leave_out_the_account_and_character_when_they_are_not_known()
     {
-        using (Create().Begin(NetworkPacketType.CMSG_AUTH, Tags with { AccountId = null, CharacterId = null }, new ScopeLogger())) { }
+        using (Create().Begin(NetworkPacketType.CMSG_AUTH, s_tags with { AccountId = null, CharacterId = null }, new ScopeLogger())) { }
 
         Activity span = Assert.Single(_spans);
         Assert.Null(span.GetTagItem("avalon.account.id"));
@@ -94,8 +92,8 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     public void Start_no_span_for_the_chatty_packet_types_but_still_time_them()
     {
         PacketDispatchTelemetry telemetry = Create();
-        using (telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, Tags, new ScopeLogger())) { }
-        using (telemetry.Begin(NetworkPacketType.CMSG_PONG, Tags, new ScopeLogger())) { }
+        using (telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, s_tags, new ScopeLogger())) { }
+        using (telemetry.Begin(NetworkPacketType.CMSG_PONG, s_tags, new ScopeLogger())) { }
 
         Assert.Empty(_spans);
         Assert.Equal(2, _measurements.Count(m => m.Instrument == "avalon.packet.handler.duration"));
@@ -104,7 +102,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     [Fact]
     public void Mark_a_failed_handler_as_an_error_and_count_it()
     {
-        using (PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger()))
+        using (PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ScopeLogger()))
             dispatch.Fail(new InvalidOperationException("boom"));
 
         Activity span = Assert.Single(_spans);
@@ -113,7 +111,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         Assert.Equal("error", span.GetTagItem("avalon.outcome"));
         Assert.Contains(span.Events, e => e.Name == "exception");
 
-        var error = Assert.Single(_measurements, m => m.Instrument == "avalon.packet.handler.errors");
+        (string Instrument, double Value, Dictionary<string, object?> Tags) error = Assert.Single(_measurements, m => m.Instrument == "avalon.packet.handler.errors");
         Assert.Equal(1, error.Value);
         Assert.Equal("CMSG_AUTH", error.Tags["avalon.packet.type"]);
     }
@@ -122,8 +120,8 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     public void Record_the_duration_by_packet_type_and_outcome()
     {
         PacketDispatchTelemetry telemetry = Create();
-        using (telemetry.Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger())) { }
-        using (PacketDispatch failed = telemetry.Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger()))
+        using (telemetry.Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ScopeLogger())) { }
+        using (PacketDispatch failed = telemetry.Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ScopeLogger()))
             failed.Fail(new InvalidOperationException());
 
         var durations = _measurements.Where(m => m.Instrument == "avalon.packet.handler.duration").ToList();
@@ -156,7 +154,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     [Fact]
     public void Record_each_dispatch_once_even_if_disposed_twice()
     {
-        PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger());
+        PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ScopeLogger());
         dispatch.Dispose();
         dispatch.Dispose();
 
@@ -168,12 +166,12 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     {
         ScopeLogger logger = new();
 
-        using (Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, logger))
+        using (Create().Begin(NetworkPacketType.CMSG_AUTH, s_tags, logger))
         {
-            var scope = Assert.Single(logger.Scopes);
+            ScopeLogger.Scope scope = Assert.Single(logger.Scopes);
             var fields = Assert.IsAssignableFrom<IEnumerable<KeyValuePair<string, object?>>>(scope.State).ToDictionary();
             Assert.Equal("CMSG_AUTH", fields["PacketType"]);
-            Assert.Equal(Tags.ConnectionId, fields["ConnectionId"]);
+            Assert.Equal(s_tags.ConnectionId, fields["ConnectionId"]);
             Assert.Equal(42L, fields["AccountId"]);
             Assert.Equal(7u, fields["CharacterId"]);
             Assert.False(scope.Disposed);
@@ -192,9 +190,9 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         HostingConfiguration hosting = new();
         config.GetSection("Hosting").Bind(hosting);
 
-        PacketDispatchTelemetry telemetry = PacketDispatchTelemetry.From(_source, _meter, hosting.Telemetry);
-        using (telemetry.Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger())) { }
-        using (telemetry.Begin(NetworkPacketType.CMSG_PONG, Tags, new ScopeLogger())) { }
+        var telemetry = PacketDispatchTelemetry.From(_source, _meter, hosting.Telemetry);
+        using (telemetry.Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ScopeLogger())) { }
+        using (telemetry.Begin(NetworkPacketType.CMSG_PONG, s_tags, new ScopeLogger())) { }
 
         Activity span = Assert.Single(_spans);
         Assert.Equal("packet CMSG_PONG", span.DisplayName);
@@ -203,8 +201,8 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     [Fact]
     public void Keep_the_defaults_when_nothing_is_configured()
     {
-        PacketDispatchTelemetry telemetry = PacketDispatchTelemetry.From(_source, _meter, new TelemetryConfiguration());
-        using (telemetry.Begin(NetworkPacketType.CMSG_PONG, Tags, new ScopeLogger())) { }
+        var telemetry = PacketDispatchTelemetry.From(_source, _meter, new TelemetryConfiguration());
+        using (telemetry.Begin(NetworkPacketType.CMSG_PONG, s_tags, new ScopeLogger())) { }
 
         Assert.Empty(_spans);
     }
@@ -228,12 +226,12 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         PacketDispatchTelemetry telemetry = new(quietSource, quietMeter);
         ILogger logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
         for (int i = 0; i < 100; i++)
-            telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, Tags, logger).Dispose();
+            telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, s_tags, logger).Dispose();
 
         const int Runs = 1000;
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < Runs; i++)
-            telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, Tags, logger).Dispose();
+            telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, s_tags, logger).Dispose();
         long perDispatch = (GC.GetAllocatedBytesForCurrentThread() - before) / Runs;
 
         Assert.True(perDispatch <= 128, $"{perDispatch} bytes per dispatch");
@@ -242,7 +240,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     [Fact]
     public void Still_dispatch_when_the_logger_cannot_open_a_scope()
     {
-        PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, new ThrowingScopeLogger());
+        PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ThrowingScopeLogger());
         dispatch.Dispose();
 
         Assert.Single(_measurements, m => m.Instrument == "avalon.packet.handler.duration");
@@ -261,7 +259,7 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         ActivitySource.AddActivityListener(throwing);
 
         Activity? before = Activity.Current;
-        PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger());
+        PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ScopeLogger());
         // The half-started activity must not stay Current, or later spans on this thread nest under it.
         Assert.Same(before, Activity.Current);
         dispatch.Dispose();
@@ -274,7 +272,8 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         public IDisposable BeginScope<TState>(TState state) where TState : notnull => throw new InvalidOperationException("scope broke");
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) { }
+            Func<TState, Exception?, string> formatter)
+        { }
     }
 
     [Theory]
@@ -314,7 +313,8 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         public bool IsEnabled(LogLevel logLevel) => true;
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) { }
+            Func<TState, Exception?, string> formatter)
+        { }
 
         public sealed class Scope(object state) : IDisposable
         {

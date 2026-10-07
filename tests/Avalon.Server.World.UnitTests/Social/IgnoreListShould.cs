@@ -2,7 +2,6 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
 using Avalon.World.Social;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Social;
 
@@ -11,7 +10,7 @@ namespace Avalon.Server.World.UnitTests.Social;
 /// </summary>
 public class IgnoreListShould
 {
-    private static readonly DateTime Now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
 
     private static CharacterEntity Character() => TestCharacters.New(1);
 
@@ -20,7 +19,7 @@ public class IgnoreListShould
     {
         CharacterEntity c = Character();
 
-        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", Now), new IgnoredCharacterRow(3, "Tom", Now.AddMinutes(1))]);
+        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", s_now), new IgnoredCharacterRow(3, "Tom", s_now.AddMinutes(1))]);
 
         Assert.Equal([7u, 3u], c.Ignores.Entries.Select(e => e.Id));
         Assert.True(c.Ignores.Contains(7));
@@ -32,9 +31,9 @@ public class IgnoreListShould
     public void Replace_what_it_held_on_load()
     {
         CharacterEntity c = Character();
-        c.Ignores.Add(9, "Old", Now);
+        c.Ignores.Add(9, "Old", s_now);
 
-        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", Now)]);
+        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", s_now)]);
 
         Assert.False(c.Ignores.Contains(9));
         Assert.Equal(1, c.Ignores.Count);
@@ -45,10 +44,10 @@ public class IgnoreListShould
     {
         CharacterEntity c = Character();
 
-        Assert.True(c.Ignores.Add(7, "Kaela", Now));
+        Assert.True(c.Ignores.Add(7, "Kaela", s_now));
 
         Assert.True(c.Ignores.Contains(7));
-        Assert.Equal(new IgnoredCharacter(7, "Kaela", Now), Assert.Single(c.Ignores.Entries));
+        Assert.Equal(new IgnoredCharacter(7, "Kaela", s_now), Assert.Single(c.Ignores.Entries));
         Assert.True(c.SaveState.TakeMarks().Ignores!.ContainsKey(7));
     }
 
@@ -56,9 +55,9 @@ public class IgnoreListShould
     public void Add_a_character_only_once()
     {
         CharacterEntity c = Character();
-        c.Ignores.Add(7, "Kaela", Now);
+        c.Ignores.Add(7, "Kaela", s_now);
 
-        Assert.False(c.Ignores.Add(7, "Kaela", Now));
+        Assert.False(c.Ignores.Add(7, "Kaela", s_now));
 
         Assert.Equal(1, c.Ignores.Count);
     }
@@ -67,7 +66,7 @@ public class IgnoreListShould
     public void Mark_the_save_when_a_character_is_removed()
     {
         CharacterEntity c = Character();
-        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", Now)]);
+        c.Ignores.Load([new IgnoredCharacterRow(7, "Kaela", s_now)]);
 
         Assert.True(c.Ignores.Remove(7));
 
@@ -83,7 +82,7 @@ public class IgnoreListShould
     public void Find_an_entry_by_name_ignoring_case_and_spaces(string name)
     {
         CharacterEntity c = Character();
-        c.Ignores.Add(7, "Kaela", Now);
+        c.Ignores.Add(7, "Kaela", s_now);
 
         Assert.Equal(7u, c.Ignores.FindByName(name)!.Id);
         Assert.Null(c.Ignores.FindByName("Tom"));
@@ -94,7 +93,7 @@ public class IgnoreListShould
     public void Find_no_entry_by_a_name_that_matches_only_outside_ascii()
     {
         CharacterEntity c = Character();
-        c.Ignores.Add(7, "Bill", Now);
+        c.Ignores.Add(7, "Bill", s_now);
 
         Assert.Null(c.Ignores.FindByName("Bıll"));
     }

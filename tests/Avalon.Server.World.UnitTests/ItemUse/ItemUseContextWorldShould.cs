@@ -12,7 +12,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World;
-using Avalon.World.Auras;
+using Avalon.World.Abilities;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -25,7 +25,6 @@ using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.ItemUse;
@@ -46,8 +45,13 @@ public class ItemUseContextWorldShould
     {
         var boar = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, id), Metadata = Loot.LootTestData.BoarTemplate(null),
-            Position = at, Health = 100, CurrentHealth = 100, Level = 1, Invulnerable = invulnerable,
+            Guid = new ObjectGuid(ObjectType.Creature, id),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = at,
+            Health = 100,
+            CurrentHealth = 100,
+            Level = 1,
+            Invulnerable = invulnerable,
         };
         instance.AddCreature(boar);
         return boar;
@@ -105,10 +109,10 @@ public class ItemUseContextWorldShould
         using (instance)
         {
             MapInstanceClient user = Join(instance, 7);
-            var row = AbilityTestData.Circle(1);
+            AbilityTemplate row = AbilityTestData.Circle(1);
             row.Cost = 30;
             row.CostPowerType = PowerType.Mana;
-            var held = AbilityTestData.Game(row);
+            GameAbility held = AbilityTestData.Game(row);
             user.Character.Spells.Load([held]);
             user.Character.PowerType = PowerType.Mana;
             user.Character.Power = 100;
@@ -129,8 +133,8 @@ public class ItemUseContextWorldShould
     [Fact]
     public async Task Cast_an_instant_ability_the_user_does_not_hold_and_refuse_one_with_a_cast_time()
     {
-        var instant = AbilityTestData.Circle(5);
-        var windUp = AbilityTestData.Circle(6);
+        AbilityTemplate instant = AbilityTestData.Circle(5);
+        AbilityTemplate windUp = AbilityTestData.Circle(6);
         windUp.CastTime = 1000;
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(abilities: () => [instant, windUp]));
         IWorld world = NewWorld(data);
@@ -155,7 +159,7 @@ public class ItemUseContextWorldShould
         using (instance)
         {
             MapInstanceClient user = Join(instance, 7);
-            var windUp = AbilityTestData.Circle(3);
+            AbilityTemplate windUp = AbilityTestData.Circle(3);
             windUp.CastTime = 1000;
             user.Character.Spells.Load([AbilityTestData.Game(windUp), AbilityTestData.Game(AbilityTestData.Circle(4))]);
             ItemUseContext ctx = ContextFor(NewWorld(), user.Connection, user.Character, instance);

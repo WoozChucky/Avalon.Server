@@ -1,4 +1,3 @@
-using System.Linq;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Creatures;
@@ -16,7 +15,6 @@ using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Scripts;
 
@@ -46,7 +44,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
     /// production-code helper: baking a navmesh is test fixture setup, not something the
     /// locomotion classes themselves need to expose.
     /// </summary>
-    private static readonly Lazy<DtNavMesh> FlatNavMesh = new(BakeFlatGround, isThreadSafe: true);
+    private static readonly Lazy<DtNavMesh> s_flatNavMesh = new(BakeFlatGround, isThreadSafe: true);
 
     private static DtNavMesh BakeFlatGround()
     {
@@ -60,7 +58,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         int[] faces = [0, 1, 2, 0, 2, 3];
 
         var geom = new RcSampleInputGeomProvider(vertices, faces);
-        var result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
+        NavMeshBuildResult result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
         Assert.NotNull(result?.NavMesh);
         return result!.NavMesh;
     }
@@ -68,23 +66,23 @@ public class CreatureCombatScriptCrowdLocomotionShould
     [Fact]
     public void Reach_Their_Claimed_Slots_And_Attack_Under_CrowdLocomotion()
     {
-        var locomotion = new CrowdLocomotion(FlatNavMesh.Value, NavmeshBuildSettings.AgentRadius,
+        var locomotion = new CrowdLocomotion(s_flatNavMesh.Value, NavmeshBuildSettings.AgentRadius,
             NullLogger.Instance);
 
         // Production default: MapInstance registers every creature with the same agent radius it
         // built the crowd with (GameConfiguration.CreatureAgentRadius, which itself defaults to
         // NavmeshBuildSettings.AgentRadius). Using anything smaller here would dodge the exact
         // scenario this test exists to pin.
-        const float agentRadius = NavmeshBuildSettings.AgentRadius;
+        const float AgentRadius = NavmeshBuildSettings.AgentRadius;
 
-        var targetPosition = Vector3.zero;
+        Vector3 targetPosition = Vector3.zero;
         ICharacter target = Substitute.For<ICharacter>();
         target.Guid.Returns(new ObjectGuid(ObjectType.Character, 100));
         target.Position.Returns(targetPosition);
         target.IsDead.Returns(false);
         target.BodyRadius.Returns(0.5f);   // a character's body (#163: an ability reaches the body's edge)
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
         var attackedCreatures = new HashSet<ObjectGuid>();
         combat.When(c => c.ApplyDamage(Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Any<uint>(), Arg.Any<IAbility>()))
@@ -94,7 +92,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         // test in this suite.
         var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(meleeSlots);
@@ -123,14 +121,14 @@ public class CreatureCombatScriptCrowdLocomotionShould
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(creatures.Count + 1)));
             creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
-            var metadata = Substitute.For<ICreatureMetadata>();
+            ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
             metadata.SpeedRun.Returns(4f);
             creature.Metadata.Returns(metadata);
             creature.Speed.Returns(4f);
             creature.Position.Returns(start);
 
             // MapInstance.AddCreature's job, done manually since there is no MapInstance here.
-            locomotion.Register(creature, radius: agentRadius);
+            locomotion.Register(creature, radius: AgentRadius);
 
             var script = new KitCombatScript(creature, context);
             script.OnEnteredRange(target); // _initialPosition = start, State = Combat
@@ -141,7 +139,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
 
         // 8.5m-ish walk under crowd separation, with generous headroom (3000 ticks = 50s
         // simulated); the loop exits the moment every creature has landed at least one hit.
-        TimeSpan dt = TimeSpan.FromSeconds(1d / 60d);
+        var dt = TimeSpan.FromSeconds(1d / 60d);
         for (int tick = 0; tick < 3000 && attackedCreatures.Count < creatures.Count; tick++)
         {
             foreach (CreatureCombatScript script in scripts)
@@ -171,7 +169,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
     /// target on the island is within the polygon search box of its own mesh, so the crowd plans a
     /// partial route that ends at the ground's east edge (#606).
     /// </summary>
-    private static readonly Lazy<DtNavMesh> GroundAndIsland = new(BakeGroundAndIsland, isThreadSafe: true);
+    private static readonly Lazy<DtNavMesh> s_groundAndIsland = new(BakeGroundAndIsland, isThreadSafe: true);
 
     private static DtNavMesh BakeGroundAndIsland()
     {
@@ -189,7 +187,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         int[] faces = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7];
 
         var geom = new RcSampleInputGeomProvider(vertices, faces);
-        var result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
+        NavMeshBuildResult result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
         Assert.NotNull(result?.NavMesh);
         return result!.NavMesh;
     }
@@ -203,7 +201,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
     [Fact]
     public void Go_Home_Within_The_Limit_When_Its_Target_Is_On_An_Island_Under_CrowdLocomotion()
     {
-        var locomotion = new CrowdLocomotion(GroundAndIsland.Value, NavmeshBuildSettings.AgentRadius,
+        var locomotion = new CrowdLocomotion(s_groundAndIsland.Value, NavmeshBuildSettings.AgentRadius,
             NullLogger.Instance);
 
         ICharacter target = Substitute.For<ICharacter>();
@@ -211,10 +209,10 @@ public class CreatureCombatScriptCrowdLocomotionShould
         target.Position.Returns(new Vector3(27f, 0f, 0f));
         target.IsDead.Returns(false);
 
-        var combat = Substitute.For<ICombatService>();
+        ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
 
-        var context = Substitute.For<ISimulationContext>();
+        ISimulationContext context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(new MeleeSlots(slotCount: 6, radius: 1.5f));
@@ -223,7 +221,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
         creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.SpeedRun.Returns(4f);
         creature.Metadata.Returns(metadata);
         creature.Speed.Returns(4f);
@@ -235,7 +233,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         var script = new KitCombatScript(creature, context);
         script.OnEnteredRange(target);
 
-        TimeSpan dt = TimeSpan.FromSeconds(0.05);
+        var dt = TimeSpan.FromSeconds(0.05);
         int returningAt = -1;
         for (int tick = 1; tick <= 140 && returningAt < 0; tick++)
         {

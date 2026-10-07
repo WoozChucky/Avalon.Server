@@ -1,5 +1,4 @@
 using Avalon.World.Public.Abilities;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 

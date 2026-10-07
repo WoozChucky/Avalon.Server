@@ -18,7 +18,7 @@ public static class PublicWorlds
         foreach (ConfiguredWorld configured in databases.All)
         {
             if (!databases.IsAvailable(configured.Id)) continue;
-            var world = await worlds.FindByIdAsync(configured.Id, track: false, ct);
+            WorldEntity? world = await worlds.FindByIdAsync(configured.Id, track: false, ct);
             if (world is null || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller)) continue;
             readable.Add(world);
         }

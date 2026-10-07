@@ -18,7 +18,7 @@ public sealed class SteamWebLinkStoreShould
     public async Task Bind_start_retries_to_root_browser_session_and_secret_cookie()
     {
         var id = Guid.NewGuid();
-        var first = await Store().StartAsync(id, _root, "browser-a", default);
+        SteamWebLinkStart? first = await Store().StartAsync(id, _root, "browser-a", default);
         Assert.NotNull(first);
         Assert.Equal(first, await Store().StartAsync(id, _root, "browser-a", default));
         Assert.Null(await Store().StartAsync(id, _root, "browser-b", default));
@@ -29,8 +29,8 @@ public sealed class SteamWebLinkStoreShould
     [Fact]
     public async Task Consume_challenge_and_provider_nonce_once_even_across_transactions()
     {
-        var a = await Store().StartAsync(Guid.NewGuid(), _root, "browser-a", default);
-        var b = await Store().StartAsync(Guid.NewGuid(), _root, "browser-a", default);
+        SteamWebLinkStart? a = await Store().StartAsync(Guid.NewGuid(), _root, "browser-a", default);
+        SteamWebLinkStart? b = await Store().StartAsync(Guid.NewGuid(), _root, "browser-a", default);
         Assert.True(await Store().ChallengeAsync(a!.Id, a.Cookie, default));
         Assert.False(await Store().ChallengeAsync(a.Id, a.Cookie, default));
         Assert.True(await Store().ChallengeAsync(b!.Id, b.Cookie, default));
@@ -42,7 +42,7 @@ public sealed class SteamWebLinkStoreShould
     [Fact]
     public async Task Reject_changed_authority_stale_nonce_malformed_identity_and_expired_proof()
     {
-        var a = await Store().StartAsync(Guid.NewGuid(), _root, "browser-a", default);
+        SteamWebLinkStart? a = await Store().StartAsync(Guid.NewGuid(), _root, "browser-a", default);
         Assert.True(await Store().ChallengeAsync(a!.Id, a.Cookie, default));
         _root.SessionEpoch++;
         Assert.False(await Store().VerifyAsync(a.Id, a.Cookie, _root, "https://steamcommunity.com/openid/id/76561198000000001", Nonce(), default));
@@ -57,11 +57,11 @@ public sealed class SteamWebLinkStoreShould
     [Fact]
     public async Task Keep_exact_authorized_commit_retry_after_epoch_changes_without_accepting_new_consent()
     {
-        var a = await Store().StartAsync(Guid.NewGuid(), _root, "browser-a", default);
+        SteamWebLinkStart? a = await Store().StartAsync(Guid.NewGuid(), _root, "browser-a", default);
         await Store().ChallengeAsync(a!.Id, a.Cookie, default);
         await Store().VerifyAsync(a.Id, a.Cookie, _root, "https://steamcommunity.com/openid/id/76561198000000001", Nonce(), default);
         var confirm = Guid.NewGuid();
-        var races = await Task.WhenAll(Enumerable.Range(0, 64).Select(_ => Store().CommitAsync(a.Id, _root, "browser-a", a.Cookie, confirm, null, default)));
+        SteamWebLinkRecord?[] races = await Task.WhenAll(Enumerable.Range(0, 64).Select(_ => Store().CommitAsync(a.Id, _root, "browser-a", a.Cookie, confirm, null, default)));
         Assert.All(races, r => Assert.NotNull(r));
         _root.SessionEpoch++;
         _clock.Advance(TimeSpan.FromMinutes(6));

@@ -10,7 +10,6 @@ using Avalon.World.Scripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Hosting;
 
@@ -32,10 +31,12 @@ public class ItemScriptConstructibilityShould
     public async Task Build_every_item_script_the_seed_names()
     {
         string[] named;
-        using (SqliteDatabase<WorldDbContext> database = SqliteDatabase.World())
+        using (var database = SqliteDatabase.World())
         using (WorldDbContext context = database.CreateDbContext())
+        {
             named = context.ItemTemplates.AsNoTracking().ToList()
                 .Where(i => i.UseScript != null).Select(i => i.UseScript!).Distinct().ToArray();
+        }
 
         Assert.Equal(["RestoreHealth", "RestorePower", "TownPortalScroll"], named.Order(StringComparer.Ordinal));
 
@@ -69,7 +70,7 @@ public class ItemScriptConstructibilityShould
             IScriptManager scripts = host.Services.GetRequiredService<IScriptManager>();
             scripts.Load();
 
-            List<Type> shipped = typeof(ScriptManager).Assembly.GetTypes()
+            var shipped = typeof(ScriptManager).Assembly.GetTypes()
                 .Where(t => t.IsSubclassOf(typeof(ItemScript)) && !t.IsAbstract)
                 .ToList();
             Assert.NotEmpty(shipped);

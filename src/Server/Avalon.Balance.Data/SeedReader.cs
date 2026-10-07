@@ -41,8 +41,10 @@ public sealed class SeedReader : IDisposable
                     continue;
 
                 if (property.PropertyInfo is not { CanWrite: true } info)
+                {
                     throw new InvalidDataException(
                         $"{typeof(T).Name}.{property.Name} is seeded but has no writable property to read it into.");
+                }
 
                 info.SetValue(row, value);
             }

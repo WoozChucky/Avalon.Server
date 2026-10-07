@@ -21,7 +21,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class ReauthenticationShould : IDisposable
 {
-    private static readonly string Password = TestPasswords.Valid;
+    private static readonly string s_password = TestPasswords.Valid;
     private const string SourceKey = "auth:source:127.0.0.1:failedLogins";
 
     private readonly SqliteAuthDatabase _database = new();
@@ -45,7 +45,7 @@ public sealed class ReauthenticationShould : IDisposable
             Username = "CALLER",
             Email = "caller@avalon.monster",
             Salt = [1],
-            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, BCrypt.Net.BCrypt.GenerateSalt(4))),
+            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, BCrypt.Net.BCrypt.GenerateSalt(4))),
             JoinDate = DateTime.UtcNow,
             LastLogin = DateTime.UtcNow,
             Locked = locked,
@@ -68,7 +68,7 @@ public sealed class ReauthenticationShould : IDisposable
     {
         Account account = await AccountAsync();
 
-        var refused = await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, " "));
+        AuthenticationException refused = await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, " "));
 
         Assert.Equal(Reauthentication.InvalidPassword, refused.Message);
         Assert.Empty(_cache.UsernameKeys);
@@ -90,13 +90,13 @@ public sealed class ReauthenticationShould : IDisposable
     public async Task Lock_the_account_on_the_wrong_password_in_the_last_slot()
     {
         Account account = await AccountAsync();
-        for (var i = 1; i < _config.MaxFailedLoginAttempts; i++)
+        for (int i = 1; i < _config.MaxFailedLoginAttempts; i++)
             await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, TestPasswords.Wrong));
 
         await Assert.ThrowsAsync<AccountLockedException>(() => CheckAsync(account, TestPasswords.Wrong));
 
         Assert.True((await StoredAsync(account.Id)).Locked);
-        await Assert.ThrowsAsync<AccountLockedException>(() => CheckAsync(account, Password));
+        await Assert.ThrowsAsync<AccountLockedException>(() => CheckAsync(account, s_password));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class ReauthenticationShould : IDisposable
     {
         Account account = await AccountAsync(locked: true);
 
-        await Assert.ThrowsAsync<AccountLockedException>(() => CheckAsync(account, Password));
+        await Assert.ThrowsAsync<AccountLockedException>(() => CheckAsync(account, s_password));
     }
 
     /// <summary>Proved, but no login completed: only its own slots come back, earlier failures stay.</summary>
@@ -114,7 +114,7 @@ public sealed class ReauthenticationShould : IDisposable
         Account account = await AccountAsync();
         await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, TestPasswords.Wrong));
 
-        await CheckAsync(account, Password);
+        await CheckAsync(account, s_password);
 
         Assert.Equal(1, _cache.CountOf(Assert.Single(_cache.UsernameKeys)));
         Assert.Equal(1, _cache.CountOf(SourceKey));

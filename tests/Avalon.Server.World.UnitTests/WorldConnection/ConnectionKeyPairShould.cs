@@ -1,16 +1,9 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Hosting.Networking;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 
@@ -61,7 +54,7 @@ public class ConnectionKeyPairShould : IDisposable
     [Fact]
     public void DifferFromEveryOtherConnectionOnTheSameServer()
     {
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         IConnection first = NewConnection(server);
@@ -87,7 +80,7 @@ public class ConnectionKeyPairShould : IDisposable
     [Fact]
     public void SealDifferentlyOnTwoConnectionsFromOnePeerKeyPair()
     {
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         // One client key pair, presented twice.

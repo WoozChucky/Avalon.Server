@@ -12,7 +12,6 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Pvp;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -20,19 +19,19 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// <summary>The PvP flag through a real MapInstance (#164). Character ids are unique to this class (164_8xx).</summary>
 public class MapInstancePvpShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
-    private static readonly DateTimeOffset Now = new(2026, 9, 26, 12, 0, 0, TimeSpan.Zero);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly DateTimeOffset s_now = new(2026, 9, 26, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>Seven 60 Hz ticks: past the 0.1 s state broadcast interval.</summary>
     private static void TickUntilBroadcast(MapInstance instance)
     {
         for (int i = 0; i < 7; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
     }
 
-    private readonly FixedTimeProvider _clock = new(Now);
+    private readonly FixedTimeProvider _clock = new(s_now);
     private readonly PvpToggle _toggle;
 
     public MapInstancePvpShould() =>
@@ -64,11 +63,11 @@ public class MapInstancePvpShould
         MapInstanceClient player = Join(instance, 164_801);
         _toggle.Request(player.Character);
         _toggle.Request(player.Character);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         player.Sent.Clear();
 
         _clock.Now = _clock.Now.AddMinutes(5);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.False(player.Character.PvpEnabled);
         Assert.Equal((false, 0u), PvpStates(player).Select(s => (s.Enabled, s.OffInMs)).Single());
@@ -81,11 +80,11 @@ public class MapInstancePvpShould
         MapInstanceClient player = Join(instance, 164_811);
         _toggle.Request(player.Character);
         _toggle.Request(player.Character);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         player.Sent.Clear();
 
         _clock.Now = _clock.Now.AddMinutes(4);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.True(player.Character.PvpEnabled);
         Assert.Empty(PvpStates(player));
@@ -108,7 +107,7 @@ public class MapInstancePvpShould
         DateTime? before = a.Character.PvpOffAt;
         _clock.Now = _clock.Now.AddMinutes(1);
 
-        var wolf = Substitute.For<ICreature>();
+        ICreature wolf = Substitute.For<ICreature>();
         wolf.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_829));
         instance.CombatService.ApplyDamage(wolf, a.Character, 5);
         Assert.Equal(before, a.Character.PvpOffAt);
@@ -124,10 +123,10 @@ public class MapInstancePvpShould
         using MapInstance instance = Build();
         CharacterEntity relogged = TestCharacters.New(164_831);
         relogged.Data!.PvpEnabled = true;
-        relogged.Data.PvpOffAt = Now.UtcDateTime.AddMinutes(2);
+        relogged.Data.PvpOffAt = s_now.UtcDateTime.AddMinutes(2);
 
         MapInstanceClient player = Join(instance, relogged);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         SPvpStatePacket state = Assert.Single(PvpStates(player));
         Assert.True(state.Enabled);
@@ -140,10 +139,10 @@ public class MapInstancePvpShould
         using MapInstance instance = Build();
         CharacterEntity relogged = TestCharacters.New(164_861);
         relogged.Data!.PvpEnabled = true;
-        relogged.Data.PvpOffAt = Now.UtcDateTime.AddMinutes(-1);
+        relogged.Data.PvpOffAt = s_now.UtcDateTime.AddMinutes(-1);
 
         MapInstanceClient player = Join(instance, relogged);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.False(relogged.PvpEnabled);
         Assert.Null(relogged.PvpOffAt);
@@ -198,7 +197,7 @@ public class MapInstancePvpShould
         using MapInstance instance = Build(MapType.Town);
         MapInstanceClient a = Join(instance, 164_891);
         MapInstanceClient b = Join(instance, 164_892);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         a.Sent.Clear();
 
         _toggle.Toggle(a.Connection);
@@ -222,7 +221,7 @@ public class MapInstancePvpShould
             _toggle.Toggle(c.Connection);
         }
 
-        instance.Update(Tick);
+        instance.Update(s_tick);
         foreach (MapInstanceClient c in clients)
         {
             c.Sent.Clear();
@@ -240,8 +239,8 @@ public class MapInstancePvpShould
 
         _clock.Now = _clock.Now.AddMinutes(1);
         instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
-        instance.Update(Tick);
-        instance.Update(Tick);
+        instance.Update(s_tick);
+        instance.Update(s_tick);
 
         foreach (MapInstanceClient c in new[] { a, b })
         {
@@ -258,13 +257,13 @@ public class MapInstancePvpShould
         FlagAndAskOff(instance, a, b);
         _clock.Now = _clock.Now.AddMinutes(1);
         instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         a.Sent.Clear();
         b.Sent.Clear();
 
         _clock.Now = _clock.Now.AddMilliseconds(500);
         instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Empty(PvpStates(a));
         Assert.Empty(PvpStates(b));
@@ -279,13 +278,13 @@ public class MapInstancePvpShould
         FlagAndAskOff(instance, a, b);
         _clock.Now = _clock.Now.AddMinutes(1);
         instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         a.Sent.Clear();
         b.Sent.Clear();
 
         _clock.Now = _clock.Now.AddSeconds(2);
         instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         foreach (MapInstanceClient c in new[] { a, b })
         {
@@ -299,13 +298,13 @@ public class MapInstancePvpShould
         using MapInstance instance = Build();
         MapInstanceClient a = Join(instance, 164_931);
         FlagAndAskOff(instance, a);
-        var wolf = Substitute.For<ICreature>();
+        ICreature wolf = Substitute.For<ICreature>();
         wolf.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_939));
 
         _clock.Now = _clock.Now.AddMinutes(1);
         instance.CombatService.ApplyDamage(wolf, a.Character, 5);
         instance.CombatService.ApplyDamage(a.Character, wolf, 5);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Empty(PvpStates(a));
     }
@@ -316,7 +315,7 @@ public class MapInstancePvpShould
         using MapInstance instance = Build();
         MapInstanceClient a = Join(instance, 164_941);
         MapInstanceClient b = Join(instance, 164_942);
-        instance.Update(Tick);
+        instance.Update(s_tick);
         foreach (MapInstanceClient c in new[] { a, b })
         {
             _toggle.Request(c.Character);   // on, no timer, never told
@@ -326,7 +325,7 @@ public class MapInstancePvpShould
         }
 
         instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Empty(PvpStates(a));
         Assert.Empty(PvpStates(b));
@@ -338,8 +337,8 @@ public class MapInstancePvpShould
         using MapInstance instance = Build();
         MapInstanceClient player = Join(instance, 164_841);
 
-        instance.Update(Tick);
-        instance.Update(Tick);
+        instance.Update(s_tick);
+        instance.Update(s_tick);
 
         SPvpStatePacket state = Assert.Single(PvpStates(player));
         Assert.False(state.Enabled);

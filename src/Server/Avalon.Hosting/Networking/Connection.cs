@@ -1,19 +1,11 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
+using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-
-using Avalon.Hosting.Telemetry;
 
 namespace Avalon.Hosting.Networking;
 
@@ -21,9 +13,9 @@ public interface IConnection
 {
     Guid Id { get; }
     Task? ExecuteTask { get; }
-    public string RemoteEndPoint { get; }
-    public IAvalonCryptoSession CryptoSession { get; }
-    public ICryptoManager ServerCrypto { get; }
+    string RemoteEndPoint { get; }
+    IAvalonCryptoSession CryptoSession { get; }
+    ICryptoManager ServerCrypto { get; }
 
     void Close(bool expected = true);
 
@@ -204,7 +196,7 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
             ProxyHeader header = await ProxyProtocolV2.ReadAsync(raw, timeout.Token).ConfigureAwait(false);
             if (header.Source is not null)
                 RemoteEndPoint = header.Source.ToString();
-                ClientAddress = PacketTags.AddressOf(RemoteEndPoint);
+            ClientAddress = PacketTags.AddressOf(RemoteEndPoint);
             return true;
         }
         catch (ProxyHeaderNotSentException)
@@ -248,7 +240,7 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
             {
                 await foreach (ReadOnlyMemory<byte> raw in _stream!.EnumerateRawFramesAsync(_packetReader.BufferSize, stoppingToken))
                 {
-                    InboundPacketFrame frame = InboundPacketFrame.ParseFrame(raw);
+                    var frame = InboundPacketFrame.ParseFrame(raw);
 
                     if (_logger.IsEnabled(LogLevel.Debug) &&
                         frame.Header.Type != NetworkPacketType.CMSG_PONG &&

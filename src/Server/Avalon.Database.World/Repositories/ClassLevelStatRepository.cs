@@ -14,7 +14,7 @@ public class ClassLevelStatRepository(IDbContextFactory<WorldDbContext> contextF
 {
     public async Task<IReadOnlyCollection<ClassLevelStat>> FindAllAsync(CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.ClassLevelStats
             .AsNoTracking()
@@ -23,7 +23,7 @@ public class ClassLevelStatRepository(IDbContextFactory<WorldDbContext> contextF
 
     public async Task<ClassLevelStat?> GetByLevelAsync(CharacterClass @class, ushort level, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.ClassLevelStats
             .AsNoTracking()

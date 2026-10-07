@@ -4,8 +4,8 @@ using Avalon.Database.Character;
 using Avalon.Database.World;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
-using DatabaseRegistration = Avalon.Database.Extensions.ServiceCollectionExtensions;
 using Microsoft.Extensions.Options;
+using DatabaseRegistration = Avalon.Database.Extensions.ServiceCollectionExtensions;
 
 namespace Avalon.Api.Worlds;
 

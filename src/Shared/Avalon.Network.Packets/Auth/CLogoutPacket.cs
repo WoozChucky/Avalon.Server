@@ -1,6 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
-using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
+using ProtoBuf;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -24,7 +24,7 @@ public class CLogoutPacket : Packet
 
         Serializer.Serialize(memoryStream, authPacket);
 
-        var buffer = encryptFunc(memoryStream.ToArray());
+        byte[] buffer = encryptFunc(memoryStream.ToArray());
 
         return new NetworkPacket
         {

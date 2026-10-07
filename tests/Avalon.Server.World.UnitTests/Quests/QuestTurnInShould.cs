@@ -7,8 +7,8 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -19,7 +19,7 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestTurnInShould
 {
-    private static readonly ItemTemplateId TuskId = new(Tusk);
+    private static readonly ItemTemplateId s_tuskId = new(Tusk);
 
     /// <summary>Tusks accepted, both tusks in the bag (ready), and a conversation open with its ender.</summary>
     private static async Task<(QuestTestWorld W, QuestClient C, Creature Ender)> ReadyTusksAsync(
@@ -29,7 +29,7 @@ public class QuestTurnInShould
         QuestClient c = w.Join(money: money);
         QuestTestWorld.Complete(c, Hunt);
         w.Accept(c, Tusks);
-        w.Economy.InventoryOf(c.Character).TryAdd(TuskId, 2);
+        w.Economy.InventoryOf(c.Character).TryAdd(s_tuskId, 2);
         QuestFlusher.Flush(c.Connection, w.Quests);
         Assert.Equal(CharacterQuestState.ReadyToTurnIn, c.Character.Quests.Get(Tusks)!.State);
         Creature ender = w.Place(Ender);
@@ -107,7 +107,7 @@ public class QuestTurnInShould
     {
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
         ItemTemplate charm = Items().Single(i => i.Id.Value == Charm);
-        var bag = c.Character.Container(InventoryType.Bag);
+        CharacterInventoryContainer bag = c.Character.Container(InventoryType.Bag);
         bag.Load(bag.Items.Concat(Enumerable.Range(0, bag.Capacity).Select(s => (ushort)s)
             .Where(s => bag.Items.All(i => i.Slot != s)).Select(s => TestCharacters.Item(s, charm))).ToList());
         Assert.Empty(bag.FreeSlots());
@@ -123,7 +123,7 @@ public class QuestTurnInShould
         quests.Single(q => q.Id.Value == Tusks).ItemRewards[0].Count = 11;   // two stacks of Tonic; one slot will be free
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(quests);
         ItemTemplate charm = Items().Single(i => i.Id.Value == Charm);
-        var bag = c.Character.Container(InventoryType.Bag);
+        CharacterInventoryContainer bag = c.Character.Container(InventoryType.Bag);
         bag.Load(bag.Items.Concat(Enumerable.Range(0, bag.Capacity).Select(s => (ushort)s)
             .Where(s => bag.Items.All(i => i.Slot != s)).Select(s => TestCharacters.Item(s, charm))).ToList());
 
@@ -167,7 +167,7 @@ public class QuestTurnInShould
     {
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
         w.Data.ItemTemplates.Single(t => t.Id.Value == Tonic).Flags |= ItemTemplateFlags.Unique;
-        var logger = NSubstitute.Substitute.For<Microsoft.Extensions.Logging.ILogger<QuestService>>();
+        ILogger<QuestService> logger = NSubstitute.Substitute.For<Microsoft.Extensions.Logging.ILogger<QuestService>>();
         var quests = new QuestService(w.World, NSubstitute.Substitute.For<IServiceProvider>(), w.Economy, w.Random, w.Clock, logger);
 
         Assert.Equal(QuestResult.Error, quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
@@ -243,7 +243,7 @@ public class QuestTurnInShould
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
         var row = new VendorStockView(1, 1, new ItemTemplateId(Tonic), null, null, null,
             new QuestRequirement(Tusks, QuestRequirementState.Completed), []);
-        var activeRow = row with { Requirement = new QuestRequirement(Tusks, QuestRequirementState.Active) };
+        VendorStockView activeRow = row with { Requirement = new QuestRequirement(Tusks, QuestRequirementState.Active) };
         Assert.False(VendorRules.IsVisible(row, c.Character, QuestProgress.Instance));
         Assert.True(VendorRules.IsVisible(activeRow, c.Character, QuestProgress.Instance));
 

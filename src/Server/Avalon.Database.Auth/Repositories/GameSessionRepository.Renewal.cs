@@ -2,6 +2,7 @@ using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.Auth.Repositories;
 
@@ -13,9 +14,13 @@ public sealed partial class GameSessionRepository
     {
         now = clock?.GetUtcNow().UtcDateTime ?? now;
         if (sessionId == Guid.Empty || fence <= 0 || leaseUntil <= now || leaseUntil > now.Add(GameAuthPolicy.SessionLeaseLifetime) ||
-            licenseUntil < leaseUntil || licenseUntil > now.AddMinutes(5)) return false;
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            licenseUntil < leaseUntil || licenseUntil > now.AddMinutes(5))
+        {
+            return false;
+        }
+
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (!await AccountRepository.HoldGameAuthorityAsync(db, accountId, credentialsVersion, sessionEpoch, now, cancellationToken)) return false;
         // End and other head writes may hold this row independently of the account lock.
         // Acquire it before taking the time used by the admission predicate.
@@ -23,7 +28,7 @@ public sealed partial class GameSessionRepository
             .ExecuteUpdateAsync(u => u.SetProperty(h => h.FencingToken, h => h.FencingToken), cancellationToken);
         now = clock?.GetUtcNow().UtcDateTime ?? now;
         if (leaseUntil <= now || licenseUntil <= now) return false;
-        var changed = await db.GameSessions.Where(h => h.AccountId == accountId && h.GameSessionId == sessionId &&
+        int changed = await db.GameSessions.Where(h => h.AccountId == accountId && h.GameSessionId == sessionId &&
                 h.FencingToken == fence && h.ServerId == serverId && h.CredentialsVersion == credentialsVersion &&
                 h.SessionEpoch == sessionEpoch && h.State == GameSessionState.Active && h.LeaseUntil > now)
             .ExecuteUpdateAsync(u => u.SetProperty(h => h.LeaseUntil, leaseUntil).SetProperty(h => h.LicenseUntil, licenseUntil), cancellationToken);

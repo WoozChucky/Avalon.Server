@@ -60,9 +60,14 @@ public static partial class Simulation
         {
             config.Scenarios.Validate(data);
             foreach (CharacterClass characterClass in config.Scenarios.Classes)
-            foreach (ushort level in config.Scenarios.LevelRange())
-                if (!data.Tables.ClassLevelStats.Any(r => r.Class == characterClass && r.Level == level))
-                    throw new InvalidDataException($"scenarios: ClassLevelStat {characterClass} level {level} is not seeded");
+            {
+                foreach (ushort level in config.Scenarios.LevelRange())
+                {
+                    if (!data.Tables.ClassLevelStats.Any(r => r.Class == characterClass && r.Level == level))
+                        throw new InvalidDataException($"scenarios: ClassLevelStat {characterClass} level {level} is not seeded");
+                }
+            }
+
             try
             {
                 config.Targets.Validate(config.Scenarios);

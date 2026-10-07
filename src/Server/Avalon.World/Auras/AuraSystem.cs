@@ -8,7 +8,6 @@ using Avalon.Network.Packets.Social;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Units;

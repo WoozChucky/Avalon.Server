@@ -12,7 +12,6 @@ using Avalon.World.Public.Units;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 
@@ -31,13 +30,13 @@ public class DodgeEngagesShould
     [MemberData(nameof(Scripts))]
     public void Engage_the_creature_against_the_attacker_on_a_dodged_opening_hit(string scriptName)
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         Vector3? requested = null;
-        var ctx = Substitute.For<ISimulationContext>();
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
         ctx.Characters.Returns(new Dictionary<ObjectGuid, ICharacter>());
         ctx.Locomotion.Returns(locomotion);
         ctx.MeleeSlots.Returns(new MeleeSlots(6, radius: 1.5f));
-        var observer = Substitute.For<ICombatService>();
+        ICombatService observer = Substitute.For<ICombatService>();
         observer.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
         ctx.CombatService.Returns(observer);
 

@@ -23,7 +23,9 @@ public sealed class PickupEmailSenderShould : IDisposable
 
     private PickupEmailSender Sender() => new(new EmailConfig
     {
-        Sender = EmailSenderKind.Pickup, PickupDirectory = _directory, From = "noreply@avalon.monster",
+        Sender = EmailSenderKind.Pickup,
+        PickupDirectory = _directory,
+        From = "noreply@avalon.monster",
     }, _time);
 
     private static (Dictionary<string, string> Headers, string Body) Parse(string eml)

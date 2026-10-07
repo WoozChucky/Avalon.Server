@@ -4,9 +4,7 @@ using Avalon.Api.Config;
 using Avalon.Api.Middlewares;
 using Avalon.Infrastructure.Login;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -82,7 +80,7 @@ public sealed class ForwardedHeadersShould
             [$"Application:ForwardedHeaders:{key}"] = value,
         });
 
-        var ex = Assert.Throws<InvalidOperationException>(() => ForwardedHeadersSetup.BuildOptions(config));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => ForwardedHeadersSetup.BuildOptions(config));
 
         Assert.Contains("Application:ForwardedHeaders:" + key.Split(':')[0], ex.Message, StringComparison.Ordinal);
     }
@@ -108,7 +106,7 @@ public sealed class ForwardedHeadersShould
     [Fact]
     public async Task Take_the_source_from_a_trusted_proxys_forwarded_for()
     {
-        await using var host = await Host.StartAsync(new ForwardedHeadersConfig { KnownProxies = ["10.0.0.2"] });
+        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownProxies = ["10.0.0.2"] });
 
         string source = await host.SourceAsync(peer: "10.0.0.2", forwardedFor: "198.51.100.7");
 
@@ -119,7 +117,7 @@ public sealed class ForwardedHeadersShould
     [Fact]
     public async Task Take_the_source_from_a_proxy_on_a_trusted_network()
     {
-        await using var host = await Host.StartAsync(new ForwardedHeadersConfig { KnownNetworks = ["10.1.0.0/16"] });
+        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownNetworks = ["10.1.0.0/16"] });
 
         string source = await host.SourceAsync(peer: "10.1.4.5", forwardedFor: "198.51.100.7");
 
@@ -130,7 +128,7 @@ public sealed class ForwardedHeadersShould
     [Fact]
     public async Task Ignore_forwarded_for_from_a_peer_that_is_not_trusted_and_warn_once_per_interval()
     {
-        await using var host = await Host.StartAsync(new ForwardedHeadersConfig { KnownProxies = ["10.0.0.2"] });
+        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownProxies = ["10.0.0.2"] });
 
         string first = await host.SourceAsync(peer: "203.0.113.9", forwardedFor: "198.51.100.7");
         await host.SourceAsync(peer: "203.0.113.9", forwardedFor: "198.51.100.8");
@@ -147,7 +145,7 @@ public sealed class ForwardedHeadersShould
     [Fact]
     public async Task Take_the_source_from_a_proxy_on_a_trusted_ipv6_network()
     {
-        await using var host = await Host.StartAsync(new ForwardedHeadersConfig { KnownNetworks = ["fd00:1::/48"] });
+        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownNetworks = ["fd00:1::/48"] });
 
         string source = await host.SourceAsync(peer: "fd00:1::5", forwardedFor: "2001:db8:aa::7");
 
@@ -164,7 +162,7 @@ public sealed class ForwardedHeadersShould
     [InlineData(1, "10.0.0.3")]
     public async Task Read_as_many_trusted_hops_as_the_forward_limit_allows(int limit, string expected)
     {
-        await using var host = await Host.StartAsync(new ForwardedHeadersConfig
+        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig
         {
             KnownProxies = ["10.0.0.2", "10.0.0.3"],
             ForwardLimit = limit,
@@ -183,7 +181,7 @@ public sealed class ForwardedHeadersShould
     [Fact]
     public async Task Drop_forwarded_for_from_a_caller_with_no_peer_address()
     {
-        await using var host = await Host.StartAsync(new ForwardedHeadersConfig { KnownProxies = ["10.0.0.2"] });
+        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownProxies = ["10.0.0.2"] });
 
         string source = await host.SourceAsync(peer: null, forwardedFor: "198.51.100.7");
 
@@ -194,7 +192,7 @@ public sealed class ForwardedHeadersShould
     [Fact]
     public async Task Not_warn_for_a_request_without_forwarded_for()
     {
-        await using var host = await Host.StartAsync(new ForwardedHeadersConfig());
+        await using Host host = await Host.StartAsync(new ForwardedHeadersConfig());
 
         await host.SourceAsync(peer: "203.0.113.9", forwardedFor: null);
 

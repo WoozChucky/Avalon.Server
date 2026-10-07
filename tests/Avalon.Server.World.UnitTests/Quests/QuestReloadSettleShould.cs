@@ -1,13 +1,13 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
-using Avalon.World.Inventory;
-using Microsoft.Extensions.Logging;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
+using Avalon.Network.Packets.World;
+using Avalon.World.Inventory;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
-using Xunit;
+using Microsoft.Extensions.Logging;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -228,7 +228,7 @@ public class QuestReloadSettleShould
         await ReloadAsync(w);
         Avalon.World.Public.Creatures.ICreature giver = w.Place(Giver);
 
-        var options = w.Quests.DialogueOptionsFor(c.Connection, c.Character, giver, w.Data.Dialogue.GetRoot(giver.Metadata.Id)!);
+        List<SDialogueOptionInfo> options = w.Quests.DialogueOptionsFor(c.Connection, c.Character, giver, w.Data.Dialogue.GetRoot(giver.Metadata.Id)!);
 
         Assert.Contains(options, o => o.QuestId == Hunt && o.Kind == Avalon.Network.Packets.World.DialogueOptionKind.QuestTurnIn);
     }

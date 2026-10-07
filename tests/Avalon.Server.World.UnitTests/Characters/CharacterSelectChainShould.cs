@@ -1,10 +1,9 @@
-using Avalon.Common.GameAuth;
-using Avalon.Server.World.UnitTests.GameAuth;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Cryptography;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
@@ -13,6 +12,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Characters;
@@ -25,7 +25,6 @@ using Avalon.World.Maintenance;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
@@ -44,9 +43,9 @@ namespace Avalon.Server.World.UnitTests.Characters;
 public class CharacterSelectChainShould : IDisposable
 {
     private const ushort TownMapId = 1;
-    private static readonly CharacterId TheCharacter = new(7);
-    private static readonly CharacterId AnotherCharacter = new(8);
-    private static readonly AccountId TheAccount = new(42L);
+    private static readonly CharacterId s_theCharacter = new(7);
+    private static readonly CharacterId s_anotherCharacter = new(8);
+    private static readonly AccountId s_theAccount = new(42L);
 
     /// <summary>
     /// How long a test waits for work that finishes on the thread pool (a save chain, a read) before
@@ -54,7 +53,7 @@ public class CharacterSelectChainShould : IDisposable
     /// save wait runs on <see cref="_clock" />), so a slow runner only makes a test slower, and this
     /// bound only stops a broken one from hanging.
     /// </summary>
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan s_patience = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// The select handler's clock. It moves only when a test advances it, so the save wait runs out
@@ -79,12 +78,12 @@ public class CharacterSelectChainShould : IDisposable
         _serverSide = listener.AcceptTcpClient();
         listener.Stop();
 
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
         _connection = new Avalon.World.WorldConnection(
             server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>())
         {
-            AccountId = TheAccount
+            AccountId = s_theAccount
         };
 
         // The select handler sends, and a real connection seals what it sends. Agreeing a key with
@@ -113,7 +112,7 @@ public class CharacterSelectChainShould : IDisposable
     }
 
     private void StartSelect() =>
-        _select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        _select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
     /// <summary>
     /// A select that dies mid-chain leaves the connection in the guard's "mid-select" state
@@ -126,7 +125,7 @@ public class CharacterSelectChainShould : IDisposable
     [Fact]
     public void Cancel_A_Select_Whose_Chain_Faulted_Once_It_Has_Waited_Too_Long()
     {
-        _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
+        _inventory.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(Task.FromException<IReadOnlyCollection<CharacterInventory>>(
                 new InvalidOperationException("the database went away mid-select")));
 
@@ -203,12 +202,12 @@ public class CharacterSelectChainShould : IDisposable
         Assert.Null(_connection.PendingSpawn);
 
         new CharacterDeletetHandler(NullLogger<CharacterDeletetHandler>.Instance, _characters)
-            .Execute(_connection, new CCharacterDeletePacket { CharacterId = TheCharacter });
+            .Execute(_connection, new CCharacterDeletePacket { CharacterId = s_theCharacter });
         Step(2);
 
         _characters.DidNotReceiveWithAnyArgs().DeleteAsync(default!, default);
         // One lookup, the select's: the delete was refused before it made its own.
-        _characters.Received(1).FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>());
+        _characters.Received(1).FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_theCharacter, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -217,9 +216,9 @@ public class CharacterSelectChainShould : IDisposable
         StartSelect();
         Step(2);
 
-        _select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+        _select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_anotherCharacter });
 
-        _characters.DidNotReceive().FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), AnotherCharacter, Arg.Any<CancellationToken>());
+        _characters.DidNotReceive().FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_anotherCharacter, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -263,10 +262,10 @@ public class CharacterSelectChainShould : IDisposable
     [Fact]
     public void Stop_saying_a_select_is_under_way_when_the_character_is_not_found()
     {
-        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), AnotherCharacter, Arg.Any<CancellationToken>())
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_anotherCharacter, Arg.Any<CancellationToken>())
             .Returns((Character?)null);
 
-        _select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+        _select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_anotherCharacter });
         Assert.True(_connection.SelectInProgress);
 
         Step();
@@ -285,7 +284,7 @@ public class CharacterSelectChainShould : IDisposable
 
         Assert.NotNull(_connection.PendingSpawn);
         _characters.Received(1).UpdateForGameplayAsync(Arg.Any<GameplayWriteAuthority>(),
-            Arg.Is<Character>(c => c.Id == TheCharacter && !c.Online), Arg.Any<CancellationToken>());
+            Arg.Is<Character>(c => c.Id == s_theCharacter && !c.Online), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -322,31 +321,31 @@ public class CharacterSelectChainShould : IDisposable
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         int committed = 0;
-        var repository = Substitute.For<ICharacterSaveRepository>();
+        ICharacterSaveRepository repository = Substitute.For<ICharacterSaveRepository>();
         repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
-                await gate.Task.WaitAsync(Patience);
+                await gate.Task.WaitAsync(s_patience);
                 Volatile.Write(ref committed, 1);
             });
         var saver = new CharacterSaver(repository, NullLogger<CharacterSaver>.Instance);
         CharacterSelectHandler select = BuildSelectHandler(saver);
 
         var read = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _characters.When(c => c.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>()))
+        _characters.When(c => c.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_theCharacter, Arg.Any<CancellationToken>()))
             .Do(_ => read.TrySetResult(Volatile.Read(ref committed) == 1));
 
         Task<bool> despawn = saver.SaveOnDespawnAsync(
-            Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(TheCharacter.Value), prepareRow: null, CancellationToken.None);
-        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+            Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(s_theCharacter.Value), prepareRow: null, CancellationToken.None);
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         Assert.False(read.Task.IsCompleted, "the select read the character while its save was still in flight");
 
         // The select's save wait is on _clock, which never moves here, so only the commit can end it:
         // however slowly the runner gets the save to commit, the select cannot give up first.
         gate.SetResult();
-        Assert.True(await despawn.WaitAsync(Patience));
-        Assert.True(await read.Task.WaitAsync(Patience), "the read ran before the commit");
+        Assert.True(await despawn.WaitAsync(s_patience));
+        Assert.True(await read.Task.WaitAsync(s_patience), "the read ran before the commit");
 
         // The read is recorded as it is made, a moment before the step holding it completes on the
         // thread pool, so the chain's next flush is polled for rather than stepped once.
@@ -363,11 +362,11 @@ public class CharacterSelectChainShould : IDisposable
     [Fact]
     public async Task Fail_the_select_without_reading_once_the_wait_for_its_save_runs_out()
     {
-        var saver = Substitute.For<ICharacterSaver>();
-        saver.WhenIdle(TheCharacter).Returns(new TaskCompletionSource().Task);
+        ICharacterSaver saver = Substitute.For<ICharacterSaver>();
+        saver.WhenIdle(s_theCharacter).Returns(new TaskCompletionSource().Task);
         CharacterSelectHandler select = BuildSelectHandler(saver, TimeSpan.FromMilliseconds(50));
 
-        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
         Assert.True(_connection.SelectInProgress);
 
         // Just short of the limit the select is still waiting.
@@ -400,15 +399,15 @@ public class CharacterSelectChainShould : IDisposable
     [Fact]
     public void Stop_a_select_kicked_by_another_session_of_the_account_before_it_writes_or_builds_anything()
     {
-        var server = Substitute.For<IWorldServer>();
+        IWorldServer server = Substitute.For<IWorldServer>();
         CharacterSelectHandler select = BuildSelectHandler(worldServer: server);
         IWorldConnection kicker = PendingSpawnConnection.Create();
-        server.SessionsOf(TheAccount, kicker).Returns(new List<IWorldConnection> { _connection });
+        server.SessionsOf(s_theAccount, kicker).Returns(new List<IWorldConnection> { _connection });
 
-        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
         Step(); // the character is read; the next step would send it and write its row
 
-        select.Execute(kicker, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+        select.Execute(kicker, new CCharacterSelectedPacket { CharacterId = s_anotherCharacter });
         Step(6);
 
         Assert.False(_connection.SelectInProgress);
@@ -426,24 +425,24 @@ public class CharacterSelectChainShould : IDisposable
     [Fact]
     public async Task Wait_for_the_step_a_kicked_select_has_in_flight_before_reading()
     {
-        var server = Substitute.For<IWorldServer>();
+        IWorldServer server = Substitute.For<IWorldServer>();
         CharacterSelectHandler select = BuildSelectHandler(worldServer: server);
         IWorldConnection kicker = PendingSpawnConnection.Create();
-        server.SessionsOf(TheAccount, kicker).Returns(new List<IWorldConnection> { _connection });
+        server.SessionsOf(s_theAccount, kicker).Returns(new List<IWorldConnection> { _connection });
 
         var held = new TaskCompletionSource<Character?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>())
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(held.Task);
         var readByKicker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), AnotherCharacter, Arg.Any<CancellationToken>())
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_anotherCharacter, Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 readByKicker.TrySetResult();
                 return Task.FromResult<Character?>(null);
             });
 
-        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
-        select.Execute(kicker, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
+        select.Execute(kicker, new CCharacterSelectedPacket { CharacterId = s_anotherCharacter });
 
         // The kicker's save wait is on _clock, which never moves here, so only the held step can end
         // it: the delay gives a premature read a chance to show, and cannot time the wait out.
@@ -452,11 +451,15 @@ public class CharacterSelectChainShould : IDisposable
 
         held.SetResult(new Character
         {
-            Id = TheCharacter, AccountId = TheAccount, Name = "Tester", Class = CharacterClass.Warrior,
-            Level = 1, Map = TownMapId
+            Id = s_theCharacter,
+            AccountId = s_theAccount,
+            Name = "Tester",
+            Class = CharacterClass.Warrior,
+            Level = 1,
+            Map = TownMapId
         });
 
-        await readByKicker.Task.WaitAsync(Patience);
+        await readByKicker.Task.WaitAsync(s_patience);
         Step(6);
         Assert.Null(_connection.PendingSpawn);
         await _characters.DidNotReceiveWithAnyArgs().UpdateForGameplayAsync(default!, default(Character)!, default);
@@ -473,11 +476,11 @@ public class CharacterSelectChainShould : IDisposable
     {
         Assert.True(_connection.TryBeginLeave());
         _connection.EndLeave();
-        var gate = Substitute.For<IWorldEntryGate>();
-        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>()).Returns(default(WorldEntryDecision));
-        var select = BuildSelectHandler(entryGate: gate);
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(s_theAccount, Arg.Any<CancellationToken>()).Returns(default(WorldEntryDecision));
+        CharacterSelectHandler select = BuildSelectHandler(entryGate: gate);
 
-        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
         Assert.False(_connection.SelectInProgress);
         await WaitUntilAsync(() => _connection.IsClosing || StepOnce());
 
@@ -488,14 +491,14 @@ public class CharacterSelectChainShould : IDisposable
     [Fact]
     public async Task Refuse_a_pending_spawn_when_maintenance_starts_during_select()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
-        gate.CheckAsync(TheAccount, Arg.Any<CancellationToken>())
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(s_theAccount, Arg.Any<CancellationToken>())
             .Returns(new WorldEntryDecision(true, DateTime.MaxValue), default(WorldEntryDecision));
-        var select = BuildSelectHandler(entryGate: gate);
-        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        CharacterSelectHandler select = BuildSelectHandler(entryGate: gate);
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
         await WaitUntilAsync(() => _connection.PendingSpawn is not null || StepOnce());
 
-        var releaseWorld = Substitute.For<IWorld>();
+        IWorld releaseWorld = Substitute.For<IWorld>();
         var loaded = new CharacterLoadedHandler(NullLogger<CharacterLoadedHandler>.Instance,
             releaseWorld, gate);
         loaded.Execute(_connection, new CCharacterLoadedPacket());
@@ -508,11 +511,11 @@ public class CharacterSelectChainShould : IDisposable
 
     /// <summary>
     /// Polls for work that finishes on the thread pool, not on a timer, bounded by
-    /// <see cref="Patience" /> only so a broken chain fails instead of hanging.
+    /// <see cref="s_patience" /> only so a broken chain fails instead of hanging.
     /// </summary>
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        DateTime deadline = DateTime.UtcNow + Patience;
+        DateTime deadline = DateTime.UtcNow + s_patience;
         while (!condition())
         {
             Assert.True(DateTime.UtcNow < deadline, "timed out waiting for the select chain");
@@ -525,31 +528,33 @@ public class CharacterSelectChainShould : IDisposable
     {
         var row = new Character
         {
-            Id = TheCharacter,
-            AccountId = TheAccount,
+            Id = s_theCharacter,
+            AccountId = s_theAccount,
             Name = "Tester",
             Class = CharacterClass.Warrior,
             Level = 1,
             Map = TownMapId,
-            X = 1, Y = 2, Z = 3
+            X = 1,
+            Y = 2,
+            Z = 3
         };
 
-        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>())
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount), s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(row);
         _characters.UpdateForGameplayAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<Character>(), Arg.Any<CancellationToken>()).Returns(row);
 
-        _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
+        _inventory.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(Array.Empty<CharacterInventory>());
-        _itemInstances.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
+        _itemInstances.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(Array.Empty<ItemInstance>());
 
-        var abilities = Substitute.For<ICharacterAbilityRepository>();
-        abilities.GetCharacterAbilitiesAsync(TheCharacter, Arg.Any<CancellationToken>())
+        ICharacterAbilityRepository abilities = Substitute.For<ICharacterAbilityRepository>();
+        abilities.GetCharacterAbilitiesAsync(s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(Array.Empty<CharacterAbility>());
 
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.InstanceId.Returns(Guid.NewGuid());
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.GetOrCreateTownInstanceAsync(new MapTemplateId(TownMapId), Arg.Any<ushort>())
             .Returns(Task.FromResult(instance));
 
@@ -600,17 +605,24 @@ public class CharacterSelectChainShould : IDisposable
             var id = new ItemInstanceId(Guid.NewGuid());
             rows.Add(new CharacterInventory
             {
-                CharacterId = TheCharacter, Container = container, Slot = slot, ItemId = id
+                CharacterId = s_theCharacter,
+                Container = container,
+                Slot = slot,
+                ItemId = id
             });
             instances.Add(new ItemInstance
             {
-                Id = id, TemplateId = new ItemTemplateId(template), CharacterId = TheCharacter,
-                Count = 1, Durability = 100, Flags = ItemInstanceFlags.None
+                Id = id,
+                TemplateId = new ItemTemplateId(template),
+                CharacterId = s_theCharacter,
+                Count = 1,
+                Durability = 100,
+                Flags = ItemInstanceFlags.None
             });
         }
 
-        _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(rows);
-        _itemInstances.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
+        _inventory.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>()).Returns(rows);
+        _itemInstances.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(instances);
     }
 
@@ -623,11 +635,11 @@ public class CharacterSelectChainShould : IDisposable
     public void Give_the_selected_character_the_accounts_locale_when_the_lookup_lands_after_the_spawn()
     {
         var lookup = new TaskCompletionSource<Avalon.Domain.Auth.Account?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(lookup.Task);
         CharacterSelectHandler select = BuildSelectHandler(accounts: accounts);
 
-        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
         Step(6);
         var character = (CharacterEntity)_connection.PendingSpawn!.Character;
         Assert.Equal(Avalon.Common.Accounts.AccountLocale.enUS, character.Quests.Locale);
@@ -641,8 +653,13 @@ public class CharacterSelectChainShould : IDisposable
 
     private static Avalon.Domain.Auth.Account AccountIn(Avalon.Common.Accounts.AccountLocale locale) => new()
     {
-        Id = TheAccount, Username = "TESTER", Salt = [], Verifier = [], Email = "tester@example.com",
-        JoinDate = DateTime.UnixEpoch, Locale = locale,
+        Id = s_theAccount,
+        Username = "TESTER",
+        Salt = [],
+        Verifier = [],
+        Email = "tester@example.com",
+        JoinDate = DateTime.UnixEpoch,
+        Locale = locale,
     };
 
     /// <summary>
@@ -651,12 +668,12 @@ public class CharacterSelectChainShould : IDisposable
     [Fact]
     public void Give_the_selected_character_the_accounts_locale_when_the_lookup_lands_first()
     {
-        var accounts = Substitute.For<IAccountRepository>();
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Avalon.Domain.Auth.Account?>(AccountIn(Avalon.Common.Accounts.AccountLocale.frFR)));
         CharacterSelectHandler select = BuildSelectHandler(accounts: accounts);
 
-        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
         Step(6);
 
         Assert.Equal(Avalon.Common.Accounts.AccountLocale.frFR,
@@ -703,19 +720,19 @@ public class CharacterSelectChainShould : IDisposable
 
     private static StaticData EmptyStaticData()
     {
-        var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterLevelExperience>());
-        var stats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository stats = Substitute.For<IClassLevelStatRepository>();
         stats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<ClassLevelStat>());
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());
-        var items = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<ItemTemplate>());
-        var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<AbilityTemplate>());
 
-        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
@@ -723,20 +740,20 @@ public class CharacterSelectChainShould : IDisposable
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
-        var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
         creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<CreatureTemplate>()));
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
                 [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 

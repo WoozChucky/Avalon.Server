@@ -17,13 +17,13 @@ using Avalon.Infrastructure.Extensions;
 using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using Microsoft.IdentityModel.Tokens;
 using NSubstitute;
 
@@ -132,7 +132,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         // Loopback stands in, unless a request asks to be the address-less caller.
         _app.Use((context, next) =>
         {
-            if (context.Request.Headers.TryGetValue(PeerHeader, out var peer))
+            if (context.Request.Headers.TryGetValue(PeerHeader, out StringValues peer))
                 context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(peer.ToString());
             else if (!context.Request.Headers.ContainsKey(NoAddressHeader))
                 context.Connection.RemoteIpAddress ??= System.Net.IPAddress.Loopback;
@@ -169,10 +169,16 @@ public sealed class ApiAuthHost : IAsyncDisposable
 
     public static Account MakeAccount(AccountAccessLevel level = AccountAccessLevel.Player,
         AccountStatus status = AccountStatus.Active) => new()
-    {
-        Id = new AccountId(AccountIdValue), Username = "CALLER", Email = "caller@avalon.monster",
-        Salt = [1], Verifier = [2], JoinDate = DateTime.UtcNow, AccessLevel = level, Status = status,
-    };
+        {
+            Id = new AccountId(AccountIdValue),
+            Username = "CALLER",
+            Email = "caller@avalon.monster",
+            Salt = [1],
+            Verifier = [2],
+            JoinDate = DateTime.UtcNow,
+            AccessLevel = level,
+            Status = status,
+        };
 
     /// <summary>What the account service returns for exactly <see cref="AccountIdValue"/>, and nothing else.</summary>
     public void AccountNowIs(Account? account) =>

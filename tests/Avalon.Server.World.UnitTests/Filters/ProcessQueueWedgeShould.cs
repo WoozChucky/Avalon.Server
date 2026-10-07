@@ -1,4 +1,3 @@
-using Avalon.Server.World.UnitTests.GameAuth;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Common.ValueObjects;
@@ -7,6 +6,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Movement;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -38,7 +38,7 @@ public class ProcessQueueWedgeShould : IDisposable
         _serverSide = listener.AcceptTcpClient();
         listener.Stop();
 
-        var server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).SendBufferCapacity.Returns(256);
         server.PacketHandlers.Returns(new Dictionary<NetworkPacketType, IWorldPacketHandler>
         {

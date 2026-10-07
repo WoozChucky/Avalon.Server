@@ -126,7 +126,12 @@ public class VendorStockStateShould
         rows.Single(r => r.Id == 2).MaxStock = 1;           // Blade: 2 left, now at most 1
         rows.Add(new VendorStock
         {
-            Id = 6, CreatureTemplateId = Smith, Sequence = 6, ItemTemplateId = Tonic.Id, MaxStock = 3, RestockSeconds = 60,
+            Id = 6,
+            CreatureTemplateId = Smith,
+            Sequence = 6,
+            ItemTemplateId = Tonic.Id,
+            MaxStock = 3,
+            RestockSeconds = 60,
         });
         state.Reconcile(Catalog(rows).RowsFor(Smith));
 

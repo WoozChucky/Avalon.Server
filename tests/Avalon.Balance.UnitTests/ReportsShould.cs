@@ -1,4 +1,3 @@
-using Avalon.Balance;
 using Avalon.Balance.Core;
 using Avalon.Balance.Data;
 using Avalon.Balance.Reporting;
@@ -9,7 +8,7 @@ namespace Avalon.Balance.UnitTests;
 
 public class ReportsShould
 {
-    private static readonly string BalanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
+    private static readonly string s_balanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
 
     private static RowResult Row(CharacterClass c, ushort level, double win) =>
         new(new RowKey(c, level, "forest", "normal-3"), 10, win, new Distribution(15, 20, 25), new Distribution(40, 50, 60),
@@ -18,8 +17,8 @@ public class ReportsShould
 
     private static ReportContext Context(params RowResult[] rows)
     {
-        ScenarioFile scenarios = ConfigFileStore.Load(Path.Combine(BalanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
-        TargetFile targets = ConfigFileStore.Load(Path.Combine(BalanceDir, "targets.json"), ConfigFiles.ParseTargets);
+        ScenarioFile scenarios = ConfigFileStore.Load(Path.Combine(s_balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
+        TargetFile targets = ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
         GradeReport grades = Grader.Grade(rows, TestData.Seeded, scenarios, targets);
         return new ReportContext(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero), "abc1234", 672, 10,
             new OverrideReport([new AppliedOverride("Ability.201.EffectValue", "25", "18")], ["Ability.200.EffectValue"]),
@@ -71,7 +70,9 @@ public class ReportsShould
         Assert.DoesNotContain("https://", html, StringComparison.Ordinal);
         foreach (string text in new[] { "abc1234", "Seed 672", "Ability.201.EffectValue", "already applied", "Summary",
                      "normal-3", "Level curves", "<svg", "Cleave, the &quot;big&quot; one", "prefers-color-scheme" })
+        {
             Assert.Contains(text, html, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

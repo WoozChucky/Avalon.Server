@@ -1,7 +1,6 @@
 using System.Reflection;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -12,19 +11,19 @@ namespace Avalon.Server.World.UnitTests.Entities;
 /// </summary>
 public class ReplicationSurfaceShould
 {
-    private static readonly Assembly ModdingApi = typeof(ICharacter).Assembly;
+    private static readonly Assembly s_moddingApi = typeof(ICharacter).Assembly;
 
     [Fact]
     public void Expose_no_replication_state_on_a_character_in_the_modding_api()
     {
-        Assert.DoesNotContain(ModdingApi.GetTypes(), t => t.Name == "ICharacterGameState");
+        Assert.DoesNotContain(s_moddingApi.GetTypes(), t => t.Name == "ICharacterGameState");
         Assert.Null(typeof(ICharacter).GetProperty("CharacterGameState"));
     }
 
     [Fact]
     public void Offer_no_method_in_the_modding_api_that_diffs_a_view_by_interest_range()
     {
-        IEnumerable<string> diffs = ModdingApi.GetTypes()
+        IEnumerable<string> diffs = s_moddingApi.GetTypes()
             .Where(t => t != typeof(InterestRange))   // its own record members take one
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
                 .Where(m => m.GetParameters().Any(p => p.ParameterType == typeof(InterestRange)))

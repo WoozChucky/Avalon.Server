@@ -2,7 +2,6 @@ using Avalon.Network.Packets.Party;
 using Avalon.World.Parties;
 using Avalon.World.Public.Characters;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Parties;
 

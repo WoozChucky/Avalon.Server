@@ -11,7 +11,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Parties;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Social;
 
@@ -21,14 +20,14 @@ namespace Avalon.Server.World.UnitTests.Social;
 /// </summary>
 public class IgnoreChatShould
 {
-    private static readonly DateTime Now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
 
     private readonly PartyTestWorld _w = new();
 
     private static void Run(ICommand command, PartyClient client, string message)
     {
         string[] parts = message.TrimStart('/').Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        command.Execute(new CommandContext(client.Connection, new CChatMessagePacket { Message = message, DateTime = Now },
+        command.Execute(new CommandContext(client.Connection, new CChatMessagePacket { Message = message, DateTime = s_now },
             e => throw e), parts[1..]);
     }
 
@@ -40,7 +39,7 @@ public class IgnoreChatShould
     {
         PartyClient aren = _w.Online(1, "Aren");
         PartyClient kaela = _w.Online(2, "Kaela");
-        kaela.Character.Ignores.Add(aren.Id, "Aren", Now);
+        kaela.Character.Ignores.Add(aren.Id, "Aren", s_now);
 
         Run(new WhisperCommand(_w.Parties.Online, ChatLimits.Off()), aren, "/w Kaela hello");
 
@@ -56,7 +55,7 @@ public class IgnoreChatShould
     {
         PartyClient aren = _w.Online(1, "Aren");
         PartyClient kaela = _w.Online(2, "Kaela");
-        aren.Character.Ignores.Add(kaela.Id, "Kaela", Now);
+        aren.Character.Ignores.Add(kaela.Id, "Kaela", s_now);
 
         Run(new WhisperCommand(_w.Parties.Online, ChatLimits.Off()), aren, "/w Kaela hello");
 
@@ -70,7 +69,7 @@ public class IgnoreChatShould
         PartyClient kaela = _w.Online(2, "Kaela");
         PartyClient tom = _w.Online(3, "Tom");
         _w.Form(aren, kaela, tom);
-        kaela.Character.Ignores.Add(aren.Id, "Aren", Now);
+        kaela.Character.Ignores.Add(aren.Id, "Aren", s_now);
 
         Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), aren, "/p pull");
 
@@ -89,10 +88,10 @@ public class IgnoreChatShould
         MapInstanceClient ignoring = MapInstanceClients.Join(here, 2);
         MapInstanceClient other = MapInstanceClients.Join(here, 3);
         sender.Connection.AccountId.Returns(new AccountId(1));
-        ignoring.Character.Ignores.Add(1, "Tester1", Now);
+        ignoring.Character.Ignores.Add(1, "Tester1", s_now);
 
         new ChatMessageHandler(world, Substitute.For<ICommandDispatcher>(), ChatLimits.Off())
-            .Execute(sender.Connection, new CChatMessagePacket { Message = "Hello", DateTime = Now });
+            .Execute(sender.Connection, new CChatMessagePacket { Message = "Hello", DateTime = s_now });
 
         Assert.Empty(ignoring.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
         Assert.Single(other.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
@@ -104,7 +103,7 @@ public class IgnoreChatShould
     {
         PartyClient aren = _w.Online(1, "Aren");
         PartyClient kaela = _w.Online(2, "Kaela");
-        kaela.Character.Ignores.Add(aren.Id, "Aren", Now);
+        kaela.Character.Ignores.Add(aren.Id, "Aren", s_now);
 
         Assert.Equal(PartyResult.Ok, _w.Parties.Invite(aren.Id, "Kaela"));
 
@@ -118,7 +117,7 @@ public class IgnoreChatShould
     {
         PartyClient aren = _w.Online(1, "Aren");
         PartyClient kaela = _w.Online(2, "Kaela");
-        kaela.Character.Ignores.Add(aren.Id, "Aren", Now);
+        kaela.Character.Ignores.Add(aren.Id, "Aren", s_now);
         _w.Parties.Invite(aren.Id, "Kaela");
 
         Assert.Equal(PartyResult.InvitePending, _w.Parties.Invite(aren.Id, "Kaela"));
@@ -130,7 +129,7 @@ public class IgnoreChatShould
         PartyClient aren = _w.Online(1, "Aren");
         PartyClient kaela = _w.Online(2, "Kaela");
         PartyClient tom = _w.Online(3, "Tom");
-        kaela.Character.Ignores.Add(aren.Id, "Aren", Now);
+        kaela.Character.Ignores.Add(aren.Id, "Aren", s_now);
         _w.Parties.Invite(aren.Id, "Kaela");
 
         Assert.Equal(PartyResult.Ok, _w.Parties.Invite(tom.Id, "Kaela"));
@@ -143,7 +142,7 @@ public class IgnoreChatShould
     {
         PartyClient aren = _w.Online(1, "Aren");
         PartyClient kaela = _w.Online(2, "Kaela");
-        kaela.Character.Ignores.Add(aren.Id, "Aren", Now);
+        kaela.Character.Ignores.Add(aren.Id, "Aren", s_now);
         _w.Parties.Invite(aren.Id, "Kaela");
 
         _w.Clock.Advance(TimeSpan.FromSeconds(59));
@@ -164,7 +163,7 @@ public class IgnoreChatShould
     {
         PartyClient aren = _w.Online(1, "Aren");
         PartyClient kaela = _w.Online(2, "Kaela");
-        kaela.Character.Ignores.Add(aren.Id, "Aren", Now);
+        kaela.Character.Ignores.Add(aren.Id, "Aren", s_now);
         _w.Parties.Invite(aren.Id, "Kaela");
 
         _w.Parties.CharacterOffline(kaela.Connection, kaela.Character);
@@ -177,7 +176,7 @@ public class IgnoreChatShould
     {
         PartyClient aren = _w.Online(1, "Aren");
         PartyClient kaela = _w.Online(2, "Kaela");
-        kaela.Character.Ignores.Add(aren.Id, "Aren", Now);
+        kaela.Character.Ignores.Add(aren.Id, "Aren", s_now);
         _w.Parties.Invite(aren.Id, "Kaela");
 
         _w.Parties.CharacterOffline(aren.Connection, aren.Character);
@@ -195,7 +194,7 @@ public class IgnoreChatShould
         PartyClient kaela = _w.Online(2, "Kaela");
         PartyClient tom = _w.Online(3, "Tom");
         _w.Form(tom, kaela);
-        kaela.Character.Ignores.Add(aren.Id, "Aren", Now);
+        kaela.Character.Ignores.Add(aren.Id, "Aren", s_now);
 
         Assert.Equal(PartyResult.AlreadyInParty, _w.Parties.Invite(aren.Id, "Kaela"));
     }

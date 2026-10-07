@@ -37,7 +37,7 @@ public class CharacterController : BaseController
     [ProducesResponseType(typeof(PagedResult<CharacterDto>), 200)]
     public async Task<PagedResult<CharacterDto>> Paginate([FromQuery] CharacterPaginateFilters filters, CancellationToken ct)
     {
-        var page = await _service.PaginateAsync(filters, ct);
+        PagedResult<Character> page = await _service.PaginateAsync(filters, ct);
         return page.MapTo(ToDto);
     }
 
@@ -47,10 +47,10 @@ public class CharacterController : BaseController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetById([FromRoute] uint id, CancellationToken ct)
     {
-        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        Character? character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
         if (character is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
         return Ok(ToDto(character));
@@ -62,13 +62,13 @@ public class CharacterController : BaseController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetInventory([FromRoute] uint id, CancellationToken ct)
     {
-        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        Character? character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
         if (character is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
-        var inventory = await _service.GetInventoryAsync(new CharacterId(id), ct);
+        CharacterInventoryDto? inventory = await _service.GetInventoryAsync(new CharacterId(id), ct);
         return Ok(inventory);
     }
 
@@ -78,13 +78,13 @@ public class CharacterController : BaseController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetAbilities([FromRoute] uint id, CancellationToken ct)
     {
-        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        Character? character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
         if (character is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
-        var abilities = await _service.GetAbilitiesAsync(new CharacterId(id), ct);
+        CharacterAbilitiesDto? abilities = await _service.GetAbilitiesAsync(new CharacterId(id), ct);
         return Ok(abilities);
     }
 
@@ -95,13 +95,13 @@ public class CharacterController : BaseController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetStats([FromRoute] uint id, CancellationToken ct)
     {
-        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        Character? character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
         if (character is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
-        var stats = await _service.GetStatsAsync(new CharacterId(id), ct);
+        CharacterStatsDto? stats = await _service.GetStatsAsync(new CharacterId(id), ct);
         return stats is null ? NotFound() : Ok(stats);
     }
 
@@ -112,10 +112,10 @@ public class CharacterController : BaseController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetQuests([FromRoute] uint id, CancellationToken ct)
     {
-        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        Character? character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
         if (character is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
         return Ok(await _service.GetQuestLogAsync(new CharacterId(id), ct));
@@ -131,10 +131,10 @@ public class CharacterController : BaseController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetAuras([FromRoute] uint id, CancellationToken ct)
     {
-        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        Character? character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
         if (character is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
         return Ok(await _service.GetAurasAsync(new CharacterId(id), ct));
@@ -146,10 +146,10 @@ public class CharacterController : BaseController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Patch([FromRoute] uint id, [FromBody] CharacterPatchDto dto, CancellationToken ct)
     {
-        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        Character? character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
         if (character is null) return NotFound();
 
-        var authz = await _authz.AuthorizeAsync(User, character, new WriteRequirement());
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, character, new WriteRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
         if (User.HasRoleAtLeast(AvalonRoles.Admin))

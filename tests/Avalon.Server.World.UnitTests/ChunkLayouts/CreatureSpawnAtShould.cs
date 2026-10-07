@@ -11,7 +11,6 @@ using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 
@@ -36,7 +35,7 @@ public class CreatureSpawnAtShould
     [Fact]
     public void Spawn_on_the_ground_under_the_point_and_add_it_to_the_instance()
     {
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.SampleGroundHeight(4f, 9f, 5f).Returns(1.5f);
         _instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(navigator);
 
@@ -50,7 +49,7 @@ public class CreatureSpawnAtShould
     [Fact]
     public void Place_nothing_where_the_navmesh_has_no_ground()
     {
-        var navigator = Substitute.For<IMapNavigator, IGroundNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator, IGroundNavigator>();
         ((IGroundNavigator)navigator).FindGround(Arg.Any<Vector3>(), out Arg.Any<Vector3>()).Returns(NavmeshGroundKind.None);
         _instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(navigator);
 
@@ -75,7 +74,7 @@ public class CreatureSpawnAtShould
     public void Stand_exactly_where_the_ground_was_found(NavmeshGroundKind found)
     {
         var ground = new Vector3(3.25f, 0.75f, 6.5f);
-        var navigator = Substitute.For<IMapNavigator, IGroundNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator, IGroundNavigator>();
         ((IGroundNavigator)navigator).FindGround(new Vector3(3, 2, 6), out Arg.Any<Vector3>())
             .Returns(call =>
             {
@@ -91,7 +90,7 @@ public class CreatureSpawnAtShould
     [Fact]
     public void Attach_the_creatures_named_script()
     {
-        var instance = Substitute.For<IMapInstance, Avalon.World.Public.Instances.ISimulationContext>();
+        IMapInstance instance = Substitute.For<IMapInstance, Avalon.World.Public.Instances.ISimulationContext>();
         instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(Substitute.For<IMapNavigator>());
         _creature.ScriptName.Returns(nameof(Avalon.World.Scripts.Creatures.TownNpcScript));
         _scripts.GetAiScript(nameof(Avalon.World.Scripts.Creatures.TownNpcScript))

@@ -1,4 +1,5 @@
 namespace Avalon.Api.Contract;
+
 public sealed class CreatePatRequest
 {
     public string Name { get; set; } = "";

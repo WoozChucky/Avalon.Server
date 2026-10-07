@@ -41,7 +41,7 @@ public sealed class BalanceClientShould
         return services.BuildServiceProvider().GetRequiredService<IBalanceClient>();
     }
 
-    private static readonly RunRequestDto Run = new(null, null, null, null, null);
+    private static readonly RunRequestDto s_run = new(null, null, null, null, null);
 
     [Fact]
     public async Task Not_retry_a_post_that_failed()
@@ -50,7 +50,7 @@ public sealed class BalanceClientShould
             ? Json(HttpStatusCode.InternalServerError, "{}")
             : Json(HttpStatusCode.Accepted, """{"runId":"r1"}"""));
 
-        BalanceResponse<RunAcceptedDto> response = await Build(handler).StartRunAsync(Run, default);
+        BalanceResponse<RunAcceptedDto> response = await Build(handler).StartRunAsync(s_run, default);
 
         Assert.Equal(500, response.Status);
         Assert.Equal(1, handler.Calls);
@@ -61,7 +61,7 @@ public sealed class BalanceClientShould
     {
         var handler = new StubHandler((_, _) => throw new HttpRequestException("refused"));
 
-        await Assert.ThrowsAsync<BalanceUnavailableException>(() => Build(handler).StartRunAsync(Run, default));
+        await Assert.ThrowsAsync<BalanceUnavailableException>(() => Build(handler).StartRunAsync(s_run, default));
 
         Assert.Equal(1, handler.Calls);
     }
@@ -98,7 +98,7 @@ public sealed class BalanceClientShould
     {
         var handler = new StubHandler((_, _) => throw new HttpRequestException("refused"));
 
-        var ex = await Assert.ThrowsAsync<BalanceUnavailableException>(() => Build(handler).GetRunAsync("r1", default));
+        BalanceUnavailableException ex = await Assert.ThrowsAsync<BalanceUnavailableException>(() => Build(handler).GetRunAsync("r1", default));
 
         Assert.True(handler.Calls > 1);
         Assert.Equal("balance service unavailable", ex.Message);
@@ -111,7 +111,7 @@ public sealed class BalanceClientShould
         var ok = new StubHandler((_, _) => Json(HttpStatusCode.OK, "{}"));
 
         await Build(ok).GetRunAsync("r1", default);
-        var ex = await Assert.ThrowsAsync<BalanceUnavailableException>(() => Build(failing).GetRunAsync("r1", default));
+        BalanceUnavailableException ex = await Assert.ThrowsAsync<BalanceUnavailableException>(() => Build(failing).GetRunAsync("r1", default));
 
         Assert.Equal(Secret, Assert.Single(ok.Requests[0].Headers.GetValues("X-Balance-Secret")));
         Assert.DoesNotContain(Secret, ex.ToString());
@@ -125,7 +125,7 @@ public sealed class BalanceClientShould
         BalanceResponse<RunStatusDto> response = await Build(handler).GetRunAsync("r1", default);
 
         Assert.Equal(502, response.Status);
-        using JsonDocument json = JsonDocument.Parse(response.Json!);
+        using var json = JsonDocument.Parse(response.Json!);
         Assert.Equal("balance service rejected the API's credentials", json.RootElement.GetProperty("detail").GetString());
         Assert.DoesNotContain(Secret, response.Json);
         Assert.Equal(1, handler.Calls);
@@ -134,13 +134,13 @@ public sealed class BalanceClientShould
     [Fact]
     public async Task Keep_a_422_body_with_its_issues()
     {
-        const string body = """{"runId":"","status":"invalid","rowsDone":0,"rowsTotal":0,"result":null,"issues":[{"path":"a","message":"b"}]}""";
-        var handler = new StubHandler((_, _) => Json((HttpStatusCode)422, body));
+        const string Body = """{"runId":"","status":"invalid","rowsDone":0,"rowsTotal":0,"result":null,"issues":[{"path":"a","message":"b"}]}""";
+        var handler = new StubHandler((_, _) => Json((HttpStatusCode)422, Body));
 
-        BalanceResponse<RunAcceptedDto> response = await Build(handler).StartRunAsync(Run, default);
+        BalanceResponse<RunAcceptedDto> response = await Build(handler).StartRunAsync(s_run, default);
 
         Assert.Equal(422, response.Status);
-        Assert.Equal(body, response.Json);
+        Assert.Equal(Body, response.Json);
     }
 
     [Fact]

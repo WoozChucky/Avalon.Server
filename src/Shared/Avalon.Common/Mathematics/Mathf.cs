@@ -36,7 +36,7 @@ public struct Mathf
     ///   <para>Radians-to-degrees conversion constant (Read Only).</para>
     /// </summary>
     public const float Rad2Deg = 57.29578f;
-    internal const int kMaxDecimals = 15;
+    internal const int MaxDecimals = 15;
     /// <summary>
     ///   <para>A tiny floating point value (Read Only).</para>
     /// </summary>
@@ -114,14 +114,11 @@ public struct Mathf
     /// </summary>
     /// <param name="a"></param>
     /// <param name="b"></param>
-    /// <param name="values"></param>
     public static float Min(float a, float b) => (double)a < (double)b ? a : b;
 
     /// <summary>
     ///   <para>Returns the smallest of two or more values.</para>
     /// </summary>
-    /// <param name="a"></param>
-    /// <param name="b"></param>
     /// <param name="values"></param>
     public static float Min(params float[] values)
     {
@@ -142,14 +139,11 @@ public struct Mathf
     /// </summary>
     /// <param name="a"></param>
     /// <param name="b"></param>
-    /// <param name="values"></param>
     public static int Min(int a, int b) => a < b ? a : b;
 
     /// <summary>
     ///   <para>Returns the smallest of two or more values.</para>
     /// </summary>
-    /// <param name="a"></param>
-    /// <param name="b"></param>
     /// <param name="values"></param>
     public static int Min(params int[] values)
     {
@@ -170,14 +164,11 @@ public struct Mathf
     /// </summary>
     /// <param name="a"></param>
     /// <param name="b"></param>
-    /// <param name="values"></param>
     public static float Max(float a, float b) => (double)a > (double)b ? a : b;
 
     /// <summary>
     ///   <para>Returns the largest of two or more values. When comparing negative values, values closer to zero are considered larger.</para>
     /// </summary>
-    /// <param name="a"></param>
-    /// <param name="b"></param>
     /// <param name="values"></param>
     public static float Max(params float[] values)
     {
@@ -198,14 +189,11 @@ public struct Mathf
     /// </summary>
     /// <param name="a"></param>
     /// <param name="b"></param>
-    /// <param name="values"></param>
     public static int Max(int a, int b) => a > b ? a : b;
 
     /// <summary>
     ///   <para>Returns the largest value. When comparing negative values, values closer to zero are considered larger.</para>
     /// </summary>
-    /// <param name="a"></param>
-    /// <param name="b"></param>
     /// <param name="values"></param>
     public static int Max(params int[] values)
     {

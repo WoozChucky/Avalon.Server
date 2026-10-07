@@ -15,7 +15,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 
@@ -23,7 +22,7 @@ namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 /// #720: a procedural spawn stands on the navmesh, not at its slot's authored height. The slot's X/Z
 /// are kept when the mesh is under it; a slot just beside the mesh goes to the mesh's nearest point;
 /// a slot with no mesh within the search box places nothing and logs a warning. Against a real baked
-/// navmesh: <see cref="CrowdLocomotionShould.FlatNavMesh" />, a flat 40x40 quad at height 0 centred
+/// navmesh: <see cref="CrowdLocomotionShould.s_flatNavMesh" />, a flat 40x40 quad at height 0 centred
 /// on the origin, eroded by the agent radius at its edges.
 /// </summary>
 public class ProceduralSpawnGroundShould
@@ -31,12 +30,12 @@ public class ProceduralSpawnGroundShould
     /// <summary>A baked mesh's height on flat ground is within a cell height or so of the geometry's.</summary>
     private const float GroundTolerance = 0.25f;
 
-    private static readonly CreatureTemplateId Boar = new(4);
+    private static readonly CreatureTemplateId s_boar = new(4);
 
     [Fact]
     public async Task Put_A_Creature_Whose_Slot_Is_Above_The_Ground_On_The_Ground_At_The_Same_X_And_Z()
     {
-        var spawner = RecordingSpawner(out List<Vector3> placed);
+        ICreatureSpawner spawner = RecordingSpawner(out List<Vector3> placed);
         IMapInstance instance = InstanceOver(FlatGround());
 
         await BuildService(spawner, NullLoggerFactory.Instance, Slot(5f, 2.5f, 7f))
@@ -54,7 +53,7 @@ public class ProceduralSpawnGroundShould
     {
         // The mesh ends short of x = 20 (the quad's edge, eroded by the agent radius); the slot is
         // half a metre past the quad, within the search box of the mesh.
-        var spawner = RecordingSpawner(out List<Vector3> placed);
+        ICreatureSpawner spawner = RecordingSpawner(out List<Vector3> placed);
         MapNavigator navigator = FlatGround();
 
         await BuildService(spawner, NullLoggerFactory.Instance, Slot(20.5f, 1f, 3f))
@@ -69,7 +68,7 @@ public class ProceduralSpawnGroundShould
     [Fact]
     public async Task Skip_A_Creature_Whose_Slot_Has_No_Mesh_Within_Reach_With_A_Warning_And_Place_The_Rest()
     {
-        var spawner = RecordingSpawner(out List<Vector3> placed);
+        ICreatureSpawner spawner = RecordingSpawner(out List<Vector3> placed);
         var log = new TestLog();
         IMapInstance instance = InstanceOver(FlatGround());
 
@@ -81,7 +80,7 @@ public class ProceduralSpawnGroundShould
         Assert.Equal(2f, position.z);
         instance.ReceivedWithAnyArgs(1).AddCreature(default!);
 
-        var warning = Assert.Single(log.Entries, e => e.Level == LogLevel.Warning);
+        (LogLevel Level, Exception? Exception, string Message) warning = Assert.Single(log.Entries, e => e.Level == LogLevel.Warning);
         Assert.Contains("no navmesh within reach", warning.Message, StringComparison.Ordinal);
     }
 
@@ -90,7 +89,7 @@ public class ProceduralSpawnGroundShould
     {
         // A map whose bake produced nothing: there is no ground to find, and the creature is placed
         // where it always was rather than every creature on the map being skipped.
-        var spawner = RecordingSpawner(out List<Vector3> placed);
+        ICreatureSpawner spawner = RecordingSpawner(out List<Vector3> placed);
 
         await BuildService(spawner, NullLoggerFactory.Instance, Slot(5f, 2.5f, 7f))
             .PlaceAsync(InstanceOver(new MapNavigator(NullLoggerFactory.Instance)), Layout(), Config(), seed: 0,
@@ -102,9 +101,9 @@ public class ProceduralSpawnGroundShould
     [Fact]
     public async Task Cost_Only_Its_Own_Creature_When_Finding_The_Ground_Throws()
     {
-        var spawner = RecordingSpawner(out List<Vector3> placed);
+        ICreatureSpawner spawner = RecordingSpawner(out List<Vector3> placed);
         MapNavigator ground = FlatGround();
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.GetNavigatorForPosition(Arg.Is<Vector3>(p => p.x == 1f))
             .Throws(new InvalidOperationException("navigator broke"));
         instance.GetNavigatorForPosition(Arg.Is<Vector3>(p => p.x != 1f)).Returns(ground);
@@ -122,8 +121,8 @@ public class ProceduralSpawnGroundShould
     {
         // The authored path is unchanged: SampleGroundHeight on the mesh, the authored height where
         // the column is off it (it is never skipped).
-        var spawner = RecordingSpawner(out List<Vector3> placed);
-        var authored = Substitute.For<IMapCreatureSpawnRepository>();
+        ICreatureSpawner spawner = RecordingSpawner(out List<Vector3> placed);
+        IMapCreatureSpawnRepository authored = Substitute.For<IMapCreatureSpawnRepository>();
         authored.FindByMapAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<MapCreatureSpawn>>(
             [
@@ -148,13 +147,13 @@ public class ProceduralSpawnGroundShould
     private static MapNavigator FlatGround()
     {
         var navigator = new MapNavigator(NullLoggerFactory.Instance);
-        navigator.LoadFromNavMesh(CrowdLocomotionShould.FlatNavMesh.Value);
+        navigator.LoadFromNavMesh(CrowdLocomotionShould.s_flatNavMesh.Value);
         return navigator;
     }
 
     private static IMapInstance InstanceOver(IMapNavigator navigator)
     {
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(navigator);
         return instance;
     }
@@ -164,7 +163,7 @@ public class ProceduralSpawnGroundShould
         var positions = new List<Vector3>();
         placed = positions;
 
-        var spawner = Substitute.For<ICreatureSpawner>();
+        ICreatureSpawner spawner = Substitute.For<ICreatureSpawner>();
         uint next = 1;
         spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(ci =>
         {
@@ -186,7 +185,7 @@ public class ProceduralSpawnGroundShould
     {
         Id = new MapCreatureSpawnId(id),
         MapTemplateId = new MapTemplateId(2),
-        CreatureTemplateId = Boar,
+        CreatureTemplateId = s_boar,
         OffsetX = offset.x,
         OffsetY = offset.y,
         OffsetZ = offset.z,
@@ -204,17 +203,17 @@ public class ProceduralSpawnGroundShould
             [
                 new SpawnTableEntry
                 {
-                    Id = 1, SpawnTableId = new SpawnTableId(1), Tag = "pack", CreatureId = Boar,
+                    Id = 1, SpawnTableId = new SpawnTableId(1), Tag = "pack", CreatureId = s_boar,
                     Weight = 1f, MinCount = 1, MaxCount = 1,
                 },
             ],
         };
 
-        var repo = Substitute.For<ISpawnTableRepository>();
+        ISpawnTableRepository repo = Substitute.For<ISpawnTableRepository>();
         repo.FindByIdAsync(Arg.Any<SpawnTableId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SpawnTable?>(table));
 
-        var library = Substitute.For<IChunkLibrary>();
+        IChunkLibrary library = Substitute.For<IChunkLibrary>();
         library.GetById(Arg.Any<ChunkTemplateId>()).Returns(new ChunkTemplate
         {
             Id = new ChunkTemplateId(1),

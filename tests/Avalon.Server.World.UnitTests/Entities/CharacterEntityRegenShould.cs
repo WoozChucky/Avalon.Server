@@ -4,11 +4,8 @@ using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
-using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
-using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -53,7 +50,7 @@ public class CharacterEntityRegenShould
     public void Update_RegeneratesHealth_OutOfCombat()
     {
         var config = new RegenConfiguration { HealthRegenOutOfCombatPerStamina = 1.0f };
-        var entity = MakeCharacter(health: 100, currentHealth: 50, stamina: 10, config: config);
+        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 50, stamina: 10, config: config);
 
         entity.Update(TimeSpan.FromSeconds(1));
 
@@ -64,7 +61,7 @@ public class CharacterEntityRegenShould
     [Fact]
     public void Update_SkipsHealthRegen_WhenInCombat()
     {
-        var entity = MakeCharacter(health: 100, currentHealth: 50, stamina: 10);
+        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 50, stamina: 10);
         entity.MarkCombat();
 
         entity.Update(TimeSpan.FromSeconds(1));
@@ -75,7 +72,7 @@ public class CharacterEntityRegenShould
     [Fact]
     public void Update_SkipsHealthRegen_WhenEntityIsDead()
     {
-        var entity = MakeCharacter(health: 100, currentHealth: 0, stamina: 10);
+        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 0, stamina: 10);
 
         entity.Update(TimeSpan.FromSeconds(1));
 
@@ -85,7 +82,7 @@ public class CharacterEntityRegenShould
     [Fact]
     public void Update_SkipsHealthRegen_WhenHealthAtMax()
     {
-        var entity = MakeCharacter(health: 100, currentHealth: 100, stamina: 10);
+        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 100, stamina: 10);
 
         entity.Update(TimeSpan.FromSeconds(1));
 
@@ -95,7 +92,7 @@ public class CharacterEntityRegenShould
     [Fact]
     public void Update_SkipsHealthRegen_WhenStaminaIsZero()
     {
-        var entity = MakeCharacter(health: 100, currentHealth: 50, stamina: 0);
+        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 50, stamina: 0);
 
         entity.Update(TimeSpan.FromSeconds(1));
 
@@ -106,7 +103,7 @@ public class CharacterEntityRegenShould
     public void Update_CapsHealthAtMax_WhenRegenWouldExceed()
     {
         var config = new RegenConfiguration { HealthRegenOutOfCombatPerStamina = 100.0f };
-        var entity = MakeCharacter(health: 100, currentHealth: 99, stamina: 100, config: config);
+        CharacterEntity entity = MakeCharacter(health: 100, currentHealth: 99, stamina: 100, config: config);
 
         entity.Update(TimeSpan.FromSeconds(1));
 
@@ -118,7 +115,7 @@ public class CharacterEntityRegenShould
     {
         // Default rate: 22 Stamina x 0.5 = 11 health a second out of combat. The old per-tick floor gave a whole
         // point every 1/60 s tick, 60 a second.
-        var entity = MakeCharacter(health: 200, currentHealth: 100, stamina: 22);
+        CharacterEntity entity = MakeCharacter(health: 200, currentHealth: 100, stamina: 22);
 
         for (int tick = 0; tick < 60; tick++)
             entity.Update(TimeSpan.FromSeconds(1d / 60d));
@@ -130,7 +127,7 @@ public class CharacterEntityRegenShould
     public void Update_DropsTheCarriedHealthFraction_WhenHealthIsFull()
     {
         // 23 x 0.5 = 11.5 a second: 1.9 s from 199 fills the pool and leaves 0.85 carried.
-        var entity = MakeCharacter(health: 200, currentHealth: 199, stamina: 23);
+        CharacterEntity entity = MakeCharacter(health: 200, currentHealth: 199, stamina: 23);
         entity.Update(TimeSpan.FromSeconds(1.9));
         Assert.Equal(200u, entity.CurrentHealth);
 
@@ -173,7 +170,7 @@ public class CharacterEntityRegenShould
     public void Update_RegeneratesMana_OutOfCombat()
     {
         var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        var entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
             powerType: PowerType.Mana, config: config);
 
         entity.Update(TimeSpan.FromSeconds(1));
@@ -190,7 +187,7 @@ public class CharacterEntityRegenShould
             PowerRegenOutOfCombatPerStat = 1.0f,
             PowerRegenInCombatPerStat = 0.1f
         };
-        var entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
             powerType: PowerType.Mana, config: config);
         entity.MarkCombat();
 
@@ -204,7 +201,7 @@ public class CharacterEntityRegenShould
     public void Update_RegeneratesEnergy_OutOfCombat()
     {
         var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        var entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
             powerType: PowerType.Energy, config: config);
 
         entity.Update(TimeSpan.FromSeconds(1));
@@ -217,7 +214,7 @@ public class CharacterEntityRegenShould
     {
         var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
         // Decay off: this pins that Fury never regenerates; its decay (#526) is FuryLifecycleShould's.
-        var entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
             powerType: PowerType.Fury, config: config, furyDecayPerSecond: 0f);
 
         entity.Update(TimeSpan.FromSeconds(1));
@@ -229,7 +226,7 @@ public class CharacterEntityRegenShould
     public void Update_SkipsPowerRegen_ForNoneType()
     {
         var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        var entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
             powerType: PowerType.None, config: config);
 
         entity.Update(TimeSpan.FromSeconds(1));
@@ -241,7 +238,7 @@ public class CharacterEntityRegenShould
     public void Update_SkipsPowerRegen_WhenRegenStatIsZero()
     {
         var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        var entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 0,
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 0,
             powerType: PowerType.Mana, config: config);
 
         entity.Update(TimeSpan.FromSeconds(1));
@@ -253,7 +250,7 @@ public class CharacterEntityRegenShould
     public void Update_SkipsPowerRegen_WhenPowerAtMax()
     {
         var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        var entity = MakeCharacter(power: 100, currentPower: 100, regenStat: 10,
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 100, regenStat: 10,
             powerType: PowerType.Mana, config: config);
 
         entity.Update(TimeSpan.FromSeconds(1));
@@ -265,7 +262,7 @@ public class CharacterEntityRegenShould
     public void Update_CapsCurrentPowerAtMax_WhenRegenWouldExceed()
     {
         var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 100.0f };
-        var entity = MakeCharacter(power: 100, currentPower: 99, regenStat: 100,
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 99, regenStat: 100,
             powerType: PowerType.Mana, config: config);
 
         entity.Update(TimeSpan.FromSeconds(1));
@@ -278,7 +275,7 @@ public class CharacterEntityRegenShould
     {
         // Default rates: 23 Intellect x 0.05 = 1.15 Mana a second in combat. The old per-tick floor gave a whole point
         // every 1/60 s tick, 60 a second, and filled this pool within a second.
-        var entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 23, powerType: PowerType.Mana);
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 23, powerType: PowerType.Mana);
         entity.MarkCombat();
 
         for (int tick = 0; tick < 60; tick++)
@@ -291,7 +288,7 @@ public class CharacterEntityRegenShould
     public void Update_DropsTheCarriedFraction_WhenThePoolIsFull()
     {
         // Out of combat, 23 x 0.3 = 6.9 a second: one second from 99 fills the pool and leaves 0.9 carried.
-        var entity = MakeCharacter(power: 100, currentPower: 99, regenStat: 23, powerType: PowerType.Mana);
+        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 99, regenStat: 23, powerType: PowerType.Mana);
         entity.Update(TimeSpan.FromSeconds(1));
         Assert.Equal(100u, entity.CurrentPower!.Value);
 
@@ -309,7 +306,7 @@ public class CharacterEntityRegenShould
     [Fact]
     public void IsInCombat_ReturnsFalse_BeforeMarkCombat()
     {
-        var entity = MakeCharacter();
+        CharacterEntity entity = MakeCharacter();
 
         Assert.False(entity.IsInCombat);
     }
@@ -318,7 +315,7 @@ public class CharacterEntityRegenShould
     public void IsInCombat_ReturnsTrue_ImmediatelyAfterMarkCombat()
     {
         var config = new RegenConfiguration { CombatLeaveDelaySeconds = 5f };
-        var entity = MakeCharacter(config: config);
+        CharacterEntity entity = MakeCharacter(config: config);
 
         entity.MarkCombat();
 

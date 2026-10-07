@@ -1,11 +1,9 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Avalon.Balance.Contract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
-using Polly.Retry;
 using Polly.Timeout;
 
 namespace Avalon.Api.Balance;
@@ -66,12 +64,14 @@ public sealed class BalanceClient : IBalanceClient
         int status = (int)response.StatusCode;
         // The service answers 401 only to a wrong secret: a fault of ours, not of the caller's session.
         if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
             return new BalanceResponse<T>((int)HttpStatusCode.BadGateway, default, JsonSerializer.Serialize(new ProblemDetails
             {
                 Status = (int)HttpStatusCode.BadGateway,
                 Title = "Bad gateway",
                 Detail = RejectedDetail,
             }));
+        }
 
         bool isJson = response.Content.Headers.ContentType?.MediaType is { } type &&
                       (type == "application/json" || type.EndsWith("+json", StringComparison.Ordinal));

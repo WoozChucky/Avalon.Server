@@ -1,18 +1,18 @@
-using Avalon.Common;
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Parties;
-using Avalon.World.Entities;
 using Avalon.World.Configuration;
+using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Loot;
 using Avalon.World.Public.Maps;
+using Avalon.World.Quests;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -23,14 +23,14 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// </summary>
 public class QuestKillCreditShould
 {
-    private static uint _nextCreature = 960_000;
+    private static uint s_nextCreature = 960_000;
 
     private static Creature Spawn(MapInstance instance, QuestTestWorld w, ulong template)
     {
         CreatureTemplate metadata = w.Data.CreatureTemplates.Single(t => t.Id.Value == template);
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, Interlocked.Increment(ref _nextCreature)),
+            Guid = new ObjectGuid(ObjectType.Creature, Interlocked.Increment(ref s_nextCreature)),
             Metadata = metadata,
             TemplateId = metadata.Id,
             Position = Vector3.zero,
@@ -95,7 +95,7 @@ public class QuestKillCreditShould
         using (instance)
         {
             a.Character.Quests.Start(Hunt, DateTime.UnixEpoch);                               // boars
-            var howl = b.Character.Quests.Start(Howl, DateTime.UnixEpoch);                   // wolves in stage 0 ...
+            ActiveQuest howl = b.Character.Quests.Start(Howl, DateTime.UnixEpoch);                   // wolves in stage 0 ...
             b.Character.Quests.SetStage(howl, 1);                                             // ... but B is past it
 
             instance.ReportKill(Spawn(instance, w, Wolf), a.Character);
@@ -191,7 +191,7 @@ public class QuestKillCreditShould
     public async Task Still_drop_the_loot_and_award_the_experience_when_quest_credit_throws()
     {
         QuestTestWorld w = await QuestTestWorld.CreateAsync();
-        var roller = Substitute.For<ILootRoller>();
+        ILootRoller roller = Substitute.For<ILootRoller>();
         roller.Roll(default!, default!, default!).ReturnsForAnyArgs([new RolledDrop(null, 0, 5)]);
         var allocator = new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(DateTimeOffset.UnixEpoch),
             CombatRandom.Steady);

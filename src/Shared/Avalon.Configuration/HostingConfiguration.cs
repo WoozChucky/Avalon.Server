@@ -8,7 +8,7 @@ public class HostingConfiguration
     public ushort Port { get; set; }
 
     /// <summary>
-    /// Internal read-buffer size in bytes used by <see cref="PacketReader"/>.
+    /// Internal read-buffer size in bytes used by <c>PacketReader</c>.
     /// Valid range: 512–65535. Defaults to 4096.
     /// </summary>
     [Range(512, 65535)]

@@ -1,10 +1,8 @@
 using Avalon.Common;
 using Avalon.Common.Accounts;
-using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
@@ -18,7 +16,6 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Dialogue;
 
@@ -30,15 +27,15 @@ namespace Avalon.Server.World.UnitTests.Dialogue;
 /// </summary>
 public class CanInteractAgreementShould
 {
-    private static readonly CreatureTemplateId Innkeeper = new(3);
-    private static readonly CreatureTemplateId Wolf = new(4);
+    private static readonly CreatureTemplateId s_innkeeper = new(3);
+    private static readonly CreatureTemplateId s_wolf = new(4);
 
     [Theory]
     [InlineData(3ul, true)]
     [InlineData(4ul, false)]
     public void Advertise_Interaction_Exactly_When_The_Handler_Accepts_It(ulong templateId, bool hasDialogue)
     {
-        IWorld world = WorldWithDialogueFor(Innkeeper);
+        IWorld world = WorldWithDialogueFor(s_innkeeper);
         ICreature creature = new CreatureSpawner(NullLoggerFactory.Instance, world)
             .Spawn(new CreatureTemplateId(templateId));
 
@@ -51,19 +48,19 @@ public class CanInteractAgreementShould
 
     private static bool HandlerAccepts(IWorld world, ICreature creature)
     {
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.IsDead.Returns(false);
         character.Name.Returns("Aldric");
         character.Position.Returns(creature.Position);
         character.InstanceId.Returns(Guid.NewGuid());
 
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.Creatures.Returns(new Dictionary<ObjectGuid, ICreature> { [creature.Guid] = creature });
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.GetInstanceById(Arg.Any<Guid>()).Returns(instance);
         world.InstanceRegistry.Returns(registry);
 
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.Locale.Returns(AccountLocale.enUS);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
@@ -79,28 +76,28 @@ public class CanInteractAgreementShould
 
     private static IWorld WorldWithDialogueFor(CreatureTemplateId talker)
     {
-        var templates = Substitute.For<ICreatureTemplateRepository>();
+        ICreatureTemplateRepository templates = Substitute.For<ICreatureTemplateRepository>();
         templates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new List<CreatureTemplate> { Template(Innkeeper, "Innkeeper"), Template(Wolf, "Wolf") }));
+            .Returns(Task.FromResult(new List<CreatureTemplate> { Template(s_innkeeper, "Innkeeper"), Template(s_wolf, "Wolf") }));
 
-        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        ICreatureBaseStatRepository baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
                 [new CreatureBaseStat { Level = 1, Health = 50, DamageMin = 1, DamageMax = 2, Experience = 1 }]));
 
-        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        ICreatureRarityModifierRepository rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>(
                 [new CreatureRarityModifier { Rarity = CreatureRarity.Normal, HealthMultiplier = 1f, DamageMultiplier = 1f, ExperienceMultiplier = 1f }]));
 
-        var dialogue = Substitute.For<IDialogueRepository>();
+        IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>(
                 [new DialogueNode { Id = new DialogueNodeId(1), CreatureTemplateId = talker, IsRoot = true, TextId = new LocalizedTextId(6) }]));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
-        var text = Substitute.For<ILocalizedTextRepository>();
+        ILocalizedTextRepository text = Substitute.For<ILocalizedTextRepository>();
         text.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>(
                 [new LocalizedText { Id = new LocalizedTextId(6), Text = "Welcome." }]));
@@ -109,15 +106,15 @@ public class CanInteractAgreementShould
         text.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
-        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        ICharacterCreateInfoRepository createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());
-        var classStats = Substitute.For<IClassLevelStatRepository>();
+        IClassLevelStatRepository classStats = Substitute.For<IClassLevelStatRepository>();
         classStats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<ClassLevelStat>());
-        var items = Substitute.For<IItemTemplateRepository>();
+        IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<ItemTemplate>());
-        var abilities = Substitute.For<IAbilityTemplateRepository>();
+        IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AbilityTemplate>());
-        var levels = Substitute.For<ICharacterLevelExperienceRepository>();
+        ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>([]));
 
@@ -125,7 +122,7 @@ public class CanInteractAgreementShould
             templates, baseStats, rarities, text, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync().GetAwaiter().GetResult();
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Data.Returns(data);
         return world;
     }

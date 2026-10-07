@@ -10,6 +10,7 @@ using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
+using Avalon.World.Abilities;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -18,7 +19,6 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Creatures;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Combat;
@@ -30,7 +30,7 @@ namespace Avalon.Server.World.UnitTests.Combat;
 /// </summary>
 public class FuryGainShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     /// <summary>Cleave as seeded: a cone in front, cost 0, 8 Fury per unit damaged.</summary>
     private static AbilityTemplate Cleave()
@@ -88,7 +88,7 @@ public class FuryGainShould
 
     private static ICreature Attacker(uint id)
     {
-        var attacker = Substitute.For<ICreature>();
+        ICreature attacker = Substitute.For<ICreature>();
         attacker.Guid.Returns(new ObjectGuid(ObjectType.Creature, id));
         return attacker;
     }
@@ -166,7 +166,7 @@ public class FuryGainShould
         instance.AddCreature(returning);
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });
-        var cleave = AbilityTestData.Game(Cleave());
+        GameAbility cleave = AbilityTestData.Game(Cleave());
         instance.CombatService.ApplyDamage(warrior.Character, npc, 10, cleave);
         instance.CombatService.ApplyDamage(warrior.Character, corpse, 10, cleave);
         instance.CombatService.ApplyDamage(warrior.Character, returning, 10, cleave);
@@ -211,7 +211,7 @@ public class FuryGainShould
             new CCastAbilityPacket { AbilityId = 202, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 20f } });
         for (int i = 0; i < 90; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
 
         Assert.Equal(40u, near.CurrentHealth);

@@ -13,14 +13,12 @@ using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Auras;
@@ -71,7 +69,7 @@ public class AbilityAuraShould
 
     private async Task<(MapInstance Instance, CastAbilityHandler Handler)> InstanceAsync(ICombatRandom? random = null)
     {
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAuraScript(Arg.Any<string>()).Returns(call => AuraHarness.TestScript(call.Arg<string>()));
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             scripts: scripts,
@@ -102,15 +100,20 @@ public class AbilityAuraShould
     {
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, id), Metadata = Loot.LootTestData.BoarTemplate(null),
-            Position = new Vector3(0f, 0f, 2f), Level = 1, Health = health, CurrentHealth = health, DodgePct = dodge,
+            Guid = new ObjectGuid(ObjectType.Creature, id),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = new Vector3(0f, 0f, 2f),
+            Level = 1,
+            Health = health,
+            CurrentHealth = health,
+            DodgePct = dodge,
         };
         creature.Script = new CombatResolutionShould.CountingWoundScript(creature);
         instance.AddCreature(creature);
         return creature;
     }
 
-    private static readonly Vector3Dto AtTheBoar = new() { X = 0f, Y = 0f, Z = 2f };
+    private static readonly Vector3Dto s_atTheBoar = new() { X = 0f, Y = 0f, Z = 2f };
 
     [Fact]
     public async Task Hit_then_apply_the_abilitys_aura()
@@ -146,7 +149,7 @@ public class AbilityAuraShould
         MapInstanceClient wizard = Caster(instance, 912_103, Ignite());
         Creature boar = Boar(instance, 912_903, dodge: 30f);
 
-        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = AtTheBoar });
+        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = s_atTheBoar });
 
         Assert.Equal(100u, boar.CurrentHealth);
         ActiveAuraIs(boar, 902, wizard.Character.Guid);
@@ -177,7 +180,7 @@ public class AbilityAuraShould
         MapInstanceClient bystander = Caster(instance, 912_106, Ignite());
         bystander.Character.Position = new Vector3(0f, 0f, 2f);
 
-        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = AtTheBoar });
+        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = s_atTheBoar });
 
         Assert.Equal(0, bystander.Character.Auras.Count);
     }
@@ -260,7 +263,7 @@ public class AbilityAuraShould
         MapInstanceClient hunter = Caster(instance, 912_111, Volley());
         Creature boar = Boar(instance, 912_907);
 
-        handler.Execute(hunter.Connection, new CCastAbilityPacket { AbilityId = 222, GroundPos = AtTheBoar });
+        handler.Execute(hunter.Connection, new CCastAbilityPacket { AbilityId = 222, GroundPos = s_atTheBoar });
         for (int i = 0; i < 30 && boar.Auras.Count == 0; i++)
             instance.Update(TimeSpan.FromSeconds(1d / 60d));
 

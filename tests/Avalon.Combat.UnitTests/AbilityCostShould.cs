@@ -2,7 +2,6 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Units;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Combat.UnitTests;
 
@@ -14,7 +13,7 @@ public class AbilityCostShould
 {
     private static IUnit Caster(PowerType type, uint? power)
     {
-        var unit = Substitute.For<IUnit>();
+        IUnit unit = Substitute.For<IUnit>();
         unit.PowerType.Returns(type);
         unit.CurrentPower.Returns(power);
         return unit;

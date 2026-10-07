@@ -19,9 +19,16 @@ public class AbilityEffectRulesShould
 
     private static AbilityTemplate Ignite(AuraId? aura) => new()
     {
-        Id = new AbilityId(213), Name = "Ignite", ScriptName = AbilityRules.CircleScript, Shape = AbilityShape.Circle,
-        AimMode = AbilityAimMode.Cursor, Anchor = AbilityAnchor.AimPoint, Reach = 18f, Radius = 3f,
-        Effects = SpellEffect.Debuff, AuraId = aura,
+        Id = new AbilityId(213),
+        Name = "Ignite",
+        ScriptName = AbilityRules.CircleScript,
+        Shape = AbilityShape.Circle,
+        AimMode = AbilityAimMode.Cursor,
+        Anchor = AbilityAnchor.AimPoint,
+        Reach = 18f,
+        Radius = 3f,
+        Effects = SpellEffect.Debuff,
+        AuraId = aura,
     };
 
     [Fact]

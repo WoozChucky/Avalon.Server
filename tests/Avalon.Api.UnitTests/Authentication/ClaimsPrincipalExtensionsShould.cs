@@ -16,41 +16,41 @@ public class ClaimsPrincipalExtensionsShould
     [Fact]
     public void ReturnAccountId_WhenNameIdentifierPresent()
     {
-        var user = Principal((ClaimTypes.NameIdentifier, "42"));
+        ClaimsPrincipal user = Principal((ClaimTypes.NameIdentifier, "42"));
         Assert.Equal(42L, user.AccountId().Value);
     }
 
     [Fact]
     public void Throw_WhenNameIdentifierMissing()
     {
-        var user = Principal();
+        ClaimsPrincipal user = Principal();
         Assert.Throws<InvalidOperationException>(() => user.AccountId());
     }
 
     [Theory]
-    [InlineData("Player",     "Player",     true)]
-    [InlineData("GameMaster", "Player",     true)]
-    [InlineData("Admin",      "GameMaster", true)]
-    [InlineData("Console",    "Admin",      true)]
-    [InlineData("Player",     "GameMaster", false)]
-    [InlineData("GameMaster", "Admin",      false)]
-    [InlineData("Admin",      "Console",    false)]
+    [InlineData("Player", "Player", true)]
+    [InlineData("GameMaster", "Player", true)]
+    [InlineData("Admin", "GameMaster", true)]
+    [InlineData("Console", "Admin", true)]
+    [InlineData("Player", "GameMaster", false)]
+    [InlineData("GameMaster", "Admin", false)]
+    [InlineData("Admin", "Console", false)]
     // #447: Tournament and PTR are players with the Player permission set, and nothing more.
-    [InlineData("Tournament", "Player",     true)]
-    [InlineData("PTR",        "Player",     true)]
+    [InlineData("Tournament", "Player", true)]
+    [InlineData("PTR", "Player", true)]
     [InlineData("Tournament", "GameMaster", false)]
-    [InlineData("PTR",        "GameMaster", false)]
-    [InlineData("PTR",        "Admin",      false)]
+    [InlineData("PTR", "GameMaster", false)]
+    [InlineData("PTR", "Admin", false)]
     public void HasRoleAtLeast_FollowsHierarchy(string callerRole, string minRole, bool expected)
     {
-        var user = Principal((ClaimTypes.Role, callerRole));
+        ClaimsPrincipal user = Principal((ClaimTypes.Role, callerRole));
         Assert.Equal(expected, user.HasRoleAtLeast(minRole));
     }
 
     [Fact]
     public void AccessLevel_FoldsEveryGroupSidFlag()
     {
-        var user = Principal(
+        ClaimsPrincipal user = Principal(
             (ClaimTypes.GroupSid, "Player"),
             (ClaimTypes.GroupSid, "PTR"),
             (ClaimTypes.GroupSid, "Admin"));
@@ -65,7 +65,7 @@ public class ClaimsPrincipalExtensionsShould
     [Fact]
     public void AccessLevel_IgnoresOtherClaimsAndUnknownValues()
     {
-        var user = Principal(
+        ClaimsPrincipal user = Principal(
             (ClaimTypes.Role, "Admin"),
             (ClaimTypes.GroupSid, "Banana"),
             (ClaimTypes.GroupSid, "4"),
@@ -81,7 +81,7 @@ public class ClaimsPrincipalExtensionsShould
     [Fact]
     public void HasRoleAtLeast_FalseForUnknownMinRole()
     {
-        var user = Principal((ClaimTypes.Role, "Admin"));
+        ClaimsPrincipal user = Principal((ClaimTypes.Role, "Admin"));
         Assert.False(user.HasRoleAtLeast("Banana"));
     }
 }

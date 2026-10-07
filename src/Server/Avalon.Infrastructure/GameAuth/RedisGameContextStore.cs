@@ -27,21 +27,21 @@ public sealed class RedisGameContextStore(IReplicatedCache cache, TimeProvider c
     public async Task<string?> ReadAsync(string key, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var value = await cache.Database.StringGetAsync(key).WaitAsync(cancellationToken);
+        RedisValue value = await cache.Database.StringGetAsync(key).WaitAsync(cancellationToken);
         return value.IsNull ? null : (string?)value;
     }
 
     public async Task<bool> CompareExchangeAsync(IReadOnlyList<GameAuthMutation> mutations, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (mutations.Count is < 1 or  > MaximumMutations || mutations.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count() != mutations.Count)
+        if (mutations.Count is < 1 or > MaximumMutations || mutations.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count() != mutations.Count)
             throw new ArgumentException("Invalid atomic game-auth write set.", nameof(mutations));
-        var now = clock.GetUtcNow().UtcDateTime;
+        DateTime now = clock.GetUtcNow().UtcDateTime;
         var keys = new RedisKey[mutations.Count];
         var values = new RedisValue[mutations.Count * 5];
-        for (var i = 0; i < mutations.Count; i++)
+        for (int i = 0; i < mutations.Count; i++)
         {
-            var mutation = mutations[i];
+            GameAuthMutation mutation = mutations[i];
             if (mutation.Value is not null && mutation.ExpiresAt <= now) return false;
             if (mutation.Key.Length > MaximumKeyCharacters || mutation.Expected?.Length > GameAuthPolicy.MaximumBodyBytes || mutation.Value?.Length > GameAuthPolicy.MaximumBodyBytes)
                 throw new ArgumentException("Game-auth entry exceeds its bound.", nameof(mutations));

@@ -1,5 +1,5 @@
-using Avalon.Common.GameAuth;
 using System.Net;
+using Avalon.Common.GameAuth;
 using OpenTelemetry;
 
 namespace Avalon.Api.Authentication;
@@ -9,9 +9,12 @@ public sealed class SteamOpenIdBackchannelHandler : DelegatingHandler
 {
     public SteamOpenIdBackchannelHandler() : base(new SocketsHttpHandler
     {
-        AllowAutoRedirect = false, ConnectTimeout = GameAuthPolicy.TransportTimeout, MaxConnectionsPerServer = 32,
+        AllowAutoRedirect = false,
+        ConnectTimeout = GameAuthPolicy.TransportTimeout,
+        MaxConnectionsPerServer = 32,
         ActivityHeadersPropagator = null,
-    }) { }
+    })
+    { }
     public SteamOpenIdBackchannelHandler(HttpMessageHandler transport) : base(transport) { }
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -19,13 +22,13 @@ public sealed class SteamOpenIdBackchannelHandler : DelegatingHandler
             throw new HttpRequestException("Invalid Steam verification destination.");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(GameAuthPolicy.TransportTimeout);
-        using var suppression = SuppressInstrumentationScope.Begin();
-        using var response = await base.SendAsync(request, timeout.Token);
+        using IDisposable suppression = SuppressInstrumentationScope.Begin();
+        using HttpResponseMessage response = await base.SendAsync(request, timeout.Token);
         if (!response.IsSuccessStatusCode) return new(HttpStatusCode.BadGateway) { Content = new StringContent("is_valid:false") };
         if (response.Content.Headers.ContentLength > GameAuthPolicy.MaximumBodyBytes) throw new HttpRequestException("Steam verification response too large.");
-        await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+        await using Stream stream = await response.Content.ReadAsStreamAsync(timeout.Token);
         using var buffer = new MemoryStream();
-        var chunk = new byte[1024]; int read;
+        byte[] chunk = new byte[1024]; int read;
         while ((read = await stream.ReadAsync(chunk, timeout.Token)) != 0)
         {
             if (buffer.Length + read > GameAuthPolicy.MaximumBodyBytes) throw new HttpRequestException("Steam verification response too large.");

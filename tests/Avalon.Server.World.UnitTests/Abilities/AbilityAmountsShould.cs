@@ -2,10 +2,8 @@ using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Server.World.UnitTests.Combat;
-using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Scripts.Abilities;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 
@@ -21,13 +19,18 @@ public class AbilityAmountsShould
 
     private static AbilityMetadata Ability(uint effect = 0, ScalingStat stat = ScalingStat.Attack, float scaling = 0f,
         float weapon = 0f, AbilityAffects affects = AbilityAffects.Hostile, string script = "ConeAbilityScript") => new()
-    {
-        Name = "Test", ScriptName = script, EffectValue = effect, ScalingStat = stat, ScalingCoefficient = scaling,
-        BaseDamageCoefficient = weapon, Affects = affects,
-        Effects = affects == AbilityAffects.Ally
+        {
+            Name = "Test",
+            ScriptName = script,
+            EffectValue = effect,
+            ScalingStat = stat,
+            ScalingCoefficient = scaling,
+            BaseDamageCoefficient = weapon,
+            Affects = affects,
+            Effects = affects == AbilityAffects.Ally
             ? Avalon.World.Public.Enums.SpellEffect.Heal
             : Avalon.World.Public.Enums.SpellEffect.Damage,
-    };
+        };
 
     /// <summary>10 + 0.5 × 40 attack + 1 × (24..28) weapon: 54..58, and it follows the weapon and the stat.</summary>
     [Fact]

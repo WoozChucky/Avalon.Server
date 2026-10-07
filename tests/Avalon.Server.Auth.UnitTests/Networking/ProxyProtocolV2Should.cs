@@ -1,6 +1,4 @@
 using System.Net;
-using Avalon.Hosting.Networking;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 
@@ -11,12 +9,12 @@ namespace Avalon.Server.Auth.UnitTests.Networking;
 /// </summary>
 public class ProxyProtocolV2Should
 {
-    private static readonly byte[] Signature = [0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A];
+    private static readonly byte[] s_signature = [0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A];
 
     internal static byte[] Header(byte versionCommand, byte familyProtocol, byte[] body)
     {
         byte[] header = new byte[16 + body.Length];
-        Signature.CopyTo(header, 0);
+        s_signature.CopyTo(header, 0);
         header[12] = versionCommand;
         header[13] = familyProtocol;
         header[14] = (byte)(body.Length >> 8);

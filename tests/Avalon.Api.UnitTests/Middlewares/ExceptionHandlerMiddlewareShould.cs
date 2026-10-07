@@ -15,12 +15,12 @@ namespace Avalon.Api.UnitTests.Middlewares;
 public class ExceptionHandlerMiddlewareShould
 {
     // A connection string as a driver might echo it, built at run time: no literal credential in source.
-    private static readonly string Secret = "postgres-server:5432 password=" + TestPasswords.Valid;
+    private static readonly string s_secret = "postgres-server:5432 password=" + TestPasswords.Valid;
 
     public static TheoryData<Exception> Outages => new()
     {
-        new FakeDbException(Secret),
-        new RedisConnectionException(ConnectionFailureType.UnableToConnect, Secret),
+        new FakeDbException(s_secret),
+        new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, s_secret),
     };
 
     [Theory]
@@ -36,7 +36,7 @@ public class ExceptionHandlerMiddlewareShould
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
         context.Response.Body.Position = 0;
         string body = await new StreamReader(context.Response.Body).ReadToEndAsync();
-        using JsonDocument json = JsonDocument.Parse(body);
+        using var json = JsonDocument.Parse(body);
         Assert.Equal("ServiceUnavailable", json.RootElement.GetProperty("type").GetString());
         Assert.DoesNotContain(outage.GetType().Name, body, StringComparison.Ordinal);
         Assert.DoesNotContain(TestPasswords.Valid, body, StringComparison.Ordinal);
@@ -57,7 +57,7 @@ public class ExceptionHandlerMiddlewareShould
 
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
         context.Response.Body.Position = 0;
-        using JsonDocument json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
+        using var json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
         Assert.Equal("Downloads are not available right now.", json.RootElement.GetProperty("detail").GetString());
     }
 
@@ -74,7 +74,7 @@ public class ExceptionHandlerMiddlewareShould
 
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
         context.Response.Body.Position = 0;
-        using JsonDocument json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
+        using var json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
         Assert.Equal(503, json.RootElement.GetProperty("status").GetInt32());
         Assert.Equal("Email could not be sent", json.RootElement.GetProperty("detail").GetString());
     }

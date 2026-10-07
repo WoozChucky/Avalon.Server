@@ -54,8 +54,12 @@ public class RemoveMfaAuthorizationShould
         accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(new Account
             {
-                Id = new AccountId(CallerId), Username = "CALLER", Email = "c@avalon.monster",
-                Salt = [1], Verifier = [2], JoinDate = DateTime.UtcNow,
+                Id = new AccountId(CallerId),
+                Username = "CALLER",
+                Email = "c@avalon.monster",
+                Salt = [1],
+                Verifier = [2],
+                JoinDate = DateTime.UtcNow,
             });
 
         var services = new ServiceCollection();
@@ -100,7 +104,7 @@ public class RemoveMfaAuthorizationShould
             AuthenticateResult.Success(new AuthenticationTicket(user, JwtBearerDefaults.AuthenticationScheme)),
             context, resource: null);
 
-        var reachedAction = false;
+        bool reachedAction = false;
         await sp.GetRequiredService<IAuthorizationMiddlewareResultHandler>().HandleAsync(_ =>
         {
             reachedAction = true;

@@ -7,7 +7,7 @@ internal sealed class SteamSecretProtectionHandler : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        using var suppressed = SuppressInstrumentationScope.Begin();
+        using IDisposable suppressed = SuppressInstrumentationScope.Begin();
         return await base.SendAsync(request, cancellationToken);
     }
 }

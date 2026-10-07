@@ -60,7 +60,7 @@ public static partial class LinkPreviewText
     /// <summary>The classes as a list, or null when every class (or none listed) may use it.</summary>
     private static string? Restricted(List<CharacterClass> allowed)
     {
-        List<CharacterClass> distinct = allowed.Distinct().ToList();
+        var distinct = allowed.Distinct().ToList();
         return distinct.Count == 0 || distinct.Count >= Enum.GetValues<CharacterClass>().Length
             ? null
             : string.Join(", ", distinct);

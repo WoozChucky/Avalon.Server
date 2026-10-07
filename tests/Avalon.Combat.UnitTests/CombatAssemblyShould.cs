@@ -8,12 +8,12 @@ namespace Avalon.Combat.UnitTests;
 /// </summary>
 public class CombatAssemblyShould
 {
-    private static readonly Assembly Combat = typeof(HitResolver).Assembly;
+    private static readonly Assembly s_combat = typeof(HitResolver).Assembly;
 
     [Fact]
     public void Not_reference_the_world_server_or_a_database()
     {
-        string[] referenced = Combat.GetReferencedAssemblies().Select(a => a.Name!).ToArray();
+        string[] referenced = s_combat.GetReferencedAssemblies().Select(a => a.Name!).ToArray();
 
         // Avalon.World.Public (the modding API's types) is the one world assembly Domain already brings.
         Assert.DoesNotContain(referenced, n => n.StartsWith("Avalon.World", StringComparison.Ordinal) && n != "Avalon.World.Public");
@@ -37,8 +37,11 @@ public class CombatAssemblyShould
     private static string RepositoryRoot()
     {
         for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
             if (File.Exists(Path.Combine(dir.FullName, "Avalon.sln")))
                 return dir.FullName;
+        }
+
         throw new InvalidOperationException("Avalon.sln not found above " + AppContext.BaseDirectory);
     }
 
@@ -65,7 +68,7 @@ public class CombatAssemblyShould
     [InlineData(typeof(ClassPowerType))]
     public void Hold_every_moved_rule(Type type)
     {
-        Assert.Same(Combat, type.Assembly);
+        Assert.Same(s_combat, type.Assembly);
         Assert.Equal("Avalon.Combat", type.Namespace);
     }
 }

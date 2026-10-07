@@ -1,7 +1,8 @@
-using Avalon.Common.GameAuth;
 using Avalon.Common.Accounts;
+using Avalon.Common.GameAuth;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace Avalon.Database.Auth.Repositories;
@@ -25,13 +26,16 @@ public sealed partial class ExternalIdentityRepository
             (operation.Account.IsStoreGenerated
                 ? operation.Account.Email is not null || operation.Account.Salt.Length != 0 || operation.Account.Verifier.Length != 0
                 : !AccountEmail.IsValid(operation.Account.Email) || operation.Account.Salt.Length == 0 || operation.Account.Verifier.Length == 0))
+        {
             throw new ArgumentException("Invalid store account creation operation.");
+        }
+
         bool ProofExpired() => operation.ProofExpiresAt.Kind != DateTimeKind.Utc ||
             operation.ProofExpiresAt <= (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
-        var retry = await CreationRetryAsync(db, operation, cancellationToken);
+        IdentityLinkResult? retry = await CreationRetryAsync(db, operation, cancellationToken);
         if (retry is not null) return retry;
         if (await db.ExternalIdentities.AnyAsync(x => x.Provider == operation.Provider && x.ProviderSubject == operation.Subject, cancellationToken))
             return await CreationRetryAsync(db, operation, cancellationToken) ?? new(IdentityLinkStatus.SubjectTaken, null);
@@ -42,10 +46,17 @@ public sealed partial class ExternalIdentityRepository
         // The caller supplies account details. Privileges and initial authority are fixed here.
         var account = new Account
         {
-            Username = operation.Account.Username, Email = operation.Account.Email, IsStoreGenerated = operation.Account.IsStoreGenerated,
-            Salt = operation.Account.Salt.ToArray(), Verifier = operation.Account.Verifier.ToArray(),
-            JoinDate = now, LastLogin = now, LastIp = operation.Account.LastIp,
-            Status = AccountStatus.Active, AccessLevel = AccountAccessLevel.Player, SessionEpoch = 1,
+            Username = operation.Account.Username,
+            Email = operation.Account.Email,
+            IsStoreGenerated = operation.Account.IsStoreGenerated,
+            Salt = operation.Account.Salt.ToArray(),
+            Verifier = operation.Account.Verifier.ToArray(),
+            JoinDate = now,
+            LastLogin = now,
+            LastIp = operation.Account.LastIp,
+            Status = AccountStatus.Active,
+            AccessLevel = AccountAccessLevel.Player,
+            SessionEpoch = 1,
         };
         db.Accounts.Add(account);
         try
@@ -53,14 +64,21 @@ public sealed partial class ExternalIdentityRepository
             await db.SaveChangesAsync(cancellationToken);
             var identity = new ExternalIdentity
             {
-                Id = operation.OperationId, AccountId = account.Id, Provider = operation.Provider,
-                ProviderSubject = operation.Subject, LinkedAt = now,
+                Id = operation.OperationId,
+                AccountId = account.Id,
+                Provider = operation.Provider,
+                ProviderSubject = operation.Subject,
+                LinkedAt = now,
             };
             db.ExternalIdentities.Add(identity);
             db.StoreAccountCreations.Add(new StoreAccountCreation
             {
-                Id = operation.OperationId, AccountId = account.Id, Provider = operation.Provider, ProviderSubject = operation.Subject,
-                CreatedAt = now, ProofExpiresAt = operation.ProofExpiresAt,
+                Id = operation.OperationId,
+                AccountId = account.Id,
+                Provider = operation.Provider,
+                ProviderSubject = operation.Subject,
+                CreatedAt = now,
+                ProofExpiresAt = operation.ProofExpiresAt,
             });
             await db.SaveChangesAsync(cancellationToken);
             if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
@@ -70,8 +88,8 @@ public sealed partial class ExternalIdentityRepository
         catch (DbUpdateException error) when (error.InnerException is not PostgresException pg || pg.SqlState == PostgresErrorCodes.UniqueViolation)
         {
             await transaction.RollbackAsync(cancellationToken);
-            await using var read = await factory.CreateDbContextAsync(cancellationToken);
-            var raced = await CreationRetryAsync(read, operation, cancellationToken);
+            await using AuthDbContext read = await factory.CreateDbContextAsync(cancellationToken);
+            IdentityLinkResult? raced = await CreationRetryAsync(read, operation, cancellationToken);
             if (raced is not null) return raced;
             if (await read.ExternalIdentities.AnyAsync(x => x.Provider == operation.Provider && x.ProviderSubject == operation.Subject, cancellationToken))
                 return new(IdentityLinkStatus.SubjectTaken, null);
@@ -86,12 +104,12 @@ public sealed partial class ExternalIdentityRepository
     private static async Task<IdentityLinkResult?> CreationRetryAsync(AuthDbContext db, StoreAccountCreationOperation operation,
         CancellationToken cancellationToken)
     {
-        var receipt = await db.StoreAccountCreations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.OperationId, cancellationToken);
+        StoreAccountCreation? receipt = await db.StoreAccountCreations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.OperationId, cancellationToken);
         if (receipt is null) return null;
         if (receipt.Provider != operation.Provider || receipt.ProviderSubject != operation.Subject) return new(IdentityLinkStatus.AuthorityChanged, null);
-        var identity = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.OperationId &&
+        ExternalIdentity? identity = await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.OperationId &&
             x.AccountId == receipt.AccountId && x.Provider == operation.Provider && x.ProviderSubject == operation.Subject, cancellationToken);
-        var root = await db.Accounts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == receipt.AccountId, cancellationToken);
+        Account? root = await db.Accounts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == receipt.AccountId, cancellationToken);
         return identity is not null && root is { CredentialsVersion: 0, SessionEpoch: 1, Status: AccountStatus.Active } &&
                root.Username == operation.Account.Username && root.Email == operation.Account.Email &&
                root.IsStoreGenerated == operation.Account.IsStoreGenerated

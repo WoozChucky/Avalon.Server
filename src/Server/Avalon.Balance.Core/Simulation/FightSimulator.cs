@@ -40,7 +40,7 @@ public sealed class FightSimulator
     public const double MaxSeconds = 300d;
 
     private const float Dt = (float)StepSeconds;
-    private static readonly double GcdSeconds = new CombatConfig().GcdMs / 1000d;
+    private static readonly double s_gcdSeconds = new CombatConfig().GcdMs / 1000d;
 
     private readonly RegenConfiguration _regen = new();
     private readonly CombatFormula _formula;
@@ -122,7 +122,7 @@ public sealed class FightSimulator
 
     private void PlayerPhase()
     {
-        if (!Player.IsDead && Player.Casting is null && Time - _lastCastStart >= GcdSeconds - 1e-9)
+        if (!Player.IsDead && Player.Casting is null && Time - _lastCastStart >= s_gcdSeconds - 1e-9)
             TryCast();
 
         foreach (SimAbility ability in Player.Abilities)
@@ -358,12 +358,14 @@ public sealed class FightSimulator
     {
         if (_data is null || target.IsDead || ability.Template.AuraId is not { } id
             || !_data.Auras.TryGetValue(id, out AuraTemplate? aura))
+        {
             return;
+        }
 
         SimAura? held = target.Auras.FirstOrDefault(a => a.Template.Id.Value == aura.Id.Value
             && (!AuraRules.KeysByCaster(aura.Stacking) || ReferenceEquals(a.Caster, caster)));
         AuraSnapshot snapshot = AuraRules.Snapshot(aura, caster.Attack, _rng);
-        AuraSchedule schedule = AuraSchedule.Start(Now, aura.DurationMs, aura.TickIntervalMs);
+        var schedule = AuraSchedule.Start(Now, aura.DurationMs, aura.TickIntervalMs);
         uint gain = (uint)Math.Max(0, ability.Metadata.PowerGainPerHit);
 
         if (held is not null)
@@ -444,10 +446,15 @@ public sealed class FightSimulator
                 (double damage, _) = HitResolver.ResolvePeriodic(aura.Snapshot.Attacker, unit.Defence, amount, _formula, _rng);
                 uint points = AuraRules.TakeTick(damage, ref carry, lastTick);
                 if (unit is SimPlayer player)
+                {
                     Add(_taken, aura.Template.Name, CombatRules.HitPlayer(player, points));
+                }
                 else
+                {
                     Add(_dealt, aura.Template.Name, CombatRules.PeriodicHitCreature((SimCreature)unit, points,
                         aura.Caster is SimPlayer { IsDead: false } caster ? caster : null, aura.PowerGainPerHit));
+                }
+
                 break;
             }
             case AuraPeriodicKind.Heal when unit is SimPlayer player:

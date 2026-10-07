@@ -12,7 +12,6 @@ using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ProtoBuf;
-using Xunit;
 using CharacterRow = Avalon.Domain.Characters.Character;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
@@ -23,8 +22,8 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 /// </summary>
 public class CharacterListHandlerShould : IDisposable
 {
-    private static readonly AccountId Owner = new(1);
-    private static readonly DateTime Day = new(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly AccountId s_owner = new(1);
+    private static readonly DateTime s_day = new(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
 
     private readonly SqliteDatabase<CharacterDbContext> _characters = SqliteDatabase.Characters();
 
@@ -34,10 +33,10 @@ public class CharacterListHandlerShould : IDisposable
         await using (CharacterDbContext write = _characters.CreateDbContext())
         {
             write.Characters.AddRange(
-                Row(1, "Newest", Day.AddDays(2)),
-                Row(2, "Oldest", Day),
-                Row(4, "TieLater", Day.AddDays(1)),
-                Row(3, "TieEarlier", Day.AddDays(1)));
+                Row(1, "Newest", s_day.AddDays(2)),
+                Row(2, "Oldest", s_day),
+                Row(4, "TieLater", s_day.AddDays(1)),
+                Row(3, "TieEarlier", s_day.AddDays(1)));
             await write.SaveChangesAsync();
         }
 
@@ -47,7 +46,7 @@ public class CharacterListHandlerShould : IDisposable
         Task<List<CharacterRow>>? query = null;
         Action<List<CharacterRow>>? callback = null;
         IWorldConnection connection = Substitute.For<IWorldConnection>();
-        connection.AccountId.Returns(Owner);
+        connection.AccountId.Returns(s_owner);
         connection.Character.Returns((Avalon.World.Public.Characters.ICharacter?)null!);
         connection.CryptoSession.Returns(new EchoCryptoSession());
         connection.EnqueueContinuation(
@@ -60,7 +59,7 @@ public class CharacterListHandlerShould : IDisposable
         Assert.NotNull(query);
         callback!(await query!);
 
-        NetworkPacket sent = (NetworkPacket)connection.ReceivedCalls()
+        var sent = (NetworkPacket)connection.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
             .GetArguments()[0]!;
         SCharacterListPacket list = Serializer.Deserialize<SCharacterListPacket>(new MemoryStream(sent.Payload));
@@ -71,7 +70,7 @@ public class CharacterListHandlerShould : IDisposable
     private static CharacterRow Row(uint id, string name, DateTime created) => new()
     {
         Id = new CharacterId(id),
-        AccountId = Owner,
+        AccountId = s_owner,
         Name = name,
         Class = CharacterClass.Warrior,
         CreationDate = created,

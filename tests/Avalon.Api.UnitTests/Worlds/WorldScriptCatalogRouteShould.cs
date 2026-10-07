@@ -5,7 +5,6 @@ using Avalon.Api.Contract;
 using Avalon.Api.Templates;
 using Avalon.Api.UnitTests.Authentication;
 using Avalon.Api.Worlds;
-using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
@@ -29,11 +28,11 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
     private const ushort Two = 2;
 
     // Not script names a world has: stand-ins for whatever a world publishes.
-    private static readonly string[] OneAi = ["AiOne", "AiTwo"];
-    private static readonly string[] OneAbility = ["AbilityOne"];
-    private static readonly string[] OneQuest = ["QuestOne", "QuestTwo", "QuestThree"];
-    private static readonly string[] OneItem = ["ItemOne"];
-    private static readonly string[] OneAura = ["AuraOne"];
+    private static readonly string[] s_oneAi = ["AiOne", "AiTwo"];
+    private static readonly string[] s_oneAbility = ["AbilityOne"];
+    private static readonly string[] s_oneQuest = ["QuestOne", "QuestTwo", "QuestThree"];
+    private static readonly string[] s_oneItem = ["ItemOne"];
+    private static readonly string[] s_oneAura = ["AuraOne"];
 
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
@@ -45,7 +44,7 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         Row(One);
         Row(Two);
         _cache.GetAsync(CacheKeys.WorldScriptCatalog(One))
-            .Returns(ScriptCatalogJson.Serialize(new ScriptCatalogSnapshot(OneAi, OneAbility, OneQuest, OneItem, OneAura)));
+            .Returns(ScriptCatalogJson.Serialize(new ScriptCatalogSnapshot(s_oneAi, s_oneAbility, s_oneQuest, s_oneItem, s_oneAura)));
 
         _host = await ApiAuthHost.StartAsync(_cache, services =>
         {
@@ -62,8 +61,12 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntity
             {
-                Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = AccountAccessLevel.Player,
-                Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+                Id = new WorldId(id),
+                Name = $"World{id}",
+                AccessLevelRequired = AccountAccessLevel.Player,
+                Host = "h",
+                MinVersion = "0.0.1",
+                Version = "0.0.1",
             });
 
     private Task<HttpResponseMessage> Get(string path, AccountAccessLevel level)
@@ -81,11 +84,11 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         WorldScriptCatalogDto dto = (await response.Content.ReadFromJsonAsync<WorldScriptCatalogDto>())!;
         Assert.True(dto.Published);
-        Assert.Equal(OneAi, dto.Ai);
-        Assert.Equal(OneAbility, dto.Ability);
-        Assert.Equal(OneQuest, dto.Quest);
-        Assert.Equal(OneItem, dto.Item);
-        Assert.Equal(OneAura, dto.Aura);
+        Assert.Equal(s_oneAi, dto.Ai);
+        Assert.Equal(s_oneAbility, dto.Ability);
+        Assert.Equal(s_oneQuest, dto.Quest);
+        Assert.Equal(s_oneItem, dto.Item);
+        Assert.Equal(s_oneAura, dto.Aura);
     }
 
     [Fact]
@@ -129,8 +132,8 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
     public async Task Say_published_false_instead_of_failing_when_redis_cannot_be_read(bool wrongType)
     {
         Exception failure = wrongType
-            ? new StackExchange.Redis.RedisServerException("WRONGTYPE")
-            : new StackExchange.Redis.RedisTimeoutException("timeout", StackExchange.Redis.CommandStatus.Unknown);
+            ? new StackExchange.Redis.RedisServerException(StackExchange.Redis.RedisErrorKind.Unknown, StackExchange.Redis.CommandFlags.CommandRetryNever, "WRONGTYPE")
+            : new StackExchange.Redis.RedisTimeoutException(StackExchange.Redis.CommandFlags.CommandRetryNever, "timeout", StackExchange.Redis.CommandStatus.Unknown);
         _cache.GetAsync(CacheKeys.WorldScriptCatalog(Two)).Returns(Task.FromException<string?>(failure));
 
         HttpResponseMessage response = await Get($"/world/{Two}/scripts", AccountAccessLevel.GameMaster);

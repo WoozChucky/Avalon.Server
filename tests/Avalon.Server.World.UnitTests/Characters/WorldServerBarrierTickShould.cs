@@ -2,21 +2,25 @@ using System.Net;
 using System.Net.Sockets;
 using Avalon.Combat;
 using Avalon.Common.Cryptography;
+using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World.Seeding;
+using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Maintenance;
 using Avalon.World.Parties;
-using Avalon.World.Quests;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
 using Avalon.World.Pvp;
+using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -24,11 +28,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
-using Avalon.World.Maintenance;
-using Avalon.Common.ValueObjects;
-using Avalon.Domain.Auth;
-using Avalon.Database.Auth.Repositories;
-using Avalon.World.Persistence;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 
@@ -75,7 +74,7 @@ public class WorldServerBarrierTickShould : IDisposable
     [Fact]
     public async Task Timeout_release_checks_maintenance_once_and_never_spawns_a_refused_character()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(default(WorldEntryDecision));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate);
         connection.AccountId = new AccountId(42);
@@ -97,7 +96,7 @@ public class WorldServerBarrierTickShould : IDisposable
     [Fact]
     public async Task Timeout_release_spawns_after_the_entry_check_allows_it()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntryDecision(true, DateTime.MaxValue));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate);
@@ -121,7 +120,7 @@ public class WorldServerBarrierTickShould : IDisposable
     [Fact]
     public async Task Do_not_spawn_when_the_deadline_applies_after_a_completed_entry_check()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         var check = new TaskCompletionSource<WorldEntryDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(check.Task);
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
@@ -151,7 +150,7 @@ public class WorldServerBarrierTickShould : IDisposable
     [Fact]
     public async Task Spawn_during_countdown_after_a_completed_entry_check()
     {
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntryDecision(true, DateTime.UtcNow.AddMinutes(1)));
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
@@ -224,7 +223,7 @@ public class WorldServerBarrierTickShould : IDisposable
     {
         // Valid by the wall clock, expired by the container's: the release must refuse it.
         var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(DateTimeOffset.UtcNow.AddHours(1));
-        var gate = Substitute.For<IWorldEntryGate>();
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntryDecision(true, DateTime.UtcNow.AddMinutes(30)));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate, clock: clock);
@@ -339,11 +338,11 @@ public class WorldServerBarrierTickShould : IDisposable
         ICharacter nym = PendingSpawnConnection.Character();
         nym.Position.Returns(Avalon.Common.Mathematics.Vector3.zero);
         nym.Orientation.Returns(Avalon.Common.Mathematics.Vector3.zero);
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.TemplateId.Returns(new Avalon.Common.ValueObjects.MapTemplateId(1));
         Dictionary<Avalon.Common.ObjectGuid, ICharacter> roster = new() { [nym.Guid] = nym };
         instance.Characters.Returns(roster);
-        var registry = Substitute.For<IInstanceRegistry>();
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         registry.ActiveInstances.Returns([instance]);
         world.InstanceRegistry.Returns(registry);
 
@@ -355,13 +354,13 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     /// <summary>Reference data with the seeded combat formula, which the tick's sheet flush reads (#506).</summary>
-    private static readonly Lazy<StaticData> SeededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
+    private static readonly Lazy<StaticData> s_seededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
 
     private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build(PartyService? parties = null,
         Avalon.World.Presence.PresenceCapture? presence = null, IWorldEntryGate? gate = null,
         WorldMaintenanceCoordinator? coordinator = null, TimeProvider? clock = null)
     {
-        StaticData data = SeededData.Value;   // loaded outside Returns, which it would otherwise interrupt
+        StaticData data = s_seededData.Value;   // loaded outside Returns, which it would otherwise interrupt
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CharacterLoadTimeoutSeconds = 15 });
         world.Data.Returns(data);
@@ -427,8 +426,10 @@ public class WorldServerBarrierTickShould : IDisposable
                 return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             if (serviceType == typeof(PartyService))
+            {
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
+            }
 
             // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
             if (serviceType == typeof(QuestService))
@@ -439,8 +440,10 @@ public class WorldServerBarrierTickShould : IDisposable
                 return _itemUses ??= Avalon.Server.World.UnitTests.ItemUse.InertItemUseService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
+            {
                 return Activator.CreateInstance(
                     typeof(NullLogger<>).MakeGenericType(serviceType.GenericTypeArguments[0]));
+            }
 
             if (serviceType.IsInterface || serviceType.IsAbstract)
                 return Substitute.For([serviceType], []);

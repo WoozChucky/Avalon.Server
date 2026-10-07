@@ -210,7 +210,7 @@ public class Creature : ICreature
 
     public IReadOnlyList<PatrolPoint> PatrolPath { get; set; } = [];
 
-    public IUnit?   TauntedBy      { get; set; }
+    public IUnit? TauntedBy { get; set; }
     public DateTime TauntExpiresAt { get; set; } = DateTime.MinValue;
 
     public ushort Level
@@ -284,14 +284,14 @@ public class Creature : ICreature
 
     public GameEntityFields ConsumeDirtyFields()
     {
-        var dirty = _dirtyFields;
+        GameEntityFields dirty = _dirtyFields;
         _dirtyFields = GameEntityFields.None;
         return dirty;
     }
 
     public void LookAt(Vector3 target)
     {
-        Vector3 direction = Vector3.Normalize(target - Position);
+        var direction = Vector3.Normalize(target - Position);
         float yawRadians = Mathf.Atan2(direction.x, direction.z);
         float yawDegrees = yawRadians * Mathf.Rad2Deg;
         Orientation = new Vector3(0.0f, yawDegrees, 0.0f);
@@ -299,7 +299,7 @@ public class Creature : ICreature
 
     public bool IsLookingAt(Vector3 target, float threshold = 0.1f)
     {
-        Vector3 direction = Vector3.Normalize(target - Position);
+        var direction = Vector3.Normalize(target - Position);
         float yawRadians = Mathf.Atan2(direction.x, direction.z);
         float yawDegrees = yawRadians * Mathf.Rad2Deg;
         Vector3 orientation = new(0.0f, yawDegrees, 0.0f);

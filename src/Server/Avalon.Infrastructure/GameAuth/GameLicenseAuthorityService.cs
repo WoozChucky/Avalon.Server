@@ -22,28 +22,44 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
         GameLicenseCheckResult? verifiedEvidence = null)
     {
         if (!Trusted(request.Application) || request.Account is null || request.Account.Value <= 0 ||
-            request.Now.Kind != DateTimeKind.Utc || (request.BoundLicenseId is null) != (request.BoundRevision is null)) return Unavailable;
-        var provider = providers.License(request.Application.Provider);
+            request.Now.Kind != DateTimeKind.Utc || (request.BoundLicenseId is null) != (request.BoundRevision is null))
+        {
+            return Unavailable;
+        }
+
+        IGameLicenseProvider? provider = providers.License(request.Application.Provider);
         if (provider is null || !ValidIdentity(provider.AuthorityKind, request.Identity, request.Now)) return Unavailable;
         try
         {
             GameLicense? license = request.BoundLicenseId is { } bound ? await licenses.FindAsync(bound, ct) : null;
             if (request.BoundLicenseId is not null && (license is null || !Matches(license, request, provider.AuthorityKind) ||
-                license.AuthorityRevision != request.BoundRevision || license.RevokedAt is not null || license.SuspendedAt is not null)) return Unlicensed;
-            var evidence = verifiedEvidence ?? await provider.CheckAsync(request, ct);
+                license.AuthorityRevision != request.BoundRevision || license.RevokedAt is not null || license.SuspendedAt is not null))
+            {
+                return Unlicensed;
+            }
+
+            GameLicenseCheckResult evidence = verifiedEvidence ?? await provider.CheckAsync(request, ct);
             if (evidence.Status == GameLicenseCheckStatus.Unavailable) return Unavailable;
             if (evidence.Status == GameLicenseCheckStatus.Unlicensed && request.BoundLicenseId is null &&
-                evidence.LicenseId is null && string.IsNullOrEmpty(evidence.LicenseReference)) return Unlicensed;
-            var completedAt = clock.GetUtcNow().UtcDateTime;
+                evidence.LicenseId is null && string.IsNullOrEmpty(evidence.LicenseReference))
+            {
+                return Unlicensed;
+            }
+
+            DateTime completedAt = clock.GetUtcNow().UtcDateTime;
             if (completedAt < request.Now || !ValidIdentity(provider.AuthorityKind, request.Identity, completedAt) ||
-                !ValidEvidence(evidence, request, completedAt)) return Unavailable;
+                !ValidEvidence(evidence, request, completedAt))
+            {
+                return Unavailable;
+            }
+
             license ??= await licenses.FindAsync(request.Account, request.Application.Provider, request.Application.Environment, evidence.LicenseReference, ct);
             if (evidence.LicenseId is { } selected && license?.Id != selected) return Unavailable;
             if (license is not null && (!Matches(license, request, provider.AuthorityKind) || license.LicenseReference != evidence.LicenseReference)) return Unavailable;
-            var owns = evidence.Status == GameLicenseCheckStatus.Licensed;
+            bool owns = evidence.Status == GameLicenseCheckStatus.Licensed;
             // Expiry of a fulfilled grant is not a new revocation. Revocation is stored by fulfillment.
             if (!owns && provider.AuthorityKind == LicenseAuthorityKind.StoredGrant) return Unlicensed;
-            var end = owns ? Earlier(evidence.AuthorizedUntil, evidence.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime)) : evidence.ObservedAt;
+            DateTime end = owns ? Earlier(evidence.AuthorizedUntil, evidence.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime)) : evidence.ObservedAt;
             if (evidence.ProviderExpiresAt is { } expiry) end = Earlier(end, expiry);
             if (owns && request.Identity is { } identity) end = Earlier(end, identity.ValidUntil);
             if (owns && end <= completedAt) return Unavailable;
@@ -53,32 +69,53 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 if (!owns || provider.AuthorityKind == LicenseAuthorityKind.StoredGrant) return Unlicensed;
                 license = await licenses.RecordGrantAsync(new GameLicense
                 {
-                    Id = Guid.NewGuid(), AccountId = request.Account, Product = request.Application.Product,
-                    Provider = request.Application.Provider, Environment = request.Application.Environment,
-                    ProviderProductId = request.Application.ProviderProductId, ProviderSubject = request.Identity!.ProviderSubject,
-                    LicenseReference = evidence.LicenseReference, AuthorityKind = provider.AuthorityKind,
-                    GrantedAt = evidence.ObservedAt, ExpiresAt = evidence.ProviderExpiresAt,
+                    Id = Guid.NewGuid(),
+                    AccountId = request.Account,
+                    Product = request.Application.Product,
+                    Provider = request.Application.Provider,
+                    Environment = request.Application.Environment,
+                    ProviderProductId = request.Application.ProviderProductId,
+                    ProviderSubject = request.Identity!.ProviderSubject,
+                    LicenseReference = evidence.LicenseReference,
+                    AuthorityKind = provider.AuthorityKind,
+                    GrantedAt = evidence.ObservedAt,
+                    ExpiresAt = evidence.ProviderExpiresAt,
                 }, ct);
                 if (!Matches(license, request, provider.AuthorityKind)) return Unavailable;
             }
             if (owns && license.SuspendedAt is not null) return Unlicensed;
             if (owns && license.AuthorityKind == LicenseAuthorityKind.StoredGrant && !license.Authorizes(request.Account,
-                request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;
+                request.Application.Product, request.Application.Environment, completedAt))
+            {
+                return Unlicensed;
+            }
+
             if (owns && license.ExpiresAt is { } storedExpiry && license.AuthorityKind == LicenseAuthorityKind.StoredGrant) end = Earlier(end, storedExpiry);
             if (owns && end <= completedAt) return Unavailable;
-            var applied = await licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision,
+            GameLicense? applied = await licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision,
                 new(owns, evidence.ObservedAt, end, evidence.ProviderExpiresAt,
-                    Reestablish: request.BoundLicenseId is null && provider.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership), ct);
+                    reestablish: request.BoundLicenseId is null && provider.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership), ct);
             if (applied is null) return Unlicensed;
             if (!Matches(applied, request, provider.AuthorityKind)) return Unavailable;
             if (owns && !applied.Authorizes(request.Account, request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;
             var observation = new LicenseObservation
             {
-                Id = Guid.NewGuid(), LicenseId = applied.Id, AuthorityRevision = applied.AuthorityRevision,
-                AccountId = request.Account, Provider = request.Application.Provider, ProviderSubject = request.Identity?.ProviderSubject ?? string.Empty,
-                Environment = request.Application.Environment, Product = request.Application.Product, ProviderProductId = request.Application.ProviderProductId,
-                ProviderOwnerSubject = evidence.OwnerSubject, Permanent = evidence.Permanent, OwnsProduct = owns,
-                ObservedAt = evidence.ObservedAt, AuthorizedUntil = end, ProviderExpiresAt = evidence.ProviderExpiresAt, PolicyVersion = options.Value.PolicyVersion,
+                Id = Guid.NewGuid(),
+                LicenseId = applied.Id,
+                AuthorityRevision = applied.AuthorityRevision,
+                AccountId = request.Account,
+                Provider = request.Application.Provider,
+                ProviderSubject = request.Identity?.ProviderSubject ?? string.Empty,
+                Environment = request.Application.Environment,
+                Product = request.Application.Product,
+                ProviderProductId = request.Application.ProviderProductId,
+                ProviderOwnerSubject = evidence.OwnerSubject,
+                Permanent = evidence.Permanent,
+                OwnsProduct = owns,
+                ObservedAt = evidence.ObservedAt,
+                AuthorizedUntil = end,
+                ProviderExpiresAt = evidence.ProviderExpiresAt,
+                PolicyVersion = options.Value.PolicyVersion,
             };
             await observations.RecordAsync(observation, ct);
             return owns ? new(GameLicenseCheckStatus.Licensed, applied.Id, applied.AuthorityRevision, end, observation.Id)
@@ -91,11 +128,11 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
     public async Task<bool> ValidateAsync(Guid licenseId, long revision, AccountId account,
         GameApplicationSelection application, DateTime now, CancellationToken ct)
     {
-        var provider = providers.License(application.Provider);
+        IGameLicenseProvider? provider = providers.License(application.Provider);
         if (!Trusted(application) || provider is null || now.Kind != DateTimeKind.Utc || revision <= 0) return false;
         try
         {
-            var license = await licenses.FindAsync(licenseId, ct);
+            GameLicense? license = await licenses.FindAsync(licenseId, ct);
             return license is not null && license.AuthorityRevision == revision && license.Provider == application.Provider &&
                 license.ProviderProductId == application.ProviderProductId && license.AuthorityKind == provider.AuthorityKind &&
                 license.Authorizes(account, application.Product, application.Environment, now);
@@ -107,11 +144,11 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
     public async Task<bool> ValidateBindingAsync(Guid licenseId, long revision, AccountId account,
         GameApplicationSelection application, string? subject, CancellationToken ct)
     {
-        var provider = providers.License(application.Provider);
+        IGameLicenseProvider? provider = providers.License(application.Provider);
         if (!Trusted(application) || provider is null || revision <= 0) return false;
         try
         {
-            var row = await licenses.FindAsync(licenseId, ct);
+            GameLicense? row = await licenses.FindAsync(licenseId, ct);
             return row is not null && row.Id == licenseId && row.AuthorityRevision == revision && row.RevokedAt is null && row.SuspendedAt is null &&
                 row.AccountId == account && row.Product == application.Product && row.Environment == application.Environment &&
                 row.Provider == application.Provider && row.ProviderProductId == application.ProviderProductId &&
@@ -123,7 +160,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
 
     private bool Trusted(GameApplicationSelection app)
     {
-        var configured = options.Value.ResolveApplication(app.Key);
+        GameApplicationSelection? configured = options.Value.ResolveApplication(app.Key);
         return configured is not null && configured.Provider == app.Provider && configured.ProviderProductId == app.ProviderProductId &&
             configured.Product == app.Product && configured.Environment == app.Environment && configured.Restricted == app.Restricted &&
             configured.AllowedWorldIds.SequenceEqual(app.AllowedWorldIds);

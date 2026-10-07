@@ -19,7 +19,7 @@ public static class WireSchema
 
     private const string PackageName = "avalon";
 
-    private static readonly Regex MessageStart =
+    private static readonly Regex s_messageStart =
         new(@"^message (?<name>\S+) \{$", RegexOptions.CultureInvariant);
 
     /// <summary>
@@ -99,7 +99,7 @@ public static class WireSchema
 
         for (int i = 0; i < lines.Length; i++)
         {
-            Match start = MessageStart.Match(lines[i]);
+            Match start = s_messageStart.Match(lines[i]);
             if (start.Success)
             {
                 message = start.Groups["name"].Value;
@@ -123,7 +123,7 @@ public static class WireSchema
                 continue;
             }
 
-            var key = (message, int.Parse(member.Groups["number"].Value, CultureInfo.InvariantCulture));
+            (string message, int) key = (message, int.Parse(member.Groups["number"].Value, CultureInfo.InvariantCulture));
             if (!targets.Contains(key))
             {
                 continue;
@@ -180,7 +180,7 @@ public static class WireSchema
 
         foreach (string line in lines)
         {
-            Match start = MessageStart.Match(line);
+            Match start = s_messageStart.Match(line);
             if (start.Success)
             {
                 message = start.Groups["name"].Value;

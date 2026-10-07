@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
@@ -133,18 +134,22 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
         foreach (CharacterSaveSnapshot snapshot in snapshots)
         {
             if (!characters.Add(snapshot.CharacterId))
+            {
                 throw new ArgumentException(
                     $"Character {snapshot.CharacterId.Value} appears more than once in one save.", nameof(snapshots));
+            }
         }
 
         HashSet<ItemInstanceId> items = [];
         foreach (CharacterSaveSnapshot snapshot in snapshots)
         {
-            foreach (var item in snapshot.Batch.UpsertItems)
+            foreach (ItemInstance item in snapshot.Batch.UpsertItems)
             {
                 if (!items.Add(item.Id))
+                {
                     throw new ArgumentException(
                         $"Item {item.Id.Value} is written by more than one character in one save.", nameof(snapshots));
+                }
             }
         }
     }

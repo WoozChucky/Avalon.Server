@@ -56,7 +56,7 @@ public sealed class MaintenanceCommand(
         }
 
         string actor = $"account:{ctx.Connection.AccountId?.Value}";
-        TimeSpan grace = TimeSpan.FromMinutes(minutes);
+        var grace = TimeSpan.FromMinutes(minutes);
         ctx.Then(Task.Run(() => control.SetAsync(worldId, enabled, grace, actor, CancellationToken.None)),
             committed =>
             {

@@ -1,3 +1,4 @@
+using Avalon.Api.Commerce;
 using Microsoft.Extensions.Options;
 using Stripe;
 
@@ -27,13 +28,15 @@ public static class CommerceServiceRegistration
             .ConfigureAdditionalHttpMessageHandlers((handlers, _) => { handlers.Clear(); handlers.Add(new Commerce.PaymentSecretProtectionHandler()); })
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
             {
-                AllowAutoRedirect = false, MaxConnectionsPerServer = 16,
-                ConnectTimeout = TimeSpan.FromSeconds(5), ActivityHeadersPropagator = null,
+                AllowAutoRedirect = false,
+                MaxConnectionsPerServer = 16,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+                ActivityHeadersPropagator = null,
             });
 #pragma warning restore EXTEXP0001
         services.AddSingleton(sp =>
         {
-            var config = sp.GetRequiredService<IOptions<Commerce.CommerceConfiguration>>().Value;
+            CommerceConfiguration config = sp.GetRequiredService<IOptions<Commerce.CommerceConfiguration>>().Value;
             return new StripeClient(config.Enabled ? config.ApiKey : "sk_test_disabled",
                 httpClient: new SystemNetHttpClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("avalon-commerce"), maxNetworkRetries: 0, enableTelemetry: false),
                 apiBase: "https://api.stripe.com");

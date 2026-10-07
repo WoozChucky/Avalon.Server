@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
-using Avalon.Api.Contract;
 using Avalon.Api.Authentication;
+using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -42,8 +42,8 @@ public class AbilityTemplateControllerShould
             .PaginateAsync(Arg.Any<EntityPaginateFilter<AbilityTemplate>>(), false, Arg.Any<CancellationToken>())
             .Returns(new PagedResult<AbilityTemplate>(1, 50, 0, new List<AbilityTemplate>()));
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.List(1, 50, CancellationToken.None);
+        AbilityTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        PagedResult<AbilityTemplateDto> result = await sut.List(1, 50, CancellationToken.None);
 
         Assert.Equal(0, result.TotalCount);
     }
@@ -55,8 +55,8 @@ public class AbilityTemplateControllerShould
             .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
             .Returns((AbilityTemplate?)null);
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        AbilityTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -68,8 +68,8 @@ public class AbilityTemplateControllerShould
             .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate { Id = new AbilityId(1), Name = "Fireball", ScriptName = "fireball.cs" });
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        AbilityTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
     }
@@ -86,13 +86,17 @@ public class AbilityTemplateControllerShould
             .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate
             {
-                Id = new AbilityId(1), Name = "Fireball", ScriptName = "fireball.cs", Cost = 5, CostPowerType = pool,
+                Id = new AbilityId(1),
+                Name = "Fireball",
+                ScriptName = "fireball.cs",
+                Cost = 5,
+                CostPowerType = pool,
             });
 
-        var sut = MakeSut(User(7, AvalonRoles.Player));
-        var result = await sut.Get(1, CancellationToken.None);
+        AbilityTemplateController sut = MakeSut(User(7, AvalonRoles.Player));
+        IActionResult result = await sut.Get(1, CancellationToken.None);
 
-        var dto = Assert.IsType<AbilityTemplateDto>(Assert.IsType<OkObjectResult>(result).Value);
+        AbilityTemplateDto dto = Assert.IsType<AbilityTemplateDto>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal(5u, dto.Cost);
         Assert.Equal(pool.ToString(), dto.CostPowerType.ToString());
         Assert.Contains($"\"costPowerType\":\"{json}\"",
@@ -103,9 +107,9 @@ public class AbilityTemplateControllerShould
     [Fact]
     public void Mirror_every_power_type_by_name_and_value()
     {
-        var domain = Enum.GetValues<Avalon.Network.Packets.State.PowerType>()
+        IEnumerable<(string Name, int Value)> domain = Enum.GetValues<Avalon.Network.Packets.State.PowerType>()
             .Select(p => (Name: p.ToString(), Value: (int)p));
-        var contract = Enum.GetValues<Avalon.Api.Contract.PowerType>()
+        IEnumerable<(string Name, int Value)> contract = Enum.GetValues<Avalon.Api.Contract.PowerType>()
             .Select(p => (Name: p.ToString(), Value: (int)p));
 
         Assert.Equal(domain, contract);

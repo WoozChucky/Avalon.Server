@@ -3,7 +3,6 @@ using Avalon.Network.Packets.Social;
 using Avalon.World.Chat;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Chat;
 

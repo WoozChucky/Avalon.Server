@@ -22,9 +22,9 @@ public static class ChunkRotation
     /// </summary>
     public static Vector3 LocalToWorld(float localX, float localY, float localZ, byte rotation, float cellSize, Vector3 origin)
     {
-        var c = cellSize * 0.5f;
-        var lx = localX - c;
-        var lz = localZ - c;
+        float c = cellSize * 0.5f;
+        float lx = localX - c;
+        float lz = localZ - c;
         (float rx, float rz) = rotation switch
         {
             0 => (lx, lz),

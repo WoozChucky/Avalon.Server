@@ -4,7 +4,6 @@ using Avalon.Server.Auth.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Hosting;
 

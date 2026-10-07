@@ -10,7 +10,7 @@ namespace Avalon.Infrastructure.Services;
 public class MFAService : IMFAService
 {
     // One step either side of now, about ±30 s of clock drift (#471).
-    private static readonly VerificationWindow TotpWindow = new(1, 1);
+    private static readonly VerificationWindow s_totpWindow = new(1, 1);
 
     private readonly ILogger<MFAService> _logger;
     private readonly IMfaSetupRepository _mfaSetupRepository;
@@ -30,7 +30,7 @@ public class MFAService : IMFAService
 
     public async Task<MFASetupResult> SetupMFAAsync(Account account, string issuer, CancellationToken cancellationToken = default)
     {
-        var existingMfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
+        MFASetup? existingMfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
 
         if (existingMfaSetup is { Status: MfaSetupStatus.Confirmed })
             return new MFASetupResult(false, null, MFAOperationResult.AlreadyEnabled);
@@ -54,14 +54,14 @@ public class MFAService : IMFAService
         if (!await _mfaSetupRepository.UpsertPendingAsync(mfaSetup, cancellationToken))
             return new MFASetupResult(false, null, MFAOperationResult.AlreadyEnabled);
 
-        var uri = new OtpUri(OtpType.Totp, mfaSetup.Secret, account.Email, issuer).ToString();
+        string uri = new OtpUri(OtpType.Totp, mfaSetup.Secret, account.Email, issuer).ToString();
         return new MFASetupResult(true, uri, MFAOperationResult.Success);
     }
 
     public async Task<MFAConfirmResult> ConfirmMFAAsync(AccountId accountId, int credentialsVersion, string code,
         CancellationToken cancellationToken = default)
     {
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
+        MFASetup? mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
 
         if (mfaSetup == null || mfaSetup.Status != MfaSetupStatus.Setup)
             return new MFAConfirmResult(false, null, MFAOperationResult.Error);
@@ -74,18 +74,18 @@ public class MFAService : IMFAService
         }
 
         var totp = new Totp(mfaSetup.Secret);
-        if (!totp.VerifyTotp(code, out var step, TotpWindow))
+        if (!totp.VerifyTotp(code, out long step, s_totpWindow))
             return new MFAConfirmResult(false, null, MFAOperationResult.InvalidCode);
 
         // Generate the codes here and return them once; only their hashes are stored.
-        var codes = new string[MFARecoveryCodes.Count];
-        for (var i = 0; i < codes.Length; i++)
+        string[] codes = new string[MFARecoveryCodes.Count];
+        for (int i = 0; i < codes.Length; i++)
             codes[i] = MFARecoveryCodes.Generate(_secureRandom);
 
         // Conditional on the row still being the Setup row, with the secret, that this code was
         // verified against (#470). A double-submitted confirm, or a setup that replaced the secret
         // meanwhile, loses here instead of overwriting codes another response already showed.
-        var confirmed = await _mfaSetupRepository.TryConfirmAsync(mfaSetup.Id, accountId, credentialsVersion,
+        MfaSetupWrite confirmed = await _mfaSetupRepository.TryConfirmAsync(mfaSetup.Id, accountId, credentialsVersion,
             mfaSetup.Secret, MFARecoveryCodes.Hash(codes[0])!, MFARecoveryCodes.Hash(codes[1])!,
             MFARecoveryCodes.Hash(codes[2])!, DateTime.UtcNow, step, cancellationToken);
         if (confirmed == MfaSetupWrite.CredentialsChanged)
@@ -98,16 +98,16 @@ public class MFAService : IMFAService
 
     public async Task<MFAVerifyResult> VerifyMFAAsync(string hash, string code, CancellationToken cancellationToken = default)
     {
-        var accountId = await _mfaHashService.GetAccountIdAsync(hash);
+        AccountId? accountId = await _mfaHashService.GetAccountIdAsync(hash);
         if (accountId == null)
             return new MFAVerifyResult(false, null, MfaCodeRefusal.HashSpent);
 
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
+        MFASetup? mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
         if (mfaSetup == null || mfaSetup.Status != MfaSetupStatus.Confirmed)
             return new MFAVerifyResult(false, null);
 
         var totp = new Totp(mfaSetup.Secret);
-        if (!totp.VerifyTotp(code, out var step, TotpWindow))
+        if (!totp.VerifyTotp(code, out long step, s_totpWindow))
             return new MFAVerifyResult(false, null);
 
         // Each code once (#471): refuse a step no later than the last one accepted. The write is
@@ -136,7 +136,7 @@ public class MFAService : IMFAService
     public async Task<MFAResetResult> ResetMFAAsync(AccountId accountId, int credentialsVersion, string r1, string r2,
         string r3, CancellationToken cancellationToken = default)
     {
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
+        MFASetup? mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
 
         if (mfaSetup == null)
             return new MFAResetResult(false, MFAOperationResult.NotEnabled);
@@ -147,7 +147,7 @@ public class MFAService : IMFAService
         // Hash each input and compare in constant time. Non-short-circuiting '&' so every code is
         // checked whichever one is wrong. A stored value that is not a hash (a pre-#464 plaintext
         // code) never matches, which is how those codes are invalidated.
-        var valid = MFARecoveryCodes.Matches(r1, mfaSetup.RecoveryCode1)
+        bool valid = MFARecoveryCodes.Matches(r1, mfaSetup.RecoveryCode1)
                     & MFARecoveryCodes.Matches(r2, mfaSetup.RecoveryCode2)
                     & MFARecoveryCodes.Matches(r3, mfaSetup.RecoveryCode3);
         if (!valid)
@@ -157,7 +157,7 @@ public class MFAService : IMFAService
         // every refresh token and personal access token the account holds is revoked (#483), as the
         // admin removal does, so no session opened before the reset outlives it. False when a
         // concurrent reset deleted the row first.
-        var reset = await _mfaSetupRepository.ResetConfirmedAsync(mfaSetup.Id, accountId, credentialsVersion,
+        MfaSetupWrite reset = await _mfaSetupRepository.ResetConfirmedAsync(mfaSetup.Id, accountId, credentialsVersion,
             DateTime.UtcNow, cancellationToken);
         if (reset == MfaSetupWrite.CredentialsChanged)
             return new MFAResetResult(false, MFAOperationResult.Error, CredentialsChanged: true);
@@ -184,7 +184,7 @@ public class MFAService : IMFAService
 
     public async Task<bool> IsEnrolledAsync(AccountId accountId, CancellationToken cancellationToken = default)
     {
-        var setup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
+        MFASetup? setup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
         return setup is { Status: MfaSetupStatus.Confirmed };
     }
 }

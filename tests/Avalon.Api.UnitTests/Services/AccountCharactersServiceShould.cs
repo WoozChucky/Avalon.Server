@@ -19,7 +19,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// <summary>GET /character (#523): the caller's characters on every world it may enter.</summary>
 public class AccountCharactersServiceShould
 {
-    private static readonly AccountId Owner = new(7);
+    private static readonly AccountId s_owner = new(7);
 
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
     private readonly IWorldRepositories _perWorld = Substitute.For<IWorldRepositories>();
@@ -32,16 +32,23 @@ public class AccountCharactersServiceShould
     {
         _rows.Add(new WorldEntity
         {
-            Id = new WorldId(id), Name = name, AccessLevelRequired = required,
-            Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+            Id = new WorldId(id),
+            Name = name,
+            AccessLevelRequired = required,
+            Host = "h",
+            MinVersion = "0.0.1",
+            Version = "0.0.1",
         });
         if (configured) _configured.Add(new ConfiguredWorld(new WorldId(id), $"Host=w{id}", $"Host=c{id}"));
 
         ICharacterRepository repository = Substitute.For<ICharacterRepository>();
-        repository.FindByAccountAsync(Owner, Arg.Any<CancellationToken>()).Returns(characters
+        repository.FindByAccountAsync(s_owner, Arg.Any<CancellationToken>()).Returns(characters
             .Select((character, i) => new Character
             {
-                Id = new CharacterId((uint)(id * 100 + i)), AccountId = Owner, Name = character, CreationDate = DateTime.UtcNow,
+                Id = new CharacterId((uint)(id * 100 + i)),
+                AccountId = s_owner,
+                Name = character,
+                CreationDate = DateTime.UtcNow,
             })
             .ToList());
         _perWorld.Characters(Arg.Is<WorldId>(w => w.Value == id)).Returns(repository);
@@ -62,7 +69,7 @@ public class AccountCharactersServiceShould
         GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
         GivenWorld(2, "Asthoria", AccountAccessLevel.Player, configured: true, "Kel", "Zed");
 
-        CharacterListDto list = await Sut().GetAsync(Owner, AccountAccessLevel.Player);
+        CharacterListDto list = await Sut().GetAsync(s_owner, AccountAccessLevel.Player);
 
         Assert.Equal(["Nym", "Kel", "Zed"], list.Characters.Select(c => c.Name));
         Assert.Equal(new ushort[] { 1, 2, 2 }, list.Characters.Select(c => c.WorldId));
@@ -76,7 +83,7 @@ public class AccountCharactersServiceShould
         GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
         GivenWorld(3, "Staff", AccountAccessLevel.Admin, configured: true, "Hidden");
 
-        CharacterListDto list = await Sut(unavailable: 3).GetAsync(Owner, AccountAccessLevel.Player);
+        CharacterListDto list = await Sut(unavailable: 3).GetAsync(s_owner, AccountAccessLevel.Player);
 
         Assert.Equal(["Nym"], list.Characters.Select(c => c.Name));
         Assert.Empty(list.UnavailableWorlds);
@@ -89,7 +96,7 @@ public class AccountCharactersServiceShould
         GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
         GivenWorld(2, "Asthoria", AccountAccessLevel.Player, configured: true, "Kel");
 
-        CharacterListDto list = await Sut(unavailable: 2).GetAsync(Owner, AccountAccessLevel.Player);
+        CharacterListDto list = await Sut(unavailable: 2).GetAsync(s_owner, AccountAccessLevel.Player);
 
         Assert.Equal(["Nym"], list.Characters.Select(c => c.Name));
         Assert.Equal(new ushort[] { 2 }, list.UnavailableWorlds);
@@ -101,10 +108,10 @@ public class AccountCharactersServiceShould
     {
         GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
         ICharacterRepository broken = GivenWorld(2, "Asthoria", AccountAccessLevel.Player, configured: true);
-        broken.FindByAccountAsync(Owner, Arg.Any<CancellationToken>())
+        broken.FindByAccountAsync(s_owner, Arg.Any<CancellationToken>())
             .ThrowsAsync(new NpgsqlException("Failed to connect to Host=secret;Port=5433"));
 
-        CharacterListDto list = await Sut().GetAsync(Owner, AccountAccessLevel.Player);
+        CharacterListDto list = await Sut().GetAsync(s_owner, AccountAccessLevel.Player);
 
         Assert.Equal(["Nym"], list.Characters.Select(c => c.Name));
         Assert.Equal(new ushort[] { 2 }, list.UnavailableWorlds);
@@ -122,7 +129,7 @@ public class AccountCharactersServiceShould
         GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
         GivenWorld(3, "Staff", AccountAccessLevel.Admin, configured: true, "Hidden");
 
-        CharacterListDto list = await Sut(unavailable: 3).GetAsync(Owner, caller);
+        CharacterListDto list = await Sut(unavailable: 3).GetAsync(s_owner, caller);
 
         Assert.Equal(["Nym"], list.Characters.Select(c => c.Name));
         Assert.Empty(list.UnavailableWorlds);
@@ -135,7 +142,7 @@ public class AccountCharactersServiceShould
         GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
         GivenWorld(5, "Test Realm", AccountAccessLevel.PTR, configured: true, "Tess");
 
-        CharacterListDto list = await Sut().GetAsync(Owner, AccountAccessLevel.PTR);
+        CharacterListDto list = await Sut().GetAsync(s_owner, AccountAccessLevel.PTR);
 
         Assert.Equal(["Nym", "Tess"], list.Characters.Select(c => c.Name));
         Assert.Equal(new ushort[] { 1, 5 }, list.Characters.Select(c => c.WorldId));
@@ -148,7 +155,7 @@ public class AccountCharactersServiceShould
         GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true, "Nym");
         GivenWorld(4, "Elsewhere", AccountAccessLevel.Player, configured: false, "Far");
 
-        CharacterListDto list = await Sut().GetAsync(Owner, AccountAccessLevel.Player);
+        CharacterListDto list = await Sut().GetAsync(s_owner, AccountAccessLevel.Player);
 
         Assert.Equal(["Nym"], list.Characters.Select(c => c.Name));
         Assert.Empty(list.UnavailableWorlds);
@@ -160,10 +167,10 @@ public class AccountCharactersServiceShould
         using CancellationTokenSource cancelled = new();
         await cancelled.CancelAsync();
         ICharacterRepository repository = GivenWorld(1, "Development", AccountAccessLevel.Player, configured: true);
-        repository.FindByAccountAsync(Owner, Arg.Any<CancellationToken>()).ThrowsAsync(new OperationCanceledException());
+        repository.FindByAccountAsync(s_owner, Arg.Any<CancellationToken>()).ThrowsAsync(new OperationCanceledException());
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            Sut().GetAsync(Owner, AccountAccessLevel.Player, cancelled.Token));
+            Sut().GetAsync(s_owner, AccountAccessLevel.Player, cancelled.Token));
     }
 
     /// <summary>Every entry as it would be written: the formatted message and any exception attached.</summary>

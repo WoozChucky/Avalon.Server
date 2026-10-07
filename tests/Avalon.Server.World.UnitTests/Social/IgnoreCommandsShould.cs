@@ -1,16 +1,14 @@
-using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World.Chat;
 using Avalon.World.Configuration;
-using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Social;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Social;
 
@@ -20,7 +18,7 @@ namespace Avalon.Server.World.UnitTests.Social;
 /// </summary>
 public class IgnoreCommandsShould
 {
-    private static readonly DateTime Now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime s_now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
 
     private readonly PartyTestWorld _w = new();
     private readonly ICharacterIgnoreRepository _repository = Substitute.For<ICharacterIgnoreRepository>();
@@ -55,7 +53,7 @@ public class IgnoreCommandsShould
     private static void Run(ICommand command, PartyClient client, string message)
     {
         string[] parts = message.TrimStart('/').Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        command.Execute(new CommandContext(client.Connection, new CChatMessagePacket { Message = message, DateTime = Now },
+        command.Execute(new CommandContext(client.Connection, new CChatMessagePacket { Message = message, DateTime = s_now },
             e => throw e), parts[1..]);
     }
 
@@ -147,7 +145,7 @@ public class IgnoreCommandsShould
     {
         PartyClient aren = Online(1, "Aren");
         Online(2, "Kaela");
-        aren.Character.Ignores.Add(2, "Kaela", Now);
+        aren.Character.Ignores.Add(2, "Kaela", s_now);
 
         Run(Ignore(), aren, "/ignore KAELA");
 
@@ -160,7 +158,7 @@ public class IgnoreCommandsShould
     public void Refuse_a_character_already_on_the_list_under_another_name()
     {
         PartyClient aren = Online(1, "Aren");
-        aren.Character.Ignores.Add(9, "Borin", Now);
+        aren.Character.Ignores.Add(9, "Borin", s_now);
         _repository.FindCharacterByNameAsync("Borrin", Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<CharacterNameMatch?>(new CharacterNameMatch(9u, "Borrin")));
 
@@ -199,7 +197,7 @@ public class IgnoreCommandsShould
             .Returns(Task.FromResult<CharacterNameMatch?>(new CharacterNameMatch(9u, "Borin")));
 
         Run(Ignore(), aren, "/ignore Borin");
-        aren.Character.Ignores.Add(2, "Kaela", Now);
+        aren.Character.Ignores.Add(2, "Kaela", s_now);
         callback!();
 
         Assert.Equal(["Your ignore list is full (1/1)."], aren.Lines());
@@ -294,7 +292,7 @@ public class IgnoreCommandsShould
         _w.Clock.Advance(TimeSpan.FromSeconds(60));
         _w.Parties.Tick();
 
-        var expired = Assert.Single(kaela.Results());
+        SPartyResultPacket expired = Assert.Single(kaela.Results());
         Assert.Equal((Avalon.Network.Packets.Party.PartyResult.InviteExpired, "Aren"), (expired.Result, expired.Name));
         Assert.Empty(aren.Results());
     }
@@ -330,8 +328,8 @@ public class IgnoreCommandsShould
     public void Unignore_a_character_on_the_list_by_name()
     {
         PartyClient aren = Online(1, "Aren");
-        aren.Character.Ignores.Add(2, "Kaela", Now);
-        aren.Character.Ignores.Add(9, "Borin", Now);
+        aren.Character.Ignores.Add(2, "Kaela", s_now);
+        aren.Character.Ignores.Add(9, "Borin", s_now);
         aren.Character.SaveState.Acknowledge(aren.Character.SaveState.TakeMarks());
 
         Run(Unignore(), aren, "/unignore kaela");
@@ -377,8 +375,8 @@ public class IgnoreCommandsShould
     public void List_the_ignored_characters_oldest_first()
     {
         PartyClient aren = Online(1, "Aren");
-        aren.Character.Ignores.Add(9, "Borin", Now);
-        aren.Character.Ignores.Add(2, "Kaela", Now);
+        aren.Character.Ignores.Add(9, "Borin", s_now);
+        aren.Character.Ignores.Add(2, "Kaela", s_now);
 
         Run(List(), aren, "/ignorelist");
 

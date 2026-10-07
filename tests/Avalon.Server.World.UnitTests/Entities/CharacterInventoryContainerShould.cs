@@ -4,7 +4,6 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -24,7 +23,7 @@ public class CharacterInventoryContainerShould
     [Fact]
     public void Return_What_It_Was_Loaded_With()
     {
-        var container = Bag();
+        CharacterInventoryContainer container = Bag();
 
         container.Load([Item(0), Item(1), Item(2)]);
 
@@ -35,7 +34,7 @@ public class CharacterInventoryContainerShould
     [Fact]
     public void Find_An_Item_By_Its_Slot()
     {
-        var container = Bag();
+        CharacterInventoryContainer container = Bag();
         container.Load([Item(4, template: 77)]);
 
         Assert.True(container.TryGet(4, out InventoryItem found));
@@ -47,7 +46,7 @@ public class CharacterInventoryContainerShould
     [Fact]
     public void Replace_Its_Whole_Contents_On_Reload()
     {
-        var container = Bag();
+        CharacterInventoryContainer container = Bag();
         container.Load([Item(0), Item(1)]);
 
         container.Load([Item(9)]);
@@ -81,7 +80,7 @@ public class CharacterInventoryContainerShould
     [Fact]
     public void List_its_free_slots_lowest_first()
     {
-        var container = Bag();
+        CharacterInventoryContainer container = Bag();
         container.Load([Item(0), Item(2)]);
 
         Assert.Equal<ushort>([1, 3, 4], container.FreeSlots().Take(3));
@@ -91,7 +90,7 @@ public class CharacterInventoryContainerShould
     [Fact]
     public void Put_and_remove_an_item_by_slot()
     {
-        var container = Bag();
+        CharacterInventoryContainer container = Bag();
 
         container.Put(Item(5, template: 9));
         Assert.True(container.TryGet(5, out _));

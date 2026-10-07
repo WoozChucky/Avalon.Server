@@ -110,30 +110,30 @@ internal static class FixtureRendering
 
     private static string Binary(byte[] bytes)
     {
-        const int preview = 8;
+        const int Preview = 8;
 
-        var text = new StringBuilder()
+        StringBuilder text = new StringBuilder()
             .Append(bytes.Length.ToString(CultureInfo.InvariantCulture))
             .Append(bytes.Length == 1 ? " byte" : " bytes");
 
-        for (int i = 0; i < Math.Min(preview, bytes.Length); i++)
+        for (int i = 0; i < Math.Min(Preview, bytes.Length); i++)
         {
             text.Append(' ').Append(bytes[i].ToString("x2", CultureInfo.InvariantCulture));
         }
 
-        return bytes.Length > preview ? text.Append(" ...").ToString() : text.ToString();
+        return bytes.Length > Preview ? text.Append(" ...").ToString() : text.ToString();
     }
 
     private static string Text(string value)
     {
-        const int preview = 48;
+        const int Preview = 48;
 
         var escaped = new StringBuilder("\"");
         int shown = 0;
 
         foreach (char c in value)
         {
-            if (shown >= preview)
+            if (shown >= Preview)
             {
                 escaped.Append('…');
                 break;
@@ -184,10 +184,10 @@ internal static class FixtureRendering
             return $"ReadOnlyMemory<{TypeName(declared.GetGenericArguments()[0])}>";
         }
 
-        return Keywords.TryGetValue(declared, out string? keyword) ? keyword : declared.Name;
+        return s_keywords.TryGetValue(declared, out string? keyword) ? keyword : declared.Name;
     }
 
-    private static readonly Dictionary<Type, string> Keywords = new()
+    private static readonly Dictionary<Type, string> s_keywords = new()
     {
         [typeof(bool)] = "bool",
         [typeof(byte)] = "byte",

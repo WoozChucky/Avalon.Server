@@ -1,10 +1,6 @@
-using Avalon.Common.Cryptography;
-using Avalon.Network.Packets;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 
@@ -70,7 +66,7 @@ public class GracefulShutdownHelperShould
     [Fact]
     public void LogWarning_WhenSendThrows()
     {
-        var logger = Substitute.For<ILogger>();
+        ILogger logger = Substitute.For<ILogger>();
         _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Throw<InvalidOperationException>();
 
         GracefulShutdownHelper.NotifyAndClose(_connection, "Server is shutting down", DisconnectReason.ServerShutdown, logger);

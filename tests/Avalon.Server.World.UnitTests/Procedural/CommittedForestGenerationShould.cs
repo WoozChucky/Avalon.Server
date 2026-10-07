@@ -6,7 +6,6 @@ using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.ChunkLayouts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -17,18 +16,18 @@ namespace Avalon.Server.World.UnitTests.Procedural;
 /// </summary>
 public class CommittedForestGenerationShould
 {
-    private static readonly Lazy<(ProceduralMapConfig Config, List<ChunkPoolMember> Pool, List<ChunkGroupDefinition> Groups)> Forest =
+    private static readonly Lazy<(ProceduralMapConfig Config, List<ChunkPoolMember> Pool, List<ChunkGroupDefinition> Groups)> s_forest =
         new(Load, isThreadSafe: true);
 
-    private static ProceduralMapConfig ForestConfig() => Forest.Value.Config;
+    private static ProceduralMapConfig ForestConfig() => s_forest.Value.Config;
 
     private static (ProceduralMapConfig, List<ChunkPoolMember>, List<ChunkGroupDefinition>) Load()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         using WorldDbContext db = database.CreateDbContext();
         ChunkCatalogSeeder.SeedAsync(db, Path.Combine(AppContext.BaseDirectory, "Maps")).GetAwaiter().GetResult();
 
-        Dictionary<ChunkTemplateId, ChunkTemplate> templates = db.ChunkTemplates.AsNoTracking().ToList().ToDictionary(t => t.Id);
+        var templates = db.ChunkTemplates.AsNoTracking().ToList().ToDictionary(t => t.Id);
         ChunkPool pool = db.ChunkPools.AsNoTracking().Include(p => p.Memberships).Include(p => p.Groups).ThenInclude(g => g.Members)
             .Single(p => p.Name == "forest_pool");
 
@@ -53,7 +52,7 @@ public class CommittedForestGenerationShould
     [Fact]
     public void Generate_every_seed_of_the_committed_forest_without_failing()
     {
-        (_, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = Forest.Value;
+        (_, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = s_forest.Value;
         var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
         var rotations = new Dictionary<string, HashSet<byte>>(StringComparer.Ordinal);
 
@@ -71,7 +70,7 @@ public class CommittedForestGenerationShould
                 Assert.Single(placed.Select(c => c.Rotation).Distinct());
                 Assert.Equal(1, placed.Max(c => c.GridX) - placed.Min(c => c.GridX));
                 Assert.Equal(1, placed.Max(c => c.GridZ) - placed.Min(c => c.GridZ));
-                if (!rotations.TryGetValue(placed.Key, out var seen)) rotations[placed.Key] = seen = [];
+                if (!rotations.TryGetValue(placed.Key, out HashSet<byte>? seen)) rotations[placed.Key] = seen = [];
                 seen.Add(placed.First().Rotation);
             }
 
@@ -90,7 +89,7 @@ public class CommittedForestGenerationShould
     [Fact]
     public void Place_no_set_piece_but_the_arena_before_main_path_step_eight()
     {
-        (ProceduralMapConfig config, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = Forest.Value;
+        (ProceduralMapConfig config, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = s_forest.Value;
         Assert.Equal(8, config.MinSetPieceStep);
         var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
         int placed = 0;
@@ -112,7 +111,7 @@ public class CommittedForestGenerationShould
     [Fact]
     public void Reach_the_boss_arena_deeper_than_the_first_band()
     {
-        (_, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = Forest.Value;
+        (_, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = s_forest.Value;
         var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
 
         for (int seed = 0; seed < 200; seed++)

@@ -1,5 +1,4 @@
 using Avalon.Database.Character.Repositories;
-using Avalon.Database.World.Repositories;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.World;
@@ -28,7 +27,7 @@ public class SelectPhaseHandlersShould
     [Fact]
     public void Refuse_a_character_list_request_while_a_spawn_is_pending()
     {
-        var characters = Substitute.For<ICharacterRepository>();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         var handler = new CharacterListHandler(
             NullLogger<CharacterListHandler>.Instance, characters, Substitute.For<IWorld>());
         IWorldConnection connection = PendingConnection();
@@ -42,7 +41,7 @@ public class SelectPhaseHandlersShould
     [Fact]
     public void Refuse_a_character_create_while_a_spawn_is_pending()
     {
-        var characters = Substitute.For<ICharacterRepository>();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         var handler = new CharacterCreateHandler(
             NullLogger<CharacterCreateHandler>.Instance,
             characters,
@@ -66,7 +65,7 @@ public class SelectPhaseHandlersShould
     [Fact]
     public void Refuse_a_character_delete_while_a_spawn_is_pending()
     {
-        var characters = Substitute.For<ICharacterRepository>();
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         var handler = new CharacterDeletetHandler(
             NullLogger<CharacterDeletetHandler>.Instance, characters);
         IWorldConnection connection = PendingConnection();

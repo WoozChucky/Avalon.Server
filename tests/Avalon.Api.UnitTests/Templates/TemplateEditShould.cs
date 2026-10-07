@@ -1,7 +1,6 @@
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,15 +8,12 @@ using Avalon.Api.Templates;
 using Avalon.Api.UnitTests.Authentication;
 using Avalon.Api.UnitTests.Worlds;
 using Avalon.Api.Worlds;
-using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World;
 using Avalon.Database.World.Extensions;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Scripts;
-using StackExchange.Redis;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -25,6 +21,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NSubstitute;
+using StackExchange.Redis;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
@@ -63,9 +60,13 @@ public sealed class TemplateEditShould : IAsyncLifetime
         {
             db.AuraTemplates.Add(new Avalon.Domain.World.AuraTemplate
             {
-                Id = new Avalon.Common.ValueObjects.AuraId(TestWard), Name = "Test Ward", Icon = "ward",
-                Kind = Avalon.Domain.World.AuraKind.Helpful, DurationMs = 10000,
-                Stacking = Avalon.Domain.World.AuraStacking.Refresh, MaxStacks = 1,
+                Id = new Avalon.Common.ValueObjects.AuraId(TestWard),
+                Name = "Test Ward",
+                Icon = "ward",
+                Kind = Avalon.Domain.World.AuraKind.Helpful,
+                DurationMs = 10000,
+                Stacking = Avalon.Domain.World.AuraStacking.Refresh,
+                MaxStacks = 1,
                 Modifiers =
                 [
                     new Avalon.Domain.World.AuraStatModifier
@@ -110,13 +111,17 @@ public sealed class TemplateEditShould : IAsyncLifetime
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntity
             {
-                Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = AccountAccessLevel.Player,
-                Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+                Id = new WorldId(id),
+                Name = $"World{id}",
+                AccessLevelRequired = AccountAccessLevel.Player,
+                Host = "h",
+                MinVersion = "0.0.1",
+                Version = "0.0.1",
             });
 
     private string Token(AccountAccessLevel level)
     {
-        var account = ApiAuthHost.MakeAccount(level);
+        Account account = ApiAuthHost.MakeAccount(level);
         _host.AccountNowIs(account);
         return ApiAuthHost.Mint(account);
     }
@@ -275,11 +280,11 @@ public sealed class TemplateEditShould : IAsyncLifetime
         (JsonObject json, string version) = await ReadAsync(kind, id);
 
         // Two admins open the same template; the first saves.
-        JsonObject first = (JsonObject)json.DeepClone();
+        var first = (JsonObject)json.DeepClone();
         first["name"] = "First admin";
         Assert.Equal(HttpStatusCode.OK, (await PutAsync(Editable, kind, id, first, Tag(version))).StatusCode);
 
-        JsonObject second = (JsonObject)json.DeepClone();
+        var second = (JsonObject)json.DeepClone();
         second["name"] = "Second admin";
         HttpResponseMessage response = await PutAsync(Editable, kind, id, second, Tag(version));
 
@@ -538,9 +543,9 @@ public sealed class TemplateEditShould : IAsyncLifetime
     [InlineData("ability")]
     public async Task Save_a_changed_script_name_when_redis_cannot_be_read(string kind)
     {
-        var cache = Substitute.For<IReplicatedCache>();
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         cache.GetAsync(Arg.Any<string>())
-            .Returns(Task.FromException<string?>(new RedisServerException("WRONGTYPE")));
+            .Returns(Task.FromException<string?>(new RedisServerException(RedisErrorKind.Unknown, CommandFlags.CommandRetryNever, "WRONGTYPE")));
         _catalog.Real = new WorldScriptCatalog(cache, new LoggerOf<WorldScriptCatalog>(_logs.CreateLogger("test")));
         (JsonObject json, string version, ulong id) = await ReadFirstAsync(kind);
         json["scriptName"] = Unlisted;
@@ -896,26 +901,41 @@ public sealed class TemplateEditShould : IAsyncLifetime
             var quest = new Avalon.Domain.World.QuestTemplate
             {
                 Id = new Avalon.Common.ValueObjects.QuestTemplateId(FixtureQuest),
-                TitleTextId = text, DescriptionTextId = text, CompletionTextId = text,
-                GiverCreatureId = creature, EnderCreatureId = creature, LevelRequirement = 1,
+                TitleTextId = text,
+                DescriptionTextId = text,
+                CompletionTextId = text,
+                GiverCreatureId = creature,
+                EnderCreatureId = creature,
+                LevelRequirement = 1,
             };
             quest.Stages.Add(new Avalon.Domain.World.QuestStage { QuestId = quest.Id, Sequence = 0, DescriptionTextId = text });
             quest.Objectives.Add(collects is { } item
                 ? new Avalon.Domain.World.QuestObjective
                 {
-                    Id = FixtureObjective, QuestId = quest.Id, StageSequence = 0,
+                    Id = FixtureObjective,
+                    QuestId = quest.Id,
+                    StageSequence = 0,
                     Type = Avalon.Domain.World.QuestObjectiveType.Collect,
-                    ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(item), Count = 1, DescriptionTextId = text,
+                    ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(item),
+                    Count = 1,
+                    DescriptionTextId = text,
                 }
                 : new Avalon.Domain.World.QuestObjective
                 {
-                    Id = FixtureObjective, QuestId = quest.Id, StageSequence = 0,
-                    Type = Avalon.Domain.World.QuestObjectiveType.Talk, CreatureTemplateId = creature, Count = 1,
+                    Id = FixtureObjective,
+                    QuestId = quest.Id,
+                    StageSequence = 0,
+                    Type = Avalon.Domain.World.QuestObjectiveType.Talk,
+                    CreatureTemplateId = creature,
+                    Count = 1,
                     DescriptionTextId = text,
                 });
             if (pays is { } reward)
+            {
                 quest.ItemRewards.Add(new Avalon.Domain.World.QuestItemReward
-                    { QuestId = quest.Id, ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(reward), Count = 1 });
+                { QuestId = quest.Id, ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(reward), Count = 1 });
+            }
+
             db.QuestTemplates.Add(quest);
         });
     }
@@ -1041,7 +1061,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal(id, entry.State["TemplateId"]);
         Assert.Equal(Editable, entry.State["WorldId"]);
         Assert.Equal(ApiAuthHost.AccountIdValue, entry.State["AccountId"]);
-        var changes = Assert.IsAssignableFrom<IReadOnlyList<TemplateChange>>(entry.State["@Changes"]);
+        IReadOnlyList<TemplateChange> changes = Assert.IsAssignableFrom<IReadOnlyList<TemplateChange>>(entry.State["@Changes"]);
         Assert.Equal(
             [new TemplateChange("maxStackSize", oldSell.ToString(), (oldSell + 7).ToString()),
              new TemplateChange("name", oldName, "Audited")],
@@ -1109,7 +1129,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     {
         // The losing side of two concurrent saves of one version: Postgres fails its UPDATE with 40001.
         TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(
-            new FailingSave(PostgresErrorCodes.SerializationFailure, null));
+            new FailingSave(PostgresErrorCodes.SerializationFailure, null!));
 
         Assert.Equal(TemplateEditOutcome.Conflict, result.Outcome);
         Assert.Empty(_signal.Requests);
@@ -1141,8 +1161,11 @@ public sealed class TemplateEditShould : IAsyncLifetime
         using (var read = new WorldDbContext(options)) row = read.ItemTemplates.AsNoTracking().AsEnumerable().First();
         var request = new Avalon.Api.Contract.UpdateItemTemplateRequest
         {
-            Name = "renamed", MaxStackSize = Math.Max(1, row.MaxStackSize), AllowedClasses = row.AllowedClasses.ToList(),
-            Class = (Avalon.Api.Contract.ItemClass)row.Class, SubClass = (Avalon.Api.Contract.ItemSubClass)row.SubClass,
+            Name = "renamed",
+            MaxStackSize = Math.Max(1, row.MaxStackSize),
+            AllowedClasses = row.AllowedClasses.ToList(),
+            Class = (Avalon.Api.Contract.ItemClass)row.Class,
+            SubClass = (Avalon.Api.Contract.ItemSubClass)row.SubClass,
             Rarity = (Avalon.Api.Contract.ItemRarity)row.Rarity,
         };
 
@@ -1281,7 +1304,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             {
                 var values = new Dictionary<string, object?>();
                 if (state is IEnumerable<KeyValuePair<string, object?>> pairs)
-                    foreach (var pair in pairs) values[pair.Key] = pair.Value;
+                    foreach (KeyValuePair<string, object?> pair in pairs) values[pair.Key] = pair.Value;
                 lock (owner._entries)
                     owner._entries.Add(new CapturedLog(category, logLevel, formatter(state, exception), values));
             }

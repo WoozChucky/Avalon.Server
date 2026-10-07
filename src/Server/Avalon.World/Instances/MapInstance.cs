@@ -123,7 +123,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private string? _presenceChange;
 
     /// <summary>The seeded combat formula, for an instance whose world has no reference data loaded (tests).</summary>
-    private static readonly Avalon.Domain.World.CombatFormula SeededFormula = Avalon.Database.World.Seeding.CombatSeed.Formula();
+    private static readonly Avalon.Domain.World.CombatFormula s_seededFormula = Avalon.Database.World.Seeding.CombatSeed.Formula();
     private readonly PvpToggle _pvp;
     private readonly IQuestProgress _quests;
 
@@ -196,11 +196,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _encounterRegistry = new EncounterRegistry(combatConfig, _time);
         // #506: every roll goes through the container's combat random, and each hit reads the current
         // combat formula once. Both fall back, so an instance built without them (tests) still fights.
-        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time,
+        _combatService = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time,
             furyFromDamageTaken: world.Configuration.FuryFromDamageTaken,
             random: serviceProvider.GetService<ICombatRandom>(),
-            formula: () => world.Data?.Combat?.Formula ?? SeededFormula);
-        _threatBroadcast   = new ThreatBroadcastService(combatConfig, _time);
+            formula: () => world.Data?.Combat?.Formula ?? s_seededFormula);
+        _threatBroadcast = new ThreatBroadcastService(combatConfig, _time);
 
         // Auras: one system per instance over its own units, ticked right after the ability cast system on this
         // instance's clock. The catalog and the reference data are read through the world each time, so a reload
@@ -365,7 +365,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Chooses the locomotion implementation per <see cref="GameConfiguration.CreatureLocomotion" />.
-    /// <see cref="CrowdLocomotion" /> needs a non-null baked <see cref="DtNavMesh" />, but the
+    /// <see cref="CrowdLocomotion" /> needs a non-null baked <see cref="DotRecast.Detour.DtNavMesh" />, but the
     /// navigator handed to this instance is only an <see cref="IMapNavigator" /> — tests substitute
     /// it, and even a real <see cref="MapNavigator" /> can have nothing baked into it yet — so a
     /// configured crowd degrades to <see cref="WaypointLocomotion" /> instead of throwing out of the
@@ -760,11 +760,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private bool Hears(ObjectGuid guid, IWorldConnection connection, ObjectGuid involved, ObjectGuid? alsoInvolved,
         Vector3 point, Vector3? alsoPoint) =>
-        EffectAudience.Receives(guid, connection.Character?.Position ?? Unplaced, _interest.Radius,
+        EffectAudience.Receives(guid, connection.Character?.Position ?? s_unplaced, _interest.Radius,
             involved, alsoInvolved, point, alsoPoint);
 
     /// <summary>The position of a connection with no character: not finite, so never near an effect.</summary>
-    private static readonly Vector3 Unplaced = new(float.NaN, float.NaN, float.NaN);
+    private static readonly Vector3 s_unplaced = new(float.NaN, float.NaN, float.NaN);
 
     public GroundLootStore Drops => _groundLoot;
 
@@ -900,7 +900,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private static void SendLootSpawned(IEnumerable<IWorldConnection> recipients, IReadOnlyCollection<GroundLoot> drops)
     {
         // Built once; each connection serializes it under its own session key.
-        List<LootDropDto> dtos = drops.Select(LootDropMapper.ToDto).ToList();
+        var dtos = drops.Select(LootDropMapper.ToDto).ToList();
 
         foreach (IWorldConnection connection in recipients)
         {
@@ -1009,7 +1009,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             // change. A running timer a player-on-player hit moved is re-sent, so the countdown is exact.
             if (character is CharacterEntity pvpEntity
                 && (_pvp.ExpireIfDue(pvpEntity) || PvpToggle.CountdownOwed(pvpEntity)))
+            {
                 _pvp.Send(connection, pvpEntity);
+            }
 
             // Periodic save (spec #459 D4): the scheduler decides whether this is the character's tick.
             if (character is CharacterEntity entity)
@@ -1094,25 +1096,25 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         if (shouldBroadcastUpdates)
         {
-            foreach (var creature in _creatures.Values)
+            foreach (ICreature creature in _creatures.Values)
             {
-                var dirty = creature.ConsumeDirtyFields();
+                GameEntityFields dirty = creature.ConsumeDirtyFields();
                 if (dirty != GameEntityFields.None)
                     _frameDirtyFields[creature.Guid] = dirty;
             }
 
-            foreach (var character in _characters.Values)
+            foreach (ICharacter character in _characters.Values)
             {
-                var dirty = character.ConsumeDirtyFields();
+                GameEntityFields dirty = character.ConsumeDirtyFields();
                 if (dirty != GameEntityFields.None)
                     _frameDirtyFields[character.Guid] = dirty;
             }
 
-            foreach (var obj in objectAbilities)
+            foreach (IWorldObject obj in objectAbilities)
             {
                 if (obj is AbilityScript ability)
                 {
-                    var dirty = ability.ConsumeDirtyFields();
+                    GameEntityFields dirty = ability.ConsumeDirtyFields();
                     if (dirty != GameEntityFields.None)
                         _frameDirtyFields[ability.Guid] = dirty;
                 }
@@ -1132,8 +1134,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             foreach (ICharacter character in _characters.Values)
             {
                 if (character is CharacterEntity entity)
+                {
                     entity.CharacterGameState.Update(entity.Guid, entity.Position, _interest, _creatures,
                         _characters, objectAbilities, _frameDirtyFields);
+                }
             }
 
             // Step 6: Broadcast instance state to each character
@@ -1636,7 +1640,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (_world.Data?.LoadedAbilities is not { } abilities
             || !abilities.TryGet(ability.AbilityId, out AbilityTemplate? row)
             || row.AuraId is not { } aura)
+        {
             return;
+        }
 
         try
         {
@@ -1710,7 +1716,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private IReadOnlyList<ICharacter> EligibleFor(ICreature creature, IUnit? killer)
     {
-        ICharacter? character = killer as ICharacter;
+        var character = killer as ICharacter;
         Party? party = character is null ? null : _parties?.PartyOf(character.Guid.Id);
         Func<uint, bool> inCountdown = _parties is null ? static _ => false : _parties.InCountdown;
 
@@ -1813,7 +1819,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         // Capacities sized for a typical instance (32 entities visible per player).
         // List<T> grows automatically if exceeded — this avoids early reallocation.
-        public List<ObjectState> AddedObjects   { get; } = new(32);
+        public List<ObjectState> AddedObjects { get; } = new(32);
         public List<ObjectState> UpdatedObjects { get; } = new(32);
     }
 }

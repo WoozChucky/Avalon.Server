@@ -1,6 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
-using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
+using ProtoBuf;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -18,7 +18,6 @@ public class SWorldListPacket : Packet
             new SWorldListPacket { Worlds = worlds },
             PacketType, Flags, Protocol, encryptFunc);
 }
-
 
 [ProtoContract]
 public class WorldInfo

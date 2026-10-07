@@ -96,7 +96,7 @@ public partial class CharacterDbContext : DbContext
         // and its upper() folds ASCII only already. The model is cached per provider, so each gets its own.
         Configure(modelBuilder.Entity<Domain.Characters.Character>(), Database.IsNpgsql());
         Configure(modelBuilder.Entity<CharacterStats>());
-        var fence = modelBuilder.Entity<AccountGameplayFence>();
+        EntityTypeBuilder<AccountGameplayFence> fence = modelBuilder.Entity<AccountGameplayFence>();
         fence.HasKey(f => f.AccountId);
         fence.Property(f => f.AccountId).HasConversion(v => v.Value, v => new AccountId(v)).ValueGeneratedNever();
         Configure(modelBuilder.Entity<CharacterInventory>());
@@ -107,7 +107,7 @@ public partial class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterCompletedQuest>());
         Configure(modelBuilder.Entity<CharacterIgnore>());
         Configure(modelBuilder.Entity<CharacterAura>());
-        var receipt = modelBuilder.Entity<CharacterConsolidationReceipt>();
+        EntityTypeBuilder<CharacterConsolidationReceipt> receipt = modelBuilder.Entity<CharacterConsolidationReceipt>();
         receipt.HasKey(r => r.Id);
         receipt.Property(r => r.Id).ValueGeneratedNever();
         receipt.Property(r => r.SourceAccountId).HasConversion(v => v.Value, v => new AccountId(v));
@@ -178,7 +178,7 @@ public partial class CharacterDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<CharacterInventory> builder)
     {
-        builder.HasKey(b => new {b.CharacterId, b.Container, b.Slot});
+        builder.HasKey(b => new { b.CharacterId, b.Container, b.Slot });
 
         builder.Property(b => b.CharacterId)
             .HasConversion(
@@ -209,7 +209,7 @@ public partial class CharacterDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<CharacterAbility> builder)
     {
-        builder.HasKey(b => new {b.CharacterId, b.AbilityId});
+        builder.HasKey(b => new { b.CharacterId, b.AbilityId });
 
         builder.Property(b => b.CharacterId)
             .HasConversion(

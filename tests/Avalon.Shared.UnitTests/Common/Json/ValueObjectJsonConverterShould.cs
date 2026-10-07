@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Avalon.Common;
 using Avalon.Common.Converters;
 using Avalon.Common.ValueObjects;
@@ -16,11 +17,11 @@ public class ValueObjectJsonConverterShould
     [Fact]
     public void SerializeAndDeserializeCharacterId()
     {
-        var options = BuildOptions();
+        JsonSerializerOptions options = BuildOptions();
         var original = new CharacterId(123U);
 
-        var json = JsonSerializer.Serialize(original, options);
-        var deserialized = JsonSerializer.Deserialize<CharacterId>(json, options);
+        string json = JsonSerializer.Serialize(original, options);
+        CharacterId? deserialized = JsonSerializer.Deserialize<CharacterId>(json, options);
 
         Assert.NotNull(deserialized);
         Assert.Equal(original, deserialized);
@@ -29,11 +30,11 @@ public class ValueObjectJsonConverterShould
     [Fact]
     public void SerializeAndDeserializeAccountId()
     {
-        var options = BuildOptions();
+        JsonSerializerOptions options = BuildOptions();
         var original = new AccountId(9876543210L);
 
-        var json = JsonSerializer.Serialize(original, options);
-        var deserialized = JsonSerializer.Deserialize<AccountId>(json, options);
+        string json = JsonSerializer.Serialize(original, options);
+        AccountId? deserialized = JsonSerializer.Deserialize<AccountId>(json, options);
 
         Assert.NotNull(deserialized);
         Assert.Equal(original, deserialized);
@@ -42,11 +43,11 @@ public class ValueObjectJsonConverterShould
     [Fact]
     public void SerializeAndDeserializeMapId()
     {
-        var options = BuildOptions();
+        JsonSerializerOptions options = BuildOptions();
         var original = new MapId(5);
 
-        var json = JsonSerializer.Serialize(original, options);
-        var deserialized = JsonSerializer.Deserialize<MapId>(json, options);
+        string json = JsonSerializer.Serialize(original, options);
+        MapId? deserialized = JsonSerializer.Deserialize<MapId>(json, options);
 
         Assert.NotNull(deserialized);
         Assert.Equal(original, deserialized);
@@ -62,9 +63,9 @@ public class ValueObjectJsonConverterShould
     [Fact]
     public void Serialize_A_Concrete_Value_Object_As_A_Bare_Scalar()
     {
-        var options = BuildOptions();
+        JsonSerializerOptions options = BuildOptions();
 
-        var json = JsonSerializer.Serialize(new CharacterId(42U), options);
+        string json = JsonSerializer.Serialize(new CharacterId(42U), options);
 
         Assert.Equal("42", json);
     }
@@ -97,9 +98,9 @@ public class ValueObjectJsonConverterShould
     [Fact]
     public void Deserialize_A_Concrete_Value_Object_From_A_Bare_Scalar()
     {
-        var options = BuildOptions();
+        JsonSerializerOptions options = BuildOptions();
 
-        var deserialized = JsonSerializer.Deserialize<CharacterId>("123", options);
+        CharacterId? deserialized = JsonSerializer.Deserialize<CharacterId>("123", options);
 
         Assert.Equal(new CharacterId(123U), deserialized);
     }
@@ -107,7 +108,7 @@ public class ValueObjectJsonConverterShould
     [Fact]
     public void Read_Null_As_Null()
     {
-        var options = BuildOptions();
+        JsonSerializerOptions options = BuildOptions();
 
         Assert.Null(JsonSerializer.Deserialize<CharacterId>("null", options));
     }
@@ -116,9 +117,9 @@ public class ValueObjectJsonConverterShould
     public void CreateConverterForValueObjectType()
     {
         var factory = new ValueObjectJsonConverterFactory();
-        var options = BuildOptions();
+        JsonSerializerOptions options = BuildOptions();
 
-        var converter = factory.CreateConverter(typeof(ValueObject<uint>), options);
+        JsonConverter converter = factory.CreateConverter(typeof(ValueObject<uint>), options);
 
         Assert.NotNull(converter);
     }

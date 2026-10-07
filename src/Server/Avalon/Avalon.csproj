@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <IsAspireHost>true</IsAspireHost>
     <UserSecretsId>13ebf485-c479-4f1c-9f4f-e70375918011</UserSecretsId>
+    <!-- ASPIRE010: the AppHost runs without the Aspire CLI bundle, from dotnet run or the IDE. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
 
   <Sdk Name="Aspire.AppHost.Sdk" Version="13.6.0"/>

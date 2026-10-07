@@ -1,5 +1,5 @@
-using Avalon.Network.Packets.State;
 using Avalon.Combat;
+using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
 using CreatureRarity = Avalon.World.Public.Enums.CreatureRarity;
 
@@ -38,7 +38,7 @@ public static class Grader
     {
         double tol = targets.YellowTolerancePct;
         GlobalTargets g = targets.Global;
-        List<RowResult> graded = rows.Where(r => string.Equals(r.Key.Gear, targets.GradedGear, StringComparison.Ordinal)).ToList();
+        var graded = rows.Where(r => string.Equals(r.Key.Gear, targets.GradedGear, StringComparison.Ordinal)).ToList();
         var metrics = new List<GradedMetric>();
 
         void Add(RowKey? row, string check, string metric, double? value, Band band, string unit) =>
@@ -86,11 +86,16 @@ public static class Grader
         foreach (RowResult r in graded.Where(r => r.Key.Scenario == g.ResourceScenario))
         {
             if (r.Key.Class == CharacterClass.Warrior)
+            {
                 Add(r.Key, "resource flow", $"Warrior L{r.Key.Level} first spender", r.FirstSpenderSeconds?.Median,
                     new Band { Min = 0, Max = g.WarriorFirstSpenderSeconds }, " s");
+            }
+
             if (ClassPowerType.Of(r.Key.Class) is PowerType.Mana or PowerType.Energy)
+            {
                 Add(r.Key, "resource flow", $"{r.Key.Class} L{r.Key.Level} starved share", r.StarvedPct.Median,
                     new Band { Min = 0, Max = g.CasterStarvedPct }, " %");
+            }
         }
 
         // Levelling pace: same-level normal kills to the next level, experience as CreatureStatDeriver derives it.

@@ -12,7 +12,6 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
-using Avalon.Network.Packets.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -31,7 +30,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class CredentialRevocationShould : IDisposable
 {
-    private static readonly string Password = TestPasswords.Valid;
+    private static readonly string s_password = TestPasswords.Valid;
 
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
@@ -55,7 +54,7 @@ public sealed class CredentialRevocationShould : IDisposable
             Username = "OWNER",
             Email = "owner@avalon.monster",
             Salt = Encoding.UTF8.GetBytes(salt),
-            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, salt)),
+            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, salt)),
             JoinDate = DateTime.UtcNow,
             LastLogin = DateTime.UtcNow,
         });
@@ -98,7 +97,7 @@ public sealed class CredentialRevocationShould : IDisposable
         Substitute.For<IMFAHashService>(), new SecureRandom(), _cache);
 
     private Task ChangePasswordAsync(AccountId id, string? current = null) =>
-        AccountService().ChangePasswordAsync(id, current ?? Password, TestPasswords.Third, IPAddress.Loopback);
+        AccountService().ChangePasswordAsync(id, current ?? s_password, TestPasswords.Third, IPAddress.Loopback);
 
     [Fact]
     public async Task Refuse_a_personal_access_token_minted_before_a_password_change()
@@ -127,7 +126,7 @@ public sealed class CredentialRevocationShould : IDisposable
         Assert.False(await PatIsRefusedAsync(pat));
         Account stored = (await _accounts.FindByIdAsync(account.Id))!;
         Assert.Equal(1, stored.FailedLogins);
-        Assert.True(BCrypt.Net.BCrypt.Verify(Password, Encoding.UTF8.GetString(stored.Verifier)));
+        Assert.True(BCrypt.Net.BCrypt.Verify(s_password, Encoding.UTF8.GetString(stored.Verifier)));
     }
 
     [Fact]
@@ -136,7 +135,7 @@ public sealed class CredentialRevocationShould : IDisposable
         Account account = await AccountAsync();
         string pat = await MintPatAsync(account.Id);
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
 
         await ChangePasswordAsync(account.Id);
 
@@ -190,7 +189,7 @@ public sealed class CredentialRevocationShould : IDisposable
         string[] codes = await EnrolAsync(account);
         string pat = await MintPatAsync(account.Id);
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down"));
 
         MFAResetResult reset = await MfaService().ResetMFAAsync(account.Id, 0, codes[0], codes[1], codes[2]);
 

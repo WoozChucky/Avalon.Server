@@ -1,7 +1,3 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-using System;
-using System.IO;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
@@ -50,7 +46,8 @@ public readonly struct InboundPacketFrame
                     case 0: ReadVarint(span, ref pos); break;          // varint
                     case 1: pos += 8; break;                           // 64-bit
                     case 5: pos += 4; break;                           // 32-bit
-                    default: throw new InvalidDataException(
+                    default:
+                        throw new InvalidDataException(
                         $"Unsupported protobuf wire type {wireType} for field {fieldNumber} in NetworkPacket frame.");
                 }
                 continue;

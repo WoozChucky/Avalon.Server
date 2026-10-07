@@ -1,7 +1,7 @@
-using Avalon.Common.GameAuth;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Common.GameAuth;
 
 namespace Avalon.World.GameAuth;
 
@@ -32,7 +32,8 @@ public sealed class WorldTlsTransport : IDisposable
         {
             await stream.AuthenticateAsServerAsync(new SslServerAuthenticationOptions
             {
-                ServerCertificate = certificate, ClientCertificateRequired = false,
+                ServerCertificate = certificate,
+                ClientCertificateRequired = false,
                 EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck
             }, timeout.Token);

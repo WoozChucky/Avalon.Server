@@ -1,10 +1,9 @@
 using System.Diagnostics.Metrics;
 using System.Globalization;
-using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
-using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication;
+using Avalon.Api.Authentication.AV;
 using Avalon.Api.Config;
 using Avalon.Common.Telemetry;
 using Avalon.Infrastructure.Login;
@@ -12,6 +11,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
 namespace Avalon.Api.Middlewares;
@@ -52,7 +52,7 @@ public static class ApiRateLimiting
 
     private const string PatAccountItem = "Avalon.RateLimiting.PatAccountId";
 
-    private static readonly Counter<long> Rejections = DiagnosticsConfig.Api.Meter.CreateCounter<long>(
+    private static readonly Counter<long> s_rejections = DiagnosticsConfig.Api.Meter.CreateCounter<long>(
         RejectionsMetric, "{requests}", "Requests refused by the rate limiter, by partition kind");
 
     public enum PartitionKind
@@ -225,7 +225,10 @@ public static class ApiRateLimiting
 
         if (context.User.Identity?.IsAuthenticated == true && context.User.Identity.AuthenticationType == GameServerAuthHandler.Scheme &&
             context.User.FindFirst(GameServerAuthHandler.ServerIdClaim)?.Value is { } serverId)
+        {
             return new Partition(PartitionKind.Workload, serverId);
+        }
+
         string? accountId = context.User.Identity?.IsAuthenticated == true
             ? AccountIdOf(context.User)
             : context.Items[PatAccountItem] as string;
@@ -259,7 +262,7 @@ public static class ApiRateLimiting
         });
 
     private static bool CarriesPersonalAccessToken(HttpRequest request) =>
-        request.Headers.TryGetValue(HeaderNames.Authorization, out var value)
+        request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues value)
         && value.ToString().StartsWith(PersonalAccessTokenHeaderPrefix, StringComparison.OrdinalIgnoreCase);
 
     private static string? AccountIdOf(ClaimsPrincipal? principal) =>
@@ -272,7 +275,7 @@ public static class ApiRateLimiting
     {
         HttpContext context = rejected.HttpContext;
         PartitionKind kind = PartitionOf(context, enabled: true).Kind;
-        Rejections.Add(1, new KeyValuePair<string, object?>("partition",
+        s_rejections.Add(1, new KeyValuePair<string, object?>("partition",
             kind switch { PartitionKind.Workload => "workload", PartitionKind.Authenticated => "authenticated", _ => "anonymous" }));
 
         // The limiter's own hint when it gives one, otherwise one segment, the soonest any permit

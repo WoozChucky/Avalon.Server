@@ -29,7 +29,7 @@ public class BankInstanceChangeShould
     [Fact]
     public async Task Close_the_bank_when_the_character_changes_instance()
     {
-        var w = await BankerWorld.CreateAsync();
+        BankerWorld w = await BankerWorld.CreateAsync();
         w.Character.Container(InventoryType.Bank).Load([Item(2, Potion, count: 7)]);
         OpenBankThroughTheDialogue(w);
         Assert.True(BankAccess.TryUse(w.Connection, w.Character, w.World));
@@ -53,7 +53,7 @@ public class BankInstanceChangeShould
     [Fact]
     public async Task Send_no_dialogue_end_on_a_transfer_with_no_conversation_open()
     {
-        var w = await BankerWorld.CreateAsync();
+        BankerWorld w = await BankerWorld.CreateAsync();
         Avalon.World.World world = await RealWorldAsync();
 
         world.TransferPlayer(w.Connection, Elsewhere());
@@ -64,7 +64,7 @@ public class BankInstanceChangeShould
     [Fact]
     public async Task Close_the_bank_when_the_character_leaves_the_world()
     {
-        var w = await BankerWorld.CreateAsync();
+        BankerWorld w = await BankerWorld.CreateAsync();
         OpenBankThroughTheDialogue(w);
         Avalon.World.World world = await RealWorldAsync();
 
@@ -77,7 +77,7 @@ public class BankInstanceChangeShould
     [Fact]
     public async Task Close_the_shop_too_when_the_character_changes_instance()
     {
-        var w = await BankerWorld.CreateAsync();
+        BankerWorld w = await BankerWorld.CreateAsync();
         OpenBankThroughTheDialogue(w);
         w.Character.OpenShopNpc = BankerWorld.BankerGuid;   // as if the banker also kept a shop
         w.Character.VendorListOwed = true;
@@ -95,7 +95,7 @@ public class BankInstanceChangeShould
     [Fact]
     public async Task Clear_the_shop_and_the_buyback_when_the_character_leaves_the_world()
     {
-        var w = await BankerWorld.CreateAsync();
+        BankerWorld w = await BankerWorld.CreateAsync();
         OpenBankThroughTheDialogue(w);
         w.Character.OpenShopNpc = BankerWorld.BankerGuid;
         w.Character.VendorListOwed = true;
@@ -116,7 +116,8 @@ public class BankInstanceChangeShould
         new DialogueChooseHandler(NullLogger<DialogueChooseHandler>.Instance, w.World).Execute(w.Connection,
             new CDialogueChoosePacket
             {
-                TargetGuid = BankerWorld.BankerGuid.RawValue, NodeId = BankerWorld.BankerRoot,
+                TargetGuid = BankerWorld.BankerGuid.RawValue,
+                NodeId = BankerWorld.BankerRoot,
                 OptionId = BankerWorld.OpenBankOption,
             });
         Assert.True(BankAccess.IsOpen(w.Connection, w.Character));
@@ -124,7 +125,7 @@ public class BankInstanceChangeShould
 
     private static IMapInstance Elsewhere()
     {
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
         instance.InstanceId.Returns(new Guid("46300000-0000-0000-0000-000000000999"));
         return instance;
     }
@@ -132,14 +133,18 @@ public class BankInstanceChangeShould
     /// <summary>A real World, loaded, whose registry holds no instance, so only the transfer itself is observed.</summary>
     private static async Task<Avalon.World.World> RealWorldAsync()
     {
-        var worldRepository = Substitute.For<IWorldRepository>();
+        IWorldRepository worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Auth.World
             {
-                Name = "test", Host = "127.0.0.1", Port = 0, MinVersion = "0.0.1", Version = "1.0.0",
+                Name = "test",
+                Host = "127.0.0.1",
+                Port = 0,
+                MinVersion = "0.0.1",
+                Version = "1.0.0",
             });
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
             .Returns(Substitute.For<IChunkLayoutInstanceFactory>());
 

@@ -4,6 +4,7 @@ using Avalon.Common.Cryptography;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
+using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -18,7 +19,6 @@ using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
@@ -93,7 +93,7 @@ public class MapInstanceDisposalShould
             live.AddCreature(liveCreature);
             liveCreature.Script = new CreatureCombatScript(NullLoggerFactory.Instance, liveCreature, live);
 
-            var ability = Substitute.For<IAbility>();
+            IAbility ability = Substitute.For<IAbility>();
             ability.AbilityId.Returns(new AbilityId(1));
 
             live.CombatService.ApplyDamage(liveCreature, wounded, 5);
@@ -158,7 +158,7 @@ public class MapInstanceDisposalShould
 
     private static IWorldConnection SeatCharacter(MapInstance instance, ICharacter character)
     {
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.CryptoSession.Returns(new PassThroughCryptoSession());
         instance.AddCharacter(connection);
@@ -203,11 +203,11 @@ public class MapInstanceDisposalShould
 
     private static MapInstance BuildInstance()
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
-        var world = Substitute.For<Avalon.World.IWorld>();
+        IWorld world = Substitute.For<Avalon.World.IWorld>();
         world.Configuration.Returns(new GameConfiguration());
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);

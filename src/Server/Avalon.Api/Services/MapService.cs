@@ -6,8 +6,8 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Extensions;
 using Avalon.Database.World.Repositories;
+using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Services;
@@ -54,37 +54,37 @@ public class MapService : IMapService
             Page = page < 1 ? 1 : page,
             PageSize = pageSize is < 1 or > 50 ? 50 : pageSize,
         };
-        var result = await _mapRepo.PaginateAsync(filter, track: false, ct);
+        PagedResult<MapTemplate> result = await _mapRepo.PaginateAsync(filter, track: false, ct);
         return result.MapTo(t => t.ToDto());
     }
 
     public async Task<MapTemplateDto?> GetAsync(ushort id, CancellationToken ct = default)
     {
-        var template = await _mapRepo.FindByIdAsync(new MapTemplateId(id), track: false, ct);
+        MapTemplate? template = await _mapRepo.FindByIdAsync(new MapTemplateId(id), track: false, ct);
         return template?.ToDto();
     }
 
     public async Task<LayoutPreviewDto?> PreviewLayoutAsync(ushort id, int? seed, CancellationToken ct = default)
     {
-        var template = await _mapRepo.FindByIdAsync(new MapTemplateId(id), track: false, ct);
+        MapTemplate? template = await _mapRepo.FindByIdAsync(new MapTemplateId(id), track: false, ct);
         if (template is null) return null;
 
-        var config = await _configRepo.FindByTemplateIdAsync(template.Id, ct)
+        ProceduralMapConfig config = await _configRepo.FindByTemplateIdAsync(template.Id, ct)
             ?? throw new BusinessException($"Map {id} has no ProceduralMapConfig — preview only works for procedural maps.");
 
-        var pool = await _inputsResolver.FindPoolAsync(config.ChunkPoolId, ct)
+        ChunkPool pool = await _inputsResolver.FindPoolAsync(config.ChunkPoolId, ct)
             ?? throw new BusinessException($"Pool {config.ChunkPoolId.Value} not found.");
         if (pool.Memberships.Count == 0)
             throw new BusinessException($"Pool {config.ChunkPoolId.Value} has no memberships.");
 
-        var resolution = await _inputsResolver.ResolveMembersAsync(pool, ct);
+        ProceduralPoolResolution resolution = await _inputsResolver.ResolveMembersAsync(pool, ct);
 
-        var effectiveSeed = seed ?? Random.Shared.Next();
+        int effectiveSeed = seed ?? Random.Shared.Next();
         var generator = new ProceduralLayoutGenerator(_loggerFactory);
 
         try
         {
-            var layout = generator.Generate(config, resolution.Members, effectiveSeed, resolution.Groups);
+            ChunkLayout layout = generator.Generate(config, resolution.Members, effectiveSeed, resolution.Groups);
             return layout.ToDto(resolution.TemplatesById);
         }
         catch (ProceduralGenerationFailedException ex)
@@ -108,13 +108,13 @@ public class MapService : IMapService
     {
         if (string.IsNullOrWhiteSpace(filename)) return null;
 
-        var allTemplates = await _chunkRepo.FindAllWithSlotsAsync(ct);
-        var match = allTemplates.FirstOrDefault(t =>
+        IReadOnlyList<ChunkTemplate> allTemplates = await _chunkRepo.FindAllWithSlotsAsync(ct);
+        ChunkTemplate? match = allTemplates.FirstOrDefault(t =>
             string.Equals(t.GeometryFile, filename, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(System.IO.Path.GetFileName(t.GeometryFile), filename, StringComparison.OrdinalIgnoreCase));
         if (match is null) return null;
 
-        var root = _assetConfig.Value.ChunkAssetRoot;
+        string root = _assetConfig.Value.ChunkAssetRoot;
         if (string.IsNullOrWhiteSpace(root)) return null;
 
         // A path that cannot be resolved or read (a null character, too long, access denied, a
@@ -122,7 +122,7 @@ public class MapService : IMapService
         // template id: the exception is not logged, because its message carries the path.
         try
         {
-            var fullPath = ResolveInsideRoot(root, match.GeometryFile);
+            string? fullPath = ResolveInsideRoot(root, match.GeometryFile);
             if (fullPath is null)
             {
                 _loggerFactory.CreateLogger<MapService>().LogWarning(
@@ -132,7 +132,7 @@ public class MapService : IMapService
             }
             if (!System.IO.File.Exists(fullPath)) return null;
 
-            var bytes = await System.IO.File.ReadAllBytesAsync(fullPath, ct);
+            byte[] bytes = await System.IO.File.ReadAllBytesAsync(fullPath, ct);
             return new ChunkAssetResult(bytes, "model/obj");
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
@@ -156,11 +156,11 @@ public class MapService : IMapService
         if (System.IO.Path.IsPathRooted(geometryFile)) return null;
         if (geometryFile.Split('/', '\\').Any(segment => string.Equals(segment, "..", StringComparison.Ordinal))) return null;
 
-        var rootFull = System.IO.Path.GetFullPath(root);
+        string rootFull = System.IO.Path.GetFullPath(root);
         if (!System.IO.Path.EndsInDirectorySeparator(rootFull))
             rootFull += System.IO.Path.DirectorySeparatorChar;
 
-        var fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(rootFull, geometryFile));
+        string fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(rootFull, geometryFile));
 
         // Ordinal on every OS: GetFullPath keeps the root's case once it is rooted, and ".." and
         // absolute paths are already refused, so the prefix is the root exactly as written.

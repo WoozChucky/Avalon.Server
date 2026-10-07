@@ -1,15 +1,10 @@
-using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Network.Packets.Abstractions.Attributes;
-using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Extensions;
-using Avalon.Server.Auth.Handlers;
-using NSubstitute;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Hosting;
 
@@ -45,7 +40,7 @@ public class AuthStartupValidationShould
             [setting] = "",
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
 
         Assert.Contains(named, refused.Message, StringComparison.Ordinal);
     }
@@ -61,7 +56,7 @@ public class AuthStartupValidationShould
             ["Application:OnlineSweepIntervalSeconds"] = seconds,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
 
         Assert.Contains("OnlineSweepIntervalSeconds", refused.Message, StringComparison.Ordinal);
     }
@@ -81,7 +76,7 @@ public class AuthStartupValidationShould
             ["Hosting:" + setting] = value,
         });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
 
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }

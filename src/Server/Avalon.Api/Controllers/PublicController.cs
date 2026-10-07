@@ -3,6 +3,7 @@ using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
+using Avalon.Domain.World;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,7 +21,7 @@ public class PublicController(IItemTemplateRepository items, IAbilityTemplateRep
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetItem([FromRoute] ulong id, CancellationToken ct)
     {
-        var template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
+        ItemTemplate? template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
         if (template is null) return NotFound();
         SetCacheControl();
         return Ok(template.ToPublicDto());
@@ -31,7 +32,7 @@ public class PublicController(IItemTemplateRepository items, IAbilityTemplateRep
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAbility([FromRoute] uint id, CancellationToken ct)
     {
-        var template = await abilities.FindByIdAsync(new AbilityId(id), track: false, ct);
+        AbilityTemplate? template = await abilities.FindByIdAsync(new AbilityId(id), track: false, ct);
         if (template is null) return NotFound();
         SetCacheControl();
         return Ok(template.ToPublicDto());

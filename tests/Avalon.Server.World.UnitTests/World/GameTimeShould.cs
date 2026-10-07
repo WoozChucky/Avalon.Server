@@ -1,5 +1,4 @@
 using Avalon.World;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.World;
 
@@ -8,7 +7,7 @@ public class GameTimeShould
     [Fact]
     public void Report_A_Start_Time_Between_Construction_And_Now()
     {
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
         var time = new GameTime();
 
         Assert.True(time.StartTime >= before.AddSeconds(-1));
@@ -18,9 +17,9 @@ public class GameTimeShould
     [Fact]
     public void Report_A_Current_Time_Around_Now()
     {
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
         var time = new GameTime();
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
 
         Assert.True(time.CurrentTime >= before.AddSeconds(-1));
         Assert.True(time.CurrentTime <= after.AddSeconds(1));
@@ -74,9 +73,9 @@ public class GameTimeShould
     {
         var time = new GameTime();
 
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
         time.Update(TimeSpan.Zero);
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
 
         Assert.True(time.SystemTime >= before.AddMilliseconds(-100));
         Assert.True(time.SystemTime <= after.AddMilliseconds(100));

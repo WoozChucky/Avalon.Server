@@ -10,7 +10,6 @@ using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -23,9 +22,9 @@ public class EffectBroadcastRadiusShould
 {
     private const float Radius = 60f;
 
-    private static readonly Vector3 Inside = new(30f, 0f, 30f);
-    private static readonly Vector3 Outside = new(100f, 0f, 0f);
-    private static readonly Vector3 Far = new(500f, 0f, 500f);
+    private static readonly Vector3 s_inside = new(30f, 0f, 30f);
+    private static readonly Vector3 s_outside = new(100f, 0f, 0f);
+    private static readonly Vector3 s_far = new(500f, 0f, 500f);
 
     [Fact]
     public void Default_the_radius_to_60() => Assert.Equal(60f, new GameConfiguration().InterestRadius);
@@ -122,7 +121,7 @@ public class EffectBroadcastRadiusShould
     {
         using MapInstance instance = Build();
         (MapInstanceClient near, MapInstanceClient far) = Watchers(instance);
-        Creature unit = AddCreature(instance, 1, Far);   // where it died is not where it revives
+        Creature unit = AddCreature(instance, 1, s_far);   // where it died is not where it revives
 
         instance.BroadcastUnitRevive(unit, Vector3.zero, 100);
 
@@ -135,8 +134,8 @@ public class EffectBroadcastRadiusShould
     public void Send_a_hit_to_the_attacker_and_the_target_even_when_both_are_beyond_the_radius()
     {
         using MapInstance instance = Build();
-        MapInstanceClient attacker = JoinAt(instance, 10, Far);
-        MapInstanceClient target = JoinAt(instance, 11, -Far);
+        MapInstanceClient attacker = JoinAt(instance, 10, s_far);
+        MapInstanceClient target = JoinAt(instance, 11, -s_far);
         MapInstanceClient bystander = JoinAt(instance, 12, Vector3.zero);
 
         instance.BroadcastUnitHit(attacker.Character, target.Character, 10, 5);
@@ -150,9 +149,9 @@ public class EffectBroadcastRadiusShould
     public void Send_a_hit_to_a_watcher_near_the_target_though_far_from_the_attacker()
     {
         using MapInstance instance = Build();
-        Creature attacker = AddCreature(instance, 1, Far);
+        Creature attacker = AddCreature(instance, 1, s_far);
         Creature target = AddCreature(instance, 2, Vector3.zero);
-        MapInstanceClient nearTarget = JoinAt(instance, 10, Inside);
+        MapInstanceClient nearTarget = JoinAt(instance, 10, s_inside);
 
         instance.BroadcastUnitHit(attacker, target, 10, 5);
 
@@ -172,7 +171,7 @@ public class EffectBroadcastRadiusShould
         instance.BroadcastFinishCast(caster.Character, ability);
         instance.BroadcastInterruptedCast(caster.Character, ability);
         instance.BroadcastAttackAnimation(caster.Character, ability);
-        instance.BroadcastAbilityFired(caster.Character, ability, Fired(Far, null, Far));
+        instance.BroadcastAbilityFired(caster.Character, ability, Fired(s_far, null, s_far));
 
         Assert.Equal(
             [NetworkPacketType.SMSG_UNIT_START_CAST, NetworkPacketType.SMSG_UNIT_FINISH_CAST,
@@ -186,7 +185,7 @@ public class EffectBroadcastRadiusShould
     {
         using MapInstance instance = Build();
         Creature unit = AddCreature(instance, 1, Vector3.zero);
-        MapInstanceClient killer = JoinAt(instance, 10, Far);
+        MapInstanceClient killer = JoinAt(instance, 10, s_far);
 
         instance.BroadcastUnitDeath(unit, killer.Character);
 
@@ -211,7 +210,7 @@ public class EffectBroadcastRadiusShould
         using MapInstance instance = Build();
         MapInstanceClient revived = JoinAt(instance, 10, Vector3.zero);   // still standing where it died
 
-        instance.BroadcastUnitRevive(revived.Character, Far, 100);
+        instance.BroadcastUnitRevive(revived.Character, s_far, 100);
 
         Assert.Single(revived.Sent);
     }
@@ -237,10 +236,10 @@ public class EffectBroadcastRadiusShould
     {
         using MapInstance instance = Build();
         Creature caster = AddCreature(instance, 1, Vector3.zero);
-        MapInstanceClient nearCentre = JoinAt(instance, 10, Far + new Vector3(5f, 0f, 0f));
-        MapInstanceClient nowhere = JoinAt(instance, 11, -Far);
+        MapInstanceClient nearCentre = JoinAt(instance, 10, s_far + new Vector3(5f, 0f, 0f));
+        MapInstanceClient nowhere = JoinAt(instance, 11, -s_far);
 
-        instance.BroadcastAbilityFired(caster, Ability(), Fired(Vector3.zero, null, Far));
+        instance.BroadcastAbilityFired(caster, Ability(), Fired(Vector3.zero, null, s_far));
 
         Assert.Single(nearCentre.Sent);
         Assert.Empty(nowhere.Sent);
@@ -263,7 +262,7 @@ public class EffectBroadcastRadiusShould
     {
         using MapInstance instance = Build();
         Creature unit = AddCreature(instance, 1, Vector3.zero);
-        MapInstanceClient dead = JoinAt(instance, 10, Inside);
+        MapInstanceClient dead = JoinAt(instance, 10, s_inside);
         dead.Character.CurrentHealth = 0;
 
         instance.BroadcastUnitDeath(unit, null);
@@ -332,7 +331,7 @@ public class EffectBroadcastRadiusShould
     }
 
     private static (MapInstanceClient Near, MapInstanceClient Far) Watchers(MapInstance instance) =>
-        (JoinAt(instance, 532_001, Inside), JoinAt(instance, 532_002, Outside));
+        (JoinAt(instance, 532_001, s_inside), JoinAt(instance, 532_002, s_outside));
 
     private static MapInstanceClient JoinAt(MapInstance instance, uint id, Vector3 position)
     {
@@ -357,7 +356,7 @@ public class EffectBroadcastRadiusShould
 
     private static IAbility Ability()
     {
-        var ability = Substitute.For<IAbility>();
+        IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(532));
         ability.Metadata.Returns(new AbilityMetadata { AnimationId = 3u, CastTime = 1000f });
         return ability;

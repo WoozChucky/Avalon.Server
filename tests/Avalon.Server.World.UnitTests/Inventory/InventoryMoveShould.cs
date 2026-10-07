@@ -2,7 +2,6 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using static Avalon.Server.World.UnitTests.Inventory.EquipTemplates;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -30,7 +29,7 @@ public class InventoryMoveShould
 
     private static (SlotRef, ItemTemplate, uint) At(SlotRef slot, ItemTemplate template, uint count = 1) => (slot, template, count);
 
-    private static readonly MoveCase[] Cases =
+    private static readonly MoveCase[] s_cases =
     [
         // The rule table.
         new("Move a whole stack to an empty slot", [At(Bag(0), Potion, 5)], Bag(0), Bag(3), null,
@@ -151,7 +150,7 @@ public class InventoryMoveShould
             Eq(EquipmentSlots.MainHand), Bag(0), null, ItemRequestResult.WrongEquipSlot),
     ];
 
-    public static IEnumerable<object[]> CaseNames => Cases.Select(c => new object[] { c.Name });
+    public static IEnumerable<object[]> CaseNames => s_cases.Select(c => new object[] { c.Name });
 
     private static CharacterEntity Arrange(MoveCase row)
     {
@@ -173,7 +172,7 @@ public class InventoryMoveShould
     [MemberData(nameof(CaseNames))]
     public void Decide_Every_Row_Of_The_Move_Table(string name)
     {
-        MoveCase row = Cases.Single(c => c.Name == name);
+        MoveCase row = s_cases.Single(c => c.Name == name);
         CharacterEntity character = Arrange(row);
 
         MoveDecision decision = InventoryMove.Decide(character, EquipTemplates.Find, row.Bank, row.From, row.To, row.Count);

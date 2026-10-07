@@ -10,10 +10,10 @@ namespace Avalon.World.Public.Creatures;
 /// </summary>
 public interface ICreatureMetadata
 {
-    public CreatureTemplateId Id { get; }
-    public float SpeedWalk { get; }
-    public float SpeedRun { get; }
-    public float SpeedSwim { get; }
+    CreatureTemplateId Id { get; }
+    float SpeedWalk { get; }
+    float SpeedRun { get; }
+    float SpeedSwim { get; }
 
     /// <summary>How dangerous this creature is, scaling its derived stats.</summary>
     CreatureRarity Rarity { get; }

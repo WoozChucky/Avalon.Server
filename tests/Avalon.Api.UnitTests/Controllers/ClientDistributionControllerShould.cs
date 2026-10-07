@@ -13,7 +13,7 @@ namespace Avalon.Api.UnitTests.Controllers;
 public class ClientDistributionControllerShould
 {
     private readonly IDistributionStore _store = Substitute.For<IDistributionStore>();
-    private static readonly DateTimeOffset T0 = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset s_t0 = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
 
     public ClientDistributionControllerShould()
     {
@@ -35,11 +35,11 @@ public class ClientDistributionControllerShould
     private void Publish(Channel channel, string build)
     {
         string key = $"manifests/{channel.Wire()}/{build}.json";
-        var doc = new ManifestDocument(1, channel.Wire(), "windows-x64", "0.2.0", build, T0, "1.0.0", "notes", 10,
+        var doc = new ManifestDocument(1, channel.Wire(), "windows-x64", "0.2.0", build, s_t0, "1.0.0", "notes", 10,
             [new ManifestFile("runtime.exe", 10, "aa")]);
         _store.GetPointerAsync(channel, Arg.Any<CancellationToken>()).Returns(new ChannelPointer(build, key));
         _store.GetManifestAsync(key, Arg.Any<CancellationToken>()).Returns(new StoredManifest(doc, "{}", "sig"));
-        _store.ListManifestsAsync(channel, Arg.Any<CancellationToken>()).Returns(new List<StoredObject> { new(key, T0) });
+        _store.ListManifestsAsync(channel, Arg.Any<CancellationToken>()).Returns(new List<StoredObject> { new(key, s_t0) });
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class ClientDistributionControllerShould
         Publish(Channel.Live, "b1");
         Publish(Channel.Ptr, "b2");
 
-        var result = Assert.IsType<OkObjectResult>(await Sut().Releases(10, CancellationToken.None));
+        OkObjectResult result = Assert.IsType<OkObjectResult>(await Sut().Releases(10, CancellationToken.None));
 
         Assert.Equal(["live"], ((IReadOnlyList<ReleaseDto>)result.Value!).Select(r => r.Channel));
     }
@@ -59,7 +59,7 @@ public class ClientDistributionControllerShould
         Publish(Channel.Live, "b1");
         Publish(Channel.Ptr, "b2");
 
-        var result = Assert.IsType<OkObjectResult>(await Sut(Account("Player", "PTR")).Releases(10, CancellationToken.None));
+        OkObjectResult result = Assert.IsType<OkObjectResult>(await Sut(Account("Player", "PTR")).Releases(10, CancellationToken.None));
 
         Assert.Contains("ptr", ((IReadOnlyList<ReleaseDto>)result.Value!).Select(r => r.Channel));
     }
@@ -79,8 +79,8 @@ public class ClientDistributionControllerShould
     {
         Publish(Channel.Live, "b1");
 
-        var result = Assert.IsType<OkObjectResult>(await Sut(Account("Player")).Manifest("live", CancellationToken.None));
-        var body = Assert.IsType<ManifestResponse>(result.Value);
+        OkObjectResult result = Assert.IsType<OkObjectResult>(await Sut(Account("Player")).Manifest("live", CancellationToken.None));
+        ManifestResponse body = Assert.IsType<ManifestResponse>(result.Value);
 
         Assert.Equal("sig", body.Signature);
         Assert.Equal("https://dist.example/blobs/sha256/aa", body.Urls["aa"].ToString());
@@ -97,10 +97,10 @@ public class ClientDistributionControllerShould
     [Fact]
     public void Serialise_the_update_response_in_taurus_shape()
     {
-        var dto = new TauriUpdateDto("1.0.0", "first", T0,
+        var dto = new TauriUpdateDto("1.0.0", "first", s_t0,
             new Dictionary<string, TauriPlatformDto> { ["windows-x86_64"] = new("tsig", new Uri("https://dist.example/u.zip")) });
 
-        using JsonDocument json = JsonDocument.Parse(JsonSerializer.Serialize(dto, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(dto, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
 
         Assert.True(json.RootElement.TryGetProperty("pub_date", out _));
         Assert.Equal("tsig", json.RootElement.GetProperty("platforms").GetProperty("windows-x86_64").GetProperty("signature").GetString());
@@ -115,7 +115,7 @@ public class ClientDistributionControllerShould
         var objects = new List<StoredObject>();
         for (int n = 0; n < count; n++)
         {
-            var entry = new ChangelogEntryDto(product, channel, $"0.{n}.0", null, T0.AddMinutes(n), null,
+            var entry = new ChangelogEntryDto(product, channel, $"0.{n}.0", null, s_t0.AddMinutes(n), null,
                 [new ChangelogItemDto("fixed", $"Fixed thing {n}.", false, null, null)]);
             string key = $"{prefix}0.{n}.0.json";
             objects.Add(new StoredObject(key, entry.PublishedAt));
@@ -130,7 +130,7 @@ public class ClientDistributionControllerShould
     {
         ChangelogEntries("changelog/server/", 2, "server", null);
 
-        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog(null, null, 20, null, null, CancellationToken.None));
+        OkObjectResult result = Assert.IsType<OkObjectResult>(await Sut().Changelog(null, null, 20, null, null, CancellationToken.None));
 
         Assert.Equal(["0.1.0", "0.0.0"], ((IReadOnlyList<ChangelogEntryDto>)result.Value!).Select(e => e.Version));
     }
@@ -151,7 +151,7 @@ public class ClientDistributionControllerShould
         // Live server entries are filed without a channel (they predate channels).
         ChangelogEntries("changelog/server/", 2, "server", null);
 
-        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", "live", 20, null, null, CancellationToken.None));
+        OkObjectResult result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", "live", 20, null, null, CancellationToken.None));
 
         Assert.Equal(["0.1.0", "0.0.0"], ((IReadOnlyList<ChangelogEntryDto>)result.Value!).Select(e => e.Version));
     }
@@ -161,7 +161,7 @@ public class ClientDistributionControllerShould
     {
         ChangelogEntries("changelog/server/", 2, "server", null);
 
-        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", "dev", 20, null, null, CancellationToken.None));
+        OkObjectResult result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", "dev", 20, null, null, CancellationToken.None));
 
         Assert.Empty((IReadOnlyList<ChangelogEntryDto>)result.Value!);
     }
@@ -171,7 +171,7 @@ public class ClientDistributionControllerShould
     {
         ChangelogEntries("changelog/server/", 60, "server", null);
 
-        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", null, 500, null, null, CancellationToken.None));
+        OkObjectResult result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", null, 500, null, null, CancellationToken.None));
 
         Assert.Equal(50, ((IReadOnlyList<ChangelogEntryDto>)result.Value!).Count);
     }

@@ -1,21 +1,19 @@
 using System.Text;
-using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
-using Avalon.Infrastructure.Login;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using AvalonWorld = Avalon.Domain.Auth.World;
 
 namespace Avalon.Server.Auth.UnitTests.Services;
 
@@ -99,9 +97,9 @@ public sealed class OfflineWriteRaceShould : IDisposable
         IAuthConnection connection = Substitute.For<IAuthConnection>();
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.RemoteEndPoint.Returns("127.0.0.1:12345");
-        var hosting = Substitute.For<IOptions<HostingConfiguration>>();
+        IOptions<HostingConfiguration> hosting = Substitute.For<IOptions<HostingConfiguration>>();
         hosting.Value.Returns(new HostingConfiguration { Port = 0, Host = "127.0.0.1" });
-        var security = Substitute.For<IOptions<HostingSecurity>>();
+        IOptions<HostingSecurity> security = Substitute.For<IOptions<HostingSecurity>>();
         security.Value.Returns(new HostingSecurity());
         var server = new AuthServer(Substitute.For<IServiceProvider>(), Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance, Substitute.For<IAccountRepository>(), Substitute.For<IReplicatedCache>(),

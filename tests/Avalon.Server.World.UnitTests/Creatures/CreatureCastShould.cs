@@ -15,16 +15,12 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
-using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abilities;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
@@ -36,10 +32,10 @@ namespace Avalon.Server.World.UnitTests.Creatures;
 /// </summary>
 public class CreatureCastShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
-    private static readonly AbilityId BiteId = new(302);
-    private static readonly AbilityId ClawId = new(303);
-    private static readonly AbilityId RoarId = new(310);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly AbilityId s_biteId = new(302);
+    private static readonly AbilityId s_clawId = new(303);
+    private static readonly AbilityId s_roarId = new(310);
 
     private readonly IScriptManager _scripts = Substitute.For<IScriptManager>();
     private readonly TestArena _arena = new();
@@ -56,7 +52,7 @@ public class CreatureCastShould
     /// <summary>Bite, a 1.8 m cone, the wolf's basic.</summary>
     internal static AbilityTemplate Bite()
     {
-        AbilityTemplate row = AbilityTestData.Cone(BiteId.Value, reach: 1.8f, arc: 90f);
+        AbilityTemplate row = AbilityTestData.Cone(s_biteId.Value, reach: 1.8f, arc: 90f);
         row.EffectValue = 0;
         row.BaseDamageCoefficient = 1.0f;
         row.Cooldown = 2250;
@@ -67,7 +63,7 @@ public class CreatureCastShould
     /// <summary>Ravenous Claw, a 2.5 m cone, 8 s.</summary>
     private static AbilityTemplate Claw()
     {
-        AbilityTemplate row = AbilityTestData.Cone(ClawId.Value, reach: 2.5f, arc: 90f);
+        AbilityTemplate row = AbilityTestData.Cone(s_clawId.Value, reach: 2.5f, arc: 90f);
         row.EffectValue = 0;
         row.BaseDamageCoefficient = 1.8f;
         row.Cooldown = 8000;
@@ -78,7 +74,7 @@ public class CreatureCastShould
     /// <summary>A 1 s wind-up, a 5 m circle on the creature, with a cost a creature never pays.</summary>
     private static AbilityTemplate Roar()
     {
-        AbilityTemplate row = AbilityTestData.Circle(RoarId.Value, radius: 5f);
+        AbilityTemplate row = AbilityTestData.Circle(s_roarId.Value, radius: 5f);
         row.CastTime = 1000;
         row.Cooldown = 15000;
         row.Cost = 30;
@@ -104,13 +100,13 @@ public class CreatureCastShould
             DamageMax = 7,
         };
         wolf.Abilities.Load(CreatureAbilitiesShould.Catalog(Bite(), Claw(), Roar()),
-            new CreatureAbilityKit(BiteId, ClawId, RoarId), NullLogger.Instance, wolf.Name);
+            new CreatureAbilityKit(s_biteId, s_clawId, s_roarId), NullLogger.Instance, wolf.Name);
         return wolf;
     }
 
     private static AbilityAim Along(Vector3 facing) => new(facing, null);
 
-    private static readonly AbilityAim North = Along(new Vector3(0f, 0f, 1f));
+    private static readonly AbilityAim s_north = Along(new Vector3(0f, 0f, 1f));
 
     // ── hostility through the real shape scripts ──
 
@@ -122,7 +118,7 @@ public class CreatureCastShould
         _arena.Creature(0.5f, 1.2f);
         _arena.Creature(-0.5f, 1.2f, invulnerable: true);
 
-        Assert.True(_sut.RunInstant(wolf, North, wolf.Abilities[BiteId]!));
+        Assert.True(_sut.RunInstant(wolf, s_north, wolf.Abilities[s_biteId]!));
 
         Assert.Equal([player], _arena.Damaged());
     }
@@ -131,13 +127,13 @@ public class CreatureCastShould
     public void Hit_each_player_in_its_circle_once_and_no_creature()
     {
         Creature wolf = Wolf();
-        IAbility roar = wolf.Abilities[RoarId]!;
+        IAbility roar = wolf.Abilities[s_roarId]!;
         CharacterEntity near = _arena.Player(163_111, 1f, 0f);
         CharacterEntity far = _arena.Player(163_112, 0f, -4f);
         _arena.Creature(2f, 2f);
         _arena.Creature(-2f, 0f, invulnerable: true);
 
-        Assert.True(_sut.QueueAbility(wolf, North, roar));
+        Assert.True(_sut.QueueAbility(wolf, s_north, roar));
         RunFor(1.05f);
 
         Assert.Equal(2, _arena.Damaged().Count);
@@ -153,7 +149,7 @@ public class CreatureCastShould
         wolf.PowerType = Avalon.Network.Packets.State.PowerType.None;
         wolf.CurrentPower = 0;
 
-        Assert.True(_sut.QueueAbility(wolf, North, wolf.Abilities[RoarId]!));   // Cost 30
+        Assert.True(_sut.QueueAbility(wolf, s_north, wolf.Abilities[s_roarId]!));   // Cost 30
         Assert.Equal(0u, wolf.CurrentPower);
         Assert.True(wolf.Abilities.IsCasting);
     }
@@ -164,9 +160,9 @@ public class CreatureCastShould
     public void Wait_the_swing_interval_after_the_basic()
     {
         Creature wolf = Wolf();
-        IAbility bite = wolf.Abilities[BiteId]!;
+        IAbility bite = wolf.Abilities[s_biteId]!;
 
-        Assert.True(_sut.RunInstant(wolf, North, bite));
+        Assert.True(_sut.RunInstant(wolf, s_north, bite));
 
         Assert.Equal(wolf.SwingInterval, bite.CooldownTimer);
         Assert.Equal(2.25f, bite.CooldownTimer);
@@ -180,11 +176,11 @@ public class CreatureCastShould
     public void Scale_the_basic_and_the_specials_by_haste_exactly_once()
     {
         Creature wolf = Wolf(haste: 50f);
-        IAbility bite = wolf.Abilities[BiteId]!;
-        IAbility claw = wolf.Abilities[ClawId]!;
+        IAbility bite = wolf.Abilities[s_biteId]!;
+        IAbility claw = wolf.Abilities[s_clawId]!;
 
-        Assert.True(_sut.RunInstant(wolf, North, bite));
-        Assert.True(_sut.RunInstant(wolf, North, claw));
+        Assert.True(_sut.RunInstant(wolf, s_north, bite));
+        Assert.True(_sut.RunInstant(wolf, s_north, claw));
 
         Assert.Equal(1.5f, bite.CooldownTimer, 0.0001f);
         Assert.Equal(8f / 1.5f, claw.CooldownTimer, 0.0001f);
@@ -194,9 +190,9 @@ public class CreatureCastShould
     public void Scale_a_wind_up_by_haste()
     {
         Creature wolf = Wolf(haste: 50f);
-        IAbility roar = wolf.Abilities[RoarId]!;
+        IAbility roar = wolf.Abilities[s_roarId]!;
 
-        Assert.True(_sut.QueueAbility(wolf, North, roar));
+        Assert.True(_sut.QueueAbility(wolf, s_north, roar));
 
         Assert.Equal(1f / 1.5f, roar.CastTimeTimer, 0.0001f);
     }
@@ -207,10 +203,10 @@ public class CreatureCastShould
     public void Fire_a_wind_up_once_its_cast_time_has_run_out()
     {
         Creature wolf = Wolf();
-        IAbility roar = wolf.Abilities[RoarId]!;
+        IAbility roar = wolf.Abilities[s_roarId]!;
         CharacterEntity player = _arena.Player(163_121, 0f, 2f);
 
-        Assert.True(_sut.QueueAbility(wolf, North, roar));
+        Assert.True(_sut.QueueAbility(wolf, s_north, roar));
         RunFor(0.9f);
         Assert.Empty(_arena.Damaged());
         Assert.True(wolf.Abilities.IsCasting);
@@ -232,7 +228,7 @@ public class CreatureCastShould
         CharacterEntity stayed = _arena.Player(163_191, 0f, 2f);
         CharacterEntity stepped = _arena.Player(163_192, 2f, 0f);
 
-        Assert.True(_sut.QueueAbility(wolf, North, wolf.Abilities[RoarId]!));
+        Assert.True(_sut.QueueAbility(wolf, s_north, wolf.Abilities[s_roarId]!));
         RunFor(0.5f);
         stepped.Position = new Vector3(8f, 0f, 0f);
         RunFor(0.6f);
@@ -245,13 +241,13 @@ public class CreatureCastShould
     public void Drop_the_wind_up_of_a_creature_killed_mid_cast_and_broadcast_the_interrupt()
     {
         Creature wolf = Wolf();
-        IAbility roar = wolf.Abilities[RoarId]!;
+        IAbility roar = wolf.Abilities[s_roarId]!;
         _arena.Player(163_131, 0f, 2f);
 
-        Assert.True(_sut.QueueAbility(wolf, North, roar));
+        Assert.True(_sut.QueueAbility(wolf, s_north, roar));
         RunFor(0.3f);
         wolf.CurrentHealth = 0;
-        _sut.Update(Tick, []);
+        _sut.Update(s_tick, []);
 
         Assert.Equal([roar], _arena.InterruptsOf(wolf));
         Assert.False(wolf.Abilities.IsCasting);
@@ -268,10 +264,10 @@ public class CreatureCastShould
         Creature wolf = Wolf();
         var combat = new CreatureCombatScript(NullLoggerFactory.Instance, wolf, Substitute.For<ISimulationContext>());
         wolf.Script = combat;
-        IAbility roar = wolf.Abilities[RoarId]!;
+        IAbility roar = wolf.Abilities[s_roarId]!;
         _arena.Player(163_141, 0f, 2f);
 
-        Assert.True(_sut.QueueAbility(wolf, North, roar));
+        Assert.True(_sut.QueueAbility(wolf, s_north, roar));
         combat.State = CreatureCombatScript.CombatState.Returning;
         RunFor(1.5f);
 
@@ -290,7 +286,7 @@ public class CreatureCastShould
         Creature wolf = Wolf();
         CharacterEntity player = _arena.Player(163_195, 0f, 2f);
 
-        Assert.True(_sut.QueueAbility(wolf, North, wolf.Abilities[RoarId]!));
+        Assert.True(_sut.QueueAbility(wolf, s_north, wolf.Abilities[s_roarId]!));
         RunFor(0.3f);
         wolf.Position = new Vector3(0.3f, 0f, 0f);
         RunFor(0.8f);
@@ -327,7 +323,7 @@ public class CreatureCastShould
         for (int i = 0; i < 180; i++)
         {
             objects.Clear();
-            _sut.Update(Tick, objects);
+            _sut.Update(s_tick, objects);
         }
 
         Assert.Empty(_arena.Damaged());
@@ -340,7 +336,7 @@ public class CreatureCastShould
     [Fact]
     public void Roll_bite_over_the_creatures_natural_damage_range()
     {
-        var rng = ScriptedCombatRandom.Plain().Longs(6);
+        ScriptedCombatRandom rng = ScriptedCombatRandom.Plain().Longs(6);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _, random: rng);
         MapInstanceClient player = Join(instance, 163_151);
         player.Character.Health = 100;
@@ -350,18 +346,18 @@ public class CreatureCastShould
         instance.AddCreature(wolf);
         uint before = player.Character.CurrentHealth;
 
-        Assert.True(instance.RunInstantAbility(wolf, North, wolf.Abilities[BiteId]!));
+        Assert.True(instance.RunInstantAbility(wolf, s_north, wolf.Abilities[s_biteId]!));
 
         Assert.Equal([(3L, 7L)], rng.WeaponRolls);
         Assert.Equal(before - 6u, player.Character.CurrentHealth);
         SCharacterDamagePacket hit = Assert.Single(player.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
-        Assert.Equal(BiteId.Value, hit.AbilityId);
+        Assert.Equal(s_biteId.Value, hit.AbilityId);
     }
 
     [Fact]
     public void Mark_a_creature_abilitys_crit_on_the_hit()
     {
-        var rng = new ScriptedCombatRandom(0.99, 0.0, 0.99).Longs(4);
+        ScriptedCombatRandom rng = new ScriptedCombatRandom(0.99, 0.0, 0.99).Longs(4);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _, random: rng);
         MapInstanceClient player = Join(instance, 163_161);
         player.Character.Health = 100;
@@ -369,18 +365,25 @@ public class CreatureCastShould
         player.Character.Position = new Vector3(0f, 0f, 1.5f);
         var wolf = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, 163_961), TemplateId = new CreatureTemplateId(5),
-            Metadata = Loot.LootTestData.BoarTemplate(null), Name = "Wolf", Position = Vector3.zero,
-            Health = 100, CurrentHealth = 100, DamageMin = 3, DamageMax = 7, CritPct = 100f,
+            Guid = new ObjectGuid(ObjectType.Creature, 163_961),
+            TemplateId = new CreatureTemplateId(5),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Name = "Wolf",
+            Position = Vector3.zero,
+            Health = 100,
+            CurrentHealth = 100,
+            DamageMin = 3,
+            DamageMax = 7,
+            CritPct = 100f,
         };
-        wolf.Abilities.Load(CreatureAbilitiesShould.Catalog(Bite()), new CreatureAbilityKit(BiteId), NullLogger.Instance, "Wolf");
+        wolf.Abilities.Load(CreatureAbilitiesShould.Catalog(Bite()), new CreatureAbilityKit(s_biteId), NullLogger.Instance, "Wolf");
         instance.AddCreature(wolf);
 
-        Assert.True(instance.RunInstantAbility(wolf, North, wolf.Abilities[BiteId]!));
+        Assert.True(instance.RunInstantAbility(wolf, s_north, wolf.Abilities[s_biteId]!));
 
         SCharacterDamagePacket hit = Assert.Single(player.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
         Assert.Equal(HitResult.Crit, hit.Result);
-        Assert.Equal(BiteId.Value, hit.AbilityId);
+        Assert.Equal(s_biteId.Value, hit.AbilityId);
     }
 
     /// <summary>A creature removed mid wind-up (its corpse removed, a script hot reload) never fires it later.</summary>
@@ -395,7 +398,7 @@ public class CreatureCastShould
         Creature wolf = Wolf();
         instance.AddCreature(wolf);
         uint before = player.Character.CurrentHealth;
-        Assert.True(instance.QueueAbility(wolf, North, wolf.Abilities[RoarId]!));
+        Assert.True(instance.QueueAbility(wolf, s_north, wolf.Abilities[s_roarId]!));
 
         instance.RemoveCreature(wolf);
         instance.Update(TimeSpan.FromSeconds(1.5));
@@ -406,7 +409,7 @@ public class CreatureCastShould
 
     private void RunFor(float seconds)
     {
-        for (float t = 0f; t < seconds; t += (float)Tick.TotalSeconds)
-            _sut.Update(Tick, []);
+        for (float t = 0f; t < seconds; t += (float)s_tick.TotalSeconds)
+            _sut.Update(s_tick, []);
     }
 }

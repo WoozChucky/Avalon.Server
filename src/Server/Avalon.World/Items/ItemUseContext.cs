@@ -73,8 +73,11 @@ public sealed class ItemUseContext(
     {
         ArgumentOutOfRangeException.ThrowIfZero(count);
         if ((ulong)Consumed + count > item.Count)
+        {
             throw new InvalidOperationException(
                 $"Consuming {count} more of item {item.InstanceId} would spend {(ulong)Consumed + count} of a stack of {item.Count}.");
+        }
+
         Consumed += count;
     }
 
@@ -112,7 +115,9 @@ public sealed class ItemUseContext(
     {
         if (amount == 0 || character.IsDead || UnitHere(target) is not { } unit || unit.CurrentHealth == 0
             || !Hostility.IsHostile(character, unit, host.MapType) || CombatService.IgnoresHits(unit))
+        {
             return false;
+        }
 
         // A raw hit: no ability, so the amount is the hit's base, resolved by the instance's combat service.
         host.CombatService.ApplyDamage(character, unit, amount);
@@ -244,8 +249,10 @@ public sealed class ItemUseContext(
 
         var ability = new GameAbility
         {
-            AbilityId = abilityId, Metadata = AbilityMetadataMapper.From(row),
-            CastTimeTimer = (float)row.CastTime / 1000, CooldownTimer = 0f,
+            AbilityId = abilityId,
+            Metadata = AbilityMetadataMapper.From(row),
+            CastTimeTimer = (float)row.CastTime / 1000,
+            CooldownTimer = 0f,
         };
         return ability.Metadata.CastTime > 0 ? null : ability;
     }

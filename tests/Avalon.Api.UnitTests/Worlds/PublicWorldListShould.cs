@@ -38,8 +38,12 @@ public sealed class PublicWorldListShould
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntity
             {
-                Id = new WorldId(id), Name = name, AccessLevelRequired = required,
-                Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+                Id = new WorldId(id),
+                Name = name,
+                AccessLevelRequired = required,
+                Host = "h",
+                MinVersion = "0.0.1",
+                Version = "0.0.1",
             });
 
     [Fact]
@@ -68,7 +72,7 @@ public sealed class PublicWorldListShould
     public async Task List_every_world_a_signed_in_caller_may_enter()
     {
         await using ApiAuthHost host = await Start(defaultWorld: 2);
-        var admin = ApiAuthHost.MakeAccount(AccountAccessLevel.Admin);
+        Account admin = ApiAuthHost.MakeAccount(AccountAccessLevel.Admin);
         host.AccountNowIs(admin);
 
         HttpResponseMessage response = await host.GetAsync("/public/world", ApiAuthHost.Mint(admin));

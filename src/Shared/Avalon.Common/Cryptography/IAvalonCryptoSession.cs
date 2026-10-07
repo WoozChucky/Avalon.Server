@@ -1,4 +1,3 @@
-using System;
 using System.Security.Cryptography;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -140,19 +139,19 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         lock (_lock)
         {
             // The counter is the nonce. It is sent anyway, so a peer never has to track ours.
-            var nonce = (byte[])_sendNonce.Clone();
+            byte[] nonce = (byte[])_sendNonce.Clone();
             SessionKeys.IncrementNonce(_sendNonce);
 
             var parameters = new ParametersWithIV(_sendKey, nonce);
             _cipher.Init(true, parameters);
 
             // Encrypt the data
-            var ciphertext = _cipher.DoFinal(data.ToArray());
+            byte[] ciphertext = _cipher.DoFinal(data.ToArray());
 
             _cipher.Reset();
 
             // Combine the nonce and ciphertext
-            var encryptedData = new byte[nonce.Length + ciphertext.Length];
+            byte[] encryptedData = new byte[nonce.Length + ciphertext.Length];
             Buffer.BlockCopy(nonce, 0, encryptedData, 0, nonce.Length);
             Buffer.BlockCopy(ciphertext, 0, encryptedData, nonce.Length, ciphertext.Length);
 
@@ -183,7 +182,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
     public byte[] GenerateHandshakeData()
     {
-        var data = new byte[32];
+        byte[] data = new byte[32];
         _secureRandom.NextBytes(data);
         return data;
     }

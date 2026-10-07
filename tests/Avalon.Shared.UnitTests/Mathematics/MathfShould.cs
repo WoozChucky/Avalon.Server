@@ -282,7 +282,6 @@ public class MathfShould
         Assert.Equal(360f, result, precision: 3);
     }
 
-
     [Theory]
     [InlineData(10, 5, 15, 10)]
     [InlineData(0, 5, 15, 5)]

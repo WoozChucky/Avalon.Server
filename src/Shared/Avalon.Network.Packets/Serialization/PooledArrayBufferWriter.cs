@@ -1,4 +1,3 @@
-using System;
 using System.Buffers;
 
 namespace Avalon.Network.Packets.Serialization;
@@ -44,7 +43,7 @@ public sealed class PooledArrayBufferWriter : IBufferWriter<byte>, IDisposable
     {
         int needed = _written + Math.Max(sizeHint, 1);
         if (needed <= _buffer.Length) return;
-        var larger = ArrayPool<byte>.Shared.Rent(Math.Max(_buffer.Length * 2, needed));
+        byte[] larger = ArrayPool<byte>.Shared.Rent(Math.Max(_buffer.Length * 2, needed));
         _buffer.AsSpan(0, _written).CopyTo(larger);
         ArrayPool<byte>.Shared.Return(_buffer);
         _buffer = larger;

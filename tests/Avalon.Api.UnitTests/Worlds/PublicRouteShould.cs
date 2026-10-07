@@ -67,15 +67,19 @@ public sealed class PublicRouteShould : IAsyncLifetime
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntity
             {
-                Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = required,
-                Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+                Id = new WorldId(id),
+                Name = $"World{id}",
+                AccessLevelRequired = required,
+                Host = "h",
+                MinVersion = "0.0.1",
+                Version = "0.0.1",
             });
 
     private Task<HttpResponseMessage> Anonymous(string path) => _host.Client.GetAsync(path);
 
     private Task<HttpResponseMessage> As(AccountAccessLevel level, string path)
     {
-        var account = ApiAuthHost.MakeAccount(level);
+        Account account = ApiAuthHost.MakeAccount(level);
         _host.AccountNowIs(account);
         return _host.GetAsync(path, ApiAuthHost.Mint(account));
     }

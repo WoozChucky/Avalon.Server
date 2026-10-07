@@ -1,11 +1,11 @@
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Quest;
+using Avalon.World.Entities;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -43,7 +43,7 @@ public class QuestStartFromItemShould
     {
         QuestTestWorld w = await QuestTestWorld.CreateAsync();
         QuestClient c = w.Join();
-        var giver = w.Place(Giver);
+        Creature giver = w.Place(Giver);
         w.Talk(c, giver);
 
         Assert.Equal(QuestResult.Ok, w.Quests.Accept(c.Connection, c.Character, Hunt, giver.Guid.RawValue));
@@ -86,20 +86,20 @@ public class QuestStartFromItemShould
     [Fact]
     public async Task Run_the_accept_and_stage_0_hooks_and_mark_the_quest_accepted()
     {
-        const uint scripted = 7701, scriptedKill = 77011;
+        const uint Scripted = 7701, ScriptedKill = 77011;
         var recorder = new QuestScriptRecorder();
         IServiceProvider services = new ServiceCollection().AddSingleton<ILogger<SampleQuestScript>>(recorder).BuildServiceProvider();
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetQuestScript(nameof(SampleQuestScript)).Returns(typeof(SampleQuestScript));
         QuestTestWorld w = await QuestTestWorld.CreateAsync(
-            [Quest(scripted, script: nameof(SampleQuestScript)).WithStage(0, Kill(scriptedKill, Boar, 1))],
+            [Quest(Scripted, script: nameof(SampleQuestScript)).WithStage(0, Kill(ScriptedKill, Boar, 1))],
             scripts: scripts, services: services);
         QuestClient c = w.Join();
 
-        Assert.Equal(QuestResult.Ok, w.Quests.StartFromItem(c.Character, scripted));
+        Assert.Equal(QuestResult.Ok, w.Quests.StartFromItem(c.Character, Scripted));
 
         Assert.Equal(["OnAccepted", "OnStageStarted:0"], recorder.Calls.Where(n => n != "CanAccept"));
-        Assert.Equal(QuestClientChange.Accepted, c.Character.Quests.ClientChanges[scripted]);
+        Assert.Equal(QuestClientChange.Accepted, c.Character.Quests.ClientChanges[Scripted]);
     }
 
     /// <summary>AddProgress's rules hold for an item too: no amount of 0, no ready quest, no objective of a later stage.</summary>

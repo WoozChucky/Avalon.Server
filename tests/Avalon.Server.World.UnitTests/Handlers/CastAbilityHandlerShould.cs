@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using Avalon.Combat;
-using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
@@ -19,13 +14,10 @@ using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
-using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ProtoBuf;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 
@@ -118,16 +110,16 @@ public class CastAbilityHandlerShould
             Connection.Character.Returns(Character);
             Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
             Instance.RunInstantAbility(default!, default, default!).ReturnsForAnyArgs(true);
-            var registry = Substitute.For<IInstanceRegistry>();
+            IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
             registry.GetInstanceById(Arg.Any<Guid>()).Returns(Instance);
-            var world = Substitute.For<IWorld>();
+            IWorld world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(registry);
             _handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
         }
 
         public IAbility GiveAbility(AbilityMetadata metadata)
         {
-            var ability = Substitute.For<IAbility>();
+            IAbility ability = Substitute.For<IAbility>();
             ability.AbilityId.Returns(new AbilityId(1));
             ability.Metadata.Returns(metadata);
             Character.Spells.Load([ability]);
@@ -431,7 +423,10 @@ public class CastAbilityHandlerShould
         var f = new Fixture();
         IAbility ability = f.GiveAbility(new AbilityMetadata
         {
-            Name = "X", ScriptName = "x", AimMode = AbilityAimMode.Cursor, CastTime = 1f,
+            Name = "X",
+            ScriptName = "x",
+            AimMode = AbilityAimMode.Cursor,
+            CastTime = 1f,
         });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = 5f, Y = 0f, Z = 6f } });
@@ -451,7 +446,11 @@ public class CastAbilityHandlerShould
         f.Character.PowerType.Returns(PowerType.None);
         f.GiveAbility(new AbilityMetadata
         {
-            Name = "X", ScriptName = "x", Cost = 10, CostPowerType = PowerType.Mana, CastTime = castTime,
+            Name = "X",
+            ScriptName = "x",
+            Cost = 10,
+            CostPowerType = PowerType.Mana,
+            CastTime = castTime,
         });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
@@ -507,7 +506,11 @@ public class CastAbilityHandlerShould
         f.Character.CurrentPower.Returns((uint?)100);
         f.GiveAbility(new AbilityMetadata
         {
-            Name = "Flame Surge", ScriptName = "x", Cost = 20, CostPowerType = costPool, CastTime = castTime,
+            Name = "Flame Surge",
+            ScriptName = "x",
+            Cost = 20,
+            CostPowerType = costPool,
+            CastTime = castTime,
         });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
@@ -672,7 +675,7 @@ public class CastAbilityHandlerShould
             // NSubstitute cannot proxy ReadOnlySpan<byte> on IAvalonCryptoSession.Encrypt — use the concrete fake.
             Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
-            var world = Substitute.For<IWorld>();
+            IWorld world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(Registry);
             Handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
         }
@@ -682,7 +685,7 @@ public class CastAbilityHandlerShould
         /// <summary>A ready ability with this metadata, answered for any ability id.</summary>
         public IAbility GiveAbility(AbilityMetadata metadata)
         {
-            var ability = Substitute.For<IAbility>();
+            IAbility ability = Substitute.For<IAbility>();
             ability.CooldownTimer.Returns(0f);
             ability.Metadata.Returns(metadata);
             Character.Spells[Arg.Any<AbilityId>()].Returns(ability);

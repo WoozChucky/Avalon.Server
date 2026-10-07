@@ -53,7 +53,7 @@ public static class SessionCryptoVectors
     private const int ScalarSize = 32;
 
     /// <summary>The bytes a c2s packet carries, in counter order.</summary>
-    private static readonly byte[][] ClientPlaintexts =
+    private static readonly byte[][] s_clientPlaintexts =
     [
         Sequence(32),                                    // handshake-shaped
         [],                                              // seals to a bare tag
@@ -61,7 +61,7 @@ public static class SessionCryptoVectors
     ];
 
     /// <summary>The bytes an s2c packet carries, in counter order.</summary>
-    private static readonly byte[][] ServerPlaintexts =
+    private static readonly byte[][] s_serverPlaintexts =
     [
         Sequence(32),
         [0xff],
@@ -246,14 +246,14 @@ public static class SessionCryptoVectors
 
         List<CryptoPacket> packets = [];
 
-        for (int i = 0; i < ClientPlaintexts.Length; i++)
+        for (int i = 0; i < s_clientPlaintexts.Length; i++)
         {
-            packets.Add(Seal("c2s", (ulong)i, ClientPlaintexts[i], clientSession));
+            packets.Add(Seal("c2s", (ulong)i, s_clientPlaintexts[i], clientSession));
         }
 
-        for (int i = 0; i < ServerPlaintexts.Length; i++)
+        for (int i = 0; i < s_serverPlaintexts.Length; i++)
         {
-            packets.Add(Seal("s2c", (ulong)i, ServerPlaintexts[i], serverSession));
+            packets.Add(Seal("s2c", (ulong)i, s_serverPlaintexts[i], serverSession));
         }
 
         return new CryptoExchange(
@@ -280,7 +280,7 @@ public static class SessionCryptoVectors
     /// </summary>
     private static BigInteger ServerScalarWithShortSecret()
     {
-        ECPrivateKeyParameters clientPrivate = (ECPrivateKeyParameters)KeyPair(Scalar("client", 1)).Private;
+        var clientPrivate = (ECPrivateKeyParameters)KeyPair(Scalar("client", 1)).Private;
 
         for (int index = 0; index < 100_000; index++)
         {
@@ -346,14 +346,14 @@ public static class SessionCryptoVectors
     private static byte[] Fixed(BigInteger scalar)
     {
         byte[] minimal = scalar.ToByteArrayUnsigned();
-        var padded = new byte[ScalarSize];
+        byte[] padded = new byte[ScalarSize];
         Buffer.BlockCopy(minimal, 0, padded, ScalarSize - minimal.Length, minimal.Length);
         return padded;
     }
 
     private static byte[] Sequence(int length)
     {
-        var bytes = new byte[length];
+        byte[] bytes = new byte[length];
         for (int i = 0; i < length; i++) bytes[i] = (byte)i;
         return bytes;
     }

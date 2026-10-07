@@ -1,13 +1,12 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.Network.Packets.Abilities;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using Xunit;
+using Avalon.World.Public.Units;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 
@@ -56,7 +55,7 @@ public class AbilityEffectShould
         AbilityEffect.Apply(arena, caster, strike, boar);
 
         Assert.Equal([boar], arena.Damaged());
-        (var who, var target, var ability) = Assert.Single(arena.AurasApplied);
+        (IUnit? who, IUnit? target, IAbility? ability) = Assert.Single(arena.AurasApplied);
         Assert.Same(caster, who);
         Assert.Same(boar, target);
         Assert.Same(strike, ability);
@@ -86,7 +85,7 @@ public class AbilityEffectShould
         AbilityEffect.Apply(arena, caster, blessing, ally);
 
         Assert.Empty(arena.Healed());
-        (var who, var target, var ability) = Assert.Single(arena.AurasApplied);
+        (IUnit? who, IUnit? target, IAbility? ability) = Assert.Single(arena.AurasApplied);
         Assert.Same(caster, who);
         Assert.Same(ally, target);
         Assert.Same(blessing, ability);

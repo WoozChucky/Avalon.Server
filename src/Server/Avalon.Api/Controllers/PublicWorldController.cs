@@ -1,11 +1,9 @@
-using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Worlds;
-using Avalon.Common.Accounts;
-using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using Avalon.Database.Auth.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
 
 namespace Avalon.Api.Controllers;

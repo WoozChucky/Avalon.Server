@@ -17,8 +17,14 @@ public sealed class AccountConsolidationServiceShould
     private readonly ICharacterConsolidationRepository _first = Substitute.For<ICharacterConsolidationRepository>();
     private readonly ICharacterConsolidationRepository _second = Substitute.For<ICharacterConsolidationRepository>();
     private readonly List<string> _order = [];
-    private readonly AccountConsolidation _operation = new() { Id = Guid.NewGuid(), SourceAccountId = new(7), TargetAccountId = new(8),
-        ProviderSubject = "76561198000000001", Worlds = [new() { WorldId = 1 }, new() { WorldId = 2 }] };
+    private readonly AccountConsolidation _operation = new()
+    {
+        Id = Guid.NewGuid(),
+        SourceAccountId = new(7),
+        TargetAccountId = new(8),
+        ProviderSubject = "76561198000000001",
+        Worlds = [new() { WorldId = 1 }, new() { WorldId = 2 }]
+    };
     private readonly AccountConsolidationService _service;
     public AccountConsolidationServiceShould()
     {
@@ -26,18 +32,20 @@ public sealed class AccountConsolidationServiceShould
         _operations.FindAsync(_operation.Id, Arg.Any<CancellationToken>()).Returns(_operation);
         _worlds.CharacterConsolidations(new WorldId(1)).Returns(_first);
         _worlds.CharacterConsolidations(new WorldId(2)).Returns(_second);
-        foreach (var (id, repository) in new[] { (1, _first), (2, _second) })
+        foreach ((int id, ICharacterConsolidationRepository? repository) in new[] { (1, _first), (2, _second) })
         {
             repository.PrepareAsync(_operation.Id, _operation.SourceAccountId, _operation.TargetAccountId, Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("prepare" + id); return true; });
             repository.TransferAsync(_operation.Id, _operation.SourceAccountId, _operation.TargetAccountId, Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("transfer" + id); return new CharacterConsolidationResult(null, id); });
             repository.ReleaseTargetAsync(_operation.Id, _operation.SourceAccountId, _operation.TargetAccountId, Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("release" + id); return true; });
         }
-        _operations.RecordTransferAsync(_operation.Id, Arg.Any<WorldId>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(call => {
-            var world = _operation.Worlds.Single(w => w.WorldId == call.Arg<WorldId>().Value);
+        _operations.RecordTransferAsync(_operation.Id, Arg.Any<WorldId>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            AccountConsolidationWorld world = _operation.Worlds.Single(w => w.WorldId == call.Arg<WorldId>().Value);
             world.TransferredCharacters = call.Arg<int>(); world.TransferredAt = DateTime.UtcNow; _order.Add("record" + world.WorldId); return true;
         });
         _operations.FinalizeAsync(_operation.Id, Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("finalize"); _operation.State = AccountConsolidationState.Finalized; return true; });
-        _operations.RecordGuardReleasedAsync(_operation.Id, Arg.Any<WorldId>(), Arg.Any<CancellationToken>()).Returns(call => {
+        _operations.RecordGuardReleasedAsync(_operation.Id, Arg.Any<WorldId>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
             _operation.Worlds.Single(w => w.WorldId == call.Arg<WorldId>().Value).GuardReleasedAt = DateTime.UtcNow; return true;
         });
         _operations.CompleteAsync(_operation.Id, Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("complete"); _operation.State = AccountConsolidationState.Completed; return true; });
@@ -47,7 +55,7 @@ public sealed class AccountConsolidationServiceShould
     [Fact]
     public async Task Prepare_all_worlds_before_transfer_and_finalize_only_after_durable_world_progress()
     {
-        var reply = await Resume();
+        AccountConsolidationReply reply = await Resume();
         Assert.Null(reply.Error);
         Assert.Equal("completed", reply.State);
         Assert.Equal(new[] { "prepare1", "prepare2", "transfer1", "record1", "transfer2", "record2", "finalize", "release1", "release2", "complete" }, _order);

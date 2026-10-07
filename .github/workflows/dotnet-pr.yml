@@ -36,6 +36,10 @@ jobs:
         run: dotnet restore
       - name: Build
         run: dotnet build -c Release --no-restore
+      # The build enforces the code standard (docs/coding-standard.md); whitespace, byte-order marks and final
+      # newlines are only checked here.
+      - name: Check formatting
+        run: dotnet format whitespace --verify-no-changes --no-restore
       - name: Test
         run: dotnet test -c Release --no-build --logger trx --results-directory TestResults
       # Keeps each test's name, message and stack when the run fails, so a rare flaky failure is not lost (#572).

@@ -8,7 +8,6 @@ using Avalon.World.Public.Maps;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -19,13 +18,13 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class InvulnerablePatrolShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     [Fact]
     public void Ignore_Hits_And_Keep_Patrolling()
     {
         // Open ground: every leg is one straight step to its point.
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci => [ci.ArgAt<Vector3>(1)]);
         using MapInstance instance = TestMapInstances.Build(NewWorld(), navigator: navigator);
         MapInstanceClient attacker = Join(instance, 600_201);
@@ -42,11 +41,11 @@ public class InvulnerablePatrolShould
         instance.AddCreature(creature);
         var script = new CreaturePatrolScript(NullLoggerFactory.Instance, creature, instance);
         creature.Script = script;
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         instance.CombatService.ApplyDamage(attacker.Character, creature, 10);
         for (int i = 0; i < 5; i++)
-            instance.Update(Tick);
+            instance.Update(s_tick);
 
         Assert.Equal(10u, creature.CurrentHealth);
         Assert.Null(instance.CombatService.GetEncounterFor(creature));

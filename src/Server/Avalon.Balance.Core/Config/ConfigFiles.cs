@@ -17,7 +17,7 @@ public static class ConfigFiles
         Converters = { new JsonStringEnumConverter(allowIntegerValues: false) },
     };
 
-    private static readonly JsonSerializerOptions Canonical = new()
+    private static readonly JsonSerializerOptions s_canonical = new()
     {
         WriteIndented = true,
         IndentSize = 2,
@@ -33,7 +33,7 @@ public static class ConfigFiles
     public static (string Scenarios, string Targets, string Rotations) Save(BalanceConfig config) =>
         (Write(config.Scenarios), Write(config.Targets), Write(config.Rotations));
 
-    private static string Write<T>(T file) => JsonSerializer.Serialize(file, Canonical) + "\n";
+    private static string Write<T>(T file) => JsonSerializer.Serialize(file, s_canonical) + "\n";
 
     public static ScenarioFile ParseScenarios(string json) => Parse<ScenarioFile>(json, "scenarios");
 

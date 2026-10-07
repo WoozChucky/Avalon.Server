@@ -19,9 +19,14 @@ internal static class GameLoginCompletion
             connection.Server?.NoteOwnDisconnectPublish(account.Id);
             await cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.ToString());
 
-            var connectedSession = connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
+            // Server is declared non-null; only the ?. above makes the flow analysis doubt it.
+#pragma warning disable CS8602
+            IAuthConnection? connectedSession = connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
+#pragma warning restore CS8602
             if (connectedSession != null)
+            {
                 connectedSession.Close();
+            }
             else
             {
                 logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
@@ -46,13 +51,21 @@ internal static class GameLoginCompletion
                 Account? current = await accounts.FindByIdAsync(account.Id, false, token);
                 if (current is null || current.CredentialsVersion != credentialsVersion ||
                     !AccessLevels.Player.Allows(current.AccessLevel))
+                {
                     refusal = AuthResult.INVALID_CREDENTIALS;
+                }
                 else if (current.Status != AccountStatus.Active)
+                {
                     refusal = current.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
+                }
                 else if (current.Online)
+                {
                     refusal = AuthResult.ALREADY_CONNECTED;
+                }
                 else if (current.IsLockedAt(DateTime.UtcNow))
+                {
                     refusal = AuthResult.LOCKED;
+                }
             }
             logger.LogWarning("Account {AccountId} could not claim a game login", account.Id);
             connection.Send(SAuthResultPacket.Create(null, null, refusal, connection.CryptoSession.Encrypt));

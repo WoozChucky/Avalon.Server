@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Characters;
 using Avalon.World;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
@@ -22,7 +22,7 @@ public class CharacterLoadedHandlerShould
         ICharacter character, IMapInstance instance) Build(bool pending)
     {
         ICharacter character = PendingSpawnConnection.Character();
-        var instance = Substitute.For<IMapInstance>();
+        IMapInstance instance = Substitute.For<IMapInstance>();
 
         IWorldConnection connection = PendingSpawnConnection.Create(
             pending ? new PendingSpawn(character, instance, DateTime.UtcNow.Ticks) : null);
@@ -39,7 +39,7 @@ public class CharacterLoadedHandlerShould
     [Fact]
     public void Trace_itself_as_an_internal_span_under_the_packet_span()
     {
-        var (handler, connection, _, _, _) = Build(pending: true);
+        (CharacterLoadedHandler? handler, IWorldConnection? connection, IWorld _, ICharacter _, IMapInstance _) = Build(pending: true);
         using ActivitySource dispatcher = new($"test-{Guid.NewGuid()}");
         List<Activity> stopped = [];
         using ActivityListener listener = new()
@@ -64,7 +64,7 @@ public class CharacterLoadedHandlerShould
     [Fact]
     public void Spawn_the_pending_character()
     {
-        var (handler, connection, world, character, instance) = Build(pending: true);
+        (CharacterLoadedHandler? handler, IWorldConnection? connection, IWorld? world, ICharacter? character, IMapInstance? instance) = Build(pending: true);
 
         handler.Execute(connection, new CCharacterLoadedPacket());
 
@@ -80,7 +80,7 @@ public class CharacterLoadedHandlerShould
     [Fact]
     public void Do_nothing_and_stay_connected_when_no_spawn_is_pending()
     {
-        var (handler, connection, world, _, _) = Build(pending: false);
+        (CharacterLoadedHandler? handler, IWorldConnection? connection, IWorld? world, ICharacter _, IMapInstance _) = Build(pending: false);
 
         handler.Execute(connection, new CCharacterLoadedPacket());
 
@@ -97,7 +97,7 @@ public class CharacterLoadedHandlerShould
     [Fact]
     public void Hold_a_report_that_arrives_while_the_select_is_still_in_flight()
     {
-        var (handler, connection, world, _, _) = Build(pending: false);
+        (CharacterLoadedHandler? handler, IWorldConnection? connection, IWorld? world, ICharacter _, IMapInstance _) = Build(pending: false);
         connection.BeginSelect(DateTime.UtcNow.Ticks);
 
         handler.Execute(connection, new CCharacterLoadedPacket());

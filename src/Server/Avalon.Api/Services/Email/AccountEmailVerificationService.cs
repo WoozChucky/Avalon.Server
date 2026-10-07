@@ -1,16 +1,16 @@
-using Avalon.Api.Config;
-using Avalon.Api.Contract;
-using Avalon.Common.ValueObjects;
-using Avalon.Database.Auth.Repositories;
-using Avalon.Infrastructure;
-using Avalon.Infrastructure.Login;
-using Avalon.Api.Exceptions;
-using Avalon.Domain.Auth;
-using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
-using AccountStatus = Avalon.Domain.Auth.AccountStatus;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using Avalon.Api.Config;
+using Avalon.Api.Contract;
+using Avalon.Api.Exceptions;
+using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
+using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
+using AccountStatus = Avalon.Domain.Auth.AccountStatus;
 
 namespace Avalon.Api.Services.Email;
 
@@ -33,12 +33,13 @@ public sealed class AccountEmailVerificationService(IAccountRepository accounts,
 
     public async Task<AccountEmailVerificationStatusDto> GetStatusAsync(AccountId accountId, CancellationToken ct)
     {
-        var account = await accounts.FindByIdAsync(accountId, cancellationToken: ct) ?? throw new BusinessException("Account unavailable.");
-        var challenge = await challenges.FindAsync(accountId, ct);
+        Account account = await accounts.FindByIdAsync(accountId, cancellationToken: ct) ?? throw new BusinessException("Account unavailable.");
+        AccountEmailVerification? challenge = await challenges.FindAsync(accountId, ct);
         DateTime? resendAt = challenge?.IssuedAt.AddSeconds(config.VerificationCooldownSeconds);
         return new AccountEmailVerificationStatusDto
         {
-            EmailVerifiedAt = account.EmailVerifiedAt, DeliveryAvailable = DeliveryAvailable,
+            EmailVerifiedAt = account.EmailVerifiedAt,
+            DeliveryAvailable = DeliveryAvailable,
             ResendAvailableAt = resendAt > Now ? resendAt : null,
         };
     }
@@ -46,21 +47,24 @@ public sealed class AccountEmailVerificationService(IAccountRepository accounts,
     public async Task RequestAsync(AccountId accountId, string sourceAddress, CancellationToken ct)
     {
         if (!DeliveryAvailable) throw new EmailVerificationUnavailableException();
-        var account = await accounts.FindByIdAsync(accountId, cancellationToken: ct) ?? throw new BusinessException("Account unavailable.");
+        Account account = await accounts.FindByIdAsync(accountId, cancellationToken: ct) ?? throw new BusinessException("Account unavailable.");
         if (account.Email is null || !AccountEmail.IsValid(account.Email) || account.Status != AccountStatus.Active
             || (account.AccessLevel & AccountAccessLevel.Player) == 0 || account.IsLockedAt(Now) || account.GameplayConsolidationId is not null)
+        {
             throw new BusinessException("A current account email is required for verification.");
+        }
+
         if (account.EmailVerifiedAt is not null) return;
-        if (!IPAddress.TryParse(sourceAddress, out var address)) throw new BusinessException("Source address unavailable.");
+        if (!IPAddress.TryParse(sourceAddress, out IPAddress? address)) throw new BusinessException("Source address unavailable.");
         // Failed sends and cooldown attempts keep their slots; no retry can amplify delivery indefinitely.
-        var accountCount = await cache.IncrementAsync($"email-verification:account:{accountId.Value}", TimeSpan.FromHours(1));
+        long accountCount = await cache.IncrementAsync($"email-verification:account:{accountId.Value}", TimeSpan.FromHours(1));
         if (accountCount > config.MaxVerificationSendsPerAccount) throw new AccountLockedException();
-        var sourceCount = await cache.IncrementAsync($"email-verification:source:{RemoteAddress.SourceOf(address)}", TimeSpan.FromHours(1));
+        long sourceCount = await cache.IncrementAsync($"email-verification:source:{RemoteAddress.SourceOf(address)}", TimeSpan.FromHours(1));
         if (sourceCount > config.MaxVerificationSendsPerSource) throw new AccountLockedException();
         string token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         string digest = Digest(token);
         DateTime issuedAt = Now;
-        var result = await challenges.IssueAsync(accountId, account.Email, account.CredentialsVersion, digest,
+        EmailVerificationIssueResult result = await challenges.IssueAsync(accountId, account.Email, account.CredentialsVersion, digest,
             issuedAt, issuedAt.AddMinutes(30), TimeSpan.FromSeconds(config.VerificationCooldownSeconds), ct);
         if (result == EmailVerificationIssueResult.AlreadyVerified) return;
         if (result == EmailVerificationIssueResult.Cooldown) throw new AccountLockedException();
@@ -92,6 +96,8 @@ public sealed class AccountEmailVerificationService(IAccountRepository accounts,
     {
         if (token is null || token.Length != 43 || token.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-' && c != '_')
             || !await challenges.ConsumeAsync(accountId, Digest(token), Now, ct))
+        {
             throw new BusinessException("This verification link is invalid or expired. Request a new email.");
+        }
     }
 }

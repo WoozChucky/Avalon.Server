@@ -7,11 +7,11 @@ using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
-using Avalon.Infrastructure.Login;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,7 +30,7 @@ namespace Avalon.Server.Auth.UnitTests.Services;
 /// </summary>
 public sealed class MfaSetupRowShould : IDisposable
 {
-    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_bound = TimeSpan.FromSeconds(5);
 
     private readonly AuthSqlite _database = new();
     private readonly AccountRepository _accounts;
@@ -87,11 +87,11 @@ public sealed class MfaSetupRowShould : IDisposable
         MFAService service = Service(gated);
 
         Task<MFASetupResult> first = service.SetupMFAAsync(account, "Avalon");
-        await gated.FirstReadDone.WaitAsync(Bound);
+        await gated.FirstReadDone.WaitAsync(s_bound);
 
-        MFASetupResult second = await service.SetupMFAAsync(account, "Avalon").WaitAsync(Bound);
+        MFASetupResult second = await service.SetupMFAAsync(account, "Avalon").WaitAsync(s_bound);
         gated.Release();
-        MFASetupResult firstResult = await first.WaitAsync(Bound);
+        MFASetupResult firstResult = await first.WaitAsync(s_bound);
 
         Assert.True(firstResult.Success);
         Assert.True(second.Success);
@@ -119,11 +119,11 @@ public sealed class MfaSetupRowShould : IDisposable
         MFAService service = Service(gated);
 
         Task<MFAConfirmResult> first = service.ConfirmMFAAsync(account.Id, 0, code);
-        await gated.FirstReadDone.WaitAsync(Bound);
+        await gated.FirstReadDone.WaitAsync(s_bound);
 
-        MFAConfirmResult second = await service.ConfirmMFAAsync(account.Id, 0, code).WaitAsync(Bound);
+        MFAConfirmResult second = await service.ConfirmMFAAsync(account.Id, 0, code).WaitAsync(s_bound);
         gated.Release();
-        MFAConfirmResult firstResult = await first.WaitAsync(Bound);
+        MFAConfirmResult firstResult = await first.WaitAsync(s_bound);
 
         MFAConfirmResult winner = Assert.Single(new[] { firstResult, second }, r => r.Success);
 
@@ -223,7 +223,7 @@ public sealed class MfaSetupRowShould : IDisposable
             if (Interlocked.Increment(ref _reads) == 1)
             {
                 _firstReadDone.TrySetResult();
-                await _release.Task.WaitAsync(Bound, cancellationToken);
+                await _release.Task.WaitAsync(s_bound, cancellationToken);
             }
 
             return row;

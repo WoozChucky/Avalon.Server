@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Avalon.Database.Character.Repositories;
 
@@ -15,21 +16,21 @@ public class CharacterAbilityRepository(IDbContextFactory<CharacterDbContext> co
 {
     public async Task<CharacterAbility> CreateAsync(CharacterAbility ability, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using CharacterDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entity = context.TrackForInsert(ability);
+        EntityEntry<CharacterAbility> entity = context.TrackForInsert(ability);
         await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
 
     public async Task<IList<CharacterAbility>> CreateAsync(IList<CharacterAbility> abilities, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using CharacterDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         var entityList = new List<CharacterAbility>();
-        foreach (var ability in abilities)
+        foreach (CharacterAbility ability in abilities)
         {
-            var entity = context.TrackForInsert(ability);
+            EntityEntry<CharacterAbility> entity = context.TrackForInsert(ability);
             entityList.Add(entity.Entity);
         }
         await context.SaveChangesAsync(cancellationToken);
@@ -38,7 +39,7 @@ public class CharacterAbilityRepository(IDbContextFactory<CharacterDbContext> co
 
     public async Task<IReadOnlyCollection<CharacterAbility>> GetCharacterAbilitiesAsync(CharacterId characterId, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using CharacterDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.CharacterAbilities
             .AsNoTracking()

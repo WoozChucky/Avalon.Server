@@ -1,31 +1,22 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalon.Configuration;
 using Avalon.Database.Character.Repositories;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
-using Avalon.Network.Packets;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
-using Avalon.World.Entities;
+using Avalon.World.Configuration;
 using Avalon.World.Parties;
-using Avalon.World.Quests;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Pvp;
+using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Xunit;
-using Avalon.World.Configuration;
-using Avalon.World.Pvp;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 
@@ -102,10 +93,10 @@ public class WorldServerShutdownShould : IDisposable
     [Fact]
     public async Task Wait_for_a_despawn_save_started_before_shutdown()
     {
-        TimeSpan limit = TimeSpan.FromSeconds(5);
+        var limit = TimeSpan.FromSeconds(5);
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         int committed = 0;
-        var repository = Substitute.For<ICharacterSaveRepository>();
+        ICharacterSaveRepository repository = Substitute.For<ICharacterSaveRepository>();
         repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
@@ -143,7 +134,7 @@ public class WorldServerShutdownShould : IDisposable
         using (otherServer)
         {
             IWorld world = Substitute.For<IWorld>();
-            var saver = Substitute.For<ICharacterSaver>();
+            ICharacterSaver saver = Substitute.For<ICharacterSaver>();
             saver.WhenAllIdle().Returns(Task.CompletedTask);
             var server = new TestWorldServer(world, saver);
             Avalon.World.WorldConnection first = Connect(server);
@@ -166,7 +157,7 @@ public class WorldServerShutdownShould : IDisposable
     [Fact]
     public async Task Stop_waiting_for_saves_once_the_host_gives_up()
     {
-        var saver = Substitute.For<ICharacterSaver>();
+        ICharacterSaver saver = Substitute.For<ICharacterSaver>();
         saver.WhenAllIdle().Returns(new TaskCompletionSource().Task);
         var server = new TestWorldServer(Substitute.For<IWorld>(), saver);
 
@@ -191,7 +182,7 @@ public class WorldServerShutdownShould : IDisposable
         int port = ((IPEndPoint)listener.LocalEndpoint!).Port;
         var clientSide = new TcpClient();
         clientSide.Connect(IPAddress.Loopback, port);
-        var serverSide = listener.AcceptTcpClient();
+        TcpClient serverSide = listener.AcceptTcpClient();
         listener.Stop();
         return (clientSide, serverSide);
     }
@@ -241,8 +232,10 @@ public class WorldServerShutdownShould : IDisposable
                 return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             if (serviceType == typeof(PartyService))
+            {
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
+            }
 
             // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
             if (serviceType == typeof(QuestService))

@@ -16,7 +16,7 @@ public class FightSimulatorShould
 
     private static SimCreature Dummy(ulong template = 4, int index = 0)
     {
-        SimCreature creature = SimCreature.Create(Data, Data.Creature(template), 1, index);
+        var creature = SimCreature.Create(Data, Data.Creature(template), 1, index);
         creature.Health = creature.CurrentHealth = 1_000_000;
         return creature;
     }
@@ -41,7 +41,7 @@ public class FightSimulatorShould
         {
             var random = new Random(672);
             SimCreature[] pack = [SimCreature.Create(Data, Data.Creature(5), 2, 0), SimCreature.Create(Data, Data.Creature(7), 3, 1)];
-            SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, new ulong[] { 7, 12, 13 }.Select(Data.Item));
+            var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, new ulong[] { 7, 12, 13 }.Select(Data.Item));
             var fight = new FightSimulator(Data.Combat.Formula, warrior, pack, Rotation(201, 202, 200), new CombatRandom(random));
             return JsonSerializer.Serialize(fight.Run());
         }
@@ -94,8 +94,8 @@ public class FightSimulatorShould
     [Fact]
     public void Land_a_creature_wind_up_after_its_cast_time()
     {
-        SimCreature alpha = SimCreature.Create(Data, Data.Creature(8), 3, 0);   // Howling Roar, 1 s wind-up
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, []);
+        var alpha = SimCreature.Create(Data, Data.Creature(8), 3, 0);   // Howling Roar, 1 s wind-up
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, []);
         warrior.Health = warrior.CurrentHealth = 1_000_000;
         FightSimulator fight = Fight(warrior, Rotation(201), alpha);   // 201 costs Fury the warrior may lack: fine
         RunFor(fight, 3);
@@ -120,7 +120,7 @@ public class FightSimulatorShould
     [Fact]
     public void Gain_fury_from_damage_taken()
     {
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
         FightSimulator fight = Fight(warrior, Rotation(201), Dummy());   // 201 costs 20 Fury: never cast here
 
         fight.Tick();   // the boar tramples on the first tick
@@ -145,7 +145,7 @@ public class FightSimulatorShould
     [Fact]
     public void Regenerate_mana_at_the_in_combat_rate_carrying_the_fraction()
     {
-        SimPlayer wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);   // Intellect 23: 1.15 Mana a second
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);   // Intellect 23: 1.15 Mana a second
         wizard.CurrentPower = 10;
         SimCreature dummy = Dummy();
         Hold(dummy);
@@ -161,7 +161,7 @@ public class FightSimulatorShould
     [Fact]
     public void Suppress_regen_for_five_seconds_after_a_cast_time_cast()
     {
-        SimPlayer wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         SimCreature dummy = Dummy();
         Hold(dummy);
         FightSimulator fight = Fight(wizard, Rotation(211), dummy);   // Flame Burst: 0.6 s cast, 25 mana, 5 s cooldown
@@ -174,7 +174,7 @@ public class FightSimulatorShould
     [Fact]
     public void End_a_fight_nobody_can_finish_at_the_time_limit_as_a_loss()
     {
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
         warrior.Health = warrior.CurrentHealth = uint.MaxValue / 2;
         // Fury from damage taken is lost / max health x 50: nothing against this much health, so Ground Slam never
         // becomes affordable and nobody damages the boar.
@@ -189,7 +189,7 @@ public class FightSimulatorShould
     [Fact]
     public void Win_when_every_creature_is_dead_and_record_what_happened()
     {
-        SimCreature boar = SimCreature.Create(Data, Data.Creature(4), 1, 0);
+        var boar = SimCreature.Create(Data, Data.Creature(4), 1, 0);
         FightResult result = Fight(SimPlayer.Create(Data, CharacterClass.Warrior, 1, new ulong[] { 7, 12, 13, 14, 15, 16 }.Select(Data.Item).ToArray()),
             Rotation(201, 202, 200), boar).Run();
 
@@ -205,7 +205,7 @@ public class FightSimulatorShould
     {
         SimCreature dummy = Dummy();
         Hold(dummy);
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
         FightSimulator fight = Fight(warrior, Rotation(201, 200), dummy);   // Ground Slam first, 0 Fury
 
         fight.Tick();
@@ -244,10 +244,10 @@ public class FightSimulatorShould
     [Fact]
     public void Land_a_projectile_after_a_wind_up_that_completes_on_the_same_tick()
     {
-        SimCreature alpha = SimCreature.Create(Data, Data.Creature(8), 3, 0);
+        var alpha = SimCreature.Create(Data, Data.Creature(8), 3, 0);
         Hold(alpha);
         alpha.Abilities.First(a => a.Id == 310).CooldownLeft = 0f;   // Howling Roar, 1 s wind-up: the only thing it may choose
-        SimPlayer wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         wizard.Health = wizard.CurrentHealth = 1_000_000;
         SimAbility bolt = wizard.Ability(210);   // Arcane Bolt: an instant projectile
         bolt.CooldownLeft = 1_000f;
@@ -271,10 +271,10 @@ public class FightSimulatorShould
     [Fact]
     public void Land_a_creatures_projectile_on_the_next_tick()
     {
-        SimCreature tuskroot = SimCreature.Create(Data, Data.Creature(9), 3, 0);
+        var tuskroot = SimCreature.Create(Data, Data.Creature(9), 3, 0);
         Hold(tuskroot);
         tuskroot.Abilities.First(a => a.Id == 313).CooldownLeft = 0f;   // Thorn Volley, an instant projectile
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
         warrior.Health = warrior.CurrentHealth = 1_000_000;
         FightSimulator fight = Fight(warrior, Rotation(), tuskroot);
 
@@ -289,10 +289,10 @@ public class FightSimulatorShould
     [Fact]
     public void Drop_a_creatures_projectile_when_the_creature_dies_before_it_lands()
     {
-        SimCreature tuskroot = SimCreature.Create(Data, Data.Creature(9), 3, 0);
+        var tuskroot = SimCreature.Create(Data, Data.Creature(9), 3, 0);
         Hold(tuskroot);
         tuskroot.Abilities.First(a => a.Id == 313).CooldownLeft = 0f;
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
         warrior.Health = warrior.CurrentHealth = 1_000_000;
         var rng = new CountingRandom();
         var fight = new FightSimulator(Data.Combat.Formula, warrior, [tuskroot], Rotation(), rng);

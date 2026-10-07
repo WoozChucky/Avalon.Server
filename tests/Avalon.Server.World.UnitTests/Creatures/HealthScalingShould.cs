@@ -1,5 +1,4 @@
 using Avalon.World.Entities;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Creatures;
 

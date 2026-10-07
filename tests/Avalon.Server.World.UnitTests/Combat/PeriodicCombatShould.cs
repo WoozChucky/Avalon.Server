@@ -1,6 +1,5 @@
 using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
@@ -8,13 +7,12 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Auras;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 
@@ -25,7 +23,7 @@ namespace Avalon.Server.World.UnitTests.Combat;
 /// </summary>
 public class PeriodicCombatShould
 {
-    private static readonly AuraId Bleed = new(901);
+    private static readonly AuraId s_bleed = new(901);
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
     private readonly ICombatOutcomes _outcomes = Substitute.For<ICombatOutcomes>();
     private readonly EncounterRegistry _registry;
@@ -40,7 +38,11 @@ public class PeriodicCombatShould
 
     private static Creature Boar(uint health = 100, uint armor = 0) => new()
     {
-        Guid = new ObjectGuid(ObjectType.Creature, 908_901), Level = 1, Health = health, CurrentHealth = health, Armor = armor,
+        Guid = new ObjectGuid(ObjectType.Creature, 908_901),
+        Level = 1,
+        Health = health,
+        CurrentHealth = health,
+        Armor = armor,
     };
 
     private static CharacterEntity Warrior(uint id = 908_101)
@@ -52,7 +54,7 @@ public class PeriodicCombatShould
     }
 
     private static PeriodicHit Tick(IUnit? caster, IUnit target, float amount = 20f, float threat = 1f) =>
-        new(caster, target, Bleed, amount, new AuraSnapshot(0f, 0f, 1), AuraSource.None with { ThreatMultiplier = threat });
+        new(caster, target, s_bleed, amount, new AuraSnapshot(0f, 0f, 1), AuraSource.None with { ThreatMultiplier = threat });
 
     /// <summary>Armour 60 against level 1 takes half: 20 becomes 10.</summary>
     [Fact]
@@ -65,7 +67,7 @@ public class PeriodicCombatShould
 
         Assert.Equal(10u, dealt);
         Assert.Equal(90u, boar.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(warrior, boar, 10u, Bleed, HitResult.None, false);
+        _outcomes.Received(1).PeriodicTick(warrior, boar, 10u, s_bleed, HitResult.None, false);
     }
 
     [Fact]
@@ -135,7 +137,7 @@ public class PeriodicCombatShould
         Assert.Equal(450u, warrior.CurrentHealth);
         Assert.Equal(5u, warrior.CurrentPower);   // floor(50 / 500 x 50)
         Assert.True(warrior.IsInCombat);
-        _outcomes.Received(1).PeriodicTick(null, warrior, 50u, Bleed, HitResult.None, false);
+        _outcomes.Received(1).PeriodicTick(null, warrior, 50u, s_bleed, HitResult.None, false);
     }
 
     [Fact]
@@ -160,7 +162,7 @@ public class PeriodicCombatShould
 
         Assert.Equal(10u, restored);
         Assert.Equal(500u, target.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(healer, target, 10u, Bleed, HitResult.None, true);
+        _outcomes.Received(1).PeriodicTick(healer, target, 10u, s_bleed, HitResult.None, true);
     }
 
     [Fact]
@@ -219,7 +221,7 @@ public class PeriodicCombatShould
 
         Assert.Equal([0u, 1u], new[] { first, second });
         Assert.Equal(401u, target.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(null, target, 1u, Bleed, HitResult.None, true);
+        _outcomes.Received(1).PeriodicTick(null, target, 1u, s_bleed, HitResult.None, true);
     }
 
     [Fact]
@@ -243,12 +245,16 @@ public class PeriodicCombatShould
     {
         var boar = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, 908_902), Level = 1, Health = 100, CurrentHealth = 100, DodgePct = 30f,
+            Guid = new ObjectGuid(ObjectType.Creature, 908_902),
+            Level = 1,
+            Health = 100,
+            CurrentHealth = 100,
+            DodgePct = 30f,
         };
         boar.Script = new RecordingAiScript(boar);
         var dodging = new CombatService(new CombatConfig(), _registry, outcomes: _outcomes, time: _time,
             random: new ScriptedCombatRandom(0.0));
-        var ability = Substitute.For<Avalon.World.Public.Abilities.IAbility>();
+        IAbility ability = Substitute.For<Avalon.World.Public.Abilities.IAbility>();
         ability.Metadata.Returns(new Avalon.World.Public.Abilities.AbilityMetadata { Name = "Cleave" });
 
         Assert.Equal(HitOutcome.Dodged, dodging.ApplyDamageWithOutcome(Warrior(), boar, 10, ability));

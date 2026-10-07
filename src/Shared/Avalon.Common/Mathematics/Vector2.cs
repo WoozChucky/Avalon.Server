@@ -8,6 +8,9 @@ namespace Avalon.Common.Mathematics;
 
 public struct Vector2
 {
+    // Public API shaped like Unity's vector types (x, y, normalized, zero and the rest): its names stay as they
+    // are, since the code standard renames no public member (#791).
+#pragma warning disable IDE1006
     /// <summary>
     ///     <para>X component of the vector.</para>
     /// </summary>
@@ -17,6 +20,7 @@ public struct Vector2
     ///     <para>Y component of the vector.</para>
     /// </summary>
     public float y;
+#pragma warning restore IDE1006
 
     public const float KEpsilon = 1E-05f;
     public const float KEpsilonNormalSqrt = 1E-15f;
@@ -157,6 +161,8 @@ public struct Vector2
         }
     }
 
+    // Unity-style public name, as above.
+#pragma warning disable IDE1006
     /// <summary>
     ///     <para>
     ///         Returns a normalized vector based on the current vector. The normalized vector has a magnitude of 1 and is in
@@ -174,6 +180,7 @@ public struct Vector2
             return normalized;
         }
     }
+#pragma warning restore IDE1006
 
     /// <summary>
     ///     <para>Returns a formatted string for this vector.</para>
@@ -256,6 +263,8 @@ public struct Vector2
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float Dot(Vector2 lhs, Vector2 rhs) => (float)(lhs.x * (double)rhs.x + lhs.y * (double)rhs.y);
 
+    // Unity-style public name, as above.
+#pragma warning disable IDE1006
     /// <summary>
     ///     <para>Returns the length of this vector (Read Only).</para>
     /// </summary>
@@ -264,7 +273,10 @@ public struct Vector2
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => (float)Math.Sqrt(x * (double)x + y * (double)y);
     }
+#pragma warning restore IDE1006
 
+    // Unity-style public name, as above.
+#pragma warning disable IDE1006
     /// <summary>
     ///     <para>Returns the squared length of this vector (Read Only).</para>
     /// </summary>
@@ -273,6 +285,7 @@ public struct Vector2
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => (float)(x * (double)x + y * (double)y);
     }
+#pragma warning restore IDE1006
 
     /// <summary>
     ///     <para>Gets the unsigned angle in degrees between from and to.</para>
@@ -453,6 +466,8 @@ public struct Vector2
 
     public static implicit operator System.Numerics.Vector2(Vector2 customVec) => new(customVec.x, customVec.y);
 
+    // Unity-style public names, as above.
+#pragma warning disable IDE1006
     /// <summary>
     ///     <para>Shorthand for writing Vector2(0, 0).</para>
     /// </summary>
@@ -524,4 +539,5 @@ public struct Vector2
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get;
     } = new(float.NegativeInfinity, float.NegativeInfinity);
+#pragma warning restore IDE1006
 }

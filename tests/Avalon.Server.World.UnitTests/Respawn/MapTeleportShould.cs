@@ -21,7 +21,6 @@ using Avalon.World.Public.Maps;
 using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Respawn;
 
@@ -31,8 +30,8 @@ namespace Avalon.Server.World.UnitTests.Respawn;
 /// </summary>
 public class MapTeleportShould
 {
-    private static readonly MapTemplateId Town = new(1);
-    private static readonly MapTemplateId Forest = new(2);
+    private static readonly MapTemplateId s_town = new(1);
+    private static readonly MapTemplateId s_forest = new(2);
 
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly IInstanceRegistry _registry = Substitute.For<IInstanceRegistry>();
@@ -52,15 +51,15 @@ public class MapTeleportShould
         _forest.InstanceId.Returns(Guid.NewGuid());
         _character.InstanceId = Guid.NewGuid();
         _registry.GetInstanceById(_character.InstanceId).Returns(_source);
-        _registry.GetOrCreateTownInstanceAsync(Town, Arg.Any<ushort>()).Returns(Task.FromResult(_town));
-        _registry.GetOrCreateNormalInstanceAsync(7u, Forest).Returns(Task.FromResult(_forest));
+        _registry.GetOrCreateTownInstanceAsync(s_town, Arg.Any<ushort>()).Returns(Task.FromResult(_town));
+        _registry.GetOrCreateNormalInstanceAsync(7u, s_forest).Returns(Task.FromResult(_forest));
         _world.InstanceRegistry.Returns(_registry);
         _world.MapTemplates.Returns(new List<MapTemplate>
         {
-            new() { Id = Town, MapType = MapType.Town, Name = "town", Description = "" },
+            new() { Id = s_town, MapType = MapType.Town, Name = "town", Description = "" },
             new()
             {
-                Id = Forest, MapType = MapType.Normal, Name = "forest", Description = "", MinLevel = 1, MaxLevel = 10,
+                Id = s_forest, MapType = MapType.Normal, Name = "forest", Description = "", MinLevel = 1, MaxLevel = 10,
                 DefaultSpawnX = 3, DefaultSpawnY = 0, DefaultSpawnZ = 4,
             },
         });
@@ -84,7 +83,7 @@ public class MapTeleportShould
     /// <summary>A navigator whose ground query answers <paramref name="kind" /> at <paramref name="ground" />.</summary>
     private static IMapNavigator Ground(NavmeshGroundKind kind, Vector3 ground)
     {
-        var navigator = Substitute.For<IMapNavigator, IGroundNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator, IGroundNavigator>();
         ((IGroundNavigator)navigator).FindGround(Arg.Any<Vector3>(), out Arg.Any<Vector3>()).Returns(ci =>
         {
             ci[1] = ground;
@@ -102,7 +101,7 @@ public class MapTeleportShould
     [Fact]
     public void Move_the_character_to_a_town_at_the_position_given_and_tell_the_client()
     {
-        Assert.True(_teleport.Start(_connection, Town, new Vector3(5, 0, 6)));
+        Assert.True(_teleport.Start(_connection, s_town, new Vector3(5, 0, 6)));
         Assert.True(_connection.RespawnInFlight);
 
         RunContinuations();
@@ -121,7 +120,7 @@ public class MapTeleportShould
     {
         TownGround(NavmeshGroundKind.Nearest, new Vector3(5.5f, 1f, 6f));
 
-        Assert.True(_teleport.Start(_connection, Town, new Vector3(5, 9, 6)));
+        Assert.True(_teleport.Start(_connection, s_town, new Vector3(5, 9, 6)));
         RunContinuations();
 
         Assert.Equal(new Vector3(5.5f, 1f, 6f), _character.Position);
@@ -133,7 +132,7 @@ public class MapTeleportShould
     {
         TownGround(NavmeshGroundKind.None, default);
 
-        Assert.True(_teleport.Start(_connection, Town, new Vector3(500, 0, 500)));
+        Assert.True(_teleport.Start(_connection, s_town, new Vector3(500, 0, 500)));
         RunContinuations();
 
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
@@ -149,7 +148,7 @@ public class MapTeleportShould
     {
         TownGround(NavmeshGroundKind.NoNavMesh, new Vector3(9, 9, 9));
 
-        Assert.True(_teleport.Start(_connection, Town, new Vector3(5, 3, 6)));
+        Assert.True(_teleport.Start(_connection, s_town, new Vector3(5, 3, 6)));
         RunContinuations();
 
         Assert.Equal(new Vector3(5, 3, 6), _character.Position);
@@ -161,7 +160,7 @@ public class MapTeleportShould
     {
         TownGround(NavmeshGroundKind.Under, new Vector3(5, 0, 6));
 
-        Assert.True(_teleport.Start(_connection, Town, new Vector3(5, 0, 6)));
+        Assert.True(_teleport.Start(_connection, s_town, new Vector3(5, 0, 6)));
         RunContinuations();
 
         _saver.Received(1).Save(_connection, _character);
@@ -172,7 +171,7 @@ public class MapTeleportShould
     [Fact]
     public void Use_the_characters_own_instance_of_a_normal_map_and_its_spawn_when_no_position_is_given()
     {
-        Assert.True(_teleport.Start(_connection, Forest, position: null));
+        Assert.True(_teleport.Start(_connection, s_forest, position: null));
         RunContinuations();
 
         _world.Received(1).TransferPlayer(_connection, _forest);
@@ -185,11 +184,11 @@ public class MapTeleportShould
         Assert.False(_teleport.Start(_connection, new MapTemplateId(99), null));
 
         _character.Level = 11;
-        Assert.False(_teleport.Start(_connection, Forest, null));
+        Assert.False(_teleport.Start(_connection, s_forest, null));
         _character.Level = 1;
 
         _connection.RespawnInFlight = true;
-        Assert.False(_teleport.Start(_connection, Town, null));
+        Assert.False(_teleport.Start(_connection, s_town, null));
 
         Assert.Empty(_continuations);
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
@@ -198,7 +197,7 @@ public class MapTeleportShould
     [Fact]
     public void Do_nothing_when_the_character_left_the_connection_before_the_instance_was_ready()
     {
-        Assert.True(_teleport.Start(_connection, Town, null));
+        Assert.True(_teleport.Start(_connection, s_town, null));
         _connection.Character.Returns((Avalon.World.Public.Characters.ICharacter?)null);
 
         RunContinuations();
@@ -209,10 +208,10 @@ public class MapTeleportShould
     [Fact]
     public void Log_and_clear_the_move_when_the_instance_cannot_be_built()
     {
-        _registry.GetOrCreateTownInstanceAsync(Town, Arg.Any<ushort>())
+        _registry.GetOrCreateTownInstanceAsync(s_town, Arg.Any<ushort>())
             .Returns(Task.FromException<IMapInstance>(new InvalidOperationException("database down")));
 
-        Assert.True(_teleport.Start(_connection, Town, null));
+        Assert.True(_teleport.Start(_connection, s_town, null));
         RunContinuations();
 
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
@@ -223,7 +222,7 @@ public class MapTeleportShould
     [Fact]
     public void Not_move_a_character_that_died_before_the_instance_was_ready()
     {
-        Assert.True(_teleport.Start(_connection, Town, new Vector3(5, 0, 6)));
+        Assert.True(_teleport.Start(_connection, s_town, new Vector3(5, 0, 6)));
         _character.IsDead = true;
 
         RunContinuations();
@@ -249,8 +248,8 @@ public class MapTeleportShould
         _connection.Character.Returns(member.Character);
         _registry.GetInstanceById(member.Character.InstanceId).Returns(_source);
         _world.Configuration.Returns(new GameConfiguration());
-        var instances = Substitute.For<IPartyInstanceRegistry>();
-        instances.GetOrCreatePartyInstanceAsync(Arg.Any<PartyId>(), Forest).Returns(Task.FromResult(_forest));
+        IPartyInstanceRegistry instances = Substitute.For<IPartyInstanceRegistry>();
+        instances.GetOrCreatePartyInstanceAsync(Arg.Any<PartyId>(), s_forest).Returns(Task.FromResult(_forest));
         _world.PartyInstances.Returns(instances);
 
         var teleport = new MapTeleport(NullLogger<MapTeleport>.Instance, _world, Substitute.For<IChunkLibrary>(), _saver,
@@ -263,10 +262,10 @@ public class MapTeleportShould
     {
         (PartyTestWorld parties, MapTeleport teleport, IPartyInstanceRegistry instances) = InParty();
 
-        Assert.True(teleport.Start(_connection, Forest, position: null));
+        Assert.True(teleport.Start(_connection, s_forest, position: null));
         RunContinuations();
 
-        instances.Received(1).GetOrCreatePartyInstanceAsync(parties.Parties.PartyOf(7)!.Id, Forest);
+        instances.Received(1).GetOrCreatePartyInstanceAsync(parties.Parties.PartyOf(7)!.Id, s_forest);
         _registry.DidNotReceiveWithAnyArgs().GetOrCreateNormalInstanceAsync(default, default!);
         _world.Received(1).TransferPlayer(_connection, _forest);
         Assert.False(_connection.RespawnInFlight);
@@ -278,7 +277,7 @@ public class MapTeleportShould
         (_, MapTeleport teleport, _) = InParty();
         _forest.PlayerCount.Returns(6);
 
-        Assert.True(teleport.Start(_connection, Forest, position: null));
+        Assert.True(teleport.Start(_connection, s_forest, position: null));
         RunContinuations();
 
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
@@ -292,7 +291,7 @@ public class MapTeleportShould
     {
         (PartyTestWorld parties, MapTeleport teleport, _) = InParty();
 
-        Assert.True(teleport.Start(_connection, Forest, position: null));
+        Assert.True(teleport.Start(_connection, s_forest, position: null));
         Assert.Equal(PartyResult.Ok, parties.Parties.Leave(7));
         RunContinuations();
 

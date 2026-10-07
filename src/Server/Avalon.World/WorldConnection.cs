@@ -1,16 +1,18 @@
 using System.Collections.Concurrent;
-using Avalon.Common.GameAuth;
+using System.Net.Security;
 using System.Net.Sockets;
 using Avalon.Common;
+using Avalon.Common.Accounts;
+using Avalon.Common.GameAuth;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
-using Avalon.Common.Accounts;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
+using Avalon.World.GameAuth;
 using Avalon.World.Maintenance;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -166,7 +168,10 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <inheritdoc />
     public long CurrentPacketArrivedTicks { get; private set; }
     public bool InGame => Character != null;
+    // InGame means Character, which is _characterEntity, is set, so the ?. never yields null here.
+#pragma warning disable CS8604
     public bool InMap => InGame && _characterEntity?.Map > 0;
+#pragma warning restore CS8604
 
     // Set by a packet handler and taken by the tick. Both run on the tick thread -- handlers are
     // dispatched from ProcessQueue -- so this needs no interlocking, and would need it the day they
@@ -218,7 +223,6 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         RoundTripTime = rtt;
         Latency = latency;
     }
-
 
     public void UpdateSession()
     {
@@ -337,8 +341,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     protected override async Task<PacketStream> GetStream(TcpClient client)
     {
-        var transport = ((WorldServer)Server).TlsTransport;
-        var stream = await GameAuth.WorldTlsTransport.AuthenticateAsync(new NetworkStream(client.Client, true), transport.Certificate);
+        WorldTlsTransport transport = ((WorldServer)Server).TlsTransport;
+        SslStream stream = await GameAuth.WorldTlsTransport.AuthenticateAsync(new NetworkStream(client.Client, true), transport.Certificate);
         _transportReadyTicks = TimeProvider.System.GetTimestamp();
         _tlsAuthenticated = true;
         return new PacketStream(stream);
@@ -479,7 +483,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
                 }
             }
             else
+            {
                 _logger.LogError(item.Error, "Continuation faulted");
+            }
         }
     }
 

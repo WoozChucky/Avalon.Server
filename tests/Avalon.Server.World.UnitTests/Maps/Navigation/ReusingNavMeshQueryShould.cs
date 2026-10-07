@@ -7,7 +7,6 @@ using DotRecast.Core.Numerics;
 using DotRecast.Detour;
 using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Maps.Navigation;
 
@@ -24,7 +23,7 @@ public class ReusingNavMeshQueryShould
     /// Read from the test output folder, where the world server's Maps folder is copied, rather than
     /// through the builder, which reads the working directory other tests change.
     /// </summary>
-    private static readonly Lazy<DtNavMesh> TownNavMesh = new(BakeTown, isThreadSafe: true);
+    private static readonly Lazy<DtNavMesh> s_townNavMesh = new(BakeTown, isThreadSafe: true);
 
     private static DtNavMesh BakeTown()
     {
@@ -70,7 +69,7 @@ public class ReusingNavMeshQueryShould
         try
         {
             var geom = RcSampleInputGeomProvider.LoadFile(combined);
-            var result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
+            NavMeshBuildResult result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
             Assert.NotNull(result?.NavMesh);
             return result!.NavMesh;
         }
@@ -83,7 +82,7 @@ public class ReusingNavMeshQueryShould
     [Fact]
     public void Move_along_the_surface_exactly_as_DotRecast_does()
     {
-        DtNavMesh mesh = TownNavMesh.Value;
+        DtNavMesh mesh = s_townNavMesh.Value;
         var original = new DtNavMeshQuery(mesh);
         var reusing = new ReusingNavMeshQuery(mesh);
         var filter = new DtQueryDefaultFilter();

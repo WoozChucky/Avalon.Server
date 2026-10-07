@@ -8,7 +8,7 @@ public static class Catalog
     public static IReadOnlyList<Tunable> Describe(SeedTables seed)
     {
         var tunables = new List<Tunable>();
-        foreach ((string tableName, Overrides.Table table) in Overrides.Tables)
+        foreach ((string tableName, Overrides.Table table) in Overrides.s_tables)
         {
             PropertyInfo[] columns = table.Columns().ToArray();
             PropertyInfo? name = table.RowType.GetProperty("Name", BindingFlags.Public | BindingFlags.Instance);

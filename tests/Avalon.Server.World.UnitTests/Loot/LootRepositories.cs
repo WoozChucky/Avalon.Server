@@ -12,7 +12,7 @@ internal static class LootRepositories
     /// <summary>Read on every call, so a test can change what the next reload sees.</summary>
     public static ILootTableRepository Of(Func<IReadOnlyCollection<LootTable>> tables)
     {
-        var repository = Substitute.For<ILootTableRepository>();
+        ILootTableRepository repository = Substitute.For<ILootTableRepository>();
         repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult(tables()));
         return repository;
     }

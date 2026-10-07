@@ -1,4 +1,3 @@
-using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Services.Email;
 using Microsoft.Extensions.Configuration;
@@ -26,8 +25,8 @@ public class EmailSenderRegistrationShould
     [InlineData("")]
     public void Refuse_unsafe_verification_origins(string origin)
     {
-        var config = Bind(new Dictionary<string, string?> { ["Application:Email:VerificationSiteOrigin"] = origin });
-        var ex = Assert.Throws<InvalidOperationException>(() => Registered(config, Environments.Production));
+        EmailConfig config = Bind(new Dictionary<string, string?> { ["Application:Email:VerificationSiteOrigin"] = origin });
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => Registered(config, Environments.Production));
         Assert.Contains("Application:Email:VerificationSiteOrigin", ex.Message);
     }
 
@@ -37,8 +36,8 @@ public class EmailSenderRegistrationShould
     [InlineData("Application:Email:MaxVerificationSendsPerSource")]
     public void Refuse_zero_verification_budgets(string setting)
     {
-        var config = Bind(new Dictionary<string, string?> { [setting] = "0" });
-        var ex = Assert.Throws<InvalidOperationException>(() => Registered(config, Environments.Production));
+        EmailConfig config = Bind(new Dictionary<string, string?> { [setting] = "0" });
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => Registered(config, Environments.Production));
         Assert.Contains(setting, ex.Message);
     }
 
@@ -56,7 +55,7 @@ public class EmailSenderRegistrationShould
             ["Application:Email:ResendApiKey"] = "test-only-key",
         };
         settings[setting] = value;
-        var ex = Assert.Throws<InvalidOperationException>(() => Registered(Bind(settings), Environments.Production));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => Registered(Bind(settings), Environments.Production));
         Assert.Contains(setting, ex.Message);
         Assert.DoesNotContain("test-only-key", ex.Message);
     }

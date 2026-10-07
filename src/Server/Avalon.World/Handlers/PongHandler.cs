@@ -1,6 +1,6 @@
-using Avalon.World.Public;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.World.Public;
 
 namespace Avalon.World.Handlers;
 

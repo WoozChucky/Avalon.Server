@@ -8,7 +8,6 @@ using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.World;
 
@@ -19,14 +18,14 @@ namespace Avalon.Server.World.UnitTests.World;
 /// </summary>
 public class CastFootprintShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     private readonly TestArena _arena = new();
     private readonly InstanceAbilityCastSystem _sut;
 
     public CastFootprintShould()
     {
-        var scripts = Substitute.For<IScriptManager>();
+        IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAbilityScript(nameof(CircleAbilityScript)).Returns(typeof(CircleAbilityScript));
         scripts.GetAbilityScript(nameof(ConeAbilityScript)).Returns(typeof(ConeAbilityScript));
         _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), scripts, _arena);
@@ -41,7 +40,7 @@ public class CastFootprintShould
     /// <summary>A living creature at <paramref name="position" />: a creature is never interrupted by being moved (#163).</summary>
     private static ICreature Creature(Vector3 position)
     {
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 648_900u));
         creature.Position.Returns(position);
         creature.CurrentHealth.Returns(10u);
@@ -52,7 +51,7 @@ public class CastFootprintShould
     {
         for (int i = 0; i < (int)(seconds * 60f) + 2; i++)
         {
-            _sut.Update(Tick, []);
+            _sut.Update(s_tick, []);
         }
     }
 

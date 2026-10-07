@@ -15,12 +15,21 @@ public class PublicMappingShould
 {
     private static ItemTemplate Helm() => new()
     {
-        Id = new ItemTemplateId(12), Name = "Barkplate Helm", Rarity = Avalon.Domain.World.ItemRarity.Uncommon,
-        Class = Avalon.Domain.World.ItemClass.Armor, SubClass = Avalon.Domain.World.ItemSubClass.Helmet,
-        Slot = Avalon.Domain.World.ItemSlotType.Head, RequiredLevel = 3, ItemPower = 8, MaxStackSize = 1,
-        SellPrice = 125, AllowedClasses = [CharacterClass.Warrior],
-        StatType1 = Avalon.Domain.World.StatType.Strength, StatValue1 = 1,
-        StatType3 = Avalon.Domain.World.StatType.Armor, StatValue3 = 4,
+        Id = new ItemTemplateId(12),
+        Name = "Barkplate Helm",
+        Rarity = Avalon.Domain.World.ItemRarity.Uncommon,
+        Class = Avalon.Domain.World.ItemClass.Armor,
+        SubClass = Avalon.Domain.World.ItemSubClass.Helmet,
+        Slot = Avalon.Domain.World.ItemSlotType.Head,
+        RequiredLevel = 3,
+        ItemPower = 8,
+        MaxStackSize = 1,
+        SellPrice = 125,
+        AllowedClasses = [CharacterClass.Warrior],
+        StatType1 = Avalon.Domain.World.StatType.Strength,
+        StatValue1 = 1,
+        StatType3 = Avalon.Domain.World.StatType.Armor,
+        StatValue3 = 4,
     };
 
     [Fact]
@@ -120,10 +129,20 @@ public class PublicMappingShould
     {
         AbilityTemplate cleave = new()
         {
-            Id = new AbilityId(210), Name = "Cleave", Cost = 20,
-            CostPowerType = Avalon.Network.Packets.State.PowerType.Fury, CastTime = 1500, Cooldown = 800, Range = Avalon.World.Public.Enums.SpellRange.Melee,
-            ScriptName = script, Affects = affects, EffectValue = 10, ScalingStat = scaling,
-            ScalingCoefficient = 0.5f, BaseDamageCoefficient = 1f, AllowedClasses = [CharacterClass.Warrior],
+            Id = new AbilityId(210),
+            Name = "Cleave",
+            Cost = 20,
+            CostPowerType = Avalon.Network.Packets.State.PowerType.Fury,
+            CastTime = 1500,
+            Cooldown = 800,
+            Range = Avalon.World.Public.Enums.SpellRange.Melee,
+            ScriptName = script,
+            Affects = affects,
+            EffectValue = 10,
+            ScalingStat = scaling,
+            ScalingCoefficient = 0.5f,
+            BaseDamageCoefficient = 1f,
+            AllowedClasses = [CharacterClass.Warrior],
             Effects = affects == AbilityAffects.Ally
                 ? Avalon.World.Public.Enums.SpellEffect.Heal
                 : Avalon.World.Public.Enums.SpellEffect.Damage,

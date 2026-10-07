@@ -14,7 +14,7 @@ public class CharacterLevelExperienceRepository(IDbContextFactory<WorldDbContext
 {
     public async Task<IReadOnlyCollection<CharacterLevelExperience>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.CharacterLevelExperiences
             .AsNoTracking()
@@ -23,7 +23,7 @@ public class CharacterLevelExperienceRepository(IDbContextFactory<WorldDbContext
 
     public async Task<CharacterLevelExperience?> GetLevelAsync(ushort level, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await context.CharacterLevelExperiences
             .AsNoTracking()

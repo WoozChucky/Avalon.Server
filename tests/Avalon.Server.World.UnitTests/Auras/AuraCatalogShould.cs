@@ -1,14 +1,11 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.Network.Packets.Abilities;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.World;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
-using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 

@@ -1,4 +1,5 @@
 using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Avalon.Common.Cryptography;
 
@@ -17,7 +18,7 @@ public class CryptoManager : ICryptoManager
     public CryptoManager()
     {
         _keyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
-        var publicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(_keyPair);
+        ECPublicKeyParameters publicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(_keyPair);
         _publicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(publicKey);
     }
 

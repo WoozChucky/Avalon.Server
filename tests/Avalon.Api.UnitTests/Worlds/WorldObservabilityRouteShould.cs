@@ -28,8 +28,8 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
     private const ushort Down = 3;        // configured, unavailable, Player
     private const ushort Staff = 4;       // configured, available, Admin only
 
-    private static readonly Guid InstanceOne = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
-    private static readonly Guid InstanceTwo = Guid.Parse("00000000-0000-0000-0000-0000000000a2");
+    private static readonly Guid s_instanceOne = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
+    private static readonly Guid s_instanceTwo = Guid.Parse("00000000-0000-0000-0000-0000000000a2");
 
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
@@ -49,10 +49,10 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
         _authWorlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(_rows);
 
         // Character 7 is online in every world: ids are unique only per world.
-        Presence(One, InstanceOne, "Nym");
-        Presence(Two, InstanceTwo, "Zed");
-        Presence(Down, InstanceOne, "Down");
-        Presence(Staff, InstanceOne, "Staff");
+        Presence(One, s_instanceOne, "Nym");
+        Presence(Two, s_instanceTwo, "Zed");
+        Presence(Down, s_instanceOne, "Down");
+        Presence(Staff, s_instanceOne, "Staff");
 
         _host = await ApiAuthHost.StartAsync(_cache, services =>
         {
@@ -70,8 +70,12 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
     {
         var row = new WorldEntity
         {
-            Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = required,
-            Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+            Id = new WorldId(id),
+            Name = $"World{id}",
+            AccessLevelRequired = required,
+            Host = "h",
+            MinVersion = "0.0.1",
+            Version = "0.0.1",
         };
         _rows.Add(row);
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -104,7 +108,7 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, two.StatusCode);
         PlayerPresenceDto presenceTwo = (await two.Content.ReadFromJsonAsync<PlayerPresenceDto>())!;
-        Assert.Equal(("Zed", Two, InstanceTwo),
+        Assert.Equal(("Zed", Two, s_instanceTwo),
             (presenceTwo.Target.Name, presenceTwo.Instance.WorldId, presenceTwo.Instance.InstanceId));
         Assert.Equal(HttpStatusCode.OK, one.StatusCode);
         PlayerPresenceDto presenceOne = (await one.Content.ReadFromJsonAsync<PlayerPresenceDto>())!;

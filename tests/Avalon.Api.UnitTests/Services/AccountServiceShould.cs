@@ -1,4 +1,5 @@
 using Avalon.Api.Config;
+using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -62,7 +63,7 @@ public class AccountServiceShould
         _cache.GetAsync(AccountService.EmailChangeKey("token")).Returns("7|0|new@avalon.monster");
         _cache.RemoveAsync(AccountService.EmailChangeKey("token")).Returns(false);
 
-        var refused = await Assert.ThrowsAsync<Avalon.Api.Exceptions.BusinessException>(
+        BusinessException refused = await Assert.ThrowsAsync<Avalon.Api.Exceptions.BusinessException>(
             () => CreateService().ConfirmEmailChangeAsync("token"));
 
         Assert.Equal("Invalid or expired token", refused.Message);
@@ -89,7 +90,7 @@ public class AccountServiceShould
     {
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
             .Returns<Task>(_ => throw new StackExchange.Redis.RedisConnectionException(
-                StackExchange.Redis.ConnectionFailureType.UnableToConnect, "down"));
+                StackExchange.Redis.ConnectionFailureType.UnableToConnect, StackExchange.Redis.CommandFlags.CommandRetryNever, "down"));
 
         await CreateService().UpdateStatusAsync(new AccountId(7), Contract.AccountStatus.Banned, "spam", new AccountId(1));
     }

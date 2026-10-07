@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Avalon.Common;
 using Avalon.Network.Packets.Combat;
 using Avalon.World.Public;
@@ -34,7 +32,7 @@ public sealed class ThreatBroadcastService
     public ThreatBroadcastService(CombatConfig config, TimeProvider? time = null)
     {
         _config = config;
-        _time   = time ?? TimeProvider.System;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -130,13 +128,13 @@ public sealed class ThreatBroadcastService
         }
 
         // Only a packet that is sent pays for its entries.
-        ThreatEntry[] entries = new ThreatEntry[threats.Count];
+        var entries = new ThreatEntry[threats.Count];
         int i = 0;
         foreach ((IUnit attacker, float threat) in threats)
         {
             entries[i++] = new ThreatEntry
             {
-                AttackerGuid  = attacker.Guid.RawValue,
+                AttackerGuid = attacker.Guid.RawValue,
                 ThreatPercent = threat / total,
             };
         }

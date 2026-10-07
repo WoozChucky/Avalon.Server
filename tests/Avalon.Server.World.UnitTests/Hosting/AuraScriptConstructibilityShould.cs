@@ -10,7 +10,6 @@ using Avalon.World.Scripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Hosting;
 
@@ -36,10 +35,12 @@ public class AuraScriptConstructibilityShould
     public void Build_every_aura_script_the_seed_names()
     {
         string[] named;
-        using (SqliteDatabase<WorldDbContext> database = SqliteDatabase.World())
+        using (var database = SqliteDatabase.World())
         using (WorldDbContext context = database.CreateDbContext())
+        {
             named = context.AuraTemplates.AsNoTracking().ToList()
                 .Where(a => a.ScriptName != null).Select(a => a.ScriptName!).Distinct().ToArray();
+        }
 
         Assert.Empty(named);
     }
@@ -88,9 +89,9 @@ public class AuraScriptConstructibilityShould
             AuraScripts auraScripts = host.Services.GetRequiredService<AuraScripts>();
             host.Services.GetRequiredService<IScriptManager>().Load();
             Assert.Null(auraScripts.For(new Avalon.Domain.World.AuraTemplate
-                { Id = new Avalon.Common.ValueObjects.AuraId(1), ScriptName = nameof(WorldHungryAuraScript) }));
+            { Id = new Avalon.Common.ValueObjects.AuraId(1), ScriptName = nameof(WorldHungryAuraScript) }));
             Assert.IsType<RecordingAuraScript>(auraScripts.For(new Avalon.Domain.World.AuraTemplate
-                { Id = new Avalon.Common.ValueObjects.AuraId(2), ScriptName = nameof(RecordingAuraScript) }));
+            { Id = new Avalon.Common.ValueObjects.AuraId(2), ScriptName = nameof(RecordingAuraScript) }));
         }
         finally
         {

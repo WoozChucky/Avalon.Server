@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Xunit;
 

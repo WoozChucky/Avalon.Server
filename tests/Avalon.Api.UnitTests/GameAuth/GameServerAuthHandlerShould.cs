@@ -23,10 +23,13 @@ public sealed class GameServerAuthHandlerShould
     }
     private static async Task<AuthenticateResult> Authenticate(X509Certificate2? presented, string configuredPin, bool https = true)
     {
-        var monitor = Substitute.For<IOptionsMonitor<AuthenticationSchemeOptions>>();
+        IOptionsMonitor<AuthenticationSchemeOptions> monitor = Substitute.For<IOptionsMonitor<AuthenticationSchemeOptions>>();
         monitor.Get(Arg.Any<string>()).Returns(new AuthenticationSchemeOptions());
-        var configuration = Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition
-        { ServerId = "world-1", WorldId = 1, TlsServerName = "localhost", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = configuredPin }] });
+        IOptions<GameWorkloadConfiguration> configuration = Options.Create(new GameWorkloadConfiguration
+        {
+            Servers = [new GameServerDefinition
+        { ServerId = "world-1", WorldId = 1, TlsServerName = "localhost", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = configuredPin }]
+        });
         var handler = new GameServerAuthHandler(monitor, NullLoggerFactory.Instance, UrlEncoder.Default, configuration, TimeProvider.System);
         var context = new DefaultHttpContext();
         context.Request.Scheme = https ? "https" : "http";
@@ -40,21 +43,21 @@ public sealed class GameServerAuthHandlerShould
     [Fact]
     public async Task Derive_workload_identity_only_from_the_pinned_tls_client_certificate()
     {
-        using var certificate = Certificate(true);
-        var pin = Convert.ToHexString(SHA256.HashData(certificate.RawData));
-        var result = await Authenticate(certificate, pin);
+        using X509Certificate2 certificate = Certificate(true);
+        string pin = Convert.ToHexString(SHA256.HashData(certificate.RawData));
+        AuthenticateResult result = await Authenticate(certificate, pin);
         Assert.True(result.Succeeded);
         Assert.Equal("world-1", result.Principal!.FindFirst(GameServerAuthHandler.ServerIdClaim)!.Value);
     }
     [Fact]
     public async Task Refuse_player_tokens_headers_wrong_pins_plain_http_and_server_only_certificates()
     {
-        using var certificate = Certificate(true);
-        var pin = Convert.ToHexString(SHA256.HashData(certificate.RawData));
+        using X509Certificate2 certificate = Certificate(true);
+        string pin = Convert.ToHexString(SHA256.HashData(certificate.RawData));
         Assert.False((await Authenticate(null, pin)).Succeeded);
         Assert.False((await Authenticate(certificate, new string('C', 64))).Succeeded);
         Assert.False((await Authenticate(certificate, pin, false)).Succeeded);
-        using var serverCertificate = Certificate(false);
+        using X509Certificate2 serverCertificate = Certificate(false);
         Assert.False((await Authenticate(serverCertificate, Convert.ToHexString(SHA256.HashData(serverCertificate.RawData)))).Succeeded);
     }
 }

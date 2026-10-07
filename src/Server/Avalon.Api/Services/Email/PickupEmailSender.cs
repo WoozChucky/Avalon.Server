@@ -12,7 +12,7 @@ namespace Avalon.Api.Services.Email;
 /// </summary>
 public sealed class PickupEmailSender : IEmailSender
 {
-    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+    private static readonly UTF8Encoding s_utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     private readonly string _directory;
     private readonly string _from;
@@ -36,7 +36,7 @@ public sealed class PickupEmailSender : IEmailSender
         ArgumentNullException.ThrowIfNull(textBody);
 
         DateTimeOffset now = _time.GetUtcNow();
-        Guid id = Guid.NewGuid();
+        var id = Guid.NewGuid();
 
         var eml = new StringBuilder();
         Header(eml, "From", _from);
@@ -53,21 +53,23 @@ public sealed class PickupEmailSender : IEmailSender
 
         // The files hold confirm tokens: on Unix, only the api's own user may open the folder.
         if (OperatingSystem.IsWindows())
+        {
             Directory.CreateDirectory(_directory);
+        }
         else
         {
-            const UnixFileMode ownerOnly = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
-            Directory.CreateDirectory(_directory, ownerOnly);
+            const UnixFileMode OwnerOnly = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+            Directory.CreateDirectory(_directory, OwnerOnly);
             // A folder that already existed keeps its mode through CreateDirectory: tighten it.
-            if (File.GetUnixFileMode(_directory) != ownerOnly)
-                File.SetUnixFileMode(_directory, ownerOnly);
+            if (File.GetUnixFileMode(_directory) != OwnerOnly)
+                File.SetUnixFileMode(_directory, OwnerOnly);
         }
         string name = string.Create(CultureInfo.InvariantCulture, $"{now.UtcDateTime:yyyyMMddTHHmmssfff}-{id:N}.eml");
         string path = Path.Combine(_directory, name);
         // Written under another name and moved into place, so a reader watching the folder never
         // opens half an email.
         string partial = path + ".partial";
-        await File.WriteAllTextAsync(partial, eml.ToString(), Utf8NoBom, ct);
+        await File.WriteAllTextAsync(partial, eml.ToString(), s_utf8NoBom, ct);
         File.Move(partial, path);
     }
 

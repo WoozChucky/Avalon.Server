@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using Avalon.Common;
 using Avalon.Common.Converters;
 using Avalon.Configuration;
 using Avalon.Database;
@@ -36,7 +35,7 @@ public static class ItemCatalog
     public const string FileName = "item-catalog-v1.json";
 
     // camelCase, matching opcodes.json and item-schema-v1.json.
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    private static readonly JsonSerializerOptions s_serializerOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -68,7 +67,7 @@ public static class ItemCatalog
 
         using var context = new WorldDbContext(NullLoggerFactory.Instance, options);
 
-        List<ItemTemplate> templates = context.ItemTemplates.AsNoTracking().ToList();
+        var templates = context.ItemTemplates.AsNoTracking().ToList();
 
         Lf.Write(path, Render(templates));
         Console.WriteLine($"wrote {path} ({templates.Count} item templates)");
@@ -82,7 +81,7 @@ public static class ItemCatalog
                      "Field meanings and enum values are in item-schema-v1.json.",
             Items: templates.OrderBy(template => template.Id.Value).ToList());
 
-        return JsonSerializer.Serialize(document, SerializerOptions) + "\n";
+        return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
     }
 
     /// <summary>

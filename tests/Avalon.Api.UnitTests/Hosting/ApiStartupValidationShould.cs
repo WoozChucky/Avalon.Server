@@ -1,12 +1,11 @@
-using Avalon.Api;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Worlds;
 using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Infrastructure.Configuration;
-using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -26,8 +25,8 @@ public class ApiStartupValidationShould
     [Fact]
     public async Task Refuse_missing_store_secret_before_any_database_call()
     {
-        await using var provider = Build("localhost:6379", ("Application:StoreAuthentication:SteamPublisherKey", null));
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(
+        await using ServiceProvider provider = Build("localhost:6379", ("Application:StoreAuthentication:SteamPublisherKey", null));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
             () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
         Assert.Contains("Application:StoreAuthentication", refused.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("private-test-publisher-key", refused.Message, StringComparison.Ordinal);
@@ -38,8 +37,8 @@ public class ApiStartupValidationShould
     [InlineData("0")]
     public async Task Refuse_missing_or_zero_Steam_app_id_before_any_database_call(string? appId)
     {
-        await using var provider = Build("localhost:6379", ("Application:StoreAuthentication:SteamAppId", appId));
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(
+        await using ServiceProvider provider = Build("localhost:6379", ("Application:StoreAuthentication:SteamAppId", appId));
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
             () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
         Assert.Contains("Application:StoreAuthentication:SteamAppId", refused.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("private-test-publisher-key", refused.Message, StringComparison.Ordinal);
@@ -63,7 +62,7 @@ public class ApiStartupValidationShould
     {
         using ServiceProvider provider = Build(host);
 
-        var refused = Assert.Throws<OptionsValidationException>(
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
             () => provider.GetRequiredService<IStartupValidator>().Validate());
 
         Assert.Contains("'CacheConfiguration' members: 'Host'", refused.Message, StringComparison.Ordinal);
@@ -79,7 +78,7 @@ public class ApiStartupValidationShould
     {
         await using ServiceProvider provider = Build(null);
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
             () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
 
         Assert.Contains("'CacheConfiguration' members: 'Host'", refused.Message, StringComparison.Ordinal);
@@ -92,7 +91,7 @@ public class ApiStartupValidationShould
         await using ServiceProvider provider = Build("localhost:6379",
             ("Database:Worlds:1:World:ConnectionString", null), ("Database:Worlds:1:Characters:ConnectionString", null));
 
-        var refused = await Assert.ThrowsAsync<InvalidOperationException>(
+        InvalidOperationException refused = await Assert.ThrowsAsync<InvalidOperationException>(
             () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
 
         Assert.Contains("Database:Worlds lists no world", refused.Message, StringComparison.Ordinal);
@@ -103,7 +102,7 @@ public class ApiStartupValidationShould
     {
         await using ServiceProvider provider = Build("localhost:6379", ("Database:Worlds:1:Characters:ConnectionString", null));
 
-        var refused = await Assert.ThrowsAsync<InvalidOperationException>(
+        InvalidOperationException refused = await Assert.ThrowsAsync<InvalidOperationException>(
             () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
 
         Assert.Contains("Database:Worlds:1:Characters:ConnectionString is missing", refused.Message, StringComparison.Ordinal);
@@ -134,7 +133,7 @@ public class ApiStartupValidationShould
     {
         await using ServiceProvider provider = Build("localhost:6379", ($"Application:RateLimiting:{setting}", value));
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
             () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
 
         Assert.Contains($"Application:RateLimiting:{setting} must be at least 1", refused.Message, StringComparison.Ordinal);
@@ -158,7 +157,7 @@ public class ApiStartupValidationShould
     {
         using ServiceProvider provider = Build("localhost:6379", ("Application:Templates:ReloadTimeout", timeout));
 
-        var refused = Assert.Throws<OptionsValidationException>(
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
             () => provider.GetRequiredService<IStartupValidator>().Validate());
 
         Assert.Contains("Application:Templates:ReloadTimeout must be a positive time span", refused.Message,
@@ -179,7 +178,7 @@ public class ApiStartupValidationShould
     {
         using ServiceProvider provider = Build("localhost:6379", ("Database:Auth:ConnectionString", null));
 
-        var refused = Assert.Throws<OptionsValidationException>(
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
             () => provider.GetRequiredService<IStartupValidator>().Validate());
 
         Assert.Contains("Database:Auth:ConnectionString is required.", refused.Message, StringComparison.Ordinal);

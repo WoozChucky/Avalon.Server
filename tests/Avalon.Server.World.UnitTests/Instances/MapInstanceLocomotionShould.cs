@@ -3,6 +3,8 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
+using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Creatures;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -10,24 +12,18 @@ using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps.Navigation;
-using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
-using Avalon.World.Public.Units;
-using Avalon.Server.World.UnitTests.Creatures;
-using DotRecast.Detour;
 using DotRecast.Detour.Crowd;
-using DotRecast.Recast.Geom;
-using DotRecast.Recast.Toolset.Builder;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
@@ -80,7 +76,7 @@ public class MapInstanceLocomotionShould
     public void Sync_Every_Characters_Position_Into_The_Crowd_Each_Tick_When_The_Flag_Is_On()
     {
         (MapInstance instance, _) = BuildInstanceWithCreature(crowdIncludesPlayers: true);
-        var crowd = new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value,
+        var crowd = new CrowdLocomotion(CrowdLocomotionShould.s_flatNavMesh.Value,
             NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
         SetLocomotion(instance, crowd);
 
@@ -94,7 +90,7 @@ public class MapInstanceLocomotionShould
     public void Sync_No_Players_Into_The_Crowd_When_The_Flag_Is_Off()
     {
         (MapInstance instance, _) = BuildInstanceWithCreature(crowdIncludesPlayers: false);
-        var crowd = new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value,
+        var crowd = new CrowdLocomotion(CrowdLocomotionShould.s_flatNavMesh.Value,
             NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
         SetLocomotion(instance, crowd);
 
@@ -181,7 +177,7 @@ public class MapInstanceLocomotionShould
     public void Use_The_Locomotion_Its_Hook_Returns()
     {
         ICreatureLocomotion? handed = null;
-        var replacement = Substitute.For<ICreatureLocomotion>();
+        ICreatureLocomotion replacement = Substitute.For<ICreatureLocomotion>();
 
         MapInstance instance = BuildInstance(new GameConfiguration
         {
@@ -281,7 +277,7 @@ public class MapInstanceLocomotionShould
     // reached the locomotion at all, and nothing anywhere drove the production script loop and the
     // production locomotion together, so their order was free.
 
-    private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(0.25);
+    private static readonly TimeSpan s_tickInterval = TimeSpan.FromSeconds(0.25);
 
     /// <summary>
     /// F1, waypoint side. A creature killed mid-approach used to keep walking its remaining path:
@@ -305,7 +301,7 @@ public class MapInstanceLocomotionShould
         // What a chasing script would have left behind: a long queued path and a moving MoveState.
         instance.Locomotion.MoveTo(creature, new Vector3(20f, 0f, 0f));
         creature.MoveState = MoveState.Running;
-        instance.Update(TickInterval);
+        instance.Update(s_tickInterval);
 
         Assert.NotEqual(Vector3.zero, creature.Position); // fixture check: it really was walking
 
@@ -314,7 +310,7 @@ public class MapInstanceLocomotionShould
 
         // 30 simulated seconds — far more than the ~5s the remaining 20-unit path would have taken.
         for (int tick = 0; tick < 120; tick++)
-            instance.Update(TickInterval);
+            instance.Update(s_tickInterval);
 
         Assert.Equal(whereItFell, creature.Position);
         Assert.Equal(MoveState.Idle, creature.MoveState);
@@ -345,7 +341,7 @@ public class MapInstanceLocomotionShould
 
         instance.Locomotion.MoveTo(creature, new Vector3(20f, 0f, 0f));
         creature.MoveState = MoveState.Running;
-        instance.Update(TickInterval);
+        instance.Update(s_tickInterval);
 
         Assert.NotEqual(Vector3.zero, creature.Position); // fixture check: it really was walking
         Vector3 whereItStood = creature.Position;
@@ -357,7 +353,7 @@ public class MapInstanceLocomotionShould
 
         // And it actually stays put: with the agent gone, nothing should advance it further either.
         for (int tick = 0; tick < 60; tick++)
-            instance.Update(TickInterval);
+            instance.Update(s_tickInterval);
 
         Assert.Equal(whereItStood, creature.Position);
     }
@@ -375,7 +371,7 @@ public class MapInstanceLocomotionShould
     public void Remove_A_Killed_Creatures_Crowd_Agent()
     {
         (MapInstance instance, _) = BuildKillableInstance();
-        var crowd = new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value,
+        var crowd = new CrowdLocomotion(CrowdLocomotionShould.s_flatNavMesh.Value,
             NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
         SetLocomotion(instance, crowd);
 
@@ -481,7 +477,6 @@ public class MapInstanceLocomotionShould
             "the corpse was never removed, so it stays a ticked and broadcast entity forever");
     }
 
-
     /// <summary>
     /// The tick order the whole seam rests on: the locomotion must be ticked <em>after</em> the
     /// creature scripts, because the scripts choose destinations and the locomotion consumes them.
@@ -512,7 +507,7 @@ public class MapInstanceLocomotionShould
         script.OnEnteredRange(target);
         creature.Script = script;
 
-        instance.Update(TickInterval);
+        instance.Update(s_tickInterval);
 
         Assert.NotEqual(Vector3.zero, creature.Position);
     }
@@ -524,7 +519,7 @@ public class MapInstanceLocomotionShould
     /// </summary>
     private static Creature RealCreatureAt(Vector3 position, uint id, float speed = 4f)
     {
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.SpeedWalk.Returns(speed / 2f);
         metadata.SpeedRun.Returns(speed);
 
@@ -549,14 +544,14 @@ public class MapInstanceLocomotionShould
     /// </summary>
     private static (MapInstance Instance, ICharacter Target) BuildKillableInstance(GameConfiguration? config = null)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(config ?? new GameConfiguration());
 
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(call => StepwisePath(call.ArgAt<Vector3>(0), call.ArgAt<Vector3>(1)));
 
@@ -581,11 +576,11 @@ public class MapInstanceLocomotionShould
             navigator,
             seed: 0);
 
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, 700_800));
         character.Position.Returns(new Vector3(10f, 0f, 0f));
         character.IsDead.Returns(false);
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         instance.AddCharacter(connection);
 
@@ -599,11 +594,11 @@ public class MapInstanceLocomotionShould
     /// </summary>
     private static List<Vector3> StepwisePath(Vector3 from, Vector3 to)
     {
-        const float stepSize = 0.5f;
+        const float StepSize = 0.5f;
         var path = new List<Vector3> { from };
 
         float total = Vector3.Distance(from, to);
-        for (float walked = stepSize; walked < total; walked += stepSize)
+        for (float walked = StepSize; walked < total; walked += StepSize)
             path.Add(Vector3.MoveTowards(from, to, walked));
 
         path.Add(to);
@@ -617,7 +612,7 @@ public class MapInstanceLocomotionShould
     /// selection actually reads: the configuration, and the navigator.
     /// </summary>
     /// <param name="withBakedNavMesh">
-    /// True loads <see cref="CrowdLocomotionShould.FlatNavMesh" /> into a real
+    /// True loads <see cref="CrowdLocomotionShould.s_flatNavMesh" /> into a real
     /// <see cref="MapNavigator" /> before construction (the success path for Crowd). False, the
     /// default, builds a real <see cref="MapNavigator" /> that is never loaded, so its
     /// <see cref="MapNavigator.NavMesh" /> stays null — one of the two fallback conditions. Ignored
@@ -640,18 +635,18 @@ public class MapInstanceLocomotionShould
         ILoggerFactory? loggerFactory = null,
         Func<ICreatureLocomotion, ICreatureLocomotion>? locomotion = null)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(config);
 
         if (navigator is null)
         {
             var mapNavigator = new MapNavigator(NullLoggerFactory.Instance);
             if (withBakedNavMesh)
-                mapNavigator.LoadFromNavMesh(CrowdLocomotionShould.FlatNavMesh.Value);
+                mapNavigator.LoadFromNavMesh(CrowdLocomotionShould.s_flatNavMesh.Value);
             navigator = mapNavigator;
         }
 
@@ -746,18 +741,18 @@ public class MapInstanceLocomotionShould
     private static (MapInstance Instance, ICreature Creature) BuildInstanceWithCreature(
         bool crowdIncludesPlayers = false)
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
-        var world = Substitute.For<IWorld>();
+        IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CrowdIncludesPlayers = crowdIncludesPlayers });
 
         // A NSubstitute IMapNavigator returns an empty path from FindPath by default, which
         // WaypointLocomotion reads as "nowhere to go" and resolves via its come-to-rest path
         // without ever writing Position. Stub a real waypoint, far enough from the origin that
         // the 0.1f arrival epsilon does not immediately consume it on the first tick.
-        var navigator = Substitute.For<IMapNavigator>();
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(new List<Vector3> { new Vector3(5f, 0f, 0f) });
 
@@ -782,15 +777,15 @@ public class MapInstanceLocomotionShould
             navigator,
             seed: 0);
 
-        var character = Substitute.For<ICharacter>();
+        ICharacter character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, 424_242));
-        var connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         instance.AddCharacter(connection);
 
-        var creature = Substitute.For<ICreature>();
+        ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 424_243));
-        var metadata = Substitute.For<ICreatureMetadata>();
+        ICreatureMetadata metadata = Substitute.For<ICreatureMetadata>();
         metadata.SpeedWalk.Returns(2f);
         metadata.SpeedRun.Returns(4f);
         creature.Metadata.Returns(metadata);

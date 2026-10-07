@@ -48,12 +48,12 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
 
     private DtNavMesh BakeNavmesh(ChunkLayout layout)
     {
-        var combinedObjPath = ComposeCombinedObjToTempFile(layout);
+        string combinedObjPath = ComposeCombinedObjToTempFile(layout);
         try
         {
             var geom = RcSampleInputGeomProvider.LoadFile(combinedObjPath);
             var builder = new TileNavMeshBuilder();
-            var result = builder.Build(geom, NavmeshBuildSettings.Create());
+            NavMeshBuildResult result = builder.Build(geom, NavmeshBuildSettings.Create());
             if (result?.NavMesh is null)
                 throw new NavmeshBuildFailedException($"DotRecast returned null mesh for layout (seed {layout.Seed})");
             _logger.LogInformation("Navmesh baked for layout seed {Seed} ({ChunkCount} chunks)", layout.Seed, layout.Chunks.Count);
@@ -72,13 +72,13 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
     {
         var sb = new System.Text.StringBuilder();
         int vOffset = 0;
-        foreach (var chunk in layout.Chunks)
+        foreach (PlacedChunk chunk in layout.Chunks)
         {
             // Chunk objs are stored on disk by ChunkTemplate.Name (Maps/Chunks/<name>.obj, and
             // ChunkCatalogSeeder keys templates by it). The
             // ChunkTemplateId is a DB surrogate key, NOT the filename — resolve it through
             // the in-memory chunk library.
-            var name = _library.GetById(chunk.TemplateId).Name;
+            string name = _library.GetById(chunk.TemplateId).Name;
             string path = Path.Combine(_contentRoot ?? Directory.GetCurrentDirectory(), "Maps", "Chunks",
                 $"{name}.obj");
             if (!File.Exists(path))
@@ -86,7 +86,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
             int vCount = AppendTransformed(sb, File.ReadAllText(path), chunk.WorldPos, chunk.Rotation, layout.CellSize, vOffset);
             vOffset += vCount;
         }
-        var tempPath = Path.Combine(Path.GetTempPath(), $"avalon-chunklayout-{layout.Seed}-{Guid.NewGuid():N}.obj");
+        string tempPath = Path.Combine(Path.GetTempPath(), $"avalon-chunklayout-{layout.Seed}-{Guid.NewGuid():N}.obj");
         File.WriteAllText(tempPath, sb.ToString());
         return tempPath;
     }
@@ -96,16 +96,16 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
         int vCount = 0;
         // Only "v" and "f" lines are read: "o", "usemtl", "mtllib", "s", "g" and comments are dropped here, so the
         // combined obj handed to DotRecast never carries them (ChunkObjParserShould).
-        foreach (var raw in objText.Split('\n'))
+        foreach (string raw in objText.Split('\n'))
         {
-            var line = raw.Trim();
+            string line = raw.Trim();
             if (line.StartsWith("v "))
             {
-                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 float x = float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
                 float y = float.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture);
                 float z = float.Parse(parts[3], System.Globalization.CultureInfo.InvariantCulture);
-                var w = ChunkRotation.LocalToWorld(x, y, z, rotation, cellSize, origin);
+                Vector3 w = ChunkRotation.LocalToWorld(x, y, z, rotation, cellSize, origin);
                 sb.Append("v ")
                   .Append(w.x.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(' ')
                   .Append(w.y.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(' ')
@@ -114,7 +114,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
             }
             else if (line.StartsWith("f "))
             {
-                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 sb.Append("f");
                 for (int i = 1; i < parts.Length; i++)
                 {

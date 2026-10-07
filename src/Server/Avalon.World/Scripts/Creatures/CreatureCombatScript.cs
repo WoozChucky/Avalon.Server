@@ -111,14 +111,14 @@ public class CreatureCombatScript : AiScript, IReturningHome
     // route toward a target on a ledge or an island is walked like any other, so arrival flips on and
     // off while the creature stands at its end. See RouteCanReach. Only an unbroken stretch counts;
     // a tick in range or with a route that can reach starts the count over, as does a new target.
-    private static readonly TimeSpan UnreachableGiveUpTime = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_unreachableGiveUpTime = TimeSpan.FromSeconds(5);
 
     // The safety net on the walk home (#715): a creature walking home ignores every hit (#610), so one that
     // never counts as home would be unhittable for good. It is put home and reset once it has come no closer
     // to home, by ReturnProgressStep on X/Z, for ReturnStallLimit, or has been on its way for ReturnHomeLimit.
     // The leash is 40 m, 10 s at the slowest seeded run speed (4 m/s), so the cap leaves room for a detour.
-    private static readonly TimeSpan ReturnStallLimit = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan ReturnHomeLimit = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan s_returnStallLimit = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_returnHomeLimit = TimeSpan.FromSeconds(15);
     private const float ReturnProgressStep = 0.5f;
 
     private readonly ILogger<CreatureCombatScript> _logger;
@@ -368,7 +368,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
         Engage(_target, currentPosition, targetPosition, deltaTime);
 
-        if (_unreachableFor > UnreachableGiveUpTime)
+        if (_unreachableFor > s_unreachableGiveUpTime)
         {
             GiveUpAndGoHome(_target);
         }
@@ -458,15 +458,15 @@ public class CreatureCombatScript : AiScript, IReturningHome
             _returnStalledFor += deltaTime;
         }
 
-        if (_returnStalledFor > ReturnStallLimit)
+        if (_returnStalledFor > s_returnStallLimit)
         {
-            SnapHome($"it came no closer to home for {ReturnStallLimit.TotalSeconds:0} s");
+            SnapHome($"it came no closer to home for {s_returnStallLimit.TotalSeconds:0} s");
             return;
         }
 
-        if (_returningFor > ReturnHomeLimit)
+        if (_returningFor > s_returnHomeLimit)
         {
-            SnapHome($"it was still on its way home after {ReturnHomeLimit.TotalSeconds:0} s");
+            SnapHome($"it was still on its way home after {s_returnHomeLimit.TotalSeconds:0} s");
             return;
         }
 
@@ -502,7 +502,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// <summary>
     /// Drops <paramref name="target" /> and heads home at full health: the target died, the creature
     /// was drawn past <see cref="MaxChaseDistance" /> from where the fight began, or it had no way to
-    /// reach the target for longer than <see cref="UnreachableGiveUpTime" /> (#606).
+    /// reach the target for longer than <see cref="s_unreachableGiveUpTime" /> (#606).
     /// </summary>
     private void GiveUpAndGoHome(IUnit target)
     {

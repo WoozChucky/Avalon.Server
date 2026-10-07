@@ -199,7 +199,9 @@ public sealed class QuestLog(SaveStateTracker save)
         // An accept stays an accept for the rest of its tick: the client needs its display data.
         if (!(change == QuestClientChange.Progress && _client.TryGetValue(questId, out QuestClientChange owed)
               && owed == QuestClientChange.Accepted))
+        {
             _client[questId] = change;
+        }
 
         save.QuestChanged(questId);
         Version++;

@@ -11,10 +11,18 @@ public class AuraRulesShould
 {
     private static AuraTemplate Bleed() => new()
     {
-        Id = new AuraId(1), Name = "Bleed", Icon = "bleed", Kind = AuraKind.Harmful,
-        DurationMs = 12000, TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage,
-        PeriodicBase = 12f, ScalingStat = ScalingStat.Attack, ScalingCoefficient = 0.25f,
-        Stacking = AuraStacking.Stack, MaxStacks = 3,
+        Id = new AuraId(1),
+        Name = "Bleed",
+        Icon = "bleed",
+        Kind = AuraKind.Harmful,
+        DurationMs = 12000,
+        TickIntervalMs = 3000,
+        PeriodicKind = AuraPeriodicKind.Damage,
+        PeriodicBase = 12f,
+        ScalingStat = ScalingStat.Attack,
+        ScalingCoefficient = 0.25f,
+        Stacking = AuraStacking.Stack,
+        MaxStacks = 3,
     };
 
     [Fact]

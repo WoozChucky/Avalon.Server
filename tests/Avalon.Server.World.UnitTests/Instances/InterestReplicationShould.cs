@@ -10,7 +10,6 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using NSubstitute;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -22,7 +21,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 public class InterestReplicationShould
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     [Fact]
     public void Send_no_add_for_a_creature_a_character_or_a_projectile_beyond_the_radius()
@@ -115,7 +114,7 @@ public class InterestReplicationShould
         watcher.Character.Position = new Vector3(0f, 0f, 0f);
         Ticks(instance, 1);
 
-        List<ObjectState> adds = watcher.Added().Where(s => s.Guid == creature.Guid.RawValue).ToList();
+        var adds = watcher.Added().Where(s => s.Guid == creature.Guid.RawValue).ToList();
         Assert.Equal(2, adds.Count);
         Assert.Equal(37u, adds[1].CurrentHealth);
         Assert.Equal(100u, adds[1].Health);
@@ -131,7 +130,7 @@ public class InterestReplicationShould
         Creature nearA = AddCreature(instance, 593_951, new Vector3(10f, 0f, 0f));
         Creature nearB = AddCreature(instance, 593_952, new Vector3(510f, 0f, 0f));
 
-        instance.Update(Tick);
+        instance.Update(s_tick);
 
         Assert.Equal(
             new[] { a.Character.Guid.RawValue, nearA.Guid.RawValue }.Order(),
@@ -236,7 +235,7 @@ public class InterestReplicationShould
     {
         for (int i = 0; i < count; i++)
         {
-            instance.Update(Tick);
+            instance.Update(s_tick);
         }
     }
 

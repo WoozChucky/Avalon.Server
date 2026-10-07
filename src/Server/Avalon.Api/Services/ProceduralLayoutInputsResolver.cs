@@ -1,6 +1,3 @@
-// Licensed to the Avalon MMORPG Game under one or more agreements.
-// Avalon MMORPG Game licenses this file to you under the MIT license.
-
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
@@ -28,14 +25,14 @@ public class ProceduralLayoutInputsResolver : IProceduralLayoutInputsResolver
     public async Task<ProceduralPoolResolution> ResolveMembersAsync(ChunkPool pool, CancellationToken ct)
     {
         IReadOnlyList<ChunkTemplate> templates = await _chunks.FindAllWithSlotsAsync(ct);
-        Dictionary<ChunkTemplateId, ChunkTemplate> byId = templates.ToDictionary(t => t.Id);
+        var byId = templates.ToDictionary(t => t.Id);
 
-        List<ChunkPoolMember> members = pool.Memberships
+        var members = pool.Memberships
             .Where(m => byId.ContainsKey(m.ChunkTemplateId))
             .Select(m => new ChunkPoolMember(byId[m.ChunkTemplateId], m.Weight))
             .ToList();
 
-        List<ChunkGroupDefinition> groups = pool.Groups
+        var groups = pool.Groups
             .Select(g => ChunkGroupDefinition.From(g, byId))
             .OfType<ChunkGroupDefinition>()
             .ToList();

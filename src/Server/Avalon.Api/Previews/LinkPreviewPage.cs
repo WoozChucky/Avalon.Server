@@ -27,8 +27,11 @@ public sealed class PublicSiteSettings
             || uri.Scheme is not ("http" or "https")
             || trimmed.Contains('?', StringComparison.Ordinal)
             || trimmed.Contains('#', StringComparison.Ordinal))
+        {
             throw new InvalidOperationException(
                 "Application:PublicSiteUrl must be an absolute http or https URL without a query or fragment, e.g. https://avalon.example.");
+        }
+
         return new PublicSiteSettings(trimmed);
     }
 }

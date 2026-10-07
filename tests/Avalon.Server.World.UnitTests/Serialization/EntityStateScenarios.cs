@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Domain.Characters;
@@ -11,7 +9,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Units;
 
 namespace Avalon.Server.World.UnitTests.Serialization;
 
@@ -64,24 +61,24 @@ internal static class EntityStateScenarios
     /// 132 UTF-8 bytes, so the length prefix needs a second byte and a reader that counts
     /// characters rather than bytes disagrees about where the name ends.
     /// </summary>
-    private static readonly string LongName = string.Concat(Enumerable.Repeat("Ωx", 44));
+    private static readonly string s_longName = string.Concat(Enumerable.Repeat("Ωx", 44));
 
-    private static readonly Vector3 CharacterPosition = new(12.5f, -3.25f, 800.125f);
-    private static readonly Vector3 CharacterVelocity = new(0.5f, 0f, -1.75f);
+    private static readonly Vector3 s_characterPosition = new(12.5f, -3.25f, 800.125f);
+    private static readonly Vector3 s_characterVelocity = new(0.5f, 0f, -1.75f);
     private const float CharacterYaw = 2.75f;
 
-    private static readonly Vector3 CreaturePosition = new(-40.5f, 0.25f, 16f);
-    private static readonly Vector3 CreatureVelocity = new(1f, 0f, 0f);
+    private static readonly Vector3 s_creaturePosition = new(-40.5f, 0.25f, 16f);
+    private static readonly Vector3 s_creatureVelocity = new(1f, 0f, 0f);
 
     /// <summary>
     /// x and z are deliberately not zero. Only y travels, so a reader that took the whole
     /// vector would show it.
     /// </summary>
-    private static readonly Vector3 CreatureOrientation = new(9.5f, -1.5f, -9.5f);
+    private static readonly Vector3 s_creatureOrientation = new(9.5f, -1.5f, -9.5f);
 
-    private static readonly Vector3 ProjectilePosition = new(1f, 2f, 3f);
-    private static readonly Vector3 ProjectileVelocity = new(0f, -9.81f, 0f);
-    private static readonly Vector3 ProjectileOrientation = new(4.5f, 0.75f, -4.5f);
+    private static readonly Vector3 s_projectilePosition = new(1f, 2f, 3f);
+    private static readonly Vector3 s_projectileVelocity = new(0f, -9.81f, 0f);
+    private static readonly Vector3 s_projectileOrientation = new(4.5f, 0.75f, -4.5f);
 
     /// <summary>
     /// Past what fits in 32 bits. The identifier is declared as a 64-bit value and travels as
@@ -89,9 +86,9 @@ internal static class EntityStateScenarios
     /// </summary>
     private const ulong CreatureTemplate = 900_719_925_474_099UL;
 
-    private static readonly ObjectGuid CharacterGuid = new(ObjectType.Character, 4242);
-    private static readonly ObjectGuid CreatureGuid = new(ObjectType.Creature, 77);
-    private static readonly ObjectGuid ProjectileGuid = new(ObjectType.SpellProjectile, 9);
+    private static readonly ObjectGuid s_characterGuid = new(ObjectType.Character, 4242);
+    private static readonly ObjectGuid s_creatureGuid = new(ObjectType.Creature, 77);
+    private static readonly ObjectGuid s_projectileGuid = new(ObjectType.SpellProjectile, 9);
 
     internal static IReadOnlyList<EntityStateScenario> All { get; } = Build();
 
@@ -145,13 +142,13 @@ internal static class EntityStateScenarios
                 Health = 4100,
                 Power1 = 900,
                 Experience = 12_345_678_901UL,
-                X = CharacterPosition.x,
-                Y = CharacterPosition.y,
-                Z = CharacterPosition.z,
+                X = s_characterPosition.x,
+                Y = s_characterPosition.y,
+                Z = s_characterPosition.z,
                 Rotation = CharacterYaw,
             },
-            Guid = CharacterGuid,
-            Velocity = CharacterVelocity,
+            Guid = s_characterGuid,
+            Velocity = s_characterVelocity,
             MoveState = MoveState.Running,
             CurrentHealth = 3777u,
             PowerType = powerType,
@@ -163,12 +160,12 @@ internal static class EntityStateScenarios
     private static ICreature NewCreature() =>
         new Creature
         {
-            Guid = CreatureGuid,
+            Guid = s_creatureGuid,
             Name = "Direwolf",
             Metadata = new CreatureTemplate { Id = CreatureTemplate },
-            Position = CreaturePosition,
-            Velocity = CreatureVelocity,
-            Orientation = CreatureOrientation,
+            Position = s_creaturePosition,
+            Velocity = s_creatureVelocity,
+            Orientation = s_creatureOrientation,
             MoveState = MoveState.Walking,
             Health = 250u,
             CurrentHealth = 175u,
@@ -180,17 +177,17 @@ internal static class EntityStateScenarios
 
     private static IWorldObject NewProjectile() => new ProjectileStub
     {
-        Guid = ProjectileGuid,
-        Position = ProjectilePosition,
-        Velocity = ProjectileVelocity,
-        Orientation = ProjectileOrientation,
+        Guid = s_projectileGuid,
+        Position = s_projectilePosition,
+        Velocity = s_projectileVelocity,
+        Orientation = s_projectileOrientation,
     };
 
     private static EntitySnapshot CharacterBase(bool isDead = false, string name = PlainName) => new()
     {
         Type = ObjectType.Character,
-        Position = CharacterPosition,
-        Velocity = CharacterVelocity,
+        Position = s_characterPosition,
+        Velocity = s_characterVelocity,
 
         // The character stores its facing as a single angle, so the vector it reports has
         // zero for x and z and the yaw-only truncation is invisible here. The creature
@@ -212,10 +209,10 @@ internal static class EntityStateScenarios
     private static EntityStateScenario CharacterSeenByAnotherPlayer() => new()
     {
         Name = "character-add-seen-by-another-player",
-        Guid = CharacterGuid,
+        Guid = s_characterGuid,
         IsAdd = true,
         Entity = NewCharacter(),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, CharacterGuid, OtherPlayer),
+        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, s_characterGuid, OtherPlayer),
         Expected = CharacterBase(),
     };
 
@@ -226,30 +223,30 @@ internal static class EntityStateScenarios
     private static EntityStateScenario CharacterSeenByItsOwnPlayer() => new()
     {
         Name = "character-add-seen-by-its-own-player",
-        Guid = CharacterGuid,
+        Guid = s_characterGuid,
         IsAdd = true,
         Entity = NewCharacter(),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, CharacterGuid, CharacterGuid),
+        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, s_characterGuid, s_characterGuid),
         Expected = CharacterBase() with { Position = null, Velocity = null, Orientation = null },
     };
 
     private static EntityStateScenario CharacterUpdateSeenByAnotherPlayer() => new()
     {
         Name = "character-update-seen-by-another-player",
-        Guid = CharacterGuid,
+        Guid = s_characterGuid,
         IsAdd = false,
         Entity = NewCharacter(),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, CharacterGuid, OtherPlayer),
+        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, s_characterGuid, OtherPlayer),
         Expected = CharacterBase(),
     };
 
     private static EntityStateScenario CharacterUpdateSeenByItsOwnPlayer() => new()
     {
         Name = "character-update-seen-by-its-own-player",
-        Guid = CharacterGuid,
+        Guid = s_characterGuid,
         IsAdd = false,
         Entity = NewCharacter(),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, CharacterGuid, CharacterGuid),
+        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, s_characterGuid, s_characterGuid),
         Expected = CharacterBase() with { Position = null, Velocity = null, Orientation = null },
     };
 
@@ -260,10 +257,10 @@ internal static class EntityStateScenarios
     private static EntityStateScenario CharacterUpdateWithoutAPowerType() => new()
     {
         Name = "character-update-without-a-power-type",
-        Guid = CharacterGuid,
+        Guid = s_characterGuid,
         IsAdd = false,
         Entity = NewCharacter(PowerType.None),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, CharacterGuid, OtherPlayer),
+        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, s_characterGuid, OtherPlayer),
         Expected = CharacterBase() with
         {
             PowerType = PowerType.None,
@@ -282,7 +279,7 @@ internal static class EntityStateScenarios
     private static EntityStateScenario CharacterUpdateWithoutThePowerTypeSelected() => new()
     {
         Name = "character-update-without-the-power-type-selected",
-        Guid = CharacterGuid,
+        Guid = s_characterGuid,
         IsAdd = false,
         Entity = NewCharacter(),
         Fields = GameEntityFields.CharacterUpdate & ~GameEntityFields.PowerType,
@@ -302,7 +299,7 @@ internal static class EntityStateScenarios
     private static EntityStateScenario CharacterUpdateWithoutExperienceSelected() => new()
     {
         Name = "character-update-without-experience-selected",
-        Guid = CharacterGuid,
+        Guid = s_characterGuid,
         IsAdd = false,
         Entity = NewCharacter(),
         Fields = GameEntityFields.CharacterUpdate
@@ -317,21 +314,21 @@ internal static class EntityStateScenarios
     private static EntityStateScenario DeadCharacterWithALongName() => new()
     {
         Name = "character-add-dead-with-a-long-name",
-        Guid = CharacterGuid,
+        Guid = s_characterGuid,
         IsAdd = true,
-        Entity = NewCharacter(isDead: true, name: LongName),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, CharacterGuid, OtherPlayer),
+        Entity = NewCharacter(isDead: true, name: s_longName),
+        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, s_characterGuid, OtherPlayer),
         // A corpse is at rest: dying zeroes the velocity it was built with (#424), and a zero
         // velocity is still sent, as a present all-zero vector rather than an absent one.
-        Expected = CharacterBase(isDead: true, name: LongName) with { Velocity = Vector3.zero },
+        Expected = CharacterBase(isDead: true, name: s_longName) with { Velocity = Vector3.zero },
     };
 
     private static EntitySnapshot CreatureBase() => new()
     {
         Type = ObjectType.Creature,
-        Position = CreaturePosition,
-        Velocity = CreatureVelocity,
-        Orientation = CreatureOrientation.y,
+        Position = s_creaturePosition,
+        Velocity = s_creatureVelocity,
+        Orientation = s_creatureOrientation.y,
         MoveState = MoveState.Walking,
         PowerType = PowerType.Fury,
         CurrentPower = 40u,
@@ -347,7 +344,7 @@ internal static class EntityStateScenarios
     private static EntityStateScenario CreatureAdd() => new()
     {
         Name = "creature-add",
-        Guid = CreatureGuid,
+        Guid = s_creatureGuid,
         IsAdd = true,
         Entity = NewCreature(),
         Fields = GameEntityFields.All,
@@ -366,7 +363,7 @@ internal static class EntityStateScenarios
     private static EntityStateScenario CreatureUpdate() => new()
     {
         Name = "creature-update",
-        Guid = CreatureGuid,
+        Guid = s_creatureGuid,
         IsAdd = false,
         Entity = NewCreature(),
         Fields = GameEntityFields.CreatureUpdate,
@@ -377,32 +374,32 @@ internal static class EntityStateScenarios
     private static EntityStateScenario ProjectileAdd() => new()
     {
         Name = "projectile-add",
-        Guid = ProjectileGuid,
+        Guid = s_projectileGuid,
         IsAdd = true,
         Entity = NewProjectile(),
         Fields = GameEntityFields.All,
         Expected = new EntitySnapshot
         {
             Type = ObjectType.SpellProjectile,
-            Position = ProjectilePosition,
-            Velocity = ProjectileVelocity,
-            Orientation = ProjectileOrientation.y,
+            Position = s_projectilePosition,
+            Velocity = s_projectileVelocity,
+            Orientation = s_projectileOrientation.y,
         },
     };
 
     private static EntityStateScenario ProjectileUpdateWithEverythingDirty() => new()
     {
         Name = "projectile-update-with-everything-dirty",
-        Guid = ProjectileGuid,
+        Guid = s_projectileGuid,
         IsAdd = false,
         Entity = NewProjectile(),
         Fields = GameEntityFields.WorldObjectUpdate,
         Expected = new EntitySnapshot
         {
             Type = ObjectType.SpellProjectile,
-            Position = ProjectilePosition,
-            Velocity = ProjectileVelocity,
-            Orientation = ProjectileOrientation.y,
+            Position = s_projectilePosition,
+            Velocity = s_projectileVelocity,
+            Orientation = s_projectileOrientation.y,
         },
     };
 
@@ -413,14 +410,14 @@ internal static class EntityStateScenarios
     private static EntityStateScenario ProjectileUpdateWithOnlyPositionDirty() => new()
     {
         Name = "projectile-update-with-only-position-dirty",
-        Guid = ProjectileGuid,
+        Guid = s_projectileGuid,
         IsAdd = false,
         Entity = NewProjectile(),
         Fields = GameEntityFields.Position,
         Expected = new EntitySnapshot
         {
             Type = ObjectType.SpellProjectile,
-            Position = ProjectilePosition,
+            Position = s_projectilePosition,
         },
     };
 

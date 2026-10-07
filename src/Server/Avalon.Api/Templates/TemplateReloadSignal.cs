@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -153,7 +152,7 @@ public sealed class RedisTemplateReloadSignal(
             return;
         }
 
-        if (result is not null && _pending.TryGetValue(result.RequestId, out var answer))
+        if (result is not null && _pending.TryGetValue(result.RequestId, out TaskCompletionSource<ReloadResultMessage>? answer))
         {
             answer.TrySetResult(result);
         }

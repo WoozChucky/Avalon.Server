@@ -2,7 +2,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -237,7 +236,10 @@ public class QuestCatalogShould
     {
         var objective = new QuestObjective
         {
-            Id = 11, Type = type, Count = 1, DescriptionTextId = ObjectiveText,
+            Id = 11,
+            Type = type,
+            Count = 1,
+            DescriptionTextId = ObjectiveText,
             CreatureTemplateId = creature is { } c ? new CreatureTemplateId(c) : null,
             ItemTemplateId = item is { } i ? new ItemTemplateId(i) : null,
         };

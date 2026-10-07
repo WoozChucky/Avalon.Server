@@ -1,23 +1,23 @@
 using Avalon.Network.Packets.Abstractions;
-using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
+using ProtoBuf;
 
 namespace Avalon.Network.Packets.World;
 
 public enum MapTransitionResult : byte
 {
-    Success          = 0,
-    MapNotFound      = 1,
-    NotNearPortal    = 2,
-    LevelTooLow      = 3,
-    LevelTooHigh     = 4,
+    Success = 0,
+    MapNotFound = 1,
+    NotNearPortal = 2,
+    LevelTooLow = 3,
+    LevelTooHigh = 4,
     GenerationFailed = 5,
     /// <summary>The party's instance already holds as many players as it may (2026-09-30).</summary>
-    InstanceFull     = 6,
+    InstanceFull = 6,
     /// <summary>A teleport's position had no walkable navmesh ground within its search box (item use).</summary>
     NoWalkableGround = 7,
     /// <summary>Another move to a map is already under way (a scroll return, an item teleport, a respawn or a party return).</summary>
-    MoveInProgress   = 8,
+    MoveInProgress = 8,
 }
 
 [ProtoContract]

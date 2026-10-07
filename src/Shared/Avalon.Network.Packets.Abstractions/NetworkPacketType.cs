@@ -36,7 +36,7 @@ public enum NetworkPacketType : short
     CMSG_CHARACTER_LEAVE = 0x2016,
 
     // Map
-    CMSG_ENTER_MAP    = 0x2021,
+    CMSG_ENTER_MAP = 0x2021,
     CMSG_RESPAWN_AT_TOWN = 0x2022,
 
     // World
@@ -69,9 +69,9 @@ public enum NetworkPacketType : short
 
     // Combat
     CMSG_CAST_ABILITY = 0x2101,
-    CMSG_TARGET_UNIT  = 0x2102,
-    CMSG_PVP_TOGGLE   = 0x2103,
-    CMSG_AURA_CANCEL  = 0x2104,
+    CMSG_TARGET_UNIT = 0x2102,
+    CMSG_PVP_TOGGLE = 0x2103,
+    CMSG_AURA_CANCEL = 0x2104,
 
     // Parties
     CMSG_PARTY_INVITE = 0x20B0,
@@ -123,8 +123,8 @@ public enum NetworkPacketType : short
     SMSG_CHARACTER_ABILITY_AMOUNTS = 0x302C,
 
     // Map
-    SMSG_MAP_TELEPORT    = 0x3030,
-    SMSG_MAP_TRANSITION  = 0x3031,
+    SMSG_MAP_TELEPORT = 0x3030,
+    SMSG_MAP_TRANSITION = 0x3031,
     SMSG_CHUNK_LAYOUT = 0x3032,
 
     // World
@@ -151,7 +151,6 @@ public enum NetworkPacketType : short
     SMSG_AURA_LIST = 0x310E,
     SMSG_AURA_CANCEL_RESULT = 0x310F,
 
-
     SMSG_PONG = 0x3006,
     SMSG_PING = 0x3007,
     SMSG_DISCONNECT = 0x3008,
@@ -165,7 +164,7 @@ public enum NetworkPacketType : short
 
     // Dialogue
     SMSG_DIALOGUE_NODE = 0x3070,
-    SMSG_DIALOGUE_END  = 0x3071,
+    SMSG_DIALOGUE_END = 0x3071,
 
     // Loot
     SMSG_LOOT_SPAWNED = 0x3080,

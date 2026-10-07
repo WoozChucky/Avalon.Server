@@ -63,7 +63,9 @@ public static class PublicMapping
             if (max is not > 0) continue;
             yield return new PublicItemDamageDto
             {
-                Min = Math.Min(min ?? 0, max.Value), Max = max.Value, Type = (DamageType?)type,
+                Min = Math.Min(min ?? 0, max.Value),
+                Max = max.Value,
+                Type = (DamageType?)type,
             };
         }
     }
@@ -78,7 +80,9 @@ public static class PublicMapping
             (t.StatType10, t.StatValue10),
         ];
         foreach ((Avalon.Domain.World.StatType? type, uint? value) in pairs)
+        {
             if (type is { } statType && value is > 0)
                 yield return new PublicItemStatDto { Type = (StatType)statType, Value = value.Value };
+        }
     }
 }

@@ -1,7 +1,3 @@
-// Licensed to the Avalon ARPG Game under one or more agreements.
-// Avalon ARPG Game licenses this file to you under the MIT license.
-
-using System;
 using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
 using Org.BouncyCastle.Asn1;
@@ -27,7 +23,7 @@ public class PublicKeyValidationShould
 {
     private static byte[] PublicKeyOn(DerObjectIdentifier curve)
     {
-        var generator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
+        IAsymmetricCipherKeyPairGenerator generator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
         generator.Init(new ECKeyGenerationParameters(curve, new SecureRandom()));
         AsymmetricCipherKeyPair pair = generator.GenerateKeyPair();
 
@@ -66,7 +62,7 @@ public class PublicKeyValidationShould
     [Fact]
     public void RefuseAKeyThatIsNotEllipticCurve()
     {
-        var generator = GeneratorUtilities.GetKeyPairGenerator("RSA");
+        IAsymmetricCipherKeyPairGenerator generator = GeneratorUtilities.GetKeyPairGenerator("RSA");
         generator.Init(new KeyGenerationParameters(new SecureRandom(), 1024));
 
         byte[] der = SubjectPublicKeyInfoFactory

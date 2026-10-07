@@ -26,16 +26,16 @@ public static class ChunkRotationVectors
 
     public static void Write(string outputPath)
     {
-        var pool = BuildForestPool();
-        var layout = new ProceduralLayoutGenerator().Generate(BuildForestConfig(), pool, Seed);
+        List<ChunkPoolMember> pool = BuildForestPool();
+        ChunkLayout layout = new ProceduralLayoutGenerator().Generate(BuildForestConfig(), pool, Seed);
         var templatesById = pool.ToDictionary(m => m.Template.Id, m => m.Template);
 
         var rows = new List<string>();
         var rotationsSeen = new HashSet<byte>();
 
-        foreach (var chunk in layout.Chunks)
+        foreach (PlacedChunk chunk in layout.Chunks)
         {
-            var template = templatesById[chunk.TemplateId];
+            ChunkTemplate template = templatesById[chunk.TemplateId];
             rotationsSeen.Add(chunk.Rotation);
 
             Emit(rows, $"corner {template.Name}", chunk, 0f, 0f, 0f);
@@ -43,17 +43,17 @@ public static class ChunkRotationVectors
             Emit(rows, $"corner {template.Name}", chunk, 0f, 0f, CellSize);
             Emit(rows, $"corner {template.Name}", chunk, CellSize, 0f, CellSize);
 
-            foreach (var slot in template.SpawnSlots.Where(s => s.Tag.Equals("entry", StringComparison.OrdinalIgnoreCase)))
+            foreach (ChunkSpawnSlot? slot in template.SpawnSlots.Where(s => s.Tag.Equals("entry", StringComparison.OrdinalIgnoreCase)))
                 Emit(rows, $"entryspawn {template.Name}", chunk, slot.LocalX, slot.LocalY, slot.LocalZ);
 
-            foreach (var slot in template.PortalSlots)
+            foreach (ChunkPortalSlot slot in template.PortalSlots)
                 Emit(rows, $"portal-{slot.Role} {template.Name}", chunk, slot.LocalX, slot.LocalY, slot.LocalZ);
         }
 
         // Every rotation the layout did not reach, called directly. Non-zero origin.y as well as
         // non-zero local.y, so "origin.y + local.y" is held rather than just one of its terms.
         var synthesised = new List<byte>();
-        foreach (var rotation in new byte[] { 0, 1, 2, 3 })
+        foreach (byte rotation in new byte[] { 0, 1, 2, 3 })
         {
             if (rotationsSeen.Contains(rotation)) continue;
             synthesised.Add(rotation);
@@ -65,7 +65,7 @@ public static class ChunkRotationVectors
 
         var text = new StringBuilder();
         text.Append(Header(layout, rotationsSeen, synthesised));
-        foreach (var row in rows)
+        foreach (string row in rows)
             text.Append(row).Append('\n');
 
         Lf.Write(outputPath, text.ToString());
@@ -79,7 +79,7 @@ public static class ChunkRotationVectors
 
     private static void EmitDirect(List<string> sink, string label, Vector3 origin, byte rotation, float lx, float ly, float lz)
     {
-        var w = ChunkRotation.LocalToWorld(lx, ly, lz, rotation, CellSize, origin);
+        Vector3 w = ChunkRotation.LocalToWorld(lx, ly, lz, rotation, CellSize, origin);
         sink.Add(string.Join(' ',
             "v",
             F(origin.x), F(origin.y), F(origin.z),
@@ -136,7 +136,10 @@ public static class ChunkRotationVectors
     {
         const ushort N_C = 1 << 1;
         const ushort E_C = 1 << 4;
+        // N_C, E_C, S_C and W_C name the edge bits as a set; IDE1006 reads the S_ of S_C as a static-field prefix.
+#pragma warning disable IDE1006
         const ushort S_C = 1 << 7;
+#pragma warning restore IDE1006
         const ushort W_C = 1 << 10;
 
         return
@@ -179,7 +182,7 @@ public static class ChunkRotationVectors
         };
         if (addEntrySpawn)
             t.SpawnSlots.Add(new ChunkSpawnSlot { Tag = "entry", LocalX = 15, LocalY = 1, LocalZ = 5 });
-        foreach (var tag in spawnTags ?? [])
+        foreach (string tag in spawnTags ?? [])
             t.SpawnSlots.Add(new ChunkSpawnSlot { Tag = tag, LocalX = 15, LocalY = 1, LocalZ = 15 });
         if (portal is not null)
             t.PortalSlots.Add(new ChunkPortalSlot { Role = portal.Value, LocalX = 15, LocalY = 1, LocalZ = portal.Value == PortalRole.Back ? 5 : 25 });

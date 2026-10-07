@@ -52,8 +52,13 @@ public class AvalonAuthHandlerShould
         _accounts.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == 7), Arg.Any<CancellationToken>())
             .Returns(new Account
             {
-                Id = new AccountId(7), Username = "CALLER", Email = "c@avalon.monster",
-                Salt = [1], Verifier = [2], JoinDate = DateTime.UtcNow, Status = status,
+                Id = new AccountId(7),
+                Username = "CALLER",
+                Email = "c@avalon.monster",
+                Salt = [1],
+                Verifier = [2],
+                JoinDate = DateTime.UtcNow,
+                Status = status,
             });
 
     [Fact]

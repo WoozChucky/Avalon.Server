@@ -16,7 +16,7 @@ public class LootTableRepositoryShould
     [Fact]
     public async Task Load_Every_Table_With_Its_Entries()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
 
         await using (WorldDbContext write = database.CreateDbContext())
         {
@@ -47,7 +47,7 @@ public class LootTableRepositoryShould
     [Fact]
     public async Task Refuse_An_Entry_That_Names_Both_An_Item_And_A_Table()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
 
         write.LootTables.Add(new LootTable { Id = 900, Name = "shared" });
@@ -71,7 +71,7 @@ public class LootTableRepositoryShould
     [Fact]
     public async Task Refuse_An_Entry_That_Names_Neither_An_Item_Nor_A_Table()
     {
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using var database = SqliteDatabase.World();
         await using WorldDbContext write = database.CreateDbContext();
 
         write.LootTables.Add(new LootTable
