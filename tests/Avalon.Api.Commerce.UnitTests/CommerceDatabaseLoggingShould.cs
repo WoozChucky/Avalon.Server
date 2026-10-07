@@ -1,4 +1,3 @@
-using Avalon.Api.Commerce;
 using Avalon.Configuration;
 using Avalon.Database.Extensions;
 using Microsoft.Extensions.Configuration;
@@ -8,7 +7,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Commerce;
+namespace Avalon.Api.Commerce.UnitTests;
 
 public sealed class CommerceDatabaseLoggingShould
 {

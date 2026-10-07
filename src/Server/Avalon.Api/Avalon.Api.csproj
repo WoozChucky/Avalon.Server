@@ -29,7 +29,6 @@
     <PackageReference Include="Serilog.Extensions.Logging"/>
     <PackageReference Include="Serilog.Sinks.Console"/>
     <PackageReference Include="StackExchange.Redis"/>
-    <PackageReference Include="Stripe.net" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt"/>
     <PackageReference Include="BCrypt.Net-Next"/>
     <PackageReference Include="WebPush"/>
@@ -52,6 +51,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
+    <ProjectReference Include="..\Avalon.Api.Commerce\Avalon.Api.Commerce.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Contract\Avalon.Api.Contract.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Distribution\Avalon.Api.Distribution.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>

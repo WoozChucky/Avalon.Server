@@ -1,8 +1,7 @@
-using Avalon.Api.Commerce;
 using Avalon.Domain.Commerce;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Commerce;
+namespace Avalon.Api.Commerce.UnitTests;
 
 public sealed class PaymentProviderContractShould
 {

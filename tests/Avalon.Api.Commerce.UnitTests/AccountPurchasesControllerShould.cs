@@ -1,11 +1,11 @@
 using System.Reflection;
-using Avalon.Api.Controllers;
+using Avalon.Api.Commerce.Controllers;
 using Avalon.Api.Hosting.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Commerce;
+namespace Avalon.Api.Commerce.UnitTests;
 
 public sealed class AccountPurchasesControllerShould
 {

@@ -1,4 +1,3 @@
-using Avalon.Api.Commerce;
 using Avalon.Api.Contract.Commerce;
 using Avalon.Common.Accounts;
 using Avalon.Database;
@@ -9,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Commerce;
+namespace Avalon.Api.Commerce.UnitTests;
 
 public sealed class PurchaseAdministrationShould
 {

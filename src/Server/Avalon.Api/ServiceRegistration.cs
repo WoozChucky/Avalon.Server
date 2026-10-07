@@ -36,8 +36,8 @@ public static class ServiceRegistration
 
     public static void AddSteamStoreAuthentication(this IServiceCollection services)
     {
-        services.AddOptions<Avalon.Configuration.StoreAuthenticationConfiguration>()
-            .BindConfiguration("Application:StoreAuthentication");
+        // Bound once in a process, which commerce may share (#794).
+        services.AddStoreAuthenticationOptions();
         services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<Avalon.Configuration.StoreAuthenticationConfiguration>,
             Config.StoreAuthenticationOptionsValidator>();
         ConfigureSteamHttp(services.AddHttpClient<Avalon.Infrastructure.StoreAuth.ISteamProofVerifier,
@@ -75,7 +75,6 @@ public static class ServiceRegistration
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
         services.AddSteamStoreAuthentication();
-        services.AddCommerce();
         services.AddSteamWebLink();
         services.AddSingleton(sp => new Avalon.Infrastructure.GameAuth.GameAuthCryptography(
             sp.GetRequiredService<Microsoft.IdentityModel.Tokens.SymmetricSecurityKey>().Key));

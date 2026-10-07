@@ -6,6 +6,8 @@ using Avalon.Api.Exceptions;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
+using Avalon.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +41,12 @@ public sealed class MonolithCompositionShould : IAsyncDisposable
                     ["Application:Authentication:IssuerSigningKey"] = new string('k', 64),
                     ["Database:Worlds:1:World:ConnectionString"] = "Host=w1",
                     ["Database:Worlds:1:Characters:ConnectionString"] = "Host=c1",
+                    // Identity's store settings, with a playtest that admits world 3 alone.
+                    ["Application:StoreAuthentication:SteamAppId"] = StoreAuthenticationTestData.SteamAppId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["Application:StoreAuthentication:SteamPublisherKey"] = "test-only",
+                    ["Application:StoreAuthentication:SteamPlaytest:Enabled"] = "true",
+                    ["Application:StoreAuthentication:SteamPlaytest:AppId"] = "2514590",
+                    ["Application:StoreAuthentication:SteamPlaytest:AllowedWorldIds:0"] = "3",
                 });
             });
         _app = builder.Build();
@@ -52,7 +60,7 @@ public sealed class MonolithCompositionShould : IAsyncDisposable
         Type[] mappers = _app.Services.GetServices<IExceptionProblemMapper>().Select(mapper => mapper.GetType()).ToArray();
 
         Assert.Equal(
-            [typeof(CommerceProblemMapper), typeof(IdentityProblemMapper), typeof(WorldsProblemMapper), typeof(DistributionProblemMapper)],
+            [typeof(IdentityProblemMapper), typeof(WorldsProblemMapper), typeof(CommerceProblemMapper), typeof(DistributionProblemMapper)],
             mappers);
     }
 
@@ -81,6 +89,18 @@ public sealed class MonolithCompositionShould : IAsyncDisposable
     public void Give_observability_each_worlds_layout_inputs()
     {
         Assert.IsType<WorldContentRepositories>(_app.Services.GetRequiredService<IWorldContentRepositories>());
+    }
+
+    /// <summary>
+    /// Identity and commerce both read Application:StoreAuthentication, and the process binds it once: a second bind
+    /// would append each array entry again, and the playtest's doubled worlds would be refused as duplicates.
+    /// </summary>
+    [Fact]
+    public void Bind_the_store_authentication_section_once()
+    {
+        StoreAuthenticationConfiguration store = _app.Services.GetRequiredService<IOptions<StoreAuthenticationConfiguration>>().Value;
+
+        Assert.Equal(new ushort[] { 3 }, store.SteamPlaytest.AllowedWorldIds);
     }
 
     [Fact]
