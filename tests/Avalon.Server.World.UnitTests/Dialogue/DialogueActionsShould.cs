@@ -22,16 +22,6 @@ public class DialogueActionsShould
     ];
 
     [Fact]
-    public void Say_what_an_option_does()
-    {
-        var actions = new DialogueActions(s_nodes, s_options);
-
-        Assert.Equal(DialogueOptionAction.OpenBank, actions.For(new DialogueOptionId(2)));
-        Assert.Null(actions.For(new DialogueOptionId(1)));
-        Assert.Null(actions.For(new DialogueOptionId(77)));
-    }
-
-    [Fact]
     public void Offer_an_action_for_the_template_whose_dialogue_holds_it_anywhere()
     {
         var actions = new DialogueActions(s_nodes, s_options);

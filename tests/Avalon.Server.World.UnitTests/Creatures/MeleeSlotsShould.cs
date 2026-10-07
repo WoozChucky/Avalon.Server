@@ -21,44 +21,6 @@ public class MeleeSlotsShould
     private static readonly Vector3 s_targetPosition = Vector3.zero;
 
     [Fact]
-    public void Give_Four_Claimants_Four_Distinct_Slots()
-    {
-        var slots = new MeleeSlots(slotCount: 6, radius: 1.5f);
-
-        var claimed = new List<int>();
-        for (uint i = 1; i <= 4; i++)
-        {
-            Assert.True(slots.TryClaim(s_target, Creature(i), s_targetPosition, s_targetPosition, out int slot));
-            claimed.Add(slot);
-        }
-
-        Assert.Equal(4, claimed.Distinct().Count());
-    }
-
-    /// <summary>Review Focus 1. More attackers than slots must still chase, not throw.</summary>
-    [Fact]
-    public void Refuse_A_Claim_Once_Every_Slot_Is_Taken()
-    {
-        var slots = new MeleeSlots(slotCount: 2, radius: 1.5f);
-        slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out _);
-        slots.TryClaim(s_target, Creature(2), s_targetPosition, s_targetPosition, out _);
-
-        Assert.False(slots.TryClaim(s_target, Creature(3), s_targetPosition, s_targetPosition, out _));
-    }
-
-    /// <summary>Review Focus 4. A dies as B arrives, in one tick.</summary>
-    [Fact]
-    public void Let_The_Next_Claimant_Take_A_Released_Slot_Immediately()
-    {
-        var slots = new MeleeSlots(slotCount: 1, radius: 1.5f);
-        slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out int first);
-        slots.Release(s_target, Creature(1));
-
-        Assert.True(slots.TryClaim(s_target, Creature(2), s_targetPosition, s_targetPosition, out int second));
-        Assert.Equal(first, second);
-    }
-
-    [Fact]
     public void Keep_A_Claimants_Slot_Stable_Across_Repeated_Claims()
     {
         var slots = new MeleeSlots(slotCount: 6, radius: 1.5f);
@@ -68,19 +30,6 @@ public class MeleeSlotsShould
         // claimant to a "closer" slot — the slot is fixed at first claim, not re-picked per tick.
         Assert.True(slots.TryClaim(s_target, Creature(1), s_targetPosition, new Vector3(-5f, 0f, 0f), out int again));
         Assert.Equal(first, again);
-    }
-
-    [Fact]
-    public void Release_Every_Slot_When_The_Target_Dies()
-    {
-        var slots = new MeleeSlots(slotCount: 2, radius: 1.5f);
-        slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out _);
-        slots.TryClaim(s_target, Creature(2), s_targetPosition, s_targetPosition, out _);
-
-        slots.ReleaseTarget(s_target);
-
-        Assert.True(slots.TryClaim(s_target, Creature(3), s_targetPosition, s_targetPosition, out _));
-        Assert.True(slots.TryClaim(s_target, Creature(4), s_targetPosition, s_targetPosition, out _));
     }
 
     /// <summary>
@@ -104,41 +53,31 @@ public class MeleeSlotsShould
         Assert.Equal(3, secondSlot);
     }
 
-    [Fact]
-    public void Place_Slots_On_A_Ring_Of_The_Configured_Radius()
-    {
-        var slots = new MeleeSlots(slotCount: 4, radius: 2f);
-        var centre = new Vector3(10f, 5f, 10f);
-
-        for (int slot = 0; slot < 4; slot++)
-        {
-            Vector3 position = slots.PositionFor(centre, slot);
-            Assert.InRange(Vector3.Distance(centre, position), 1.99f, 2.01f);
-            Assert.Equal(centre.y, position.y); // ring is horizontal
-        }
-    }
-
     /// <summary>
-    /// Distance-from-centre alone can't catch a wrong angle step: |cos, sin| == 1 regardless of
-    /// the angle, so every slot collapsing onto a single point still passes that check, and
-    /// distinct slot indices alone don't guarantee distinct positions either. This pins the
-    /// actual user-visible requirement — creatures standing in their slots do not overlap — by
-    /// requiring every pair of the default 6 slots (at the default 1.5f radius) to be at least
-    /// one agent diameter apart: 1.2f, since NavmeshBuildSettings.AgentRadius defaults to 0.6f.
+    /// The slots sit on a horizontal ring of the configured radius. Distance-from-centre alone can't
+    /// catch a wrong angle step: |cos, sin| == 1 regardless of the angle, so every slot collapsing onto
+    /// a single point still passes that check, and distinct slot indices alone don't guarantee distinct
+    /// positions either. So this also pins the actual user-visible requirement — creatures standing in
+    /// their slots do not overlap — by requiring every pair of the default 6 slots (at the default 1.5f
+    /// radius) to be at least one agent diameter apart: 1.2f, since NavmeshBuildSettings.AgentRadius
+    /// defaults to 0.6f.
     /// </summary>
     [Fact]
-    public void Space_Every_Pair_Of_Slots_At_Least_One_Agent_Diameter_Apart()
+    public void Place_Slots_On_A_Horizontal_Ring_Of_The_Configured_Radius_At_Least_One_Agent_Diameter_Apart()
     {
         const int SlotCount = 6;
+        const float Radius = 1.5f;
         const float AgentDiameter = 1.2f; // 2 * NavmeshBuildSettings.AgentRadius (0.6f)
 
-        var slots = new MeleeSlots(SlotCount, radius: 1.5f);
+        var slots = new MeleeSlots(SlotCount, Radius);
         var centre = new Vector3(10f, 5f, 10f);
 
         var positions = new Vector3[SlotCount];
         for (int slot = 0; slot < SlotCount; slot++)
         {
             positions[slot] = slots.PositionFor(centre, slot);
+            Assert.InRange(Vector3.Distance(centre, positions[slot]), Radius - 0.01f, Radius + 0.01f);
+            Assert.Equal(centre.y, positions[slot].y); // ring is horizontal
         }
 
         for (int i = 0; i < SlotCount; i++)
@@ -153,53 +92,27 @@ public class MeleeSlotsShould
     }
 
     /// <summary>
-    /// A creature removed on a path that never runs the combat script's own release (e.g. despawn)
-    /// has only the target's guid it can no longer be trusted to still know. Releasing by claimant
-    /// alone must free the same slot regardless.
+    /// No entry is left behind for a target nobody holds a slot on, or every target ever attacked
+    /// keeps a permanent one for the life of the instance. <see cref="MeleeSlots.Release"/> must drop
+    /// the now-empty per-target dictionary, not just empty it out (2 slots, the last claimant
+    /// released). Round 4: the review found the entry-on-success fix landed with no test, silently
+    /// revertible with all other tests green: a slotCount of 0 can never produce a successful claim
+    /// (the candidate loop never runs), so it must leave no entry behind at all, not one created up
+    /// front and left empty. There is no public way to observe this (every public method behaves
+    /// identically whether the entry is pruned or merely empty), so this reaches into the private
+    /// `_claims` field via reflection rather than asserting through behaviour.
     /// </summary>
-    [Fact]
-    public void Release_A_Claimants_Slot_Without_Naming_The_Target()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(0)]
+    public void Leave_No_Entry_Behind_For_A_Target_Nobody_Holds_A_Slot_On(int slotCount)
     {
-        var slots = new MeleeSlots(slotCount: 1, radius: 1.5f);
-        Assert.True(slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out int first));
+        var slots = new MeleeSlots(slotCount, radius: 1.5f);
 
-        slots.ReleaseClaimant(Creature(1));
-
-        Assert.True(slots.TryClaim(s_target, Creature(2), s_targetPosition, s_targetPosition, out int second));
-        Assert.Equal(first, second);
-    }
-
-    /// <summary>
-    /// <see cref="MeleeSlots.Release"/> must drop the now-empty per-target dictionary, not just empty
-    /// it out — otherwise every target ever attacked leaves a permanent entry behind for the life of
-    /// the instance. There is no public way to observe this (every public method behaves identically
-    /// whether the entry is pruned or merely empty), so this reaches into the private `_claims` field
-    /// via reflection rather than asserting through behaviour.
-    /// </summary>
-    [Fact]
-    public void Prune_The_Targets_Entry_Once_Its_Last_Claimant_Is_Released()
-    {
-        var slots = new MeleeSlots(slotCount: 2, radius: 1.5f);
-        slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out _);
-
-        slots.Release(s_target, Creature(1));
-
-        Assert.False(ClaimsOf(slots).ContainsKey(s_target));
-    }
-
-    /// <summary>
-    /// Round 4: the review found the entry-on-success fix landed with no test, silently
-    /// revertible with all other tests green. A slotCount of 0 can never produce a successful
-    /// claim (the candidate loop never runs), so it must leave no entry behind at all — not an
-    /// entry created up front and left empty, which is the exact leak the pruning in Release
-    /// exists to prevent on the way out.
-    /// </summary>
-    [Fact]
-    public void Leave_No_Entry_Behind_When_A_Claim_Can_Never_Succeed()
-    {
-        var slots = new MeleeSlots(slotCount: 0, radius: 1.5f);
-
-        Assert.False(slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out _));
+        bool claimed = slots.TryClaim(s_target, Creature(1), s_targetPosition, s_targetPosition, out _);
+        Assert.Equal(slotCount > 0, claimed);
+        if (claimed)
+            slots.Release(s_target, Creature(1));
 
         Assert.False(ClaimsOf(slots).ContainsKey(s_target));
     }

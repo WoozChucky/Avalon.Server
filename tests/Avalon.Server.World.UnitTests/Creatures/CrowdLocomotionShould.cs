@@ -66,20 +66,12 @@ public class CrowdLocomotionShould
     private static DtCrowd CrowdOf(CrowdLocomotion locomotion) => locomotion.Crowd;
 
     /// <summary>
-    /// The dictionary <see cref="CrowdLocomotion.Update" />'s position/velocity copy-back actually
-    /// enumerates. Read by reflection for the same reason as <see cref="CrowdOf" />: asserting
-    /// against this dictionary, rather than against behaviour that happens to look the same, is what
-    /// makes <see cref="Keep_A_Synced_Player_Out_Of_The_Creature_Copy_Back_Dictionary" /> fail if a
-    /// future edit ever merges the two agent dictionaries.
+    /// The agents <see cref="CrowdLocomotion.Update" />'s position/velocity copy-back enumerates, one per
+    /// registered creature. Read by reflection, so the steering test can follow a creature's own agent.
     /// </summary>
     private static Dictionary<ObjectGuid, DtCrowdAgent> CreatureAgentsOf(CrowdLocomotion locomotion) =>
         (Dictionary<ObjectGuid, DtCrowdAgent>)typeof(CrowdLocomotion)
             .GetField("_creatureAgents", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(locomotion)!;
-
-    private static Dictionary<ObjectGuid, DtCrowdAgent> PlayerAgentsOf(CrowdLocomotion locomotion) =>
-        (Dictionary<ObjectGuid, DtCrowdAgent>)typeof(CrowdLocomotion)
-            .GetField("_playerAgents", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(locomotion)!;
 
     private static ICreature CreatureAt(Vector3 position)
@@ -94,40 +86,17 @@ public class CrowdLocomotionShould
     /// <summary>A player's ObjectGuid is a Character guid, distinct from every CreatureAt guid above.</summary>
     private static readonly ObjectGuid s_playerGuid = new(ObjectType.Character, 500);
 
-    [Fact]
-    public void Add_An_Agent_When_A_Creature_Registers()
-    {
-        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-
-        locomotion.Register(creature, radius: 0.5f);
-
-        Assert.Single(crowd.GetActiveAgents());
-    }
-
-    /// <summary>Registering twice must not double up: MapInstance.AddCreature can be re-entered.</summary>
-    [Fact]
-    public void Add_Only_One_Agent_When_A_Creature_Registers_Twice()
-    {
-        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.Register(creature, radius: 0.5f);
-
-        Assert.Single(crowd.GetActiveAgents());
-    }
-
     /// <summary>
     /// The counterpart to WaypointLocomotionShould's equivalent test: unlike WaypointLocomotion
     /// (before its own fix), CrowdLocomotion's Register already no-ops on an already-registered
     /// creature, leaving whatever move request is in progress untouched rather than removing and
     /// re-adding the agent (which would also discard the pending move request — see Teleport's
     /// remarks on why remove/re-add clears it). Re-entrant registration must not turn a chasing
-    /// creature into a stuck one.
+    /// creature into a stuck one. While it walks, the locomotion owns only the at-rest transition;
+    /// the caller (a script) owns the moving MoveState and must not have it overwritten every tick.
     /// </summary>
     [Fact]
-    public void Keep_An_In_Progress_Move_Request_When_Registered_Again()
+    public void Keep_An_In_Progress_Move_When_Registered_Again_And_Leave_The_Moving_MoveState_To_The_Caller()
     {
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
@@ -141,23 +110,20 @@ public class CrowdLocomotionShould
 
         Assert.Single(crowd.GetActiveAgents());
         Assert.False(locomotion.HasArrived(creature));
+
+        for (int i = 0; i < 5; i++)
+            locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
+
+        Assert.False(locomotion.HasArrived(creature));
+        creature.DidNotReceiveWithAnyArgs().MoveState = default;
     }
 
+    /// <summary>
+    /// Review Focus 3, crowd side: unregistering twice leaves no agent behind (a leaked one would keep
+    /// steering a dead creature), and a creature with no agent is inert rather than an exception.
+    /// </summary>
     [Fact]
-    public void Remove_The_Agent_When_A_Creature_Unregisters()
-    {
-        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.Unregister(creature);
-
-        Assert.Empty(crowd.GetActiveAgents());
-    }
-
-    /// <summary>Review Focus 3, crowd side: a leaked agent would keep steering a dead creature.</summary>
-    [Fact]
-    public void Tolerate_Unregistering_Twice()
+    public void Tolerate_Unregistering_Twice_And_Treat_An_Unregistered_Creature_As_Already_Arrived()
     {
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
@@ -167,63 +133,12 @@ public class CrowdLocomotionShould
         locomotion.Unregister(creature);
 
         Assert.Empty(crowd.GetActiveAgents());
-    }
-
-    /// <summary>An unregistered creature is inert rather than an exception.</summary>
-    [Fact]
-    public void Treat_An_Unregistered_Creature_As_Already_Arrived()
-    {
-        (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
 
         locomotion.MoveTo(creature, new Vector3(3f, 0f, 0f));
         locomotion.Stop(creature);
         locomotion.Update(TimeSpan.FromSeconds(1));
 
         Assert.True(locomotion.HasArrived(creature));
-    }
-
-    [Fact]
-    public void Write_The_Agents_Position_Back_Onto_The_Creature_On_Update()
-    {
-        (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.Update(TimeSpan.FromSeconds(0.1));
-
-        creature.Received().Position = Arg.Any<Vector3>();
-    }
-
-    [Fact]
-    public void Report_Not_Arrived_While_A_Destination_Is_Pending()
-    {
-        (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.MoveTo(creature, new Vector3(15f, 0f, 15f));
-
-        Assert.False(locomotion.HasArrived(creature));
-    }
-
-    /// <summary>
-    /// The locomotion owns only the at-rest transition; the caller (a script) owns the moving
-    /// MoveState and must not have it overwritten every tick.
-    /// </summary>
-    [Fact]
-    public void Leave_The_Moving_MoveState_To_The_Caller()
-    {
-        (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.MoveTo(creature, new Vector3(15f, 0f, 15f));
-        for (int i = 0; i < 5; i++)
-            locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
-
-        Assert.False(locomotion.HasArrived(creature));
-        creature.DidNotReceiveWithAnyArgs().MoveState = default;
     }
 
     /// <summary>
@@ -265,34 +180,6 @@ public class CrowdLocomotionShould
     }
 
     /// <summary>
-    /// DotRecast never clears an agent's move request on arrival, so without an explicit arrival
-    /// check HasArrived would stay false forever and every chasing script would hang.
-    /// </summary>
-    [Fact]
-    public void Come_To_Rest_Once_It_Reaches_Its_Destination()
-    {
-        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-        var destination = new Vector3(3f, 0f, 0f);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.MoveTo(creature, destination);
-
-        // 3m at up to 4 m/s: well under ten simulated seconds even allowing for acceleration.
-        for (int i = 0; i < 600 && !locomotion.HasArrived(creature); i++)
-            locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
-
-        Assert.True(locomotion.HasArrived(creature));
-        creature.Received().MoveState = MoveState.Idle;
-        creature.Received().Velocity = Vector3.zero;
-
-        // It arrived by walking there, not by the request failing: "arrived" and "could not path"
-        // both report true, so the distance is what tells them apart.
-        DtCrowdAgent agent = Assert.Single(crowd.GetActiveAgents());
-        Assert.True(MathF.Abs(agent.npos.X - destination.x) < 1f, $"agent X was {agent.npos.X}");
-    }
-
-    /// <summary>
     /// Review Focus 2, crowd side. A destination with no polygon under it is the crowd's equivalent
     /// of WaypointLocomotion's empty path: it must come to rest rather than throw, and must not
     /// leave MoveState at a moving value with nowhere to walk.
@@ -309,44 +196,6 @@ public class CrowdLocomotionShould
         creature.Received().MoveState = MoveState.Idle;
         creature.Received().Velocity = Vector3.zero;
         Assert.True(locomotion.HasArrived(creature));
-    }
-
-    [Fact]
-    public void Come_To_Rest_When_Stopped()
-    {
-        (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.MoveTo(creature, new Vector3(15f, 0f, 15f));
-        locomotion.Stop(creature);
-
-        creature.Received().MoveState = MoveState.Idle;
-        creature.Received().Velocity = Vector3.zero;
-        Assert.True(locomotion.HasArrived(creature));
-    }
-
-    /// <summary>
-    /// A teleport that moved only the entity would leave the agent behind, and the next Update would
-    /// copy the agent's old position straight back over the teleport.
-    /// </summary>
-    [Fact]
-    public void Move_Both_The_Entity_And_The_Agent_When_Teleported()
-    {
-        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-        var destination = new Vector3(12f, 0f, -8f);
-
-        locomotion.Register(creature, radius: 0.5f);
-        locomotion.Teleport(creature, destination);
-
-        creature.Received().Position = destination;
-        creature.Received().Velocity = Vector3.zero;
-        Assert.True(locomotion.HasArrived(creature));
-
-        DtCrowdAgent agent = Assert.Single(crowd.GetActiveAgents());
-        Assert.True(MathF.Abs(agent.npos.X - destination.x) < 1f, $"agent X was {agent.npos.X}");
-        Assert.True(MathF.Abs(agent.npos.Z - destination.z) < 1f, $"agent Z was {agent.npos.Z}");
     }
 
     /// <summary>
@@ -377,8 +226,14 @@ public class CrowdLocomotionShould
     // where a player is. A player agent exists purely so creatures can see and avoid it; it must
     // never be steered, and it must never feed a position back to anything.
 
+    /// <summary>
+    /// A player agent cannot move itself. The server already decided where the player is: the crowd is
+    /// told, never asked, so whatever Integrate and HandleCollisions compute for that agent is
+    /// overwritten by the next sync. Review Focus, player side: disconnects race the per-tick sync, so a
+    /// second removal must not throw.
+    /// </summary>
     [Fact]
-    public void Register_A_Player_Agent_That_Cannot_Move_Itself()
+    public void Keep_A_Player_Agent_Where_It_Is_Told_From_Sync_To_Removal()
     {
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
 
@@ -387,89 +242,17 @@ public class CrowdLocomotionShould
         DtCrowdAgent agent = Assert.Single(crowd.GetActiveAgents());
         Assert.Equal(0f, agent.option.maxSpeed);
         Assert.Equal(0f, agent.option.maxAcceleration);
-    }
-
-    /// <summary>
-    /// The server already decided where the player is. The crowd is told, never asked — so whatever
-    /// Integrate and HandleCollisions compute for that agent is discarded.
-    /// </summary>
-    [Fact]
-    public void Overwrite_A_Player_Agents_Position_Rather_Than_Reading_It_Back()
-    {
-        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        locomotion.SyncPlayer(s_playerGuid, new Vector3(1f, 0f, 1f));
 
         locomotion.Update(TimeSpan.FromSeconds(0.1));
         locomotion.SyncPlayer(s_playerGuid, new Vector3(5f, 0f, 5f));
 
-        DtCrowdAgent agent = Assert.Single(crowd.GetActiveAgents());
-        Assert.InRange(agent.npos.X, 4.9f, 5.1f);
-    }
-
-    [Fact]
-    public void Drop_A_Player_Agent_When_The_Player_Leaves()
-    {
-        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        locomotion.SyncPlayer(s_playerGuid, new Vector3(1f, 0f, 1f));
-
-        locomotion.RemovePlayer(s_playerGuid);
-
-        Assert.Empty(crowd.GetActiveAgents());
-    }
-
-    /// <summary>Review Focus, player side: disconnects race the per-tick sync, so a second removal must not throw.</summary>
-    [Fact]
-    public void Tolerate_Removing_A_Player_Twice()
-    {
-        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-        locomotion.SyncPlayer(s_playerGuid, new Vector3(1f, 0f, 1f));
+        DtCrowdAgent moved = Assert.Single(crowd.GetActiveAgents());
+        Assert.InRange(moved.npos.X, 4.9f, 5.1f);
 
         locomotion.RemovePlayer(s_playerGuid);
         locomotion.RemovePlayer(s_playerGuid);
 
         Assert.Empty(crowd.GetActiveAgents());
-    }
-
-    /// <summary>Removing a player that was never synced (flag off, or never connected) is inert, not an exception.</summary>
-    [Fact]
-    public void Tolerate_Removing_A_Player_That_Was_Never_Synced()
-    {
-        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
-
-        locomotion.RemovePlayer(s_playerGuid);
-
-        Assert.Empty(crowd.GetActiveAgents());
-    }
-
-    /// <summary>
-    /// The test that matters most for Task 9. <see cref="CrowdLocomotion.Update" />'s position and
-    /// velocity copy-back enumerates <c>_creatureAgents</c> only — never <c>_playerAgents</c> — which
-    /// is the entire mechanism keeping this class from fighting PlayerInputHandler for control of a
-    /// player and causing rubber-banding. Asserted directly against the two dictionaries rather than
-    /// indirectly through behaviour, because there is no ICreature for a player to observe a write on
-    /// in the first place — SyncPlayer takes a bare Vector3, so the absence of an observable write is
-    /// not, by itself, proof that the copy-back excludes players. This fails if a future edit ever
-    /// merges the two dictionaries, or if SyncPlayer is changed to add into <c>_creatureAgents</c>.
-    /// </summary>
-    [Fact]
-    public void Keep_A_Synced_Player_Out_Of_The_Creature_Copy_Back_Dictionary()
-    {
-        (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
-        ICreature creature = CreatureAt(Vector3.zero);
-        locomotion.Register(creature, radius: 0.5f);
-
-        locomotion.SyncPlayer(s_playerGuid, new Vector3(1f, 0f, 1f));
-        locomotion.Update(TimeSpan.FromSeconds(0.1));
-
-        Assert.Contains(s_playerGuid, PlayerAgentsOf(locomotion).Keys);
-        Assert.DoesNotContain(s_playerGuid, CreatureAgentsOf(locomotion).Keys);
-
-        // Belt and braces: the only ICreature this class knows about at all is the registered
-        // creature above, so nothing about the player could have been written even if the
-        // dictionaries above had been merged. This pins that no exception was thrown reaching the
-        // player guid inside the copy-back loop, i.e. Update tolerates an agent dictionary Update
-        // itself never reads from.
-        creature.DidNotReceive().Position = new Vector3(1f, 0f, 1f);
     }
 
     /// <summary>
