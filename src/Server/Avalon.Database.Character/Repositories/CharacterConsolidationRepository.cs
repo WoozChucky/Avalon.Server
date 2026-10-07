@@ -30,7 +30,9 @@ public sealed class CharacterConsolidationRepository(IDbContextFactory<Character
         {
             guard.ConsolidationId = operation;
             if (guard.Mode is GameplayFenceMode.Active or GameplayFenceMode.Draining && guard.LeaseUntil > now)
+            {
                 guard.Mode = GameplayFenceMode.Draining;
+            }
             else { guard.Mode = GameplayFenceMode.Blocked; guard.LeaseUntil = now; }
         }
         await db.SaveChangesAsync(cancellationToken);
@@ -76,7 +78,11 @@ public sealed class CharacterConsolidationRepository(IDbContextFactory<Character
         AccountGameplayFence sourceGuard = guards.Single(g => g.AccountId == source);
         AccountGameplayFence targetGuard = guards.Single(g => g.AccountId == target);
         if (sourceGuard.ConsolidationId != operation || sourceGuard.Mode != GameplayFenceMode.Blocked ||
-            (targetGuard.ConsolidationId is not null && targetGuard.ConsolidationId != operation)) return false;
+            (targetGuard.ConsolidationId is not null && targetGuard.ConsolidationId != operation))
+        {
+            return false;
+        }
+
         if (targetGuard.ConsolidationId == operation)
         {
             targetGuard.ConsolidationId = null;

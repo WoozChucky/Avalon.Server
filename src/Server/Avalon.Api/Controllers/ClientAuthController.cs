@@ -200,7 +200,10 @@ public sealed class ClientAuthController : BaseController
     {
         if (CallerIsPat || !Guid.TryParse(User.FindFirstValue(JwtUtils.LauncherFamilyClaim), out Guid familyId)
             || familyId == Guid.Empty)
+        {
             return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
         Account account = Account ?? throw new InvalidOperationException("Account not loaded");
         if (!AccountAccessCheck.MayHoldSession(account) || !AccessLevels.Player.Allows(account.AccessLevel))
             return StatusCode(StatusCodes.Status403Forbidden);

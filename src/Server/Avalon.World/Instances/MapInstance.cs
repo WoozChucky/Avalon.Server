@@ -1009,7 +1009,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             // change. A running timer a player-on-player hit moved is re-sent, so the countdown is exact.
             if (character is CharacterEntity pvpEntity
                 && (_pvp.ExpireIfDue(pvpEntity) || PvpToggle.CountdownOwed(pvpEntity)))
+            {
                 _pvp.Send(connection, pvpEntity);
+            }
 
             // Periodic save (spec #459 D4): the scheduler decides whether this is the character's tick.
             if (character is CharacterEntity entity)
@@ -1132,8 +1134,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             foreach (ICharacter character in _characters.Values)
             {
                 if (character is CharacterEntity entity)
+                {
                     entity.CharacterGameState.Update(entity.Guid, entity.Position, _interest, _creatures,
                         _characters, objectAbilities, _frameDirtyFields);
+                }
             }
 
             // Step 6: Broadcast instance state to each character
@@ -1636,7 +1640,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (_world.Data?.LoadedAbilities is not { } abilities
             || !abilities.TryGet(ability.AbilityId, out AbilityTemplate? row)
             || row.AuraId is not { } aura)
+        {
             return;
+        }
 
         try
         {

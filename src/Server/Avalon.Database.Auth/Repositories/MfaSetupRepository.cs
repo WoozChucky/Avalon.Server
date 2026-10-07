@@ -108,7 +108,9 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
 
             if (await context.MfaSetups.AnyAsync(
                     m => m.AccountId == pending.AccountId && m.Status == MfaSetupStatus.Confirmed, cancellationToken))
+            {
                 return false;
+            }
 
             try
             {
@@ -134,7 +136,9 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
         // First, as a token mint does (#495 re-review): the session's version, held for the write.
         if (!await AccountRepository.HoldCredentialsVersionAsync(context, accountId, credentialsVersion,
                 cancellationToken))
+        {
             return MfaSetupWrite.CredentialsChanged;
+        }
 
         int confirmed = await context.MfaSetups
             .Where(m => m.Id == id && m.Status == MfaSetupStatus.Setup && m.Secret == verifiedSecret)
@@ -187,7 +191,10 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
         // re-review): a password change committed since refuses the reset.
         if (!await AccountRepository.HoldCredentialsVersionAsync(context, accountId, credentialsVersion,
                 cancellationToken))
+        {
             return MfaSetupWrite.CredentialsChanged;
+        }
+
         if (await AccountRepository.BumpCredentialsVersionAsync(context, accountId, cancellationToken) == 0)
             return MfaSetupWrite.Lost;
 

@@ -37,7 +37,11 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         GameSession? head = await sessions.FindAsync(new AccountId(accountId), cancellationToken);
         if (reconnect && (head is null || head.GameContextId != context.Id || head.WorldId != worldId)) return new(GameAuthErrors.ReconnectUnavailable);
         if (head?.LeaseUntil > Now && head.State != GameSessionState.Ended &&
-            (head.State == GameSessionState.Pending || (!confirmTakeover && !reconnect))) return new(GameAuthErrors.ActiveGameSession);
+            (head.State == GameSessionState.Pending || (!confirmTakeover && !reconnect)))
+        {
+            return new(GameAuthErrors.ActiveGameSession);
+        }
+
         if (head?.FencingToken == long.MaxValue) return new(GameAuthErrors.AccountUnavailable);
         DateTime until = GameContextAuthorizationWindow.Deadline(context)!.Value;
         DateTime expires = Min(Now.Add(GameAuthPolicy.JoinTicketLifetime), context.CredentialExpiresAt, until);
@@ -83,10 +87,18 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             string? raw = await store.ReadAsync(key, cancellationToken);
             JoinTicketGrant? grant = GameAuthJson.Deserialize<JoinTicketGrant>(raw);
             if (grant is null || grant.ServerId != serverId || grant.Environment != options.Value.Environment ||
-                (grant.Binding is not null && grant.Binding != binding)) return JoinRedemptionReceipt.Failure(GameAuthErrors.InvalidTicket);
+                (grant.Binding is not null && grant.Binding != binding))
+            {
+                return JoinRedemptionReceipt.Failure(GameAuthErrors.InvalidTicket);
+            }
+
             GameContextRecord? context = await authorization.GetContextByIdAsync(grant.ContextId, true, cancellationToken);
             if (context is null || context.AccountId != grant.AccountId || context.CredentialsVersion != grant.CredentialsVersion ||
-                context.SessionEpoch != grant.SessionEpoch) return JoinRedemptionReceipt.Failure(GameAuthErrors.ContextRevoked);
+                context.SessionEpoch != grant.SessionEpoch)
+            {
+                return JoinRedemptionReceipt.Failure(GameAuthErrors.ContextRevoked);
+            }
+
             if (!applications.AllowsWorld(context.ApplicationKey, grant.WorldId)) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldUnavailable);
             if (grant.Receipt is not null)
             {

@@ -41,7 +41,9 @@ public sealed class GitHubRest(HttpClient http) : IGitHub
             || !root.TryGetProperty("sha", out JsonElement sha) || sha.ValueKind != JsonValueKind.String
             || !root.TryGetProperty("content", out JsonElement content) || content.ValueKind != JsonValueKind.String
             || !root.TryGetProperty("encoding", out JsonElement encoding) || !string.Equals(encoding.GetString(), "base64", StringComparison.Ordinal))
+        {
             throw new GitHubApiException("GET", $"contents/{path}", (int)response.StatusCode, "unexpected response shape");
+        }
 
         try
         {
@@ -94,7 +96,9 @@ public sealed class GitHubRest(HttpClient http) : IGitHub
         using JsonDocument document = await ReadAsync(response, "POST", "pulls", ct).ConfigureAwait(false);
         if (document.RootElement.ValueKind == JsonValueKind.Object
             && document.RootElement.TryGetProperty("html_url", out JsonElement url) && url.ValueKind == JsonValueKind.String)
+        {
             return url.GetString()!;
+        }
 
         throw new GitHubApiException("POST", "pulls", (int)response.StatusCode, "unexpected response shape");
     }

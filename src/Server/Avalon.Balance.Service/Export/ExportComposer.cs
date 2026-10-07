@@ -119,8 +119,10 @@ public static partial class ExportComposer
     {
         var sorted = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
         foreach ((string key, JsonElement value) in given)
+        {
             if (!stale.Contains(key))
                 sorted.Add(key, value);
+        }
 
         return JsonSerializer.Serialize(sorted, OverrideFormat) + "\n";
     }
@@ -179,10 +181,13 @@ public static partial class ExportComposer
             {
                 sb.Append("Worst metrics:\n\n| Metric | Row | Value | Band | Grade |\n| --- | --- | --- | --- | --- |\n");
                 foreach (MetricDto m in worst)
+                {
                     sb.Append("| ").Append(Cell(m.Metric)).Append(" | ").Append(Cell(m.RowId ?? "")).Append(" | ")
                         .Append(Cell(Number(m.Value))).Append(" | ")
                         .Append(Cell($"{Number(m.Band.Min)} to {Number(m.Band.Max)} {m.Unit}")).Append(" | ")
                         .Append(Cell(m.Grade)).Append(" |\n");
+                }
+
                 sb.Append('\n');
             }
         }

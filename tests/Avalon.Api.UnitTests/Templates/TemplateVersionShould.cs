@@ -147,8 +147,10 @@ public class TemplateVersionShould
             return Convert.ChangeType(1, type, System.Globalization.CultureInfo.InvariantCulture);
 
         if (current is IConvertible)
+        {
             return Convert.ChangeType(Convert.ToDouble(current, System.Globalization.CultureInfo.InvariantCulture) + 1, type,
                 System.Globalization.CultureInfo.InvariantCulture);
+        }
 
         throw new NotSupportedException($"No way to vary a {type.Name}; teach {nameof(Different)} about it.");
     }

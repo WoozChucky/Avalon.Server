@@ -97,7 +97,9 @@ internal sealed class ItemUseWorld : IDisposable
                      typeof(ConsumeOneScript), typeof(RefusingScript), typeof(OnUseThrowingScript), typeof(WorldHungryItemScript),
                      typeof(InterruptThrowingScript), typeof(CastStartThrowingScript), typeof(RefuseAtFullHealthScript),
                  })
+        {
             scripts.GetItemScript(type.Name).Returns(type);
+        }
 
         var economy = new CharacterEconomy(World, new ItemIdAllocator());
         Inventory = economy.InventoryOf(character);

@@ -92,7 +92,9 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
         if (!await AccountRepository.HoldCredentialsVersionAsync(context, token.AccountId, token.CredentialsVersion,
                 cancellationToken))
+        {
             return false;
+        }
 
         context.TrackForInsert(token);
         await context.SaveChangesAsync(cancellationToken);
@@ -109,7 +111,9 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
         if (!await AccountRepository.HoldCredentialsVersionAsync(context, parent.AccountId, parent.CredentialsVersion,
                 cancellationToken))
+        {
             return RefreshRotation.CredentialsChanged;
+        }
 
         // The read that found the parent live proves nothing by the time this runs: only the
         // caller whose write flips it from live to revoked goes on. Another rotation of the same

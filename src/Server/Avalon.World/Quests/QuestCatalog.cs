@@ -237,8 +237,11 @@ public sealed class QuestCatalog
                 return $"objective {objective.Id} is Scripted but the quest has no script";
             if (objective.Type == QuestObjectiveType.Collect
                 && !collectedBy.TryAdd(objective.ItemTemplateId!.Value, objective.Id))
+            {
                 return $"objective {objective.Id} collects item template {objective.ItemTemplateId.Value}, which objective " +
                        $"{collectedBy[objective.ItemTemplateId.Value]} already collects";
+            }
+
             if (objective.CreatureTemplateId is { } creature && !creatures.Contains(creature.Value))
                 return $"objective {objective.Id} names creature template {creature.Value}, which does not exist";
             if (objective.ItemTemplateId is { } itemId)

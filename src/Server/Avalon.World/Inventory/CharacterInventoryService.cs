@@ -173,7 +173,9 @@ public sealed class CharacterInventoryService(
         if (findTemplate(item.TemplateId) is { } template
             && template.Flags.HasFlag(ItemTemplateFlags.Unique)
             && OwnedCount(item.TemplateId) + item.Count > 1)
+        {
             return InventoryAddResult.UniqueAlreadyOwned;
+        }
 
         Create(InventoryType.Bag, item with { Slot = slot });
         return InventoryAddResult.Ok;

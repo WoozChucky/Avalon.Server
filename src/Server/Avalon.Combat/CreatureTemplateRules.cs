@@ -18,8 +18,10 @@ public static class CreatureTemplateRules
         foreach (CreatureTemplate t in templates)
         {
             if (!float.IsFinite(t.BaseAttackTime) || t.BaseAttackTime < MinBaseAttackTime)
+            {
                 throw new InvalidDataException(
                     $"CreatureTemplate {t.Id.Value}: BaseAttackTime must be finite and {MinBaseAttackTime} s or more, not {t.BaseAttackTime}");
+            }
         }
     }
 }

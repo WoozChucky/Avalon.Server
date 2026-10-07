@@ -29,7 +29,10 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
             command.ExpiresAt.Kind != DateTimeKind.Utc || command.ExpiresAt <= DateTime.UnixEpoch || command.ExpiresAt > clock.GetUtcNow().UtcDateTime.Add(CommercePolicy.CheckoutLifetime).AddMinutes(1) ||
             command.PaymentMethods.Count == 0 || command.PaymentMethods.Any(x => !CommerceOptionsValidator.Text(x, 32) || !x.All(c => char.IsAsciiLetterLower(c) || c == '_')) ||
             !ReturnUrl(command.SuccessUrl, command.OrderId) || command.CancelUrl != command.SuccessUrl + "?canceled=true")
+        {
             throw new PaymentProviderException("INVALID_CHECKOUT_COMMAND");
+        }
+
         await Merchant(ct);
         await Offer(command.PriceReference, command.CatalogProductReference, command.AmountMinor, command.Currency, true, ct);
         var metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["order_id"] = command.OrderId.ToString("D"), ["attempt_id"] = command.AttemptId.ToString("D") };
@@ -52,7 +55,11 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
             ExpiresAt = command.ExpiresAt,
         }, new RequestOptions { IdempotencyKey = command.OperationKey }, ct);
         if (session.Livemode || !CommerceOptionsValidator.Identifier(session.Id, "cs_") || !SafeCheckoutUrl(session.Url) ||
-            session.ExpiresAt != command.ExpiresAt) throw new PaymentProviderException("INVALID_CHECKOUT_RESULT");
+            session.ExpiresAt != command.ExpiresAt)
+        {
+            throw new PaymentProviderException("INVALID_CHECKOUT_RESULT");
+        }
+
         return new CheckoutProviderResult(session.Id, session.Url, session.ExpiresAt);
     }, ct);
 
@@ -62,7 +69,9 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
         await Merchant(ct);
         Session session;
         if (lookup.CheckoutReference is { } checkout && CommerceOptionsValidator.Identifier(checkout, "cs_"))
+        {
             session = await client.V1.Checkout.Sessions.GetAsync(checkout, cancellationToken: ct);
+        }
         else if (lookup.PaymentReference is { } payment && CommerceOptionsValidator.Identifier(payment, "pi_"))
         {
             var sessions = new List<Session>();
@@ -73,11 +82,19 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
             }
             session = sessions.SingleOrDefault() ?? throw new PaymentProviderException("CHECKOUT_NOT_FOUND");
         }
-        else throw new PaymentProviderException("INVALID_PAYMENT_LOOKUP");
+        else
+        {
+            throw new PaymentProviderException("INVALID_PAYMENT_LOOKUP");
+        }
+
         if (session.Livemode || session.Mode != "payment" || !Guid.TryParse(session.Metadata.GetValueOrDefault("order_id"), out Guid order) || order == Guid.Empty ||
             !Guid.TryParse(session.Metadata.GetValueOrDefault("attempt_id"), out Guid attempt) || attempt == Guid.Empty ||
             !CommerceOptionsValidator.ValidCurrency(session.Currency) || session.AmountTotal is not > 0 || session.TotalDetails?.AmountDiscount != 0 || session.TotalDetails.AmountShipping != 0 ||
-            lookup.PaymentReference is { } expected && session.PaymentIntentId != expected) throw new PaymentProviderException("INVALID_PAYMENT_BINDING");
+            lookup.PaymentReference is { } expected && session.PaymentIntentId != expected)
+        {
+            throw new PaymentProviderException("INVALID_PAYMENT_BINDING");
+        }
+
         var lines = new List<LineItem>();
         await foreach (LineItem? line in client.V1.Checkout.Sessions.ListLineItemsAutoPagingAsync(session.Id, new() { Limit = 100 }, cancellationToken: ct))
         {
@@ -95,7 +112,10 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
             PaymentIntent payment = await client.V1.PaymentIntents.GetAsync(intent, cancellationToken: ct);
             if (payment.Livemode || payment.Id != intent || payment.Currency != session.Currency || payment.Amount != session.AmountTotal ||
                 session.PaymentStatus == "paid" && (payment.Status != "succeeded" || payment.AmountReceived != session.AmountTotal))
+            {
                 throw new PaymentProviderException("INVALID_PAYMENT_BINDING");
+            }
+
             await foreach (Refund? refund in client.V1.Refunds.ListAutoPagingAsync(new() { PaymentIntent = intent, Limit = 100 }, cancellationToken: ct))
             {
                 if (refund.PaymentIntentId != intent || refund.Currency != session.Currency) throw new PaymentProviderException("INVALID_REFUND_BINDING");
@@ -125,7 +145,11 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
             Event notification = EventUtility.ConstructEvent(StrictUtf8.GetString(body.Span), signature, Configuration.WebhookSecret, CommercePolicy.NotificationClockSkewSeconds,
                 new DateTimeOffset(now).ToUnixTimeSeconds());
             if (notification.ApiVersion != ApiVersion || notification.Livemode ||
-                notification.Account is { } account && account != Configuration.ProviderAccountId) throw new PaymentProviderException("INVALID_NOTIFICATION_SCOPE");
+                notification.Account is { } account && account != Configuration.ProviderAccountId)
+            {
+                throw new PaymentProviderException("INVALID_NOTIFICATION_SCOPE");
+            }
+
             string type = notification.Type;
             IHasObject resource = notification.Data.Object;
             string kind, reference;
@@ -141,7 +165,11 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
             { kind = "refund"; reference = refund.Id; payment = refund.PaymentIntentId; }
             else if (resource is Dispute dispute && type is "charge.dispute.created" or "charge.dispute.updated" or "charge.dispute.closed" or "charge.dispute.funds_withdrawn" or "charge.dispute.funds_reinstated")
             { kind = "dispute"; reference = dispute.Id; payment = dispute.PaymentIntentId; }
-            else throw new PaymentProviderException("UNSUPPORTED_NOTIFICATION");
+            else
+            {
+                throw new PaymentProviderException("UNSUPPORTED_NOTIFICATION");
+            }
+
             if (!CommerceOptionsValidator.Text(reference, 256) || !CommerceOptionsValidator.Identifier(notification.Id, "evt_"))
                 throw new PaymentProviderException("INVALID_NOTIFICATION");
             return new(Provider, Configuration.ProviderAccountId, Configuration.PaymentEnvironment, notification.Id, type, kind, reference, payment, order, attempt, notification.Created);
@@ -154,7 +182,11 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
     {
         Enabled();
         if (!CommerceOptionsValidator.Text(command.OperationKey, 128) || !CommerceOptionsValidator.Identifier(command.PaymentReference, "pi_") ||
-            command.AmountMinor <= 0 || !CommerceOptionsValidator.ValidCurrency(command.Currency)) throw new PaymentProviderException("INVALID_REFUND_COMMAND");
+            command.AmountMinor <= 0 || !CommerceOptionsValidator.ValidCurrency(command.Currency))
+        {
+            throw new PaymentProviderException("INVALID_REFUND_COMMAND");
+        }
+
         await Merchant(ct);
         PaymentIntent payment = await client.V1.PaymentIntents.GetAsync(command.PaymentReference, cancellationToken: ct);
         if (payment.Livemode || payment.Currency != command.Currency || payment.AmountReceived != command.AmountMinor || payment.Status != "succeeded")
@@ -172,7 +204,9 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
             Configuration.AllowExistingAccountSandbox && Configuration.LicenseEnvironment == CommerceEnvironments.ProductionLicense;
         if (!Configuration.Enabled || Configuration.Provider != ProviderName || Configuration.PaymentEnvironment != CommerceEnvironments.Sandbox ||
             !permittedLicense || !Registration.SettingsAreValid(Configuration))
+        {
             throw new PaymentProviderException("PAYMENT_PROVIDER_DISABLED");
+        }
     }
     private async Task Merchant(CancellationToken ct)
     {
@@ -187,7 +221,9 @@ public sealed class StripePaymentProvider(IOptions<CommerceConfiguration> option
         Product product = await client.V1.Products.GetAsync(productId, cancellationToken: ct);
         if (price.Livemode || product.Livemode || price.Id != priceId || price.ProductId != productId || product.Id != productId ||
             requireActive && (!price.Active || !product.Active) || price.Type != "one_time" || price.UnitAmount != amountMinor || price.Currency != currency || price.TaxBehavior != "inclusive")
+        {
             throw new PaymentProviderException("INVALID_PAYMENT_OFFER");
+        }
     }
     // Reservation owns the trusted origin. Replays retain that snapshot when deployment settings change.
     private static bool ReturnUrl(string value, Guid order) => Uri.TryCreate(value, UriKind.Absolute, out Uri? url) &&

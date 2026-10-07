@@ -33,7 +33,10 @@ public static class LicenseHoldMutations
         if (db.Database.CurrentTransaction is null) throw new InvalidOperationException("License holds require an owned transaction.");
         if (licenseId == Guid.Empty || causeKind is not ("support" or "payment-dispute") || string.IsNullOrWhiteSpace(causeReference) ||
             causeReference != causeReference.Trim() || causeReference.Length > 256 || observedAt.Kind != DateTimeKind.Utc)
+        {
             throw new ArgumentException("Invalid license hold cause.");
+        }
+
         if (await db.GameLicenses.Where(x => x.Id == licenseId).ExecuteUpdateAsync(u => u.SetProperty(x => x.AuthorityRevision, x => x.AuthorityRevision), ct) != 1)
             throw new InvalidOperationException("License not found.");
         GameLicense license = await db.GameLicenses.SingleAsync(x => x.Id == licenseId, ct);
@@ -44,7 +47,10 @@ public static class LicenseHoldMutations
         LicenseHold? hold = rows.SingleOrDefault(x => x.CauseKind == causeKind && x.CauseReference == causeReference);
         if (hold is null && !active || hold is not null &&
             (active == (hold.ReleasedAt is null) || observedAt < hold.StartedAt || active && observedAt <= hold.ReleasedAt))
+        {
             return new(false, license.AuthorityRevision, license.SuspendedAt);
+        }
+
         if (hold is null)
         {
             hold = new LicenseHold { Id = Guid.NewGuid(), LicenseId = licenseId, CauseKind = causeKind, CauseReference = causeReference, StartedAt = observedAt };
@@ -52,7 +58,11 @@ public static class LicenseHoldMutations
             db.LicenseHolds.Add(hold);
         }
         else if (active) { hold.StartedAt = observedAt; hold.ReleasedAt = null; }
-        else hold.ReleasedAt = observedAt;
+        else
+        {
+            hold.ReleasedAt = observedAt;
+        }
+
         license.SuspendedAt = rows.Where(x => x.ReleasedAt is null).Select(x => (DateTime?)x.StartedAt).Min();
         license.AuthorityRevision++;
         return new(true, license.AuthorityRevision, license.SuspendedAt);

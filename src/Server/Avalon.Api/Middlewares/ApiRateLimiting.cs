@@ -225,7 +225,10 @@ public static class ApiRateLimiting
 
         if (context.User.Identity?.IsAuthenticated == true && context.User.Identity.AuthenticationType == GameServerAuthHandler.Scheme &&
             context.User.FindFirst(GameServerAuthHandler.ServerIdClaim)?.Value is { } serverId)
+        {
             return new Partition(PartitionKind.Workload, serverId);
+        }
+
         string? accountId = context.User.Identity?.IsAuthenticated == true
             ? AccountIdOf(context.User)
             : context.Items[PatAccountItem] as string;

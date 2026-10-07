@@ -21,7 +21,9 @@ internal static class GameLoginCompletion
 
             IAuthConnection? connectedSession = connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
             if (connectedSession != null)
+            {
                 connectedSession.Close();
+            }
             else
             {
                 logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
@@ -46,7 +48,9 @@ internal static class GameLoginCompletion
                 Account? current = await accounts.FindByIdAsync(account.Id, false, token);
                 if (current is null || current.CredentialsVersion != credentialsVersion ||
                     !AccessLevels.Player.Allows(current.AccessLevel))
+                {
                     refusal = AuthResult.INVALID_CREDENTIALS;
+                }
                 else if (current.Status != AccountStatus.Active)
                     refusal = current.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
                 else if (current.Online)

@@ -203,7 +203,9 @@ public sealed class QuestService(
             || !Catalog.TryGet(questId, out QuestView? quest)
             || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is not
             { Type: Domain.World.QuestObjectiveType.Kill or Domain.World.QuestObjectiveType.Talk })
+        {
             return false;
+        }
 
         return AddProgress(character, questId, objectiveId, amount);
     }
@@ -287,8 +289,10 @@ public sealed class QuestService(
         {
             InventoryAddResult added = inventory.TryAdd(template.Id, count);
             if (added != InventoryAddResult.Ok)
+            {
                 logger.LogError("Quest {QuestId} reward {Item} was refused ({Result}) after its checks passed for character {CharacterId}",
                     questId, template.Id.Value, added, character.Guid.Id);
+            }
         }
 
         character.Quests.Complete(questId, time.GetUtcNow().UtcDateTime);
@@ -307,8 +311,10 @@ public sealed class QuestService(
         {
             ItemTemplate? template = FindTemplate(reward.ItemTemplateId);
             if (template is null || template.Flags.HasFlag(ItemTemplateFlags.Unique))
+            {
                 logger.LogError("Quest {QuestId} cannot be turned in: reward item template {Item} is {Problem}",
                     quest.Id, reward.ItemTemplateId.Value, template is null ? "missing" : "Unique");
+            }
         }
     }
 
@@ -327,7 +333,9 @@ public sealed class QuestService(
             || !Catalog.TryGet(questId, out QuestView? quest)
             || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is not { } objective
             || objective.Type == Domain.World.QuestObjectiveType.Collect)
+        {
             return false;
+        }
 
         ulong total = (ulong)active.ProgressOf(objectiveId) + amount;
         return SetCount(character, quest, active, objective, (uint)Math.Min(total, objective.Count));
@@ -419,7 +427,9 @@ public sealed class QuestService(
                     || !catalog.TryGet(drop.QuestId, out QuestView? quest)
                     || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == drop.ObjectiveId) is not { } objective
                     || !StillNeeds(character, active, objective))
+                {
                     continue;
+                }
 
                 if (random.NextDouble() * 100.0 < drop.Chance)
                     rolled.Add((RolledDrop.Item(drop.ItemTemplateId, 1), character.Guid.Id));
@@ -503,9 +513,12 @@ public sealed class QuestService(
             if (CurrentStage(quest, active) is null)
             {
                 if (!Throttled(_removedStages, quest.Id, out int suppressed))
+                {
                     logger.LogWarning("Character {CharacterId} holds quest {QuestId} at stage {Stage}, which the reloaded catalog does not " +
                                       "have; it is left as it is until abandoned. {Suppressed} earlier warnings for this quest were not logged",
                         character.Guid.Id, quest.Id, active.Stage, suppressed);
+                }
+
                 continue;
             }
 
@@ -543,7 +556,9 @@ public sealed class QuestService(
     {
         if (world.Data.ItemTemplates.FirstOrDefault(t => t.Id == item) is not { } template
             || !template.Flags.HasFlag(Domain.World.ItemTemplateFlags.QuestItem))
+        {
             return true;
+        }
 
         QuestCatalog catalog = Catalog;
         foreach (ActiveQuest active in character.Quests.Active)
@@ -551,7 +566,9 @@ public sealed class QuestService(
             if (catalog.TryGet(active.QuestId, out QuestView? quest)
                 && CurrentStage(quest, active) is { } stage
                 && stage.Objectives.Any(o => o.ItemTemplateId?.Value == item.Value && StillNeeds(character, active, o)))
+            {
                 return true;
+            }
         }
 
         return false;
@@ -719,16 +736,20 @@ public sealed class QuestService(
     private void OnKilled(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature creature)
     {
         if (StillActive(character, quest, active))
+        {
             RunHook(character, quest, active, nameof(QuestScript.OnCreatureKilled),
                 (script, context) => script.OnCreatureKilled(context, QuestCreatureView.From(creature)));
+        }
     }
 
     /// <summary>The interact hook, only while the quest is still Active: a talk that made it ready reaches no hook.</summary>
     private void OnInteracted(CharacterEntity character, QuestView quest, ActiveQuest active, ICreature npc)
     {
         if (StillActive(character, quest, active))
+        {
             RunHook(character, quest, active, nameof(QuestScript.OnInteract),
                 (script, context) => script.OnInteract(context, QuestCreatureView.From(npc)));
+        }
     }
 
     private static bool StillActive(CharacterEntity character, QuestView quest, ActiveQuest active) =>
@@ -745,7 +766,9 @@ public sealed class QuestService(
     {
         if (character.Quests.ScriptsInstance == character.InstanceId
             || world.InstanceRegistry.GetInstanceById(character.InstanceId) is not { } instance)
+        {
             return;
+        }
 
         QuestCatalog catalog = Catalog;
         QuestInstanceView? view = null;
@@ -778,9 +801,12 @@ public sealed class QuestService(
             return AddProgress(character, quest.Id, objectiveId, amount);
 
         if (!Throttled(_refusedAdvances, quest.Id, out int suppressed))
+        {
             logger.LogWarning("Quest {QuestId}'s script tried to advance objective {Objective} by {Amount} for character {CharacterId}; " +
                               "only its own Scripted objectives in the current stage can be. {Suppressed} earlier refusals were not logged",
                 quest.Id, objectiveId, amount, character.Guid.Id, suppressed);
+        }
+
         return false;
     }
 
@@ -848,9 +874,12 @@ public sealed class QuestService(
         catch (Exception e)
         {
             if (!Throttled(_scriptErrors, quest.Id, out int suppressed))
+            {
                 logger.LogError(e, "Quest {QuestId} script {Script} threw in {Hook} for character {CharacterId}; the quest went on. " +
                                    "{Suppressed} earlier throws of this quest's script were not logged",
                     quest.Id, quest.ScriptType?.Name, hook, character.Guid.Id, suppressed);
+            }
+
             return false;
         }
     }
@@ -868,8 +897,10 @@ public sealed class QuestService(
                 {
                     InventoryRemoveResult removed = inventory.TryRemove(stack.InstanceId, stack.Count);
                     if (removed != InventoryRemoveResult.Ok)
+                    {
                         logger.LogWarning("Could not take quest item {Item} ({Result}) from character {CharacterId}",
                             item, removed, character.Guid.Id);
+                    }
                 }
             }
         }
@@ -988,9 +1019,11 @@ public sealed class QuestService(
     private void LogClientBuildFailure(Exception e, CharacterEntity character, uint questId, string what)
     {
         if (!Throttled(_clientBuildErrors, questId, out int suppressed))
+        {
             logger.LogError(e, "Building the quest {What} for quest {QuestId} and character {CharacterId} failed; it was left out. " +
                                "{Suppressed} earlier failures for this quest were not logged",
                 what, questId, character.Guid.Id, suppressed);
+        }
     }
 
     private static QuestStateKind StateOf(CharacterQuestState state) => state switch
@@ -1014,7 +1047,9 @@ public sealed class QuestService(
         QuestCatalog catalog = Catalog;
         if (log.MarkersInstance == character.InstanceId && log.MarkersLevel == character.Level
             && log.MarkersVersion == log.Version && ReferenceEquals(log.MarkersCatalog, catalog))
+        {
             return;
+        }
 
         if (world.InstanceRegistry.GetInstanceById(character.InstanceId) is not { } instance)
             return;
@@ -1078,9 +1113,11 @@ public sealed class QuestService(
         catch (Exception e)
         {
             if (!Throttled(_rootResendErrors, questId, out int suppressed))
+            {
                 logger.LogError(e, "Re-sending NPC {Npc}'s root after quest {QuestId} changed for character {CharacterId} failed; " +
                                    "the request still succeeded. {Suppressed} earlier failures for this quest were not logged",
                     npc.Metadata.Id.Value, questId, character.Guid.Id, suppressed);
+            }
         }
     }
 

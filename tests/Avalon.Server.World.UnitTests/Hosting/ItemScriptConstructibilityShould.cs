@@ -33,8 +33,10 @@ public class ItemScriptConstructibilityShould
         string[] named;
         using (var database = SqliteDatabase.World())
         using (WorldDbContext context = database.CreateDbContext())
+        {
             named = context.ItemTemplates.AsNoTracking().ToList()
                 .Where(i => i.UseScript != null).Select(i => i.UseScript!).Distinct().ToArray();
+        }
 
         Assert.Equal(["RestoreHealth", "RestorePower", "TownPortalScroll"], named.Order(StringComparer.Ordinal));
 

@@ -20,7 +20,10 @@ public sealed class SteamProofVerifier(HttpClient client, IOptions<StoreAuthenti
             !expectedIdentity.StartsWith(prefix, StringComparison.Ordinal) ||
             expectedIdentity.Length != prefix.Length + SteamTicketIdentity.NonceCharacters ||
             !expectedIdentity.AsSpan(prefix.Length).ToArray().All(c => c is >= 'a' and <= 'z' or >= '2' and <= '7'))
+        {
             return Rejected(appId, "invalid_input");
+        }
+
         Uri uri = SteamWebApi.Request(SteamWebApi.AuthenticateTicketPath, config, appId,
             ("ticket", ticketHex), ("identity", expectedIdentity));
         (bool available, JsonDocument? document) = await SteamWebApi.GetAsync(client, uri, cancellationToken);
@@ -38,7 +41,10 @@ public sealed class SteamProofVerifier(HttpClient client, IOptions<StoreAuthenti
             }
             if (!SteamWebApi.Object(response, "params", out JsonElement parameters) ||
                 !string.Equals(SteamWebApi.String(parameters, "result"), "OK", StringComparison.Ordinal))
+            {
                 return Rejected(appId, "unexpected_result");
+            }
+
             string? subject = SteamWebApi.String(parameters, "steamid");
             return SteamWebApi.IsSteamId(subject) ? new(SteamProofStatus.Verified, subject) : Rejected(appId, "invalid_steam_id");
         }

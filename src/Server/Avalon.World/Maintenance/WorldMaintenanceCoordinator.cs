@@ -75,7 +75,9 @@ public sealed class WorldMaintenanceCoordinator(
         DateTime nowUtc = clock.GetUtcNow().UtcDateTime;
         if (!decision.IsValidAt(nowUtc) || _state is not { } state ||
             ((state.IsCutoffActive(nowUtc) || _restartCutoff) && (connection.AccessLevel & AccountAccessLevel.Admin) == 0))
+        {
             return false;
+        }
 
         enter();
         return true;
@@ -175,10 +177,12 @@ public sealed class WorldMaintenanceCoordinator(
         {
             int remaining = Remaining(state, nowUtc);
             if (_countdown.Due(remaining) is { } line)
+            {
                 Broadcast(line.Start
                     ? $"World maintenance has started. Non-admin players will be disconnected in {Duration(line.Seconds)}."
                     : $"World maintenance: {Duration(line.Seconds)} remaining. Non-admin players will be disconnected.",
                     nowUtc, connections);
+            }
 
             if (remaining == 0)
                 CloseNonAdmins(connections);
@@ -204,16 +208,21 @@ public sealed class WorldMaintenanceCoordinator(
 
         int remaining = Math.Max(0, (int)Math.Ceiling((restart.DeadlineUtc - nowUtc).TotalSeconds));
         if (_restartCountdown.Due(remaining) is { } line)
+        {
             Broadcast(line.Seconds == 0 ? "Restarting now." : $"The world restarts for an update in {Duration(line.Seconds)}.",
                 nowUtc, connections);
+        }
 
         if (remaining == 0)
         {
             // Closing is left to the stop, with the shutdown reason; this only stops their packets until then.
             _restartCutoff = true;
             foreach (IWorldConnection connection in connections)
+            {
                 if (IsNonAdminPlayer(connection))
                     (connection as IMaintenanceBlockable)?.BlockForMaintenance();
+            }
+
             EndRestart(restart, "its deadline passed");
         }
         else if (!connections.Any(static connection =>
@@ -235,7 +244,9 @@ public sealed class WorldMaintenanceCoordinator(
     private void Broadcast(string message, DateTime nowUtc, IReadOnlyList<IWorldConnection> connections)
     {
         foreach (IWorldConnection connection in connections)
+        {
             if (connection.IsConnected && !connection.IsClosing && connection.InGame)
+            {
                 try
                 {
                     connection.Send(SChatMessagePacket.System(message, nowUtc, connection.CryptoSession.Encrypt));
@@ -245,6 +256,8 @@ public sealed class WorldMaintenanceCoordinator(
                     logger.LogWarning(e, "World {WorldId} maintenance warning could not be sent to a client",
                         worldId.Value);
                 }
+            }
+        }
     }
 
     /// <summary>Blocks every authenticated non-Admin connection and closes each once, after the zero line.</summary>
@@ -279,9 +292,13 @@ public sealed class WorldMaintenanceCoordinator(
         }
 
         if (newCloses > 0)
+        {
             lock (_closesSync)
+            {
                 if (_drainTask is null || _drainTask.IsCompleted)
                     _drainTask = Task.Run(DrainAndLogAsync, CancellationToken.None);
+            }
+        }
     }
 
     /// <summary>

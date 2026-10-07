@@ -196,8 +196,10 @@ public static class ChunkCatalogSeeder
         foreach (ChunkTemplate chunk in layout.Chunks.Select(c => byName[c.ChunkName]).Distinct())
         {
             if (Math.Abs(chunk.CellSize - layout.CellSize) > 0.001f)
+            {
                 throw new InvalidDataException(
                     $"{path}: chunk '{chunk.Name}' has CellSize={chunk.CellSize} but layout declares {layout.CellSize}");
+            }
         }
 
         db.MapChunkPlacements.RemoveRange(
@@ -320,8 +322,10 @@ public static class ChunkCatalogSeeder
             {
                 bool inner = cells.Contains((member.CellX + dx, member.CellZ + dz));
                 if (inner && metas[member.Chunk].Exits.TryGetValue(side, out string[]? slots) && slots.Length > 0)
+                {
                     throw new InvalidDataException(
                         $"{path}: group '{group.Name}' member '{member.Chunk}' has an exit on its inner {side} edge");
+                }
             }
         }
     }
@@ -467,8 +471,10 @@ public static class ChunkCatalogSeeder
             if (map.ForwardPortalTargetMapId is { } forward && !mapTypes.ContainsKey(forward))
                 throw new InvalidDataException($"{path}: forwardPortalTargetMapId {forward} names no MapTemplate");
             foreach (DepthBandDto band in (map.DepthBands ?? []).Where(b => b.MaxLevel > highestStatLevel))
+            {
                 throw new InvalidDataException(
                     $"{path}: band from depth {band.MinDepth} has maxLevel {band.MaxLevel}, above the highest CreatureBaseStats level {highestStatLevel}");
+            }
         }
 
         if (files.SpawnTables is null) return;

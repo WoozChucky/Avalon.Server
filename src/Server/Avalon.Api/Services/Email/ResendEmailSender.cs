@@ -32,7 +32,9 @@ public sealed class ResendEmailSender(HttpClient http, EmailConfig config) : IEm
             using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
             if (json.RootElement.ValueKind != JsonValueKind.Object || !json.RootElement.TryGetProperty("id", out JsonElement id)
                 || id.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(id.GetString()))
+            {
                 throw new EmailDeliveryException();
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException or IOException)

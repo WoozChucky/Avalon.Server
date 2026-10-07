@@ -335,8 +335,10 @@ public class TownNpcPlacementShould
             string building = BuildingOf[spawn.CreatureTemplateId.Value];
 
             foreach ((TownSquare square, TownPiece piece, float distance) in Solids(x, z))
+            {
                 Assert.True(distance >= TownRules.NpcClearance - 1e-4f,
                     $"creature {spawn.CreatureTemplateId.Value} at ({x}, {z}) is {distance:0.00} m from {square.Name} {piece.Building}/{piece.Part}");
+            }
 
             float own = Solids(x, z).Where(s => s.Piece.Building == building).Min(s => s.Distance);
             Assert.True(own <= TownRules.NpcBuildingReach, $"creature {spawn.CreatureTemplateId.Value} is {own:0.00} m from {building}");
@@ -370,8 +372,11 @@ public class TownNpcPlacementShould
             if (lx < 0f || lx > TownSquare.CellSize || lz < 0f || lz > TownSquare.CellSize)
                 continue;
             foreach (WallSegment wall in square.Walls)
+            {
                 if (y <= WallSegment.Height && wall.DistanceTo(lx, lz) <= 0f)
                     return $"{square.Name} {wall.Name}";
+            }
+
             foreach (TownPiece piece in square.Pieces)
             {
                 if (piece.DistanceTo(lx, lz) > 0f || y < piece.Y0)
@@ -411,6 +416,7 @@ public class TownNpcPlacementShould
             {
                 float reach = FramedFraction * distance;
                 for (float dx = -reach; dx <= reach; dx += PlayerGridStep)
+                {
                     for (float dz = -reach; dz <= reach; dz += PlayerGridStep)
                     {
                         if (dx * dx + dz * dz > reach * reach)
@@ -426,6 +432,7 @@ public class TownNpcPlacementShould
                                 $"creature {spawn.CreatureTemplateId.Value} at ({x}, {z}) is hidden by {hit} from a player at ({x + dx}, {z + dz}), zoom {distance}");
                         }
                     }
+                }
             }
         }
     }

@@ -71,7 +71,10 @@ public sealed class GameSessionLease
             !Guid.TryParseExact(response.GameSessionId, "D", out Guid session) || session == Guid.Empty ||
             !Guid.TryParseExact(response.GameContextId, "D", out Guid context) || context == Guid.Empty ||
             response.AccessLevel is not { } access || (access & (ushort)AccountAccessLevel.Player) == 0 || (access & ~(ushort)(AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin | AccountAccessLevel.Console | AccountAccessLevel.Tournament | AccountAccessLevel.PTR)) != 0)
+        {
             return null;
+        }
+
         return new(response, new(new AccountId(account), session, fence), clock);
     }
 
@@ -84,7 +87,11 @@ public sealed class GameSessionLease
                 response.GameContextId != _identity.GameContextId || response.FencingToken != _identity.FencingToken ||
                 response.ServerId != _identity.ServerId || response.WorldId != _identity.WorldId ||
                 response.AccessLevel != _identity.AccessLevel || response.CredentialsVersion != _identity.CredentialsVersion ||
-                response.SessionEpoch != _identity.SessionEpoch || response.LeaseUntil < _until) return false;
+                response.SessionEpoch != _identity.SessionEpoch || response.LeaseUntil < _until)
+            {
+                return false;
+            }
+
             SetDeadline(response.LeaseUntil!.Value);
             return true;
         }

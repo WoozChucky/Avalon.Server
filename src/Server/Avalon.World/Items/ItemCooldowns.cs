@@ -22,7 +22,9 @@ public sealed class ItemCooldowns
 
         if (!string.IsNullOrWhiteSpace(group) && _groups.TryGetValue(group, out DateTimeOffset groupReady)
             && groupReady - now > left)
+        {
             left = groupReady - now;
+        }
 
         return left;
     }

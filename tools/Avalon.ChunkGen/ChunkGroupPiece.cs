@@ -25,7 +25,10 @@ public sealed record ChunkGroupPiece(
                 throw new InvalidOperationException($"{Name}: blocker {blocker} has bounds that are not finite");
             if (CellOf(minX, cell) != CellOf(maxX, cell) || CellOf(minZ, cell) != CellOf(maxZ, cell)
                 || minX % cell == 0 || maxX % cell == 0 || minZ % cell == 0 || maxZ % cell == 0)
+            {
                 throw new InvalidOperationException($"{Name}: blocker {blocker} crosses or touches a cell edge");
+            }
+
             if (!InFrame(CellOf(minX, cell)) || !InFrame(CellOf(minZ, cell)))
                 throw new InvalidOperationException($"{Name}: blocker {blocker} lies outside the 60 x 60 m frame");
         }

@@ -14,7 +14,11 @@ public sealed partial class GameSessionRepository
     {
         now = clock?.GetUtcNow().UtcDateTime ?? now;
         if (sessionId == Guid.Empty || fence <= 0 || leaseUntil <= now || leaseUntil > now.Add(GameAuthPolicy.SessionLeaseLifetime) ||
-            licenseUntil < leaseUntil || licenseUntil > now.AddMinutes(5)) return false;
+            licenseUntil < leaseUntil || licenseUntil > now.AddMinutes(5))
+        {
+            return false;
+        }
+
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (!await AccountRepository.HoldGameAuthorityAsync(db, accountId, credentialsVersion, sessionEpoch, now, cancellationToken)) return false;

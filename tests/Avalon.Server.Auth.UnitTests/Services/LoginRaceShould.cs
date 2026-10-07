@@ -268,8 +268,10 @@ public sealed class LoginRaceShould : IDisposable
     {
         Account account = await _accounts.CreateAsync(NewAccount());
         await using (AuthDbContext context = _database.CreateDbContext())
+        {
             await context.Accounts.Where(a => a.Id == account.Id)
                 .ExecuteUpdateAsync(s => s.SetProperty(a => a.FailedLogins, 2));
+        }
 
         Assert.True(await _accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion, "10.0.0.3", DateTime.UtcNow,
             Guid.NewGuid()));
@@ -307,8 +309,10 @@ public sealed class LoginRaceShould : IDisposable
     {
         Account account = await _accounts.CreateAsync(NewAccount());
         await using (AuthDbContext context = _database.CreateDbContext())
+        {
             await context.Accounts.Where(a => a.Id == account.Id)
                 .ExecuteUpdateAsync(s => s.SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1));
+        }
 
         Assert.False(await _accounts.TryRecordTicketLoginAsync(account.Id, account.CredentialsVersion,
             "10.0.0.5", DateTime.UtcNow, Guid.NewGuid()));

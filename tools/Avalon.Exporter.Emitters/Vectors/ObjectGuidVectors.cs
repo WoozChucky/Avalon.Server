@@ -25,12 +25,14 @@ public static class ObjectGuidVectors
 
         int rows = 0;
         foreach (ObjectType t in types)
+        {
             foreach (uint id in ids)
             {
                 var g = new ObjectGuid(t, id);
                 w.WriteLine($"raw {g.RawValue:x16} type {(int)g.Type} id {g.Id}");
                 ++rows;
             }
+        }
 
         Lf.Write(outputPath, w.ToString());
         Console.WriteLine($"wrote {outputPath} ({rows} vectors; {types.Length} types x {ids.Length} ids)");

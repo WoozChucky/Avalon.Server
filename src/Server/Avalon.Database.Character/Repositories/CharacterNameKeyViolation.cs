@@ -18,8 +18,10 @@ public static class CharacterNameKeyViolation
         for (Exception? e = exception; e is not null; e = e.InnerException)
         {
             if (e is PostgresException pg)
+            {
                 return string.Equals(pg.SqlState, PostgresErrorCodes.UniqueViolation, StringComparison.Ordinal) &&
                        string.Equals(pg.ConstraintName, CharacterDbContext.NameKeyIndex, StringComparison.Ordinal);
+            }
 
             // SQLite's exception type lives in a package only the tests reference; its message names the column.
             if (e is DbException db && string.Equals(db.GetType().Name, "SqliteException", StringComparison.Ordinal))

@@ -727,8 +727,10 @@ public class DuplicateCharacterSelectShould : IDisposable
                 return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             if (serviceType == typeof(PartyService))
+            {
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
+            }
 
             // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
             if (serviceType == typeof(QuestService))
@@ -739,8 +741,10 @@ public class DuplicateCharacterSelectShould : IDisposable
                 return _itemUses ??= Avalon.Server.World.UnitTests.ItemUse.InertItemUseService.Create();
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
+            {
                 return Activator.CreateInstance(
                     typeof(NullLogger<>).MakeGenericType(serviceType.GenericTypeArguments[0]));
+            }
 
             if (serviceType.IsInterface || serviceType.IsAbstract)
                 return Substitute.For([serviceType], []);

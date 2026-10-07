@@ -64,12 +64,14 @@ public sealed class BalanceClient : IBalanceClient
         int status = (int)response.StatusCode;
         // The service answers 401 only to a wrong secret: a fault of ours, not of the caller's session.
         if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
             return new BalanceResponse<T>((int)HttpStatusCode.BadGateway, default, JsonSerializer.Serialize(new ProblemDetails
             {
                 Status = (int)HttpStatusCode.BadGateway,
                 Title = "Bad gateway",
                 Detail = RejectedDetail,
             }));
+        }
 
         bool isJson = response.Content.Headers.ContentType?.MediaType is { } type &&
                       (type == "application/json" || type.EndsWith("+json", StringComparison.Ordinal));

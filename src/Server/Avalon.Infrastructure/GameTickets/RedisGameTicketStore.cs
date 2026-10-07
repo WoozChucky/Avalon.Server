@@ -37,11 +37,19 @@ public sealed class RedisGameTicketStore(IReplicatedCache cache) : IGameTicketSt
         if ((parts.Length != 5 && (requireScope || parts.Length != 3)) ||
             !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out long accountId) || accountId <= 0 ||
             !Guid.TryParseExact(parts[1], "D", out Guid family) || family == Guid.Empty ||
-            !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int credentialsVersion)) return false;
+            !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int credentialsVersion))
+        {
+            return false;
+        }
+
         long epoch = 0;
         string environment = "production";
         if (parts.Length == 5 && (!long.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out epoch) ||
-            (parts[4] != "production" && parts[4] != "development"))) return false;
+            (parts[4] != "production" && parts[4] != "development")))
+        {
+            return false;
+        }
+
         if (parts.Length == 5) environment = parts[4];
         grant = new(new AccountId(accountId), family, credentialsVersion, epoch, environment);
         return true;

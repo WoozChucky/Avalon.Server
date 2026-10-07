@@ -104,7 +104,10 @@ public class ProceduralLayoutGenerator
                         new AttachRules(RequiredBoss: false, RequiredForward: false, ExcludeSingleExit: false, AllowGroups: false,
                             AllowSetPieces: false),
                         out Node? placed))
+                {
                     break;
+                }
+
                 tail = placed!;
             }
         }
@@ -274,9 +277,13 @@ public class ProceduralLayoutGenerator
 
         // The inner edges are open ground: they count as connections for depth.
         foreach (PlacedChunkRecord a in records)
+        {
             foreach (PlacedChunkRecord b in records)
+            {
                 if ((a.GridX + 1 == b.GridX && a.GridZ == b.GridZ) || (a.GridX == b.GridX && a.GridZ + 1 == b.GridZ))
                     links.Add(((a.GridX, a.GridZ), (b.GridX, b.GridZ)));
+            }
+        }
 
         return new Node(records);
     }
@@ -301,8 +308,10 @@ public class ProceduralLayoutGenerator
             (int, int) cell = queue.Dequeue();
             if (!neighbours.TryGetValue(cell, out List<(int, int)>? next)) continue;
             foreach ((int, int) n in next)
+            {
                 if (depth.TryAdd(n, depth[cell] + 1))
                     queue.Enqueue(n);
+            }
         }
         return depth;
     }

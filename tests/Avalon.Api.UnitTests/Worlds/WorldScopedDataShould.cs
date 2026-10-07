@@ -31,6 +31,7 @@ public sealed class WorldScopedDataShould : IAsyncLifetime
             world2.SaveChanges();
         }
         foreach (ushort id in new ushort[] { 1, 2 })
+        {
             _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(new WorldEntity
                 {
@@ -41,6 +42,7 @@ public sealed class WorldScopedDataShould : IAsyncLifetime
                     MinVersion = "0.0.1",
                     Version = "0.0.1",
                 });
+        }
 
         _host = await ApiAuthHost.StartAsync(configure: services =>
         {

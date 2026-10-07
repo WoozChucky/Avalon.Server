@@ -83,9 +83,14 @@ public static class AccountAccessCheck
     {
         AccountAccessLevel roles = 0;
         foreach (Claim claim in principal.FindAll(ClaimTypes.GroupSid))
+        {
             foreach (AccountAccessLevel flag in Flags)
+            {
                 if (string.Equals(claim.Value, flag.ToString(), StringComparison.Ordinal))
                     roles |= flag;
+            }
+        }
+
         return roles;
     }
 }

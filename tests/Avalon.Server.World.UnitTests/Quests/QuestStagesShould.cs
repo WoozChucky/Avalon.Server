@@ -14,7 +14,9 @@ public class QuestStagesShould
     {
         QuestTestWorld w;
         if (recorder is null)
+        {
             w = await QuestTestWorld.CreateAsync();
+        }
         else
         {
             // Howl runs the sample script, so a test can drive progress from inside its real stage-start hook.

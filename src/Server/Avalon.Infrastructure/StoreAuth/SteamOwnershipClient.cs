@@ -46,7 +46,10 @@ public sealed class SteamOwnershipClient(HttpClient client, IOptions<StoreAuthen
         if (string.Equals(text, "never", StringComparison.Ordinal)) return true;
         if (!DateTimeOffset.TryParseExact(text, ["yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'"],
                 CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTimeOffset parsed))
+        {
             return false;
+        }
+
         expires = parsed.UtcDateTime;
         return true;
     }

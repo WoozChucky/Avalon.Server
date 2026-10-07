@@ -37,7 +37,10 @@ public static class QuestTurnInRules
             // refuse it after the quest items left, so the turn-in is refused instead.
             if (findTemplate(reward.ItemTemplateId) is not { } template
                 || template.Flags.HasFlag(ItemTemplateFlags.Unique))
+            {
                 return QuestResult.Error;
+            }
+
             paid.Add((template, reward.Count));
         }
 

@@ -31,8 +31,11 @@ public sealed class SteamWebLinkStore(IGameContextStore store, GameAuthCryptogra
             string? raw = await store.ReadAsync(key, ct);
             SteamWebLinkRecord? existing = GameAuthJson.Deserialize<SteamWebLinkRecord>(raw);
             if (existing is not null)
+            {
                 return existing.State == "created" && existing.ExpiresAt > Now && Authority(existing, root) && existing.BrowserDigest == GameAuthCryptography.Digest(browserSession)
                     ? new(id, crypto.UnprotectText(existing.CookieEnvelope, key)) : null;
+            }
+
             string cookie = GameAuthCryptography.NewToken();
             var record = new SteamWebLinkRecord(id, root.Id, GameAuthCryptography.Digest(browserSession), GameAuthCryptography.Digest(cookie),
                 crypto.ProtectText(cookie, key), root.CredentialsVersion, root.SessionEpoch, Now.Add(GameAuthPolicy.WebLinkLifetime));
@@ -79,7 +82,11 @@ public sealed class SteamWebLinkStore(IGameContextStore store, GameAuthCryptogra
             string? raw = await store.ReadAsync(key, ct);
             SteamWebLinkRecord? record = GameAuthJson.Deserialize<SteamWebLinkRecord>(raw);
             if (record is null || record.ExpiresAt <= Now || record.AccountId != root.Id ||
-                record.BrowserDigest != GameAuthCryptography.Digest(browser) || !Cookie(record, cookie)) return null;
+                record.BrowserDigest != GameAuthCryptography.Digest(browser) || !Cookie(record, cookie))
+            {
+                return null;
+            }
+
             if (record.State == "committing") return record.ConfirmationId == confirm && record.ConsolidationConsent == consolidationConsent ? record : null;
             if (record.State != "verified" || record.ProofExpiresAt <= Now || !Authority(record, root)) return null;
             SteamWebLinkRecord next = record with

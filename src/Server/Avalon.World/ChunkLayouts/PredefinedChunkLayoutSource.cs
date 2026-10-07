@@ -45,14 +45,19 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
         IMapChunkPlacementRepository repo = scope.ServiceProvider.GetRequiredService<IMapChunkPlacementRepository>();
         IReadOnlyList<MapChunkPlacement> rows = await repo.FindByMapAsync(template.Id, ct);
         if (rows.Count == 0)
+        {
             throw new InvalidOperationException(
                 $"No MapChunkPlacement rows for town map {template.Id.Value}. Add Maps/TownLayouts/{template.Id.Value}.json; " +
                 "the World server seeds it on start.");
+        }
 
         var entryRows = rows.Where(r => r.IsEntry).ToList();
         if (entryRows.Count != 1)
+        {
             throw new InvalidOperationException(
                 $"Town map {template.Id.Value} must have exactly one IsEntry placement (found {entryRows.Count}).");
+        }
+
         MapChunkPlacement entryRow = entryRows[0];
 
         var ids = rows.Select(r => r.ChunkTemplateId).Distinct().ToList();
@@ -63,8 +68,10 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
         {
             ChunkTemplate ct2 = byId[r.ChunkTemplateId];
             if (Math.Abs(ct2.CellSize - cellSize) > 0.001f)
+            {
                 throw new InvalidOperationException(
                     $"Town map {template.Id.Value} chunk '{ct2.Name}' has CellSize={ct2.CellSize} != layout {cellSize}");
+            }
         }
 
         var placed = rows.Select(r => new PlacedChunk(

@@ -91,7 +91,10 @@ public class PublicPreviewController(
             if (world is null
                 || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller)
                 || !databases.TryGet(id, out _))
+            {
                 return (null, false, NotFoundPage());
+            }
+
             if (!databases.IsAvailable(id))
                 return (null, false, Html(StatusCodes.Status503ServiceUnavailable, LinkPreviewPage.Unavailable(previews.Value.Site)));
         }

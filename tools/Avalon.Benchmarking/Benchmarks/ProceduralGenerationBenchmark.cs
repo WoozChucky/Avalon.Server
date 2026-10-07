@@ -49,9 +49,11 @@ public class ProceduralGenerationBenchmark
 
         // Fill rest with N+S center through-corridors.
         for (int i = 2; i <= size; i++)
+        {
             list.Add(new ChunkPoolMember(
                 MakeChunk(i, entryTag: false, exits: 0b_0000_0000_1000_0010, back: false),
                 Weight: 1f));
+        }
 
         return list;
     }

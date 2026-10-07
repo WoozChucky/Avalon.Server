@@ -631,8 +631,11 @@ public class ServerBaseShould
         {
             string? error = null;
             foreach (KeyValuePair<string, object?> tag in tags)
+            {
                 if (tag.Key == "error.type")
                     error = tag.Value as string;
+            }
+
             counted.Enqueue((value, error));
         });
         listener.Start();

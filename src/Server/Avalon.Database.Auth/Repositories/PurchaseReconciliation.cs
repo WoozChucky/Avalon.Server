@@ -61,14 +61,25 @@ public sealed partial class PurchaseRepository
         await db.Accounts.Where(x => x.Id == initial.AccountId).ExecuteUpdateAsync(u => u.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch), ct);
         if (await db.Accounts.AnyAsync(x => x.Id == initial.AccountId && x.GameplayConsolidationId != null, ct)) return new(false, "CONSOLIDATION_PENDING");
         if (await db.PurchaseOrders.Where(x => x.Id == initial.Id && x.AccountId == initial.AccountId && x.Version == command.ExpectedOrderVersion && x.Version < long.MaxValue)
-            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1) return new(false, "STALE_ORDER");
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1)
+        {
+            return new(false, "STALE_ORDER");
+        }
+
         PaymentAttemptClaim claim = command.Claim;
         if (await db.PaymentAttempts.Where(x => x.Id == claim.Attempt.Id && x.Version == claim.Version && x.Version < long.MaxValue &&
             x.LeaseId == claim.LeaseId && x.LeaseUntil > Now).ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1)
+        {
             return new(false, "STALE_ATTEMPT");
+        }
+
         if (command.EventClaim is { } notification && await db.PaymentEvents.Where(x => x.Id == notification.Event.Id && x.Version == notification.Version &&
             x.LeaseId == notification.LeaseId && x.LeaseUntil > Now && x.State == PaymentEventState.Processing)
-            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1) return new(false, "STALE_EVENT");
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1)
+        {
+            return new(false, "STALE_EVENT");
+        }
+
         PurchaseOrder order = await db.PurchaseOrders.SingleAsync(x => x.Id == initial.Id, ct);
         PaymentAttempt attempt = await db.PaymentAttempts.SingleAsync(x => x.Id == claim.Attempt.Id, ct);
         PaymentSnapshot s = command.Snapshot;
@@ -82,10 +93,16 @@ public sealed partial class PurchaseRepository
             s.Disputes.All(x => x.PaymentReference == s.PaymentReference && x.Currency == order.Currency && x.AmountMinor > 0 && x.AmountMinor <= order.AmountMinor && Enum.IsDefined(x.State));
         if (!bindingValid) return await Review(db, transaction, order, attempt, "INVALID_PAYMENT_BINDING", ct);
         if (s.Paid && (string.IsNullOrWhiteSpace(s.PaymentReference) || !s.TaxComplete || s.TaxMinor is null || s.TaxMinor < 0 || s.TaxMinor > s.AmountMinor ||
-            s.SubtotalMinor is null || s.SubtotalMinor < 0 || s.SubtotalMinor > s.AmountMinor)) return await Review(db, transaction, order, attempt, "INCOMPLETE_PAYMENT_EVIDENCE", ct);
+            s.SubtotalMinor is null || s.SubtotalMinor < 0 || s.SubtotalMinor > s.AmountMinor))
+        {
+            return await Review(db, transaction, order, attempt, "INCOMPLETE_PAYMENT_EVIDENCE", ct);
+        }
+
         if (await db.PaymentAttempts.AnyAsync(x => x.Id != attempt.Id && x.Provider == s.Provider && x.ProviderAccountId == s.ProviderAccountId && x.Environment == s.PaymentEnvironment &&
             (x.CheckoutReference == s.CheckoutReference || s.PaymentReference != null && x.PaymentReference == s.PaymentReference), ct))
+        {
             return await Review(db, transaction, order, attempt, "PAYMENT_ALREADY_BOUND", ct);
+        }
 
         attempt.CheckoutReference ??= s.CheckoutReference;
         attempt.PaymentReference ??= s.PaymentReference;
@@ -156,13 +173,20 @@ public sealed partial class PurchaseRepository
         bool lost = disputes.Any(x => x.State is PaymentDisputeState.Lost or PaymentDisputeState.Accepted);
         bool contradictoryRefund = refunds.Any(x => x.FailureCode?.StartsWith("REFUND_SUCCESS_REPORTED_", StringComparison.Ordinal) == true);
         bool needsReview = contradictoryRefund || refunds.Any(x => x.AmountMinor != order.AmountMinor) || disputes.Any(x => x.State == PaymentDisputeState.Inquiry);
-        if (needsReview) order.ReconciliationIssue = contradictoryRefund ? "REFUND_SUCCESS_CONTRADICTION" :
+        if (needsReview)
+        {
+            order.ReconciliationIssue = contradictoryRefund ? "REFUND_SUCCESS_CONTRADICTION" :
             refunds.Any(x => x.AmountMinor != order.AmountMinor) ? "UNSUPPORTED_PARTIAL_REFUND" : "DISPUTE_INQUIRY";
+        }
+
         bool funding = order.FundingAttemptId == attempt.Id;
         GameLicense? license = order.LicenseId is { } licenseId ? await db.GameLicenses.SingleAsync(x => x.Id == licenseId, ct) : null;
         if (license is not null && (license.AccountId != order.AccountId || license.LicenseReference != PurchaseLicense.Reference(order.Id) ||
             license.Provider != PurchaseLicense.Provider || license.Environment != order.LicenseEnvironment || license.Product != order.Product || license.AuthorityKind != LicenseAuthorityKind.StoredGrant))
+        {
             return await Review(db, transaction, order, attempt, "INVALID_LICENSE_BINDING", ct);
+        }
+
         if (s.Paid && !refunded && !lost && order.ReversedAt is null && order.FundingAttemptId is null)
         {
             license = new GameLicense
@@ -196,8 +220,11 @@ public sealed partial class PurchaseRepository
         if (funding && license is not null)
         {
             foreach (PaymentDispute? dispute in disputes)
+            {
                 await LicenseHoldMutations.SetAsync(db, license.Id, PurchaseLicense.DisputeHoldCause, dispute.Id.ToString("N"),
                     dispute.State is PaymentDisputeState.Open or PaymentDisputeState.UnderReview, Now, ct);
+            }
+
             await db.SaveChangesAsync(ct);
         }
         await transaction.CommitAsync(ct);

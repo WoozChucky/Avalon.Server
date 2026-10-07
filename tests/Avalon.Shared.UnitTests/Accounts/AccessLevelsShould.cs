@@ -95,6 +95,7 @@ public class AccessLevelsShould
     {
         const int all = 0b11_1111;
         for (int required = 0; required <= all; required++)
+        {
             for (int actual = 0; actual <= all; actual++)
             {
                 var r = (AccountAccessLevel)required;
@@ -103,6 +104,7 @@ public class AccessLevelsShould
                     AccessLevels.ForWorld(r).Allows(a) == ((r & AccessLevels.WorldsEnterableBy(a)) != 0),
                     $"required={r}, actual={a}");
             }
+        }
     }
 
     [Fact]

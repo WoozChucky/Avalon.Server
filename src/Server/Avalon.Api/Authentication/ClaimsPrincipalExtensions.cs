@@ -24,8 +24,10 @@ public static class ClaimsPrincipalExtensions
         AccountAccessLevel level = 0;
 
         foreach (AccountAccessLevel flag in Enum.GetValues<AccountAccessLevel>())
+        {
             if (user.HasClaim(ClaimTypes.GroupSid, flag.ToString()))
                 level |= flag;
+        }
 
         return level;
     }

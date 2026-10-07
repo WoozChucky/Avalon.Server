@@ -50,7 +50,10 @@ public sealed class AccountEmailVerificationService(IAccountRepository accounts,
         Account account = await accounts.FindByIdAsync(accountId, cancellationToken: ct) ?? throw new BusinessException("Account unavailable.");
         if (account.Email is null || !AccountEmail.IsValid(account.Email) || account.Status != AccountStatus.Active
             || (account.AccessLevel & AccountAccessLevel.Player) == 0 || account.IsLockedAt(Now) || account.GameplayConsolidationId is not null)
+        {
             throw new BusinessException("A current account email is required for verification.");
+        }
+
         if (account.EmailVerifiedAt is not null) return;
         if (!IPAddress.TryParse(sourceAddress, out IPAddress? address)) throw new BusinessException("Source address unavailable.");
         // Failed sends and cooldown attempts keep their slots; no retry can amplify delivery indefinitely.
@@ -93,6 +96,8 @@ public sealed class AccountEmailVerificationService(IAccountRepository accounts,
     {
         if (token is null || token.Length != 43 || token.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-' && c != '_')
             || !await challenges.ConsumeAsync(accountId, Digest(token), Now, ct))
+        {
             throw new BusinessException("This verification link is invalid or expired. Request a new email.");
+        }
     }
 }

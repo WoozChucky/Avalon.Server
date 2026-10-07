@@ -34,7 +34,11 @@ public partial class CharacterDbContext
 #pragma warning restore IDE0008
         var before = await Characters.AsNoTracking().Where(c => ids.Contains(c.Id)).Select(c => new { c.Id, c.AccountId }).ToListAsync(cancellationToken).ConfigureAwait(false);
         if (ids.Any(id => !before.Any(c => c.Id == id) && !added.Any(c => c.Id == id)) ||
-            existingRows.Any(row => !before.Any(c => c.Id == row.Id && c.AccountId == row.AccountId))) throw new GameplayWriteRejectedException();
+            existingRows.Any(row => !before.Any(c => c.Id == row.Id && c.AccountId == row.AccountId)))
+        {
+            throw new GameplayWriteRejectedException();
+        }
+
         AccountId[] accounts = before.Select(c => c.AccountId).Concat(added.Select(c => c.AccountId)).Distinct().OrderBy(a => a.Value).ToArray();
         foreach (AccountId? account in accounts)
         {

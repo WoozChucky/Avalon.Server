@@ -53,15 +53,21 @@ public static class ForwardedHeadersSetup
         foreach (string entry in config.KnownNetworks)
         {
             if (!entry.Contains('/', StringComparison.Ordinal) || !System.Net.IPNetwork.TryParse(entry, out System.Net.IPNetwork network))
+            {
                 throw new InvalidOperationException(
                     $"{Section}:KnownNetworks has \"{entry}\", which is not a network in CIDR form (address/prefix).");
+            }
+
             int shortest = network.BaseAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
                 ? ShortestIPv6Prefix
                 : ShortestIPv4Prefix;
             if (network.PrefixLength < shortest)
+            {
                 throw new InvalidOperationException(
                     $"{Section}:KnownNetworks has \"{entry}\", wider than /{shortest}: a network that broad " +
                     "would let callers on it choose their own source. List the proxies' own network.");
+            }
+
             options.KnownIPNetworks.Add(network);
         }
 

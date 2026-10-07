@@ -65,15 +65,25 @@ public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> 
         // This root lock serializes with consolidation and subsequent payment fulfillment.
         if (await db.Accounts.Where(a => a.Id == reservation.AccountId)
             .ExecuteUpdateAsync(u => u.SetProperty(a => a.SessionEpoch, a => a.SessionEpoch), ct) != 1)
+        {
             return new(PurchaseFailureCodes.AccountUnavailable);
+        }
+
         Account account = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == reservation.AccountId, ct);
         if (account.Status != AccountStatus.Active || (account.AccessLevel & AccountAccessLevel.Player) == 0 ||
             account.IsLockedAt(Now) || account.GameplayConsolidationId is not null || account.CredentialsVersion != reservation.CredentialsVersion)
+        {
             return new(PurchaseFailureCodes.AccountUnavailable);
+        }
+
         if (account.EmailVerifiedAt is null || string.IsNullOrWhiteSpace(account.Email)) return new(PurchaseFailureCodes.EmailNotVerified);
         if (await db.GameLicenses.AnyAsync(x => x.AccountId == account.Id && x.Product == reservation.Product && x.Environment == reservation.LicenseEnvironment &&
             x.AuthorityKind == LicenseAuthorityKind.StoredGrant && x.Provider == "avalon" && x.RevokedAt == null && x.GrantedAt <= Now &&
-            (x.ExpiresAt == null || x.ExpiresAt > Now), ct)) return new(PurchaseFailureCodes.LicenseAlreadyOwned);
+            (x.ExpiresAt == null || x.ExpiresAt > Now), ct))
+        {
+            return new(PurchaseFailureCodes.LicenseAlreadyOwned);
+        }
+
         PurchaseOrder? order = await db.PurchaseOrders.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == account.Id &&
             x.Product == reservation.Product && x.LicenseEnvironment == reservation.LicenseEnvironment && x.Unresolved, ct);
         PaymentAttempt? previous = null;
@@ -88,7 +98,9 @@ public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> 
                 if (await db.PaymentAttempts.Where(x => x.Id == existing.Id && x.Version == existing.Version && x.Version < long.MaxValue &&
                     x.State == PaymentAttemptState.Reserved && x.FirstDispatchedAt == null && (x.LeaseUntil == null || x.LeaseUntil <= Now))
                     .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, PaymentAttemptState.Expired).SetProperty(x => x.Version, x => x.Version + 1), ct) == 1)
+                {
                     existing.State = PaymentAttemptState.Expired;
+                }
             }
             if (order.ReconciliationIssue is not null || existing.State == PaymentAttemptState.NeedsReview) return new(PurchaseFailureCodes.NeedsReview);
             if (existing.State is not (PaymentAttemptState.Failed or PaymentAttemptState.Expired or PaymentAttemptState.Canceled))
@@ -169,7 +181,11 @@ public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> 
             (x.State == PaymentAttemptState.Reserved || x.State == PaymentAttemptState.ProviderUnknown))
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.FirstDispatchedAt, x => x.FirstDispatchedAt ?? now)
                 .SetProperty(x => x.ReplayDeadline, x => x.ReplayDeadline ?? now.AddHours(23))
-                .SetProperty(x => x.State, PaymentAttemptState.ProviderUnknown).SetProperty(x => x.Version, x => x.Version + 1), ct) != 1) return null;
+                .SetProperty(x => x.State, PaymentAttemptState.ProviderUnknown).SetProperty(x => x.Version, x => x.Version + 1), ct) != 1)
+        {
+            return null;
+        }
+
         PaymentAttempt row = await db.PaymentAttempts.AsNoTracking().SingleAsync(x => x.Id == claim.Attempt.Id, ct);
         return row.LeaseId == claim.LeaseId ? new(row, claim.LeaseId, claim.LeaseUntil, row.Version) : null;
     }
@@ -200,7 +216,11 @@ public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> 
     {
         if (!Text(binding.CheckoutReference, 256) || !Uri.TryCreate(binding.CheckoutUrl, UriKind.Absolute, out Uri? url) ||
             url.Scheme != "https" || url.UserInfo.Length != 0 || !url.IsDefaultPort || binding.CheckoutUrl.Length > 2048 ||
-            binding.ExpiresAt.Kind != DateTimeKind.Utc || binding.ExpiresAt <= DateTime.UnixEpoch) throw new ArgumentException("Invalid checkout binding.", nameof(binding));
+            binding.ExpiresAt.Kind != DateTimeKind.Utc || binding.ExpiresAt <= DateTime.UnixEpoch)
+        {
+            throw new ArgumentException("Invalid checkout binding.", nameof(binding));
+        }
+
         await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
         return await db.PaymentAttempts.Where(x => x.Id == attemptId && x.Version == expectedVersion && x.Version < long.MaxValue &&
                 (x.LeaseUntil == null || x.LeaseUntil > Now) && (x.CheckoutReference == null || x.CheckoutReference == binding.CheckoutReference) &&
@@ -219,7 +239,10 @@ public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> 
             notification.ResourceKind is not (PaymentResourceKinds.Checkout or PaymentResourceKinds.Refund or PaymentResourceKinds.Dispute) ||
             notification.NextAttemptAt.Kind != DateTimeKind.Utc || notification.State != PaymentEventState.Pending ||
             notification.Version != 1 || notification.LeaseId is not null || notification.LeaseUntil is not null || notification.RetryCount != 0)
+        {
             throw new ArgumentException("Invalid normalized notification.", nameof(notification));
+        }
+
         await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
         if (await EventExists(db, notification, ct)) return false;
         db.PaymentEvents.Add(notification);
@@ -247,7 +270,11 @@ public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> 
             DateTime until = now.Add(lease);
             if (row.Version == long.MaxValue || await db.PaymentEvents.Where(x => x.Id == row.Id && x.Version == row.Version)
                 .ExecuteUpdateAsync(u => u.SetProperty(x => x.LeaseId, (Guid?)id).SetProperty(x => x.LeaseUntil, (DateTime?)until)
-                    .SetProperty(x => x.State, PaymentEventState.Processing).SetProperty(x => x.Version, x => x.Version + 1), ct) != 1) continue;
+                    .SetProperty(x => x.State, PaymentEventState.Processing).SetProperty(x => x.Version, x => x.Version + 1), ct) != 1)
+            {
+                continue;
+            }
+
             row.LeaseId = id; row.LeaseUntil = until; row.State = PaymentEventState.Processing; row.Version++;
             claims.Add(new(row, id, until, row.Version));
         }
@@ -279,7 +306,11 @@ public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> 
         DateTime until = now.Add(lease);
         if (await db.PaymentAttempts.Where(x => x.Id == attemptId && x.Version < long.MaxValue && (x.LeaseUntil == null || x.LeaseUntil <= now))
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.LeaseId, (Guid?)id).SetProperty(x => x.LeaseUntil, (DateTime?)until)
-                .SetProperty(x => x.Version, x => x.Version + 1), ct) != 1) return null;
+                .SetProperty(x => x.Version, x => x.Version + 1), ct) != 1)
+        {
+            return null;
+        }
+
         PaymentAttempt row = await db.PaymentAttempts.AsNoTracking().SingleAsync(x => x.Id == attemptId, ct);
         // A contender may have replaced an expired claim between update and read.
         return row.LeaseId == id ? new(row, id, until, row.Version) : null;
@@ -311,6 +342,8 @@ public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> 
             reservation.PaymentMethods.Split(',').Any(x => !Text(x, 32) || x.Any(c => !char.IsAsciiLetterLower(c) && c != '_')) ||
             reservation.RequestedExpiresAt.Kind != DateTimeKind.Utc || reservation.RequestedExpiresAt <= DateTime.UnixEpoch ||
             origin.Scheme != "https" || origin.UserInfo.Length != 0 || origin.Query.Length != 0 || origin.Fragment.Length != 0 || origin.AbsolutePath != "/")
+        {
             throw new ArgumentException("Invalid trusted purchase reservation.", nameof(reservation));
+        }
     }
 }

@@ -358,7 +358,9 @@ public sealed class FightSimulator
     {
         if (_data is null || target.IsDead || ability.Template.AuraId is not { } id
             || !_data.Auras.TryGetValue(id, out AuraTemplate? aura))
+        {
             return;
+        }
 
         SimAura? held = target.Auras.FirstOrDefault(a => a.Template.Id.Value == aura.Id.Value
             && (!AuraRules.KeysByCaster(aura.Stacking) || ReferenceEquals(a.Caster, caster)));
@@ -446,8 +448,11 @@ public sealed class FightSimulator
                 if (unit is SimPlayer player)
                     Add(_taken, aura.Template.Name, CombatRules.HitPlayer(player, points));
                 else
+                {
                     Add(_dealt, aura.Template.Name, CombatRules.PeriodicHitCreature((SimCreature)unit, points,
                         aura.Caster is SimPlayer { IsDead: false } caster ? caster : null, aura.PowerGainPerHit));
+                }
+
                 break;
             }
             case AuraPeriodicKind.Heal when unit is SimPlayer player:

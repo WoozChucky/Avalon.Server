@@ -45,8 +45,10 @@ public sealed class AuraCatalog
         Templates = _templates.Values.ToList();
 
         foreach (AuraRefusal refusal in Refused)
+        {
             logger.LogError("Refused aura {AuraId} '{AuraName}': {Reason}. Nothing applies it", refusal.Id.Value,
                 refusal.Name, refusal.Reason);
+        }
 
         if (templates.Count > 0)
             logger.LogInformation("Loaded {Count} auras; refused {RefusedCount}", Count, Refused.Count);

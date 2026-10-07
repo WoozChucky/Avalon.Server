@@ -67,7 +67,11 @@ public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLink
         Account? root = record is null ? null : await accounts.FindByIdAsync(record.AccountId, false, ct);
         if (root is null || root.GameplayConsolidationId is not null || root.IsLockedAt(clock.GetUtcNow().UtcDateTime) || root.Status != Avalon.Domain.Auth.AccountStatus.Active ||
             root.CredentialsVersion != record!.CredentialsVersion || root.SessionEpoch != record.SessionEpoch ||
-            !await links.ChallengeAsync(id, Cookie(id), ct)) return BadRequest(new SteamWebLinkReply(GameAuthStates.Pending, GameAuthErrors.InvalidLink));
+            !await links.ChallengeAsync(id, Cookie(id), ct))
+        {
+            return BadRequest(new SteamWebLinkReply(GameAuthStates.Pending, GameAuthErrors.InvalidLink));
+        }
+
         var properties = new AuthenticationProperties { RedirectUri = trusted.Value.ResultUrl(id) };
         properties.Items[SteamWebLinkRegistration.TransactionProperty] = id.ToString("N");
         return Challenge(properties, SteamWebLinkOptions.Scheme);

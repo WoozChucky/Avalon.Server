@@ -55,7 +55,11 @@ public sealed class GameplayFenceRepository(IDbContextFactory<CharacterDbContext
         DateTime now = await NowAsync(db, clock, cancellationToken);
         if (guard.GameSessionId != authority.GameSessionId || guard.FencingToken != authority.FencingToken ||
             guard.ConsolidationId is not null || guard.LeaseUntil <= now || until <= now || until > now.Add(GameAuthPolicy.SessionLeaseLifetime) ||
-            !(guard.Mode == GameplayFenceMode.Active || (activate && guard.Mode == GameplayFenceMode.Pending))) return false;
+            !(guard.Mode == GameplayFenceMode.Active || (activate && guard.Mode == GameplayFenceMode.Pending)))
+        {
+            return false;
+        }
+
         guard.Mode = GameplayFenceMode.Active;
         guard.LeaseUntil = until;
         await db.SaveChangesAsync(cancellationToken);

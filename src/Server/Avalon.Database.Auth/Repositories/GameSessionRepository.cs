@@ -43,13 +43,20 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
             reservation.ServerId.Length > 128 || reservation.WorldId == 0 ||
             reservation.LicenseUntil <= now || reservation.LicenseUntil > now.AddMinutes(5) ||
             (reservation.Environment != "production" && reservation.Environment != "development"))
+        {
             return null;
+        }
+
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         // Lock the account before looking at the head, including on the first insert. Revocation and two
         // first reservations therefore serialize on a row that already exists, rather than on a missing head.
         if (!await AccountRepository.HoldGameAuthorityAsync(db, reservation.AccountId, reservation.CredentialsVersion,
-                reservation.SessionEpoch, now, cancellationToken)) return null;
+                reservation.SessionEpoch, now, cancellationToken))
+        {
+            return null;
+        }
+
         now = clock?.GetUtcNow().UtcDateTime ?? now;
         if (reservation.AdmissionExpiresAt <= now || reservation.LicenseUntil <= now) return null;
         GameSession? head = await db.GameSessions.SingleOrDefaultAsync(x => x.AccountId == reservation.AccountId, cancellationToken);
@@ -59,10 +66,17 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
             head.ServerId == reservation.ServerId && head.WorldId == reservation.WorldId && head.Environment == reservation.Environment &&
             head.CredentialsVersion == reservation.CredentialsVersion && head.SessionEpoch == reservation.SessionEpoch &&
             head.State != GameSessionState.Ended && head.LeaseUntil > now && head.LicenseUntil > now)
+        {
             return head;
+        }
+
         if ((head?.FencingToken ?? 0) != reservation.ExpectedFence ||
             (head?.State == GameSessionState.Pending && head.LeaseUntil > now) ||
-            (head?.State == GameSessionState.Active && head.LeaseUntil > now && !reservation.Takeover)) return null;
+            (head?.State == GameSessionState.Active && head.LeaseUntil > now && !reservation.Takeover))
+        {
+            return null;
+        }
+
         GameSession next = NewHead(reservation, now, head);
         if (head is null) db.GameSessions.Add(next);
         else db.Entry(head).CurrentValues.SetValues(next);

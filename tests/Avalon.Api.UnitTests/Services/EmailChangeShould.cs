@@ -279,8 +279,10 @@ public sealed class EmailChangeShould : IDisposable
         int budget = new AuthenticationConfig().MaxFailedLoginsPerSource;
 
         for (int i = 0; i < budget; i++)
+        {
             await Assert.ThrowsAsync<BusinessException>(() =>
                 service.InitiateEmailChangeAsync(account.Id, "taken@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));
+        }
 
         await Assert.ThrowsAsync<AccountLockedException>(() =>
             service.InitiateEmailChangeAsync(account.Id, "taken@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));

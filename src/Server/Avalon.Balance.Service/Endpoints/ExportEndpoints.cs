@@ -26,16 +26,20 @@ public static class ExportEndpoints
     {
         // Before anything is read or validated, so an unconfigured service never reaches GitHub.
         if (string.IsNullOrWhiteSpace(options.Value.GitHubToken))
+        {
             return Results.Problem(
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 title: "Exports are not configured",
                 detail: "The service has no GitHub token (Balance:GitHubToken).");
+        }
 
         if (string.IsNullOrWhiteSpace(build.Commit))
+        {
             return Results.Problem(
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 title: "Exports are not available",
                 detail: "The service has no build commit to branch from (it was built without a source revision).");
+        }
 
         ExportRequestDto? dto;
         try

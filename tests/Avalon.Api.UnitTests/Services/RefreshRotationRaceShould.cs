@@ -225,8 +225,11 @@ public sealed class RefreshRotationRaceShould : IDisposable
     {
         (RefreshTokenService? service, Clock? clock, RefreshIssueResult? issued) = await RotatedOnceAsync();
         await using (AuthDbContext context = _database.CreateDbContext())
+        {
             await context.RefreshTokens.Where(t => t.FamilyId == issued.FamilyId && t.Index == 1)
                 .ExecuteUpdateAsync(s => s.SetProperty(t => t.Usages, 1u).SetProperty(t => t.Revoked, true));
+        }
+
         clock.Now += TimeSpan.FromSeconds(1);
 
         await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, Tab));

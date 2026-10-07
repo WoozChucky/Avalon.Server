@@ -26,7 +26,10 @@ public sealed partial class ExternalIdentityRepository
             (operation.Account.IsStoreGenerated
                 ? operation.Account.Email is not null || operation.Account.Salt.Length != 0 || operation.Account.Verifier.Length != 0
                 : !AccountEmail.IsValid(operation.Account.Email) || operation.Account.Salt.Length == 0 || operation.Account.Verifier.Length == 0))
+        {
             throw new ArgumentException("Invalid store account creation operation.");
+        }
+
         bool ProofExpired() => operation.ProofExpiresAt.Kind != DateTimeKind.Utc ||
             operation.ProofExpiresAt <= (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);

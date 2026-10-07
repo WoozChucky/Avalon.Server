@@ -54,7 +54,11 @@ public sealed class AccountEmailVerificationRepository(IDbContextFactory<AuthDbC
         AccountEmailVerification? challenge = await db.AccountEmailVerifications.SingleOrDefaultAsync(x => x.AccountId == accountId, ct);
         if (challenge is null || challenge.TokenHash != tokenHash || challenge.ConsumedAt is not null || challenge.InvalidatedAt is not null
             || challenge.IssuedAt > now || challenge.ExpiresAt <= now || !Eligible(account, now) || account.EmailVerifiedAt is not null
-            || challenge.Email != account.Email || challenge.CredentialsVersion != account.CredentialsVersion) return false;
+            || challenge.Email != account.Email || challenge.CredentialsVersion != account.CredentialsVersion)
+        {
+            return false;
+        }
+
         await db.Accounts.Where(a => a.Id == accountId).ExecuteUpdateAsync(u => u.SetProperty(a => a.EmailVerifiedAt, (DateTime?)now), ct);
         challenge.ConsumedAt = now;
         await db.SaveChangesAsync(ct);

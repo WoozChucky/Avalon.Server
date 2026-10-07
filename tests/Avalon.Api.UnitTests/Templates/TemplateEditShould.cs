@@ -931,8 +931,11 @@ public sealed class TemplateEditShould : IAsyncLifetime
                     DescriptionTextId = text,
                 });
             if (pays is { } reward)
+            {
                 quest.ItemRewards.Add(new Avalon.Domain.World.QuestItemReward
                 { QuestId = quest.Id, ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(reward), Count = 1 });
+            }
+
             db.QuestTemplates.Add(quest);
         });
     }

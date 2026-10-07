@@ -32,8 +32,11 @@ public class BalanceCoreAssemblyShould
     private static string RepositoryRoot()
     {
         for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
             if (File.Exists(Path.Combine(dir.FullName, "Avalon.sln")))
                 return dir.FullName;
+        }
+
         throw new InvalidOperationException("Avalon.sln not found above " + AppContext.BaseDirectory);
     }
 }

@@ -481,7 +481,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
                 }
             }
             else
+            {
                 _logger.LogError(item.Error, "Continuation faulted");
+            }
         }
     }
 

@@ -39,7 +39,10 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
     {
         if (string.IsNullOrWhiteSpace(provider) || provider.Length > 32 ||
             string.IsNullOrWhiteSpace(subject) || subject.Length > 128)
+        {
             throw new ArgumentException("Invalid provider identity shape.");
+        }
+
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         IdentityLinkResult? conflict = await FindConflictAsync(db, accountId, provider, subject, cancellationToken);
         if (conflict is not null) return conflict;
@@ -73,7 +76,10 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
         if (operation.OperationId == Guid.Empty || string.IsNullOrWhiteSpace(operation.Provider) || operation.Provider.Length > 32 ||
             operation.Provider != operation.Provider.Trim() || string.IsNullOrWhiteSpace(operation.Subject) || operation.Subject.Length > 128 || operation.Subject != operation.Subject.Trim() ||
             operation.SessionEpoch < 0 || operation.SessionEpoch == long.MaxValue)
+        {
             throw new ArgumentException("Invalid identity link operation.");
+        }
+
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         bool ProofExpired() => operation.ProofExpiresAt.Kind != DateTimeKind.Utc ||

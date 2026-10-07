@@ -70,7 +70,9 @@ public class LoginLimitsShould
                      "Application:Authentication", "MaxFailedLoginAttempts=6", "LockoutDurationMinutes=16",
                      "MaxFailedLoginsPerSource=11", "FailedLoginSourceWindowMinutes=17", "MaxFailedMfaAttempts=4",
                  })
+        {
             Assert.Contains(expected, message, StringComparison.Ordinal);
+        }
     }
 
     private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger

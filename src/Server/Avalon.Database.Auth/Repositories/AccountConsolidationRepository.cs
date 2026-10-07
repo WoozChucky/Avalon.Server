@@ -46,7 +46,10 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
             request.Worlds.Any(w => w.Value == 0) || request.Worlds.Select(w => w.Value).Distinct().Count() != request.Worlds.Count ||
             string.IsNullOrWhiteSpace(request.Provider) || request.Provider.Length > 32 || request.Provider != request.Provider.Trim() ||
             string.IsNullOrWhiteSpace(request.ProviderSubject) || request.ProviderSubject.Length > 128 || request.ProviderSubject != request.ProviderSubject.Trim())
+        {
             return new(GameAuthErrors.InvalidConsolidation);
+        }
+
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         AccountConsolidation? existing = await db.AccountConsolidations.AsNoTracking().Include(o => o.Worlds).SingleOrDefaultAsync(o => o.Id == request.OperationId, cancellationToken);
         if (existing is not null) return Matches(existing, request) ? new(null, existing) : new(GameAuthErrors.InvalidConsolidation);
@@ -63,13 +66,20 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
         if (!SourceEligible(source) || !Eligible(target) || source.GameplayConsolidationId is not null || target.GameplayConsolidationId is not null ||
             target.CredentialsVersion != request.CredentialsVersion || target.SessionEpoch != request.SessionEpoch ||
             source.CredentialsVersion == int.MaxValue || source.SessionEpoch >= long.MaxValue - 1 || target.SessionEpoch >= long.MaxValue - 1)
+        {
             return new(GameAuthErrors.AccountUnavailable);
+        }
+
         Guid? mfa = await db.MfaSetups.Where(m => m.AccountId == target.Id && m.Status == MfaSetupStatus.Confirmed).Select(m => (Guid?)m.Id).SingleOrDefaultAsync(cancellationToken);
         if (mfa != request.ConfirmedMfaId) return new(GameAuthErrors.AuthorityChanged);
         if (await ConflictingPurchases(db, source.Id, target.Id, cancellationToken)) return new(GameAuthErrors.AccountUnavailable);
         List<ExternalIdentity> links = await db.ExternalIdentities.AsNoTracking().Where(i => i.AccountId == source.Id || i.AccountId == target.Id).ToListAsync(cancellationToken);
         if (links.Count(i => i.AccountId == source.Id) != 1 || !links.Any(i => i.Id == identity.Id && i.AccountId == source.Id && i.ProviderSubject == request.ProviderSubject) ||
-            links.Any(i => i.AccountId == target.Id && i.Provider == request.Provider)) return new(GameAuthErrors.IdentityConflict);
+            links.Any(i => i.AccountId == target.Id && i.Provider == request.Provider))
+        {
+            return new(GameAuthErrors.IdentityConflict);
+        }
+
         if (request.ProofExpiresAt <= Now) return new(GameAuthErrors.ProofExpired);
         var operation = new AccountConsolidation
         {
@@ -112,11 +122,19 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
         AccountConsolidation operation = await db.AccountConsolidations.Include(o => o.Worlds).SingleAsync(o => o.Id == operationId, cancellationToken);
         if (operation.State is AccountConsolidationState.Finalized or AccountConsolidationState.Completed) return true;
         if (operation.Worlds.Count == 0 || operation.Worlds.Any(w => w.TransferredAt is null) ||
-            !await LockRoots(db, operation.SourceAccountId, operation.TargetAccountId, cancellationToken)) return false;
+            !await LockRoots(db, operation.SourceAccountId, operation.TargetAccountId, cancellationToken))
+        {
+            return false;
+        }
+
         Account source = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == operation.SourceAccountId, cancellationToken);
         Account target = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == operation.TargetAccountId, cancellationToken);
         if (!SourceEligible(source) || !Eligible(target) || source.GameplayConsolidationId != operationId || target.GameplayConsolidationId != operationId ||
-            source.CredentialsVersion == int.MaxValue || source.SessionEpoch == long.MaxValue || target.SessionEpoch == long.MaxValue) return false;
+            source.CredentialsVersion == int.MaxValue || source.SessionEpoch == long.MaxValue || target.SessionEpoch == long.MaxValue)
+        {
+            return false;
+        }
+
         ExternalIdentity? identity = await db.ExternalIdentities.SingleOrDefaultAsync(i => i.AccountId == source.Id && i.Provider == operation.Provider && i.ProviderSubject == operation.ProviderSubject, cancellationToken);
         if (identity is null || await db.ExternalIdentities.AnyAsync(i => (i.AccountId == target.Id && i.Provider == operation.Provider) || (i.AccountId == source.Id && i.Id != identity.Id), cancellationToken)) return false;
         List<GameLicense> licenses = await db.GameLicenses.Where(x => x.AccountId == source.Id).ToListAsync(cancellationToken);

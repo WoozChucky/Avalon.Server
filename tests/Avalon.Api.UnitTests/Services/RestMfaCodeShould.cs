@@ -63,6 +63,7 @@ public sealed class RestMfaCodeShould
         {
             MFASetup row;
             lock (_gate)
+            {
                 row = new MFASetup
                 {
                     Id = _row,
@@ -76,6 +77,8 @@ public sealed class RestMfaCodeShould
                     ConfirmedAt = DateTime.UtcNow,
                     LastAcceptedTotpStep = _lastAcceptedStep,
                 };
+            }
+
             if (_holdReads)
             {
                 if (Interlocked.Increment(ref _setupReads) == 2) _bothRead.TrySetResult();

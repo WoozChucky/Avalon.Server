@@ -26,7 +26,11 @@ public sealed partial class GameAuthorizationService
             LinkConsentRecord? consent = GameAuthJson.Deserialize<LinkConsentRecord>(raw);
             if (consent is null || consent.Canceled || consent.ProofExpiresAt <= Now || consent.CodeDigest != codeDigest ||
                 consent.CredentialDigest != GameAuthCryptography.Digest(credential) || !PendingLinkStore.MatchesPkce(consent.Challenge, pkceVerifier) ||
-                (consent.Binding is not null && consent.Binding != binding)) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
+                (consent.Binding is not null && consent.Binding != binding))
+            {
+                return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
+            }
+
             if (consent.Receipt is not null)
             {
                 if (consent.ReceiptExpiresAt <= Now) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
@@ -46,10 +50,16 @@ public sealed partial class GameAuthorizationService
                 options.Value.ResolveApplication(context.ApplicationKey) is null || context.ApplicationKey != consent.ApplicationKey || context.LinkProofExpiresAt <= Now || context.AbsoluteExpiresAt <= Now || context.Environment != options.Value.Environment ||
                 context.Audience != GameAuthPolicy.ContextAudience || context.Product != StoreAuthenticationConfiguration.Product ||
                 context.Provider != consent.Provider || context.ProviderSubject != consent.ProviderSubject ||
-                (context.AccountId is { } accountId && accountId != consent.AccountId)) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
+                (context.AccountId is { } accountId && accountId != consent.AccountId))
+            {
+                return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
+            }
+
             if (context.LauncherFamilyId is { } family &&
                 !await refreshTokens.IsLiveLauncherFamilyAsync(new AccountId(consent.AccountId), family, Now, cancellationToken))
+            {
                 return GameAuthReply.Failure(GameAuthErrors.ContextRevoked);
+            }
             // The durable repository validates current password/epoch/MFA authority, including an exact
             // retry of this operation after a DB commit. No general context epoch bypass is exposed.
             LinkConsentRecord claimed = consent with { Binding = binding, WorkerUntil = Earlier(Now.Add(GameAuthPolicy.MutationClaimLifetime), consent.ProofExpiresAt) };
@@ -75,7 +85,11 @@ public sealed partial class GameAuthorizationService
             AccountId resolvedAccountId = operation.AccountId;
             Account? account = await accounts.FindByIdAsync(resolvedAccountId, false, cancellationToken);
             if (!Eligible(account, resolvedAccountId.Value) || account!.CredentialsVersion != consent.CredentialsVersion ||
-                account.SessionEpoch != consent.SessionEpoch + 1) return GameAuthReply.Failure(GameAuthErrors.AccountUnavailable);
+                account.SessionEpoch != consent.SessionEpoch + 1)
+            {
+                return GameAuthReply.Failure(GameAuthErrors.AccountUnavailable);
+            }
+
             GameApplicationSelection application = options.Value.ResolveApplication(context.ApplicationKey)!;
             GameLicenseAuthorityResult license = await licenseAuthority.VerifyAsync(new(account.Id, application,
                 new(consent.ProviderSubject, context.IdentityVerifiedAt!.Value, context.IdentityValidUntil!.Value),

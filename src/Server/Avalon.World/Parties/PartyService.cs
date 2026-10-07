@@ -150,7 +150,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         if (!_onlineCharacters.TryIdByName(targetName, out uint targetId)
             || OnlineConnection(targetId) is not { Character: { } target } targetConnection)
+        {
             return PartyResult.NotFound;
+        }
 
         if (targetId == inviterId)
             return PartyResult.Self;
@@ -440,7 +442,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
                 var status = MemberStatus.Of(character);
                 if (_statusSent.TryGetValue(id, out (MemberStatus Status, DateTimeOffset At) last)
                     && (last.Status == status || now - last.At < StatusInterval))
+                {
                     continue;
+                }
 
                 _statusSent[id] = (status, now);
                 for (int j = 0; j < party.Members.Count; j++)
@@ -448,7 +452,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
                     uint other = party.Members[j].Id.Value;
                     if (other == id || OnlineConnection(other) is not { Character: { } watcher } connection
                         || watcher.InstanceId != character.InstanceId)
+                    {
                         continue;
+                    }
 
                     connection.Send(SPartyMemberStatusPacket.Create(id, status.Health, status.MaxHealth, status.Power,
                         status.MaxPower, status.PowerType, status.IsDead, connection.CryptoSession.Encrypt));
@@ -478,7 +484,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     {
         if (OnlineConnection(characterId)?.Character is not { } character
             || !_instances.IsPartyInstance(party.Id, character.InstanceId))
+        {
             return false;
+        }
 
         int grace = Config.PartyLeaveGraceSeconds;
         int next = 0;

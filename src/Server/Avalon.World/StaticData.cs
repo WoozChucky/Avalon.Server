@@ -226,8 +226,10 @@ public class StaticData(
 
         ILogger<StaticData> logger = loggerFactory.CreateLogger<StaticData>();
         foreach (string problem in problems)
+        {
             logger.LogError("The live dialogue leaves {Problem}; the quest cannot be talked through until the dialogue is fixed " +
                             "(a /reload quests would refuse it)", problem);
+        }
     }
 
     /// <summary>

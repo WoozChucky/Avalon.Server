@@ -53,7 +53,9 @@ public sealed class PickupEmailSender : IEmailSender
 
         // The files hold confirm tokens: on Unix, only the api's own user may open the folder.
         if (OperatingSystem.IsWindows())
+        {
             Directory.CreateDirectory(_directory);
+        }
         else
         {
             const UnixFileMode ownerOnly = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;

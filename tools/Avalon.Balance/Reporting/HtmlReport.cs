@@ -69,7 +69,10 @@ public static class HtmlReport
           .Append(" &middot; graded gear: ").Append(E(ctx.Targets.GradedGear)).Append("</p>");
 
         sb.Append("<h3>Active overrides</h3>");
-        if (ctx.Overrides.Applied.Count == 0) sb.Append("<p class=\"muted\">None.</p>");
+        if (ctx.Overrides.Applied.Count == 0)
+        {
+            sb.Append("<p class=\"muted\">None.</p>");
+        }
         else
         {
             sb.Append("<table><tr><th>Key</th><th>Seed</th><th>Override</th></tr>");
@@ -106,9 +109,12 @@ public static class HtmlReport
     {
         sb.Append("<details><summary>All global checks</summary><div class=\"scroll\"><table><tr><th>Check</th><th>Metric</th><th>Value</th><th>Target</th></tr>");
         foreach (GradedMetric m in ctx.Grades.Metrics.Where(m => m.Check != "scenario"))
+        {
             sb.Append("<tr><td>").Append(E(m.Check)).Append("</td><td>").Append(E(m.Metric)).Append("</td><td class=\"").Append(Cls(m.Grade))
               .Append("\">").Append(VU(m.Value, m.Unit)).Append(Badge(m.Grade)).Append("</td><td>").Append(E(m.Band.Describe(m.Unit)))
               .Append("</td></tr>");
+        }
+
         sb.Append("</table></div></details>");
     }
 
@@ -193,8 +199,11 @@ public static class HtmlReport
         }
 
         foreach (double tick in new[] { 0, yMax / 2, yMax })
+        {
             sb.Append($"<line class=\"gridline\" x1=\"{left}\" x2=\"{w - right}\" y1=\"{F(Y(tick))}\" y2=\"{F(Y(tick))}\"/>")
               .Append($"<text x=\"{left - 6}\" y=\"{F(Y(tick) + 4)}\" text-anchor=\"end\">{V(tick)}</text>");
+        }
+
         sb.Append($"<line class=\"axis\" x1=\"{left}\" x2=\"{w - right}\" y1=\"{h - bottom}\" y2=\"{h - bottom}\"/>");
         for (int i = 0; i < levels.Count; i++)
             sb.Append($"<text x=\"{F(X(i))}\" y=\"{h - 10}\" text-anchor=\"middle\">L{levels[i]}</text>");

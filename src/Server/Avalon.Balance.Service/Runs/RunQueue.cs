@@ -73,8 +73,10 @@ public sealed class RunQueue
         {
             int active = 0;
             foreach (RunRecord existing in _records.Values)
+            {
                 if (existing.Status is RunState.Queued or RunState.Running)
                     active++;
+            }
 
             // The one running plus MaxQueued waiting.
             if (active >= _options.MaxQueued + 1)
@@ -129,8 +131,10 @@ public sealed class RunQueue
         {
             List<string>? expired = null;
             foreach ((string id, RunRecord record) in _records)
+            {
                 if (record.IsFinished && record.FinishedAt is { } at && now - at >= _options.ResultTtl)
                     (expired ??= []).Add(id);
+            }
 
             if (expired is null)
                 return;
@@ -174,15 +178,19 @@ public sealed class RunQueue
 
         int finished = 0;
         foreach (RunRecord r in _records.Values)
+        {
             if (r.IsFinished)
                 finished++;
+        }
 
         while (finished-- > _options.MaxRetainedFinished)
         {
             RunRecord? oldest = null;
             foreach (RunRecord r in _records.Values)
+            {
                 if (r.IsFinished && (oldest is null || r.FinishSequence < oldest.FinishSequence))
                     oldest = r;
+            }
 
             if (oldest is null)
                 break;

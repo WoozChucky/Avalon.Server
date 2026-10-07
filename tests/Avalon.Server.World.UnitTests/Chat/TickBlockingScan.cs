@@ -37,8 +37,10 @@ internal static class TickBlockingScan
     {
         yield return type;
         foreach (Type nested in type.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic))
+        {
             foreach (Type inner in WithNested(nested))
                 yield return inner;
+        }
     }
 
     /// <summary>Every method a call or callvirt in the body names. A byte scan: a token that does not resolve is skipped.</summary>

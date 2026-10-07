@@ -45,8 +45,10 @@ public sealed class TargetFile
         var ids = scenarios.Scenarios.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
 
         if (!scenarios.Gear.Contains(GradedGear, StringComparer.Ordinal))
+        {
             throw new InvalidDataException(
                 $"targets: gradedGear '{GradedGear}' is not one of the scenarios' gear ({string.Join(", ", scenarios.Gear)})");
+        }
 
         foreach ((string id, ScenarioTargets targets) in Scenarios)
         {

@@ -75,7 +75,9 @@ public sealed class PlaytestWorldAdmissionShould
 
         IActionResult result = await h.Worlds(auth.GameContextCredential!);
         if (appId == 2514590)
+        {
             Assert.IsType<UnauthorizedObjectResult>(result);
+        }
         else
         {
             OkObjectResult listed = Assert.IsType<OkObjectResult>(result);

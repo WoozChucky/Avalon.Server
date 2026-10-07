@@ -302,8 +302,11 @@ public class ClientDistributionServiceShould
         Assert.Equal(["server"], feed.Select(e => e.Product));
 
         foreach (string prefix in ChangelogPrefixes)
+        {
             _store.ListChangelogAsync(prefix, Arg.Any<CancellationToken>())
                 .Returns<IReadOnlyList<StoredObject>>(_ => throw new DistributionUnavailableException("down"));
+        }
+
         var fresh = new ClientDistributionService(_store, new MemoryCache(new MemoryCacheOptions()));
         await Assert.ThrowsAsync<DistributionUnavailableException>(() =>
             fresh.ListChangelogAsync(AccountAccessLevel.Admin, new ChangelogQuery(null, null, 20, null), CancellationToken.None));

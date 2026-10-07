@@ -110,8 +110,10 @@ public class DepthBandPlacementShould
         CreaturePlacementService service = Service(Recording(spawned), templates, Entry(1, "pack", 4, 2, 3));
 
         for (int seed = 0; seed < 20; seed++)
+        {
             await service.PlaceAsync(FlatInstance(), Layout(new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero, depth, group)),
                 Config(Bands), seed, CancellationToken.None);
+        }
 
         Assert.NotEmpty(spawned);
         Assert.All(spawned, s => Assert.InRange((int)s.Level!.Value, min, max));

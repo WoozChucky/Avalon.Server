@@ -31,7 +31,11 @@ public sealed class AccountLinkReauthentication(IReauthentication password, IMfa
             return new(GameAuthErrors.MfaInvalid, 0, 0, null);
         }
         if (attempt.Account?.Id != account.Id || attempt.Account.CredentialsVersion != proof.CredentialsVersion ||
-            attempt.Account.SessionEpoch != account.SessionEpoch) return new(GameAuthErrors.AccountUnavailable, 0, 0, null);
+            attempt.Account.SessionEpoch != account.SessionEpoch)
+        {
+            return new(GameAuthErrors.AccountUnavailable, 0, 0, null);
+        }
+
         await mfa.GiveBackAsync(attempt);
         return new(null, proof.CredentialsVersion, account.SessionEpoch, setup.Id);
     }

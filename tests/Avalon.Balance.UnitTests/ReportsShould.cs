@@ -70,7 +70,9 @@ public class ReportsShould
         Assert.DoesNotContain("https://", html, StringComparison.Ordinal);
         foreach (string text in new[] { "abc1234", "Seed 672", "Ability.201.EffectValue", "already applied", "Summary",
                      "normal-3", "Level curves", "<svg", "Cleave, the &quot;big&quot; one", "prefers-color-scheme" })
+        {
             Assert.Contains(text, html, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

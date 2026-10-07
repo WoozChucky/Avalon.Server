@@ -45,7 +45,10 @@ public class MFAServiceShould
             {
                 if (_row == null || _row.Id != ci.ArgAt<Guid>(0) || _row.Status != MfaSetupStatus.Setup
                     || !_row.Secret.AsSpan().SequenceEqual(ci.ArgAt<byte[]>(3)))
+                {
                     return MfaSetupWrite.Lost;
+                }
+
                 _row = new MFASetup
                 {
                     Id = _row.Id,

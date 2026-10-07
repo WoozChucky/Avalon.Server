@@ -49,7 +49,9 @@ internal static class SteamWebApi
                     return (true, await ReadDocumentAsync(response, bounded.Token));
                 if ((response.StatusCode != HttpStatusCode.TooManyRequests && response.StatusCode != HttpStatusCode.RequestTimeout &&
                      (int)response.StatusCode < 500) || attempt == MaximumAttempts - 1)
+                {
                     return (false, null);
+                }
             }
             catch (OperationCanceledException)
             {

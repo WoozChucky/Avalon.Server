@@ -91,9 +91,11 @@ public class ChunkLibrary : IChunkLibrary
             if (ChunkGroupDefinition.From(group, _templates) is { } definition)
                 groups.Add(definition);
             else
+            {
                 _logger.LogWarning(
                     "Set piece '{Group}' of pool {Pool} is left out: it has no members or names a chunk template that is not loaded",
                     group.Name, pool.Id.Value);
+            }
         }
 
         return groups;
@@ -105,27 +107,37 @@ public class ChunkLibrary : IChunkLibrary
             throw new InvalidProceduralConfigException($"Pool {cfg.ChunkPoolId.Value} empty or missing for map {cfg.MapTemplateId.Value}");
 
         if (!members.Any(m => HasSlotTag(m.Template, "entry") && HasPortalRole(m.Template, PortalRole.Back)))
+        {
             throw new InvalidProceduralConfigException(
                 $"Pool {cfg.ChunkPoolId.Value} contains no entry chunk (needs Spawn_Entry + Portal_Back) for map {cfg.MapTemplateId.Value}");
+        }
 
         IReadOnlyList<ChunkGroupDefinition> groups = GetGroupsByPool(cfg.ChunkPoolId);
 
         if (cfg.HasBoss && !members.Any(m => HasSlotTag(m.Template, "boss")) && !groups.Any(g => g.IsBoss))
+        {
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} HasBoss but pool has no boss-capable chunk");
+        }
 
         if (cfg.ForwardPortalTargetMapId is not null && !members.Any(m => HasPortalRole(m.Template, PortalRole.Forward))
             && !groups.Any(g => g.HasForward))
+        {
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} ForwardPortalTargetMapId set but no chunk has Portal_Forward slot");
+        }
 
         if (cfg.MainPathMin < 2 || cfg.MainPathMax < cfg.MainPathMin || cfg.MainPathMax > 32)
+        {
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} path length constraints invalid ({cfg.MainPathMin}..{cfg.MainPathMax})");
+        }
 
         if (DepthBandLevels.Problem(cfg.DepthBands) is { } bandProblem)
+        {
             throw new InvalidProceduralConfigException(
                 $"Map {cfg.MapTemplateId.Value} depth bands are invalid: {bandProblem}");
+        }
     }
 
     private static bool HasSlotTag(ChunkTemplate t, string tag) =>

@@ -38,7 +38,10 @@ public sealed partial class InternalGameAdmissionController
             accountId.ToString(CultureInfo.InvariantCulture) != request.AccountId ||
             !long.TryParse(request.FencingToken, NumberStyles.None, CultureInfo.InvariantCulture, out long fence) || fence <= 0 ||
             fence.ToString(CultureInfo.InvariantCulture) != request.FencingToken || request.GameSessionId == Guid.Empty)
+        {
             return BadRequest(GameSessionLeaseReply.Failure(GameAuthErrors.InvalidRequest));
+        }
+
         try
         {
             GameSessionLeaseReply reply = await action(serverId, new AccountId(accountId), request.GameSessionId, fence, cancellationToken);

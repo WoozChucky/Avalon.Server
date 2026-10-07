@@ -29,7 +29,10 @@ public sealed class SteamOpenIdCallbackMiddleware(RequestDelegate next)
         try
         {
             IEnumerable<KeyValuePair<string, StringValues>> parameters;
-            if (HttpMethods.IsGet(context.Request.Method)) parameters = context.Request.Query;
+            if (HttpMethods.IsGet(context.Request.Method))
+            {
+                parameters = context.Request.Query;
+            }
             else if (HttpMethods.IsPost(context.Request.Method) && context.Request.HasFormContentType)
             {
                 if (context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } size) size.MaxRequestBodySize = GameAuthPolicy.MaximumBodyBytes;

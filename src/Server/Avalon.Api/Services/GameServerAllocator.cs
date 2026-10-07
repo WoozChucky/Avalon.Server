@@ -32,15 +32,31 @@ public sealed class GameServerAllocator(IWorldRepository worlds, IAccountReposit
         if (server is null || !databases.IsAvailable(new WorldId(worldId))) return null;
         Account? root = await accounts.FindByIdAsync(new AccountId(id), false, cancellationToken);
         if (root is null || root.Status != AccountStatus.Active || root.IsLockedAt(clock.GetUtcNow().UtcDateTime) ||
-            root.CredentialsVersion != context.CredentialsVersion || root.SessionEpoch != context.SessionEpoch) return null;
+            root.CredentialsVersion != context.CredentialsVersion || root.SessionEpoch != context.SessionEpoch)
+        {
+            return null;
+        }
+
         Domain.Auth.World? world = await worlds.FindByIdAsync(new WorldId(worldId), false, cancellationToken);
         if (world is null || !applications.AllowsWorldAccess(context.ApplicationKey, worldId, world.AccessLevelRequired, root.AccessLevel) ||
             world.Port is < 1 or > 65535 || Uri.CheckHostName(world.Host) == UriHostNameType.Unknown ||
-            !await readiness.IsReadyAsync(worldId, cancellationToken)) return null;
+            !await readiness.IsReadyAsync(worldId, cancellationToken))
+        {
+            return null;
+        }
+
         if (new WorldMaintenanceState(world.MaintenanceEnabled, world.MaintenanceRevision, world.MaintenanceDeadlineUtc)
-                .IsCutoffActive(clock.GetUtcNow().UtcDateTime) && (root.AccessLevel & AccountAccessLevel.Admin) == 0) return null;
+                .IsCutoffActive(clock.GetUtcNow().UtcDateTime) && (root.AccessLevel & AccountAccessLevel.Admin) == 0)
+        {
+            return null;
+        }
+
         if (characterId is { } selected && await repositories.Characters(new WorldId(worldId))
-            .FindByIdAndAccountAsync(new CharacterId(selected), root.Id, cancellationToken) is null) return null;
+            .FindByIdAndAccountAsync(new CharacterId(selected), root.Id, cancellationToken) is null)
+        {
+            return null;
+        }
+
         return new(worldId, server.ServerId, world.Name, world.Host, world.Port, server.TlsServerName,
             server.TlsCertificateSha256, world.MinVersion, world.Version);
     }

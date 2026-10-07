@@ -129,7 +129,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // API, though, and this reset does not re-check the town rule itself.
         if (damage > 0 && attacker is CharacterEntity attackerEntity
                        && target is CharacterEntity { IsDead: false } targetEntity)
+        {
             _pvp?.OnPlayerHitPlayer(attackerEntity, targetEntity);
+        }
 
         Encounter enc = ResolveOrSpawn(attacker, target);
 
@@ -460,7 +462,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // A town never lets players be hostile, so a tick there (an aura brought in from elsewhere) restarts no PvP timer.
         if (dealt > 0 && !InTown && caster is CharacterEntity attackerEntity
             && target is CharacterEntity { IsDead: false } targetEntity)
+        {
             _pvp?.OnPlayerHitPlayer(attackerEntity, targetEntity);
+        }
 
         Encounter? enc = PeriodicEncounter(hit, dealt);
 

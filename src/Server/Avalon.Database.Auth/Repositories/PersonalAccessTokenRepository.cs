@@ -87,7 +87,9 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
         // then takes this token.
         if (!await AccountRepository.HoldCredentialsVersionAsync(context, reauthenticatedAccount,
                 credentialsVersion, cancellationToken))
+        {
             return null;
+        }
 
         EntityEntry<PersonalAccessToken> entry = context.TrackForInsert(token);
         await context.SaveChangesAsync(cancellationToken);

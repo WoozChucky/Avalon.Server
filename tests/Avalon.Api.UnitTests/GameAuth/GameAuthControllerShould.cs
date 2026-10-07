@@ -80,7 +80,10 @@ public class GameAuthControllerShould
         var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         controller.Request.Scheme = "https";
         IActionResult result = await controller.ProviderAttempt(new GameProviderAttemptRequest { ApplicationKey = application, ProtocolVersion = "0.2.0", ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, default);
-        if (accepted) Assert.IsType<OkObjectResult>(result);
+        if (accepted)
+        {
+            Assert.IsType<OkObjectResult>(result);
+        }
         else { Assert.IsType<BadRequestObjectResult>(result); Assert.Empty(store.Entries); }
     }
 

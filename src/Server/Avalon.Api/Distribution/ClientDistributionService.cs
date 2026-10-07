@@ -112,9 +112,11 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
         if (query.Product is null or "launcher")
             prefixes.Add(("changelog/launcher/", "launcher", null));
         if (query.Product is null or "client")
+        {
             prefixes.AddRange(ChannelAccess.Visible(caller)
                 .Where(c => query.Channel is null || c == query.Channel)
                 .Select(c => ($"changelog/client/{c.Wire()}/", "client", (string?)c.Wire())));
+        }
 
         var entries = new List<ChangelogEntryDto>();
         int failed = 0;

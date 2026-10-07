@@ -50,8 +50,10 @@ public class ForestPiecesShould
                 Assert.InRange(slot.X, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
                 Assert.InRange(slot.Z, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
                 foreach (Blocker blocker in piece.Blockers)
+                {
                     Assert.True(blocker.DistanceTo(slot.X, slot.Z) >= SlotClearance,
                         $"{piece.Name}: {slot} is {blocker.DistanceTo(slot.X, slot.Z):0.00} m from {blocker}");
+                }
             }
         }
     }

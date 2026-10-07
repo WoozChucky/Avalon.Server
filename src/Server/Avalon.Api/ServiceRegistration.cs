@@ -356,17 +356,26 @@ public static class ServiceRegistration
                 return;
             case EmailSenderKind.Pickup:
                 if (!environment.IsDevelopment())
+                {
                     throw new InvalidOperationException(
                         $"{EmailConfig.Section}:Sender is Pickup, which is for Development only: it writes every " +
                         $"email, confirm tokens included, to a folder on this machine. The environment is " +
                         $"'{environment.EnvironmentName}'. Set {EmailConfig.Section}:Sender to None.");
+                }
+
                 if (!IsBareAddress(config.From))
+                {
                     throw new InvalidOperationException(
                         $"{EmailConfig.Section}:From must be an email address, such as noreply@example.com, " +
                         $"when {EmailConfig.Section}:Sender is Pickup.");
+                }
+
                 if (string.IsNullOrWhiteSpace(config.PickupDirectory))
+                {
                     throw new InvalidOperationException(
                         $"{EmailConfig.Section}:PickupDirectory must name a folder when {EmailConfig.Section}:Sender is Pickup.");
+                }
+
                 services.AddSingleton<IEmailSender>(sp =>
                     new PickupEmailSender(config, sp.GetService<TimeProvider>() ?? TimeProvider.System));
                 return;
@@ -382,14 +391,18 @@ public static class ServiceRegistration
             (nameof(config.VerificationCooldownSeconds), config.VerificationCooldownSeconds),
             (nameof(config.MaxVerificationSendsPerAccount), config.MaxVerificationSendsPerAccount),
             (nameof(config.MaxVerificationSendsPerSource), config.MaxVerificationSendsPerSource) })
+        {
             if (value < 1) throw new InvalidOperationException($"{EmailConfig.Section}:{name} must be at least 1.");
+        }
         // Omitting the origin disables current-address verification without disabling existing email change.
         if (config.VerificationSiteOrigin is null) return;
         string origin = config.VerificationSiteOrigin;
         if (origin != origin.Trim() || !Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri)
             || (uri.Scheme != Uri.UriSchemeHttps && !(environment.IsDevelopment() && uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback))
             || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0 || uri.AbsolutePath != "/")
+        {
             throw new InvalidOperationException($"{EmailConfig.Section}:VerificationSiteOrigin must be an HTTPS origin.");
+        }
     }
 
     /// <summary>A bare address, as it goes into a From header: printable ASCII, one '@', no padding, no display name.</summary>
@@ -407,14 +420,22 @@ public static class ServiceRegistration
     public static void ValidateEmailChangeSendCaps(AuthenticationConfig config)
     {
         if (config.MaxEmailChangeSendsPerAccount < 1)
+        {
             throw new InvalidOperationException(
                 "Application:Authentication:MaxEmailChangeSendsPerAccount must be at least 1.");
+        }
+
         if (config.MaxEmailChangeSendsPerAddress < 1)
+        {
             throw new InvalidOperationException(
                 "Application:Authentication:MaxEmailChangeSendsPerAddress must be at least 1.");
+        }
+
         if (config.EmailChangeSendWindowMinutes < 1)
+        {
             throw new InvalidOperationException(
                 "Application:Authentication:EmailChangeSendWindowMinutes must be at least 1.");
+        }
     }
 
     /// <summary>
@@ -424,10 +445,15 @@ public static class ServiceRegistration
     public static void ValidateAccountCreationCap(AuthenticationConfig config)
     {
         if (config.MaxAccountsCreatedPerSource < 1)
+        {
             throw new InvalidOperationException(
                 "Application:Authentication:MaxAccountsCreatedPerSource must be at least 1.");
+        }
+
         if (config.AccountCreationWindowMinutes < 1)
+        {
             throw new InvalidOperationException(
                 "Application:Authentication:AccountCreationWindowMinutes must be at least 1.");
+        }
     }
 }

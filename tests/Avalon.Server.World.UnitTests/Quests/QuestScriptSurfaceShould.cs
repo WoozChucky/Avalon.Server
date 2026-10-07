@@ -25,9 +25,13 @@ public class QuestScriptSurfaceShould
 
         Assert.NotEmpty(hooks);
         foreach (MethodInfo hook in hooks)
+        {
             foreach (ParameterInfo parameter in hook.GetParameters())
+            {
                 Assert.True(ReadOnlyParameters.Contains(parameter.ParameterType),
                     $"{hook.Name}({parameter.ParameterType.Name} {parameter.Name}) hands a script something it could change");
+            }
+        }
     }
 
     [Theory]

@@ -37,8 +37,10 @@ public class AuraScriptConstructibilityShould
         string[] named;
         using (var database = SqliteDatabase.World())
         using (WorldDbContext context = database.CreateDbContext())
+        {
             named = context.AuraTemplates.AsNoTracking().ToList()
                 .Where(a => a.ScriptName != null).Select(a => a.ScriptName!).Distinct().ToArray();
+        }
 
         Assert.Empty(named);
     }

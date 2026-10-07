@@ -30,7 +30,11 @@ public sealed class StoreAuthenticationConfiguration
             !SourceText(key, 128) || !SourceText(configured.Provider, 32) || !SourceText(configured.ProviderProductId, 128) ||
             configured.Provider is "steam" or "avalon" || configured.AllowedWorldIds is null ||
             configured.AllowedWorldIds.Contains((ushort)0) || configured.AllowedWorldIds.Distinct().Count() != configured.AllowedWorldIds.Length ||
-            (configured.Restricted && configured.AllowedWorldIds.Length == 0)) return null;
+            (configured.Restricted && configured.AllowedWorldIds.Length == 0))
+        {
+            return null;
+        }
+
         return new(key, configured.Provider, configured.ProviderProductId, Product, Environment, configured.AllowedWorldIds, configured.Restricted);
     }
 
@@ -45,7 +49,10 @@ public sealed class StoreAuthenticationConfiguration
         if (SteamPlaytest is { Enabled: true } playtest && selected == playtest.AppId &&
             playtest.AllowedWorldIds is { Length: > 0 } worlds && !worlds.Contains((ushort)0) &&
             worlds.Distinct().Count() == worlds.Length)
+        {
             return new(selected, true, Array.AsReadOnly((ushort[])worlds.Clone()));
+        }
+
         return null;
     }
 
@@ -58,7 +65,10 @@ public sealed class StoreAuthenticationConfiguration
             SteamPlaytest.AllowedWorldIds.Contains((ushort)0) ||
             SteamPlaytest.AllowedWorldIds.Distinct().Count() != SteamPlaytest.AllowedWorldIds.Length ||
             (SteamPlaytest.Enabled && (SteamPlaytest.AppId == 0 || SteamPlaytest.AllowedWorldIds.Length == 0)))
+        {
             throw new InvalidOperationException("Invalid Application:StoreAuthentication:SteamPlaytest configuration. Use a distinct positive application ID and nonempty distinct positive allowed world IDs when enabled.");
+        }
+
         if (string.IsNullOrWhiteSpace(SteamPublisherKey) ||
             SteamPublisherKey != SteamPublisherKey.Trim() || PolicyVersion < 1 || DirectGrantsEnabled ||
             (Environment != "production" && Environment != "development") ||

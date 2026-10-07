@@ -179,8 +179,11 @@ public sealed class PaymentReconciliationShould
         PaymentSnapshot s = f.Provider.Snapshot!;
         f.Provider.Snapshot = s with { Paid = false, PaymentReference = null, State = PaymentAttemptState.CheckoutOpen };
         await using (AuthDbContext db = f.Db.CreateDbContext())
+        {
             await db.PaymentAttempts.ExecuteUpdateAsync(u => u.SetProperty(x => x.CheckoutReference, (string?)null)
                 .SetProperty(x => x.CheckoutUrl, (string?)null).SetProperty(x => x.State, PaymentAttemptState.ProviderUnknown));
+        }
+
         var repo = new PurchaseRepository(f.Db, f.Clock);
         PaymentAttempt before = (await repo.FindLatestAttemptAsync(s.OrderId))!;
         Assert.True((await new PaymentReconciliationService(repo, new PaymentProviderRegistry([f.Provider]), Options.Create(f.Config), f.Clock)

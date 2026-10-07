@@ -25,7 +25,9 @@ public static class CharacterReadinessBarrier
     {
         if (!connection.IsConnected || connection.IsClosing || connection.AccountId is null ||
             connection.PendingSpawn is not { } pending || PendingChecks.TryGetValue(connection, out _))
+        {
             return;
+        }
 
         Task<WorldEntryDecision> check = WorldDatabaseWork.ThreadPool.Run(async () =>
         {
@@ -69,7 +71,9 @@ public static class CharacterReadinessBarrier
                 }
             }
             else
+            {
                 released = Release(connection, world, logger);
+            }
 
             if (released) onSpawn?.Invoke();
         });

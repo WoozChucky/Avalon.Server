@@ -76,8 +76,10 @@ public class ChunkGenWritersShould
                 objects[current].Add(v);
             }
             else if (line.StartsWith("f ", StringComparison.Ordinal))
+            {
                 faces.Add((current, int.Parse(p[1], CultureInfo.InvariantCulture) - 1, int.Parse(p[2], CultureInfo.InvariantCulture) - 1,
                     int.Parse(p[3], CultureInfo.InvariantCulture) - 1));
+            }
         }
 
         Assert.Equal(["Floor", "Blocker_1", "Blocker_2"], objects.Keys);
@@ -314,8 +316,10 @@ public class ChunkGenWritersShould
 
         // Every usemtl follows its "o" line directly, before any vertex.
         for (int i = 1; i < lines.Length; i++)
+        {
             if (lines[i].StartsWith("usemtl ", StringComparison.Ordinal))
                 Assert.StartsWith("o ", lines[i - 1], StringComparison.Ordinal);
+        }
     }
 
     /// <summary>The town's floor and walls, by name (ReadTown in TownNpcPlacementShould reads them by name).</summary>
@@ -368,7 +372,10 @@ public class ChunkGenWritersShould
         foreach (string line in obj.Split('\n'))
         {
             string[] p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (line.StartsWith("o ", StringComparison.Ordinal)) current = p[1];
+            if (line.StartsWith("o ", StringComparison.Ordinal))
+            {
+                current = p[1];
+            }
             else if (line.StartsWith("v ", StringComparison.Ordinal))
             {
                 var v = new Vector3(float.Parse(p[1], CultureInfo.InvariantCulture), float.Parse(p[2], CultureInfo.InvariantCulture), float.Parse(p[3], CultureInfo.InvariantCulture));
@@ -376,7 +383,9 @@ public class ChunkGenWritersShould
                 if (current == "Fountain_basin") ringVertices.Add(v);
             }
             else if (line.StartsWith("f ", StringComparison.Ordinal) && current == "Fountain_basin")
+            {
                 faces.Add((int.Parse(p[1], CultureInfo.InvariantCulture) - 1, int.Parse(p[2], CultureInfo.InvariantCulture) - 1, int.Parse(p[3], CultureInfo.InvariantCulture) - 1));
+            }
         }
 
         Assert.Equal(48, ringVertices.Count);
@@ -471,8 +480,10 @@ public class ChunkGenWritersShould
             string[] p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (line.StartsWith("o ", StringComparison.Ordinal)) { current = p[1]; objects[current] = []; }
             else if (line.StartsWith("v ", StringComparison.Ordinal))
+            {
                 objects[current].Add(new Vector3(float.Parse(p[1], CultureInfo.InvariantCulture), float.Parse(p[2], CultureInfo.InvariantCulture),
                     float.Parse(p[3], CultureInfo.InvariantCulture)));
+            }
         }
         return objects;
     }
@@ -499,8 +510,10 @@ public class ChunkGenWritersShould
                 objects[current].Add(v);
             }
             else if (line.StartsWith("f ", StringComparison.Ordinal))
+            {
                 faces.Add((current, int.Parse(p[1], CultureInfo.InvariantCulture) - 1, int.Parse(p[2], CultureInfo.InvariantCulture) - 1,
                     int.Parse(p[3], CultureInfo.InvariantCulture) - 1));
+            }
         }
 
         Assert.NotEmpty(faces);

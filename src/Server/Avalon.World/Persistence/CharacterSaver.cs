@@ -134,8 +134,10 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
         foreach (CharacterSaveSnapshot snapshot in snapshots)
         {
             if (!characters.Add(snapshot.CharacterId))
+            {
                 throw new ArgumentException(
                     $"Character {snapshot.CharacterId.Value} appears more than once in one save.", nameof(snapshots));
+            }
         }
 
         HashSet<ItemInstanceId> items = [];
@@ -144,8 +146,10 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
             foreach (ItemInstance item in snapshot.Batch.UpsertItems)
             {
                 if (!items.Add(item.Id))
+                {
                     throw new ArgumentException(
                         $"Item {item.Id.Value} is written by more than one character in one save.", nameof(snapshots));
+                }
             }
         }
     }

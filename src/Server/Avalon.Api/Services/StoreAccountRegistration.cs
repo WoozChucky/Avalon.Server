@@ -21,7 +21,10 @@ public sealed class StoreAccountRegistration(IExternalIdentityRepository identit
     {
         if (operationId == Guid.Empty || !IPAddress.TryParse(sourceAddress, out IPAddress? source) ||
             proofExpiresAt <= clock.GetUtcNow().UtcDateTime)
+        {
             return new(IdentityLinkStatus.AuthorityChanged, null);
+        }
+
         var account = new Account
         {
             // Internal account name, independent of an untrusted store display name. Stable across exact retries.

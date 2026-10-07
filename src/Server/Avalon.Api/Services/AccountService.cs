@@ -345,7 +345,9 @@ public class AccountService : IAccountService
             // Only while still at the version the current password was checked at (#495 review).
             if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes,
                     proof.CredentialsVersion, token) == 0)
+            {
                 return false;
+            }
 
             await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
             await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, accountId,
@@ -608,7 +610,9 @@ public class AccountService : IAccountService
         if (parts.Length != 3
             || !long.TryParse(parts[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long id)
             || !int.TryParse(parts[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int version))
+        {
             throw new BusinessException("Invalid token payload");
+        }
 
         var accountId = new AccountId(id);
         string newEmail = parts[2];
@@ -705,7 +709,9 @@ public class AccountService : IAccountService
         {
             if (await AccountRepository.SetAccessLevelAsync(context, accountId,
                     (Avalon.Common.Accounts.AccountAccessLevel)roles, token) == 0)
+            {
                 return false;
+            }
 
             await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
             await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, actorId,

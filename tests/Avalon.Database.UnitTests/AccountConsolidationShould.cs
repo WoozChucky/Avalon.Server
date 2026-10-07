@@ -108,6 +108,7 @@ public sealed class AccountConsolidationShould
         await using (AuthDbContext db = database.CreateDbContext())
         {
             foreach (string? provider in new[] { "steam", "avalon", "test-store" })
+            {
                 db.GameLicenses.Add(new GameLicense
                 {
                     Id = Guid.NewGuid(),
@@ -122,6 +123,8 @@ public sealed class AccountConsolidationShould
                     LastObservedAt = now,
                     VerifiedUntil = now.AddMinutes(5)
                 });
+            }
+
             await db.SaveChangesAsync();
         }
         var repository = new AccountConsolidationRepository(database, _clock);

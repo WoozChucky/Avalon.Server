@@ -45,8 +45,11 @@ public sealed class AccountConsolidationService(IAccountConsolidationRepository 
         {
             // Freeze and drain every world first, including worlds whose transfer may already have committed.
             foreach (AccountConsolidationWorld? world in operation.Worlds.OrderBy(w => w.WorldId))
+            {
                 if (!await worlds.CharacterConsolidations(new(world.WorldId)).PrepareAsync(operation.Id, operation.SourceAccountId, operation.TargetAccountId, cancellationToken))
                     return Reply(operation, GameAuthErrors.WorldBarrierPending);
+            }
+
             foreach (AccountConsolidationWorld? world in operation.Worlds.Where(w => w.TransferredAt is null).OrderBy(w => w.WorldId))
             {
                 CharacterConsolidationResult transfer = await worlds.CharacterConsolidations(new(world.WorldId)).TransferAsync(operation.Id, operation.SourceAccountId, operation.TargetAccountId, cancellationToken);
@@ -63,7 +66,10 @@ public sealed class AccountConsolidationService(IAccountConsolidationRepository 
         foreach (AccountConsolidationWorld? world in operation.Worlds.Where(w => w.GuardReleasedAt is null).OrderBy(w => w.WorldId))
         {
             if (!await worlds.CharacterConsolidations(new(world.WorldId)).ReleaseTargetAsync(operation.Id, operation.SourceAccountId, operation.TargetAccountId, cancellationToken) ||
-                !await operations.RecordGuardReleasedAsync(operation.Id, new(world.WorldId), cancellationToken)) return Reply(operation, GameAuthErrors.WorldBarrierPending);
+                !await operations.RecordGuardReleasedAsync(operation.Id, new(world.WorldId), cancellationToken))
+            {
+                return Reply(operation, GameAuthErrors.WorldBarrierPending);
+            }
         }
         if (!await operations.CompleteAsync(operation.Id, cancellationToken)) return Reply(operation, GameAuthErrors.FinalizationPending);
         return Reply((await operations.FindAsync(operationId, cancellationToken))!);

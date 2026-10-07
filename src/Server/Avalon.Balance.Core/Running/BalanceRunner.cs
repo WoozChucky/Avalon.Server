@@ -75,8 +75,11 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
         if (wanted is null) return known.ToList();
         if (wanted.Count == 0) throw new PlanRefusedException(path, $"The {what} filter is empty; leave it out to keep every one");
         foreach (T value in wanted)
+        {
             if (!known.Contains(value))
                 throw new PlanRefusedException(path, unknown(value));
+        }
+
         return known.Where(wanted.Contains).ToList();
     }
 

@@ -55,7 +55,10 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
                 !Positive(receipt.AccountId) || !Positive(receipt.FencingToken) ||
                 !Guid.TryParseExact(receipt.GameSessionId, "D", out Guid session) || session == Guid.Empty ||
                 !Guid.TryParseExact(receipt.GameContextId, "D", out Guid context) || context == Guid.Empty)
+            {
                 return new(null, GameAuthErrors.InvalidAdmission);
+            }
+
             SessionLeaseResponse? response = null;
             for (int attempt = 0; attempt < GameAuthPolicy.MutationAttempts; attempt++)
             {
@@ -66,7 +69,10 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
             if (response is null || response.Error is not null) return new(null, SafeError(response?.Error));
             if (response.AccountId != receipt.AccountId || response.GameSessionId != receipt.GameSessionId || response.GameContextId != receipt.GameContextId ||
                 response.FencingToken != receipt.FencingToken || response.SessionEpoch != receipt.SessionEpoch || response.CredentialsVersion != receipt.CredentialsVersion)
+            {
                 return new(null, GameAuthErrors.InvalidAdmission);
+            }
+
             var lease = GameSessionLease.TryCreate(response, options.ServerId, options.WorldId, clock);
             return new(lease, lease is null ? GameAuthErrors.InvalidAdmission : null);
         }

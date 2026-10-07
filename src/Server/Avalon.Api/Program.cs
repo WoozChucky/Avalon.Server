@@ -68,6 +68,7 @@ IServiceCollection services = builder.Services;
             // The shared System.String reference drops per-property annotations. Keep this proof's
             // bounded wire schema inline, without changing other string contracts.
             if (context.JsonTypeInfo.Type == typeof(Avalon.Api.Contract.AccountEmailVerificationConfirmRequest))
+            {
                 schema.Properties!["token"] = new OpenApiSchema
                 {
                     Type = JsonSchemaType.String,
@@ -75,6 +76,7 @@ IServiceCollection services = builder.Services;
                     MaxLength = 43,
                     Pattern = "^[A-Za-z0-9_-]{43}$",
                 };
+            }
             // Preserve the CLR uint32 bounds, including nullable request selectors.
             if (context.JsonTypeInfo.Type == typeof(uint) || context.JsonTypeInfo.Type == typeof(uint?))
             {

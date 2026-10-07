@@ -379,12 +379,16 @@ public class WorldServerStartupShould
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
 
             if (serviceType == typeof(ReloadRequestHandler))
+            {
                 return new ReloadRequestHandler(Substitute.For<IReferenceDataReloader>(), Substitute.For<IReplicatedCache>(),
                     Options.Create(new GameConfiguration { WorldId = 1 }), NullLogger<ReloadRequestHandler>.Instance);
+            }
 
             if (serviceType == typeof(ScriptCatalogPublisher))
+            {
                 return new ScriptCatalogPublisher(scripts, cache, Options.Create(new GameConfiguration { WorldId = 1 }),
                     Substitute.For<ILogger<ScriptCatalogPublisher>>());
+            }
 
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
@@ -395,8 +399,10 @@ public class WorldServerStartupShould
                 return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             if (serviceType == typeof(PartyService))
+            {
                 return new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
                     NullLogger<PartyService>.Instance);
+            }
 
             // The quest handlers (#433) and the world server take the one quest service, as production's singleton.
             if (serviceType == typeof(QuestService))

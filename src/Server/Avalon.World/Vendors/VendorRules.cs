@@ -91,7 +91,9 @@ public static class VendorRules
 
         if (row is null || !IsVisible(row, character, quests) || findTemplate(row.ItemTemplateId) is not { } item
             || !IsStockable(item))
+        {
             return new BuyDecision(VendorResult.NotFound, null);
+        }
 
         uint buying = count ?? 1;
         if (buying == 0 || buying > InventoryMove.MaxStack(item))
@@ -153,7 +155,9 @@ public static class VendorRules
             || template.Flags.HasFlag(ItemTemplateFlags.NoSell)
             || template.Flags.HasFlag(ItemTemplateFlags.QuestItem)
             || template.SellPrice == 0)
+        {
             return new SellDecision(VendorResult.NotSellable, null);
+        }
 
         if (IsDamaged(item, template))
             return new SellDecision(VendorResult.Damaged, null);
@@ -193,7 +197,9 @@ public static class VendorRules
 
         if (!character.Buyback.TryGet(index, out BuybackEntry? entry)
             || (findTemplate(entry.Item.TemplateId) is { } flagged && !IsStockable(flagged)))
+        {
             return new BuybackDecision(VendorResult.NotFound, null);
+        }
 
         if (Balance(character) < entry.Price)
             return new BuybackDecision(VendorResult.NotEnoughGold, null);
@@ -204,7 +210,9 @@ public static class VendorRules
         if (findTemplate(entry.Item.TemplateId) is { } template
             && template.Flags.HasFlag(ItemTemplateFlags.Unique)
             && HeldAnywhere(character, template.Id) + entry.Item.Count > 1)
+        {
             return new BuybackDecision(VendorResult.UniqueAlreadyOwned, null);
+        }
 
         return new BuybackDecision(VendorResult.Ok, new BuybackPlan(index, entry));
     }

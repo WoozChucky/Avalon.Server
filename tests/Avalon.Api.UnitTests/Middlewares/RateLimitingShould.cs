@@ -500,10 +500,16 @@ public sealed class RateLimitingShould
         listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
         {
             foreach (KeyValuePair<string, object?> tag in tags)
+            {
                 if (tag.Key == "partition")
+                {
                     lock (measured)
+                    {
                         for (long i = 0; i < value; i++)
                             measured.Add(tag.Value as string);
+                    }
+                }
+            }
         });
         listener.Start();
 

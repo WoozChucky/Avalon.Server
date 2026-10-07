@@ -18,10 +18,17 @@ public partial class CharacterSaveRepository
             if (authority is null || !GameplayFenceRepository.Valid(authority) || authority.AccountId != first.Row.AccountId ||
                 group.Any(b => b.Authority is null || b.Authority.AccountId != authority.AccountId ||
                     b.Authority.GameSessionId != authority.GameSessionId || b.Authority.FencingToken != authority.FencingToken))
+            {
                 throw new GameplayWriteRejectedException();
+            }
+
             AccountGameplayFence guard = await GameplayFenceRepository.LockAsync(db, authority.AccountId, cancellationToken);
             if (guard.GameSessionId != authority.GameSessionId || guard.FencingToken != authority.FencingToken ||
-                guard.Mode is not (GameplayFenceMode.Active or GameplayFenceMode.Draining)) throw new GameplayWriteRejectedException();
+                guard.Mode is not (GameplayFenceMode.Active or GameplayFenceMode.Draining))
+            {
+                throw new GameplayWriteRejectedException();
+            }
+
             guards.Add(guard);
         }
         DateTime now = await GameplayFenceRepository.NowAsync(db, clock, cancellationToken);
@@ -42,7 +49,10 @@ public partial class CharacterSaveRepository
                 (batch.Quests is { } quests && (quests.Active.Any(q => q.CharacterId != batch.Row.Id) ||
                     quests.Objectives.Any(q => q.CharacterId != batch.Row.Id) || quests.Completed.Any(q => q.CharacterId != batch.Row.Id))) ||
                 (batch.Auras is { } auras && auras.Rows.Any(a => a.CharacterId != batch.Row.Id)) ||
-                (batch.Ignores is { } ignores && ignores.Insert.Any(i => i.CharacterId != batch.Row.Id))) throw new GameplayWriteRejectedException();
+                (batch.Ignores is { } ignores && ignores.Insert.Any(i => i.CharacterId != batch.Row.Id)))
+            {
+                throw new GameplayWriteRejectedException();
+            }
         }
         // var, not an explicit type: an EF Core query captures this array, and an explicit non-nullable
         // array type makes the compiler add a Convert node to the expression tree EF Core translates.

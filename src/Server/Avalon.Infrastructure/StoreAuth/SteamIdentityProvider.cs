@@ -16,7 +16,11 @@ public sealed class SteamIdentityProvider(ISteamProofVerifier verifier, IOptions
     public async Task<GameIdentityProofResult> VerifyAsync(GameIdentityProofRequest request, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(request.Proof) || request.Proof.Length > GameAuthPolicy.MaximumSteamTicketHexCharacters ||
-            request.Proof.Length % 2 != 0 || !request.Proof.All(Uri.IsHexDigit)) return new(GameIdentityProofStatus.Invalid);
+            request.Proof.Length % 2 != 0 || !request.Proof.All(Uri.IsHexDigit))
+        {
+            return new(GameIdentityProofStatus.Invalid);
+        }
+
         SteamProofResult result = await verifier.VerifyAsync(AppId(request.Application), request.Proof, request.ExpectedChallenge, ct);
         DateTime now = clock.GetUtcNow().UtcDateTime;
         return result.Status switch

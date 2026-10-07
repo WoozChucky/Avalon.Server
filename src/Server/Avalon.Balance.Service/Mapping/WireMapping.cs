@@ -75,7 +75,9 @@ public static class WireMapping
             {
                 if (Enum.TryParse(name, ignoreCase: false, out CharacterClass parsed) && Enum.IsDefined(parsed)
                     && !int.TryParse(name, System.Globalization.CultureInfo.InvariantCulture, out _))
+                {
                     classes.Add(parsed);
+                }
                 else
                     issues.Add(new IssueDto("filter.classes", $"Unknown class '{name}'"));
             }

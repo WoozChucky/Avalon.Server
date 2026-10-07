@@ -32,7 +32,10 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
         GameplayWriteAuthority? authority = character.GameplayAuthority;
         if (connectionAuthority is not null && (authority is null || authority.AccountId != connectionAuthority.AccountId ||
             authority.GameSessionId != connectionAuthority.GameSessionId || authority.FencingToken != connectionAuthority.FencingToken))
+        {
             throw new InvalidOperationException("A save cannot be relabeled by a replacement connection.");
+        }
+
         SaveMarks marks = character.SaveState.TakeMarks();
         DateTime now = DateTime.UtcNow;
 

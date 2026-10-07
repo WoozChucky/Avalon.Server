@@ -28,7 +28,10 @@ public sealed class LicenseObservationRepository(IDbContextFactory<AuthDbContext
         if (observation.AuthorizedUntil > observation.ObservedAt.AddMinutes(5) ||
             (observation.ProviderExpiresAt is { } expiry && observation.AuthorizedUntil > expiry) ||
             (!observation.OwnsProduct && observation.AuthorizedUntil > observation.ObservedAt))
+        {
             throw new ArgumentException("License authority exceeds the provider evidence deadline.", nameof(observation));
+        }
+
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         db.LicenseObservations.Add(observation);
         await db.SaveChangesAsync(cancellationToken);

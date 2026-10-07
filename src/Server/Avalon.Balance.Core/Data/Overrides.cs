@@ -153,9 +153,12 @@ public static class Overrides
         try
         {
             if (target.IsEnum)
+            {
                 return json.ValueKind == JsonValueKind.String
                     ? Enum.Parse(target, json.GetString()!, ignoreCase: false)
                     : Enum.ToObject(target, json.GetInt64());
+            }
+
             if (target == typeof(bool)) return json.GetBoolean();
             if (target == typeof(string)) return json.GetString();
             if (target == typeof(float)) return json.GetSingle();

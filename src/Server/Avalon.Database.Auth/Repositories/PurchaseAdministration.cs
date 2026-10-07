@@ -67,9 +67,17 @@ public sealed partial class PurchaseRepository
         foreach (AccountId? id in new[] { admin, initial.AccountId }.Distinct().OrderBy(x => x.Value))
             await db.Accounts.Where(x => x.Id == id).ExecuteUpdateAsync(u => u.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch), ct);
         if (!await db.Accounts.AnyAsync(x => x.Id == admin && x.Status == AccountStatus.Active && (x.AccessLevel & AccountAccessLevel.Admin) != 0 &&
-            (!x.Locked || x.LockedUntil <= Now), ct)) return new(PurchaseFailureCodes.AccountUnavailable);
+            (!x.Locked || x.LockedUntil <= Now), ct))
+        {
+            return new(PurchaseFailureCodes.AccountUnavailable);
+        }
+
         if (await db.PurchaseOrders.Where(x => x.Id == orderId && x.AccountId == initial.AccountId && x.Version == orderVersion)
-            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1) return new(PurchaseFailureCodes.NeedsReview);
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1)
+        {
+            return new(PurchaseFailureCodes.NeedsReview);
+        }
+
         PaymentAttempt? attempt = await db.PaymentAttempts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == claim.Attempt.Id && x.OrderId == orderId &&
             x.Version == claim.Version && x.LeaseId == claim.LeaseId && x.LeaseUntil > Now, ct);
         if (attempt is not { State: PaymentAttemptState.Paid, PaymentReference: not null }) return new(PurchaseFailureCodes.NotFound);
@@ -111,11 +119,19 @@ public sealed partial class PurchaseRepository
         await using AuthDbContext db = await Factory.CreateDbContextAsync(ct);
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
         if (await db.PaymentAttempts.Where(x => x.Id == claim.Attempt.Id && x.Version == claim.Version && x.LeaseId == claim.LeaseId && x.LeaseUntil > Now)
-            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1) return null;
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1)
+        {
+            return null;
+        }
+
         if (await db.PaymentRefunds.Where(x => x.Id == refundId && x.Version == version && x.Version < long.MaxValue && x.Unresolved && x.ExternalReference == null &&
             x.State == PaymentRefundState.Pending && (x.ReplayDeadline == null || x.ReplayDeadline > Now))
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.FirstDispatchedAt, x => x.FirstDispatchedAt ?? Now)
-                .SetProperty(x => x.ReplayDeadline, x => x.ReplayDeadline ?? Now.AddHours(23)).SetProperty(x => x.Version, x => x.Version + 1), ct) != 1) return null;
+                .SetProperty(x => x.ReplayDeadline, x => x.ReplayDeadline ?? Now.AddHours(23)).SetProperty(x => x.Version, x => x.Version + 1), ct) != 1)
+        {
+            return null;
+        }
+
         PaymentRefund row = await db.PaymentRefunds.AsNoTracking().SingleAsync(x => x.Id == refundId, ct);
         await transaction.CommitAsync(ct); return row;
     }
@@ -125,11 +141,18 @@ public sealed partial class PurchaseRepository
         await using AuthDbContext db = await Factory.CreateDbContextAsync(ct);
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
         if (await db.PaymentAttempts.Where(x => x.Id == claim.Attempt.Id && x.Version == claim.Version && x.LeaseId == claim.LeaseId && x.LeaseUntil > Now)
-            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1) return false;
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Version, x => x.Version), ct) != 1)
+        {
+            return false;
+        }
+
         PaymentRefund? row = await db.PaymentRefunds.SingleOrDefaultAsync(x => x.Id == operation.Id && x.Version == operation.Version, ct);
         if (row is null) return false;
         row.Version++;
-        if (result is null) row.FailureCode = PurchaseFailureCodes.ProviderUnavailable;
+        if (result is null)
+        {
+            row.FailureCode = PurchaseFailureCodes.ProviderUnavailable;
+        }
         else
         {
             if (result.PaymentReference != claim.Attempt.PaymentReference || result.AmountMinor != row.AmountMinor || !Text(result.RefundReference, 256) || !Enum.IsDefined(result.State)) return false;

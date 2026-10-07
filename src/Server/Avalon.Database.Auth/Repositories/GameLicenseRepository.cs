@@ -65,15 +65,26 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
             decision.AuthorizedUntil > decision.ObservedAt.AddMinutes(5) ||
             (decision.ProviderExpiresAt is { } expiry && (expiry.Kind != DateTimeKind.Utc || decision.AuthorizedUntil > expiry)) ||
             (!decision.OwnsProduct && decision.AuthorizedUntil > decision.ObservedAt))
+        {
             throw new ArgumentException("Invalid bounded license decision.", nameof(decision));
+        }
+
         await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
         GameLicense? license = await db.GameLicenses.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (license is null || license.AuthorityRevision != expectedRevision || expectedRevision == long.MaxValue ||
-            decision.ObservedAt < license.GrantedAt || decision.ObservedAt < license.LastObservedAt) return null;
+            decision.ObservedAt < license.GrantedAt || decision.ObservedAt < license.LastObservedAt)
+        {
+            return null;
+        }
+
         if (license.RevokedAt is not null && decision.OwnsProduct)
         {
             if (license.AuthorityKind == LicenseAuthorityKind.StoredGrant || !decision.Reestablish ||
-                decision.ObservedAt <= license.LastObservedAt) return null;
+                decision.ObservedAt <= license.LastObservedAt)
+            {
+                return null;
+            }
+
             license.AuthorityRevision++;
             license.RevokedAt = null;
         }
@@ -83,7 +94,11 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
             license.RevokedAt = decision.ObservedAt;
         }
         if (decision.OwnsProduct && decision.ObservedAt == license.LastObservedAt &&
-            decision.AuthorizedUntil != license.VerifiedUntil) return null;
+            decision.AuthorizedUntil != license.VerifiedUntil)
+        {
+            return null;
+        }
+
         license.LastObservedAt = decision.ObservedAt;
         license.VerifiedUntil = decision.OwnsProduct ? decision.AuthorizedUntil : null;
         // Negative evidence invalidates the revision; its expiry remains audit evidence and
@@ -109,6 +124,8 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
             (license.ExpiresAt is { } expiry && (expiry.Kind != DateTimeKind.Utc || expiry <= license.GrantedAt)) ||
             (license.RevokedAt is { } revoked && (revoked.Kind != DateTimeKind.Utc || revoked < license.GrantedAt)) ||
             license.LastObservedAt is not null || license.VerifiedUntil is not null)
+        {
             throw new ArgumentException("Invalid source-bound license.", nameof(license));
+        }
     }
 }

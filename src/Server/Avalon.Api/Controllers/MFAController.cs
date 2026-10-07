@@ -132,7 +132,9 @@ public class MFAController : BaseController
         // answer, with the slots kept.
         if (!await _accountRepository.TryRecordApiLoginAsync(account.Id, attempt.Source.Ip, DateTime.UtcNow,
                 CancellationToken))
+        {
             return FailureFor(attempt);
+        }
 
         await _mfaPolicy.CompleteAsync(attempt);
 

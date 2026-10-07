@@ -26,7 +26,11 @@ public partial class CharacterRepository
     {
         if (batch.Row.AccountId != authority.AccountId || batch.Row.Id is { Value: not 0 } || maximum <= 0 ||
             batch.Items.Any(i => i.Id.Value == Guid.Empty) || batch.Items.Select(i => i.Id).Distinct().Count() != batch.Items.Count ||
-            batch.Slots.Any(s => !batch.Items.Any(i => i.Id == s.ItemId))) throw new GameplayWriteRejectedException();
+            batch.Slots.Any(s => !batch.Items.Any(i => i.Id == s.ItemId)))
+        {
+            throw new GameplayWriteRejectedException();
+        }
+
         await using CharacterDbContext db = await CreateContextAsync(cancellationToken);
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         AccountGameplayFence guard = await HoldGameplayAsync(db, authority, cancellationToken);
@@ -88,7 +92,11 @@ public partial class CharacterRepository
         if (!GameplayFenceRepository.Valid(authority)) throw new GameplayWriteRejectedException();
         AccountGameplayFence guard = await GameplayFenceRepository.LockAsync(db, authority.AccountId, cancellationToken);
         if (guard.GameSessionId != authority.GameSessionId || guard.FencingToken != authority.FencingToken ||
-            guard.Mode != GameplayFenceMode.Active || guard.ConsolidationId is not null) throw new GameplayWriteRejectedException();
+            guard.Mode != GameplayFenceMode.Active || guard.ConsolidationId is not null)
+        {
+            throw new GameplayWriteRejectedException();
+        }
+
         await CheckGameplayDeadlineAsync(db, guard, cancellationToken);
         return guard;
     }

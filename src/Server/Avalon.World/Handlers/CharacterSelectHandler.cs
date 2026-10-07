@@ -174,7 +174,9 @@ public class CharacterSelectHandler(
     {
         if (connection.Character != null || connection.PendingSpawn != null || connection.SelectInProgress ||
             connection.LeaveInProgress || connection.IsClosing || connection.AccountId is not { } accountId)
+        {
             return;
+        }
 
         IReadOnlyList<Task> kickedWork = TakeOverFromOtherSessions(connection, accountId, packet.CharacterId);
         if (kickedWork.Count > 0)
@@ -308,7 +310,9 @@ public class CharacterSelectHandler(
     {
         if (connection.IsConnected && !connection.IsClosing && connection.SelectStartedTicks == select &&
             (connection is not WorldConnection live || live.IsGameplayAuthorized))
+        {
             return true;
+        }
 
         logger.LogInformation(
             "Abandoning a character select for account {AccountId}: it was cancelled, or its connection was kicked or closed",

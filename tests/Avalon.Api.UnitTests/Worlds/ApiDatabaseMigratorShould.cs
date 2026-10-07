@@ -150,6 +150,7 @@ public class ApiDatabaseMigratorShould
 
         IWorldRepository authWorlds = Substitute.For<IWorldRepository>();
         foreach (ushort id in new ushort[] { 1, 2, 3 })
+        {
             authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(new WorldEntity
                 {
@@ -160,6 +161,8 @@ public class ApiDatabaseMigratorShould
                     MinVersion = "0.0.1",
                     Version = "0.0.1",
                 });
+        }
+
         IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindByIdAsync(Arg.Any<ItemTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new ItemTemplate { Id = new ItemTemplateId(1), Name = "Lantern" });

@@ -14,8 +14,10 @@ public static class CombatDataRules
         IReadOnlyCollection<CombatFormula> formulas, IReadOnlyCollection<ClassStatFactors> factors)
     {
         if (formulas.Count != 1 || formulas.Single().Id != CombatFormula.SingletonId)
+        {
             throw new InvalidDataException(
                 $"CombatFormula must hold exactly one row, id {CombatFormula.SingletonId}; it holds {formulas.Count}");
+        }
 
         CombatFormula f = formulas.Single();
         RequireNonNegative("CombatFormula 1", nameof(f.ArmorBase), f.ArmorBase);
@@ -33,8 +35,10 @@ public static class CombatDataRules
         RequireNonNegative("CombatFormula 1", nameof(f.HasteCap), f.HasteCap);
         if (!float.IsFinite(f.MoveSpeedCap) || !float.IsFinite(f.MoveSpeedFloor)
             || !(f.MoveSpeedFloor > -100f) || !(f.MoveSpeedFloor <= f.MoveSpeedCap))
+        {
             throw new InvalidDataException(
                 $"CombatFormula 1: MoveSpeedFloor and MoveSpeedCap must be finite, with -100 < floor <= cap, not {f.MoveSpeedFloor} and {f.MoveSpeedCap}");
+        }
 
         var byClass = new Dictionary<CharacterClass, ClassStatFactors>();
         foreach (ClassStatFactors row in factors)

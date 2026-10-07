@@ -80,7 +80,9 @@ public static class PublicMapping
             (t.StatType10, t.StatValue10),
         ];
         foreach ((Avalon.Domain.World.StatType? type, uint? value) in pairs)
+        {
             if (type is { } statType && value is > 0)
                 yield return new PublicItemStatDto { Type = (StatType)statType, Value = value.Value };
+        }
     }
 }

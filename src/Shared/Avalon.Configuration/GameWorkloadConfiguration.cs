@@ -13,7 +13,9 @@ public sealed class GameWorkloadConfiguration
             Servers.Select(s => s.ServerId).Distinct(StringComparer.Ordinal).Count() != Servers.Count ||
             Servers.Select(s => s.WorldId).Distinct().Count() != Servers.Count ||
             Servers.Select(s => s.ClientCertificateSha256).Distinct(StringComparer.OrdinalIgnoreCase).Count() != Servers.Count)
+        {
             throw new InvalidOperationException("Invalid Application:GameWorkloads server, world, TLS name or certificate bindings.");
+        }
     }
     private static bool Digest(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
 }

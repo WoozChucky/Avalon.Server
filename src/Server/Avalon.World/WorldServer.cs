@@ -105,8 +105,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IntPtr h = CreateWaitableTimerExW(IntPtr.Zero, null,
             CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
         if (h == IntPtr.Zero)
+        {
             throw new InvalidOperationException(
                 "High-resolution waitable timer unavailable (requires Windows 10 1803+).");
+        }
+
         return h;
     }
 
@@ -549,11 +552,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                     if (OperatingSystem.IsWindows() && _waitableTimer != IntPtr.Zero)
                         WaitHighRes(_waitableTimer, sleepTicks);
                     else
+                    {
                         // Dedicated tick thread loop: Task.Delay would hop threads and add jitter
                         // well above the sub-millisecond budget of the 60Hz tick deadline.
 #pragma warning disable MA0045
                         Thread.Sleep(TimeSpan.FromMilliseconds(
                             sleepTicks * 1000.0 / Stopwatch.Frequency));
+                    }
 #pragma warning restore MA0045
                 }
 
@@ -778,7 +783,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         if (_maintenanceCoordinator is null || !long.TryParse(value.ToString(), NumberStyles.None,
                 CultureInfo.InvariantCulture, out long revision))
+        {
             return;
+        }
 
         _ = ApplyMaintenanceNoticeAsync(revision);
     }
@@ -803,7 +810,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         foreach (WorldConnection connection in connections.OfType<WorldConnection>())
         {
             if (connection.GameSessionLease is not { } lease || lease.Authority.AccountId != accountId ||
-                (contextId != Guid.Empty && lease.GameContextId != contextId)) continue;
+                (contextId != Guid.Empty && lease.GameContextId != contextId))
+            {
+                continue;
+            }
+
             connection.RequestGameplayRevalidation(); ++notified;
         }
         return notified;

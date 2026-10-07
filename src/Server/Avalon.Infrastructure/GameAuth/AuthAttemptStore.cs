@@ -12,9 +12,17 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
         Guid? contextId, uint steamAppId, CancellationToken cancellationToken)
     {
         if (channel is not (GameLaunchChannels.Steam or GameLaunchChannels.Avalon) || string.IsNullOrWhiteSpace(protocol) || protocol.Length > GameAuthPolicy.MaximumProtocolVersionCharacters ||
-            runId == Guid.Empty || !GameAuthCryptography.IsToken(challenge)) return null;
+            runId == Guid.Empty || !GameAuthCryptography.IsToken(challenge))
+        {
+            return null;
+        }
+
         if (options.Value.ResolveSteamApplication(steamAppId) is null ||
-            (channel == GameLaunchChannels.Avalon && steamAppId != options.Value.SteamAppId)) return null;
+            (channel == GameLaunchChannels.Avalon && steamAppId != options.Value.SteamAppId))
+        {
+            return null;
+        }
+
         DateTime now = clock.GetUtcNow().UtcDateTime;
         string credential = GameAuthCryptography.NewToken();
         string identity = channel == GameLaunchChannels.Avalon ? GameAuthCryptography.NewToken() : SteamTicketIdentity.Create(options.Value, steamAppId);
@@ -44,7 +52,11 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
         Guid? contextId, uint legacySteamAppId, string providerChallenge, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(protocol) || protocol.Length > GameAuthPolicy.MaximumProtocolVersionCharacters ||
-            runId == Guid.Empty || !GameAuthCryptography.IsToken(challenge)) return null;
+            runId == Guid.Empty || !GameAuthCryptography.IsToken(challenge))
+        {
+            return null;
+        }
+
         DateTime now = clock.GetUtcNow().UtcDateTime;
         string credential = GameAuthCryptography.NewToken();
         var attempt = new AuthAttemptRecord

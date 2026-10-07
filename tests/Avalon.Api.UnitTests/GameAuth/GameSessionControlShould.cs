@@ -47,7 +47,10 @@ public sealed class GameSessionControlShould
             await controller.Activate(request, service, CancellationToken.None),
             await controller.Heartbeat(request, service, CancellationToken.None),
             await controller.End(request, service, CancellationToken.None) })
+        {
             Assert.True(result is BadRequestObjectResult or UnauthorizedObjectResult);
+        }
+
         Assert.Empty(sessions.ReceivedCalls());
     }
 }

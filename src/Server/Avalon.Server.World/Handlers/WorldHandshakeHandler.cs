@@ -11,7 +11,10 @@ public sealed class WorldHandshakeHandler(Microsoft.Extensions.Logging.ILogger<W
         if (ctx.Connection is not WorldConnection connection || connection.GameSessionLease?.IsActive != true ||
             !SemVerPacker.TryPack(ctx.Packet.Version, out uint version) || version < SemVerPacker.Pack("0.2.0") ||
             !SemVerPacker.TryPack(world.MinVersion, out uint minimum) || version < minimum || !connection.AcceptProtocol())
+        {
             return ctx.Connection.CloseAsync(false);
+        }
+
         connection.Send(SWorldHandshakePacket.Create(connection.AccountId!, true, connection.CryptoSession.Encrypt));
         connection.RequestInitialTimeSyncPing();
         return Task.CompletedTask;

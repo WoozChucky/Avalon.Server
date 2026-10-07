@@ -31,7 +31,9 @@ public static class VendorListBuilder
         {
             if (!VendorRules.IsVisible(row, character, quests) || FindTemplate(data, row.ItemTemplateId) is not { } item
                 || !VendorRules.IsStockable(item))
+            {
                 continue;
+            }
 
             entries.Add(new VendorEntryDto
             {
